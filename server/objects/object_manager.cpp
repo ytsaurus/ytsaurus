@@ -13,6 +13,7 @@
 #include "virtual_service_type_handler.h"
 #include "user_type_handler.h"
 #include "group_type_handler.h"
+#include "internet_address_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -76,6 +77,7 @@ public:
         RegisterTypeHandler(CreateVirtualServiceTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateUserTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));

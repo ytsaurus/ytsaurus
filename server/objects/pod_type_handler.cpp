@@ -214,11 +214,14 @@ public:
 
         auto* pod = object->As<TPod>();
 
-        const auto& netManager = Bootstrap_->GetNetManager();
-        netManager->UpdatePodAddresses(transaction, pod);
+        TInternetAddressManager internetAddressManager;
+        TResourceManagerContext resourceManagerContext{
+            Bootstrap_->GetNetManager().Get(),
+            &internetAddressManager,
+        };
 
         const auto& resourceManager = Bootstrap_->GetResourceManager();
-        resourceManager->RevokePodFromNode(transaction, pod);
+        resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, pod);
     }
 
 private:

@@ -28,6 +28,8 @@ public:
     TPod* GetPodOrThrow(const TObjectId& id);
     int GetPodCount();
 
+    std::vector<TInternetAddress*> GetInternetAddresses();
+
     void LoadSnapshot();
 
 private:

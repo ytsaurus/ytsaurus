@@ -81,11 +81,13 @@ TNode::TNode(
     TYsonString labels,
     std::vector<TTopologyZone*> topologyZones,
     EHfsmState hfsmState,
-    ENodeMaintenanceState maintenanceState)
+    ENodeMaintenanceState maintenanceState,
+    NClient::NApi::NProto::TNodeSpec spec)
     : TObject(id, std::move(labels))
     , TopologyZones_(std::move(topologyZones))
     , HfsmState_(hfsmState)
     , MaintenanceState_(maintenanceState)
+    , Spec_(std::move(spec))
 { }
 
 bool TNode::CanAcquireAntiaffinityVacancies(const TPod* pod) const

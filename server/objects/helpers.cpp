@@ -469,6 +469,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("User");
         case EObjectType::Group:
             return AsStringBuf("Group");
+        case EObjectType::InternetAddress:
+            return AsStringBuf("Internet address");
         default:
             Y_UNREACHABLE();
     }
@@ -501,6 +503,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("user");
         case EObjectType::Group:
             return AsStringBuf("group");
+        case EObjectType::InternetAddress:
+            return AsStringBuf("internet address");
         default:
             Y_UNREACHABLE();
     }

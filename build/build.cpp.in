@@ -1,4 +1,8 @@
-namespace NYT {
+#include <yt/core/ya_version/ya_version.h>
+
+#include <util/generic/strbuf.h>
+
+namespace NYP {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,10 +22,22 @@ int GetVersionPatch()
     return @YP_VERSION_PATCH@;
 }
 
+#if defined(YP_IN_ARCADIA)
+
+const char* GetVersion()
+{
+    static TString version = NYT::CreateYtVersion(@YP_VERSION_MAJOR@, @YP_VERSION_MINOR@, @YP_VERSION_PATCH@, AsStringBuf("local"));
+    return version.c_str();
+}
+
+#else
+
 const char* GetVersion()
 {
     return "@YP_VERSION@";
 }
+
+#endif
 
 const char* GetBuildHost()
 {
@@ -40,5 +56,4 @@ const char* GetBuildTime()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-
+} // namespace NYP

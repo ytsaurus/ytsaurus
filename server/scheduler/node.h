@@ -83,7 +83,8 @@ public:
         NYT::NYson::TYsonString labels,
         std::vector<TTopologyZone*> topologyZones,
         NObjects::EHfsmState hfsmState,
-        NObjects::ENodeMaintenanceState maintenanceState);
+        NObjects::ENodeMaintenanceState maintenanceState,
+        NClient::NApi::NProto::TNodeSpec spec);
 
     bool CanAcquireAntiaffinityVacancies(const TPod* pod) const;
     void AcquireAntiaffinityVacancies(const TPod* pod);
@@ -92,6 +93,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjects::EHfsmState, HfsmState);
     DEFINE_BYVAL_RO_PROPERTY(NObjects::ENodeMaintenanceState, MaintenanceState);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
+    DEFINE_BYREF_RW_PROPERTY(NClient::NApi::NProto::TNodeSpec, Spec);
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);

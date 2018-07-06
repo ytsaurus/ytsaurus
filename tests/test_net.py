@@ -174,9 +174,9 @@ class TestNet(object):
         assert "persistent_fqdn" not in allocations[0]
         assert "transient_fqdn" not in allocations[0]
         assert allocations[1]["persistent_fqdn"] == "{}.test.yp-c.yandex.net".format(pod_id)
-        assert allocations[1]["transient_fqdn"] == "{}-0.{}.test.yp-c.yandex.net".format(node_id, pod_id)
+        assert allocations[1]["transient_fqdn"] == "{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
         assert allocations[2]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
-        assert allocations[2]["transient_fqdn"] == "abc.{}-0.{}.test.yp-c.yandex.net".format(node_id, pod_id)
+        assert allocations[2]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
                 
     def test_assign_pod_ip6_address_scheduler(self, yp_env):
         yp_client = yp_env.yp_client

@@ -169,7 +169,12 @@ public:
                         podId,
                         currentState);
                     pod->Status().Agent().State() = currentState;
-                    pod->Status().Agent().IssPayload() = podEntry.status().iss_payload();
+                    // COMPAT(babenko)
+                    if (podEntry.status().has_iss_payload()) {
+                        pod->Status().Agent().IssPayload() = podEntry.status().iss_payload();
+                    } else {
+                        pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
+                    }
                     pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
                 }
 
@@ -305,7 +310,12 @@ private:
         };
 
         // Payload
-        protoSpec->set_iss_payload(podSpec.IssPayload());
+        // COMPAT(babenko)
+        if (podSpec.IssPayload().Load()) {
+            protoSpec->set_iss_payload(podSpec.IssPayload().Load());
+        } else {
+            *protoSpec->mutable_pod_agent_payload() = podSpec.PodAgentPayload().Load();
+        }
 
         // Copy some fields from pod status/spec.
         const auto& specOther = pod->Spec().Other().Load();

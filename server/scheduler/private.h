@@ -18,6 +18,7 @@ class TTopologyZone;
 class TPod;
 class TPodSet;
 class TNodeSegment;
+class TInternetAddress;
 
 template <class T>
 class TLabelFilterCache;

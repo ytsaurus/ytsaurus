@@ -17,7 +17,9 @@ using namespace NObjects;
 
 static const size_t DefaultIP4Mtu = 1450;
 static const size_t DefaultIP6Mtu = 1450;
+static const size_t DefaultInternetTunnelMtu = 1400;
 static const TStringBuf DefaultDecapsulatorAnycastAddress{"2a02:6b8:0:3400::aaaa"};
+static const TStringBuf DefaultTunnelFarmAddress{"2a02:6b8:b010:a0ff::1"};
 static const TStringBuf BackboneVlanID{"backbone"};
 
 static const THashSet<TString> HostDeviceWhitelist{
@@ -119,6 +121,36 @@ TString GetBackboneIPForTunnel(const NProto::TPodStatusOther& statusOther)
     THROW_ERROR_EXCEPTION("There is no suitable backbone address");
 }
 
+struct TInternetTunnelProperties
+{
+    TString IPIP6;
+    TString Address;
+    TString Mtu;
+};
+
+std::vector<TInternetTunnelProperties> CreateInternetTunnelsProperties(const NProto::TPodStatusOther& statusOther)
+{
+    std::vector<TInternetTunnelProperties> props;
+
+    for (const auto& ip6Address : statusOther.ip6_address_allocations()) {
+        if (!ip6Address.has_internet_address()) {
+            continue;
+        }
+
+        const auto& internetAddress = ip6Address.internet_address();
+        const auto name = Format("ip_ext_tun%v", props.size());
+
+        TInternetTunnelProperties prop;
+        prop.IPIP6 = Format("ipip6 %v %v %v", name, DefaultTunnelFarmAddress, ip6Address.address());
+        prop.Address = Format("%v %v", name, internetAddress.ip4_address());
+        prop.Mtu = Format("MTU %v %v", name, DefaultInternetTunnelMtu);
+
+        props.push_back(prop);
+    }
+
+    return props;
+}
+
 } // namespace
 
 void ValidateHostDeviceSpec(const NClient::NApi::NProto::TPodSpec_THostDevice& spec)
@@ -202,6 +234,9 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
         result.emplace_back("dirty_limit", ToString(requests.dirty_memory_limit()));
     }
 
+    // Internet tunnels
+    const auto internetTunnelsProps = CreateInternetTunnelsProperties(podStatusOther);
+
     // Network
     result.emplace_back("hostname", podStatusOther.dns().transient_fqdn());
 
@@ -232,7 +267,10 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
         }
         netTokens.emplace_back(Format("MTU ip6tnl0 %v", ip6Mtu));
     }
-
+    for (const auto& prop : internetTunnelsProps) {
+        netTokens.emplace_back(prop.IPIP6);
+        netTokens.emplace_back(prop.Mtu);
+    }
     result.emplace_back("net", JoinToString(netTokens.begin(), netTokens.end(), AsStringBuf(";")));
 
  
@@ -245,6 +283,9 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     }
     for (const auto& ip4tun : vsStatus.ip4_addresses()) {
         addresses.emplace_back(Format("tun0 %v", ip4tun));
+    }
+    for (const auto& internetTunnel : internetTunnelsProps) {
+        addresses.emplace_back(internetTunnel.Address);
     }
     if (!addresses.empty()) {
         result.emplace_back("ip", JoinToString(addresses.begin(), addresses.end(), AsStringBuf(";")));

@@ -35,16 +35,18 @@ public:
 
     void AssignPodToNode(
         const TTransactionPtr& transaction,
+        TResourceManagerContext* context,
         NObjects::TNode* node,
         NObjects::TPod* pod)
     {
         node->Pods().Add(pod);
         UpdatePodSpec(transaction, pod, false);
-        ReallocatePodResources(transaction, pod);
+        ReallocatePodResources(transaction, context, pod);
     }
 
     void RevokePodFromNode(
         const TTransactionPtr& transaction,
+        TResourceManagerContext* context,
         NObjects::TPod* pod)
     {
         auto* node = pod->Spec().Node().Load();
@@ -54,7 +56,7 @@ public:
 
         node->Pods().Remove(pod);
         UpdatePodSpec(transaction, pod, false);
-        ReallocatePodResources(transaction, pod);
+        ReallocatePodResources(transaction, context, pod);
     }
 
     void PrepareUpdatePodSpec(
@@ -64,7 +66,6 @@ public:
         pod->Spec().Node().ScheduleLoad();
 
         transaction->ScheduleAllocateResources(pod);
-        transaction->ScheduleUpdatePodAddresses(pod);
     }
 
     void UpdatePodSpec(
@@ -151,17 +152,22 @@ public:
         }
     }
 
-    void ReallocatePodResources(const TTransactionPtr& transaction, NObjects::TPod* pod)
+    void ReallocatePodResources(
+        const TTransactionPtr& transaction,
+        TResourceManagerContext* context,
+        NObjects::TPod* pod)
     {
         auto* newNode = pod->Spec().Node().Load();
         auto* oldNode = pod->Spec().Node().LoadOld();
 
         if (newNode != oldNode) {
-            FreePodResources(transaction, pod);
+            FreePodResources(transaction, context, pod);
         }
 
+        context->NetManager->UpdatePodAddresses(transaction, pod);
+
         if (newNode) {
-            AllocatePodResources(pod);
+            AllocatePodResources(transaction, context, pod);
         }
     }
 
@@ -232,9 +238,13 @@ private:
         }
     }
 
-    void AllocatePodResources(NObjects::TPod* pod)
+    void AllocatePodResources(const TTransactionPtr& transaction, TResourceManagerContext* context, NObjects::TPod* pod)
     {
         auto* node = pod->Spec().Node().Load();
+
+        if (context->InternetAddressManager) {
+            context->InternetAddressManager->AssignInternetAddressesToPod(transaction, pod, node);
+        }
 
         TLocalResourceAllocator allocator;
 
@@ -295,8 +305,12 @@ private:
             allocatorResponses);
     }
 
-    void FreePodResources(const TTransactionPtr& transaction, NObjects::TPod* pod)
+    void FreePodResources(const TTransactionPtr& transaction, TResourceManagerContext* context, NObjects::TPod* pod)
     {
+        if (context->InternetAddressManager) {
+            context->InternetAddressManager->RevokeInternetAddressesFromPod(transaction, pod);
+        }
+
         auto* scheduledResourceAllocations = pod->Status().Other()->mutable_scheduled_resource_allocations();
 
         std::vector<TResource*> resources;
@@ -333,17 +347,19 @@ TResourceManager::TResourceManager(TBootstrap* bootstrap)
 
 void TResourceManager::AssignPodToNode(
     const TTransactionPtr& transaction,
+    TResourceManagerContext* context,
     NObjects::TNode* node,
     NObjects::TPod* pod)
 {
-    Impl_->AssignPodToNode(transaction, node, pod);
+    Impl_->AssignPodToNode(transaction, context, node, pod);
 }
 
 void TResourceManager::RevokePodFromNode(
     const TTransactionPtr& transaction,
+    TResourceManagerContext* context,
     NObjects::TPod* pod)
 {
-    Impl_->RevokePodFromNode(transaction, pod);
+    Impl_->RevokePodFromNode(transaction, context, pod);
 }
 
 void TResourceManager::PrepareUpdatePodSpec(
@@ -367,9 +383,10 @@ void TResourceManager::ValidateNodeResource(NObjects::TNode* node)
 
 void TResourceManager::ReallocatePodResources(
     const TTransactionPtr& transaction,
+    TResourceManagerContext* context,
     NObjects::TPod* pod)
 {
-    Impl_->ReallocatePodResources(transaction, pod);
+    Impl_->ReallocatePodResources(transaction, context, pod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

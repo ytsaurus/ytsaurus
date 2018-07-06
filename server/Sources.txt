@@ -29,6 +29,7 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/objects/node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/network_project.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/virtual_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/internet_address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/node_segment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/persistence.cpp
@@ -41,6 +42,7 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/objects/resource_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/network_project_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/virtual_service_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/internet_address_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/node_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/node_segment_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/type_handler_detail.cpp
@@ -62,6 +64,7 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/resource_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/internet_address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/pod.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/pod_set.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node.cpp
@@ -75,6 +78,7 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_segment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/local_resource_allocator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/global_resource_allocator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/internet_address_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/net/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/net_manager.cpp

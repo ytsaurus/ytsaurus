@@ -22,6 +22,34 @@ THashMap<TString, TString> BuildProps(
     return props;
 }
 
+TEST(BuildPortoProperties, TestInternetAddresses)
+{
+    NClient::NApi::NProto::TNodeSpec nodeSpec;
+    NProto::TPodSpecOther podSpecOther;
+    NProto::TPodStatusOther podStatusOther;
+
+    nodeSpec.set_cpu_to_vcpu_factor(1);
+    auto* resourceRequest = podSpecOther.mutable_resource_requests();
+    resourceRequest->set_vcpu_guarantee(1000);
+
+    auto* alloc1 = podStatusOther.add_ip6_address_allocations();
+    alloc1->set_vlan_id("fastbone");
+    alloc1->set_address("2a02:6b8:fc08:aa7:10c:ba05:0:1bee");
+
+    auto* alloc2 = podStatusOther.add_ip6_address_allocations();
+    alloc2->set_vlan_id("backbone");
+    alloc2->set_address("2a02:6b8:c0c:aa7:10c:ba05:0:1bee");
+
+    auto* inetAddr = alloc2->mutable_internet_address();
+    inetAddr->set_id("42");
+    inetAddr->set_ip4_address("95.108.129.55");
+
+    const auto props = BuildProps(nodeSpec, podSpecOther, podStatusOther);
+
+    EXPECT_EQ("L3 veth;ipip6 ip_ext_tun0 2a02:6b8:b010:a0ff::1 2a02:6b8:c0c:aa7:10c:ba05:0:1bee;MTU ip_ext_tun0 1400", props.at("net"));
+    EXPECT_EQ("veth 2a02:6b8:fc08:aa7:10c:ba05:0:1bee;veth 2a02:6b8:c0c:aa7:10c:ba05:0:1bee;ip_ext_tun0 95.108.129.55", props.at("ip"));
+}
+
 TEST(BuildPortoProperties, TestTunnelProperties)
 {
     NClient::NApi::NProto::TNodeSpec nodeSpec;

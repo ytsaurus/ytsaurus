@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <util/generic/hash.h>
+
 namespace NYP {
 namespace NServer {
 namespace NScheduler {
@@ -11,7 +13,8 @@ namespace NScheduler {
 class TGlobalResourceAllocator
 {
 public:
-    explicit TGlobalResourceAllocator(const TClusterPtr& cluster);
+    void ReconcileState(
+        const TClusterPtr& cluster);
 
     TErrorOr<TNode*> ComputeAllocation(TPod* pod);
 
@@ -19,9 +22,8 @@ private:
     bool TryAllocation(TNode* node, TPod* pod);
 
 private:
-    class TAllocationContext;
-
-    const TClusterPtr Cluster_;
+    TClusterPtr Cluster_;
+    THashMap<TString, size_t> NetworkModuleIdToFreeAddressCount_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

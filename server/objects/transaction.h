@@ -186,13 +186,14 @@ public:
 
     TVirtualService* GetVirtualService(const TObjectId& id);
 
+    TInternetAddress* GetInternetAddress(const TObjectId& id);
+
     TFuture<TTransactionCommitResult> Commit();
     void Abort();
 
     void ScheduleNotifyAgent(TNode* node);
     void ScheduleAllocateResources(TPod* pod);
     void ScheduleValidateNodeResources(TNode* node);
-    void ScheduleUpdatePodAddresses(TPod* pod);
     void ScheduleUpdatePodSpec(TPod* pod);
 
     NYT::NConcurrency::TAsyncSemaphoreGuard AcquireLock();

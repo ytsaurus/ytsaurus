@@ -389,6 +389,26 @@ extern const struct TGroupsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TInternetAddressesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TInternetAddressesTable()
+        : TDBTable("internet_addresses")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec{"spec"};
+        TDBField Status{"status"};
+    } Fields;
+} InternetAddressesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////

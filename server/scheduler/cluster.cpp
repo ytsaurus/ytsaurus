@@ -2,6 +2,7 @@
 #include "node.h"
 #include "pod.h"
 #include "pod_set.h"
+#include "internet_address.h"
 #include "topology_zone.h"
 #include "node_segment.h"
 #include "helpers.h"
@@ -201,6 +202,15 @@ public:
         return static_cast<int>(PodMap_.size());
     }
 
+    std::vector<TInternetAddress*> GetInternetAddresses()
+    {
+        std::vector<TInternetAddress*> result;
+        result.reserve(InternetAddressMap_.size());
+        for (const auto& pair : InternetAddressMap_) {
+            result.push_back(pair.second.get());
+        }
+        return result;
+    }
 
     void LoadSnapshot()
     {
@@ -221,6 +231,23 @@ public:
                 Timestamp_);
 
             auto* session = transaction->GetSession();
+
+            {
+                session->ScheduleLoad(
+                    [&] (ILoadContext* context) {
+                        context->ScheduleSelect(
+                            GetInternetAddressQueryString(),
+                            [&](const IUnversionedRowsetPtr& rowset) {
+                                LOG_DEBUG("Parsing internet addresses");
+                                for (auto row : rowset->GetRows()) {
+                                    ParseInternetAddressFromRow(row);
+                                }
+                            });
+                    });
+
+                LOG_DEBUG("Querying internet addresses");
+                session->FlushLoads();
+            }
 
             {
                 session->ScheduleLoad(
@@ -335,6 +362,7 @@ private:
     THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
     THashMap<TObjectId, std::unique_ptr<TPodSet>> PodSetMap_;
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
+    THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
 
     THashMap<std::pair<TString, TString>, std::unique_ptr<TTopologyZone>> TopologyZoneMap_;
     THashMultiMap<TString, TTopologyZone*> TopologyKeyZoneMap_;
@@ -507,15 +535,51 @@ private:
         return zones;
     }
 
+    TString GetInternetAddressQueryString()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        return Format(
+            "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            InternetAddressesTable.Fields.Meta_Id.Name,
+            InternetAddressesTable.Fields.Labels.Name,
+            InternetAddressesTable.Fields.Spec.Name,
+            InternetAddressesTable.Fields.Status.Name,
+            ytConnector->GetTablePath(&InternetAddressesTable),
+            ObjectsTable.Fields.Meta_RemovalTime.Name);
+    }
+
+    void ParseInternetAddressFromRow(TUnversionedRow row)
+    {
+        TObjectId internetAddressId;
+        TYsonString labels;
+        NClient::NApi::NProto::TInternetAddressSpec spec;
+        NClient::NApi::NProto::TInternetAddressStatus status;
+        FromDBRow(
+            row,
+            &internetAddressId,
+            &labels,
+            &spec,
+            &status);
+
+        auto internetAddress = std::make_unique<TInternetAddress>(
+            internetAddressId,
+            std::move(labels),
+            std::move(spec),
+            std::move(status));
+
+        YCHECK(InternetAddressMap_.emplace(internetAddressId, std::move(internetAddress)).second);
+    }
+
 
     TString GetNodeQueryString()
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             NodesTable.Fields.Meta_Id.Name,
             NodesTable.Fields.Labels.Name,
             NodesTable.Fields.Status_Other.Name,
+            NodesTable.Fields.Spec.Name,
             ytConnector->GetTablePath(&NodesTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name);
     }
@@ -525,11 +589,13 @@ private:
         TObjectId nodeId;
         TYsonString labels;
         NProto::TNodeStatusOther statusOther;
+        NClient::NApi::NProto::TNodeSpec spec;
         FromDBRow(
             row,
             &nodeId,
             &labels,
-            &statusOther);
+            &statusOther,
+            &spec);
 
         auto labelMap = ConvertTo<IMapNodePtr>(labels);
         auto topologyZones = ParseTopologyZones(nodeId, labelMap);
@@ -539,7 +605,8 @@ private:
             std::move(labels),
             std::move(topologyZones),
             static_cast<EHfsmState>(statusOther.hfsm().state()),
-            static_cast<ENodeMaintenanceState>(statusOther.maintenance().state()));
+            static_cast<ENodeMaintenanceState>(statusOther.maintenance().state()),
+            std::move(spec));
         YCHECK(NodeMap_.emplace(node->GetId(), std::move(node)).second);
     }
 
@@ -695,6 +762,7 @@ private:
         NodeMap_.clear();
         PodMap_.clear();
         PodSetMap_.clear();
+        InternetAddressMap_.clear();
         TopologyZoneMap_.clear();
         TopologyKeyZoneMap_.clear();
         NodeSegmentMap_.clear();
@@ -747,6 +815,11 @@ TPod* TCluster::GetPodOrThrow(const TObjectId& id)
 int TCluster::GetPodCount()
 {
     return Impl_->GetPodCount();
+}
+
+std::vector<TInternetAddress*> TCluster::GetInternetAddresses()
+{
+    return Impl_->GetInternetAddresses();
 }
 
 void TCluster::LoadSnapshot()

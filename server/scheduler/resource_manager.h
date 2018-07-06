@@ -1,12 +1,23 @@
 #pragma once
 
 #include "public.h"
+#include "internet_address_manager.h"
+
+#include <yp/server/net/net_manager.h>
 
 #include <yp/server/objects/public.h>
 
 namespace NYP {
 namespace NServer {
 namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceManagerContext
+{
+    NNet::TNetManager* NetManager = nullptr;
+    TInternetAddressManager* InternetAddressManager = nullptr;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,11 +29,13 @@ public:
 
     void AssignPodToNode(
         const NObjects::TTransactionPtr& transaction,
+        TResourceManagerContext* context,
         NObjects::TNode* node,
         NObjects::TPod* pod);
 
     void RevokePodFromNode(
         const NObjects::TTransactionPtr& transaction,
+        TResourceManagerContext* context,
         NObjects::TPod* pod);
 
     void PrepareUpdatePodSpec(
@@ -36,6 +49,7 @@ public:
 
     void ReallocatePodResources(
         const NObjects::TTransactionPtr& transaction,
+        TResourceManagerContext* context,
         NObjects::TPod* pod);
 
 private:

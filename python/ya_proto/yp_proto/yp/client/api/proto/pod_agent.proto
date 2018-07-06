@@ -13,6 +13,8 @@ package NInfra.NPodAgent.API;
 import "google/protobuf/timestamp.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
+option (NYT.NYson.NProto.derive_underscore_case_names) = true;
+
 //TODO: добавить секреты
 //TODO: itype (labels)
 //TODO: propabilty + core dump
@@ -41,7 +43,7 @@ message TPodAgentSpec {
     repeated TWorkload Workloads = 5;
 
     //Все окружения, в которых могут быть запущены Workloads
-    repeated TSandbox Sandboxes = 8;
+    repeated TBox Boxes = 8;
 }
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
@@ -61,7 +63,7 @@ message TPodAgentStatus {
 
     repeated TWorkloadStatus Workloads = 6;
 
-    repeated TSandboxStatus Sandboxes = 7;
+    repeated TBoxStatus Boxes = 7;
 }
 
 // Спека для получения расширенного debug состояния pod_agent
@@ -77,14 +79,17 @@ message TPodAgentDebugStatus {
 
 //============================== SPEC ==========================
 message TComputeResources {
-    uint64 VcpuGuarantee = 2;
-    uint64 VcpuLimit = 3;
+    // Ограничения по CPU, в процентах ядра: 50 - пол-ядра, 400 - 4 ядра
+    uint64 CpuGuarantee = 2;
+    uint64 CpuLimit = 3;
+
+    // Ограничения по памяти, в байтах
     uint64 MemoryGuarantee = 4;
     uint64 MemoryLimit = 5;
     uint64 AnonymousMemoryLimit = 6;
 
-    // Свойства porto-контейнеров хуков, задаваемые непосредственно.
-    // Описание формата https://wiki.yandex-team.ru/iss3/specifications/configuration/container/
+    // Свойства porto-контейнеров, задаваемые непосредственно.
+    // Список доступных свойств смотри так: `portoctl --help`
     map<string, string> Properties = 1;
 }
 
@@ -98,7 +103,7 @@ message TVerification {
     uint64 CheckPeriodMs = 2;
 }
 
-message TSandboxResource {
+message TBoxResource {
     string TaskType = 1;
     string TaskId = 2;
     string ResourceType = 3;
@@ -107,7 +112,7 @@ message TSandboxResource {
 
 message TResourceMeta {
     oneof Meta {
-        TSandboxResource SandboxResource = 2;
+        TBoxResource BoxResource = 2;
     }
 }
 
@@ -167,8 +172,8 @@ message TFileStorage {
 }
 
 message TGenericVolume {
-    // Сейчас определено только свойство bind
-    // https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/volumes/#polzovatelskijjbind
+    // Свойства porto volumes, задаваемые непосредственно.
+    // Список доступных свойств смотри так: `portoctl --help`
     map<string, string> Properties = 3;
 
     // Слои, из которых собирается volume
@@ -252,8 +257,8 @@ message TWorkload {
 
     TStopPolicy StopPolicy = 7;
 
-    //Указатель на Sandbox, в котором надо запускаться
-    string SandboxRef = 8;
+    //Указатель на Box, в котором надо запускаться
+    string BoxRef = 8;
 }
 
 message TStopPolicy {
@@ -263,8 +268,8 @@ message TStopPolicy {
     }
 }
 
-message TSandbox {
-    // уникальный в рамках pod идентификатор Sandbox
+message TBox {
+    // уникальный в рамках pod идентификатор Box
     string Id = 1;
 
     TRootfsVolume Rootfs = 2;
@@ -273,7 +278,7 @@ message TSandbox {
     //NOTE: валидация уникальности id в списке
     repeated TMountedVolume Volumes = 8;
 
-    // Процессы, запускаемые при подготовке Sandbox после создания вольюмов
+    // Процессы, запускаемые при подготовке Box после создания вольюмов
     repeated TUtilityContainer Init = 9;
 }
 
@@ -321,7 +326,7 @@ message TUtilityContainer {
 //Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
 //ресурсов может быть больше, чем даже лимиты Pod. Поэтому pod-agent должен будет запускать закачки так:
 //Снача запускаются закачки для активных workload и параллельно запускаются только те, которые можно разместить
-//в рамках лимитов sandbox
+//в рамках лимитов box
 message TResourceGang {
     //Слои, все закачки происходят в рамках вычислительных
     //Идея убрать произвольные ресурсы, а оставить слои в том, чтобы форсить пользователя готовить во вне воспроизводимое
@@ -333,12 +338,12 @@ message TResourceGang {
 
 // ======================  STATUS ===================
 
-message TSandboxStatus {
+message TBoxStatus {
     string Id = 1;
 
-    ESandboxState SandboxState = 2;
+    EBoxState State = 2;
 
-    repeated TUtilityContainer Inits = 3;
+    repeated TContainerStatus Inits = 3;
 
     //Нужно понять удобно ли так
     repeated string VolumeRefs = 4;
@@ -351,25 +356,35 @@ message TSandboxStatus {
     TCondition InProgress = 7;
 }
 
-enum ESandboxState {
-    ESandboxState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
-    // Соответствует начальному состоянию, когда агент только получил новую конфигурацию sandbox
-    ESandboxState_INIT = 1 [(NYT.NYson.NProto.enum_value_name) = "init"];
+enum EBoxState {
+    EBoxState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
-    // Соответсвует процессу сборки volume'ов
-    ESandboxState_WAITING_FOR_VOLUMES = 2 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_volumes"];
+    // Ждет пока заимпортится rootfs
+    EBoxState_WAITING_FOR_ROOTFS_LAYERS = 1 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_rootfs_layers"];
+
+    // В процессе сборки rootfs volume
+    EBoxState_CREATING_ROOTFS_VOLUME = 2 [(NYT.NYson.NProto.enum_value_name) = "creating_rootfs_volume"];
+
+    // Ждет пока соберутся MountedVolumes
+    EBoxState_WAITING_FOR_VOLUMES = 3 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_volumes"];
+
+    // Приликовывает MountedVolumes к RootfsVolume
+    EBoxState_LINKING_VOLUMES = 4 [(NYT.NYson.NProto.enum_value_name) = "linking_volumes"];
+
+    // Запуск Init процессов
+    EBoxState_INIT_PROCESSES = 5 [(NYT.NYson.NProto.enum_value_name) = "init_processes"];
 
     // Вольюмы смонтированы, окружение готово к запуску хуков
-    ESandboxState_READY = 3 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+    EBoxState_READY = 6 [(NYT.NYson.NProto.enum_value_name) = "ready"];
 
-    // Соотвествует процессу удаления workload
-    ESandboxState_REMOVING = 4 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+    // Соотвествует процессу удаления box
+    EBoxState_REMOVING = 7 [(NYT.NYson.NProto.enum_value_name) = "removing"];
 
-    // Соотвестует удалённому worload
-    ESandboxState_REMOVED = 5 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+    // Соотвестует удалённому box
+    EBoxState_REMOVED = 8 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 
-    // Sandbox находится в невалидном состоянии и значит будет полнотью пересобран
-    ESandboxState_INVALID = 6 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+    // Box находится в невалидном состоянии и значит будет полнотью пересобран
+    EBoxState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
 //Состояние workload
@@ -379,32 +394,29 @@ enum ESandboxState {
 enum EWorkloadState {
     EWorkloadState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
-    // Соответствует начальному состоянию, когда агент только получи новую конфигурацию workload
-    EWorkloadState_INIT = 1 [(NYT.NYson.NProto.enum_value_name) = "init"];
-
-    // Соответсвует ожиданию готовности Sandbox
-    EWorkloadState_WAITING_FOR_SANDBOX = 2 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_sandbox"];
+    // Соответсвует ожиданию готовности Box
+    EWorkloadState_WAITING_FOR_BOX = 1 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_box"];
 
     // readiness сообщает, что Workload не готов
-    EWorkloadState_SEMI_FAILURE = 3 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"];
+    EWorkloadState_SEMI_FAILURE = 2 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"];
 
     // start hook запущен и status еще ни разу не завершился
-    EWorkloadState_ACTIVATING = 4 [(NYT.NYson.NProto.enum_value_name) = "activating"];
+    EWorkloadState_ACTIVATING = 3 [(NYT.NYson.NProto.enum_value_name) = "activating"];
 
     // Соответствует запущенному start hook при условии что хотябы единожды status завершился успешно
-    EWorkloadState_ACTIVE = 5 [(NYT.NYson.NProto.enum_value_name) = "active"];
+    EWorkloadState_ACTIVE = 4 [(NYT.NYson.NProto.enum_value_name) = "active"];
 
     // Соотвестует остановке start hook и работе stop hook
-    EWorkloadState_DEACTIVATING = 6 [(NYT.NYson.NProto.enum_value_name) = "deactivating"];
+    EWorkloadState_DEACTIVATING = 5 [(NYT.NYson.NProto.enum_value_name) = "deactivating"];
 
     // Соотвествует процессу удаления workload
-    EWorkloadState_REMOVING = 7 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+    EWorkloadState_REMOVING = 6 [(NYT.NYson.NProto.enum_value_name) = "removing"];
 
     // Соотвестует удалённому worload
-    EWorkloadState_REMOVED = 8 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+    EWorkloadState_REMOVED = 7 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 
     // Workload находится в не валидном состоянии и значит будет полнотью пересобран
-    EWorkloadState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+    EWorkloadState_INVALID = 8 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
 // Описание результата выполнения хука
@@ -470,7 +482,7 @@ message TWorkloadStatus {
     // уникальный в рамках pod идентификатор Workload
     string Id = 1;
 
-    EWorkloadState WorkloadState = 2;
+    EWorkloadState State = 2;
 
     TContainerStatus Init = 3;
 
@@ -486,7 +498,7 @@ message TWorkloadStatus {
     TCondition InProgress = 8;
 
     // понять удобно ли
-    string SandboxRef = 9;
+    string BoxRef = 9;
 }
 
 enum ECheckResult {
@@ -514,20 +526,26 @@ message TReadinessStatus {
 enum ELayerState {
     ELayerState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
-    //не существует
-    ELayerState_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
-
     //в процессе скачивания
-    ELayerState_DOWNLOADING = 2 [(NYT.NYson.NProto.enum_value_name) = "downloading"];
+    ELayerState_DOWNLOADING = 1 [(NYT.NYson.NProto.enum_value_name) = "downloading"];
 
     //Проверка контрольной суммы
-    ELayerState_VERIFYING = 3 [(NYT.NYson.NProto.enum_value_name) = "verifying"];
+    ELayerState_VERIFYING = 2 [(NYT.NYson.NProto.enum_value_name) = "verifying"];
 
     //импортируется
-    ELayerState_IMPORTING = 4 [(NYT.NYson.NProto.enum_value_name) = "importing"];
+    ELayerState_IMPORTING = 3 [(NYT.NYson.NProto.enum_value_name) = "importing"];
 
     //готов к использованию
-    ELayerState_READY = 5 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+    ELayerState_READY = 4 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+
+    // Соотвествует процессу удаления ресурса
+    ELayerState_REMOVING = 5 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+
+    // Соотвестует удалённому ресурсу
+    ELayerState_REMOVED = 6 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    // Layer находится в невалидном состоянии и значит будет полнотью пересобран
+    ELayerState_INVALID = 7 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
 //TODO: нужно придумать как сделать прогресс скачивания
@@ -557,14 +575,23 @@ message TLayerStatus {
 enum EVolumeState {
     EVolumeState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
-    //не существует
-    EVolumeState_NOT_EXISTS = 1 [(NYT.NYson.NProto.enum_value_name) = "not_exists"];
+    // ждет пока заимпортятся layers
+    EVolumeState_WAITING_FOR_LAYERS = 1 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_layers"];
 
     //в процессе сборки
     EVolumeState_CREATING = 2 [(NYT.NYson.NProto.enum_value_name) = "creating"];
 
     //готов
     EVolumeState_READY = 3 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+
+    // Соотвествует процессу удаления volume
+    EVolumeState_REMOVING = 4 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+
+    // Соотвестует удалённому volume
+    EVolumeState_REMOVED = 5 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    // Volume находится в не валидном состоянии и значит будет полнотью пересобран
+    EVolumeState_INVALID = 6 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
 message TVolumeStatus {

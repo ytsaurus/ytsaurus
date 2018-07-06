@@ -51,6 +51,9 @@ enum EObjectType
     OT_GROUP = 10
     [(NYT.NYson.NProto.enum_value_name) = "group"];
 
+    OT_INTERNET_ADDRESS = 11
+    [(NYT.NYson.NProto.enum_value_name) = "internet_address"];
+
     OT_SCHEMA = 256
     [(NYT.NYson.NProto.enum_value_name) = "schema"];
 }
@@ -348,6 +351,9 @@ message TNodeSpec
     }
     // HFSM controls.
     optional THfsm hfsm = 5;
+
+    // NOC module in "physical" network topology.
+    optional string network_module_id = 6;
 }
 
 message TNodeStatus
@@ -529,6 +535,9 @@ message TPodSpec
 
         // If non-empty, full DNS name is prepended with this string (plus dot).
         optional string dns_prefix = 6;
+
+        // If true, internet tunnels is configured (InternetAddress is allocated and assigned to pod).
+        optional bool enable_internet = 7;
     }
     // IP6 addresses to allocate for this pod upon assignment.
     repeated TIP6AddressRequest ip6_address_requests = 5;
@@ -712,6 +721,15 @@ message TPodStatus
         // [<dns_prefix>.]<node-short-name>-<generation-number>.<pod-id>.<suffix>
         // This FQDN changes each time pod gets reassigned to another node.
         optional string transient_fqdn = 6;
+
+        message TInternetAddress
+        {
+            required string id = 1;
+            required string ip4_address = 2;
+        }
+
+        // Internet address assigned to this allocation.
+        optional TInternetAddress internet_address = 7;
     }
     repeated TIP6AddressAllocation ip6_address_allocations = 5;
 
@@ -1083,6 +1101,35 @@ message TGroup
     optional TGroupMeta meta = 1;
     optional TGroupSpec spec = 2;
     optional TGroupStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TInternetAddressMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TInternetAddressSpec
+{
+    required string ip4_address = 1;
+    required string network_module_id = 2;
+}
+
+message TInternetAddressStatus
+{
+    optional string pod_id = 1;
+}
+
+message TInternetAddress
+{
+    optional TInternetAddressMeta meta = 1;
+    optional TInternetAddressSpec spec = 2;
+    optional TInternetAddressStatus status = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

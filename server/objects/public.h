@@ -62,6 +62,7 @@ class TSubject;
 class TUser;
 class TGroup;
 class TSchema;
+class TInternetAddress;
 
 class TAttributeSchema;
 
@@ -116,6 +117,7 @@ DEFINE_ENUM(EObjectType,
     ((VirtualService)  (8))
     ((User)            (9))
     ((Group)          (10))
+    ((InternetAddress)(11))
     ((Schema)        (256))
 );
 

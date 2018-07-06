@@ -79,7 +79,6 @@ private:
     public:
         explicit TLoopIteration(TImplPtr owner)
             : Owner_(std::move(owner))
-            , Allocator_(Owner_->Cluster_)
         { }
 
         void Run()
@@ -94,6 +93,8 @@ private:
 
     private:
         const TImplPtr Owner_;
+
+        TInternetAddressManager InternetAddressManager_;
 
         TGlobalResourceAllocator Allocator_;
         TAllocationPlan AllocationPlan_;
@@ -116,6 +117,8 @@ private:
             }
 
             AllocationPlan_.Clear();
+            InternetAddressManager_.ReconcileState(Owner_->Cluster_);
+            Allocator_.ReconcileState(Owner_->Cluster_);
 
             LOG_DEBUG("State reconciled");
         }
@@ -358,6 +361,12 @@ private:
                     auto* transactionNode = transaction->GetNode(perNodePlan.Node->GetId());
                     const auto& resourceManager = Owner_->Bootstrap_->GetResourceManager();
                     const auto& netManager = Owner_->Bootstrap_->GetNetManager();
+
+                    TResourceManagerContext resourceManagerContext{
+                        netManager.Get(),
+                        &InternetAddressManager_,
+                    };
+
                     for (const auto& request : perNodePlan.Requests) {
                         const auto& podId = request.Pod->GetId();
                         auto* transactionPod = transaction->GetPod(podId);
@@ -368,7 +377,7 @@ private:
                             }
 
                             if (request.Assign) {
-                                resourceManager->AssignPodToNode(transaction, transactionNode, transactionPod);
+                                resourceManager->AssignPodToNode(transaction, &resourceManagerContext, transactionNode, transactionPod);
                             } else {
                                 if (transactionPod->Spec().Node().Load() != transactionNode) {
                                     LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
@@ -377,10 +386,9 @@ private:
                                         transactionPod->Spec().Node().Load()->GetId());
                                     continue;
                                 }
-                                resourceManager->RevokePodFromNode(transaction, transactionPod);
+                                resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, transactionPod);
                             }
 
-                            netManager->UpdatePodAddresses(transaction, transactionPod);
                         } catch (const std::exception& ex) {
                             auto error = TError("Error assigning pod to node %Qv",
                                 transactionNode->GetId())

@@ -13,7 +13,9 @@ foreach(proto_file "object_service.proto" "data_model.proto" "discovery_service.
   prepare_proto(${PROJECT_SOURCE_DIR}/yp/python yp/client/api/proto/${proto_file} PROTO_TARGETS)
 endforeach(proto_file)
 
-add_custom_target(yp-python-protos ALL DEPENDS yt-core-python-protos ${PROTO_TARGETS})
+add_custom_target(yp-python-protos ALL DEPENDS ${PROTO_TARGETS})
+
+add_dependencies(yp-python-protos yt-core-python-protos)
 
 target_link_libraries(yp-library-client
   yt-core

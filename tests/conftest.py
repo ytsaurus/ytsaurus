@@ -1,7 +1,9 @@
 from yp.local import YpInstance, ACTUAL_DB_VERSION
+from yp.client import YpResponseError
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
+from yt.environment.helpers import wait
 
 import pytest
 
@@ -33,7 +35,8 @@ OBJECT_TYPES = [
     "endpoint_set",
     "node_segment",
     "user",
-    "group"
+    "group",
+    "internet_address",
 ]
 
 NODE_CONFIG = {
@@ -62,12 +65,25 @@ class YpTestEnvironment(object):
                                       enable_ssl=enable_ssl,
                                       db_version=db_version)
         if start:
-            self.yp_instance.start()
-            self.yp_client = self.yp_instance.create_client()
+            self._start()
         else:
             self.yp_instance.prepare()
         self.yt_client = self.yp_instance.create_yt_client()
         self.sync_access_control()
+
+    def _start(self):
+        self.yp_instance.start()
+        self.yp_client = self.yp_instance.create_client()
+
+        def touch_pod_set():
+            try:
+                pod_set_id = self.yp_client.create_object("pod_set")
+                self.yp_client.remove_object("pod_set", pod_set_id)
+            except YpResponseError:
+                return False
+            return True
+
+        wait(touch_pod_set)
 
     def sync_access_control(self):
         # TODO(babenko): improve

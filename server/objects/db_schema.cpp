@@ -25,6 +25,7 @@ const TVirtualServicesTable VirtualServicesTable;
 const TSubjectToTypeTable SubjectToTypeTable;
 const TUsersTable UsersTable;
 const TGroupsTable GroupsTable;
+const TInternetAddressesTable InternetAddressesTable;
 
 const std::vector<const TDBTable*> Tables = {
     &SchemasTable,
@@ -45,6 +46,7 @@ const std::vector<const TDBTable*> Tables = {
     &SubjectToTypeTable,
     &UsersTable,
     &GroupsTable,
+    &InternetAddressesTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

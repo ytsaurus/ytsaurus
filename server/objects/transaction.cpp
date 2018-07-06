@@ -3,6 +3,7 @@
 #include "node.h"
 #include "pod.h"
 #include "pod_set.h"
+#include "internet_address.h"
 #include "resource.h"
 #include "network_project.h"
 #include "virtual_service.h"
@@ -530,6 +531,12 @@ public:
     }
 
 
+    TInternetAddress* GetInternetAddress(const TObjectId& id)
+    {
+        return GetTypedObject<TInternetAddress>(id);
+    }
+
+
     TFuture<TTransactionCommitResult> Commit()
     {
         EnsureReadWrite();
@@ -542,15 +549,15 @@ public:
         const auto& resourceManager = Bootstrap_->GetResourceManager();
         const auto& netManager = Bootstrap_->GetNetManager();
 
+        // TODO(avitella): Do it via scheduler.
+        NScheduler::TResourceManagerContext resourceManagerContext{
+            netManager.Get(),
+            nullptr,
+        };
+
         for (auto* node : NodesAwaitingResourceValidation_) {
             if (node->Exists()) {
                 resourceManager->ValidateNodeResource(node);
-            }
-        }
-
-        for (auto* pod : PodsAwaitingAddressesUpdate_) {
-            if (pod->Exists()) {
-                netManager->UpdatePodAddresses(Owner_, pod);
             }
         }
 
@@ -562,7 +569,7 @@ public:
 
         for (auto* pod : PodsAwaitingResourceAllocation_) {
             if (pod->Exists()) {
-                resourceManager->ReallocatePodResources(Owner_, pod);
+                resourceManager->ReallocatePodResources(Owner_, &resourceManagerContext, pod);
             }
         }
 
@@ -632,18 +639,6 @@ public:
         if (NodesAwaitingResourceValidation_.insert(node).second) {
             LOG_DEBUG("Node resource validation scheduled (NodeId: %v)",
                 node->GetId());
-        }
-    }
-
-    void ScheduleUpdatePodAddresses(TPod* pod)
-    {
-        EnsureReadWrite();
-        if (PodsAwaitingAddressesUpdate_.insert(pod).second) {
-            const auto& netManager = Bootstrap_->GetNetManager();
-            netManager->PrepareUpdatePodAddresses(pod);
-
-            LOG_DEBUG("Pod addresses assignment scheduled (PodId: %v)",
-                pod->GetId());
         }
     }
 
@@ -1622,7 +1617,6 @@ private:
     THashSet<TNode*> AgentsAwaitingNotifcation_;
     THashSet<TPod*> PodsAwaitingResourceAllocation_;
     THashSet<TNode*> NodesAwaitingResourceValidation_;
-    THashSet<TPod*> PodsAwaitingAddressesUpdate_;
     THashSet<TPod*> PodsAwaitingSpecUpdate_;
 
 
@@ -2270,6 +2264,11 @@ TVirtualService* TTransaction::GetVirtualService(const TObjectId& id)
     return Impl_->GetVirtualService(id);
 }
 
+TInternetAddress* TTransaction::GetInternetAddress(const TObjectId& id)
+{
+    return Impl_->GetInternetAddress(id);
+}
+
 TFuture<TTransactionCommitResult> TTransaction::Commit()
 {
     return Impl_->Commit();
@@ -2293,11 +2292,6 @@ void TTransaction::ScheduleAllocateResources(TPod* pod)
 void TTransaction::ScheduleValidateNodeResources(TNode* node)
 {
     Impl_->ScheduleValidateNodeResources(node);
-}
-
-void TTransaction::ScheduleUpdatePodAddresses(TPod* pod)
-{
-    Impl_->ScheduleUpdatePodAddresses(pod);
 }
 
 void TTransaction::ScheduleUpdatePodSpec(TPod* pod)

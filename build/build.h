@@ -1,19 +1,23 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
-
 namespace NYP {
-namespace NServer {
-namespace NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NYT::NLogging::TLogger Logger;
+int GetVersionMajor();
 
-static constexpr int DBVersion = 5;
+int GetVersionMinor();
+
+int GetVersionPatch();
+
+const char* GetVersion();
+
+const char* GetBuildHost();
+
+const char* GetBuildMachine();
+
+const char* GetBuildTime();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
 } // namespace NYP
