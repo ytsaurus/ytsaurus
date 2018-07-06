@@ -15,13 +15,11 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
-from yt.wrapper.http_helpers import make_request_with_retries
 
 from yt.environment.helpers import are_almost_equal
 from yt.local import start, stop
 
 from yt.yson import YsonMap
-import yt.yson as yson
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
