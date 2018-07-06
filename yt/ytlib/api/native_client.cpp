@@ -3829,6 +3829,7 @@ private:
                     SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
                     SET_ITEM_YSON_STRING_VALUE("brief_progress")
                     SET_ITEM_YSON_STRING_VALUE("brief_spec")
+                    SET_ITEM_YSON_STRING_VALUE("runtime_parameters")
                     SET_ITEM_INSTANT_VALUE("start_time")
                     SET_ITEM_INSTANT_VALUE("finish_time")
                     SET_ITEM_YSON_STRING_VALUE("result")
