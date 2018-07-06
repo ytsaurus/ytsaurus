@@ -434,7 +434,6 @@ function(PREPARE_PROTO python_root proto out_targets)
     DEPENDS
       ${CMAKE_BINARY_DIR}/${_proto_dirname}/${_proto_basename}_pb2.py
       ${CMAKE_BINARY_DIR}/${_proto_dirname}/${_proto_basename}_pb2_grpc.py
-      ${${out_targets}}  # Fictive target to ensure sequential build since prepare-proto.py is not thread-safe.
     WORKING_DIRECTORY
       ${python_root}
     COMMENT "Preparing pb2 modules for ${proto} in ${python_root}..."

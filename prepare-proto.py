@@ -2,6 +2,14 @@
 
 import os
 import sys
+import errno
+
+def makedirp(path):
+    try:
+        os.makedirs(path)
+    except OSError as err:
+        if err.errno != errno.EEXIST:
+            raise
 
 def main():
     build_path = sys.argv[1]
@@ -12,9 +20,7 @@ def main():
             return
         copy_dir(os.path.dirname(dir_path))
 
-        dir_full_path = os.path.join(os.getcwd(), dir_path)
-        if not os.path.exists(dir_full_path):
-            os.mkdir(dir_full_path)
+        makedirp(os.path.join(os.getcwd(), dir_path))
         with open(os.path.join(dir_path, "__init__.py"), "w"):
             pass
 
