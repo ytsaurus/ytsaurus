@@ -16,16 +16,6 @@ NProfiling::TTagIdList AddUserTag(const TString& user, NProfiling::TTagIdList ta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Trait to deal with simple tags. Example: only user tag or only tablet tags.
-struct TSimpleProfilerTraitBase
-{
-    using TKey = NProfiling::TTagId;
-
-    static TKey ToKey(const NProfiling::TTagIdList& list);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Trait to deal with complex tags. Example: several tags necessary to identify.
 struct TListProfilerTraitBase
 {
@@ -49,13 +39,7 @@ struct TProfilerTrait
 };
 
 template <typename TCounters>
-using TSimpleProfilerTrait = TProfilerTrait<TSimpleProfilerTraitBase, TCounters>;
-
-template <typename TCounters>
 using TTabletProfilerTrait = TProfilerTrait<TListProfilerTraitBase, TCounters>;
-
-template <typename TCounters>
-using TListProfilerTrait = TProfilerTrait<TListProfilerTraitBase, TCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

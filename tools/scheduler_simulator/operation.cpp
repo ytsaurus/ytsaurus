@@ -17,7 +17,7 @@ TOperation::TOperation(const TOperationDescription& description)
     , StartTime_(description.StartTime)
     , RuntimeParams_(New<NScheduler::TOperationRuntimeParameters>())
 {
-    RuntimeParams_->FillFromSpec(NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(Spec_), Null);
+    RuntimeParams_->FillFromSpec(NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(Spec_), Null, description.AuthenticatedUser);
 }
 
 const NScheduler::TOperationId& TOperation::GetId() const

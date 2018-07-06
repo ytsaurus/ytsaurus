@@ -1165,6 +1165,21 @@ class TestTables(YTEnvSetup):
         read_table("//tmp/t[(2)]", start_row_index_only=True, response_parameters=response_parameters)
         assert response_parameters["start_row_index"] == 3
 
+    def test_attr_copy_on_lock(self):
+        attributes={
+            "optimize_for": "scan",
+            "atomicity": "none",
+            "commit_ordering": "strong",
+            "in_memory_mode": "uncompressed",
+            "desired_tablet_count": 1
+        }
+
+        create("table", "//tmp/t", attributes=attributes)
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        for k, v in attributes.iteritems():
+            assert get("//tmp/t/@" + k, tx=tx) == v
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):
@@ -1254,7 +1269,7 @@ class TestTablesMulticell(TestTables):
             map_reduce(in_="//tmp/input", out="//tmp/failed_map_reduce",
                        mapper_command="cat", reducer_command="cat",
                        sort_by=["foo"])
-                       
+
         sort(in_="//tmp/input", out="//tmp/sorted", sort_by=["bar"])
         map_reduce(in_="//tmp/input", out="//tmp/map_reduce",
                    mapper_command="cat", reducer_command="cat",

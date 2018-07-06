@@ -409,7 +409,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::InMemoryMode:
             BuildYsonFluently(consumer)
-                .Value(table->GetInMemoryMode());
+                .Value(trunkTable->GetInMemoryMode());
             return true;
 
         case EInternedAttributeKey::UpstreamReplicaId:
@@ -542,36 +542,42 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 {
     switch (key) {
         case EInternedAttributeKey::EnableTabletBalancer: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableTabletBalancer(Null);
             return true;
         }
 
         case EInternedAttributeKey::DisableTabletBalancer: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableTabletBalancer(Null);
             return true;
         }
 
         case EInternedAttributeKey::MinTabletSize: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetMinTabletSize(Null);
             return true;
         }
 
         case EInternedAttributeKey::MaxTabletSize: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetMaxTabletSize(Null);
             return true;
         }
 
         case EInternedAttributeKey::DesiredTabletSize: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetDesiredTabletSize(Null);
             return true;
         }
 
         case EInternedAttributeKey::DesiredTabletCount: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetDesiredTabletCount(Null);
             return true;
@@ -664,36 +670,48 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::EnableTabletBalancer: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableTabletBalancer(ConvertTo<bool>(value));
             return true;
         }
 
         case EInternedAttributeKey::DisableTabletBalancer: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableTabletBalancer(!ConvertTo<bool>(value));
             return true;
         }
 
         case EInternedAttributeKey::MinTabletSize: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->SetMinTabletSize(ConvertTo<i64>(value));
             return true;
         }
 
         case EInternedAttributeKey::MaxTabletSize: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->SetMaxTabletSize(ConvertTo<i64>(value));
             return true;
         }
 
         case EInternedAttributeKey::DesiredTabletSize: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->SetDesiredTabletSize(ConvertTo<i64>(value));
             return true;
         }
 
         case EInternedAttributeKey::DesiredTabletCount: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->SetDesiredTabletCount(ConvertTo<int>(value));
             return true;

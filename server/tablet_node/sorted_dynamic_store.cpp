@@ -188,7 +188,7 @@ public:
             LockMask_ = TSortedDynamicRow::PrimaryLockMask;
             for (int columnIndex : columnFilter.Indexes) {
                 int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
-                LockMask_ |= (1 << lockIndex);
+                LockMask_ |= (1U << lockIndex);
             }
         }
     }

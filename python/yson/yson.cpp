@@ -279,6 +279,8 @@ public:
         YsonLazyMapBaseClass = TPythonClassObject(TLazyYsonMapBaseType);
         YsonLazyMapClass = TPythonClassObject(TLazyYsonMapType);
 
+        add_keyword_method("is_debug_build", &TYsonModule::IsDebugBuild, "Check if module was built in debug mode");
+
         add_keyword_method("load", &TYsonModule::Load, "Loads YSON from stream");
         add_keyword_method("loads", &TYsonModule::Loads, "Loads YSON from string");
 
@@ -289,6 +291,15 @@ public:
         add_keyword_method("dumps_proto", &TYsonModule::DumpsProto, "Dumps proto message to yson string");
 
         initialize("Python bindings for YSON");
+    }
+
+    Py::Object IsDebugBuild(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)
+    {
+#if defined(NDEBUG)
+        return Py::Boolean(false);
+#else
+        return Py::Boolean(true);
+#endif
     }
 
     Py::Object Load(const Py::Tuple& args_, const Py::Dict& kwargs_)

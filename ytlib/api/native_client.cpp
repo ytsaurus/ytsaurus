@@ -1726,7 +1726,7 @@ private:
 
         for (int index = 0; index < keys.Size(); ++index) {
             ValidateClientKey(keys[index], schema, idMapping, nameTable);
-            auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
+            auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping, nullptr);
 
             if (evaluator) {
                 evaluator->EvaluateKeys(capturedKey, inputRowBuffer);
@@ -2174,7 +2174,7 @@ private:
             THashSet<TTabletId> tabletIds;
             for (auto key : keys) {
                 ValidateClientKey(key, schema, idMapping, nameTable);
-                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping, nullptr);
 
                 if (evaluator) {
                     evaluator->EvaluateKeys(capturedKey, rowBuffer);
@@ -3549,6 +3549,7 @@ private:
         "unrecognized_spec",
         "brief_progress",
         "brief_spec",
+        "runtime_parameters",
         "start_time",
         "finish_time",
         "result",
@@ -3828,6 +3829,7 @@ private:
                     SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
                     SET_ITEM_YSON_STRING_VALUE("brief_progress")
                     SET_ITEM_YSON_STRING_VALUE("brief_spec")
+                    SET_ITEM_YSON_STRING_VALUE("runtime_parameters")
                     SET_ITEM_INSTANT_VALUE("start_time")
                     SET_ITEM_INSTANT_VALUE("finish_time")
                     SET_ITEM_YSON_STRING_VALUE("result")
@@ -3859,15 +3861,6 @@ private:
             operationId);
 
         if (DoesOperationsArchiveExist()) {
-            int version = DoGetOperationsArchiveVersion();
-            const int ExpectedArchiveVersion = 7;
-            if (version < ExpectedArchiveVersion) {
-                THROW_ERROR_EXCEPTION(
-                    "Failed to get operation: operations archive version is too old: expected >= %v, got %v",
-                    ExpectedArchiveVersion,
-                    version);
-            }
-
             try {
                 if (auto result = DoGetOperationFromArchive(operationId, deadline, options)) {
                     return result;
@@ -3949,12 +3942,6 @@ private:
 
     NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
     {
-        int version = DoGetOperationsArchiveVersion();
-
-        if (version < 7) {
-            THROW_ERROR_EXCEPTION("Failed to get job input: operations archive version is too old: expected >= 7, got %v", version);
-        }
-
         auto nameTable = New<TNameTable>();
 
         TLookupRowsOptions lookupOptions;
@@ -4221,15 +4208,9 @@ private:
             return stderrRef;
         }
 
-        int version = DoGetOperationsArchiveVersion();
-
-        if (version >= 7) {
-            stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
-            if (stderrRef) {
-                return stderrRef;
-            }
-        } else {
-            LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+        stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+        if (stderrRef) {
+            return stderrRef;
         }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
@@ -4388,6 +4369,7 @@ private:
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
+            // TODO(renadeen): extract pool from runtime_parameters.
             if (briefSpecMapNode->FindChild("pool")) {
                 textFactors.push_back(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
             }
@@ -4446,7 +4428,7 @@ private:
         }
 
         if (options.Limit > 100) {
-            THROW_ERROR_EXCEPTION("Maximum result size exceedes allowed limit");
+            THROW_ERROR_EXCEPTION("Maximum result size exceeds allowed limit");
         }
 
         std::vector<TString> attributes = {
@@ -4455,6 +4437,7 @@ private:
             "brief_spec",
             "finish_time",
             "operation_type",
+            "runtime_parameters",
             "start_time",
             "state",
             "suspended",
@@ -4485,8 +4468,8 @@ private:
             }
 
             operation.BriefProgress = attributes.FindYson("brief_progress");
+            operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
             operation.Suspended = attributes.Get<bool>("suspended");
-            operation.Weight = attributes.Find<double>("weight");
             return operation;
         };
 
@@ -4645,16 +4628,6 @@ private:
         std::vector<TOperation> archiveData;
 
         if (options.IncludeArchive && DoesOperationsArchiveExist()) {
-            int version = DoGetOperationsArchiveVersion();
-
-            if (options.Pool && version < 15) {
-                THROW_ERROR_EXCEPTION("Failed to get operation's pool: operations archive version is too old: expected >= 15, got %v", version);
-            }
-
-            if (version < 9) {
-                THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 9, got %v", version);
-            }
-
             std::vector<TString> itemsConditions;
             std::vector<TString> countsConditions;
             TString itemsSortDirection;
@@ -4705,7 +4678,7 @@ private:
                 1 + options.Limit);
 
             static const TString NullPoolName = "unknown";
-            auto poolColumnName = version < 15 ? "'" + NullPoolName + "'" : "pool";
+            auto poolColumnName = "pool";
 
             auto queryForCounts = Format(
                 "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
@@ -4764,6 +4737,7 @@ private:
                 tableDescriptor.Index.BriefSpec,
                 tableDescriptor.Index.StartTime,
                 tableDescriptor.Index.FinishTime,
+                tableDescriptor.Index.RuntimeParameters,
             });
             lookupOptions.KeepMissingRows = true;
             lookupOptions.Timeout = deadline - Now();
@@ -4835,6 +4809,7 @@ private:
                     operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
                 }
 
+                operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
                 archiveData.push_back(operation);
             }
         }
@@ -5048,6 +5023,7 @@ private:
         auto errorIndex = itemsQueryBuilder.AddSelectExpression("error");
         auto statisticsIndex = itemsQueryBuilder.AddSelectExpression("statistics");
         auto stderrSizeIndex = itemsQueryBuilder.AddSelectExpression("stderr_size");
+        auto hasSpecIndex = itemsQueryBuilder.AddSelectExpression("has_spec");
 
         auto operationIdExpression = Format(
             "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
@@ -5211,6 +5187,10 @@ private:
 
                 if (row[stderrSizeIndex].Type != EValueType::Null) {
                     job.StderrSize = row[stderrSizeIndex].Data.Int64;
+                }
+
+                if (row[hasSpecIndex].Type != EValueType::Null) {
+                    job.HasSpec = row[hasSpecIndex].Data.Boolean;
                 }
 
                 if (row[errorIndex].Type != EValueType::Null) {
@@ -5413,6 +5393,7 @@ private:
                 if (failContextSize >= 0) {
                     job.FailContextSize = failContextSize;
                 }
+                job.HasSpec = true;
                 job.Error = attributes.FindYson("error");
                 job.BriefStatistics = attributes.FindYson("brief_statistics");
                 job.InputPaths = attributes.FindYson("input_paths");
@@ -5923,6 +5904,7 @@ private:
                     SET_ITEM_INSTANT_VALUE("start_time")
                     SET_ITEM_INSTANT_VALUE("finish_time")
                     SET_ITEM_STRING_VALUE("address")
+                    SET_ITEM_STRING_VALUE("type")
                     SET_ITEM_YSON_STRING_VALUE("error")
                     SET_ITEM_YSON_STRING_VALUE("statistics")
                     SET_ITEM_YSON_STRING_VALUE("events")

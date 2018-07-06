@@ -15,6 +15,7 @@ import sys
 import logging
 import resource
 import shutil
+import decorator
 import functools
 import inspect
 import stat
@@ -128,10 +129,12 @@ def require_ytserver_root_privileges(func_or_class):
 
 
 def skip_if_rpc_driver_backend(func):
-    def wrapped_func(self, *args, **kwargs):
+    def wrapper(func, self, *args, **kwargs):
         if self.DRIVER_BACKEND == "rpc":
             pytest.skip("This test is not supported with RPC proxy driver backend")
-    return wrapped_func
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
 
 def require_enabled_core_dump(func):
     def wrapped_func(self, *args, **kwargs):

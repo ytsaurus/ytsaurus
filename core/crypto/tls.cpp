@@ -96,7 +96,7 @@ public:
         YCHECK(InputBIO_);
         // Makes InputBIO_ non-blocking.
 
-        BIO_set_mem_eof_return(InputBIO_, -1); 
+        BIO_set_mem_eof_return(InputBIO_, -1);
         OutputBIO_ = BIO_new(BIO_s_mem());
         YCHECK(OutputBIO_);
 
@@ -347,8 +347,10 @@ private:
             SSL_shutdown(Ssl_);
             MaybeStartUnderlyingIO(false);
         }
-    
-        if (HandshakeInProgress_) {
+
+        // NB: We should check for an error here, because Underylying_ might have failed already, and then
+        // we will loop on SSL_ERROR_WANT_READ forever.
+        if (HandshakeInProgress_ && Error_.IsOK()) {
             int sslResult = SSL_do_handshake(Ssl_);
             if (sslResult == 1) {
                 HandshakeInProgress_ = false;
@@ -385,7 +387,7 @@ private:
 
                 YCHECK(count == ref.Size());
             }
-            
+
             MaybeStartUnderlyingIO(false);
 
             WriteActive_ = false;
@@ -592,7 +594,7 @@ void TSslContext::AddCertificate(const TString& certificate)
     if (SSL_CTX_use_certificate(Impl_->Ctx, certificateObject) != 1) {
         THROW_ERROR_EXCEPTION("SSL_CTX_use_certificate failed")
             << GetLastSslError();
-    }    
+    }
 }
 
 void TSslContext::AddPrivateKey(const TString& privateKey)

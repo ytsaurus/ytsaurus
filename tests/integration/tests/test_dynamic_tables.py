@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -149,6 +149,7 @@ class TestDynamicTablesBase(YTEnvSetup):
 
     def _get_table_profiling(self, table):
         return self._get_profiling(table, "table_path", filter_table=True)
+
 
 ##################################################################
 
@@ -453,7 +454,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         remove("//tmp/t")
         gc_collect()
         assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 1
-        
+
     def test_table_with_custom_cell_bundle_name_validation(self):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
 
@@ -483,7 +484,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         for i in xrange(len(cell_ids)):
             mount_table("//tmp/t", first_tablet_index = i, last_tablet_index=i, cell_id = cell_ids[i])
         wait(lambda: all(x["state"] == "mounted" for x in get("//tmp/t/@tablets")))
-        rows = [{"key": i * 100 - j, "value": "payload" + str(i)} 
+        rows = [{"key": i * 100 - j, "value": "payload" + str(i)}
                 for i in xrange(cell_count)
                 for j in xrange(10)]
         insert_rows("//tmp/t", rows)
@@ -689,6 +690,7 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert int(empty_node_cpu - assigned_node_cpu) == 1
 
+    @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -717,6 +719,23 @@ class TestDynamicTables(TestDynamicTablesBase):
         self.Env.start_master_cell()
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+    def test_update_only_key_columns(self):
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 1}], update=True)
+
+        assert len(select_rows("* from [//tmp/t]")) == 0
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "x"}])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 1}], update=True)
+
+        assert len(select_rows("* from [//tmp/t]")) == 1
+
 
 ##################################################################
 
@@ -1153,7 +1172,7 @@ class TestTabletActions(TestDynamicTablesBase):
     }
 
     def _configure_bundle(self, bundle):
-        set("//sys/tablet_cell_bundles/{0}/@tablet_balancer_config".format(bundle), { 
+        set("//sys/tablet_cell_bundles/{0}/@tablet_balancer_config".format(bundle), {
             "cell_balance_factor": 0.0,
             "min_tablet_size": 128,
             "max_tablet_size": 512,
@@ -1376,7 +1395,7 @@ class TestTabletActions(TestDynamicTablesBase):
             else:
                 sleep(1)
                 assert get("//tmp/t/@tablet_count") == 2
-                
+
             self.sync_unmount_table("//tmp/t")
 
         global_config = "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"

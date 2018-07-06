@@ -88,7 +88,7 @@ public:
 
     void ScheduleJob(
         ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
         TScheduleJobResult* scheduleJobResult);
@@ -107,10 +107,10 @@ public:
 
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
-        const TJobResources& nodeResourceLimits,
-        const TJobResources& neededResources);
+        const TJobResourcesWithQuota& nodeResourceLimits,
+        const TJobResourcesWithQuota& neededResources);
 
-    void DoCheckResourceDemandSanity(const TJobResources& neededResources);
+    void DoCheckResourceDemandSanity(const TJobResourcesWithQuota& neededResources);
 
     bool IsCompleted() const;
 
@@ -154,6 +154,8 @@ public:
     //! Base implementation returns task's own mapping.
     virtual TInputChunkMappingPtr GetChunkMapping() const;
 
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet);
+
 protected:
     NLogging::TLogger Logger;
 
@@ -166,9 +168,7 @@ protected:
     //! Increments each time a new job in this task is scheduled.
     TIdGenerator TaskJobIndexGenerator_;
 
-    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
-        ISchedulingContext* context,
-        const TJobResources& jobLimits);
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
 
@@ -270,8 +270,6 @@ private:
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
-    TSharedRef BuildJobSpecProto(TJobletPtr joblet);
-
     void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
 };
 
@@ -286,7 +284,7 @@ struct TTaskGroup
     : public TIntrinsicRefCounted
 {
     //! No task from this group is considered for scheduling unless this requirement is met.
-    TJobResources MinNeededResources;
+    TJobResourcesWithQuota MinNeededResources;
 
     //! All non-local tasks.
     THashSet<TTaskPtr> NonLocalTasks;

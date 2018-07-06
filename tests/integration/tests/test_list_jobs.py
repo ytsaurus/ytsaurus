@@ -333,6 +333,7 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
             assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
+            assert all([job["has_spec"] for job in res])
 
             res = list_jobs(op.id, with_stderr=True, **options)["jobs"]
             assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])

@@ -21,7 +21,7 @@ public:
         return key;
     }
 
-    static TString ConvertStringToKey(const TStringBuf& key)
+    static TString ConvertStringToKey(TStringBuf key)
     {
         return TString(key);
     }

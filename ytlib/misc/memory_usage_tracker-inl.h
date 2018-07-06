@@ -37,6 +37,12 @@ TMemoryUsageTracker<ECategory>::TMemoryUsageTracker(
     for (const auto& pair : limits) {
         Categories_[pair.first].Limit = pair.second;
     }
+
+    PeriodicUpdater_ = New<NConcurrency::TPeriodicExecutor>(
+        NProfiling::TProfileManager::Get()->GetInvoker(),
+        BIND(&TMemoryUsageTracker::UpdateMetrics, MakeWeak(this)),
+        TDuration::Seconds(1));
+    PeriodicUpdater_->Start();
 }
 
 template <class ECategory>
@@ -172,6 +178,41 @@ void TMemoryUsageTracker<ECategory>::Release(ECategory category, i64 size)
     Profiler.Increment(TotalUsedCounter_, -size);
     Profiler.Increment(TotalFreeCounter_, +size);
     Profiler.Increment(Categories_[category].UsedCounter, -size);
+}
+
+template <class ECategory>
+void TMemoryUsageTracker<ECategory>::UpdateMetrics()
+{
+    Profiler.Increment(TotalUsedCounter_, 0);
+    Profiler.Increment(TotalFreeCounter_, 0);
+
+    for (auto& category : Categories_) {
+        Profiler.Increment(category.UsedCounter, 0);
+    }
+}
+
+template <class ECategory>
+Y_FORCE_INLINE void Ref(TMemoryUsageTracker<ECategory>* obj)
+{
+    obj->Ref();
+}
+
+template <class ECategory>
+Y_FORCE_INLINE void Ref(const TMemoryUsageTracker<ECategory>* obj)
+{
+    obj->Ref();
+}
+
+template <class ECategory>
+Y_FORCE_INLINE void Unref(TMemoryUsageTracker<ECategory>* obj)
+{
+    obj->Unref();
+}
+
+template <class ECategory>
+Y_FORCE_INLINE void Unref(const TMemoryUsageTracker<ECategory>* obj)
+{
+    obj->Unref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

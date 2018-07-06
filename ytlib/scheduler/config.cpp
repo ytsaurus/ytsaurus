@@ -1015,7 +1015,7 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 }
 
-void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree)
+void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user)
 {
     Owners = spec->Owners;
     auto allTrees = spec->PoolTrees;
@@ -1028,11 +1028,15 @@ void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec
         auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
         if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
             treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-            treeParams->Pool = spec->Pool ? spec->Pool : specIt->second->Pool;
+            if (spec->Pool) {
+                treeParams->Pool = spec->Pool;
+            } else {
+                treeParams->Pool = specIt->second->Pool ? specIt->second->Pool : user;
+            }
             treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
         } else {
             treeParams->Weight = spec->Weight;
-            treeParams->Pool = spec->Pool;
+            treeParams->Pool = spec->Pool ? spec->Pool : user;
             treeParams->ResourceLimits = spec->ResourceLimits;
         }
         YCHECK(SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);

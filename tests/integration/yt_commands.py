@@ -27,8 +27,12 @@ AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
 
 def is_debug():
-    from build_type import BUILD_TYPE
-    return BUILD_TYPE == "Debug"
+    try:
+        from yson_lib import is_debug_build
+    except ImportError:
+        from yt_yson_bindings.yson_lib import is_debug_build
+
+    return is_debug_build()
 
 def get_driver(cell_index=0, cluster="primary"):
     if cluster not in clusters_drivers:
@@ -301,6 +305,12 @@ def get(path, is_raw=False, **kwargs):
 def get_operation(operation_id, is_raw=False, **kwargs):
     kwargs["operation_id"] = operation_id
     result = execute_command("get_operation", kwargs)
+    return result if is_raw else yson.loads(result)
+
+def get_job(operation_id, job_id, is_raw=False, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    result = execute_command("get_job", kwargs)
     return result if is_raw else yson.loads(result)
 
 def set(path, value, is_raw=False, **kwargs):

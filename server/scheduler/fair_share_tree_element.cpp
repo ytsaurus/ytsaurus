@@ -2121,23 +2121,23 @@ void TOperationElement::CheckForStarvation(TInstant now)
 
 bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context) const
 {
-   auto* parent = GetParent();
+    auto* parent = GetParent();
 
-   while (parent) {
-       if (parent->GetStarving()) {
-           return false;
-       }
+    while (parent) {
+        if (parent->GetStarving()) {
+            return false;
+        }
 
-       if (context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
-           !parent->IsAggressiveStarvationPreemptionAllowed())
-       {
-           return false;
-       }
+        if (context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
+            (!parent->IsAggressiveStarvationPreemptionAllowed() || !IsAggressiveStarvationPreemptionAllowed()))
+        {
+            return false;
+        }
 
-       parent = parent->GetParent();
-   }
+        parent = parent->GetParent();
+    }
 
-   return true;
+    return true;
 }
 
 void TOperationElement::IncreaseResourceUsage(const TJobResources& delta)
@@ -2293,9 +2293,9 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         auto jobLimits = GetHierarchicalResourceLimits(*context) + jobResourceDiscount;
         if (!Dominates(jobLimits, startDescriptor.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
-            LOG_DEBUG("Aborting job with resource overcommit: %v > %v (JobId: %v, OperationId: %v)",
-                FormatResources(startDescriptor.ResourceLimits),
+            LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
                 FormatResources(jobLimits),
+                FormatResources(startDescriptor.ResourceLimits),
                 jobId,
                 OperationId_);
 

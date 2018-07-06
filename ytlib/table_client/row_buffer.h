@@ -67,14 +67,16 @@ public:
     TMutableUnversionedRow CaptureAndPermuteRow(
         TUnversionedRow row,
         const TTableSchema& tableSchema,
-        const TNameTableToSchemaIdMapping& idMapping);
+        const TNameTableToSchemaIdMapping& idMapping,
+        std::vector<bool>* columnPresenceBuffer);
 
     //! Captures the row applying #idMapping to value ids.
     //! Skips values that map to negative ids with via #idMapping.
     TMutableVersionedRow CaptureAndPermuteRow(
         TVersionedRow row,
         const TTableSchema& tableSchema,
-        const TNameTableToSchemaIdMapping& idMapping);
+        const TNameTableToSchemaIdMapping& idMapping,
+        std::vector<bool>* columnPresenceBuffer);
 
     i64 GetSize() const;
     i64 GetCapacity() const;

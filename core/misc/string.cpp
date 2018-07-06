@@ -314,7 +314,7 @@ char* WriteGuidToBuffer(char* ptr, const TGuid& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString DecodeEnumValue(const TStringBuf& value)
+TString DecodeEnumValue(TStringBuf value)
 {
     auto camelValue = UnderscoreCaseToCamelCase(value);
     auto underscoreValue = CamelCaseToUnderscoreCase(camelValue);
@@ -326,7 +326,7 @@ TString DecodeEnumValue(const TStringBuf& value)
     return camelValue;
 }
 
-TString EncodeEnumValue(const TStringBuf& value)
+TString EncodeEnumValue(TStringBuf value)
 {
     return CamelCaseToUnderscoreCase(value);
 }

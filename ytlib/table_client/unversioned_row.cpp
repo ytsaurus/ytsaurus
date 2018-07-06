@@ -772,12 +772,13 @@ void ValidateClientRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
     bool isKey,
-    const TNullable<int>& tabletIndexColumnId = TNullable<int>())
+    TNullable<int> tabletIndexColumnId = Null)
 {
     ValidateRowValueCount(row.GetCount());
     ValidateKeyColumnCount(schema.GetKeyColumnCount());
 
     bool keyColumnSeen[MaxKeyColumnCount]{};
+    bool haveDataColumns = false;
 
     for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, schema, &idMapping);
@@ -807,15 +808,19 @@ void ValidateClientRow(
                 THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
                     column.Name());
             }
-
             keyColumnSeen[mappedId] = true;
             ValidateKeyValue(value);
         } else if (isKey) {
             THROW_ERROR_EXCEPTION("Non-key column %Qv in a key",
                 column.Name());
         } else {
+            haveDataColumns = true;
             ValidateDataValue(value);
         }
+    }
+
+    if (!isKey && !haveDataColumns) {
+        THROW_ERROR_EXCEPTION("At least one non-key column must be specified");
     }
 
     if (tabletIndexColumnId) {
@@ -1130,9 +1135,41 @@ void ValidateClientDataRow(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    const TNullable<int>& tabletIndexColumnId)
+    TNullable<int> tabletIndexColumnId)
 {
     ValidateClientRow(row, schema, idMapping, nameTable, false, tabletIndexColumnId);
+}
+
+void ValidateDuplicateAndRequiredValueColumns(
+    TUnversionedRow row,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping,
+    std::vector<bool>* columnPresenceBuffer)
+{
+    auto& columnSeen = *columnPresenceBuffer;
+    YCHECK(columnSeen.size() >= schema.GetColumnCount());
+    std::fill(columnSeen.begin(), columnSeen.end(), 0);
+
+    for (const auto& value : row) {
+        int mappedId = ApplyIdMapping(value, schema, &idMapping);
+        if (mappedId < 0) {
+            continue;
+        }
+        const auto& column = schema.Columns()[mappedId];
+
+        if (columnSeen[mappedId]) {
+            THROW_ERROR_EXCEPTION("Duplicate column %Qv",
+                column.Name());
+        }
+        columnSeen[mappedId] = true;
+    }
+
+    for (int index = schema.GetKeyColumnCount(); index < schema.GetColumnCount(); ++index) {
+        if (!columnSeen[index] && schema.Columns()[index].Required()) {
+            THROW_ERROR_EXCEPTION("Missing required column %Qv",
+                schema.Columns()[index].Name());
+        }
+    }
 }
 
 void ValidateClientKey(TKey key)

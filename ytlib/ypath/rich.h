@@ -104,6 +104,9 @@ public:
     // "auto_merge"
     bool GetAutoMerge() const;
 
+    // "transaction_id"
+    TNullable<NObjectClient::TTransactionId> GetTransactionId() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

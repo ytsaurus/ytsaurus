@@ -234,7 +234,7 @@ void TFileReader::DumpBrokenMeta(const TRef& block) const
     file.Flush();
 }
 
-NProto::TChunkMeta TFileReader::OnMetaDataBlock(    
+NProto::TChunkMeta TFileReader::OnMetaDataBlock(
     const TString& metaFileName,
     i64 metaFileLength,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
@@ -329,7 +329,7 @@ const TBlocksExt& TFileReader::GetBlockExts(const TClientBlockReadOptions& optio
     }
     // TODO(aozeritsky) move this check to WaitFor
     if (!CachedBlocksExt_.IsSet()) {
-        Y_UNUSED(WaitFor(CachedBlocksExt_));
+        Y_UNUSED(WaitFor(CachedBlocksExt_.As<void>()));
     }
     return CachedBlocksExt_.Get().ValueOrThrow();
 }

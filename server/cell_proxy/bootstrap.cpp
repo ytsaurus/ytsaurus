@@ -48,6 +48,9 @@
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/authenticator.h>
 
+#include <yt/core/rpc/grpc/server.h>
+#include <yt/core/rpc/grpc/config.h>
+
 #include <yt/core/http/server.h>
 
 #include <yt/core/ytree/virtual.h>
@@ -160,8 +163,18 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
-    RpcServer_->RegisterService(CreateApiService(this));
-    RpcServer_->RegisterService(CreateDiscoveryService(this));
+
+    ApiService_ = CreateApiService(this);
+    DiscoveryService_ = CreateDiscoveryService(this);
+
+    RpcServer_->RegisterService(ApiService_);
+    RpcServer_->RegisterService(DiscoveryService_);
+
+    if (Config_->GrpcServer) {
+        GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);
+        GrpcServer_->RegisterService(ApiService_);
+        GrpcServer_->RegisterService(DiscoveryService_);
+    }
 
     HttpServer_->AddHandler(
         "/orchid/",
@@ -173,6 +186,15 @@ void TBootstrap::DoRun()
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
+
+    if (Config_->GrpcServer) {
+        std::vector<TString> addresses;
+        for (const auto& address : Config_->GrpcServer->Addresses) {
+            addresses.push_back(address->Address);
+        }
+        LOG_INFO("Listening for GRPC requests (Addresses: %v)", addresses);
+        GrpcServer_->Start();
+    }
 }
 
 const TCellProxyConfigPtr& TBootstrap::GetConfig() const

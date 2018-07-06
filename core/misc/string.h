@@ -308,11 +308,11 @@ char* WriteGuidToBuffer(char* ptr, const TGuid& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString DecodeEnumValue(const TStringBuf& value);
-TString EncodeEnumValue(const TStringBuf& value);
+TString DecodeEnumValue(TStringBuf value);
+TString EncodeEnumValue(TStringBuf value);
 
 template <class T>
-T ParseEnum(const TStringBuf& value, typename TEnumTraits<T>::TType* = 0)
+T ParseEnum(TStringBuf value, typename TEnumTraits<T>::TType* = 0)
 {
     return TEnumTraits<T>::FromString(DecodeEnumValue(value));
 }

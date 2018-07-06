@@ -458,6 +458,7 @@ public:
     int MaxConcurrentPreloads;
     TDuration InterceptedDataRetentionTime;
     TWorkloadDescriptor WorkloadDescriptor;
+    NConcurrency::TThroughputThrottlerConfigPtr PreloadThrottler;
 
     TInMemoryManagerConfig()
     {
@@ -468,6 +469,8 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("workload_descriptor", WorkloadDescriptor)
             .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+        RegisterParameter("preload_throttler", PreloadThrottler)
+            .Default(New<NConcurrency::TThroughputThrottlerConfig>(100_MB));
     }
 };
 

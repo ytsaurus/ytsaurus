@@ -49,6 +49,9 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NScheduler;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
 
@@ -1155,13 +1158,14 @@ private:
                 THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
             }
 
-            const auto& path = Spec_->InputTablePaths[0].GetPath();
+            const auto& table = InputTables[0];
+            const auto& path = table.Path.GetPath();
 
             auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, *table.TransactionId);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",

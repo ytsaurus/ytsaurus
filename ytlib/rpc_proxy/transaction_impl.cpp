@@ -695,7 +695,9 @@ TFuture<void> TTransaction::SendPing()
                 // Hard error.
                 LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v)",
                     Id_);
-                auto error = TError("Transaction %v has expired or was aborted",
+                auto error = TError(
+                    NTransactionClient::EErrorCode::NoSuchTransaction,
+                    "Transaction %v has expired or was aborted",
                     Id_);
                 OnFailure(error);
                 THROW_ERROR error;

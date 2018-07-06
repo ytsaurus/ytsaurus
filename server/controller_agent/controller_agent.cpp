@@ -26,6 +26,8 @@
 
 #include <yt/ytlib/event_log/event_log.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
+
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -790,6 +792,7 @@ private:
     void OnConnected()
     {
         Connected_ = true;
+        ConnectionTime_.store(TInstant::Now());
 
         LOG_INFO("Controller agent connected (IncarnationId: %v)",
             IncarnationId_);
@@ -1208,16 +1211,20 @@ private:
                             return;
                         }
 
-                        auto jobLimits = FromProto<TJobResourcesWithQuota>(protoRequest->job_resource_limits());
+                        auto jobLimits = FromProto<TJobResources>(protoRequest->job_resource_limits());
                         const auto& treeId = protoRequest->tree_id();
 
                         TAgentToSchedulerScheduleJobResponse response;
                         TSchedulingContext context(protoRequest, descriptorIt->second);
+
+                        TJobResourcesWithQuota jobLimitsWithQuota(jobLimits);
+                        jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskInfo()));
+
                         response.OperationId = operationId;
                         response.JobId = jobId;
                         response.Result = controller->ScheduleJob(
                             &context,
-                            jobLimits,
+                            jobLimitsWithQuota,
                             treeId);
                         if (!response.Result) {
                             response.Result = New<TScheduleJobResult>();

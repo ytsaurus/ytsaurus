@@ -44,7 +44,17 @@ namespace NJson {
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
 
-std::unique_ptr<NYson::IFlushableYsonConsumer> CreateJsonConsumer(
+class IJsonConsumer
+    : public NYson::IFlushableYsonConsumer
+{
+public:
+    virtual void SetAnnotateWithTypesParameter(bool value) = 0;
+
+    virtual void OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit) = 0;
+    virtual void OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit) = 0;
+};
+
+std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
     IOutputStream* output,
     NYson::EYsonType type = NYson::EYsonType::Node,
     TJsonFormatConfigPtr config = New<TJsonFormatConfig>());

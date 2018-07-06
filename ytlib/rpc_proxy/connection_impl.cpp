@@ -29,8 +29,6 @@
 namespace NYT {
 namespace NRpcProxy {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NApi;
 using namespace NBus;
 using namespace NRpc;
@@ -42,32 +40,58 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetProxyListFromHttp(
+namespace {
+
+TString NormalizeHttpProxyUrl(TString url)
+{
+    const auto CanonicalPrefix = AsStringBuf("http://");
+    const auto CanonicalSuffix = AsStringBuf(".yt.yandex.net");
+
+    if (url.find('.') == TString::npos &&
+        url.find(':') == TString::npos &&
+        url.find("localhost") == TString::npos)
+    {
+        url.append(CanonicalSuffix);
+    }
+
+    if (!url.StartsWith(CanonicalPrefix)) {
+        url.prepend(CanonicalPrefix);
+    }
+
+    return url;
+}
+
+std::vector<TString> GetRpcProxiesFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
-    const TString& oauthToken,
+    const TNullable<TString>& oauthToken,
     bool useCypress,
     const TNullable<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
     auto headers = New<THeaders>();
-    headers->Add("Authorization", "OAuth " + oauthToken);
+    if (oauthToken) {
+        headers->Add("Authorization", "OAuth " + *oauthToken);
+    }
     headers->Add("X-YT-Header-Format", "<format=text>yson");
 
     if (useCypress) {
-        headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
+        headers->Add(
+            "X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
     } else {
-        headers->Add("X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
-            .BeginMap()
+        headers->Add(
+            "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+                .BeginMap()
                 .Item("output_format")
-                    .BeginAttributes()
-                        .Item("format").Value("text")
-                    .EndAttributes()
-                    .Value("yson")
-                .DoIf(role.HasValue(), [&] (auto fluent) {
-                    fluent.Item("role").Value(*role);
-                })
-            .EndMap().GetData());
+                .BeginAttributes()
+                .Item("format").Value("text")
+                .EndAttributes()
+                .Value("yson")
+                .DoIf(
+                    role.HasValue(), [&](auto fluent) {
+                        fluent.Item("role").Value(*role);
+                    })
+                .EndMap().GetData());
     }
 
     auto path = proxyUrl;
@@ -89,8 +113,6 @@ std::vector<TString> GetProxyListFromHttp(
     }
     return ConvertTo<std::vector<TString>>(node);
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 IChannelPtr CreateCredentialsInjectingChannel(
     IChannelPtr underlying,
@@ -117,6 +139,8 @@ IChannelPtr CreateCredentialsInjectingChannel(
     }
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnection::TConnection(TConnectionConfigPtr config)
@@ -131,15 +155,13 @@ TConnection::TConnection(TConnectionConfigPtr config)
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
         Config_->ProxyListUpdatePeriod))
 {
-    if (Config_->Addresses.empty() && !Config_->ClusterUrl) {
-        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
-    }
+    Config_->Postprocess();
 
     DiscoveryPromise_ = NewPromise<std::vector<TString>>();
     ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
 
     if (!Config_->Addresses.empty()) {
-        UpdateProxyListExecutor_->Start();        
+        UpdateProxyListExecutor_->Start();
     }
 }
 
@@ -180,7 +202,7 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
         options,
         Config_->Domain,
         localAddress);
-        
+
     return New<TClient>(this, std::move(authenticatedChannel));
 }
 
@@ -255,15 +277,15 @@ std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channe
 std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& options)
 {
     try {
-        return GetProxyListFromHttp(
+        return GetRpcProxiesFromHttp(
             Config_->HttpClient,
-            *Config_->ClusterUrl,
-            options.Token.Get({}),
+            NormalizeHttpProxyUrl(*Config_->ClusterUrl),
+            options.Token,
             Config_->DiscoverProxiesFromCypress,
             Config_->ProxyRole);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
-            << TError(ex);
+            << ex;
     }
 }
 
@@ -309,13 +331,17 @@ void TConnection::OnProxyListUpdate()
                 DiscoveryPromise_ = NewPromise<std::vector<TString>>();
                 ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
             }
-        
+
             LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
             TDelayedExecutor::WaitForDuration(backoff);
             if (backoff < Config_->MaxProxyListRetryPeriod) {
                 backoff *= 1.2;
             }
-        }        
+
+            if (attempt > Config_->MaxProxyListUpdateAttempts) {
+                attempt = 0;
+            }
+        }
     }
 }
 

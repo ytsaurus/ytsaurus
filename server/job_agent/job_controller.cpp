@@ -135,7 +135,7 @@ private:
     THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
 
-    std::unique_ptr<TMemoryUsageTracker<EMemoryCategory>> ExternalMemoryUsageTracker_;
+    TNodeMemoryTrackerPtr ExternalMemoryUsageTracker_;
 
     THashSet<int> FreePorts_;
 
@@ -197,11 +197,11 @@ private:
 
     void AdjustResources();
 
-    TMemoryUsageTracker<EMemoryCategory>* GetUserMemoryUsageTracker();
-    TMemoryUsageTracker<EMemoryCategory>* GetSystemMemoryUsageTracker();
+    TNodeMemoryTracker* GetUserMemoryUsageTracker();
+    TNodeMemoryTracker* GetSystemMemoryUsageTracker();
 
-    const TMemoryUsageTracker<EMemoryCategory>* GetUserMemoryUsageTracker() const;
-    const TMemoryUsageTracker<EMemoryCategory>* GetSystemMemoryUsageTracker() const;
+    const TNodeMemoryTracker* GetUserMemoryUsageTracker() const;
+    const TNodeMemoryTracker* GetSystemMemoryUsageTracker() const;
 
     TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
 };
@@ -233,7 +233,7 @@ void TJobController::TImpl::Initialize()
 
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
         LOG_INFO("Using external user job memory");
-        ExternalMemoryUsageTracker_ = std::make_unique<TNodeMemoryTracker>(
+        ExternalMemoryUsageTracker_ = New<TNodeMemoryTracker>(
             0,
             std::vector<std::pair<EMemoryCategory, i64>>{},
             Logger,
@@ -1119,30 +1119,30 @@ void TJobController::TImpl::OnProfiling()
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
 
-TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageTracker()
+TNodeMemoryTracker* TJobController::TImpl::GetUserMemoryUsageTracker()
 {
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        return ExternalMemoryUsageTracker_.get();
+        return ExternalMemoryUsageTracker_.Get();
     } else {
         return Bootstrap_->GetMemoryUsageTracker();
     }
 }
 
-TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker()
+TNodeMemoryTracker* TJobController::TImpl::GetSystemMemoryUsageTracker()
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }
 
-const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetUserMemoryUsageTracker() const
+const TNodeMemoryTracker* TJobController::TImpl::GetUserMemoryUsageTracker() const
 {
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        return ExternalMemoryUsageTracker_.get();
+        return ExternalMemoryUsageTracker_.Get();
     } else {
         return Bootstrap_->GetMemoryUsageTracker();
     }
 }
 
-const TMemoryUsageTracker<EMemoryCategory>* TJobController::TImpl::GetSystemMemoryUsageTracker() const
+const TNodeMemoryTracker* TJobController::TImpl::GetSystemMemoryUsageTracker() const
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }

@@ -204,6 +204,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
         ]);
     })
     .spread(function(token, result) {
+        var hostname_pattern = "[a-zA-Z0-9.-]+\.yandex(-team\.ru|\.net)";
         var login = result.login;
         var realm = result.realm;
         if (state.return_path) {
@@ -214,8 +215,12 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
             target.query.login = login;
             target.search = null;
             target.path = null;
-            target = url.format(target);
 
+            if (target.hostname.match(hostname_pattern) == null) {
+                throw new Error("Target hostname is not safe");
+            }
+
+            target = url.format(target);
             return utils.redirectTo(rsp, target, 303);
         } else {
             var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_TOKEN({

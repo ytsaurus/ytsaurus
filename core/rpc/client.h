@@ -134,6 +134,9 @@ protected:
         const TString& method,
         int protocolVersion);
 
+    // NB: doesn't copy base class.
+    TClientRequest(const TClientRequest& other);
+
     virtual bool IsHeavy() const override;
 
     virtual TSharedRef SerializeBody() const = 0;
