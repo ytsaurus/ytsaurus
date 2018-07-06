@@ -842,35 +842,36 @@ void TStoreLocation::CheckTrashTtl()
 
 void TStoreLocation::CheckTrashWatermark()
 {
+    bool needsCleanup;
     i64 availableSpace;
-    auto beginCleanup = [&] () {
+    {
         TGuard<TSpinLock> guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
         availableSpace = GetAvailableSpace() - TrashDiskSpace_;
-        return availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
-    };
+        needsCleanup = availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
+    }
 
-    if (!beginCleanup())
+    if (!needsCleanup) {
         return;
+    }
 
     LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
         availableSpace);
 
-    while (beginCleanup()) {
-        while (true) {
-            TTrashChunkEntry entry;
-            {
-                TGuard<TSpinLock> guard(TrashMapSpinLock_);
-                if (TrashMap_.empty())
-                    break;
-                auto it = TrashMap_.begin();
-                entry = it->second;
-                TrashMap_.erase(it);
-                TrashDiskSpace_ -= entry.DiskSpace;
+    while (availableSpace < Config_->TrashCleanupWatermark) {
+        TTrashChunkEntry entry;
+        {
+            TGuard<TSpinLock> guard(TrashMapSpinLock_);
+            if (TrashMap_.empty()) {
+                break;
             }
-            RemoveTrashFiles(entry);
-            availableSpace += entry.DiskSpace;
+            auto it = TrashMap_.begin();
+            entry = it->second;
+            TrashMap_.erase(it);
+            TrashDiskSpace_ -= entry.DiskSpace;
         }
+        RemoveTrashFiles(entry);
+        availableSpace += entry.DiskSpace;
     }
 
     LOG_INFO("Finished trash cleanup (AvailableSpace: %v)",
