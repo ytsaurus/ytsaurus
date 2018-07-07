@@ -4726,8 +4726,7 @@ private:
                 keys.push_back(key);
             }
 
-            TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
+            std::vector<int> columns = {
                 tableDescriptor.Index.IdHi,
                 tableDescriptor.Index.IdLo,
                 tableDescriptor.Index.OperationType,
@@ -4737,8 +4736,12 @@ private:
                 tableDescriptor.Index.BriefSpec,
                 tableDescriptor.Index.StartTime,
                 tableDescriptor.Index.FinishTime,
-                tableDescriptor.Index.RuntimeParameters,
-            });
+            };
+            if (DoGetOperationsArchiveVersion() >= 22) {
+                columns.push_back(tableDescriptor.Index.RuntimeParameters);
+            }
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columns);
             lookupOptions.KeepMissingRows = true;
             lookupOptions.Timeout = deadline - Now();
 
@@ -4809,7 +4812,9 @@ private:
                     operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
                 }
 
-                operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+                if (DoGetOperationsArchiveVersion() >= 22) {
+                    operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+                }
                 archiveData.push_back(operation);
             }
         }
