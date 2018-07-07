@@ -3761,6 +3761,9 @@ private:
         MakeArchiveOperationAttributes(
             options.Attributes ? *options.Attributes : AllowedOperationAttributes,
             std::inserter(fields, fields.end()));
+        if (DoGetOperationsArchiveVersion() < 22) {
+            fields.erase("runtime_parameters");
+        }
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
