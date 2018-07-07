@@ -72,7 +72,7 @@ b"""
     };
 
     timestamp_manager = {
-        commit_advance = 1000;
+        commit_advance = 2000;
         request_backoff_time = 10;
         calibration_period = 10;
     };
