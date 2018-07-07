@@ -71,6 +71,12 @@ b"""
         default_transaction_timeout = 300000;
     };
 
+    timestamp_manager = {
+        commit_advance = 1000;
+        request_backoff_time = 10;
+        calibration_period = 10;
+    };
+
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 10;
