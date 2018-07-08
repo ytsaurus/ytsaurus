@@ -159,6 +159,10 @@ TConnection::TConnection(TConnectionConfigPtr config)
 
     DiscoveryPromise_ = NewPromise<std::vector<TString>>();
     ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
+
+    if (!Config_->Addresses.empty()) {
+        UpdateProxyListExecutor_->Start();
+    }
 }
 
 NObjectClient::TCellTag TConnection::GetCellTag()
@@ -184,10 +188,12 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
         localAddress = GetLocalAddress();
     }
 
-    auto guard = Guard(DiscoveryLock_);
-    if (!Credentials_) {
-        Credentials_ = options;
-        UpdateProxyListExecutor_->Start();
+    if (Config_->ClusterUrl) {
+        auto guard = Guard(HttpDiscoveryLock_);
+        if (!HttpCredentials_) {
+            HttpCredentials_ = options;
+            UpdateProxyListExecutor_->Start();
+        }
     }
 
     auto channel = CreateDynamicChannel(ChannelPool_);
@@ -291,8 +297,8 @@ void TConnection::OnProxyListUpdate()
             std::vector<TString> proxies;
             if (Config_->ClusterUrl) {
                 LOG_DEBUG("Updating proxy list from HTTP");
-                YCHECK(Credentials_);
-                proxies = DiscoverProxiesByHttp(*Credentials_);
+                YCHECK(HttpCredentials_);
+                proxies = DiscoverProxiesByHttp(*HttpCredentials_);
             } else {
                 LOG_DEBUG("Updating proxy list from RPC");
                 if (!DiscoveryChannel_) {
