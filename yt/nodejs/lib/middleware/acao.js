@@ -6,13 +6,13 @@ var worker = require("../worker");
 
 var allowedOrigins = /^http(s)?:\/\/([^\/]+\.yandex-team\.ru|localhost)(:\d+)?$/;
 
-exports.that = function Middleware__YtAcao()
+exports.that = function Middleware__YtAcao(disable_cors_check)
 {
     return function(req, rsp, next) {
         var origin = req.headers["origin"];
 
         var allow = false;
-        if ((typeof origin !== "undefined") && origin.match(allowedOrigins)) {
+        if ((typeof origin !== "undefined") && (disable_cors_check || origin.match(allowedOrigins))) {
             allow = true;
         }
 
