@@ -1155,7 +1155,8 @@ void TOperationControllerBase::InitInputChunkScraper()
         Logger);
 
     if (UnavailableInputChunkCount > 0) {
-        LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
+        LOG_INFO("Waiting for unavailable input chunks (Count: %v)",
+            UnavailableInputChunkCount);
         InputChunkScraper->Start();
     }
 }
