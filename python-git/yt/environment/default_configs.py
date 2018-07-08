@@ -410,6 +410,7 @@ def get_proxy_config():
         "filename" : "/dev/null"
     },
 
+    "disable_cors_check" : true,
     "authentication" : {
         "enable" : false
     },
