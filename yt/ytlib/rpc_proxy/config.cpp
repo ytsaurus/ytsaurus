@@ -25,7 +25,7 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("max_proxy_list_retry_period", MaxProxyListRetryPeriod)
         .Default(TDuration::Seconds(30));
     RegisterParameter("max_proxy_list_update_attempts", MaxProxyListUpdateAttempts)
-        .Default(5);
+        .Default(3);
 
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(30));
