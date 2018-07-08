@@ -111,6 +111,7 @@ YtAuthority.prototype._syncCheckCsrfToken = function(context, result)
     var timestamp = parseInt(csrf_token.substr(i + 1), 10);
     var now = +new Date();
     if (now > timestamp + this.config.csrf_token_ttl) {
+        result.csrf_token_is_expired = true;
         result.csrf_token_is_valid = false;
         return;
     }
