@@ -258,9 +258,13 @@ class TOperationsCleaner::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
+    TImpl(
+        TOperationsCleanerConfigPtr config,
+        IOperationsCleanerHost* host,
+        TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
+        , Host_(host)
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
     { }
@@ -375,6 +379,7 @@ public:
 private:
     TOperationsCleanerConfigPtr Config_;
     const TBootstrap* const Bootstrap_;
+    IOperationsCleanerHost* const Host_;
 
     TPeriodicExecutorPtr AnalysisExecutor_;
 
@@ -462,6 +467,7 @@ private:
         if (Config_->Enable && Config_->EnableArchivation && !ArchivationEnabled_) {
             ArchivationEnabled_ = true;
             TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
             LOG_INFO("Operations archivation started");
         }
@@ -475,6 +481,7 @@ private:
 
         ArchivationEnabled_ = false;
         TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
         LOG_INFO("Operations archivation stopped");
     }
@@ -827,6 +834,12 @@ private:
             Config_->ArchivationEnableDelay);
 
         auto enableTime = TInstant::Now() + Config_->ArchivationEnableDelay;
+
+        Host_->SetSchedulerAlert(
+            ESchedulerAlertType::OperationsArchivation,
+            TError("Max enqueued operations limit reached; archivation temporary disabled")
+            << TErrorAttribute("enable_time", enableTime));
+
         LOG_INFO("Archivation is temporary disabled (EnableTime: %v)", enableTime);
     }
 
@@ -883,8 +896,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationsCleaner::TOperationsCleaner(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TOperationsCleaner::TOperationsCleaner(
+    TOperationsCleanerConfigPtr config,
+    IOperationsCleanerHost* host,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(std::move(config), host, bootstrap))
 { }
 
 void TOperationsCleaner::Start()
