@@ -75,6 +75,7 @@ public:
         if (!ChannelCookie_ || ChannelCookie_->IsExpired()) {
             ChannelCookie_ = Pool_->CreateChannel();
         }
+        
         return ChannelCookie_->GetChannel();
     }
 
@@ -128,6 +129,10 @@ TExpiringChannelPtr TDynamicChannelPool::CreateChannel()
     
     channelCookie->Channel_ = addresses
         .Apply(BIND([this, this_ = MakeStrong(this), channelCookie] (const TErrorOr<std::vector<TString>>& addressesOrError) {
+            if (!addressesOrError.IsOK()) {
+                EvictChannel(channelCookie);
+            }
+        
             const auto& addresses = addressesOrError.ValueOrThrow();
             YCHECK(!addresses.empty());
             auto address = addresses[RandomNumber(addresses.size())];
