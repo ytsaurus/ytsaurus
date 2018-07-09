@@ -64,8 +64,9 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , Profiler("/tablet_node/store_flusher")
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
-        , Semaphore_(New<TAsyncSemaphore>(Config_->StoreFlusher->MaxConcurrentFlushes))
+        , Semaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreFlusher->MaxConcurrentFlushes, Profiler, "/running_store_fluhses"))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -77,8 +78,9 @@ private:
     const TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    const NProfiling::TProfiler Profiler;
     TThreadPoolPtr ThreadPool_;
-    TAsyncSemaphorePtr Semaphore_;
+    TProfiledAsyncSemaphorePtr Semaphore_;
 
     struct TForcedRotationCandidate
     {
@@ -264,6 +266,7 @@ private:
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting flush");
+            storeManager->BackoffStoreFlush(store);
             return;
         }
 
@@ -329,7 +332,7 @@ private:
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("tablet_id", tabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);

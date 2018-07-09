@@ -339,7 +339,8 @@ void TDynamicStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("lock_count").Value(GetLockCount())
         .Item("value_count").Value(GetValueCount())
         .Item("pool_size").Value(GetPoolSize())
-        .Item("pool_capacity").Value(GetPoolCapacity());
+        .Item("pool_capacity").Value(GetPoolCapacity())
+        .Item("last_flush_attempt_time").Value(GetLastFlushAttemptTimestamp());
 }
 
 bool TDynamicStoreBase::IsDynamic() const
