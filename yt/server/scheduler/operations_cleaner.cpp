@@ -722,7 +722,7 @@ private:
                 }
 
                 if (ArchivePendingCounter_.GetCurrent() > Config_->MaxOperationCountEnqueuedForArchival) {
-                    TemporaryDisableArchivation();
+                    TemporarilyDisableArchivation();
                     break;
                 } else {
                     auto sleepDelay = Config_->MinArchivationRetrySleepDelay +
@@ -820,7 +820,7 @@ private:
         ScheduleRemoveOperations();
     }
 
-    void TemporaryDisableArchivation()
+    void TemporarilyDisableArchivation()
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -837,10 +837,10 @@ private:
 
         Host_->SetSchedulerAlert(
             ESchedulerAlertType::OperationsArchivation,
-            TError("Max enqueued operations limit reached; archivation temporary disabled")
+            TError("Max enqueued operations limit reached; archivation is temporarily disabled")
             << TErrorAttribute("enable_time", enableTime));
 
-        LOG_INFO("Archivation is temporary disabled (EnableTime: %v)", enableTime);
+        LOG_INFO("Archivation is temporarily disabled (EnableTime: %v)", enableTime);
     }
 
     void FetchFinishedOperations()
