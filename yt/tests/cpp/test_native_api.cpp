@@ -664,17 +664,57 @@ protected:
         CommitTimestamps_[timestampTag] = timestamps[0].second;
     }
 
+    static void DeleteRow(
+        std::vector<TString> names,
+        const TString& rowString,
+        int timestampTag)
+    {
+        auto preparedKey = PrepareUnversionedRow(names, rowString);
+        DeleteRows(
+            std::get<1>(preparedKey),
+            std::get<0>(preparedKey),
+            timestampTag);
+    }
+
+    static void DeleteRows(
+        TNameTablePtr nameTable,
+        TSharedRange<TUnversionedRow> rows,
+        int timestampTag)
+    {
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        transaction->DeleteRows(Table_, nameTable, rows);
+
+        auto commitResult = WaitFor(transaction->Commit())
+            .ValueOrThrow();
+
+        const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
+        ASSERT_EQ(1, timestamps.size());
+        CommitTimestamps_[timestampTag] = timestamps[0].second;
+    }
+
     TVersionedRow BuildVersionedRow(
         const TString& keyYson,
-        const TString& valueYson)
+        const TString& valueYson,
+        const std::vector<TTimestamp>& extraWriteTimestamps = {},
+        const std::vector<TTimestamp>& deleteTimestamps = {})
     {
-        auto immutableRow = YsonToVersionedRow(Buffer_, keyYson, valueYson);
+        auto immutableRow = YsonToVersionedRow(
+            Buffer_,
+            keyYson,
+            valueYson,
+            deleteTimestamps,
+            extraWriteTimestamps);
         auto row = TMutableVersionedRow(const_cast<TVersionedRowHeader*>(immutableRow.GetHeader()));
 
         for (auto* value = row.BeginValues(); value < row.EndValues(); ++value) {
             value->Timestamp = CommitTimestamps_.at(value->Timestamp);
         }
         for (auto* timestamp = row.BeginWriteTimestamps(); timestamp < row.EndWriteTimestamps(); ++timestamp) {
+            *timestamp = CommitTimestamps_.at(*timestamp);
+        }
+        for (auto* timestamp = row.BeginDeleteTimestamps(); timestamp < row.EndDeleteTimestamps(); ++timestamp) {
             *timestamp = CommitTimestamps_.at(*timestamp);
         }
 
@@ -807,6 +847,13 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     const auto& resultValueString = std::get<4>(param);
     const auto& schemaString = std::get<5>(param);
 
+    bool hasNonKeyColumns = false;
+    for (const auto& column : namedColumns) {
+        if (column.StartsWith("v")) {
+            hasNonKeyColumns = true;
+        }
+    }
+
     auto preparedKey = PrepareUnversionedRow(
         namedColumns,
         keyString);
@@ -825,7 +872,10 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     ASSERT_EQ(1, res->GetRows().Size());
 
     auto actual = ToString(res->GetRows()[0]);
-    auto expected = ToString(BuildVersionedRow(resultKeyString, resultValueString));
+    auto expected = ToString(BuildVersionedRow(
+        resultKeyString,
+        resultValueString,
+        hasNonKeyColumns ? std::vector<TTimestamp>{} : std::vector<TTimestamp>{0}));
     EXPECT_EQ(expected, actual)
         << "key: " << keyString << std::endl
         << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
@@ -959,7 +1009,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     EXPECT_EQ(expected, actual);
 
     options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = SmallVector<int, TypicalColumnCount>{0,1,2,3};
+    options.ColumnFilter.Indexes = {0,1,2,3};
 
     res = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -973,10 +1023,11 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     actual = ToString(res->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
         "<id=0> 20; <id=1> 20; <id=2> 20",
-        ""));
+        "",
+        {2}));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.Indexes = SmallVector<int, TypicalColumnCount>{3};
+    options.ColumnFilter.Indexes = {3};
 
     preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2", "v3"},
@@ -995,7 +1046,116 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         "",
         "<id=0;ts=2> 21;"));
     EXPECT_EQ(expected, actual);
+}
 
+// YT-7668
+// Checks that in cases like
+//   insert(key=k, value1=x, value2=y)
+//   delete(key=k)
+//   insert(key=k, value1=x)
+//   versioned_lookup(key=k, column_filter=[value1])
+// the information about the presence of the second insertion is not lost,
+// although no versioned values are returned.
+TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
+{
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2", "v3", "v4", "v5"},
+        "<id=0> 30; <id=1> 30; <id=2> 30");
+    TVersionedLookupRowsOptions options;
+
+    auto executeLookup = [&] {
+        auto res = WaitFor(Client_->VersionedLookupRows(
+            Table_,
+            std::get<1>(preparedKey),
+            std::get<0>(preparedKey),
+            options)).ValueOrThrow();
+        EXPECT_EQ(1, res->GetRows().Size());
+        return ToString(res->GetRows()[0]);
+    };
+
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3", "v4", "v5"},
+        "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 1; <id=4> 1; <id=5> 1",
+        1);
+
+    DeleteRows(std::get<1>(preparedKey), std::get<0>(preparedKey), 2);
+
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3"},
+        "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 3;",
+        3);
+
+    options.ColumnFilter.All = true;
+    options.RetentionConfig = New<TRetentionConfig>();
+    options.RetentionConfig->MinDataTtl = TDuration::MilliSeconds(0);
+    options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(1800000);
+    options.RetentionConfig->MinDataVersions = 1;
+    options.RetentionConfig->MaxDataVersions = 1;
+
+    auto actual = executeLookup();
+    auto expected = ToString(BuildVersionedRow(
+        "<id=0> 30; <id=1> 30; <id=2> 30",
+        "<id=3;ts=3> 3",
+        {},
+        {2}));
+    EXPECT_EQ(expected, actual);
+
+    options.ColumnFilter.All = false;
+    options.ColumnFilter.Indexes = {0, 1, 2, 4};
+
+    actual = executeLookup();
+    expected = ToString(BuildVersionedRow(
+        "<id=0> 30; <id=1> 30; <id=2> 30",
+        "",
+        {3},
+        {2}));
+    EXPECT_EQ(expected, actual);
+
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v4"},
+        "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 4",
+        4);
+
+    actual = executeLookup();
+    expected = ToString(BuildVersionedRow(
+        "<id=0> 30; <id=1> 30; <id=2> 30",
+        "<id=3;ts=4> 4",
+        {3},
+        {2}
+    ));
+    EXPECT_EQ(expected, actual);
+
+    DeleteRows(std::get<1>(preparedKey), std::get<0>(preparedKey), 5);
+
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3"},
+        "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 6;",
+        6);
+
+    options.ColumnFilter.Indexes = {0, 1, 2, 4, 5};
+    options.RetentionConfig->MinDataVersions = 2;
+    options.RetentionConfig->MaxDataVersions = 2;
+
+    actual = executeLookup();
+    expected = ToString(BuildVersionedRow(
+        "<id=0> 30; <id=1> 30; <id=2> 30;",
+        "<id=3;ts=4> 4",
+        {6},
+        {2, 5}
+    ));
+    EXPECT_EQ(expected, actual);
+
+    options.RetentionConfig->MinDataVersions = 1;
+    options.RetentionConfig->MaxDataVersions = 1;
+
+    actual = executeLookup();
+    expected = ToString(BuildVersionedRow(
+        "<id=0> 30; <id=1> 30; <id=2> 30;",
+        "",
+        {6},
+        {2, 5}
+    ));
+    EXPECT_EQ(expected, actual);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1027,7 +1187,6 @@ protected:
         const TString& keyYson,
         const TString& valueYson)
     {
-        // TRowBufferPtr Buffer_ = New<TRowBuffer>();
         return YsonToVersionedRow(Buffer_, keyYson, valueYson);
     }
 };
