@@ -35,6 +35,8 @@ public:
     virtual const TString& GetUser() const;
     virtual void SetUser(const TString& user);
 
+    virtual void SetUserAgent(const TString& userAgent) override;
+
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
 

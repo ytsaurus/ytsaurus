@@ -283,6 +283,7 @@ private:
 
         TRequestId RequestId_;
         TNullable<TString> User_;
+        TNullable<TString> UserAgent_;
         TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
         TNullable<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
         TString ServiceName_;
@@ -337,6 +338,7 @@ private:
 
             ParseRequestId();
             ParseUser();
+            ParseUserAgent();
             ParseRpcCredentials();
             ParseSslCredentials();
             ParseTimeout();
@@ -422,6 +424,16 @@ private:
             }
 
             User_ = TString(userString);
+        }
+
+        void ParseUserAgent()
+        {
+            auto userAgentString = CallMetadata_.Find(UserAgentMetadataKey);
+            if (!userAgentString) {
+                return;
+            }
+
+            UserAgent_ = TString(userAgentString);
         }
 
         void ParseRpcCredentials()
@@ -551,6 +563,9 @@ private:
             ToProto(header->mutable_request_id(), RequestId_);
             if (User_) {
                 header->set_user(*User_);
+            }
+            if (UserAgent_) {
+                header->set_user_agent(*UserAgent_);
             }
             header->set_service(ServiceName_);
             header->set_method(MethodName_);

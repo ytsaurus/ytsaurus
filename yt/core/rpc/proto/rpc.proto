@@ -32,6 +32,8 @@ message TRequestHeader
 
     optional bool uncancelable = 17 [default = false];
 
+    optional string user_agent = 18;
+
     extensions 100 to max;
 }
 

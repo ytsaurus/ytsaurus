@@ -1024,6 +1024,10 @@ TString TServiceBase::FormatRequestInfo(
 
     delimitedBuilder->AppendFormat("Retry: %v", header.retry());
 
+    if (header.has_user_agent()) {
+        delimitedBuilder->AppendFormat("UserAgent: %v", header.user_agent());
+    }
+
     if (header.has_timeout()) {
         delimitedBuilder->AppendFormat("Timeout: %v", FromProto<TDuration>(header.timeout()));
     }

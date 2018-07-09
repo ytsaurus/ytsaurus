@@ -99,6 +99,11 @@ public:
         }
     }
 
+    virtual void SetUserAgent(const TString& userAgent) override
+    {
+        Header_->set_user_agent(userAgent);
+    }
+
     virtual bool GetRetry() const override
     {
         Y_UNREACHABLE();
