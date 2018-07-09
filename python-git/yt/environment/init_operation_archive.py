@@ -420,9 +420,24 @@ def create_operations_archive_account(client):
     logging.info("Setting account limits %s", limits)
     client.set("//sys/accounts/{0}/@{1}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
 
+def set_operations_archive_account(client):
+    for obj in client.search(BASE_PATH, attributes=["account", "type", "dynamic"]):
+        if obj.attributes["account"] == OPERATIONS_ARCHIVE_ACCOUNT_NAME:
+            continue
+
+        is_dynamic_table = obj.attributes["type"] == "table" and obj.attributes.get("dynamic", False)
+
+        if is_dynamic_table:
+            client.unmount_table(obj, sync=True)
+
+        client.set(obj + "/@account", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
+
+        if is_dynamic_table:
+            client.mount_table(obj, sync=True)
+
 ACTIONS[8] = [
     create_operations_archive_account,
-    ExecAction("yt_set_account.py", BASE_PATH, OPERATIONS_ARCHIVE_ACCOUNT_NAME)
+    set_operations_archive_account
 ]
 
 TRANSFORMS[9] = [
