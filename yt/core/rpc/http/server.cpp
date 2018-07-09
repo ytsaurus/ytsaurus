@@ -268,6 +268,11 @@ private:
         }
         ToProto(rpcHeader->mutable_request_id(), requestId);
 
+        auto userAgent = req->GetHeaders()->Find("User-Agent");
+        if (userAgent) {
+            rpcHeader->set_user_agent(*userAgent);
+        }
+
         return {};
     }
 };

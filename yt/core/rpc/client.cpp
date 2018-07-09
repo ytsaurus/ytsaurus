@@ -144,6 +144,11 @@ void TClientRequest::SetUser(const TString& user)
     }
 }
 
+void TClientRequest::SetUserAgent(const TString& userAgent)
+{
+    Header_.set_user_agent(userAgent);
+}
+
 bool TClientRequest::GetRetry() const
 {
     return Header_.retry();
