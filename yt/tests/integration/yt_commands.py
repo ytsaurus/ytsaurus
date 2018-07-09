@@ -65,11 +65,10 @@ def init_drivers(clusters):
 
 def wait_drivers():
     for cluster in clusters_drivers.values():
-        for driver in cluster:
-            def driver_is_ready():
-                return get("//@", driver=driver)
+        def driver_is_ready():
+            return get("//@", driver=cluster[0])
 
-            wait(driver_is_ready, ignore_exceptions=True)
+        wait(driver_is_ready, ignore_exceptions=True)
             
 def terminate_drivers():
     clusters_drivers.clear()
