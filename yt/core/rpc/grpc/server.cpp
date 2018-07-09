@@ -445,11 +445,14 @@ private:
 
         void ParseRpcCredentials()
         {
+            // COMPAT(babenko)
+            auto legacyTokenString = CallMetadata_.Find("yt-token");
             auto tokenString = CallMetadata_.Find(AuthTokenMetadataKey);
             auto sessionIdString = CallMetadata_.Find(AuthSessionIdMetadataKey);
             auto sslSessionIdString = CallMetadata_.Find(AuthSslSessionIdMetadataKey);
 
             if (!tokenString &&
+                !legacyTokenString &&
                 !sessionIdString &&
                 !sslSessionIdString)
             {
@@ -458,6 +461,9 @@ private:
 
             RpcCredentialsExt_.Emplace();
 
+            if (legacyTokenString) {
+                RpcCredentialsExt_->set_token(TString(legacyTokenString));
+            }
             if (tokenString) {
                 RpcCredentialsExt_->set_token(TString(tokenString));
             }
