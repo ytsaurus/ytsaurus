@@ -806,7 +806,7 @@ TEST_F(TVersionedRowMergerTest, Expire3)
 TEST_F(TVersionedRowMergerTest, Expire4)
 {
     auto config = GetRetentionConfig();
-    config->MinDataVersions = 1;
+    config->MinDataVersions = 0;
     config->MinDataTtl = TimestampToDuration(0);
 
     auto merger = GetTypicalMerger(config, 11ULL, 0);
@@ -817,6 +817,24 @@ TEST_F(TVersionedRowMergerTest, Expire4)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0", "<id=1;ts=11> 2")},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, Expire5)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 1;
+    config->MinDataTtl = TimestampToDuration(0);
+
+    auto merger = GetTypicalMerger(config, 12ULL, 0);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=11> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=12> 3"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0", "<id=1;ts=11> 2; <id=1;ts=12> 3")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
