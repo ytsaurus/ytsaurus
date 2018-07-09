@@ -2,6 +2,7 @@ import yt.yson as yson
 from yt_driver_bindings import Driver, Request
 import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
+from yt.environment.helpers import wait
 
 import copy as pycopy
 import os
@@ -62,6 +63,14 @@ def init_drivers(clusters):
 
             clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
 
+def wait_drivers():
+    for cluster in clusters_drivers.values():
+        for driver in cluster:
+            def driver_is_ready():
+                return get("//@", driver=driver)
+
+            wait(driver_is_ready, ignore_exceptions=True)
+            
 def terminate_drivers():
     clusters_drivers.clear()
 

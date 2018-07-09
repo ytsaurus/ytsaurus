@@ -308,6 +308,8 @@ class YTEnvSetup(object):
         for index, env in enumerate(cls.remote_envs):
             env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 
+        yt_commands.wait_drivers()
+
         for env in [cls.Env] + cls.remote_envs:
             # To avoid strange hangups.
             if env.master_count > 0:
