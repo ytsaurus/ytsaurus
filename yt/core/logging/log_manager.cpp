@@ -254,8 +254,7 @@ public:
 
     void Configure(INodePtr node)
     {
-        auto config = TLogConfig::CreateFromNode(node);
-        Configure(std::move(config));
+        Configure(TLogConfig::CreateFromNode(node));
     }
 
     void Configure(TLogConfigPtr config)
@@ -443,9 +442,9 @@ public:
         EnsureStarted();
 
         // Order matters here; inherent race may lead to negative backlog and integer overflow.
-        auto writtenEvents = WrittenEvents_.load();
-        auto enqueuedEvents = EnqueuedEvents_.load();
-        auto backlogEvents = enqueuedEvents - writtenEvents;
+        ui64 writtenEvents = WrittenEvents_.load();
+        ui64 enqueuedEvents = EnqueuedEvents_.load();
+        ui64 backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
         if (Suspended_) {
@@ -629,7 +628,7 @@ private:
         return pair.first->second;
     }
 
-    std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const TString& fileName)
+    std::unique_ptr<TNotificationWatch> CreateNotificationWatch(ILogWriterPtr writer, const TString& fileName)
     {
 #ifdef _linux_
         if (Config_->WatchPeriod) {
@@ -739,7 +738,7 @@ private:
                     break;
                 case EWriterType::File:
                     writer = New<TFileLogWriter>(config->FileName);
-                    watch = CreateNoficiationWatch(writer, config->FileName);
+                    watch = CreateNotificationWatch(writer, config->FileName);
                     break;
                 default:
                     Y_UNREACHABLE();
