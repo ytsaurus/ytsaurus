@@ -190,7 +190,10 @@ message TVolume {
     }
 }
 
-// Ограничения на время исполнения и интервал между запусками хука. Все времена в миллисекундах.
+// Ограничения на время исполнения и интервал между запусками хука.
+// Все времена в миллисекундах, однако времена, возвращаемы porto,
+// имеют точность до секунды.
+// Поэтому все значения будут округляться вверх до секунд.
 // maxExecutionTimeMs - ограничение на время выполнения.
 // Интервал между запусками рассчитывается по формуле
 // min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
@@ -236,6 +239,7 @@ message TWorkload {
 
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
+    //Если команда падает - она перезапускается до победного
     repeated string InitCommandLine = 3;
 
     //Команда которая будет установлена в porto-container в качестве опции cmd. Т.е. entry point для контейнера.
@@ -300,8 +304,6 @@ message TTcpCheck {
 }
 
 message TReadinessCheck {
-    string Id = 1;
-
     oneof Check {
         TUtilityContainer Container = 2;
         TTcpCheck TcpCheck = 3;
@@ -311,8 +313,6 @@ message TReadinessCheck {
 
 //Наследует Env от TWorkload
 message TUtilityContainer {
-    string Id = 1;
-
     //атрибуты контейнера (по сути это сквозной проброс опций Porto)
     //Тут важно разделять интерфейс предоствляемый пользователю и внутренний между YP<->agent
     TComputeResources ComputeResources = 2;
@@ -439,6 +439,10 @@ enum EContainerState {
     EContainerState_SYSTEM_FAILURE = 5 [(NYT.NYson.NProto.enum_value_name) = "system_failure"];
 
     EContainerState_RUNNING = 6 [(NYT.NYson.NProto.enum_value_name) = "running"];
+    // Процесс ожидает истечения InitialDelayMs
+    EContainerState_WAITING_INIT = 7 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
+    // Процесс ожидает истечения restart period - см. TTimeLimit
+    EContainerState_WAITING_RESTART = 8 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
 }
 
 //Q: Почему нет статистики контейнера
@@ -484,7 +488,7 @@ message TWorkloadStatus {
 
     EWorkloadState State = 2;
 
-    TContainerStatus Init = 3;
+    repeated TContainerStatus Init = 3;
 
     //Добавить валидацию, что указан непустой start
     TContainerStatus Start = 4;
@@ -506,7 +510,7 @@ enum ECheckResult {
     ECheckResult_SUCCESS = 1 [(NYT.NYson.NProto.enum_value_name) = "success"];
 }
 
-message TEndpointCheckStatus {
+message TTcpCheckStatus {
     ECheckResult CheckResult = 1;
 }
 
@@ -516,8 +520,8 @@ message THttpCheckStatus {
 
 message TReadinessStatus {
     oneof Status {
-        TContainerStatus ReadinessHookStatus = 1;
-        TEndpointCheckStatus EndpointCheckStatus = 2;
+        TContainerStatus ContainerStatus = 1;
+        TTcpCheckStatus TcpCheckStatus = 2;
         THttpCheckStatus HttpCheckStatus = 3;
     }
 }
@@ -608,4 +612,7 @@ message TVolumeStatus {
     TCondition Ready = 5;
 
     TCondition InProgress = 6;
+
+    // понять удобно ли
+    repeated string LayerRefs = 7;
 }

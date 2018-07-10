@@ -15,8 +15,6 @@ endforeach(proto_file)
 
 add_custom_target(yp-python-protos ALL DEPENDS ${PROTO_TARGETS})
 
-add_dependencies(yp-python-protos yt-core-python-protos)
-
 target_link_libraries(yp-library-client
   yt-core
   yp-build
