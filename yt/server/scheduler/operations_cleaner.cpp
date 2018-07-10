@@ -732,61 +732,129 @@ private:
             .ValueOrThrow();
 
         if (!batch.empty()) {
-            LOG_DEBUG("Removing operations from Cypress (BatchSize: %v)", batch.size());
-
-            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                PrimaryMasterCellTag);
-
-            TObjectServiceProxy proxy(channel);
-            auto batchReq = proxy.ExecuteBatch();
-
-            for (const auto& operationId : batch) {
-                // Remove old operation node.
-                {
-                    auto req = TYPathProxy::Remove(GetOperationPath(operationId));
-                    req->set_recursive(true);
-                    batchReq->AddRequest(req, "remove_operation");
-                }
-                // Remove new operation node.
-                {
-                    auto req = TYPathProxy::Remove(GetNewOperationPath(operationId));
-                    req->set_recursive(true);
-                    batchReq->AddRequest(req, "remove_operation_new");
-                }
-            }
+            LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
 
             std::vector<TOperationId> failedOperationIds;
+            std::vector<TOperationId> operationIdsToRemove;
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            if (batchRspOrError.IsOK()) {
-                const auto& batchRsp = batchRspOrError.Value();
-                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
-                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation_new");
-                YCHECK(rsps.size() == rspsNew.size());
-                YCHECK(rsps.size() == batch.size());
+            {
+                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+                    EMasterChannelKind::Follower,
+                    PrimaryMasterCellTag);
 
-                for (int index = 0; index < batch.size(); ++index) {
-                    const auto& operationId = batch[index];
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
 
-                    for (const auto& rsp : {rsps[index], rspsNew[index]}) {
-                        if (!rsp.IsOK()) {
-                            if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                                continue;
-                            }
-
-                            LOG_DEBUG(rsp, "Failed to remove finished operation from Cypress (OperationId: %v)",
-                                operationId);
-                            failedOperationIds.push_back(operationId);
-                            break;
-                        }
+                for (const auto& operationId : batch) {
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@lock_count");
+                        batchReq->AddRequest(req, "get_lock_count");
+                    }
+                    {
+                        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@lock_count");
+                        batchReq->AddRequest(req, "get_lock_count_new");
                     }
                 }
-            } else {
-                LOG_WARNING(batchRspOrError, "Failed to remove finished operations from Cypress (BatchSize: %v)", batch.size());
-                failedOperationIds = batch;
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+                if (batchRspOrError.IsOK()) {
+                    const auto& batchRsp = batchRspOrError.Value();
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count_new");
+                    YCHECK(rsps.size() == rspsNew.size());
+                    YCHECK(rsps.size() == batch.size());
+
+                    for (int index = 0; index < rsps.size(); ++index) {
+                        bool isLocked = false;
+                        for (const auto& rsp : {rsps[index], rspsNew[index]}) {
+                            if (rsp.IsOK()) {
+                                auto lockCountNode = ConvertToNode(TYsonString(rsp.Value()->value()));
+                                if (lockCountNode->AsUint64()->GetValue() > 0) {
+                                    isLocked = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        const auto& operationId = batch[index];
+                        if (isLocked) {
+                            failedOperationIds.push_back(operationId);
+                        } else {
+                            operationIdsToRemove.push_back(operationId);
+                        }
+                    }
+                } else {
+                    LOG_WARNING(
+                        batchRspOrError,
+                        "Failed to get lock count for operations from Cypress (OperationCount: %v)",
+                        batch.size());
+
+                    failedOperationIds = batch;
+                }
             }
 
+            if (!operationIdsToRemove.empty()) {
+                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+                    EMasterChannelKind::Leader,
+                    PrimaryMasterCellTag);
+
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
+
+                for (const auto& operationId : operationIdsToRemove) {
+                    {
+                        auto req = TYPathProxy::Remove(GetOperationPath(operationId));
+                        req->set_recursive(true);
+                        batchReq->AddRequest(req, "remove_operation");
+                    }
+                    {
+                        auto req = TYPathProxy::Remove(GetNewOperationPath(operationId));
+                        req->set_recursive(true);
+                        batchReq->AddRequest(req, "remove_operation_new");
+                    }
+                }
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                if (batchRspOrError.IsOK()) {
+                    const auto& batchRsp = batchRspOrError.Value();
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation_new");
+                    YCHECK(rsps.size() == rspsNew.size());
+                    YCHECK(rsps.size() == operationIdsToRemove.size());
+
+                    for (int index = 0; index < operationIdsToRemove.size(); ++index) {
+                        const auto& operationId = operationIdsToRemove[index];
+
+                        for (const auto& rsp : {rsps[index], rspsNew[index]}) {
+                            if (!rsp.IsOK()) {
+                                if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                                    continue;
+                                }
+
+                                LOG_DEBUG(
+                                    rsp,
+                                    "Failed to remove finished operation from Cypress (OperationId: %v)",
+                                    operationId);
+
+                                failedOperationIds.push_back(operationId);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    LOG_WARNING(
+                        batchRspOrError,
+                        "Failed to remove finished operations from Cypress (OperationCount: %v)",
+                        operationIdsToRemove.size());
+
+                    for (const auto& operationId : operationIdsToRemove) {
+                        failedOperationIds.push_back(operationId);
+                    }
+                }
+            }
+
+            YCHECK(batch.size() >= failedOperationIds.size());
             int removedCount = batch.size() - failedOperationIds.size();
             LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
 
