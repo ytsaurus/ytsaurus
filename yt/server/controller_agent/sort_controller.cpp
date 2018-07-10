@@ -11,7 +11,6 @@
 #include "operation.h"
 #include "scheduling_context.h"
 #include "config.h"
-#include "job_helpers.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
@@ -43,8 +42,6 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/profiling/timing.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -66,7 +63,6 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NScheduler;
-using namespace NProfiling;
 
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
@@ -397,34 +393,18 @@ protected:
             Persist(context, Controller);
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
-            Persist(context, DataBalancingViolationConsecutiveCount_);
+
+            // COMPAT(psushin).
+            if (context.IsLoad() && context.GetVersion() < 200926) {
+                i64 _;
+                Persist(context, _);
+            }
         }
 
         virtual bool SupportsInputPathYson() const override
         {
             return true;
         }
-
-
-        void OnExecNodesUpdated(
-            const TRefCountedExecNodeDescriptorMapPtr& oldExecNodes,
-            const TRefCountedExecNodeDescriptorMapPtr& newExecNodes)
-        {
-            for (const auto& pair : *oldExecNodes) {
-                const auto& nodeId = pair.first;
-                if (!newExecNodes->has(nodeId)) {
-                    auto it = NodeIdToAdjustedDataWeight.find(nodeId);
-                    if (it != NodeIdToAdjustedDataWeight.end()) {
-                        // NB: we discard all the data that is on this node and never account it back.
-                        LOG_DEBUG("Node data weight discarded as it has gone offline (NodeId: %v, NodeAddress: %v)",
-                            nodeId,
-                            pair.second.Address);
-                        UpdateNodeDataWeight(pair.second, -it->second);
-                    }
-                }
-            }
-        }
-
 
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionTask, 0x63a4c761);
@@ -435,32 +415,10 @@ protected:
         //! All data sizes are IO weight-adjusted.
         //! No zero values are allowed.
         THashMap<TNodeId, i64> NodeIdToAdjustedDataWeight;
-
         //! The sum of all sizes appearing in #NodeIdToDataWeight.
         //! This value is IO weight-adjusted.
         i64 AdjustedScheduledDataWeight = 0;
 
-        TInstant LastDataBalancingViolationLogTime_;
-        int DataBalancingViolationConsecutiveCount_ = 0;
-
-        void LogDataBalancingViolation()
-        {
-            auto now = GetInstant();
-            if (now > LastDataBalancingViolationLogTime_ + Controller->Options->DataBalancingViolationLoggingPeriod) {
-                TString line;
-                bool isFirst = true;
-                for (const auto& pair : NodeIdToAdjustedDataWeight) {
-                    if (!isFirst) {
-                        line += "; ";
-                    }
-                    isFirst = false;
-                    line += Format("%v: %v", pair.first, pair.second);
-                }
-                LastDataBalancingViolationLogTime_ = now;
-                LOG_WARNING("Too many scheduling failures due to data balancing violation (NodeIdToAdjustedDataWeight: {%v})",
-                    line);
-            }
-        }
 
         void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta)
         {
@@ -514,39 +472,11 @@ protected:
             auto newAdjustedScheduledDataWeight = AdjustedScheduledDataWeight + adjustedJobDataWeight;
             auto newAvgAdjustedScheduledDataWeight = newAdjustedScheduledDataWeight / NodeIdToAdjustedDataWeight.size();
             auto newAdjustedNodeDataWeight = NodeIdToAdjustedDataWeight[nodeId] + adjustedJobDataWeight;
-            auto allowedAdjustedNodeDataWeight = newAvgAdjustedScheduledDataWeight +
-                Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataWeight;
+            auto result =
+                newAdjustedNodeDataWeight <=
+                newAvgAdjustedScheduledDataWeight + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataWeight;
 
-            if (newAdjustedNodeDataWeight >= allowedAdjustedNodeDataWeight) {
-                ++DataBalancingViolationConsecutiveCount_;
-                if (DataBalancingViolationConsecutiveCount_ > Controller->Options->DataBalancingViolationLoggingMinConsecutiveCount) {
-                    LOG_DEBUG("Scheduling failed due to data balancing violation (DataBalancingViolationConsecutiveCount: %v, "
-                         "IOWeight: %v, AdjustedJobDataWeight: %v, NodeId: %v, NodeAddress: %v, AdjustedNodeDataWeight: %v, "
-                         "NewAdjustedNodeDataWeight: %v, NodeCount: %v, AdjustedScheduledDataWeight: %v, "
-                         "NewAdjustedScheduledDataWeight: %v, NewAvgAdjustedScheduledDataWeight: %v, "
-                         "PartitionedDataBalancingTolerance: %v, AllowedAdjustedNodeDataWeight: %v)",
-                         DataBalancingViolationConsecutiveCount_,
-                         ioWeight,
-                         adjustedJobDataWeight,
-                         NodeIdToAdjustedDataWeight.size(),
-                         context->GetNodeDescriptor().Address,
-                         NodeIdToAdjustedDataWeight[nodeId],
-                         newAdjustedNodeDataWeight,
-                         NodeIdToAdjustedDataWeight.size(),
-                         AdjustedScheduledDataWeight,
-                         newAdjustedScheduledDataWeight,
-                         newAvgAdjustedScheduledDataWeight,
-                         Controller->Spec->PartitionedDataBalancingTolerance,
-                         allowedAdjustedNodeDataWeight);
-                    LogDataBalancingViolation();
-                }
-
-                return EScheduleJobFailReason::DataBalancingViolation;
-            }
-
-            DataBalancingViolationConsecutiveCount_ = 0;
-
-            return Null;
+            return MakeNullable(!result, EScheduleJobFailReason::DataBalancingViolation);
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -1902,14 +1832,6 @@ protected:
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
-    virtual void OnExecNodesUpdated(
-        const TRefCountedExecNodeDescriptorMapPtr& oldExecNodes,
-        const TRefCountedExecNodeDescriptorMapPtr& newExecNodes)
-    {
-        if (PartitionTask) {
-            PartitionTask->OnExecNodesUpdated(oldExecNodes, newExecNodes);
-        }
-    }
 
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
