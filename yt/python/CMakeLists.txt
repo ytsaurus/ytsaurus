@@ -57,6 +57,10 @@ function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
 
   if(${IS_NATIVE_SYSTEM_PYTHON})
     exec_program(
+      ${CMAKE_COMMAND} ARGS -E remove
+      ${CMAKE_SOURCE_DIR}/python/yt_${component}_bindings/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
+    )
+    exec_program(
       ${CMAKE_COMMAND} ARGS -E create_symlink
       ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
       ${CMAKE_SOURCE_DIR}/python/yt_${component}_bindings/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
