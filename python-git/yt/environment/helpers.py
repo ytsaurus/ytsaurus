@@ -276,6 +276,7 @@ def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3, ignore_exce
                 return
         except:
             if ignore_exceptions:
+                time.sleep(sleep_backoff)
                 continue
             raise
         time.sleep(sleep_backoff)
