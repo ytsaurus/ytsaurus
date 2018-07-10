@@ -922,39 +922,50 @@ public:
         return false;
     }
 
-    TPermissionCheckResult CheckPermission(
-        TObjectBase* object,
+    bool FastChecksPassed(
         TUser* user,
-        EPermission permission)
+        EPermission permission,
+        TPermissionCheckResult* result)
     {
-        TPermissionCheckResult result;
-
         // Fast lane: "replicator", though being superuser, cannot write in safe mode.
         if (user == ReplicatorUser_ &&
             permission != EPermission::Read &&
             Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
         {
-            result.Action = ESecurityAction::Deny;
-            return result;
+            result->Action = ESecurityAction::Deny;
+            return true;
         }
 
         // Fast lane: "root" and "superusers" need no autorization.
         if (IsUserRootOrSuperuser(user)) {
-            result.Action = ESecurityAction::Allow;
-            return result;
+            result->Action = ESecurityAction::Allow;
+            return true;
         }
 
         // Fast lane: banned users are denied any permission.
         if (user->GetBanned()) {
-            result.Action = ESecurityAction::Deny;
-            return result;
+            result->Action = ESecurityAction::Deny;
+            return true;
         }
 
         // Fast lane: cluster is in safe mode.
         if (permission != EPermission::Read &&
             Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
         {
-            result.Action = ESecurityAction::Deny;
+            result->Action = ESecurityAction::Deny;
+            return true;
+        }
+
+        return false;
+    }
+
+    TPermissionCheckResult CheckPermission(
+        TObjectBase* object,
+        TUser* user,
+        EPermission permission)
+    {
+        TPermissionCheckResult result;
+        if (FastChecksPassed(user, permission, &result)) {
             return result;
         }
 
@@ -1030,6 +1041,59 @@ public:
                 permission,
                 user->GetName(),
                 result.Object->GetId(),
+                result.Subject->GetName());
+            return result;
+        }
+    }
+
+    TPermissionCheckResult CheckPermission(
+        TUser* user,
+        EPermission permission,
+        const TAccessControlList& acl)
+    {
+        TPermissionCheckResult result;
+        if (FastChecksPassed(user, permission, &result)) {
+            return result;
+        }
+
+        for (const auto& ace : acl.Entries) {
+            if (!CheckInheritanceMode(ace.InheritanceMode, 0)) {
+                continue;
+            }
+
+            if (CheckPermissionMatch(ace.Permissions, permission)) {
+                for (auto* subject : ace.Subjects) {
+                    if (CheckSubjectMatch(subject, user)) {
+                        result.Action = ace.Action;
+                        result.Subject = subject;
+                        // At least one denying ACE is found, deny the request.
+                        if (result.Action == ESecurityAction::Deny) {
+                            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
+                                "(Permission: %v, User: %v, AclSubject: %v)",
+                                permission,
+                                user->GetName(),
+                                result.Subject->GetName());
+                            return result;
+                        }
+                    }
+                }
+            }
+        }
+
+        // No allowing ACE, deny the request.
+        if (result.Action == ESecurityAction::Undefined) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
+                "(Permission: %v, User: %v)",
+                permission,
+                user->GetName());
+            result.Action = ESecurityAction::Deny;
+            return result;
+        } else {
+            Y_ASSERT(result.Action == ESecurityAction::Allow);
+            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
+                "(Permission: %v, User: %v, AclSubject: %v)",
+                permission,
+                user->GetName(),
                 result.Subject->GetName());
             return result;
         }
@@ -2676,6 +2740,17 @@ TPermissionCheckResult TSecurityManager::CheckPermission(
         object,
         user,
         permission);
+}
+
+TPermissionCheckResult TSecurityManager::CheckPermission(
+    TUser* user,
+    EPermission permission,
+    const TAccessControlList& acl)
+{
+    return Impl_->CheckPermission(
+        user,
+        permission,
+        acl);
 }
 
 void TSecurityManager::ValidatePermission(

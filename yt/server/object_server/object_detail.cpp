@@ -518,7 +518,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             auto valueNode = ConvertToNode(value);
             TAccessControlList newAcl;
-            Deserilize(newAcl, valueNode, securityManager);
+            Deserialize(newAcl, valueNode, securityManager);
 
             acd->ClearEntries();
             for (const auto& ace : newAcl.Entries) {

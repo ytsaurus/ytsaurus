@@ -233,6 +233,7 @@ public:
         REGISTER    (TRemoveMemberCommand,                "remove_member",                 Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER_ALL(TCheckPermissionCommand,             "check_permission",              Null,       Structured, false, false);
+        REGISTER_ALL(TCheckPermissionByAclCommand,        "check_permission_by_acl",       Null,       Structured, false, false);
 
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Structured, true,  true , ApiVersion4);

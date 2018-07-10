@@ -36,3 +36,19 @@ message TRspGetClusterMeta
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqCheckPermissionByAcl
+{
+    required string user = 1;
+    required int32 permission = 2;
+    required string acl = 3;
+}
+
+message TRspCheckPermissionByAcl
+{
+    required int32 action = 1;
+    optional NYT.NProto.TGuid subject_id = 2;
+    optional string subject_name = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

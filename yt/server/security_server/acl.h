@@ -52,7 +52,7 @@ void Load(NCellMaster::TLoadContext& context, TAccessControlList& acl);
 void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl);
 
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
-void Deserilize(
+void Deserialize(
     TAccessControlList& acl,
     NYTree::INodePtr node,
     TSecurityManagerPtr securityManager);

@@ -109,7 +109,7 @@ void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
         .Value(acl.Entries);
 }
 
-void Deserilize(
+void Deserialize(
     TAccessControlList& acl,
     INodePtr node,
     TSecurityManagerPtr securityManager)

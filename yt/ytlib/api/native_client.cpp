@@ -826,6 +826,12 @@ public:
         EPermission permission,
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
+    IMPLEMENT_METHOD(TCheckPermissionByAclResult, CheckPermissionByAcl, (
+        const TNullable<TString>& user,
+        EPermission permission,
+        INodePtr acl,
+        const TCheckPermissionByAclOptions& options),
+        (user, permission, acl, options))
 
     IMPLEMENT_METHOD(TOperationId, StartOperation, (
         EOperationType type,
@@ -3178,6 +3184,38 @@ private:
             .ValueOrThrow();
 
         return FromProto<TObjectId>(rsp->object_id());
+    }
+
+    TCheckPermissionByAclResult DoCheckPermissionByAcl(
+        const TNullable<TString>& user,
+        EPermission permission,
+        INodePtr acl,
+        const TCheckPermissionByAclOptions& options)
+    {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        auto req = TMasterYPathProxy::CheckPermissionByAcl();
+        if (user) {
+            req->set_user(*user);
+        }
+        req->set_permission(static_cast<int>(permission));
+        req->set_acl(ConvertToYsonString(acl).GetData());
+        SetCachingHeader(req, options);
+
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCheckPermissionByAcl>(0)
+            .ValueOrThrow();
+
+        TCheckPermissionByAclResult result;
+        result.Action = ESecurityAction(rsp->action());
+        result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
+        result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
+        return result;
     }
 
     void SetTouchedAttribute(
