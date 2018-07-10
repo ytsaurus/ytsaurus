@@ -38,7 +38,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 # can't succeed then operations will be just removed.
                 "max_operation_count_enqueued_for_archival": 5,
                 "max_operation_count_per_user": 3,
-                "fetch_batch_size": 1
+                "fetch_batch_size": 1,
+                "max_removal_sleep_delay": 100
             },
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100

@@ -420,11 +420,6 @@ private:
         return CancelableControlInvoker_;
     }
 
-    void ScheduleRemoveOperations()
-    {
-        GetInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
-    }
-
     void ScheduleArchiveOperations()
     {
         GetInvoker()->Invoke(BIND(&TImpl::ArchiveOperations, MakeStrong(this)));
@@ -447,7 +442,8 @@ private:
 
             AnalysisExecutor_->Start();
 
-            ScheduleRemoveOperations();
+            GetInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
+
             ScheduleArchiveOperations();
             DoStartArchivation();
 
@@ -753,7 +749,8 @@ private:
             LOG_DEBUG("Removing operations from Cypress (BatchSize: %v)", batch.size());
 
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader, PrimaryMasterCellTag);
+                EMasterChannelKind::Leader,
+                PrimaryMasterCellTag);
 
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
@@ -817,7 +814,10 @@ private:
             Profiler.Increment(RemovePendingCounter_, -removedCount);
         }
 
-        ScheduleRemoveOperations();
+        auto callback = BIND(&TImpl::RemoveOperations, MakeStrong(this))
+            .Via(GetInvoker());
+
+        TDelayedExecutor::Submit(callback, RandomDuration(Config_->MaxRemovalSleepDelay));
     }
 
     void TemporarilyDisableArchivation()
