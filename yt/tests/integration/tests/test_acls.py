@@ -5,6 +5,8 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
+from time import sleep
+
 ##################################################################
 
 class TestAcls(YTEnvSetup):
@@ -661,6 +663,13 @@ class TestAcls(YTEnvSetup):
             create("table", "//tmp/t2", authenticated_user="u")
         with pytest.raises(YtError):
             start_transaction(authenticated_user="u")
+
+    def test_check_permission_by_acl(self):
+        create_user("u1")
+        create_user("u2")
+        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
+        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
+        assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
 
     def test_effective_acl(self):
         create_user("u")

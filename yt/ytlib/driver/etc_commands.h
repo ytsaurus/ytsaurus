@@ -85,6 +85,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCheckPermissionByAclCommand
+    : public TTypedCommand<NApi::TCheckPermissionByAclOptions>
+{
+public:
+    TCheckPermissionByAclCommand();
+
+private:
+    TNullable<TString> User;
+    NYTree::EPermission Permission;
+    NYTree::INodePtr Acl;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TExecuteBatchOptions
     : public NApi::TMutatingOptions
 {

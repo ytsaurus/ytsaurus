@@ -242,6 +242,21 @@ struct TCheckPermissionResult
     TNullable<TString> SubjectName;
 };
 
+struct TCheckPermissionByAclOptions
+    : public TTimeoutOptions
+    , public TMasterReadOptions
+    , public TPrerequisiteOptions
+{ };
+
+struct TCheckPermissionByAclResult
+{
+    TError ToError(const TString& user, NYTree::EPermission permission) const;
+
+    NSecurityClient::ESecurityAction Action;
+    NSecurityClient::TSubjectId SubjectId;
+    TNullable<TString> SubjectName;
+};
+
 // TODO(lukyan): Use TTransactionalOptions as base class
 struct TTransactionStartOptions
     : public TMutatingOptions
@@ -1107,6 +1122,12 @@ struct IClient
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
+
+    virtual TFuture<TCheckPermissionByAclResult> CheckPermissionByAcl(
+        const TNullable<TString>& user,
+        NYTree::EPermission permission,
+        NYTree::INodePtr acl,
+        const TCheckPermissionByAclOptions& options = TCheckPermissionByAclOptions()) = 0;
 
 
     // Scheduler

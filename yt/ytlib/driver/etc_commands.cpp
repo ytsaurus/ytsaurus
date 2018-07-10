@@ -112,6 +112,37 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCheckPermissionByAclCommand::TCheckPermissionByAclCommand()
+{
+    RegisterParameter("user", User);
+    RegisterParameter("permission", Permission);
+    RegisterParameter("acl", Acl);
+}
+
+void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result =
+        WaitFor(context->GetClient()->CheckPermissionByAcl(
+            User,
+            Permission,
+            Acl,
+            Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("action").Value(result.Action)
+            .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_id").Value(result.SubjectId);
+            })
+            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_name").Value(result.SubjectName);
+            })
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TExecuteBatchCommand::TRequest::TRequest()
 {
     RegisterParameter("command", Command);

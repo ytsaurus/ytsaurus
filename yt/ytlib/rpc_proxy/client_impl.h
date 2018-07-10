@@ -121,6 +121,15 @@ public:
         ThrowUnimplemented("check_permission");
     }
 
+    virtual TFuture<NApi::TCheckPermissionByAclResult> CheckPermissionByAcl(
+        const TNullable<TString>& user,
+        NYTree::EPermission permission,
+        NYTree::INodePtr acl,
+        const NApi::TCheckPermissionByAclOptions& options) override
+    {
+        ThrowUnimplemented("check_permission_by_acl");
+    }
+
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(
         NScheduler::EOperationType,
