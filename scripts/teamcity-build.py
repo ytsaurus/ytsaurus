@@ -380,6 +380,7 @@ def share_packages(options, build_context):
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
 
 @build_step
+@disable_for_ya
 def package(options, build_context):
     if not options.package:
         return
