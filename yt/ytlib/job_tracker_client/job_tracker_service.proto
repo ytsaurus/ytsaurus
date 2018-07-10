@@ -18,6 +18,7 @@ message TReqHeartbeat
     repeated NYT.NProto.TGuid unconfirmed_jobs = 6;
     required int64 confirmed_job_count = 7;
     required NNodeTrackerClient.NProto.TDiskResources disk_info = 8;
+    optional int32 job_reporter_write_failures_count = 9;
 }
 
 message TJobStartInfo

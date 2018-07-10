@@ -39,6 +39,7 @@ public:
     void SetStderrEnabled(bool enable);
     void SetFailContextEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
+    int ExtractWriteFailuresCount();
 
 private:
     class TImpl;

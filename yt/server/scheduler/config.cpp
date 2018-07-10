@@ -348,6 +348,12 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("min_agent_count_for_waiting_operation", MinAgentCountForWaitingOperation)
         .Default(1);
 
+    RegisterParameter("job_reporter_write_failures_check_period", JobReporterWriteFailuresCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
+    RegisterParameter("job_reporter_write_failures_alert_threshold", JobReporterWriteFailuresAlertThreshold)
+        .Default(10);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

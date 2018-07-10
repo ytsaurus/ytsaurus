@@ -190,6 +190,11 @@ public:
         return Data_;
     }
 
+    int ExtractWriteFailuresCount()
+    {
+        return WriteFailuresCount_.exchange(0);
+    }
+
 protected:
     TLogger Logger = ReporterLogger;
 
@@ -197,6 +202,7 @@ private:
     TMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
     TMonotonicCounter DequeuedCounter_ = {"/dequeued"};
     TMonotonicCounter DroppedCounter_ = {"/dropped"};
+    TMonotonicCounter WriteFailuresCounter_ = {"/write_failures"};
     TSimpleGauge PendingCounter_ = {"/pending"};
     TMonotonicCounter CommittedCounter_ = {"/committed"};
     TMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
@@ -211,6 +217,7 @@ private:
     TAsyncSemaphore EnableSemaphore_ {1};
     std::atomic<bool> Enabled_ = {false};
     std::atomic<ui64> DroppedCount_ = {0};
+    std::atomic<ui64> WriteFailuresCount_ = {0};
 
     // Must return dataweight of written batch inside transaction.
     virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) = 0;
@@ -250,6 +257,8 @@ private:
                 Limiter_.Decrease(dataSize);
                 return;
             } catch (const std::exception& ex) {
+                WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
+                Profiler_.Increment(WriteFailuresCounter_);
                 LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
                     GetPendingCount());
@@ -669,6 +678,15 @@ public:
         Data_->SetOperationArchiveVersion(version);
     }
 
+    int ExtractWriteFailuresCount()
+    {
+        return
+            JobHandler_->ExtractWriteFailuresCount() +
+            JobSpecHandler_->ExtractWriteFailuresCount() +
+            JobStderrHandler_->ExtractWriteFailuresCount() +
+            JobFailContextHandler_->ExtractWriteFailuresCount();
+    }
+
 private:
     const INativeClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
@@ -730,6 +748,14 @@ void TStatisticsReporter::SetOperationArchiveVersion(int version)
     if (Impl_) {
         Impl_->SetOperationArchiveVersion(version);
     }
+}
+
+int TStatisticsReporter::ExtractWriteFailuresCount()
+{
+    if (Impl_) {
+        return Impl_->ExtractWriteFailuresCount();
+    }
+    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

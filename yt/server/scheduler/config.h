@@ -365,6 +365,10 @@ public:
 
     int MinAgentCountForWaitingOperation;
 
+    TDuration JobReporterWriteFailuresCheckPeriod;
+
+    int JobReporterWriteFailuresAlertThreshold;
+
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;
 
