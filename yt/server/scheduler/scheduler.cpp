@@ -297,6 +297,12 @@ public:
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->ExecNodeDescriptorsUpdatePeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
+
+        JobReporterWriteFailuresChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::CheckJobReporterWriteFailures, MakeWeak(this)),
+            Config_->JobReporterWriteFailuresCheckPeriod);
+        JobReporterWriteFailuresChecker_->Start();
     }
 
     const NApi::INativeClientPtr& GetMasterClient() const
@@ -1178,6 +1184,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
+    TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
 
     TString ServiceAddress_;
@@ -1733,6 +1740,7 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
+            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterWriteFailuresCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -1801,6 +1809,24 @@ private:
             TWriterGuard guard(ExecNodeDescriptorsLock_);
             CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
         }
+    }
+
+    void CheckJobReporterWriteFailures()
+    {
+        int writeFailures = 0;
+        for (const auto& shard : NodeShards_) {
+            writeFailures += shard->ExtractJobReporterWriteFailuresCount();
+        }
+
+        TError error;
+        if (writeFailures > Config_->JobReporterWriteFailuresAlertThreshold) {
+            error = TError("Too many job archive writes failed")
+                << TErrorAttribute("aggregation_period", Config_->JobReporterWriteFailuresCheckPeriod)
+                << TErrorAttribute("threshold", Config_->JobReporterWriteFailuresAlertThreshold)
+                << TErrorAttribute("write_failures", writeFailures);
+        }
+
+        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, error);
     }
 
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override

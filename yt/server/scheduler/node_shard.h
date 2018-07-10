@@ -163,6 +163,8 @@ public:
     void EndScheduleJob(
         const NProto::TScheduleJobResponse& response);
 
+    int ExtractJobReporterWriteFailuresCount();
+
 private:
     const int Id_;
     TSchedulerConfigPtr Config_;
@@ -200,6 +202,8 @@ private:
 
     NConcurrency::TReaderWriterSpinLock JobTimeStatisticsDeltaLock_;
     TJobTimeStatisticsDelta JobTimeStatisticsDelta_;
+
+    std::atomic<int> JobReporterWriteFailuresCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock JobCounterLock_;
     TJobCounter JobCounter_;
