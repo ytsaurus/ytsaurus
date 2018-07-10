@@ -17,14 +17,7 @@ DEFINE_ENUM(EProgramExitCode,
 class TProgram
 {
 public:
-    using TGetVersionFunc = std::function<const char*()>;
-
-public:
-    // TODO (ermolovd) we should remove default constructor and always use contructor with explicit version.
-    // It was kept for a while to ease github/arcadia sync.
     TProgram();
-    explicit TProgram(TGetVersionFunc getVersion);
-
     ~TProgram();
 
     TProgram(const TProgram&) = delete;
@@ -36,16 +29,12 @@ protected:
     NLastGetopt::TOpts Opts_;
     TString Argv0_;
 
-protected:
     int Exit(EProgramExitCode code) const noexcept;
     int Exit(int code) const noexcept;
 
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) = 0;
 
     virtual void OnError(const TString& message) const noexcept;
-
-private:
-    TGetVersionFunc GetVersion_;
 
 private:
     // Custom handler for option parsing errors.

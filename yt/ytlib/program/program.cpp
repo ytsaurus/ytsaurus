@@ -47,11 +47,6 @@ private:
 };
 
 TProgram::TProgram()
-    : TProgram(&GetVersion)
-{ }
-
-TProgram::TProgram(TProgram::TGetVersionFunc getVersion)
-    : GetVersion_(getVersion)
 {
     Opts_.AddHelpOption();
     Opts_.AddLongOption("version", "print version and exit")
@@ -112,7 +107,7 @@ void TProgram::OnError(const TString& message) const noexcept
 
 void TProgram::PrintVersionAndExit()
 {
-    Cout << GetVersion_() << Endl;
+    Cout << GetVersion() << Endl;
     _exit(0);
 }
 
