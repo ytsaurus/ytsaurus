@@ -1308,9 +1308,7 @@ void CreateOutputTable(
     const TTransactionId& transactionId,
     const TRichYPath& path)
 {
-    if (!path.Path_) {
-        ythrow yexception() << "Output table is not set";
-    }
+    Y_ENSURE(path.Path_, "Output table is not set");
     NYT::NDetail::Create(auth, transactionId, path.Path_, NT_TABLE,
         TCreateOptions()
             .IgnoreExisting(true)
@@ -1322,11 +1320,21 @@ void CreateOutputTables(
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& paths)
 {
-    if (paths.empty()) {
-        ythrow yexception() << "Output tables are not set";
-    }
+    Y_ENSURE(!paths.empty(), "Output tables are not set");
     for (auto& path : paths) {
         CreateOutputTable(auth, transactionId, path);
+    }
+}
+
+void CheckInputTablesExist(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths)
+{
+    Y_ENSURE(!paths.empty(), "Input tables are not set");
+    for (auto& path : paths) {
+        Y_ENSURE_EX(NYT::NDetail::Exists(auth, transactionId, path.Path_),
+            TApiUsageError() << "Input table '" << path.Path_ << "' doesn't exist");
     }
 }
 
@@ -1377,6 +1385,7 @@ TOperationId DoExecuteMap(
         CreateDebugOutputTables(spec, auth);
     }
     if (options.CreateOutputTables_) {
+        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
         CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
@@ -1475,6 +1484,7 @@ TOperationId DoExecuteReduce(
         CreateDebugOutputTables(spec, auth);
     }
     if (options.CreateOutputTables_) {
+        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
         CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
@@ -1582,6 +1592,7 @@ TOperationId DoExecuteJoinReduce(
         CreateDebugOutputTables(spec, auth);
     }
     if (options.CreateOutputTables_) {
+        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
         CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
@@ -1688,6 +1699,7 @@ TOperationId DoExecuteMapReduce(
         CreateDebugOutputTables(spec, auth);
     }
     if (options.CreateOutputTables_) {
+        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
         CreateOutputTables(auth, transactionId, allOutputs);
     }
 
@@ -2030,6 +2042,7 @@ TOperationId ExecuteSort(
     auto output = CanonizePath(auth, spec.Output_);
 
     if (options.CreateOutputTables_) {
+        CheckInputTablesExist(auth, transactionId, inputs);
         CreateOutputTable(auth, transactionId, output);
     }
 
@@ -2066,6 +2079,7 @@ TOperationId ExecuteMerge(
     auto output = CanonizePath(auth, spec.Output_);
 
     if (options.CreateOutputTables_) {
+        CheckInputTablesExist(auth, transactionId, inputs);
         CreateOutputTable(auth, transactionId, output);
     }
 

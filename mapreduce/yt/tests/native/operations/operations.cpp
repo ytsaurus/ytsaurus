@@ -668,7 +668,25 @@ Y_UNIT_TEST_SUITE(Operations)
                     .StderrTablePath("//testing/stderr"),
                 new TMapperThatWritesStderr,
                 TOperationOptions()
-                    .CreateDebugOutputTables(false)));
+                    .CreateOutputTables(false)));
+
+        // Inputs not checked => we get TApiUsageError.
+        UNIT_ASSERT_EXCEPTION(
+            client->Sort(
+                TSortOperationSpec()
+                    .AddInput("//testing/nonexistent-input")
+                    .Output("//testing/nonexistent-input")),
+            TApiUsageError);
+
+        // Inputs are not checked => we get an error response from the server.
+        UNIT_ASSERT_EXCEPTION(
+            client->Sort(
+                TSortOperationSpec()
+                    .AddInput("//testing/nonexistent-input")
+                    .Output("//testing/nonexistent-input"),
+                TOperationOptions()
+                    .CreateOutputTables(false)),
+            TOperationFailedError);
     }
 
     Y_UNIT_TEST(JobCount)
