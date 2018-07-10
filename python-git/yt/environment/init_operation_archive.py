@@ -819,6 +819,11 @@ TRANSFORMS[23] = [
             attributes={"atomicity": "none"})),
 ]
 
+ACTIONS[23] = [
+    set_table_ttl_1week("stderrs"),
+    set_table_ttl_1week("fail_contexts"),
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
