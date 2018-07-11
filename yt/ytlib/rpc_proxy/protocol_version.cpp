@@ -1,4 +1,5 @@
 #include <yt/ytlib/rpc_proxy/protocol_version.h>
+#include <yt/ytlib/rpc_proxy/protocol_version_variables.h>
 
 namespace NYT {
 namespace NRpcProxy {
@@ -8,8 +9,8 @@ namespace NRpcProxy {
 NRpc::TProtocolVersion GetCurrentProtocolVersion()
 {
     return {
-        @YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR@,
-        @YT_RPC_PROXY_PROTOCOL_VERSION_MINOR@
+        YtRpcProxyProtocolVersionMajor,
+        YtRpcProxyProtocolVersionMinor
     };
 }
 
