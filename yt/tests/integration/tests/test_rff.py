@@ -64,7 +64,7 @@ class TestRff(YTEnvSetup):
         last_ping_time = datetime.strptime(get("#" + tx + "/@last_ping_time", read_from="follower"), "%Y-%m-%dT%H:%M:%S.%fZ")
         now = datetime.utcnow()
         assert last_ping_time < now
-        assert total_seconds(now - last_ping_time) < 3
+        assert (now - last_ping_time).total_seconds() < 3
 
 ##################################################################
 

@@ -69,7 +69,7 @@ def wait_drivers():
             return get("//@", driver=cluster[0])
 
         wait(driver_is_ready, ignore_exceptions=True)
-            
+
 def terminate_drivers():
     clusters_drivers.clear()
 
@@ -1177,15 +1177,6 @@ def make_schema(columns, **attributes):
     for attr, value in attributes.items():
         schema.attributes[attr] = value
     return schema
-
-#########################################
-
-def total_seconds(td):
-    return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
-
-def datetime_str_to_ts(dt_str):
-    FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
-    return calendar.timegm(datetime.strptime(dt_str, FORMAT).timetuple())
 
 ##################################################################
 
