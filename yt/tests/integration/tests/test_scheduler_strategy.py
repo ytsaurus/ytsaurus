@@ -4,6 +4,8 @@ from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
+from yt.common import date_string_to_timestamp
+
 from flaky import flaky
 
 import os
@@ -1142,7 +1144,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         special_op_jobs = [
             {
                 "id": key,
-                "start_time": datetime_str_to_ts(value["start_time"])
+                "start_time": date_string_to_timestamp(value["start_time"])
             }
             for key, value in special_op.get_running_jobs().iteritems()]
 

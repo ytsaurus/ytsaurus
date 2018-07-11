@@ -1,278 +1,353 @@
 import yt.environment.init_operation_archive as init_operation_archive
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
-from yt.yson import json_to_yson
+
+from yt.common import YT_DATETIME_FORMAT_STRING
 
 from operations_archive import clean_operations
 
 import pytest
-import os
-import json
 
-CYPRESS_NODES = [
-    "19b5c14-c41a6620-7fa0d708-29a241d2",
-    "1dee545-fe4c4006-cd95617-54f87a31",
-    "bd90befa-101169a-3fc03e8-1cb90ada",
-    "d7df8-7d0c30ec-582ebd65-9ad7535a",
-    "b0165c58-114d5b9a-3f403e8-5a44ae00"
-]
+def pytest_generate_tests(metafunc):
+    if "read_from" in metafunc.fixturenames:
+        metafunc.parametrize("read_from", metafunc.cls.read_from_values)
 
-
-class TestListOperations(YTEnvSetup):
+class _TestListOperationsBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    _input_path = "//testing/input"
+    _output_path = "//testing/output"
+
+    def _create_operation(self, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, **kwargs):
+        if pool_trees:
+            set_branch(kwargs, ["spec", "pool_trees"], pool_trees)
+        else:
+            set_branch(kwargs, ["spec", "pool"], user)
+
+        if title:
+            set_branch(kwargs, ["spec", "title"], title)
+
+        before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
+        op = start_op(
+            op_type,
+            in_=self._input_path,
+            out=self._output_path,
+            dont_track=True,
+            authenticated_user=user,
+            **kwargs)
+
+        if abort:
+            op.abort()
+        else:
+            try:
+                op.track()
+            except YtError as err:
+                print("Error: {0}".format(err))
+                assert can_fail
+                assert "Failed jobs limit exceeded" in err.message
+
+        if state:
+            set(op.get_path() + "/@state", state)
+        op.before_start_time = before_start_time
+        op.finish_time = get(op.get_path() + "/@finish_time")
+        return op
+
     def setup(self):
         self.sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        create("table", self._input_path, recursive=True, ignore_existing=True)
+        write_table(self._input_path, {"key": 1, "value": 2})
+        create("table", self._output_path, recursive=True, ignore_existing=True)
 
-    def teardown(self):
-        pass
+        # Create a new pool tree.
+        tag = "other"
+        create("map_node", "//sys/pool_trees/other", ignore_existing=True)
+        set("//sys/pool_trees/other/@nodes_filter", tag)
+        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
 
-    def test_list_operations(self):
-        cur_dir = os.getcwd()
-        for op_id in CYPRESS_NODES:
-            with open(cur_dir + "/tests/nodes/" + "cypress_" + op_id + ".json") as json_data:
-                res = json.loads(json_data.read())
-                attr = json_to_yson(res).attributes
-                create("map_node", "//sys/operations/" + op_id, attributes=attr)
-                create("map_node", "//sys/operations/" + op_id + "/jobs")
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/" + node + "/@user_tags/end", tag)
 
-        #should fail when cypress is not available
-        list_operations()
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 
-        #should fail when limit is invalid
+        # Create users.
+        for i in range(1,5):
+            create_user("user{0}".format(i))
+        set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
+
+        self._create_operations()
+
+
+    # This following tests expect five operations to be present
+    # in Cypress (and/or in the archive if |self.include_archive| is |True|):
+    #     TYPE       -    STATE     - USER  -   POOL    - HAS FAILED JOBS
+    #  1. map        - completed    - user1 -   user1   - False
+    #  2. map        - completed    - user2 -   user2   - False
+    #  3. map_reduce - failed       - user3 -   user3   - True
+    #  4. reduce     - aborted      - user3 - <unknown> - False
+    #  5. sort       - initializing - user4 -   user4   - False
+    # Moreover, |self.op3| is expected to have title "op3 title".
+
+    def test_invalid_arguments(self):
+        # Should fail when limit is invalid.
         with pytest.raises(YtError):
-            list_operations(limit=99999)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.finish_time, limit=99999)
 
-        #should fail when cursor_time is out of range (before from_time)
+        # Should fail when cursor_time is out of range (before |from_time|).
         with pytest.raises(YtError):
-            list_operations(from_time="2015-01-01T01:00:00Z", to_time="2015-01-01T02:00:00Z", cursor_time="2015-01-01T00:00:00Z") 
-        
-        #should fail when cursor_time is out of range (after to_time)
+            list_operations(include_archive=self.include_archive, from_time=self.op2.before_start_time, to_time=self.op2.finish_time, cursor_time=self.op1.before_start_time)
+
+        # Should fail when cursor_time is out of range (after |to_time|).
         with pytest.raises(YtError):
-            list_operations(from_time="2015-01-01T01:00:00Z", to_time="2015-01-01T02:00:00Z", cursor_time="2015-01-01T03:00:00Z")
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.finish_time, cursor_time=self.op5.before_start_time)
 
-        #should list operations from cypress without filters
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a",
-                                                          "1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
+    def test_time_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1, "user4": 1, "unknown": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
+        # XXX(levysotsky): "initializing" and many other states are collapsed into "running"
+        # in filters and counters. Maybe it should be fixed eventually.
+        assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1, "running": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
-        #should list operations from cypress with from_time & to_time filter
-        res = list_operations(from_time="2016-03-02T00:00:00Z", to_time="2016-03-02T12:00:00Z")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-        assert res["failed_jobs_count"] == 0L
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
 
-        #should list operations from cypress with cursor_time/past filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", cursor_time="2016-03-02T12:00:00Z", cursor_direction="past")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op2.before_start_time, to_time=self.op2.finish_time, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user2": 1}
+        assert res["user_counts"] == {"user2": 1}
+        assert res["state_counts"] == {"completed": 1}
+        assert res["type_counts"] == {"map": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 0
+        assert [op["id"] for op in res["operations"]] == [self.op2.id]
 
-        #should list operations from cypress with cursor_time/future filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", cursor_time="2016-03-02T00:00:00Z", cursor_direction="future")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a",
-                                                          "1dee545-fe4c4006-cd95617-54f87a31"]
+    def test_with_cursor(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.finish_time, cursor_direction="past", read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-        #should list operations from cypress without cursor_time/past filter
-        res = list_operations(cursor_direction="past", limit=2)
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 2L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 2L), ("running", 2L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 2L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["b0165c58-114d5b9a-3f403e8-5a44ae00",
-                                                          "bd90befa-101169a-3fc03e8-1cb90ada"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.before_start_time, cursor_direction="future", read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id]
 
-        #should list operations from cypress without cursor_time/future filter
-        res = list_operations(cursor_direction="future", limit=2)
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 2L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 2L), ("running", 2L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 2L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
+    def test_without_cursor_with_direction(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, cursor_direction="past", limit=2, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1, "user4": 1, "unknown": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1, "running": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id]
 
-        #should list operations from cypress with type filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", type="map_reduce")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, cursor_direction="future", limit=2, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1, "user4": 1, "unknown": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1, "running": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-04-12T00:00:00Z", type="map")
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
+    def test_type_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="map_reduce", read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1, "unknown": 1}
+        assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-04-12T00:00:00Z", type="sort")
-        assert [op["id"] for op in res["operations"]] == ["bd90befa-101169a-3fc03e8-1cb90ada"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="map", read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-        #should list operations from cypress with state filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", state="completed")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-        assert res["failed_jobs_count"] == 0L
-        assert [op["id"] for op in res["operations"]] == ["19b5c14-c41a6620-7fa0d708-29a241d2"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="reduce", read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", state="failed")
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
+    def test_state_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="completed", read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1, "user4": 1, "unknown": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1, "running": 1}
+        assert res["type_counts"] == {"map": 2}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 0
+        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-04-12T00:00:00Z", state="initializing")
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="failed", read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
+
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="initializing", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == []
 
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-04-12T00:00:00Z", state="running")
-        assert [op["id"] for op in res["operations"]] == ["bd90befa-101169a-3fc03e8-1cb90ada",
-                                                          "1dee545-fe4c4006-cd95617-54f87a31"]
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="running", read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op5.id]
 
-        #should list operations from cypress with user filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", user="psushin")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-        assert res["failed_jobs_count"] == 0L
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31"]
+    def test_user_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, user="user2", read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1, "user4": 1, "unknown": 1}
+        assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1, "user4": 1}
+        assert res["state_counts"] == {"completed": 1}
+        assert res["type_counts"] == {"map": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 0
+        assert [op["id"] for op in res["operations"]] == [self.op2.id]
 
-        #should list operations from cypress with text filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", filter="MRPROC")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("failed", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
+    def test_text_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="op3 title", read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user3": 1}
+        assert res["user_counts"] == {"user3": 1}
+        assert res["state_counts"] == {"failed": 1}
+        assert res["type_counts"] == {"map_reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
-        #should list operations from cypress with pool filter
-        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", pool="ignat")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("ignat", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-        assert res["failed_jobs_count"] == 0L
-        assert [op["id"] for op in res["operations"]] == ["19b5c14-c41a6620-7fa0d708-29a241d2"]
+    # TODO(levysotsky): Uncomment this test when pools are fixed.
+    #def test_pool_filter(self, read_from):
+    #    res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="user3", read_from=read_from)
+    #    assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1, "unknown": 1}
+    #    assert res["user_counts"] == {"user3": 2}
+    #    assert res["state_counts"] == {"failed": 1, "aborted": 1}
+    #    assert res["type_counts"] == {"map_reduce": 1, "reduce": 1}
+    #    if self.check_failed_jobs_count:
+    #        assert res["failed_jobs_count"] == 1
+    #    assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
-        #should list operations w.r.t. limit parameter (incomplete result)
-        assert list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", limit=1)["incomplete"] == True
+    def test_with_limit(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, limit=1, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["state_counts"] == {"failed": 1, "completed": 2}
+        assert res["type_counts"] == {"map_reduce": 1, "map": 2}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
+        assert res["incomplete"] == True
 
-        #should list operations w.r.t. limit parameter (complete result)
-        assert list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", limit=3)["incomplete"] == False
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, limit=3, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
+        assert res["incomplete"] == False
+
+    def test_has_failed_jobs(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=True, read_from=read_from)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["state_counts"] == {"failed": 1, "completed": 2}
+        assert res["type_counts"] == {"map_reduce": 1, "map": 2}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
+
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=False, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
+
+    # TODO(levysotsky): Uncomment when attribute filters are added.
+    #def test_attribute_filter(self, read_from):
+    #    attributes = ["id", "type", "brief_spec", "finish_time"]
+    #    res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, attributes=attributes, read_from=read_from)
+    #    #assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+    #    assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+    #    assert res["state_counts"] == {"failed": 1, "completed": 2}
+    #    assert res["type_counts"] == {"map_reduce": 1, "map": 2}
+    #    if self.check_failed_jobs_count:
+    #        assert res["failed_jobs_count"] == 1
+    #    assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
+    #    assert all(sorted(op.keys()) == sorted(attributes) for op in res["operations"])
+
+class TestListOperationCypressOnly(_TestListOperationsBase):
+    include_archive = False
+    read_from_values = ["cache", "follower"]
+    check_failed_jobs_count = True
+
+    def _create_operations(self):
+        self.op1 = self._create_operation("map", command="exit 0", user="user1")
+        self.op2 = self._create_operation("map", command="exit 0", user="user2")
+        self.op3 = self._create_operation(
+            "map_reduce",
+            mapper_command="exit 1",
+            reducer_command="exit 0",
+            user="user3",
+            can_fail=True,
+            sort_by="key",
+            title="op3 title",
+            spec={"max_failed_job_count": 2})
+        self.op4 = self._create_operation("reduce", command="sleep 10", user="user3", reduce_by="key", abort=True, pool_trees=["other"])
+        self.op5 = self._create_operation("sort", user="user4", state="initializing", sort_by="key")
+
+    def test_no_filters(self, read_from):
+        res = list_operations(include_archive=False)
+        # TODO(levysotsky): Uncomment pool checks when pools are fixed.
+        #assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1, "user4": 1, "unknown": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
+        assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1, "running": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
+        assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+class TestListOperationsCypressArchive(_TestListOperationsBase):
+    include_archive = True
+    read_from_values=["follower"]
+    check_failed_jobs_count = False
+
+    def _create_operations(self):
+        self.op1 = self._create_operation("map", command="exit 0", user="user1")
+        self.op2 = self._create_operation("map", command="exit 0", user="user2")
+        self.op3 = self._create_operation(
+            "map_reduce",
+            mapper_command="exit 1",
+            reducer_command="exit 0",
+            user="user3",
+            can_fail=True,
+            sort_by="key",
+            title="op3 title",
+            spec={"max_failed_job_count": 2})
 
         clean_operations(client=self.Env.create_native_client())
 
-        #should fail when from_time is not determined
+        self.op4 = self._create_operation("reduce", command="sleep 10", user="user3", reduce_by="key", abort=True, pool_trees=["other"])
+        self.op5 = self._create_operation("sort", user="user4", state="initializing", sort_by="key")
+
+    def test_time_range_missing(self):
         with pytest.raises(YtError):
-            list_operations(include_archive=True, to_time="2020-01-01T01:00:00Z")
+            list_operations(include_archive=True, to_time=self.op5.finish_time)
 
-        #should fail when to_time is not determined
         with pytest.raises(YtError):
-            list_operations(include_archive=True, from_time="2000-01-01T01:00:00Z")
-
-        #should fail when archive is not available
-        list_operations(include_archive=True, from_time="2000-01-01T01:00:00Z", to_time="2020-01-01T01:00:00Z")
-
-        #should list operations from cypress and archive without filters
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a",
-                                                          "1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
-
-        #should list operations from cypress and archive with text filter
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", filter="MRPROC")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("failed", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map_reduce", 1L)]
-        assert res["failed_jobs_count"] == 1L
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
-
-        #should list operations from cypress and archive with pool filter
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", pool="psushin")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("psushin", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("running", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-        assert res["failed_jobs_count"] == 0L
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31"]
-
-        #should list operations from cypress and archive with from_time & to_time filter
-        res = list_operations(include_archive=True, from_time="2016-03-02T00:00:00Z", to_time="2016-03-02T16:00:00Z")
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a",
-                                                          "1dee545-fe4c4006-cd95617-54f87a31"]
-
-        #should list operations from cypress and archive with cursor_time/past filter
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", cursor_time="2016-03-02T12:00:00Z", cursor_direction="past")
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
-
-        #should list operations from cypress and archive with cursor_time/future filter
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", cursor_time="2016-03-02T00:00:00Z", cursor_direction="future")
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a",
-                                                          "1dee545-fe4c4006-cd95617-54f87a31"]
-
-        #should list operations from cypress and archive without cursor_time/past filter
-        res = list_operations(include_archive=True, from_time="2000-01-01T01:00:00Z", to_time="2020-01-01T01:00:00Z", cursor_direction="past", limit=2)
-        assert [op["id"] for op in res["operations"]] == ["b0165c58-114d5b9a-3f403e8-5a44ae00",
-                                                          "bd90befa-101169a-3fc03e8-1cb90ada"]
-
-        #should list operations from cypress and archive without cursor_time/future filter
-        res = list_operations(include_archive=True, from_time="2000-01-01T01:00:00Z", to_time="2020-01-01T01:00:00Z", cursor_direction="future", limit=2)
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
-
-        #should list operations from cypress and archive with failed jobs filter(True)
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", with_failed_jobs=True)
-        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
-
-        #should list operations from cypress and archive with failed jobs filter(False)
-        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", with_failed_jobs=False)
-        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31",
-                                                          "19b5c14-c41a6620-7fa0d708-29a241d2"]
-
-        #should merge operation from cypress and arhive and take attributes from cypress
-        op_id = "19b5c14-c41a6620-7fa0d708-29a241d2"
-        with open(cur_dir + "/tests/nodes/" + "cypress_" + op_id + ".json") as json_data:
-                res = json.loads(json_data.read())
-                attr = json_to_yson(res).attributes
-                attr["brief_spec"]["title"] = "OK"
-                create("map_node", "//sys/operations/" + op_id, attributes=attr)
-
-        for read_from in ("cache", "follower"):
-            res = list_operations(include_archive=True, from_time="2016-02-25T23:50:00Z", to_time="2016-02-25T23:55:00Z", read_from=read_from)
-            assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("ignat", 1L)]
-            assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("ignat", 1L)]
-            assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L)]
-            assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-            assert res["failed_jobs_count"] == 0L
-            assert [op["id"] for op in res["operations"]] == ["19b5c14-c41a6620-7fa0d708-29a241d2"]
-            assert res["operations"][0]["brief_spec"]["title"] == "OK"
+            list_operations(include_archive=True, from_time=self.op1.before_start_time)
