@@ -201,6 +201,8 @@ message TSchedulerJobSpecExt
     optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
 
     optional bool abort_job_if_account_limit_exceeded = 20;
+
+    optional string acl = 21;
 }
 
 message TSchedulerJobResultExt

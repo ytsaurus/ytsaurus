@@ -3936,6 +3936,28 @@ private:
             operationId);
     }
 
+    void ValidateJobAcl(
+        const TJobId& jobId,
+        TNullable<NJobTrackerClient::NProto::TJobSpec> jobSpec = Null)
+    {
+        if (!jobSpec) {
+            jobSpec = GetJobSpecFromArchive(jobId);
+        }
+
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        if (schedulerJobSpecExt && schedulerJobSpecExt->has_acl()) {
+            auto aclYson = TYsonString(schedulerJobSpecExt->acl());
+            auto checkResult = WaitFor(CheckPermissionByAcl(Null, EPermission::Read, ConvertToNode(aclYson), TCheckPermissionByAclOptions()))
+                .ValueOrThrow();
+            if (checkResult.Action != ESecurityAction::Allow) {
+                THROW_ERROR_EXCEPTION("No permissions to read job from archive")
+                    << TErrorAttribute("job_id", jobId)
+                    << TErrorAttribute("user", checkResult.SubjectName);
+            }
+        }
+    }
+
     void DoDumpJobContext(
         const TJobId& jobId,
         const TYPath& path,
@@ -4058,6 +4080,8 @@ private:
         } else {
             jobSpec = GetJobSpecFromArchive(jobId);
         }
+
+        ValidateJobAcl(jobId, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -4264,6 +4288,8 @@ private:
             return stderrRef;
         }
 
+        ValidateJobAcl(jobId);
+
         stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
         if (stderrRef) {
             return stderrRef;
@@ -4391,6 +4417,8 @@ private:
         }
 
         if (DoGetOperationsArchiveVersion() >= 21) {
+            ValidateJobAcl(jobId);
+
             auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId);
             if (failContextRef) {
                 return failContextRef;
