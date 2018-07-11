@@ -593,9 +593,7 @@ void BuildOperationAce(
         .Item().BeginMap()
             .Item("action").Value(ESecurityAction::Allow)
             .Item("subjects").Value(owners)
-            .Item("permissions").BeginList()
-                .Item().Value(permissions)
-            .EndList()
+            .Item("permissions").Value(permissions)
         .EndMap();
 }
 
