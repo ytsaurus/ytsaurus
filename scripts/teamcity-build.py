@@ -672,6 +672,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
+    if options.build_system == "ya":
+        env["PYTHONPATH"] = get_bin_dir(options) + ":" + env["PYTHONPATH"]
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
@@ -737,7 +739,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             sudo_rmtree(sandbox_storage)
 
 @build_step
-@disable_for_ya
 def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
@@ -751,7 +752,6 @@ def run_yt_integration_tests(options, build_context):
                pytest_args=pytest_args)
 
 @build_step
-@disable_for_ya
 def run_yt_cpp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("C++ integration tests are skipped since all tests are disabled")
