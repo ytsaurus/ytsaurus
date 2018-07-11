@@ -588,7 +588,6 @@ def run_sandbox_upload(options, build_context):
     teamcity_interact("buildStatus", text=status)
 
 @build_step
-@disable_for_ya
 def run_unit_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping unit tests since tests are disabled")
