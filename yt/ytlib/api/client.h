@@ -1077,8 +1077,8 @@ struct IClient
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
 
-    virtual TFuture<NTableClient::TColumnarStatistics> GetColumnarStatistics(
-        const NYPath::TRichYPath& path,
+    virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
+        const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options = TGetColumnarStatisticsOptions()) = 0;
 
     // Files

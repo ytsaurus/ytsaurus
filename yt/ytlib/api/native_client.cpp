@@ -794,10 +794,10 @@ public:
         return NApi::CreateTableWriter(this, path, options);
     }
 
-    IMPLEMENT_METHOD(TColumnarStatistics, GetColumnarStatistics, (
-        const TRichYPath& path,
+    IMPLEMENT_METHOD(std::vector<TColumnarStatistics>, GetColumnarStatistics, (
+        const std::vector<TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options),
-        (path, options))
+        (paths, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
@@ -2230,23 +2230,17 @@ private:
         return replicaIds;
     }
 
-    TColumnarStatistics DoGetColumnarStatistics(
-        const TRichYPath& path,
+    std::vector<TColumnarStatistics> DoGetColumnarStatistics(
+        const std::vector<TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options)
     {
-        LOG_INFO("Collecting table input chunks (Path: %v)", path);
+        std::vector<TColumnarStatistics> allStatistics;
+        allStatistics.reserve(paths.size());
+
+        std::vector<ui64> chunkCount;
+        chunkCount.reserve(paths.size());
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        auto inputChunks = CollectTableInputChunks(
-            path,
-            this,
-            nodeDirectory,
-            options.FetchChunkSpecConfig,
-            options.TransactionId,
-            Logger);
-
-        LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
-
         auto fetcher = New<TColumnarStatisticsFetcher>(
             options.FetcherConfig,
             nodeDirectory,
@@ -2254,20 +2248,41 @@ private:
             nullptr /* scraper */,
             this,
             Logger);
+        
+        for (const auto &path : paths) {
+            LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
-        for (const auto& inputChunk : inputChunks) {
-            fetcher->AddChunk(inputChunk, *path.GetColumns());
+            auto inputChunks = CollectTableInputChunks(
+                path,
+                this,
+                nodeDirectory,
+                options.FetchChunkSpecConfig,
+                options.TransactionId,
+                Logger);
+
+            LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+
+
+            for (const auto& inputChunk : inputChunks) {
+                fetcher->AddChunk(inputChunk, *path.GetColumns());
+            }
+            chunkCount.push_back(inputChunks.size());
         }
 
         WaitFor(fetcher->Fetch())
             .ThrowOnError();
 
         const auto& chunkStatistics = fetcher->GetChunkStatistics();
-        TColumnarStatistics totalStatistics = TColumnarStatistics::MakeEmpty(path.GetColumns()->size());
-        for (const auto& statistics : chunkStatistics) {
-            totalStatistics += statistics;
+
+        ui64 statisticsIndex = 0;
+
+        for (int pathIndex = 0; pathIndex < paths.size(); ++pathIndex) {
+            allStatistics.push_back(TColumnarStatistics::MakeEmpty(paths[pathIndex].GetColumns()->size()));
+            for (ui64 chunkIndex = 0; chunkIndex < chunkCount[pathIndex]; ++statisticsIndex, ++chunkIndex) {
+                allStatistics[pathIndex] += chunkStatistics[statisticsIndex];
+            }
         }
-        return totalStatistics;
+        return allStatistics;
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(

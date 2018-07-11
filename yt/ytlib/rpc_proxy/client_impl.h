@@ -276,8 +276,8 @@ public:
         ThrowUnimplemented("locate_skynet_share");
     }
 
-    TFuture<NTableClient::TColumnarStatistics> GetColumnarStatistics(
-        const NYPath::TRichYPath&,
+    TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
+        const std::vector<NYPath::TRichYPath>&,
         const NApi::TGetColumnarStatisticsOptions&) override
     {
         Y_UNIMPLEMENTED();
