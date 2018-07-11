@@ -3130,6 +3130,13 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet);
     }
+
+    schedulerJobSpecExt->set_acl(BuildYsonStringFluently()
+        .BeginList()
+            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
+        .EndList()
+        .GetData()
+    );
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)

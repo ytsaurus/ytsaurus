@@ -3140,6 +3140,24 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+        },
+    }
+
     def setup(self):
         self.sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
