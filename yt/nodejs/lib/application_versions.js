@@ -129,6 +129,7 @@ function YtApplicationVersions(driver)
                 });
             }),
             "schedulers": getListAndDataFromOrchid("scheduler/instances"),
+            "controller_agents": getListAndDataFromOrchid("controller_agents/instances"),
             "proxies": getListAndData("proxies", [], function(entity, name) {
                 var parsed_url = url.parse("http://" + utils.getYsonValue(name));
                 return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
