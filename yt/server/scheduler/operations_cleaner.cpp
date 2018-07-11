@@ -89,8 +89,8 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "events",
         "alerts",
         "full_spec",
-        "unrecognized_spec"
-        "runtime_parameters"
+        "unrecognized_spec",
+        "runtime_parameters",
     };
 
     return attributeKeys;
