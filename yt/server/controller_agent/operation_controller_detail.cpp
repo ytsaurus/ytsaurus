@@ -4037,23 +4037,11 @@ void TOperationControllerBase::CreateLivePreviewTables()
             IntermediateOutputCellTag,
             1,
             Spec_->IntermediateCompressionCodec,
-            Null /* account */,
+            Spec_->IntermediateDataAccount,
             "create_intermediate",
             BuildYsonStringFluently()
                 .BeginList()
-                    .Item().BeginMap()
-                        .Item("action").Value("allow")
-                        .Item("subjects").BeginList()
-                            .Item().Value(AuthenticatedUser)
-                            .DoFor(Owners, [] (TFluentList fluent, const TString& owner) {
-                                fluent.Item().Value(owner);
-                            })
-                        .EndList()
-                        .Item("permissions").BeginList()
-                            .Item().Value("read")
-                        .EndList()
-                        .Item("account").Value(Spec_->IntermediateDataAccount)
-                    .EndMap()
+                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
                     .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
