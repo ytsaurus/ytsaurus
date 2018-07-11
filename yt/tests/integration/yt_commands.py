@@ -150,6 +150,11 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
 
+    if "paths" in parameters:
+        parameters["paths"] = yson.loads(parameters["paths"])
+        for index in range(len(parameters["paths"])):
+            parameters["paths"][index] = prepare_path(parameters["paths"][index])
+
     response_parameters = parameters.pop("response_parameters", None)
 
     yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
@@ -239,8 +244,8 @@ def get_job_input(job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_input", kwargs)
 
-def get_table_columnar_statistics(path, **kwargs):
-    kwargs["path"] = path
+def get_table_columnar_statistics(paths, **kwargs):
+    kwargs["paths"] = paths
     return yson.loads(execute_command("get_table_columnar_statistics", kwargs))
 
 def get_job_stderr(operation_id, job_id, **kwargs):
