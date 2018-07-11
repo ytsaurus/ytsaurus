@@ -197,7 +197,7 @@ message TVolume {
 // maxExecutionTimeMs - ограничение на время выполнения.
 // Интервал между запусками рассчитывается по формуле
 // min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
-// step считается с 0
+// step считается с 0 и равен max(0, ConsecutiveFailuresCounter - 1)
 message TTimeLimit {
     uint64 InitialDelayMs = 1;
     uint64 RestartPeriodScaleMs = 2;
@@ -240,7 +240,7 @@ message TWorkload {
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
     //Если команда падает - она перезапускается до победного
-    repeated string InitCommandLine = 3;
+    repeated TUtilityContainer Init = 3;
 
     //Команда которая будет установлена в porto-container в качестве опции cmd. Т.е. entry point для контейнера.
     string CommandLine = 4;
@@ -466,6 +466,7 @@ message TContainerStatus {
     uint32 TimeoutCounter = 9;
     uint32 KilledExternallyCounter = 10;
     uint32 SystemFailureCounter = 11;
+    uint32 ConsecutiveFailuresCounter = 12;
 }
 
 enum EConditionStatus {
