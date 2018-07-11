@@ -53,6 +53,8 @@ Y_UNIT_TEST_SUITE(JobStatistics)
         UNIT_ASSERT(!stat.HasStatistics("nonexistent-statistics"));
         UNIT_ASSERT_EXCEPTION_CONTAINS(stat.GetStatistics("BLAH-BLAH"), yexception, "Statistics");
 
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatisticsNames(), TVector<TString>{"data/output/0/uncompressed_data_size"});
+
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Max(), 130);
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Count(), 2);
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Min(), 42);
@@ -86,5 +88,55 @@ Y_UNIT_TEST_SUITE(JobStatistics)
         TJobStatistics stat(NodeFromYsonString(input));
 
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatisticsAs<TDuration>("time/exec").Max(), TDuration::MilliSeconds(2482468));
+    }
+
+    Y_UNIT_TEST(Custom)
+    {
+        const TString input = R"""(
+            {
+                "custom" = {
+                    "some" = {
+                        "path" = {
+                            "$" = {
+                                "completed" = {
+                                    "map" = {
+                                        "max" = -1;
+                                        "count" = 1;
+                                        "min" = -1;
+                                        "sum" = -1;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                    "another" = {
+                        "path" = {
+                            "$" = {
+                                "completed" = {
+                                    "map" = {
+                                        "max" = 1001;
+                                        "count" = 2;
+                                        "min" = 1001;
+                                        "sum" = 2002;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            })""";
+
+        TJobStatistics stat(NodeFromYsonString(input));
+
+        UNIT_ASSERT(stat.HasCustomStatistics("some/path"));
+        UNIT_ASSERT(!stat.HasCustomStatistics("nonexistent-statistics"));
+        UNIT_ASSERT_EXCEPTION_CONTAINS(stat.GetCustomStatistics("BLAH-BLAH"), yexception, "Statistics");
+
+        const auto names = stat.GetCustomStatisticsNames();
+        const THashSet<TString> expected = {"some/path", "another/path"};
+        UNIT_ASSERT_VALUES_EQUAL(THashSet<TString>(names.begin(), names.end()), expected);
+
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetCustomStatistics("some/path").Max(), -1);
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetCustomStatistics("another/path").Avg(), 1001);
     }
 }

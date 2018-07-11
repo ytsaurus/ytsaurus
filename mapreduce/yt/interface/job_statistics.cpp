@@ -138,6 +138,8 @@ struct TJobStatistics::TFilter
 
 ////////////////////////////////////////////////////////////////////
 
+const TString TJobStatistics::CustomStatisticsNamePrefix_ = "custom/";
+
 TJobStatistics::TJobStatistics()
     : Data_(::MakeIntrusive<TData>())
     , Filter_(::MakeIntrusive<TFilter>())
@@ -190,10 +192,35 @@ TJobStatisticsEntry<i64> TJobStatistics::GetStatistics(TStringBuf name) const
     return GetStatisticsAs<i64>(name);
 }
 
+TVector<TString> TJobStatistics::GetStatisticsNames() const
+{
+    TVector<TString> result;
+    result.reserve(Data_->Name2State2Type2Data.size());
+    for (const auto& entry : Data_->Name2State2Type2Data) {
+        result.push_back(entry.first);
+    }
+    return result;
+}
+
+bool TJobStatistics::HasCustomStatistics(TStringBuf name) const
+{
+    return HasStatistics(CustomStatisticsNamePrefix_ + name);
+}
 
 TJobStatisticsEntry<i64> TJobStatistics::GetCustomStatistics(TStringBuf name) const
 {
     return GetCustomStatisticsAs<i64>(name);
+}
+
+TVector<TString> TJobStatistics::GetCustomStatisticsNames() const
+{
+    TVector<TString> result;
+    for (const auto& entry : Data_->Name2State2Type2Data) {
+        if (entry.first.StartsWith(CustomStatisticsNamePrefix_)) {
+            result.push_back(entry.first.substr(CustomStatisticsNamePrefix_.Size()));
+        }
+    }
+    return result;
 }
 
 TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf name) const

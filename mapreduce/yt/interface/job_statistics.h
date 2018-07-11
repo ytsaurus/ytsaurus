@@ -89,11 +89,23 @@ public:
     TJobStatisticsEntry<T> GetStatisticsAs(TStringBuf name) const;
 
     //
+    // Get (slash separated) names of statistics.
+    TVector<TString> GetStatisticsNames() const;
+
+    //
+    // Check if given custom statistics exists.
+    bool HasCustomStatistics(TStringBuf name) const;
+
+    //
     // Get custom statistics (those the user can write in operation with WriteCustomStatistics).
     TJobStatisticsEntry<i64> GetCustomStatistics(TStringBuf name) const;
 
     template <typename T>
     TJobStatisticsEntry<T> GetCustomStatisticsAs(TStringBuf name) const;
+
+    //
+    // Get names of all custom statistics.
+    TVector<TString> GetCustomStatisticsNames() const;
 
 private:
     class TData;
@@ -105,6 +117,8 @@ private:
         i64 Sum;
         i64 Count;
     };
+
+    static const TString CustomStatisticsNamePrefix_;
 
 private:
     TJobStatistics(::TIntrusivePtr<TData> data, ::TIntrusivePtr<TFilter> filter);
@@ -190,9 +204,7 @@ TJobStatisticsEntry<T> TJobStatistics::GetStatisticsAs(TStringBuf name) const
 template <typename T>
 TJobStatisticsEntry<T> TJobStatistics::GetCustomStatisticsAs(TStringBuf name) const
 {
-    TString fullName("custom/");
-    fullName += name;
-    return TJobStatisticsEntry<T>(GetStatisticsImpl(fullName));
+    return TJobStatisticsEntry<T>(GetStatisticsImpl(CustomStatisticsNamePrefix_ + name));
 }
 
 ////////////////////////////////////////////////////////////////////
