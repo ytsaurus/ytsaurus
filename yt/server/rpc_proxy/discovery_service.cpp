@@ -100,6 +100,16 @@ public:
     {
         Initialize();
 
+        if (Bootstrap_->GetConfig()->GrpcServer) {
+            const auto& addresses = Bootstrap_->GetConfig()->GrpcServer->Addresses;
+            YCHECK(addresses.size() == 1);
+
+            int port;
+            ParseServiceAddress(addresses[0]->Address, nullptr, &port);
+
+            GrpcProxyPath_ = GrpcProxiesPath + "/" + BuildServiceAddress(GetLocalHostName(), port);
+        }
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscoverProxies));
     }
 
@@ -112,6 +122,8 @@ private:
     const TString ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
+
+    TNullable<TString> GrpcProxyPath_;
 
     TInstant LastSuccessTimestamp_ = Now();
 
@@ -134,32 +146,44 @@ private:
         ProxyUpdateExecutor_->Start();
     }
 
+    std::vector<TString> GetCypressPaths() const
+    {
+        std::vector<TString> paths = {ProxyPath_};
+        if (GrpcProxyPath_) {
+            paths.push_back(*GrpcProxyPath_);
+        }
+        return paths;
+    }
+
     void CreateProxyNode()
     {
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
-        {
-            auto req = TCypressYPathProxy::Create(ProxyPath_);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
-            req->set_recursive(true);
-            req->set_ignore_existing(true);
-            batchReq->AddRequest(req);
-        }
-        {
-            auto req = TYPathProxy::Set(ProxyPath_ + "/@" + VersionAttributeName);
-            req->set_value(ConvertToYsonString(GetVersion()).GetData());
-            batchReq->AddRequest(req);
-        }
-        {
-            auto req = TCypressYPathProxy::Create(ProxyPath_ + "/orchid");
-            req->set_ignore_existing(true);
-            req->set_type(static_cast<int>(EObjectType::Orchid));
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
-            ToProto(req->mutable_node_attributes(), *attributes);
-            batchReq->AddRequest(req);
+
+        for (const auto& path : GetCypressPaths()) {
+            {
+                auto req = TCypressYPathProxy::Create(path);
+                req->set_type(static_cast<int>(EObjectType::MapNode));
+                req->set_recursive(true);
+                req->set_ignore_existing(true);
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
+                req->set_value(ConvertToYsonString(GetVersion()).GetData());
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TCypressYPathProxy::Create(path + "/orchid");
+                req->set_ignore_existing(true);
+                req->set_type(static_cast<int>(EObjectType::Orchid));
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+                ToProto(req->mutable_node_attributes(), *attributes);
+                batchReq->AddRequest(req);
+            }
         }
 
         batchReq->SetTimeout(Config_->LivenessUpdatePeriod);
@@ -208,8 +232,9 @@ private:
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
-        {
-            auto req = TCypressYPathProxy::Create(ProxyPath_ + "/" + AliveNodeName);
+
+        for (const auto& path : GetCypressPaths()) {
+            auto req = TCypressYPathProxy::Create(path + "/" + AliveNodeName);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             auto* attr = req->mutable_node_attributes()->add_attributes();
             attr->set_key(ExpirationTimeAttributeName);

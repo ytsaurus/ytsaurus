@@ -10,6 +10,7 @@ namespace NRpcProxy {
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 
 extern const TString RpcProxiesPath;
+extern const TString GrpcProxiesPath;
 extern const TString DefaultProxyRole;
 extern const TString BannedAttributeName;
 extern const TString RoleAttributeName;

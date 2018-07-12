@@ -188,11 +188,13 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 
     if (Config_->GrpcServer) {
-        std::vector<TString> addresses;
-        for (const auto& address : Config_->GrpcServer->Addresses) {
-            addresses.push_back(address->Address);
-        }
-        LOG_INFO("Listening for GRPC requests (Addresses: %v)", addresses);
+        const auto& addresses = Config_->GrpcServer->Addresses;
+        YCHECK(addresses.size() == 1);
+
+        int port;
+        NNet::ParseServiceAddress(addresses[0]->Address, nullptr, &port);
+
+        LOG_INFO("Listening for GRPC requests on port %v", port);
         GrpcServer_->Start();
     }
 }
