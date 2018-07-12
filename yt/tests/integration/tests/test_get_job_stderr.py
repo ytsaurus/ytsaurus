@@ -1,16 +1,8 @@
-from yt_env_setup import wait, YTEnvSetup
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.wrapper.common import uuid_hash_pair
-from yt.common import date_string_to_timestamp_mcs
 
-from operations_archive import *
-
-import __builtin__
-import datetime
-import itertools
-import pytest
-import shutil
+from operations_archive import clean_operations
 
 def id_to_parts(id):
     id_parts = id.split("-")
