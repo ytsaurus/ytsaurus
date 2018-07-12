@@ -119,9 +119,11 @@ class YtResponseError(YtError):
         return self.contains_code(1800) or self.contains_code(1801)
 
     def is_no_such_service(self):
+        """No such service."""
         return self.contains_code(102)
 
     def is_tablet_in_intermediate_state(self):
+        """Tablet is in intermediate state."""
         return self.matches_regexp("Tablet .* is in state .*")
 
     def contains_code(self, code):
