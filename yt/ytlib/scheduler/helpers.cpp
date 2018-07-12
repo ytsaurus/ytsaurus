@@ -592,7 +592,12 @@ void BuildOperationAce(
     fluent
         .Item().BeginMap()
             .Item("action").Value(ESecurityAction::Allow)
-            .Item("subjects").Value(owners)
+            .Item("subjects").BeginList()
+                .Item().Value(authenticatedUser)
+                .DoFor(owners, [] (TFluentList fluent, const TString& owner) {
+                    fluent.Item().Value(owner);
+                })
+            .EndList()
             .Item("permissions").Value(permissions)
         .EndMap();
 }
