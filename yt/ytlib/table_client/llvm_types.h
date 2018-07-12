@@ -76,13 +76,12 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
+        return StructType::get(context, {
             TId::get(context),
             TType::get(context),
             TAggregate::get(context),
             TLength::get(context),
-            TData::get(context),
-            nullptr);
+            TData::get(context)});
     }
 
     static_assert(
