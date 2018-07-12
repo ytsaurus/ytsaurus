@@ -103,7 +103,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
     const TChunkLocatedHandler OnChunkLocated_;
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
 
     TFuture<void> LocateFuture_ = VoidFuture;
 
@@ -232,7 +232,7 @@ void TChunkScraper::Start()
 TFuture<void> TChunkScraper::Stop()
 {
     std::vector<TFuture<void>> futures;
-    for (auto& task : ScraperTasks_) {
+    for (const auto& task : ScraperTasks_) {
         futures.push_back(task->Stop());
     }
     return Combine(futures);
