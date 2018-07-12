@@ -1,8 +1,6 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/server/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -28,6 +26,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CommitOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, CompleteOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, AbortOperation);
+    DEFINE_RPC_PROXY_METHOD(NProto, WriteOperationControllerCoreDump);
     DEFINE_RPC_PROXY_METHOD(NProto, UnregisterOperation);
 };
 

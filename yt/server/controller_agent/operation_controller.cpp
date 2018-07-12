@@ -406,6 +406,11 @@ public:
         return Underlying_->GetOrchid();
     }
 
+    virtual TString WriteCoreDump() const override
+    {
+        return Underlying_->WriteCoreDump();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

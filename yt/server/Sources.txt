@@ -107,7 +107,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/task.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/vanilla_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/memory_tag_queue.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/proto/controller_agent_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto

@@ -334,6 +334,8 @@ public:
 
     virtual NYTree::IYPathServicePtr GetOrchid() const override;
 
+    virtual TString WriteCoreDump() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;

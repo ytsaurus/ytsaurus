@@ -608,6 +608,8 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker.
      */
     virtual NYTree::IYPathServicePtr GetOrchid() const = 0;
+
+    virtual TString WriteCoreDump() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

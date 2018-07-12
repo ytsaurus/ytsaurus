@@ -176,6 +176,18 @@ message TRspAbortOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqWriteOperationControllerCoreDump
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspWriteOperationControllerCoreDump
+{
+    required string path = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqUnregisterOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;

@@ -5,6 +5,8 @@
 
 #include <yt/client/tablet_client/public.h>
 
+#include <yt/ytlib/job_tracker_client/public.h>
+
 #include <yt/core/actions/future.h>
 
 namespace NYT {
@@ -51,6 +53,9 @@ struct IAdmin
     virtual TFuture<TString> WriteCoreDump(
         const TString& address,
         const TWriteCoreDumpOptions& options = TWriteCoreDumpOptions()) = 0;
+
+    virtual TFuture<TString> WriteOperationControllerCoreDump(
+        const NJobTrackerClient::TOperationId& operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAdmin)
