@@ -26,7 +26,7 @@ TString ToString(TProtocolVersion protocolVersion);
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr TProtocolVersion GenericProtocolVersion{-1, -1};
-constexpr TProtocolVersion DefaultProtocolVersion{1, 0};
+constexpr TProtocolVersion DefaultProtocolVersion{0, 0};
 
 ////////////////////////////////////////////////////////////////////////////////
 
