@@ -528,6 +528,10 @@ bool TChunkStore::CanStartNewSession(
         return false;
     }
 
+    if (location->IsSick()) {
+        return false;
+    }
+
     if (location->IsFull()) {
         return false;
     }

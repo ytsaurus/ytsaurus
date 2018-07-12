@@ -64,17 +64,6 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , IOEngine_(CreateIOEngine(
-        Config_->IOEngineType,
-        Config_->IOConfig
-            ? Config_->IOConfig
-            // TODO(aozeritsky) temporary workaround
-            : BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("threads")
-                    .Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount + Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
-                .EndMap(),
-        id))
     , ThrottledReadsCounter_("/throttled_reads", {}, config->ThrottleCounterInterval)
     , ThrottledWritesCounter_("/throttled_writes", {}, config->ThrottleCounterInterval)
     , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
@@ -86,6 +75,20 @@ TLocation::TLocation(
         profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    IOEngine_ = CreateIOEngine(
+        Config_->IOEngineType,
+        Config_->IOConfig
+            ? Config_->IOConfig
+            // TODO(aozeritsky) temporary workaround
+            : BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("threads")
+                    .Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount + Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
+                .EndMap(),
+        id,
+        Profiler_,
+        NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
     auto throttlersProfiler = Profiler_;
     throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
@@ -552,6 +555,11 @@ void TLocation::ValidateWritable()
     HealthChecker_->RunCheck()
         .Get()
         .ThrowOnError();
+}
+
+bool TLocation::IsSick() const
+{
+    return IOEngine_->IsSick();
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)

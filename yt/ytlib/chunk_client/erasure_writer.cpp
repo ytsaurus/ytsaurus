@@ -191,6 +191,15 @@ public:
         return result;
     }
 
+    virtual bool HasSickReplicas() const override
+    {
+        bool hasSickReplicas = false;
+        for (const auto& writer : Writers_) {
+            hasSickReplicas |= writer->HasSickReplicas();
+        }
+        return hasSickReplicas;
+    }
+
     virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
     virtual TChunkId GetChunkId() const override

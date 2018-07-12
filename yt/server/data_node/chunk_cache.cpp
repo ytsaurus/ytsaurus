@@ -216,6 +216,11 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
+    virtual bool HasSickReplicas() const override
+    {
+        return Underlying_->HasSickReplicas();
+    }
+
 private:
     const TLocationPtr Location_;
     const IChunkWriterPtr Underlying_;

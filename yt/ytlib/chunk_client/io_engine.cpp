@@ -20,6 +20,8 @@
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/fs.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <util/system/thread.h>
 #include <util/system/mutex.h>
 #include <util/system/condvar.h>
@@ -29,6 +31,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,11 +74,17 @@ bool IsAligned(T value, i64 alignment)
 }
 
 class TThreadedIOEngineConfig
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonSerializable
 {
 public:
     int ThreadCount;
     bool UseDirectIO;
+
+    TNullable<TDuration> SickReadTimeThreshold;
+    TNullable<TDuration> SickReadTimeWindow;
+    TNullable<TDuration> SickWriteTimeThreshold;
+    TNullable<TDuration> SickWriteTimeWindow;
+    TNullable<TDuration> SicknessExpirationTimeout;
 
     TThreadedIOEngineConfig()
     {
@@ -85,6 +94,26 @@ public:
             .Default(1);
         RegisterParameter("use_direct_io", UseDirectIO)
             .Default(false);
+
+        RegisterParameter("sick_read_time_threshold", SickReadTimeThreshold)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
+
+        RegisterParameter("sick_read_time_window", SickReadTimeWindow)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
+
+        RegisterParameter("sick_write_time_threshold", SickWriteTimeThreshold)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
+
+        RegisterParameter("sick_write_time_window", SickWriteTimeWindow)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
+
+        RegisterParameter("sickness_expiration_timeout", SicknessExpirationTimeout)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
     }
 };
 
@@ -93,11 +122,15 @@ class TThreadedIOEngine
 {
 public:
     using TConfig = TThreadedIOEngineConfig;
+    using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    explicit TThreadedIOEngine(const TConfig& config, const TString& locationId)
-        : ThreadPool_(New<TThreadPool>(config.ThreadCount, Format("DiskIO:%v", locationId)))
+    TThreadedIOEngine(TConfigPtr config, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger)
+        : Config_(std::move(config))
+        , ThreadPool_(New<TThreadPool>(Config_->ThreadCount, Format("DiskIO:%v", locationId)))
         , Invoker_(CreatePrioritizedInvoker(ThreadPool_->GetInvoker()))
-        , UseDirectIO_(config.UseDirectIO)
+        , Profiler_(profiler)
+        , Logger(logger)
+        , UseDirectIO_(Config_->UseDirectIO)
     { }
 
     virtual TFuture<std::shared_ptr<TFileHandle>> Open(
@@ -111,7 +144,8 @@ public:
     virtual TFuture<TSharedMutableRef> Pread(
         const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 priority) override
     {
-        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset)
+        TWallTimer timer;
+        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset, timer)
             .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
             .Run();
     }
@@ -119,11 +153,13 @@ public:
     virtual TFuture<void> Pwrite(
         const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, i64 priority) override
     {
+        TWallTimer timer;
+
         auto useDirectIO = UseDirectIO_ || IsDirectAligned(fh);
         YCHECK(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
         YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
         YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
-        return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
+        return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset, timer)
             .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
             .Run();
     }
@@ -150,13 +186,30 @@ public:
         }
     }
 
+    virtual bool IsSick() const override
+    {
+        return Sick_;
+    }
+
 private:
+    const TConfigPtr Config_;
     const size_t MaxBytesPerRead = 1_GB;
     const TThreadPoolPtr ThreadPool_;
     const IPrioritizedInvokerPtr Invoker_;
+    const TProfiler Profiler_;
+    const NLogging::TLogger Logger;
 
     const bool UseDirectIO_;
     const i64 Alignment_ = 4_KB;
+
+    TSpinLock ReadWaitSpinLock_;
+    TNullable<TInstant> SickReadWaitStart_;
+
+    TSpinLock WriteWaitSpinLock_;
+    TNullable<TInstant> SickWriteWaitStart_;
+
+    std::atomic<bool> Sick_ = { false };
+    i64 SicknessCounter_ = 0;
 
 
     bool IsDirectAligned(const std::shared_ptr<TFileHandle>& fh)
@@ -194,8 +247,10 @@ private:
         return fh;
     }
 
-    TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset)
+    TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset, TWallTimer timer)
     {
+        AddReadWaitTimeSample(timer.GetElapsedTime());
+
         auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes + UseDirectIO_ * 3 * Alignment_, false);
         i64 from = offset;
         i64 to = offset + numBytes;
@@ -256,8 +311,10 @@ private:
         return data.Slice(delta, delta + Min(result, numBytes));
     }
 
-    void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
+    void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, TWallTimer timer)
     {
+        AddWriteWaitTimeSample(timer.GetElapsedTime());
+
         const ui8* buf = reinterpret_cast<ui8*>(data.Begin());
         size_t numBytes = data.Size();
 
@@ -275,6 +332,88 @@ private:
                 numBytes -= reallyWritten;
             }
         });
+    }
+
+    void AddWriteWaitTimeSample(TDuration duration)
+    {
+        if (Config_->SickWriteTimeThreshold && Config_->SickWriteTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
+            if (duration > *Config_->SickWriteTimeThreshold) {
+                auto now = GetInstant();
+                auto guard = Guard(WriteWaitSpinLock_);
+                if (!SickWriteWaitStart_) {
+                    SickWriteWaitStart_ = now;
+                } else if (now - *SickWriteWaitStart_ > *Config_->SickWriteTimeWindow) {
+                    auto error = TError("Write is too slow")
+                        << TErrorAttribute("sick_write_wait_start", *SickWriteWaitStart_);
+                    guard.Release();
+                    SetSickFlag(error);
+                }
+            } else {
+                auto guard = Guard(WriteWaitSpinLock_);
+                SickWriteWaitStart_.Reset();
+            }
+        }
+
+        UpdateSicknessProfiling();
+    }       
+
+    void AddReadWaitTimeSample(TDuration duration)
+    {
+        if (Config_->SickReadTimeThreshold && Config_->SickReadTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
+            if (duration > *Config_->SickReadTimeThreshold) {
+                auto now = GetInstant();
+                auto guard = Guard(ReadWaitSpinLock_);
+                if (!SickReadWaitStart_) {
+                    SickReadWaitStart_ = now;
+                } else if (now - *SickReadWaitStart_ > *Config_->SickReadTimeWindow) {
+                    auto error = TError("Read is too slow")
+                        << TErrorAttribute("sick_read_wait_start", *SickReadWaitStart_);
+                    guard.Release();
+                    SetSickFlag(error);
+                }
+            } else {
+                auto guard = Guard(ReadWaitSpinLock_);
+                SickReadWaitStart_.Reset();
+            }
+        }
+
+        UpdateSicknessProfiling();
+    }
+
+    void SetSickFlag(const TError& error)
+    {
+        bool expected = false;
+        if (Sick_.compare_exchange_strong(expected, true)) {
+            ++SicknessCounter_;
+            TDelayedExecutor::Submit(
+                BIND(&TThreadedIOEngine::ResetSickFlag, MakeStrong(this)),
+                *Config_->SicknessExpirationTimeout);
+
+            LOG_WARNING(error, "Location is sick");
+        }
+    }
+
+    void ResetSickFlag()
+    {
+        {
+            auto guard = Guard(WriteWaitSpinLock_);
+            SickWriteWaitStart_.Reset();
+        }
+
+        {
+            auto guard = Guard(ReadWaitSpinLock_);
+            SickReadWaitStart_.Reset();
+        }
+
+        Sick_ = false;
+
+        LOG_WARNING("Reset sick flag");
+    }
+
+    void UpdateSicknessProfiling()
+    {
+        Profiler_.Enqueue("/sick", static_cast<i64>(Sick_.load()), EMetricType::Gauge);
+        Profiler_.Enqueue("/sickness_counter", SicknessCounter_, EMetricType::Gauge);
     }
 };
 
@@ -435,7 +574,7 @@ private:
 };
 
 class TAioEngineConfig
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonSerializable
 {
 public:
     int MaxQueueSize;
@@ -453,9 +592,10 @@ class TAioEngine
 {
 public:
     using TConfig = TAioEngineConfig;
+    using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    explicit TAioEngine(const TAioEngineConfig& config, const TString& locationId)
-        : MaxQueueSize_(config.MaxQueueSize)
+    TAioEngine(const TConfigPtr& config, const TString& locationId)
+        : MaxQueueSize_(config->MaxQueueSize)
         , Semaphore_(MaxQueueSize_)
         , Thread_(TThread::TParams(StaticLoop, this).SetName(Format("DiskEvents:%v", locationId)))
         , ThreadPool_(New<TThreadPool>(1, Format("FileOpener:%v", locationId)))
@@ -505,6 +645,11 @@ public:
         return BIND(&TAioEngine::DoOpen, MakeStrong(this), fName, oMode)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
+    }
+
+    virtual bool IsSick() const override
+    {
+        return false;
     }
 
 private:
@@ -630,20 +775,19 @@ private:
 template <typename T, typename ...Params>
 IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig, Params ...params)
 {
-    typename T::TConfig config;
-    config.SetDefaults();
+    typename T::TConfigPtr config = New<typename T::TConfig>();
+    config->SetDefaults();
     if (ioConfig) {
-        config.Load(ioConfig);
+        config->Load(ioConfig);
     }
 
-    return New<T>(config, params...);
+    return New<T>(std::move(config), params...);
 }
 
-IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig, const TString& locationId)
-{
+IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger){
     switch (ioType) {
         case EIOEngineType::ThreadPool:
-            return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId);
+            return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId, profiler, logger);
 #ifdef _linux_
         case EIOEngineType::Aio:
             return CreateIOEngine<TAioEngine>(ioConfig, locationId);
