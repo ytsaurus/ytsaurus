@@ -16,6 +16,7 @@ import ctypes
 import errno
 import functools
 import os
+import re
 import signal
 import socket
 import sys
@@ -117,6 +118,12 @@ class YtResponseError(YtError):
         """Shell exited."""
         return self.contains_code(1800) or self.contains_code(1801)
 
+    def is_no_such_service(self):
+        return self.contains_code(102)
+
+    def is_tablet_in_intermediate_state(self):
+        return self.matches_regexp("Tablet .* is in state .*")
+
     def contains_code(self, code):
         """Check if HTTP response has specified error code."""
         def contains_code_recursive(error, error_code):
@@ -145,6 +152,23 @@ class YtResponseError(YtError):
             return False
 
         return contains_text_recursive(self.error, text)
+
+    def matches_regexp(self, pattern):
+        """Check if HTTP response has specified status code."""
+        def matches_regexp_recursive(error, pattern):
+            message = ""
+            if "message" in error:
+                message = error["message"]
+
+            if re.match(pattern, message) is not None:
+                return True
+
+            for inner_error in error.get("inner_errors", []):
+                if matches_regexp_recursive(inner_error, pattern):
+                    return True
+            return False
+
+        return matches_regexp_recursive(self.error, pattern)
 
 class PrettyPrintableDict(dict):
     pass

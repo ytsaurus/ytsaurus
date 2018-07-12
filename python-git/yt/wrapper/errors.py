@@ -116,6 +116,14 @@ class YtConcurrentTransactionLockConflict(YtHttpResponseError):
        It is used in upload_file_to_cache retries."""
     pass
 
+class YtNoSuchService(YtHttpResponseError):
+    """No such service error"""
+    pass
+
+class YtTabletIsInIntermediateState(YtHttpResponseError):
+    """Tablet is in intermediate state error"""
+    pass
+
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
     def __init__(self, response):
