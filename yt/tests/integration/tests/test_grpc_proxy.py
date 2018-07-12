@@ -222,10 +222,14 @@ class TestGrpcProxy(YTEnvSetup):
             request_serializer=req_msg_class.SerializeToString,
             response_deserializer=rsp_msg_class.FromString)
 
+        metadata = [
+            ("yt-protocol-version", "1.0")
+        ]
+
         print >>sys.stderr
         print >>sys.stderr, str(datetime.now()), method, params
 
-        rsp = unary.future(loads_proto(dumps(params), req_msg_class))
+        rsp = unary.future(loads_proto(dumps(params), req_msg_class), metadata=metadata)
         self._wait_response(rsp)
         return dumps_proto(rsp.result())
 
@@ -237,7 +241,8 @@ class TestGrpcProxy(YTEnvSetup):
 
         serialized_message = loads_proto(dumps(params), req_msg_class).SerializeToString()
         metadata = [
-            ("yt-message-body-size", str(len(serialized_message)))
+            ("yt-message-body-size", str(len(serialized_message))),
+            ("yt-protocol-version", "1.0")
         ]
 
         message_parts = [serialized_message]
