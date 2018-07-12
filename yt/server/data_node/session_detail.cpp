@@ -157,7 +157,7 @@ TFuture<void> TSessionBase::PutBlocks(
     }
 }
 
-TFuture<void> TSessionBase::SendBlocks(
+TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     const TNodeDescriptor& targetDescriptor)
@@ -170,7 +170,7 @@ TFuture<void> TSessionBase::SendBlocks(
 
         return DoSendBlocks(startBlockIndex, blockCount, targetDescriptor);
     } catch (const std::exception& ex) {
-        return MakeFuture<void>(ex);
+        return MakeFuture<TDataNodeServiceProxy::TRspPutBlocksPtr>(ex);
     }
 }
 

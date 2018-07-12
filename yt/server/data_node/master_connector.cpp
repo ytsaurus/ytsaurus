@@ -533,9 +533,10 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_full(location->IsFull());
         locationStatistics->set_throttling_reads(location->IsReadThrottling());
         locationStatistics->set_throttling_writes(location->IsWriteThrottling());
+        locationStatistics->set_sick(location->IsSick());
 
         auto& mediumStatistics = mediaStatistics[mediumIndex];
-        if (location->IsEnabled() && !location->IsFull()) {
+        if (location->IsEnabled() && !location->IsFull() && !location->IsSick()) {
             ++mediumStatistics.IOWeight;
         }
     }

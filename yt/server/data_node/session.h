@@ -5,6 +5,7 @@
 #include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -76,7 +77,7 @@ struct ISession
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
-    virtual TFuture<void> SendBlocks(
+    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;

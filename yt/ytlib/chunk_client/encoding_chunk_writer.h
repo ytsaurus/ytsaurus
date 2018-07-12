@@ -44,6 +44,8 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
     TCodecStatistics GetCompressionStatistics() const;
 
+    bool HasSickReplicas() const;
+
 private:
     const IChunkWriterPtr ChunkWriter_;
     const TEncodingWriterPtr EncodingWriter_;
