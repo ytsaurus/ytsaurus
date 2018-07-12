@@ -67,8 +67,10 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(context, {
+        return StructType::get(context, ArrayRef<Type*>{
             TypeBuilder<i64, Cross>::get(context)});
+        
+
     }
 
     static_assert(

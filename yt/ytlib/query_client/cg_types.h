@@ -181,7 +181,7 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(context, {
+        return StructType::get(context, ArrayRef<Type*>{
             THeader::get(context)});
     }
 };
@@ -199,7 +199,7 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(context, {
+        return StructType::get(context, ArrayRef<Type*>{
             THeader::get(context)});
     }
 };
