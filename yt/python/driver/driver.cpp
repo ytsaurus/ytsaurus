@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/job_tracker_client/public.h>
+
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
@@ -33,6 +35,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NTabletClient;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +126,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Forces a remote YT process (node, scheduler or master) to exit immediately");
         PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Writes a core dump of a remote YT process (node, scheduler or master)");
+        PYCXX_ADD_KEYWORDS_METHOD(write_operation_controller_core_dump, WriteOperationControllerCoreDump, "Write a core dump of a controller agent holding the operation controller for a given operation id");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
@@ -298,6 +302,23 @@ public:
         } CATCH("Failed to write core dump");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteCoreDump)
+
+    Py::Object WriteOperationControllerCoreDump(Py::Tuple& args, Py::Dict& kwargs) {
+        if (!HasArgument(args, kwargs, "operation_id")) {
+            throw CreateYtError("Missing argument 'operation_id'");
+        }
+        auto operationId = TOperationId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "operation_id")));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
+            auto path = WaitFor(admin->WriteOperationControllerCoreDump(operationId))
+                .ValueOrThrow();
+            return Py::String(path);
+        } CATCH("Failed to write operation controller core dump");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteOperationControllerCoreDump)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {

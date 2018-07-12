@@ -41,6 +41,7 @@ using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NLogging;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +137,34 @@ TYPath GetControllerAgentOrchidOperationPath(
         controllerAgentAddress +
         "/orchid/controller_agent/operations/" +
         ToYPathLiteral(ToString(operationId));
+}
+
+TNullable<TString> GetControllerAgentAddressFromCypress(
+    const TOperationId& operationId,
+    const IChannelPtr& channel)
+{
+    static const std::vector<TString> attributes = {"controller_agent_address"};
+
+    TObjectServiceProxy proxy(channel);
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    {
+        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@controller_agent_address");
+        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+        batchReq->AddRequest(req, "get_controller_agent_address");
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
+    if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        return Null;
+    }
+
+    const auto& response = responseOrError.ValueOrThrow();
+    return ConvertTo<TString>(TYsonString(response->value()));
 }
 
 TYPath GetSnapshotPath(const TOperationId& operationId)

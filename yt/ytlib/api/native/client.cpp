@@ -4970,31 +4970,6 @@ private:
         int Limit_ = -1;
     };
 
-    TNullable<TString> DoGetControllerAgentAddressFromCypress(const TOperationId& operationId)
-    {
-        static const std::vector<TString> attributes = {"controller_agent_address"};
-
-        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-
-        auto batchReq = proxy.ExecuteBatch();
-
-        {
-            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@controller_agent_address");
-            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-            batchReq->AddRequest(req, "get_controller_agent_address");
-        }
-
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-
-        auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
-        if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return Null;
-        }
-
-        const auto& response = responseOrError.ValueOrThrow();
-        return ConvertTo<TString>(TYsonString(response->value()));
-    }
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
         const TOperationId& operationId,
@@ -5665,7 +5640,9 @@ private:
 
         TListJobsResult result;
 
-        auto controllerAgentAddress = DoGetControllerAgentAddressFromCypress(operationId);
+        auto controllerAgentAddress = GetControllerAgentAddressFromCypress(
+            operationId,
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
         auto dataSource = options.DataSource;
         if (dataSource == EDataSource::Auto) {

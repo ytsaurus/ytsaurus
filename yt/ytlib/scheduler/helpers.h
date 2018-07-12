@@ -33,6 +33,9 @@ NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     const TString& controllerAgentAddress,
     const TOperationId& operationId);
+TNullable<TString> GetControllerAgentAddressFromCypress(
+    const TOperationId& operationId,
+    const NRpc::IChannelPtr& channel);
 
 // TODO(babenko): remove "New" infix once we fully migrate to this scheme
 NYPath::TYPath GetNewJobsPath(const TOperationId& operationId);

@@ -16,11 +16,12 @@
 #include "operations_cleaner.h"
 
 #include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/server/exec_agent/public.h>
 
 #include <yt/server/shell/config.h>
+
+#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 

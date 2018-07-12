@@ -7354,6 +7354,14 @@ bool TOperationControllerBase::IsCompleted() const
     return true;
 }
 
+TString TOperationControllerBase::WriteCoreDump() const {
+    const auto& coreDumper = Host->GetCoreDumper();
+    if (!coreDumper) {
+        THROW_ERROR_EXCEPTION("Core dumper is not set up");
+    }
+    return coreDumper->WriteCoreDump(CoreNotes_).Path;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)

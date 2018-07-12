@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
+#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
@@ -16,6 +18,8 @@
 #include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -33,6 +37,9 @@ using namespace NTabletClient;
 using namespace NNodeTrackerClient;
 using namespace NHydra;
 using namespace NHiveClient;
+using namespace NJobTrackerClient;
+using namespace NScheduler;
+using namespace NControllerAgent;
 
 DECLARE_REFCOUNTED_CLASS(TAdmin)
 
@@ -79,6 +86,9 @@ public:
         const TString& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
+    IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
+        const TOperationId& operationId),
+        (operationId))
 
 private:
     const IConnectionPtr Connection_;
@@ -160,6 +170,24 @@ private:
         return rsp->path();
     }
 
+    TString DoWriteOperationControllerCoreDump(const TOperationId& operationId) {
+        auto address = GetControllerAgentAddressFromCypress(
+            operationId,
+            Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+        if (!address.HasValue()) {
+            THROW_ERROR_EXCEPTION("Cannot find the address of the controller agent for the operation %v", operationId);
+        }
+
+        auto channel = Connection_->GetChannelFactory()->CreateChannel(*address);
+
+        TControllerAgentServiceProxy proxy(channel);
+        auto req = proxy.WriteOperationControllerCoreDump();
+        ToProto(req->mutable_operation_id(), operationId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        return rsp->path();
+    }
 
     IChannelPtr GetCellChannelOrThrow(const TCellId& cellId)
     {

@@ -7,6 +7,7 @@ namespace NApi {
 namespace NRpcProxy {
 
 using namespace NRpc;
+using namespace NJobTrackerClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +49,11 @@ TFuture<void> TAdmin::KillProcess(const TString& address, const TKillProcessOpti
 }
 
 TFuture<TString> TAdmin::WriteCoreDump(const TString& address, const TWriteCoreDumpOptions& options)
+{
+    Y_UNIMPLEMENTED();
+}
+
+TFuture<TString> TAdmin::WriteOperationControllerCoreDump(const TOperationId& operationId)
 {
     Y_UNIMPLEMENTED();
 }
