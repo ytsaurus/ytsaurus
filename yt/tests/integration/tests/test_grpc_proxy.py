@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup, wait
-# NOTE(asaitgalin): No yt_commands import here, only rpc api should be used! :)
+# NOTE(asaitgalin): No full yt_commands import here, only rpc api should be used! :)
+from yt_commands import discover_proxies
 
+from yt_driver_bindings import Driver
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
 
 import yt_proto.yt.ytlib.rpc_proxy.proto.api_service_pb2 as api_service_pb2
@@ -14,6 +16,7 @@ import sys
 import struct
 from datetime import datetime
 from cStringIO import StringIO
+from copy import deepcopy
 
 SERIALIZATION_ALIGNMENT = 8
 
@@ -194,8 +197,12 @@ class TestGrpcProxy(YTEnvSetup):
     @classmethod
     def setup_class(cls):
         super(TestGrpcProxy, cls).setup_class()
-        addresses = cls.Env.get_grpc_proxy_addresses()
-        cls.channel = grpc.insecure_channel(addresses[0])
+        cls.grpc_proxy_address = cls.Env.get_grpc_proxy_address()
+        cls.channel = grpc.insecure_channel(cls.grpc_proxy_address)
+
+        config = deepcopy(cls.Env.configs["driver"])
+        config["api_version"] = 4
+        cls.driver = Driver(config)
 
     def _wait_response(self, future):
         while True:
@@ -410,3 +417,8 @@ class TestGrpcProxy(YTEnvSetup):
                 break
 
         assert error_found, "Request should fail!"
+
+    def test_discovery(self):
+        proxies = discover_proxies(type_="grpc", driver=self.driver)["proxies"]
+        assert len(proxies) == 1
+        assert proxies[0] == self.grpc_proxy_address

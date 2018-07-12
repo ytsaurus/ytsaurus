@@ -553,6 +553,10 @@ def put_file_to_cache(path, md5, **kwargs):
     kwargs["md5"] = md5
     return yson.loads(execute_command("put_file_to_cache", kwargs))
 
+def discover_proxies(type_, **kwargs):
+    kwargs["type"] = type_
+    return yson.loads(execute_command("discover_proxies", kwargs))
+
 ###########################################################################
 
 def reset_events_on_fs():

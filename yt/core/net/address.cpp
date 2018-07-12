@@ -334,25 +334,30 @@ TNetworkAddress TNetworkAddress::Parse(TStringBuf address)
     return TryParse(address).ValueOrThrow();
 }
 
-TString TNetworkAddress::FormatIP() const
+TString TNetworkAddress::FormatIP(bool withPort) const
 {
     const void* ipAddr;
+    int port = 0;
+    bool ipv6 = false;
     switch (GetSockAddr()->sa_family) {
         case AF_INET: {
             const auto* typedAddr = reinterpret_cast<const sockaddr_in*>(GetSockAddr());
             ipAddr = &typedAddr->sin_addr;
+            port = typedAddr->sin_port;
             break;
         }
         case AF_INET6: {
             const auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(GetSockAddr());
             ipAddr = &typedAddr->sin6_addr;
+            port = typedAddr->sin6_port;
+            ipv6 = true;
             break;
         }
         default: {
             THROW_ERROR_EXCEPTION("Invalid address type");
         }
     }
-    
+
     std::array<char, 256> buffer;
     if (!inet_ntop(
         GetSockAddr()->sa_family,
@@ -363,7 +368,24 @@ TString TNetworkAddress::FormatIP() const
         THROW_ERROR_EXCEPTION("Failed to format IP address");
     }
 
-    return TString(buffer.data());
+    TString result;
+
+    if (ipv6 && withPort) {
+        result.append('[');
+    }
+
+    result.append(buffer.data());
+
+    if (ipv6 && withPort) {
+        result.append(']');
+    }
+
+    if (withPort) {
+        result.append(':');
+        result.append(ToString(ntohs(port)));
+    }
+
+    return result;
 }
 
 TString ToString(const TNetworkAddress& address, bool withPort)
@@ -527,7 +549,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
     if (isEnd() && !beforeAbbrev) {
         return true;
     }
-    
+
     while (true) {
         if (beforeAbbrev) {
             ui16 newWord = 0;
@@ -572,7 +594,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
             return false;
         }
     }
-    
+
     return true;
 }
 

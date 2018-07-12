@@ -31,6 +31,7 @@ public:
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
     int WorkerThreadPoolSize;
+
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
@@ -52,6 +53,10 @@ public:
 
         RegisterPostprocessor([&] {
             ClusterConnection->ThreadPoolSize = Null;
+
+            if (GrpcServer && GrpcServer->Addresses.size() > 1) {
+                THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
+            }
         });
     }
 };

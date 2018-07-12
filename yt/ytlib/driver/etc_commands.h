@@ -122,7 +122,8 @@ private:
 
 DEFINE_ENUM(EProxyType,
     ((Http) (1))
-    ((Rpc) (2))
+    ((Rpc)  (2))
+    ((Grpc) (3))
 );
 
 struct TDiscoverProxiesOptions
