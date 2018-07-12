@@ -12,7 +12,44 @@ from flaky import flaky
 
 ##################################################################
 
-class TestReplicatedDynamicTables(TestDynamicTablesBase):
+SIMPLE_SCHEMA = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value1", "type": "string"},
+    {"name": "value2", "type": "int64"}
+]
+
+SIMPLE_SCHEMA_ORDERED = [
+    {"name": "key", "type": "int64"},
+    {"name": "value1", "type": "string"},
+    {"name": "value2", "type": "int64"}
+]
+
+PERTURBED_SCHEMA = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value2", "type": "int64"},
+    {"name": "value1", "type": "string"}
+]
+
+AGGREGATE_SCHEMA = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value1", "type": "string"},
+    {"name": "value2", "type": "int64", "aggregate": "sum"}
+]
+
+EXPRESSION_SCHEMA = [
+    {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "key % 10"},
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type": "int64"},
+]
+EXPRESSIONLESS_SCHEMA = [
+    {"name": "hash", "type": "int64", "sort_order": "ascending"},
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type": "int64"},
+]
+
+##################################################################
+
+class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
 
     DELTA_NODE_CONFIG = {
@@ -33,48 +70,17 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         }
     }
 
-    SIMPLE_SCHEMA = [
-        {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value1", "type": "string"},
-        {"name": "value2", "type": "int64"}
-    ]
-
-    SIMPLE_SCHEMA_ORDERED = [
-        {"name": "key", "type": "int64"},
-        {"name": "value1", "type": "string"},
-        {"name": "value2", "type": "int64"}
-    ]
-
-    PERTURBED_SCHEMA = [
-        {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value2", "type": "int64"},
-        {"name": "value1", "type": "string"}
-    ]
-
-    AGGREGATE_SCHEMA = [
-        {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value1", "type": "string"},
-        {"name": "value2", "type": "int64", "aggregate": "sum"}
-    ]
-
-    EXPRESSION_SCHEMA = [
-        {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "key % 10"},
-        {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value", "type": "int64"},
-    ]
-    EXPRESSIONLESS_SCHEMA = [
-        {"name": "hash", "type": "int64", "sort_order": "ascending"},
-        {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value", "type": "int64"},
-    ]
-
-    REPLICA_CLUSTER_NAME = "remote_0"
-
-
     def setup(self):
+        self.SIMPLE_SCHEMA = SIMPLE_SCHEMA
+        self.SIMPLE_SCHEMA_ORDERED = SIMPLE_SCHEMA_ORDERED
+        self.PERTURBED_SCHEMA = PERTURBED_SCHEMA
+        self.AGGREGATE_SCHEMA = AGGREGATE_SCHEMA
+        self.EXPRESSION_SCHEMA = EXPRESSION_SCHEMA
+        self.EXPRESSIONLESS_SCHEMA = EXPRESSIONLESS_SCHEMA
+        self.REPLICA_CLUSTER_NAME = "remote_0"
+
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
         self.primary_driver = get_driver(cluster="primary")
-
 
     def _get_table_attributes(self, schema):
         return {
@@ -102,7 +108,9 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_create_cells(1)
         self.sync_create_cells(1, driver=self.replica_driver)
 
+##################################################################
 
+class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_replicated_table_must_be_dynamic(self):
         with pytest.raises(YtError): create("replicated_table", "//tmp/t")
 
@@ -1003,6 +1011,60 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
 
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
+
+##################################################################
+
+class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "security_manager": {
+                "table_permission_cache": {
+                    "expire_after_access_time": 0,
+                },
+            },
+        },
+        "master_cache_service": {
+            "capacity": 0
+        },
+    }
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_safe_mode(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id)
+        self.sync_enable_table_replica(replica_id)
+        create_user("u")
+        create_user("u", driver=self.replica_driver)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 10}], require_sync_replica=False, authenticated_user="u")
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}])
+
+        set("//sys/@config/enable_safe_mode", True, driver=self.replica_driver)
+
+        if mode == "sync":
+            with pytest.raises(YtError):
+                insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 10}], authenticated_user="u")
+        else:
+            insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 10}], require_sync_replica=False)
+            sleep(1)
+            assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
+            errors = get("//tmp/t/@replicas/{}/errors".format(replica_id))
+            assert len(errors) == 1
+            assert errors[0]["message"] == 'Access denied: "write" permission is not allowed by any matching ACE'
+
+
+        set("//sys/@config/enable_safe_mode", False, driver=self.replica_driver)
+
+        if mode == "sync":
+            insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 10}], authenticated_user="u")
+
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [
+            {"key": 1, "value1": "test", "value2": 10},
+            {"key": 2, "value1": "test", "value2": 10}])
+
+        wait(lambda: len(get("//tmp/t/@replicas/{}/errors".format(replica_id))) == 0)
 
 ##################################################################
 

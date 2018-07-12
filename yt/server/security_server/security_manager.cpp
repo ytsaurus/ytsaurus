@@ -929,6 +929,15 @@ public:
     {
         TPermissionCheckResult result;
 
+        // Fast lane: "replicator", though being superuser, cannot write in safe mode.
+        if (user == ReplicatorUser_ &&
+            permission != EPermission::Read &&
+            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+        {
+            result.Action = ESecurityAction::Deny;
+            return result;
+        }
+
         // Fast lane: "root" and "superusers" need no autorization.
         if (IsUserRootOrSuperuser(user)) {
             result.Action = ESecurityAction::Allow;
