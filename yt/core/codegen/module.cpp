@@ -119,7 +119,11 @@ public:
     {
         InitializeCodegen();
 
+#if !LLVM_VERSION_GE(6, 0)
         Context_.setDiagnosticHandler(&TImpl::DiagnosticHandler, nullptr);
+#else
+        Context_.setDiagnosticHandlerCallBack(&TImpl::DiagnosticHandler, nullptr);
+#endif
 
         // Infer host parameters.
         auto hostCpu = llvm::sys::getHostCPUName();

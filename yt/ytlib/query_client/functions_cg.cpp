@@ -486,7 +486,18 @@ void LoadLlvmBitcode(
     std::string what;
     bool linkerFailed;
     llvm::raw_string_ostream os(what);
-#if LLVM_VERSION_GE(3, 9)
+#if !LLVM_VERSION_GE(3, 9)
+    {
+        llvm::DiagnosticPrinterRawOStream printer(os);
+        // Link two modules together, with the first module modified to be the
+        // composite of the two input modules.
+        linkerFailed = Linker::LinkModules(module, implModule.get(), [&] (const DiagnosticInfo& info) {
+           info.print(printer);
+        });
+    }
+#else
+
+
     {
         auto handler = [] (const DiagnosticInfo& info, void *context) {
             auto os = reinterpret_cast<llvm::raw_string_ostream*>(context);
@@ -496,6 +507,7 @@ void LoadLlvmBitcode(
 
         auto dest = module;
         LLVMContext& context = dest->getContext();
+#if !LLVM_VERSION_GE(6, 0)
         LLVMContext::DiagnosticHandlerTy oldDiagnosticHandler = context.getDiagnosticHandler();
         void *oldDiagnosticContext = context.getDiagnosticContext();
         context.setDiagnosticHandler((LLVMContext::DiagnosticHandlerTy)handler, &os, true);
@@ -503,15 +515,15 @@ void LoadLlvmBitcode(
         linkerFailed = Linker::linkModules(*dest, std::move(implModule));
 
         context.setDiagnosticHandler(oldDiagnosticHandler, oldDiagnosticContext, true);
-    }
 #else
-    {
-        llvm::DiagnosticPrinterRawOStream printer(os);
-        // Link two modules together, with the first module modified to be the
-        // composite of the two input modules.
-        linkerFailed = Linker::LinkModules(module, implModule.get(), [&] (const DiagnosticInfo& info) {
-           info.print(printer);
-        });
+        DiagnosticHandler::DiagnosticHandlerTy oldDiagnosticHandler = context.getDiagnosticHandlerCallBack();
+        void *oldDiagnosticContext = context.getDiagnosticContext();
+        context.setDiagnosticHandlerCallBack((DiagnosticHandler::DiagnosticHandlerTy)handler, &os, true);
+
+        linkerFailed = Linker::linkModules(*dest, std::move(implModule));
+
+        context.setDiagnosticHandlerCallBack(oldDiagnosticHandler, oldDiagnosticContext, true);
+#endif
     }
 #endif
 
