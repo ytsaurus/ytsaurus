@@ -76,10 +76,10 @@ def test_imap_unordered():
     pool = ThreadPool(5)
 
     result = pool.imap_unordered(lambda item: item ** 2, [0, 1, 5, 2, 3])
-    assert set(result) == {0, 1, 25, 4, 9}
+    assert set(result) == set([0, 1, 25, 4, 9])
 
     result = pool.imap_unordered(lambda item: item ** 2, [6])
-    assert set(result) == {36}
+    assert set(result) == set([36])
 
     result = pool.imap_unordered(lambda item: item ** 2, [])
     assert set(result) == set()
@@ -87,7 +87,7 @@ def test_imap_unordered():
     pool = ThreadPool(1)
 
     result = pool.imap_unordered(lambda item: item * 2, [0, 5, 3])
-    assert set(result) == {0, 10, 6}
+    assert set(result) == set([0, 10, 6])
 
     pool = ThreadPool(30)
     result = pool.imap_unordered(lambda item: -item, xrange(10 ** 5))
