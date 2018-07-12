@@ -524,11 +524,11 @@ class YTInstance(object):
             raise YtError("Proxy is not started")
         return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"], "proxy", "port"))
 
-    def get_grpc_proxy_addresses(self):
+    def get_grpc_proxy_address(self):
         if not self.has_rpc_proxy:
             raise YtError("Rpc proxy is not started")
         addresses = _config_safe_get(self.configs["rpc_proxy"][0], "rpc_proxy", "grpc_server/addresses")
-        return [address["address"] for address in addresses]
+        return addresses[0]["address"]
 
     def kill_cgroups(self):
         if self._use_porto_for_servers or not _has_cgroups():

@@ -147,9 +147,9 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
         "prepared" if prepare_only else "started",
         environment.id))
     if start_proxy:
-        logger.info("Proxy address: {0}".format(environment.get_proxy_address()))
+        logger.info("Proxy address: %s", environment.get_proxy_address())
     if start_rpc_proxy:
-        logger.info("GRPC proxy addresses: {0}".format(", ".join(environment.get_grpc_proxy_addresses())))
+        logger.info("GRPC proxy address: %s", environment.get_grpc_proxy_address())
 
 def _safe_kill(pid, signal_number=signal.SIGKILL):
     try:
