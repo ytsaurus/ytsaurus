@@ -3,6 +3,7 @@ from .table_helpers import _prepare_format, _to_chunk_stream
 from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
+from .errors import YtNoSuchService, YtTabletIsInIntermediateState
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
@@ -53,10 +54,11 @@ class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, data=None, client=None):
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
+        retriable_errors = tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState])
         super(DynamicTableRequestRetrier, self).__init__(
             retry_config=retry_config,
             timeout=request_timeout,
-            exceptions=get_retriable_errors(),
+            exceptions=retriable_errors,
             chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
         self.request_timeout = request_timeout
