@@ -732,9 +732,13 @@ class YTEnvSetup(object):
     def _find_ut_file(self, file_name):
         unittester_path = find_executable("unittester-ytlib")
         assert unittester_path is not None
-        unittests_path = os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "unittests")
-        assert os.path.exists(unittests_path)
-        result_path = os.path.join(unittests_path, file_name)
-        assert os.path.exists(result_path)
-        return result_path
+        for unittests_path in [
+            os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "unittests"),
+            os.path.dirname(unittester_path)
+        ]:
+            result_path = os.path.join(unittests_path, file_name)
+            if os.path.exists(result_path):
+                return result_path
+        else:
+            raise RuntimeErorr("Cannot find '{0}'".format(file_name))
 
