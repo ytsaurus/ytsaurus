@@ -2,7 +2,7 @@
 
 #include <util/generic/strbuf.h>
 
-namespace NYP {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ int GetVersionPatch()
 
 const char* GetVersion()
 {
-    static TString version = NYT::CreateYtVersion(@YP_VERSION_MAJOR@, @YP_VERSION_MINOR@, @YP_VERSION_PATCH@, AsStringBuf("local"));
+    static TString version = CreateYtVersion(@YP_VERSION_MAJOR@, @YP_VERSION_MINOR@, @YP_VERSION_PATCH@, AsStringBuf("local"));
     return version.c_str();
 }
 
@@ -56,4 +56,5 @@ const char* GetBuildTime()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP
+} // namespace NYT
+

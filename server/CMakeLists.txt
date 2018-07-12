@@ -63,6 +63,11 @@ add_custom_target(
 )
 
 exec_program(
+  ${CMAKE_COMMAND} ARGS -E remove
+  ${CMAKE_SOURCE_DIR}/yp/python/yp/enums.bc
+)
+
+exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/yp/server/enums.bc
   ${CMAKE_SOURCE_DIR}/yp/python/yp/enums.bc

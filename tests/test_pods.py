@@ -892,3 +892,9 @@ class TestPods(object):
             with pytest.raises(YpResponseError) as create_error:
                 yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/sysctl_properties", "value": [{"name": "net.core.somaxconn", "value": v}]}])
             assert "\";\" symbol is not allowed" in str(create_error.value)
+
+    def test_default_antiaffinity_constraints_yp_365(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/antiaffinity_constraints"]) == [[]]

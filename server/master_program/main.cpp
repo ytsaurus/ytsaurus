@@ -1,6 +1,5 @@
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/config.h>
-#include <yp/build/build.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -25,8 +24,7 @@ class TMasterProgram
 {
 public:
     TMasterProgram()
-        : TProgram(NYP::GetVersion)
-        , TProgramPdeathsigMixin(Opts_)
+        : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     { }
 

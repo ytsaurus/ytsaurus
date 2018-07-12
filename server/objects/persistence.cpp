@@ -323,11 +323,7 @@ void ToDBValueImpl(
     }
     writer.OnEndList();
 
-    if (count == 0) {
-        *dbValue = NYT::NTableClient::MakeUnversionedSentinelValue(NYT::NTableClient::EValueType::Null, id);
-    } else {
-        *dbValue = rowBuffer->Capture(NYT::NTableClient::MakeUnversionedAnyValue(ysonBytes, id));
-    }
+    *dbValue = rowBuffer->Capture(NYT::NTableClient::MakeUnversionedAnyValue(ysonBytes, id));
 }
 
 void FromDBValueImpl(

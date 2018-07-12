@@ -15,7 +15,8 @@ message TRequestHeader
     required string method = 3;
     optional NYtPython.NProto.TGuid realm_id = 8;
 
-    optional int32 protocol_version = 9 [default = 0];
+    optional int32 protocol_version_major = 9 [default = 1];
+    optional int32 protocol_version_minor = 19 [default = 0];
 
     optional int64 start_time = 7;
     optional bool retry = 11 [default = false];
@@ -67,9 +68,9 @@ message TCredentialsExt
         optional TCredentialsExt credentials_ext = 110;
     }
 
+    // COMPAT(babenko)
     optional string user_ip = 1;
     optional string token = 2;
-    optional string domain = 3;
     optional string session_id = 4;
     optional string ssl_session_id = 5;
 }
@@ -79,7 +80,7 @@ message TCredentialsExt
 message TResponseHeader
 {
     optional NYtPython.NProto.TGuid request_id = 1;
-    
+
     // If omitted then OK is assumed.
     optional NYtPython.NProto.TError error = 2;
 

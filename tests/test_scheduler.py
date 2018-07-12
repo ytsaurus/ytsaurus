@@ -115,8 +115,8 @@ class TestScheduler(object):
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["assigned"]
 
-        assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == YsonEntity()
-        assert self._get_scheduled_allocations(yp_env, node_id, "memory") == YsonEntity()
+        assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == []
+        assert self._get_scheduled_allocations(yp_env, node_id, "memory") == []
 
         yp_client.update_object("pod", pod_id,
             set_updates=[
@@ -191,11 +191,11 @@ class TestScheduler(object):
 
         node_id = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0]
         assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == [{"pod_id": pod_id, "cpu": {"capacity": 100}}]
-        assert self._get_scheduled_allocations(yp_env, node_id, "memory") == YsonEntity()
+        assert self._get_scheduled_allocations(yp_env, node_id, "memory") == []
 
         yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/resource_requests/vcpu_guarantee", "value": YsonUint64(50)}])
         assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == [{"pod_id": pod_id, "cpu": {"capacity": 50}}]
-        assert self._get_scheduled_allocations(yp_env, node_id, "memory") == YsonEntity()
+        assert self._get_scheduled_allocations(yp_env, node_id, "memory") == []
 
     def test_cpu_limit(self, yp_env):
         yp_client = yp_env.yp_client
