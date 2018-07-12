@@ -25,10 +25,9 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
+        return StructType::get(context, {
             TLength::get(context),
-            TData::get(context),
-            nullptr);
+            TData::get(context)});
     }
 
     static_assert(
@@ -68,9 +67,8 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
-            TypeBuilder<i64, Cross>::get(context),
-             nullptr);
+        return StructType::get(context, {
+            TypeBuilder<i64, Cross>::get(context)});
     }
 
     static_assert(
