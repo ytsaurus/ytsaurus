@@ -164,9 +164,7 @@ void TBlobChunkBase::DoReadMeta(
         try {
             auto readerCache = Bootstrap_->GetBlobReaderCache();
             auto reader = readerCache->GetReader(this);
-            // NB: The reader is synchronous.
-            meta = reader->GetMeta(options)
-                .Get()
+            meta = WaitFor(reader->GetMeta(options))
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             cookie.Cancel(ex);
