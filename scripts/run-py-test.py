@@ -12,8 +12,9 @@ def main():
 
     ya_build = os.path.join(repo_root, "ya-build")
     env = {
-        "PYTHONPATH": "{python}:{install_dir}".format(
+        "PYTHONPATH": "{python}:{yp_python}:{install_dir}".format(
             python=os.path.join(repo_root, "python"),
+            yp_python=os.path.join(repo_root, "yp", "python"),
             install_dir=os.path.join(repo_root, "ya-build")),
         "PATH": ya_build + ":" + os.environ["PATH"],
     }
