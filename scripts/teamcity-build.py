@@ -759,7 +759,6 @@ def run_yt_cpp_integration_tests(options, build_context):
     run_pytest(options, "cpp_integration", "{0}/yt/tests/cpp".format(options.checkout_directory))
 
 @build_step
-@disable_for_ya
 def run_yp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("YP integration tests are skipped since all tests are disabled")
