@@ -273,6 +273,9 @@ public:
 
         LOG_INFO("Initializing chunk cache");
 
+        std::vector<TFuture<std::vector<TChunkDescriptor>>> asyncDescriptors;
+        asyncDescriptors.reserve(Config_->CacheLocations.size());
+
         for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
             auto locationConfig = Config_->CacheLocations[i];
 
@@ -281,14 +284,26 @@ public:
                 locationConfig,
                 Bootstrap_);
 
-            auto descriptors = location->Scan();
-            for (const auto& descriptor : descriptors) {
+            asyncDescriptors.push_back(
+                BIND(&TCacheLocation::Scan, location)
+                    .AsyncVia(location->GetWritePoolInvoker())
+                    .Run());
+
+            Locations_.push_back(location);
+        }
+
+        auto allDescriptors = WaitFor(Combine(asyncDescriptors))
+            .ValueOrThrow();
+
+        for (int index = 0; index < Config_->CacheLocations.size(); ++index) {
+            const auto& location = Locations_[index];
+
+            for (const auto& descriptor : allDescriptors[index]) {
                 RegisterChunk(location, descriptor);
             }
 
             location->Start();
 
-            Locations_.push_back(location);
         }
 
         ValidateLocationMedia();
