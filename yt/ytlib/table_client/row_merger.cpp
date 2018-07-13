@@ -503,12 +503,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
         // Apply retention config if present.
         if (Config_) {
-            // Compute safety limit by MinDataVersions.
-            if (ColumnValues_.size() > Config_->MinDataVersions) {
-                retentionBeginIt = ColumnValues_.end() - Config_->MinDataVersions;
-            }
+            retentionBeginIt = ColumnValues_.end();
 
-            // Adjust safety limit by MinDataTtl.
+            // Compute safety limit by MinDataTtl.
             while (retentionBeginIt != ColumnValues_.begin()) {
                 auto timestamp = (retentionBeginIt - 1)->Timestamp;
                 if (timestamp < CurrentTimestamp_ &&
@@ -517,6 +514,13 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                     break;
                 }
                 --retentionBeginIt;
+            }
+
+            // Adjust safety limit by MinDataVersions.
+            if (std::distance(ColumnValues_.begin(), retentionBeginIt) > Config_->MinDataVersions) {
+                retentionBeginIt -= Config_->MinDataVersions;
+            } else {
+                retentionBeginIt = ColumnValues_.begin();
             }
 
             // Compute retention limit by MaxDataVersions and MaxDataTtl.

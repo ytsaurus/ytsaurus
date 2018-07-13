@@ -141,7 +141,9 @@ public:
     void DoSuspend(IChunkPoolInput::TCookie cookie)
     {
         auto& suspendableStripe = Stripes[cookie];
-        suspendableStripe.Suspend();
+        if (!suspendableStripe.Suspend()) {
+            return;
+        }
 
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {
@@ -173,7 +175,9 @@ public:
     void DoResume(IChunkPoolInput::TCookie cookie)
     {
         auto& suspendableStripe = Stripes[cookie];
-        suspendableStripe.Resume();
+        if (!suspendableStripe.Resume()) {
+            return;
+        }
 
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {
@@ -491,7 +495,17 @@ public:
         Persist(context, ChunkPoolId_);
         Persist(context, OperationId_);
         Persist(context, Task_);
-        Persist(context, InputCookieToInternalCookies_);
+
+        // COMPAT(max42).
+        if (context.GetVersion() <= 300012) {
+            std::vector<std::vector<int>> old;
+            Persist(context, old);
+            for (const auto& oldVector : old) {
+                InputCookieToInternalCookies_.emplace_back(oldVector.begin(), oldVector.end());
+            }
+        } else {
+            Persist(context, InputCookieToInternalCookies_);
+        }
         Persist(context, InputCookieIsSuspended_);
         Persist(context, Stripes);
         Persist(context, JobSizeConstraints_);
@@ -530,7 +544,7 @@ private:
 
     //! A mappping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
-    std::vector<std::vector<int>> InputCookieToInternalCookies_;
+    std::vector<THashSet<int>> InputCookieToInternalCookies_;
     std::vector<TSuspendableStripe> Stripes;
     // char is used instead of bool because std::vector<bool> is not currently persistable,
     // and I am too lazy to fix that.
@@ -668,7 +682,7 @@ private:
         for (const auto& dataSlice : stripe->DataSlices) {
             YCHECK(dataSlice->Tag);
             auto inputCookie = *dataSlice->Tag;
-            InputCookieToInternalCookies_[inputCookie].emplace_back(internalCookie);
+            InputCookieToInternalCookies_[inputCookie].insert(internalCookie);
             suspended |= InputCookieIsSuspended_[inputCookie];
         }
 
