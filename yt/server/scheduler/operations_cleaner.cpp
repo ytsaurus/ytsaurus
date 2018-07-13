@@ -25,6 +25,8 @@
 
 #include <yt/core/utilex/random.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -174,6 +176,30 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     return to_lower(result);
 }
 
+TYsonString GetPools(const TYsonString& runtimeParameters)
+{
+    if (!runtimeParameters) {
+        return {};
+    }
+
+    auto schedulingOptionsNode = ConvertToNode(runtimeParameters)->AsMap()->FindChild("scheduling_options_per_pool_tree");
+    if (!schedulingOptionsNode) {
+        return {};
+    }
+
+    return BuildYsonStringFluently()
+        .DoListFor(schedulingOptionsNode->AsMap()->GetChildren(),
+            [] (TFluentList fluent, const std::pair<TString, INodePtr>& entry) {
+                fluent.Item().Value(entry.second->AsMap()->GetChild("pool")->AsString());
+            });
+}
+
+bool HasFailedJobs(const TYsonString& briefProgress)
+{
+    auto jobsNode = ConvertToNode(briefProgress)->AsMap()->FindChild("jobs");
+    return jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
+}
+
 TUnversionedRow BuildOrderedByIdTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
@@ -238,6 +264,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
     auto filterFactors = GetFilterFactors(request);
+    auto pools = GetPools(request.RuntimeParameters);
 
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
@@ -247,6 +274,15 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     builder.AddValue(MakeUnversionedStringValue(state, index.State));
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
     builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
+
+    if (version >= 24) {
+        if (pools) {
+            builder.AddValue(MakeUnversionedAnyValue(pools.GetData(), index.Pools));
+        }
+        if (request.BriefProgress) {
+            builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
+        }
+    }
 
     return rowBuffer->Capture(builder.GetRow());
 }

@@ -59,6 +59,8 @@ struct TOrderedByStartTimeTableDescriptor
         const int AuthenticatedUser;
         const int FilterFactors;
         const int Pool;
+        const int Pools;
+        const int HasFailedJobs;
     };
 
     const NTableClient::TNameTablePtr NameTable;
