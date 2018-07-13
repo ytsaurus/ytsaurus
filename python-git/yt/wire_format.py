@@ -1,3 +1,8 @@
+# DISCLAIMER: All code in this file is considered private. Use it at your own risk.
+# It is possible that in future this code will become official part or YT Python API,
+# until that time this code could be freely modified without backward compatibility.
+# It is presented for demonstration purposes to ease first GRPC API usage.
+
 from yt.common import YtError
 
 import yt.yson as yson
