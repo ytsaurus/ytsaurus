@@ -10,8 +10,8 @@ import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, guid_to_parts, parts_to_guid, underscore_case_to_camel_case
-from yt.wire_format import (AttachmentStream, serialize_rows_to_wire_format,
-                            deserialize_rows_from_wire_format, build_columns_from_schema)
+from yt.wire_format import (AttachmentStream, serialize_rows_to_unversioned_wire_format,
+                            deserialize_rows_from_unversioned_wire_format, build_columns_from_schema)
 
 import grpc
 import sys
@@ -210,12 +210,14 @@ class TestGrpcProxy(YTEnvSetup):
                 "rowset_descriptor": {"columns": build_columns_from_schema(schema)},
             },
             data=rows,
-            data_serializer=partial(serialize_rows_to_wire_format, schema=schema))
+            data_serializer=partial(serialize_rows_to_unversioned_wire_format, schema=schema))
 
         self._commit_transaction(transaction_id=guid_to_dict(tx), sticky=True)
 
         msg, stream = self._make_heavy_api_request("select_rows", {"query": "* FROM [{}]".format(table_path)})
-        selected_rows = deserialize_rows_from_wire_format(stream, [col["name"] for col in msg["rowset_descriptor"]["columns"]])
+        selected_rows = deserialize_rows_from_unversioned_wire_format(
+            stream,
+            [col["name"] for col in msg["rowset_descriptor"]["columns"]])
 
         assert_items_equal(selected_rows, rows)
 
