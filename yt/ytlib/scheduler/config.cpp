@@ -185,9 +185,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("secure_vault", SecureVault)
         .Default();
 
-    RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
-        .Default(TDuration::Hours(1));
-
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 

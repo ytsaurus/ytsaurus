@@ -348,9 +348,6 @@ public:
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
 
-    //! If no candidate exec node is seen for more than this timeout then the operation fails.
-    TDuration AvailableNodesMissingTimeout;
-
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 
