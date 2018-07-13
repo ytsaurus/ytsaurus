@@ -1116,7 +1116,7 @@ private:
         , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:
-        //! Used only for persistense.
+        //! Used only for persistence.
         TSink() = default;
 
         TSink(TThis* controller, int outputTableIndex);
