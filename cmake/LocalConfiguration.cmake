@@ -100,6 +100,7 @@ if(_is_gcc)
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-reserved-user-defined-literal")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-missing-braces")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-constant-logical-operand")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-enum-compare-switch")
 
     if(CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
       set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fcolor-diagnostics")
