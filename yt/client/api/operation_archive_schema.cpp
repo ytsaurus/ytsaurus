@@ -51,6 +51,8 @@ TOrderedByStartTimeTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTabl
     , AuthenticatedUser(nameTable->RegisterName("authenticated_user"))
     , FilterFactors(nameTable->RegisterName("filter_factors"))
     , Pool(nameTable->RegisterName("pool"))
+    , Pools(nameTable->RegisterName("pools"))
+    , HasFailedJobs(nameTable->RegisterName("has_failed_jobs"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
