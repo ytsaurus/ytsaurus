@@ -7106,14 +7106,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
-    // COMPAT(max42): remove it in a few weeks.
-    if (context.IsLoad()) {
-        for (auto& pair : FinishedJobs_) {
-            auto& summary = pair.second->Summary;
-            summary.StatisticsYson = TYsonString();
-            summary.Statistics.Reset();
-        }
-    }
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
     Persist(context, AutoMergeTaskGroup);
@@ -7122,22 +7114,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
-
-    // COMPAT(ignat)
-    if (context.GetVersion() <= 202001) {
-        TYsonString unrecognizedSpecYson("{}");
-        if (context.IsSave() && UnrecognizedSpec_) {
-            unrecognizedSpecYson = ConvertToYsonString(UnrecognizedSpec_);
-        }
-        Persist(context, unrecognizedSpecYson);
-        if (context.IsLoad()) {
-            UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
-        }
-    }
-
-    if (context.GetVersion() >= 300003) {
-        Persist(context, AvailableExecNodesWereObserved_);
-    }
+    Persist(context, AvailableExecNodesWereObserved_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
