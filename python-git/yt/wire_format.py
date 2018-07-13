@@ -2,7 +2,7 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-from yt.packages.six import iteritems, integer_types, binary_type, text_type
+from yt.packages.six import PY3, iteritems, integer_types, binary_type, text_type
 
 import struct
 
@@ -96,7 +96,7 @@ def build_columns_from_schema(schema):
     type_to_value_type = SCHEMA_TYPE_TO_VALUE_TYPE
     return [{"name": entry["name"], "type": type_to_value_type[entry["type"]]} for entry in schema]
 
-def serialize_rows_to_wire_format(stream, rows, schema, enable_value_type_validation=True, encoding="utf-8"):
+def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value_type_validation=True, encoding="utf-8"):
     key_to_type = dict((entry["name"], entry["type"]) for entry in schema)
     key_to_index = dict(zip([entry["name"] for entry in schema], xrange(len(schema))))
     aggregate_keys = set(entry["key"] for entry in schema if entry.get("aggregate", False))
@@ -144,7 +144,7 @@ def serialize_rows_to_wire_format(stream, rows, schema, enable_value_type_valida
                 if isinstance(value, text_type):
                     if encoding is None:
                         raise YtError('Cannot encode unicode string, encoding is not specified')
-                    serialized_value = value.encoding(encoding)
+                    serialized_value = value.encode(encoding)
                 else:
                     serialized_value = value
             else:
@@ -179,7 +179,7 @@ def serialize_rows_to_wire_format(stream, rows, schema, enable_value_type_valida
     for chunk in buffer_:
         stream.write(chunk)
 
-def deserialize_rows_from_wire_format(stream, column_names, skip_none_values=True):
+def deserialize_rows_from_unversioned_wire_format(stream, column_names, skip_none_values=True, encoding="utf-8"):
     result = []
 
     count = struct.unpack("<Q", stream.read_exact(8))[0]
@@ -197,10 +197,16 @@ def deserialize_rows_from_wire_format(stream, column_names, skip_none_values=Tru
             assert not aggregate, "Aggregate values are not currently supported"
 
             if type_ == VT_ANY:
-                value = yson.loads(stream.read_exact(length))
+                if not PY3:
+                    value = yson.loads(stream.read_exact(length))
+                else:
+                    value = yson.loads(stream.read_exact(length), encoding=encoding)
+
                 stream.read_exact(align_up(length) - length)
             elif type_ == VT_STRING:
                 value = stream.read_exact(length)
+                if PY3 and encoding is not None:
+                    value = value.decode(encoding)
                 stream.read_exact(align_up(length) - length)
             elif type_ == VT_INT64:
                 value = struct.unpack("<q", stream.read_exact(8))[0]
