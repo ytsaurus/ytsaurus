@@ -2819,7 +2819,7 @@ private:
             TCellTag dstCellTag;
             std::unique_ptr<NTableClient::IOutputSchemaInferer> outputSchemaInferer;
             {
-                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
                 auto batchReq = proxy->ExecuteBatch();
 
                 for (const auto& path : srcPaths) {
@@ -2893,7 +2893,7 @@ private:
 
                     TObjectServiceProxy::TRspExecuteBatchPtr getSchemasRsp;
                     {
-                        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                        auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
                         auto getSchemasReq = proxy->ExecuteBatch();
                         {
                             auto req = createGetSchemaRequest(dstId);
@@ -2970,7 +2970,7 @@ private:
                     auto srcCellTag = pair.first;
                     const auto& srcIndexes = pair.second;
 
-                    auto proxy = CreateWriteProxy<TObjectServiceProxy>(srcCellTag);
+                    auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions(), srcCellTag);
                     auto batchReq = proxy->ExecuteBatch();
 
                     for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
