@@ -199,7 +199,7 @@ TOperationSpecBase::TOperationSpecBase()
         .DefaultNew();
 
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        .DefaultNew(0.5, 2.0, 1.0);
 
     RegisterParameter("fail_on_job_restart", FailOnJobRestart)
         .Default(false);
