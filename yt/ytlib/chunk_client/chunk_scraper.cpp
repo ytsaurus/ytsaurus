@@ -54,11 +54,6 @@ public:
         .AddTag("ScraperTaskId: %v", TGuid::Create())
         .AddTag("CellTag: %v", CellTag_))
     , Proxy_(masterChannel)
-    , PeriodicExecutor_(New<TPeriodicExecutor>(
-        invoker,
-        BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
-        TDuration::Zero(),
-        EPeriodicExecutorMode::Manual))
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
     }
@@ -75,6 +70,12 @@ public:
 
         LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
+
+        PeriodicExecutor_ = New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
+            TDuration::Zero(),
+            EPeriodicExecutorMode::Manual);
 
         PeriodicExecutor_->Start();
     }
@@ -117,7 +118,7 @@ private:
     std::atomic<bool> Started_ = { false };
     int NextChunkIndex_ = 0;
 
-    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
 
     void LocateChunks()
@@ -135,13 +136,13 @@ private:
 
     void DoLocateChunks(const TError& error)
     {
-        if (!Started_) {
-            return;
-        }
-
         auto finallyGuard = Finally([&] () {
             PeriodicExecutor_->ScheduleNext();
         });
+
+        if (!Started_) {
+            return;
+        }
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
