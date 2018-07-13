@@ -13,25 +13,17 @@ bool TRuleConfig::IsApplicable(const TString& category) const
         return false;
     }
 
-    if (ExcludeCategories.find(category) != ExcludeCategories.end()) {
-        // Match in exclude_categories.
-        return false;
-    }
+    return ExcludeCategories.find(category) == ExcludeCategories.end();
 
-    return true;
 }
 
-bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level) const
+bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogEventFormat format) const
 {
     if (!IsApplicable(category)) {
         return false;
     }
 
-    if (MinLevel > level || level > MaxLevel) {
-        return false;
-    }
-
-    return true;
+    return MinLevel <= level && level <= MaxLevel && format == LogEventFormat;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

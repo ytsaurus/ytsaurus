@@ -16,7 +16,7 @@ namespace NJson {
 class TJsonParser
 {
 public:
-    TJsonParser(
+    explicit TJsonParser(
         NYson::IYsonConsumer* consumer,
         TJsonFormatConfigPtr config = nullptr,
         NYson::EYsonType type = NYson::EYsonType::Node);

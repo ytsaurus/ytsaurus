@@ -48,17 +48,34 @@ inline TString FormatLogMessage(TString&& message)
     return std::move(message);
 }
 
-template <class TLogger>
-void LogEventImpl(
-    TLogger& logger,
+inline void LogEventImpl(
+    const TLogger& logger,
     ELogLevel level,
     TString message)
 {
     TLogEvent event;
+    event.Format = ELogEventFormat::PlainText;
     event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
     event.Level = level;
     event.Message = std::move(message);
+    event.ThreadId = TThread::CurrentThreadId();
+    event.FiberId = NConcurrency::GetCurrentFiberId();
+    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
+    logger.Write(std::move(event));
+}
+
+inline void LogStructuredEventImpl(
+    const TLogger& logger,
+    ELogLevel level,
+    NYson::TYsonString message)
+{
+    TLogEvent event;
+    event.Format = ELogEventFormat::Json;
+    event.Instant = NProfiling::GetCpuInstant();
+    event.Category = logger.GetCategory();
+    event.Level = level;
+    event.StructuredMessage = std::move(message);
     event.ThreadId = TThread::CurrentThreadId();
     event.FiberId = NConcurrency::GetCurrentFiberId();
     event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();

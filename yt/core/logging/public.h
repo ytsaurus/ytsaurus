@@ -19,6 +19,11 @@ DEFINE_ENUM(ELogLevel,
     (Maximum)
 );
 
+DEFINE_ENUM(ELogEventFormat,
+    (PlainText)
+    (Json)
+);
+
 DEFINE_ENUM(EWriterType,
     (File)
     (Stdout)
