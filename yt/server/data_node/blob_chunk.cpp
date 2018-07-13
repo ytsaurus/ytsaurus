@@ -281,7 +281,6 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Options.ReadSessionId);
 
         TWallTimer timer;
-        // NB: The reader is synchronous.
         auto blocksOrError = WaitFor(reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
