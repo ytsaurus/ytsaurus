@@ -123,11 +123,11 @@ public: \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
             ProcessSafeException(ex); \
-            return MakeDefault<returnType>(); \
+            return returnType(); \
         } catch (const std::exception& ex) { \
             if (catchStdException) { \
                 ProcessSafeException(ex); \
-                return MakeDefault<returnType>(); \
+                return returnType(); \
             } \
             throw; \
         } \
@@ -1138,12 +1138,6 @@ private:
         TThis* Controller_;
         int OutputTableIndex_ = -1;
     };
-
-    template <class T>
-    static T MakeDefault()
-    {
-        return T();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
