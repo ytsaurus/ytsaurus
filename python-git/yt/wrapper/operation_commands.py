@@ -342,6 +342,8 @@ def get_stderrs(operation, only_failed_jobs, client=None):
                     pass
                 elif not ignore_errors:
                     raise
+                else:
+                    logger.debug("Stderr download failed %s", str(err))
         else:
             stderr_path = ypath_join(OPERATIONS_PATH, operation, "jobs", job, "stderr")
             has_stderr = exists(stderr_path, client=yt_client)
