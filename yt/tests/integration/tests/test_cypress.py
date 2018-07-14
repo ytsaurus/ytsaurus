@@ -13,8 +13,6 @@ from yt.environment.helpers import assert_items_equal
 from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 from yt_commands import *
 
-from time import sleep
-
 ##################################################################
 
 class TestCypress(YTEnvSetup):
@@ -82,7 +80,6 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): remove("//tmp/1")
         remove("//tmp/1", force=True)
 
-        sleep(100)
         create("map_node", "//tmp/x/1/y", recursive=True)
         with pytest.raises(YtError): remove("//tmp/x", recursive=False)
         with pytest.raises(YtError): remove("//tmp/x", recursive=False, force=True)

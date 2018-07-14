@@ -5,8 +5,6 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
-from time import sleep
-
 ##################################################################
 
 class TestAcls(YTEnvSetup):
