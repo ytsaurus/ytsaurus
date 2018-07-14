@@ -8,6 +8,7 @@ from .cypress_commands import exists, get, list
 from .ypath import ypath_join
 from .file_commands import read_file
 from .job_commands import list_jobs, get_job_stderr
+from .local_mode import is_local_mode
 from . import yson
 
 import yt.logger as logger
@@ -459,8 +460,11 @@ def get_operation_url(operation, client=None):
     if not proxy_url:
         return None
 
+    cluster_path = "ui/" if is_local_mode() else ""
+
     return get_config(client)["proxy"]["operation_link_pattern"].format(
         proxy=get_proxy_url(client=client),
+        cluster_path=cluster_path,
         id=operation)
 
 class Operation(object):
