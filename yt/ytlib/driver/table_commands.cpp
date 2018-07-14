@@ -3,8 +3,9 @@
 
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/table_reader.h>
 #include <yt/ytlib/api/skynet.h>
+
+#include <yt/ytlib/api/native/table_reader.h>
 
 #include <yt/ytlib/query_client/query_statistics.h>
 
@@ -164,7 +165,7 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         Options))
         .ValueOrThrow();
 
-    auto input = CreateBlobTableReader(
+    auto input = NNative::CreateBlobTableReader(
         std::move(reader),
         PartIndexColumnName,
         DataColumnName,

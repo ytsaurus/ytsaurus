@@ -60,7 +60,7 @@ TSamplesFetcher::TSamplesFetcher(
     IInvokerPtr invoker,
     TRowBufferPtr rowBuffer,
     IFetcherChunkScraperPtr chunkScraper,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NLogging::TLogger& logger)
     : TFetcherBase(
         config,

@@ -1,12 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "client.h"
+
+#include <yt/core/actions/future.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>
-
-#include <yt/core/ypath/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -31,11 +30,6 @@ struct IJournalWriter
 };
 
 DEFINE_REFCOUNTED_TYPE(IJournalWriter)
-
-IJournalWriterPtr CreateJournalWriter(
-    INativeClientPtr client,
-    const NYPath::TYPath& path,
-    const TJournalWriterOptions& options = TJournalWriterOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

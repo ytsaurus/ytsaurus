@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/reader_base.h>
 
@@ -46,7 +46,7 @@ IFileReaderPtr CreateFileChunkReader(
 IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

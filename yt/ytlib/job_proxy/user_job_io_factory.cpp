@@ -62,7 +62,7 @@ namespace {
 
 ISchemalessMultiChunkWriterPtr CreateTableWriter(
     const IJobSpecHelperPtr& jobSpecHelper,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
@@ -90,7 +90,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
 
 ISchemalessMultiChunkReaderPtr CreateTableReader(
     const IJobSpecHelperPtr& jobSpecHelper,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TNodeDescriptor& nodeDescriptor,
     TTableReaderOptionsPtr options,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
@@ -138,7 +138,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const IJobSpecHelperPtr& jobSpecHelper,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TNodeDescriptor& nodeDescriptor,
     bool isParallel,
     TNameTablePtr nameTable,
@@ -190,7 +190,7 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
@@ -208,7 +208,7 @@ public:
     }
 
     virtual ISchemalessMultiChunkWriterPtr CreateWriter(
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
@@ -250,7 +250,7 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
@@ -330,7 +330,7 @@ public:
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
@@ -370,7 +370,7 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
@@ -390,7 +390,7 @@ public:
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
@@ -460,7 +460,7 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
@@ -501,7 +501,7 @@ public:
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
@@ -536,7 +536,7 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
@@ -546,7 +546,7 @@ public:
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,

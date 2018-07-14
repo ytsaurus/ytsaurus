@@ -1,5 +1,5 @@
-#include "native_connection.h"
-#include "native_transaction_participant.h"
+#include "connection.h"
+#include "transaction_participant.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
@@ -10,6 +10,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NHiveClient;
 using namespace NTransactionClient;
@@ -17,15 +18,15 @@ using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeTransactionParticipant
+class TTransactionParticipant
     : public ITransactionParticipant
 {
 public:
-    TNativeTransactionParticipant(
+    TTransactionParticipant(
         TCellDirectoryPtr cellDirectory,
         TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
-        INativeConnectionPtr connection,
+        IConnectionPtr connection,
         const TCellId& cellId,
         const TTransactionParticipantOptions& options)
         : CellDirectory_(std::move(cellDirectory))
@@ -100,7 +101,7 @@ private:
     const TCellDirectoryPtr CellDirectory_;
     const TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const ITimestampProviderPtr TimestampProvider_;
-    const INativeConnectionPtr Connection_;
+    const IConnectionPtr Connection_;
     const TCellId CellId_;
     const TTransactionParticipantOptions Options_;
 
@@ -147,15 +148,15 @@ private:
     }
 };
 
-ITransactionParticipantPtr CreateNativeTransactionParticipant(
+ITransactionParticipantPtr CreateTransactionParticipant(
     TCellDirectoryPtr cellDirectory,
     TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
-    INativeConnectionPtr connection,
+    IConnectionPtr connection,
     const TCellId& cellId,
     const TTransactionParticipantOptions& options)
 {
-    return New<TNativeTransactionParticipant>(
+    return New<TTransactionParticipant>(
         std::move(cellDirectory),
         std::move(cellDirectorySynchronizer),
         std::move(timestampProvider),
@@ -166,5 +167,6 @@ ITransactionParticipantPtr CreateNativeTransactionParticipant(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

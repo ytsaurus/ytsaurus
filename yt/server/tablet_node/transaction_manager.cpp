@@ -21,8 +21,8 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/action.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/tablet_client/tablet_service.pb.h>
 

@@ -2,7 +2,7 @@
 
 #include "unversioned_row.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -53,7 +53,7 @@ public:
     TBlobTableWriter(
         const TBlobTableSchema& schema,
         const std::vector<NYson::TYsonString>& blobIdColumnValues,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
         const NCypressClient::TTransactionId& transactionId,

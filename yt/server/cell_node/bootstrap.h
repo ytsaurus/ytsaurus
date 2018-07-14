@@ -14,7 +14,7 @@
 
 #include <yt/server/tablet_node/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -43,7 +43,6 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/lazy_ptr.h>
 
-
 namespace NYT {
 namespace NCellNode {
 
@@ -61,8 +60,8 @@ public:
     const IInvokerPtr& GetLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
-    const NApi::INativeClientPtr& GetMasterClient() const;
-    const NApi::INativeConnectionPtr& GetMasterConnection() const;
+    const NApi::NNative::IClientPtr& GetMasterClient() const;
+    const NApi::NNative::IConnectionPtr& GetMasterConnection() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
@@ -128,8 +127,8 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer;
-    NApi::INativeConnectionPtr MasterConnection;
-    NApi::INativeClientPtr MasterClient;
+    NApi::NNative::IConnectionPtr MasterConnection;
+    NApi::NNative::IClientPtr MasterClient;
     NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;

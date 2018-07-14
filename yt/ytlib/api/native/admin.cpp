@@ -1,8 +1,10 @@
 #include "admin.h"
 #include "box.h"
 #include "config.h"
-#include "native_connection.h"
+#include "connection.h"
 #include "private.h"
+
+#include <yt/ytlib/api/admin.h>
 
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
@@ -19,6 +21,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,22 +34,22 @@ using namespace NNodeTrackerClient;
 using namespace NHydra;
 using namespace NHiveClient;
 
-DECLARE_REFCOUNTED_CLASS(TNativeAdmin)
+DECLARE_REFCOUNTED_CLASS(TAdmin)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeAdmin
+class TAdmin
     : public IAdmin
 {
 public:
-    TNativeAdmin(
-        INativeConnectionPtr connection,
+    TAdmin(
+        IConnectionPtr connection,
         const TAdminOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
-        // NB: Cannot actually throw.
+        , Logger(NLogging::TLogger(ApiLogger)
+            .AddTag("AdminId: %v", TGuid::Create()))
     {
-        Logger.AddTag("AdminId: %v", TGuid::Create());
         Y_UNUSED(Options_);
     }
 
@@ -57,7 +60,7 @@ public:
         return Execute( \
             #method, \
             BIND( \
-                &TNativeAdmin::Do ## method, \
+                &TAdmin::Do ## method, \
                 MakeStrong(this), \
                 DROP_BRACES args)); \
     }
@@ -78,10 +81,10 @@ public:
         (address, options))
 
 private:
-    const INativeConnectionPtr Connection_;
+    const IConnectionPtr Connection_;
     const TAdminOptions Options_;
 
-    NLogging::TLogger Logger = ApiLogger;
+    const NLogging::TLogger Logger;
 
 
     template <class T>
@@ -173,16 +176,17 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TNativeAdmin)
+DEFINE_REFCOUNTED_TYPE(TAdmin)
 
-IAdminPtr CreateNativeAdmin(
-    INativeConnectionPtr connection,
+IAdminPtr CreateAdmin(
+    IConnectionPtr connection,
     const TAdminOptions& options)
 {
-    return New<TNativeAdmin>(std::move(connection), options);
+    return New<TAdmin>(std::move(connection), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

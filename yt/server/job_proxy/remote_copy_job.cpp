@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -98,8 +98,8 @@ public:
         OutputChunkListId_ = FromProto<TChunkListId>(
             SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
 
-        auto remoteConnectionConfig = ConvertTo<TNativeConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
-        RemoteConnection_ = CreateNativeConnection(remoteConnectionConfig);
+        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
+        RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
 
         RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
@@ -233,8 +233,8 @@ private:
 
     TChunkListId OutputChunkListId_;
 
-    INativeConnectionPtr RemoteConnection_;
-    INativeClientPtr RemoteClient_;
+    NNative::IConnectionPtr RemoteConnection_;
+    NNative::IClientPtr RemoteClient_;
 
     IChannelPtr MasterChannel_;
 

@@ -16,7 +16,8 @@
 #include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 

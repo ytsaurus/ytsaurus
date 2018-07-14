@@ -60,8 +60,8 @@
 
 #include <yt/ytlib/program/build_attributes.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -213,7 +213,7 @@ void TBootstrap::DoRun()
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
-    MasterConnection = CreateNativeConnection(Config->ClusterConnection);
+    MasterConnection = NApi::NNative::CreateConnection(Config->ClusterConnection);
 
     if (Config->TabletNode->ResourceLimits->Slots > 0) {
         // Requesting latest timestamp enables periodic background time synchronization.
@@ -265,7 +265,7 @@ void TBootstrap::DoRun()
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
-    auto createBatchingChunkService = [&] (TMasterConnectionConfigPtr config) {
+    auto createBatchingChunkService = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
             config->CellId,
             Config->BatchingChunkService,
@@ -404,7 +404,7 @@ void TBootstrap::DoRun()
 
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
-    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
+    auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
@@ -633,12 +633,12 @@ const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
     return TransactionTrackerQueue->GetInvoker();
 }
 
-const INativeClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetMasterClient() const
 {
     return MasterClient;
 }
 
-const INativeConnectionPtr& TBootstrap::GetMasterConnection() const
+const NNative::IConnectionPtr& TBootstrap::GetMasterConnection() const
 {
     return MasterConnection;
 }

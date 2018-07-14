@@ -19,11 +19,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFluentEventLogger::TFluentEventLogger()
-    : Consumer_(nullptr)
-    , Counter_(0)
-{ }
-
 TFluentEventLogger::~TFluentEventLogger()
 {
     YCHECK(!Consumer_);
@@ -112,7 +107,7 @@ class TEventLogWriter::TImpl
     : public TIntrinsicRefCounted
 {
 public:
-    TImpl(const TEventLogConfigPtr& config, const INativeClientPtr& client, const IInvokerPtr& invoker)
+    TImpl(const TEventLogConfigPtr& config, const NNative::IClientPtr& client, const IInvokerPtr& invoker)
         : Config_(config)
         , Client_(client)
     {
@@ -153,7 +148,7 @@ public:
 
 private:
     TEventLogConfigPtr Config_;
-    NApi::INativeClientPtr Client_;
+    NApi::NNative::IClientPtr Client_;
 
     NTableClient::ISchemalessWriterPtr EventLogWriter_;
 
@@ -177,7 +172,7 @@ private:
 
 TEventLogWriter::TEventLogWriter(
     const TEventLogConfigPtr& config,
-    const NApi::INativeClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     const IInvokerPtr& invoker)
     : Impl_(New<TImpl>(config, client, invoker))
 { }

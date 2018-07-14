@@ -1,14 +1,14 @@
 #pragma once
 
 #include "public.h"
-#include "client.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/ytlib/api/client.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -22,16 +22,11 @@ struct TSkynetSharePartsLocations
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TSkynetSharePartsLocations& skynetPartsLocations, NYson::IYsonConsumer* consumer);
-
-TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
-    INativeClientPtr client,
-    const NYPath::TRichYPath& path,
-    const TLocateSkynetShareOptions& options);
-
 DEFINE_REFCOUNTED_TYPE(TSkynetSharePartsLocations);
+
+void Serialize(
+    const TSkynetSharePartsLocations& skynetPartsLocations,
+    NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

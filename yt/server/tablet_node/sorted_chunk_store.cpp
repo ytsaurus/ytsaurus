@@ -70,7 +70,7 @@ TSortedChunkStore::TSortedChunkStore(
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
     TVersionedChunkMetaManagerPtr chunkMetaManager,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(config, id, tablet)
     , TChunkStoreBase(

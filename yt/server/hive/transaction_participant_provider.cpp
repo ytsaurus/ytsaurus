@@ -2,8 +2,9 @@
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_transaction_participant.h>
+
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction_participant.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -40,7 +41,7 @@ public:
         if (CellTagFromId(cellId) != CellTag_) {
             return nullptr;
         }
-        return CreateNativeTransactionParticipant(
+        return NNative::CreateTransactionParticipant(
             CellDirectory_,
             nullptr,
             TimestampProvider_,
@@ -67,7 +68,7 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 }
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
-    INativeConnectionPtr connection)
+    NNative::IConnectionPtr connection)
 {
     // Ensure cell directory sync.
     connection->GetCellDirectorySynchronizer()->Start();

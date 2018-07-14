@@ -3,7 +3,7 @@
 #include "versioned_row.h"
 #include "unversioned_row.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/formats/format.h>
 
@@ -148,7 +148,7 @@ void ValidateDynamicTableTimestamp(
 
 std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NYPath::TRichYPath& path,
-    const NApi::INativeClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
     const NObjectClient::TTransactionId& transactionId,

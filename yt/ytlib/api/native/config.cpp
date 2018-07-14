@@ -16,6 +16,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NObjectClient;
 
@@ -29,19 +30,7 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountCacheConfig::TTableMountCacheConfig()
-{
-    RegisterParameter("on_error_retry_count", OnErrorRetryCount)
-        .GreaterThanOrEqual(0)
-        .Default(5);
-    RegisterParameter("on_error_retry_slack_period", OnErrorSlackPeriod)
-        .GreaterThan(TDuration::MicroSeconds(0))
-        .Default(TDuration::Seconds(1));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNativeConnectionConfig::TNativeConnectionConfig()
+TConnectionConfig::TConnectionConfig()
 {
     RegisterParameter("networks", Networks)
         .Default();
@@ -175,6 +164,7 @@ TNativeConnectionConfig::TNativeConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

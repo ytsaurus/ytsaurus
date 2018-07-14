@@ -3,7 +3,7 @@
 #include "public.h"
 #include "callbacks.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -13,7 +13,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 IExecutorPtr CreateQueryExecutor(
-    NApi::INativeConnectionPtr connection,
+    NApi::NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
     TColumnEvaluatorCachePtr columnEvaluatorCache,
     TEvaluatorPtr evaluator,

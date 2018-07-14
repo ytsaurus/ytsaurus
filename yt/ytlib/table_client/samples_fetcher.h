@@ -55,7 +55,7 @@ public:
         IInvokerPtr invoker,
         NTableClient::TRowBufferPtr rowBuffer,
         NChunkClient::IFetcherChunkScraperPtr chunkScraper,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(NChunkClient::TInputChunkPtr chunk) override;

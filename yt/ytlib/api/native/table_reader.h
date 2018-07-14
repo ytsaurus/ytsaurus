@@ -1,7 +1,8 @@
 #pragma once
 
-#include "client.h"
-#include "native_client.h"
+#include "public.h"
+
+#include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -11,11 +12,12 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
-    INativeClientPtr client,
+    IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
     NTableClient::TNameTablePtr nameTable,
@@ -32,5 +34,6 @@ NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

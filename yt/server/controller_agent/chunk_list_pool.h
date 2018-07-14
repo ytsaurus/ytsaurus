@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/logging/log.h>
 
@@ -21,7 +21,7 @@ class TChunkListPool
 public:
     TChunkListPool(
         TControllerAgentConfigPtr config,
-        NApi::INativeClientPtr clientPtr,
+        NApi::NNative::IClientPtr clientPtr,
         IInvokerPtr controlInvoker,
         const TOperationId& operationId,
         const NTransactionClient::TTransactionId& transactionId);
@@ -33,7 +33,7 @@ public:
 
 private:
     const TControllerAgentConfigPtr Config_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr ControllerInvoker_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;

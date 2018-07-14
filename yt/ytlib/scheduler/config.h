@@ -4,7 +4,7 @@
 #include "helpers.h"
 #include "job_resources.h"
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
@@ -94,6 +94,8 @@ public:
 
     TSchedulableConfig();
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TExtendedSchedulableConfig
     : public TSchedulableConfig
@@ -555,7 +557,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -575,7 +577,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TMapOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TMapOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -595,7 +597,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -624,8 +626,9 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
@@ -635,8 +638,9 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec, 0xff44f136);
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
@@ -646,7 +650,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -689,7 +693,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -709,7 +713,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -724,7 +728,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -746,7 +750,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TNewReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TNewReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -817,7 +821,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -839,7 +843,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TSortOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -872,8 +876,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
 };
 
-
-DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -883,7 +886,7 @@ class TRemoteCopyOperationSpec
 public:
     TNullable<TString> ClusterName;
     TNullable<TString> NetworkName;
-    TNullable<NApi::TNativeConnectionConfigPtr> ClusterConnection;
+    TNullable<NApi::NNative::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     int MaxChunkCountPerJob;

@@ -17,9 +17,10 @@
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_transaction.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -809,7 +810,7 @@ private:
                 blockReadOptions,
                 stores.size());
 
-            INativeTransactionPtr transaction;
+            NNative::ITransactionPtr transaction;
             {
                 LOG_INFO("Creating Eden partitioning transaction");
 
@@ -1207,7 +1208,7 @@ private:
                 blockReadOptions,
                 stores.size());
 
-            INativeTransactionPtr transaction;
+            NNative::ITransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
 

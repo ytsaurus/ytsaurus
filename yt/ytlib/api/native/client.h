@@ -1,28 +1,31 @@
 #pragma once
 
-#include "client.h"
+#include "public.h"
+
+#include <yt/ytlib/api/client.h>
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct INativeClientBase
-    : public virtual IClientBase
+struct IClientBase
+    : public virtual NApi::IClientBase
 {
-    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
+    virtual TFuture<ITransactionPtr> StartNativeTransaction(
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct INativeClient
-    : public INativeClientBase
-    , public IClient
+struct IClient
+    : public IClientBase
+    , public NApi::IClient
 {
     virtual const TClientOptions& GetOptions() = 0;
-    virtual const INativeConnectionPtr& GetNativeConnection() = 0;
+    virtual const IConnectionPtr& GetNativeConnection() = 0;
     virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() = 0;
 
@@ -35,21 +38,22 @@ struct INativeClient
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;
 
-    virtual INativeTransactionPtr AttachNativeTransaction(
+    virtual ITransactionPtr AttachNativeTransaction(
         const NTransactionClient::TTransactionId& transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(INativeClient)
+DEFINE_REFCOUNTED_TYPE(IClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INativeClientPtr CreateNativeClient(
-    INativeConnectionPtr connection,
+IClientPtr CreateClient(
+    IConnectionPtr connection,
     const TClientOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

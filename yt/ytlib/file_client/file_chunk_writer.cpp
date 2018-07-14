@@ -59,11 +59,9 @@ public:
     virtual TCodecStatistics GetCompressionStatistics() const override;
 
 private:
-    NLogging::TLogger Logger;
-
+    const NLogging::TLogger Logger;
     const TFileChunkWriterConfigPtr Config_;
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
-
 
     TBlob Buffer_ { TFileChunkWriterBufferTag() };
 
@@ -231,7 +229,7 @@ IFileChunkWriterPtr CreateFileChunkWriter(
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,

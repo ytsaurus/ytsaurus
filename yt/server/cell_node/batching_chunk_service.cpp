@@ -10,7 +10,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
@@ -36,6 +36,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NElection;
 using namespace NApi;
+using namespace NApi::NNative;
 using namespace NHydra;
 
 using NYT::FromProto;

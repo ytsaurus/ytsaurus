@@ -5,7 +5,7 @@
 #include "client_block_cache.h"
 #include "chunk_reader_allowing_repair.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -23,7 +23,7 @@ namespace NChunkClient {
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     const TChunkId& chunkId,

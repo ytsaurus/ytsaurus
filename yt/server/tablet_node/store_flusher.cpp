@@ -18,9 +18,10 @@
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_transaction.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>

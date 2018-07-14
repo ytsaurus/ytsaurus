@@ -22,9 +22,10 @@
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_transaction.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/transaction.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/action.h>
@@ -69,7 +70,7 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
-        INativeConnectionPtr localConnection,
+        NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
         IInvokerPtr workerInvoker)
@@ -121,7 +122,7 @@ public:
 
 private:
     const TTabletManagerConfigPtr Config_;
-    const INativeConnectionPtr LocalConnection_;
+    const NNative::IConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
     const TSlotManagerPtr SlotManager_;
     const IInvokerPtr WorkerInvoker_;
@@ -217,7 +218,7 @@ private:
                 return;
             }
 
-            INativeTransactionPtr localTransaction;
+            NNative::ITransactionPtr localTransaction;
             ITransactionPtr foreignTransaction;
             PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
                 LOG_DEBUG("Starting replication transactions");
@@ -745,7 +746,7 @@ TTableReplicator::TTableReplicator(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     TTableReplicaInfo* replicaInfo,
-    INativeConnectionPtr localConnection,
+    NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
     IInvokerPtr workerInvoker)

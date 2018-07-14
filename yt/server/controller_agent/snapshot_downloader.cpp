@@ -5,7 +5,7 @@
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/api/file_reader.h>
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 

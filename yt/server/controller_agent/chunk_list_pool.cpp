@@ -30,7 +30,7 @@ using namespace NRpc;
 
 TChunkListPool::TChunkListPool(
     TControllerAgentConfigPtr config,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IInvokerPtr controllerInvoker,
     const TOperationId& operationId,
     const TTransactionId& transactionId)

@@ -1,7 +1,9 @@
 #include "connection.h"
 #include "proxy_connection.h"
 #include "config.h"
-#include "native_connection.h"
+
+#include "yt/ytlib/api/native/config.h"
+#include "yt/ytlib/api/native/connection.h"
 
 #include <yt/ytlib/rpc_proxy/config.h>
 #include <yt/ytlib/rpc_proxy/connection.h>
@@ -23,8 +25,8 @@ IConnectionPtr CreateConnection(INodePtr config)
     auto genericConfig = ConvertTo<TConnectionConfigPtr>(config);
     switch (genericConfig->ConnectionType) {
         case EConnectionType::Native: {
-            auto typedConfig = ConvertTo<TNativeConnectionConfigPtr>(config);
-            return CreateNativeConnection(typedConfig);
+            auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
+            return NNative::CreateConnection(typedConfig);
         }
         case EConnectionType::Rpc: {
             auto typedConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(config);

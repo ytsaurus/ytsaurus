@@ -10,8 +10,9 @@
 #include "block.h"
 #include "replication_reader.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -40,7 +41,7 @@ namespace {
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas,
@@ -102,7 +103,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,

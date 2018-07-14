@@ -6,7 +6,7 @@
 #include "block.h"
 #include "session_id.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -31,7 +31,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionId CreateChunk(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
     const NObjectClient::TTransactionId& transactionId,
@@ -42,7 +42,7 @@ TSessionId CreateChunk(
 //! issues additional |LocateChunks| requests for foreign chunks.
 //! The resulting chunk specs are appended to #chunkSpecs.
 void ProcessFetchResponse(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
     NObjectClient::TCellTag fetchCellTag,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -56,7 +56,7 @@ void ProcessFetchResponse(
 //! waits for thre result and processes the response.
 //! The resulting chunk specs are appended to #chunkSpecs.
 void FetchChunkSpecs(
-    const NApi::INativeClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     NObjectClient::TCellTag cellTag,
     const NYPath::TYPath& path,
@@ -73,7 +73,7 @@ void FetchChunkSpecs(
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.
 TChunkReplicaList AllocateWriteTargets(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const TSessionId& sessionId,
     int desiredTargetCount,
     int minTargetCount,
@@ -98,7 +98,7 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
  *  about these replicas.
  */
 void LocateChunks(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     int maxChunksPerLocateRequest,
     const std::vector<NProto::TChunkSpec*> chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
@@ -115,7 +115,7 @@ IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
     TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
@@ -143,7 +143,7 @@ struct TUserObject
 
 template <class T>
 void GetUserObjectBasicAttributes(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TMutableRange<T> objects,
     const NObjectClient::TTransactionId& defaultTransactionId,
     const NLogging::TLogger& logger,

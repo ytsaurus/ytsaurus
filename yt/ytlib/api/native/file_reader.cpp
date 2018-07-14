@@ -1,8 +1,10 @@
 #include "file_reader.h"
-#include "private.h"
 #include "config.h"
-#include "native_connection.h"
+#include "connection.h"
 #include "transaction.h"
+#include "private.h"
+
+#include <yt/ytlib/api/file_reader.h>
 
 #include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -31,6 +33,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -51,7 +54,7 @@ class TFileReader
 {
 public:
     TFileReader(
-        INativeClientPtr client,
+        IClientPtr client,
         const TYPath& path,
         const TFileReaderOptions& options)
         : Client_(client)
@@ -104,12 +107,12 @@ public:
     }
 
 private:
-    const INativeClientPtr Client_;
+    const IClientPtr Client_;
     const TYPath Path_;
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
 
-    ITransactionPtr Transaction_;
+    NApi::ITransactionPtr Transaction_;
 
     TClientBlockReadOptions BlockReadOptions_;
 
@@ -235,7 +238,7 @@ private:
 };
 
 TFuture<IFileReaderPtr> CreateFileReader(
-    INativeClientPtr client,
+    IClientPtr client,
     const NYPath::TYPath& path,
     const TFileReaderOptions& options)
 {
@@ -248,5 +251,6 @@ TFuture<IFileReaderPtr> CreateFileReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

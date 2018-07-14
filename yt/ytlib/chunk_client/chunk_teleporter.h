@@ -6,7 +6,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -25,7 +25,7 @@ class TChunkTeleporter
 public:
     TChunkTeleporter(
         TChunkTeleporterConfigPtr config,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         const NTransactionClient::TTransactionId& transactionId,
         const NLogging::TLogger& logger);
@@ -38,7 +38,7 @@ public:
 
 private:
     const TChunkTeleporterConfigPtr Config_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const NTransactionClient::TTransactionId TransactionId_;
 

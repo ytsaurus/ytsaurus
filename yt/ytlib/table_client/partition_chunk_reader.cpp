@@ -149,7 +149,7 @@ void TPartitionMultiChunkReader::OnReaderSwitched()
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const TDataSourceDirectoryPtr& dataSourceDirectory,

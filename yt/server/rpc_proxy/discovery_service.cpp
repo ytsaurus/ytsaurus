@@ -7,8 +7,8 @@
 #include <yt/server/cell_proxy/bootstrap.h>
 #include <yt/server/cell_proxy/config.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -118,7 +118,7 @@ private:
 
     const TDiscoveryServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
-    const INativeClientPtr RootClient_;
+    const NNative::IClientPtr RootClient_;
     const TString ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;

@@ -466,7 +466,7 @@ TChunkStoreBase::TChunkStoreBase(
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
     TVersionedChunkMetaManagerPtr chunkMetaManager,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
     , BlockCache_(std::move(blockCache))

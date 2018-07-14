@@ -1,8 +1,11 @@
 #include "journal_reader.h"
 #include "private.h"
 #include "config.h"
-#include "native_connection.h"
+#include "connection.h"
 #include "transaction.h"
+#include "private.h"
+
+#include <yt/ytlib/api/journal_reader.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -28,6 +31,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -47,22 +51,21 @@ class TJournalReader
 {
 public:
     TJournalReader(
-        INativeClientPtr client,
+        IClientPtr client,
         const TYPath& path,
         const TJournalReaderOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
-        , Logger(ApiLogger)
+        , Logger(NLogging::TLogger(ApiLogger)
+            .AddTag("Path: %v, TransactionId: %v",
+                Path_,
+                Options_.TransactionId))
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
-
-        Logger.AddTag("Path: %v, TransactionId: %v",
-            Path_,
-            Options_.TransactionId);
     }
 
     virtual TFuture<void> Open() override
@@ -80,12 +83,14 @@ public:
     }
 
 private:
-    INativeClientPtr Client_;
-    TYPath Path_;
-    TJournalReaderOptions Options_;
-    TJournalReaderConfigPtr Config_;
+    const IClientPtr Client_;
+    const TYPath Path_;
+    const TJournalReaderOptions Options_;
+    const TJournalReaderConfigPtr Config_;
 
-    ITransactionPtr Transaction_;
+    const NLogging::TLogger Logger;
+
+    NApi::ITransactionPtr Transaction_;
 
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
@@ -98,8 +103,6 @@ private:
     i64 BeginRowIndex_ = -1;
     i64 CurrentRowIndex_ = -1;
     i64 EndRowIndex_ = -1; // exclusive
-
-    NLogging::TLogger Logger;
 
 
     void DoOpen()
@@ -242,7 +245,7 @@ private:
 };
 
 IJournalReaderPtr CreateJournalReader(
-    INativeClientPtr client,
+    IClientPtr client,
     const TYPath& path,
     const TJournalReaderOptions& options)
 {
@@ -251,5 +254,6 @@ IJournalReaderPtr CreateJournalReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

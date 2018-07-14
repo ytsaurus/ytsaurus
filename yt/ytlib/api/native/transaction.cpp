@@ -1,7 +1,8 @@
-#include "native_transaction.h"
-#include "native_connection.h"
-#include "tablet_helpers.h"
+#include "transaction.h"
+#include "connection.h"
 #include "config.h"
+
+#include <yt/ytlib/api/tablet_helpers.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -30,6 +31,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NYPath;
 using namespace NTransactionClient;
@@ -54,14 +56,14 @@ DEFINE_ENUM(ETransactionState,
     (Detach)
 );
 
-DECLARE_REFCOUNTED_CLASS(TNativeTransaction)
+DECLARE_REFCOUNTED_CLASS(TTransaction)
 
-class TNativeTransaction
-    : public INativeTransaction
+class TTransaction
+    : public ITransaction
 {
 public:
-    TNativeTransaction(
-        INativeClientPtr client,
+    TTransaction(
+        IClientPtr client,
         NTransactionClient::TTransactionPtr transaction,
         NLogging::TLogger logger)
         : Client_(std::move(client))
@@ -73,12 +75,12 @@ public:
     { }
 
 
-    virtual IConnectionPtr GetConnection() override
+    virtual NApi::IConnectionPtr GetConnection() override
     {
         return Client_->GetConnection();
     }
 
-    virtual IClientPtr GetClient() const override
+    virtual NApi::IClientPtr GetClient() const override
     {
         return Client_;
     }
@@ -130,7 +132,7 @@ public:
         }
 
         State_ = ETransactionState::Commit;
-        return BIND(&TNativeTransaction::DoCommit, MakeStrong(this))
+        return BIND(&TTransaction::DoCommit, MakeStrong(this))
             .AsyncVia(CommitInvoker_)
             .Run(options);
     }
@@ -173,7 +175,7 @@ public:
 
         LOG_DEBUG("Preparing transaction");
         State_ = ETransactionState::Prepare;
-        return BIND(&TNativeTransaction::DoPrepare, MakeStrong(this))
+        return BIND(&TTransaction::DoPrepare, MakeStrong(this))
             .AsyncVia(CommitInvoker_)
             .Run();
     }
@@ -190,7 +192,7 @@ public:
 
         LOG_DEBUG("Flushing transaction");
         State_ = ETransactionState::Flush;
-        return BIND(&TNativeTransaction::DoFlush, MakeStrong(this))
+        return BIND(&TTransaction::DoFlush, MakeStrong(this))
             .AsyncVia(CommitInvoker_)
             .Run();
     }
@@ -222,12 +224,12 @@ public:
     }
 
 
-    virtual TFuture<ITransactionPtr> StartForeignTransaction(
-        const IClientPtr& client,
+    virtual TFuture<NApi::ITransactionPtr> StartForeignTransaction(
+        const NApi::IClientPtr& client,
         const TForeignTransactionStartOptions& options) override
     {
         if (client->GetConnection()->GetCellTag() == GetConnection()->GetCellTag()) {
-            return MakeFuture<ITransactionPtr>(this);
+            return MakeFuture<NApi::ITransactionPtr>(this);
         }
 
         TTransactionStartOptions adjustedOptions(options);
@@ -237,7 +239,7 @@ public:
         }
 
         return client->StartTransaction(GetType(), adjustedOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
                 RegisterForeignTransaction(transaction);
                 return transaction;
             }));
@@ -266,7 +268,7 @@ public:
     }
 
 
-    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
+    virtual TFuture<ITransactionPtr> StartNativeTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
@@ -277,11 +279,11 @@ public:
             adjustedOptions);
     }
 
-    virtual TFuture<ITransactionPtr> StartTransaction(
+    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
-        return StartNativeTransaction(type, options).As<ITransactionPtr>();
+        return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
     }
 
 
@@ -522,7 +524,7 @@ public:
 #undef DELEGATE_TIMESTAMPED_METHOD
 
 private:
-    const INativeClientPtr Client_;
+    const IClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
 
     const IInvokerPtr CommitInvoker_;
@@ -539,7 +541,7 @@ private:
     TFuture<void> AbortResult_;
 
     TSpinLock ForeignTransactionsLock_;
-    std::vector<ITransactionPtr> ForeignTransactions_;
+    std::vector<NApi::ITransactionPtr> ForeignTransactions_;
 
 
     class TTableCommitSession;
@@ -556,8 +558,8 @@ private:
     {
     public:
         TModificationRequest(
-            TNativeTransaction* transaction,
-            INativeConnectionPtr connection,
+            TTransaction* transaction,
+            IConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable,
             TSharedRange<TRowModification> modifications,
@@ -739,8 +741,8 @@ private:
         }
 
     protected:
-        TNativeTransaction* const Transaction_;
-        const INativeConnectionPtr Connection_;
+        TTransaction* const Transaction_;
+        const IConnectionPtr Connection_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
         const TSharedRange<TRowModification> Modifications_;
@@ -776,7 +778,7 @@ private:
     struct TSyncReplica
     {
         TTableReplicaInfoPtr ReplicaInfo;
-        ITransactionPtr Transaction;
+        NApi::ITransactionPtr Transaction;
     };
 
     class TTableCommitSession
@@ -784,7 +786,7 @@ private:
     {
     public:
         TTableCommitSession(
-            TNativeTransaction* transaction,
+            TTransaction* transaction,
             TTableMountInfoPtr tableInfo,
             const TTableReplicaId& upstreamReplicaId)
             : Transaction_(transaction)
@@ -830,7 +832,7 @@ private:
         }
 
     private:
-        TNativeTransaction* const Transaction_;
+        TTransaction* const Transaction_;
         const TTableMountInfoPtr TableInfo_;
         const TTableReplicaId UpstreamReplicaId_;
         const NLogging::TLogger Logger;
@@ -848,7 +850,7 @@ private:
     {
     public:
         TTabletCommitSession(
-            TNativeTransactionPtr transaction,
+            TTransactionPtr transaction,
             TTabletInfoPtr tabletInfo,
             TTableMountInfoPtr tableInfo,
             TTableCommitSessionPtr tableSession,
@@ -921,11 +923,11 @@ private:
         }
 
     private:
-        const TWeakPtr<TNativeTransaction> Transaction_;
+        const TWeakPtr<TTransaction> Transaction_;
         const TTableMountInfoPtr TableInfo_;
         const TTabletInfoPtr TabletInfo_;
         const TTableCommitSessionPtr TableSession_;
-        const TNativeConnectionConfigPtr Config_;
+        const TConnectionConfigPtr Config_;
         const TColumnEvaluatorPtr ColumnEvaluator_;
         const ITableMountCachePtr TableMountCache_;
         const int ColumnCount_;
@@ -1165,7 +1167,7 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        TCellCommitSession(TNativeTransactionPtr transaction, const TCellId& cellId)
+        TCellCommitSession(TTransactionPtr transaction, const TCellId& cellId)
             : Transaction_(transaction)
             , CellId_(cellId)
             , Logger(NLogging::TLogger(transaction->Logger)
@@ -1228,7 +1230,7 @@ private:
         }
 
     private:
-        const TWeakPtr<TNativeTransaction> Transaction_;
+        const TWeakPtr<TTransaction> Transaction_;
         const TCellId CellId_;
 
         std::vector<TTransactionActionData> Actions_;
@@ -1238,7 +1240,7 @@ private:
         const NLogging::TLogger Logger;
 
 
-        TFuture<void> SendTabletActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
+        TFuture<void> SendTabletActions(const TTransactionPtr& owner, const IChannelPtr& channel)
         {
             TTabletServiceProxy proxy(channel);
             auto req = proxy.RegisterTransactionActions();
@@ -1250,7 +1252,7 @@ private:
             return req->Invoke().As<void>();
         }
 
-        TFuture<void> SendMasterActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
+        TFuture<void> SendMasterActions(const TTransactionPtr& owner, const IChannelPtr& channel)
         {
             TTransactionServiceProxy proxy(channel);
             auto req = proxy.RegisterTransactionActions();
@@ -1283,7 +1285,7 @@ private:
     THashMap<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Maps replica cluster name to sync replica transaction.
-    THashMap<TString, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
+    THashMap<TString, NApi::ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
 
     //! Caches mappings from name table ids to schema ids.
     THashMap<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
@@ -1303,7 +1305,7 @@ private:
         return it->second;
     }
 
-    ITransactionPtr GetSyncReplicaTransaction(
+    NApi::ITransactionPtr GetSyncReplicaTransaction(
         const TTableReplicaInfoPtr& replicaInfo,
         bool* clusterDirectorySynched)
     {
@@ -1621,27 +1623,27 @@ private:
     }
 
 
-    void RegisterForeignTransaction(ITransactionPtr transaction)
+    void RegisterForeignTransaction(NApi::ITransactionPtr transaction)
     {
         auto guard = Guard(ForeignTransactionsLock_);
         ForeignTransactions_.emplace_back(std::move(transaction));
     }
 
-    std::vector<ITransactionPtr> GetForeignTransactions()
+    std::vector<NApi::ITransactionPtr> GetForeignTransactions()
     {
         auto guard = Guard(ForeignTransactionsLock_);
         return ForeignTransactions_;
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TNativeTransaction)
+DEFINE_REFCOUNTED_TYPE(TTransaction)
 
-INativeTransactionPtr CreateNativeTransaction(
-    INativeClientPtr client,
+ITransactionPtr CreateTransaction(
+    IClientPtr client,
     NTransactionClient::TTransactionPtr transaction,
     const NLogging::TLogger& logger)
 {
-    return New<TNativeTransaction>(
+    return New<TTransaction>(
         std::move(client),
         std::move(transaction),
         logger);
@@ -1649,5 +1651,6 @@ INativeTransactionPtr CreateNativeTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

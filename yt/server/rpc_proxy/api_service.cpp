@@ -9,8 +9,9 @@
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/token_authenticator.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/rowset.h>
 
@@ -257,9 +258,9 @@ private:
 
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
-    THashMap<TString, INativeClientPtr> AuthenticatedClients_;
+    THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
 
-    INativeClientPtr GetOrCreateClient(const TString& user)
+    NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
         auto guard = Guard(SpinLock_);
 
@@ -296,7 +297,7 @@ private:
         return address;
     }
 
-    INativeClientPtr GetAuthenticatedClientOrAbortContext(
+    NNative::IClientPtr GetAuthenticatedClientOrAbortContext(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {

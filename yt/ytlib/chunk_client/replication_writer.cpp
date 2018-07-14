@@ -11,8 +11,9 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/chunk_client/session_id.h>
@@ -178,7 +179,7 @@ public:
         const TSessionId& sessionId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter)
@@ -190,6 +191,7 @@ public:
         , NodeDirectory_(nodeDirectory)
         , Throttler_(throttler)
         , BlockCache_(blockCache)
+        , TrafficMeter_(trafficMeter)
         , Logger(NLogging::TLogger(ChunkClientLogger)
             .AddTag("ChunkId: %v", SessionId_))
         , Networks_(client->GetNativeConnection()->GetNetworks())
@@ -197,7 +199,6 @@ public:
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
         , AllocateWriteTargetsTimestamp_(TInstant::Zero())
-        , TrafficMeter_(trafficMeter)
     {
         ClosePromise_.TrySetFrom(StateError_.ToFuture());
     }
@@ -318,10 +319,11 @@ private:
     const TRemoteWriterOptionsPtr Options_;
     const TSessionId SessionId_;
     const TChunkReplicaList InitialTargets_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     const NLogging::TLogger Logger;
     const TNetworkPreferenceList Networks_;
@@ -361,8 +363,6 @@ private:
     int AllocateWriteTargetsRetryIndex_ = 0;
 
     std::vector<TString> BannedNodes_;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     void DoOpen()
     {
@@ -1099,7 +1099,7 @@ IChunkWriterPtr CreateReplicationWriter(
     const TSessionId& sessionId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)

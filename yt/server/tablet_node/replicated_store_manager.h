@@ -26,7 +26,7 @@ public:
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager = nullptr,
         TInMemoryManagerPtr inMemoryManager = nullptr,
-        NApi::INativeClientPtr client = nullptr);
+        NApi::NNative::IClientPtr client = nullptr);
 
     // IStoreManager overrides.
     virtual bool HasActiveLocks() const override;
@@ -108,7 +108,7 @@ private:
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const TInMemoryManagerPtr InMemoryManager_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
 
     const NLogging::TLogger Logger;
     const TOrderedStoreManagerPtr LogStoreManager_;

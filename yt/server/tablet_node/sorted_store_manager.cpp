@@ -31,8 +31,9 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 namespace NYT {
@@ -71,7 +72,7 @@ TSortedStoreManager::TSortedStoreManager(
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
     TInMemoryManagerPtr inMemoryManager,
-    INativeClientPtr client)
+    NNative::IClientPtr client)
     : TStoreManagerBase(
         std::move(config),
         tablet,

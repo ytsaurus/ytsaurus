@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -16,7 +16,7 @@ namespace NTableClient {
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TNameTablePtr nameTable,
     const NYPath::TYPath& path);
 

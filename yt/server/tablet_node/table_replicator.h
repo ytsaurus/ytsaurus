@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -19,7 +19,7 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
-        NApi::INativeConnectionPtr localConnection,
+        NApi::NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
         IInvokerPtr workerInvoker);

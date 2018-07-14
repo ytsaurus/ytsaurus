@@ -382,7 +382,7 @@ class TSchedulerBootstrapConfig
 {
 public:
     //! Node-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 

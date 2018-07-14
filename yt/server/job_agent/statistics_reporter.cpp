@@ -7,9 +7,10 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
+
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 
@@ -144,7 +145,7 @@ public:
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
         const TString& reporterName,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
@@ -209,7 +210,7 @@ private:
 
     const TSharedDataPtr Data_;
     const TStatisticsReporterConfigPtr Config_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TProfiler& Profiler_;
     TLimiter Limiter_;
     TNonblockingBatch<TJobStatistics> Batcher_;
@@ -352,7 +353,7 @@ public:
         const TString& localAddress,
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -444,7 +445,7 @@ public:
     TJobSpecHandler(
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -498,7 +499,7 @@ public:
     TJobStderrHandler(
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -549,7 +550,7 @@ public:
     TJobFailContextHandler(
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -688,7 +689,7 @@ public:
     }
 
 private:
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
     const TSharedDataPtr Data_ = New<TSharedData>();
     const TJobHandlerPtr JobHandler_;

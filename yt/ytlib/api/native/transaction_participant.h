@@ -10,19 +10,21 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHiveClient::ITransactionParticipantPtr CreateNativeTransactionParticipant(
+NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
     NHiveClient::TCellDirectoryPtr cellDirectory,
     NHiveClient::TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
-    INativeConnectionPtr connection,
+    IConnectionPtr connection,
     const NObjectClient::TCellId& cellId,
     const TTransactionParticipantOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

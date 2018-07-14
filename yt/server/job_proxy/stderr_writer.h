@@ -1,11 +1,15 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/misc/blob_output.h>
 
 #include <yt/ytlib/file_client/file_chunk_output.h>
 
 namespace NYT {
 namespace NJobProxy {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTailBuffer
     : public IOutputStream
@@ -38,7 +42,7 @@ public:
     void Upload(
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NObjectClient::TTransactionId& transactionId,
         NChunkClient::TTrafficMeterPtr trafficMeter);
 

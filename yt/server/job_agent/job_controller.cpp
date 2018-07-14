@@ -30,8 +30,8 @@
 #include <yt/ytlib/scheduler/public.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/ytree/fluent.h>
 

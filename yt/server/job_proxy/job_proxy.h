@@ -12,7 +12,7 @@
 
 #include <yt/server/job_agent/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
 
@@ -102,7 +102,7 @@ private:
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
 
-    NApi::INativeClientPtr Client_;
+    NApi::NNative::IClientPtr Client_;
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
 
@@ -151,7 +151,7 @@ private:
 
     virtual void ReleaseNetwork() override;
 
-    virtual NApi::INativeClientPtr GetClient() const override;
+    virtual NApi::NNative::IClientPtr GetClient() const override;
 
     virtual void OnPrepared() override;
 
