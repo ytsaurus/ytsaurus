@@ -3,11 +3,12 @@
 #include "public.h"
 #include "dynamic_channel_pool.h"
 
+#include <yt/ytlib/api/connection.h>
+
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/ytlib/api/proxy_connection.h>
 #include <yt/core/logging/log.h>
 
 namespace NYT {
@@ -16,7 +17,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnection
-    : public NApi::IProxyConnection
+    : public NApi::IConnection
 {
 public:
     explicit TConnection(TConnectionConfigPtr config);

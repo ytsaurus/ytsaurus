@@ -1,5 +1,4 @@
 #include "connection.h"
-#include "proxy_connection.h"
 #include "config.h"
 
 #include "yt/ytlib/api/native/config.h"
