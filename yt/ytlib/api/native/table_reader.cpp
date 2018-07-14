@@ -1,7 +1,7 @@
 #include "table_reader.h"
 #include "private.h"
 #include "transaction.h"
-#include "native_connection.h"
+#include "connection.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -45,6 +45,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -75,8 +76,8 @@ public:
         TTableReaderConfigPtr config,
         // TODO(ignat): Unused?
         TRemoteReaderOptionsPtr options,
-        INativeClientPtr client,
-        ITransactionPtr transaction,
+        IClientPtr client,
+        NApi::ITransactionPtr transaction,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter,
@@ -105,8 +106,8 @@ public:
 private:
     const TTableReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
-    const INativeClientPtr Client_;
-    const ITransactionPtr Transaction_;
+    const IClientPtr Client_;
+    const NApi::ITransactionPtr Transaction_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const TColumnFilter ColumnFilter_;
@@ -132,8 +133,8 @@ private:
 TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
-    ITransactionPtr transaction,
+    IClientPtr client,
+    NApi::ITransactionPtr transaction,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
@@ -481,15 +482,14 @@ void TSchemalessTableReader::CheckUnavailableChunks(std::vector<TChunkSpec>* chu
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
-    INativeClientPtr client,
+    IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    ITransactionPtr transaction;
-
+    NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
         TTransactionAttachOptions transactionOptions;
         transactionOptions.Ping = options.Ping;
@@ -517,7 +517,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
 
 DEFINE_ENUM(EColumnType,
     ((PartIndex) (0))
-    ((Data) (1))
+    ((Data)      (1))
 );
 
 class TBlobTableReader
@@ -692,6 +692,7 @@ IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

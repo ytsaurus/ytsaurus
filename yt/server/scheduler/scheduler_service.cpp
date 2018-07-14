@@ -9,7 +9,7 @@
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 #include <yt/ytlib/scheduler/config.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/core/rpc/response_keeper.h>
 

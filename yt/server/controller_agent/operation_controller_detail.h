@@ -354,9 +354,9 @@ protected:
     // But `remote copy' operation connects InputClient to remote cluster.
     // OutputClient is created for the sake of symmetry with Input;
     // i.e. Client and OutputClient are always connected to the same cluster.
-    NApi::INativeClientPtr Client;
-    NApi::INativeClientPtr InputClient;
-    NApi::INativeClientPtr OutputClient;
+    NApi::NNative::IClientPtr Client;
+    NApi::NNative::IClientPtr InputClient;
+    NApi::NNative::IClientPtr OutputClient;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr Invoker;
@@ -449,7 +449,7 @@ protected:
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NTransactionClient::TTransactionId& parentTransactionId = {},
         const NTransactionClient::TTransactionId& prerequisiteTransactionId = {});
 

@@ -15,7 +15,7 @@
 #include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/columnar_chunk_meta.h>
 
-#include <yt/ytlib/api/table_reader.h>
+#include <yt/ytlib/api/native/table_reader.h>
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -152,7 +152,7 @@ public:
             TColumnFilter(),
             readRange);
 
-        auto stream = CreateBlobTableReader(
+        auto stream = NNative::CreateBlobTableReader(
             schemalessReader,
             TString("part_index"),
             TString("data"),

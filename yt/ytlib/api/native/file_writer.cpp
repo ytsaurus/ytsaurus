@@ -3,6 +3,9 @@
 #include "client.h"
 #include "config.h"
 #include "transaction.h"
+#include "private.h"
+
+#include <yt/ytlib/api/file_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -35,6 +38,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NCrypto;
 using namespace NConcurrency;
@@ -59,7 +63,7 @@ class TFileWriter
 {
 public:
     TFileWriter(
-        INativeClientPtr client,
+        IClientPtr client,
         const TYPath& path,
         const TFileWriterOptions& options)
         : Client_(client)
@@ -106,13 +110,13 @@ public:
     }
 
 private:
-    const INativeClientPtr Client_;
+    const IClientPtr Client_;
     const TYPath Path_;
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
 
-    ITransactionPtr Transaction_;
-    ITransactionPtr UploadTransaction_;
+    NApi::ITransactionPtr Transaction_;
+    NApi::ITransactionPtr UploadTransaction_;
 
     TNullable<TMD5Hasher> MD5Hasher_;
 
@@ -363,7 +367,7 @@ private:
 };
 
 IFileWriterPtr CreateFileWriter(
-    INativeClientPtr client,
+    IClientPtr client,
     const TYPath& path,
     const TFileWriterOptions& options)
 {
@@ -372,5 +376,6 @@ IFileWriterPtr CreateFileWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

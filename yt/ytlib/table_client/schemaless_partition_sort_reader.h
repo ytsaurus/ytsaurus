@@ -18,7 +18,7 @@ namespace NTableClient {
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,

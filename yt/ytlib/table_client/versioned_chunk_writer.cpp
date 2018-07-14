@@ -8,8 +8,8 @@
 #include "row_merger.h"
 #include "row_buffer.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 
@@ -684,7 +684,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,

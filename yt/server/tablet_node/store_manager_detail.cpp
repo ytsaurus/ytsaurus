@@ -52,7 +52,7 @@ TStoreManagerBase::TStoreManagerBase(
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
     TInMemoryManagerPtr inMemoryManager,
-    INativeClientPtr client)
+    NNative::IClientPtr client)
     : Config_(config)
     , Tablet_(tablet)
     , TabletContext_(tabletContext)

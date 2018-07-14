@@ -38,7 +38,8 @@
 #include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -305,7 +306,7 @@ public:
         JobReporterWriteFailuresChecker_->Start();
     }
 
-    const NApi::INativeClientPtr& GetMasterClient() const
+    const NApi::NNative::IClientPtr& GetMasterClient() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

@@ -20,7 +20,7 @@ TIntermediateChunkScraper::TIntermediateChunkScraper(
     const TIntermediateChunkScraperConfigPtr& config,
     const IInvokerPtr& invoker,
     const TThrottlerManagerPtr& throttlerManager,
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     TGetChunksCallback getChunksCallback,
     TChunkLocatedHandler onChunkLocated,

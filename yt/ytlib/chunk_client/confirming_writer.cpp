@@ -12,8 +12,8 @@
 #include "helpers.h"
 #include "session_id.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -54,7 +54,7 @@ public:
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         TNodeDirectoryPtr nodeDirectory,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler,
         TTrafficMeterPtr trafficMeter)
@@ -67,9 +67,9 @@ public:
         , Client_(client)
         , BlockCache_(blockCache)
         , Throttler_(throttler)
+        , TrafficMeter_(trafficMeter)
         , Logger(NLogging::TLogger(ChunkClientLogger)
             .AddTag("TransactionId: %v", TransactionId_))
-        , TrafficMeter_(trafficMeter)
     {
         Config_->UploadReplicationFactor = std::min(
             Config_->UploadReplicationFactor,
@@ -168,9 +168,10 @@ private:
     const TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
     const TNodeDirectoryPtr NodeDirectory_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     IChunkWriterPtr UnderlyingWriter_;
 
@@ -183,8 +184,6 @@ private:
     NProto::TDataStatistics DataStatistics_;
 
     NLogging::TLogger Logger;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     void OpenSession()
     {
@@ -317,7 +316,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)

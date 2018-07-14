@@ -2,7 +2,9 @@
 #include "private.h"
 #include "config.h"
 #include "transaction.h"
-#include "native_connection.h"
+#include "connection.h"
+
+#include <yt/ytlib/api/journal_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -52,6 +54,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
@@ -80,7 +83,7 @@ class TJournalWriter
 {
 public:
     TJournalWriter(
-        INativeClientPtr client,
+        IClientPtr client,
         const TYPath& path,
         const TJournalWriterOptions& options)
         : Impl_(New<TImpl>(client, path, options))
@@ -113,7 +116,7 @@ private:
     {
     public:
         TImpl(
-            INativeClientPtr client,
+            IClientPtr client,
             const TYPath& path,
             const TJournalWriterOptions& options)
             : Client_(client)
@@ -121,14 +124,14 @@ private:
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
             , Profiler(options.Profiler)
+            , Logger(NLogging::TLogger(ApiLogger)
+                .AddTag("Path: %v, TransactionId: %v",
+                    Path_,
+                    Options_.TransactionId))
         {
             if (Options_.TransactionId) {
                 Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
             }
-
-            Logger.AddTag("Path: %v, TransactionId: %v",
-                Path_,
-                Options_.TransactionId);
 
             // Spawn the actor.
             BIND(&TImpl::ActorMain, MakeStrong(this))
@@ -180,15 +183,14 @@ private:
         }
 
     private:
-        const INativeClientPtr Client_;
+        const IClientPtr Client_;
         const TYPath Path_;
         const TJournalWriterOptions Options_;
         const TJournalWriterConfigPtr Config_;
         const TProfiler Profiler;
+        const NLogging::TLogger Logger;
 
         const IInvokerPtr Invoker_ = NChunkClient::TDispatcher::Get()->GetWriterInvoker();
-
-        NLogging::TLogger Logger = ApiLogger;
 
         struct TBatch
             : public TIntrinsicRefCounted
@@ -213,8 +215,8 @@ private:
         bool Closing_ = false;
         TPromise<void> ClosedPromise_ = NewPromise<void>();
 
-        ITransactionPtr Transaction_;
-        ITransactionPtr UploadTransaction_;
+        NApi::ITransactionPtr Transaction_;
+        NApi::ITransactionPtr UploadTransaction_;
 
         int ReplicationFactor_ = -1;
         int ReadQuorum_ = -1;
@@ -1260,7 +1262,7 @@ private:
 };
 
 IJournalWriterPtr CreateJournalWriter(
-    INativeClientPtr client,
+    IClientPtr client,
     const TYPath& path,
     const TJournalWriterOptions& options)
 {
@@ -1269,5 +1271,6 @@ IJournalWriterPtr CreateJournalWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

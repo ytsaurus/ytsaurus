@@ -16,7 +16,7 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/fetcher.h>

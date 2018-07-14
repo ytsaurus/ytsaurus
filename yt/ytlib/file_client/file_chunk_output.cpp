@@ -3,8 +3,9 @@
 #include "config.h"
 #include "file_chunk_writer.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -43,7 +44,7 @@ using namespace NApi;
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TTransactionId& transactionId,
     TTrafficMeterPtr trafficMeter,
     i64 sizeLimit)

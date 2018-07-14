@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -88,7 +88,7 @@ struct TJobFile
     TString DescriptionType;
 };
 
-void SaveJobFiles(NApi::INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
+void SaveJobFiles(NApi::NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +97,7 @@ void SaveJobFiles(NApi::INativeClientPtr client, const TOperationId& operationId
 void ValidateOperationPermission(
     const TString& user,
     const TOperationId& operationId,
-    const NApi::INativeClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     NYTree::EPermission permission,
     const NLogging::TLogger& logger,
     const TString& subnodePath = "");

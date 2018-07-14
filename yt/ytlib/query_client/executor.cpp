@@ -9,9 +9,10 @@
 #include "query_statistics.h"
 #include "functions_cache.h"
 
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/tablet_helpers.h>
+
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
@@ -44,10 +45,10 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
+using namespace NApi;
 
 using NYT::ToProto;
 
-using NApi::INativeConnectionPtr;
 using NApi::ValidateTabletMountedOrFrozen;
 using NApi::GetPrimaryTabletPeerDescriptor;
 
@@ -156,7 +157,7 @@ class TQueryExecutor
 {
 public:
     TQueryExecutor(
-        INativeConnectionPtr connection,
+        NNative::IConnectionPtr connection,
         IInvokerPtr invoker,
         TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
@@ -196,7 +197,7 @@ public:
     }
 
 private:
-    const INativeConnectionPtr Connection_;
+    const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     const TEvaluatorPtr Evaluator_;
@@ -702,7 +703,7 @@ private:
 DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 
 IExecutorPtr CreateQueryExecutor(
-    INativeConnectionPtr connection,
+    NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
     TColumnEvaluatorCachePtr columnEvaluatorCache,
     TEvaluatorPtr evaluator,

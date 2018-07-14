@@ -1,6 +1,9 @@
 #include "journal_commands.h"
 #include "config.h"
 
+#include <yt/ytlib/api/native/journal_reader.h>
+#include <yt/ytlib/api/native/journal_writer.h>
+
 #include <yt/ytlib/api/journal_reader.h>
 #include <yt/ytlib/api/journal_writer.h>
 

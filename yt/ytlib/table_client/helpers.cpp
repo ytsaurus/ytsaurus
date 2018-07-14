@@ -8,7 +8,7 @@
 #include "schemaless_writer.h"
 #include "name_table.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -768,7 +768,7 @@ void ValidateDynamicTableTimestamp(
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
 std::vector<TInputChunkPtr> CollectTableInputChunks(
     const TRichYPath& path,
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
     const TTransactionId& transactionId,

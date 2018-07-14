@@ -20,8 +20,7 @@
 namespace NYT {
 namespace NJobProxy {
 
-using NApi::INativeClientPtr;
-
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NFormats;
@@ -40,7 +39,7 @@ class TUserJobReadController
 public:
     TUserJobReadController(
         IJobSpecHelperPtr jobSpecHelper,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker,
         TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
@@ -239,7 +238,7 @@ private:
 
 private:
     const IJobSpecHelperPtr JobSpecHelper_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const IInvokerPtr SerializedInvoker_;
     const TNodeDescriptor NodeDescriptor_;
     const TClosure OnNetworkRelease_;
@@ -306,7 +305,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IInvokerPtr invoker,
     TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "connection.h"
+#include "public.h"
+
+#include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/query_client/public.h>
 
@@ -8,13 +10,14 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct INativeConnection
-    : public IConnection
+struct IConnection
+    : public NApi::IConnection
 {
-    virtual const TNativeConnectionConfigPtr& GetConfig() = 0;
+    virtual const TConnectionConfigPtr& GetConfig() = 0;
 
     virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
 
@@ -44,32 +47,33 @@ struct INativeConnection
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
-    virtual INativeClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
+    virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 
-    virtual INativeTransactionPtr RegisterStickyTransaction(INativeTransactionPtr transaction) = 0;
-    virtual INativeTransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
+    virtual ITransactionPtr RegisterStickyTransaction(NNative::ITransactionPtr transaction) = 0;
+    virtual ITransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
 
     virtual void Terminate() = 0;
     virtual bool IsTerminated() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(INativeConnection)
+DEFINE_REFCOUNTED_TYPE(IConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNativeConnectionOptions
+struct TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
 };
 
 //! Native connection talks directly to the cluster via internal
 //! (and typically not stable) RPC protocols.
-INativeConnectionPtr CreateNativeConnection(
-    TNativeConnectionConfigPtr config,
-    const TNativeConnectionOptions& options = TNativeConnectionOptions());
+IConnectionPtr CreateConnection(
+    TConnectionConfigPtr config,
+    const TConnectionOptions& options = TConnectionOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

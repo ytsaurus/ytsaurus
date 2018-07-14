@@ -1,18 +1,16 @@
 #pragma once
 
-#include "admin.h"
+#include <yt/ytlib/api/private.h>
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAdminPtr CreateNativeAdmin(
-    INativeConnectionPtr connection,
-    const TAdminOptions& options);
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

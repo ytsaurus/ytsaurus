@@ -22,8 +22,8 @@
 #include <yt/server/tablet_node/tablet_slot.h>
 #include <yt/server/tablet_node/tablet_profiling.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>

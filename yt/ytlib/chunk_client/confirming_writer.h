@@ -4,7 +4,7 @@
 #include "chunk_writer.h"
 #include "client_block_cache.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -25,7 +25,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

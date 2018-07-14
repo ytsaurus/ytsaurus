@@ -4,7 +4,7 @@
 #include "input_chunk.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
@@ -28,10 +28,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TFetcherChunkScraper
     : public IFetcherChunkScraper
 {
@@ -40,7 +36,7 @@ public:
         const TChunkScraperConfigPtr config,
         const IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger)
         : Config_(config)
@@ -74,7 +70,7 @@ private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TThrottlerManagerPtr ThrottlerManager_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const NLogging::TLogger Logger;
 
@@ -181,7 +177,7 @@ IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
@@ -201,7 +197,7 @@ TFetcherBase::TFetcherBase(
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     IFetcherChunkScraperPtr chunkScraper,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const NLogging::TLogger& logger)
     : Config_(std::move(config))
     , NodeDirectory_(std::move(nodeDirectory))

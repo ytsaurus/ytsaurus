@@ -57,7 +57,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -1040,7 +1041,7 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TTransactionId& parentTransactionId,
     const TTransactionId& prerequisiteTransactionId)
 {

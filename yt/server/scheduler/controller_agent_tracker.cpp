@@ -16,7 +16,8 @@
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
 #include <yt/server/controller_agent/operation.h>
 
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>

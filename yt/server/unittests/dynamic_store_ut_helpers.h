@@ -32,6 +32,7 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

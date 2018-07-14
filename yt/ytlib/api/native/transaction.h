@@ -1,10 +1,13 @@
 #pragma once
 
-#include "native_client.h"
-#include "transaction.h"
+#include "client.h"
+
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/transaction.h>
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,28 +19,29 @@ struct TForeignTransactionStartOptions
     bool InheritStartTimestamp = true;
 };
 
-struct INativeTransaction
-    : public INativeClientBase
-    , public ITransaction
+struct ITransaction
+    : public IClientBase
+    , public NApi::ITransaction
 {
     virtual void AddAction(
         const NElection::TCellId& cellId,
         const NTransactionClient::TTransactionActionData& data) = 0;
 
-    virtual TFuture<ITransactionPtr> StartForeignTransaction(
-        const IClientPtr& client,
+    virtual TFuture<NApi::ITransactionPtr> StartForeignTransaction(
+        const NApi::IClientPtr& client,
         const TForeignTransactionStartOptions& options = TForeignTransactionStartOptions()) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(INativeTransaction)
+DEFINE_REFCOUNTED_TYPE(ITransaction)
 
-INativeTransactionPtr CreateNativeTransaction(
-    INativeClientPtr client,
+ITransactionPtr CreateTransaction(
+    IClientPtr client,
     NTransactionClient::TTransactionPtr transaction,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

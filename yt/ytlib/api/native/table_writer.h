@@ -1,6 +1,8 @@
 #pragma once
 
-#include "client.h"
+#include "public.h"
+
+#include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -8,15 +10,17 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
-    const INativeClientPtr& client,
+    const IClientPtr& client,
     const NYPath::TRichYPath& path,
     const TTableWriterOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

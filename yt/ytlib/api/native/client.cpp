@@ -1,19 +1,24 @@
 #include "client.h"
-#include "private.h"
 #include "box.h"
 #include "config.h"
-#include "native_connection.h"
-#include "native_transaction.h"
+#include "connection.h"
+#include "transaction.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
-#include "rowset.h"
 #include "table_reader.h"
 #include "table_writer.h"
-#include "tablet_helpers.h"
 #include "skynet.h"
-#include "operation_archive_schema.h"
+#include "private.h"
+
+#include <yt/ytlib/api/rowset.h>
+#include <yt/ytlib/api/operation_archive_schema.h>
+#include <yt/ytlib/api/tablet_helpers.h>
+#include <yt/ytlib/api/file_reader.h>
+#include <yt/ytlib/api/file_writer.h>
+#include <yt/ytlib/api/journal_reader.h>
+#include <yt/ytlib/api/journal_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -108,6 +113,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NCrypto;
 using namespace NConcurrency;
@@ -146,73 +152,10 @@ using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplic
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
-DECLARE_REFCOUNTED_CLASS(TNativeClient)
-DECLARE_REFCOUNTED_CLASS(TNativeTransaction)
+DECLARE_REFCOUNTED_CLASS(TClient)
+DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-EWorkloadCategory FromUserWorkloadCategory(EUserWorkloadCategory category)
-{
-    switch (category) {
-        case EUserWorkloadCategory::Realtime:
-            return EWorkloadCategory::UserRealtime;
-        case EUserWorkloadCategory::Interactive:
-            return EWorkloadCategory::UserInteractive;
-        case EUserWorkloadCategory::Batch:
-            return EWorkloadCategory::UserBatch;
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-} // namespace
-
-TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
-{
-    TWorkloadDescriptor result;
-    result.Category = FromUserWorkloadCategory(Category);
-    result.Band = Band;
-    return result;
-}
-
-struct TSerializableUserWorkloadDescriptor
-    : public TYsonSerializableLite
-{
-    TUserWorkloadDescriptor Underlying;
-
-    TSerializableUserWorkloadDescriptor()
-    {
-        RegisterParameter("category", Underlying.Category);
-        RegisterParameter("band", Underlying.Band)
-            .Optional();
-    }
-};
-
-void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer)
-{
-    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
-    serializableWorkloadDescriptor.Underlying = workloadDescriptor;
-    Serialize(serializableWorkloadDescriptor, consumer);
-}
-
-void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
-{
-    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
-    Deserialize(serializableWorkloadDescriptor, node);
-    workloadDescriptor = serializableWorkloadDescriptor.Underlying;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
-{
-    if (Retry && !MutationId) {
-        THROW_ERROR_EXCEPTION("Cannot execute retry without mutation id");
-    }
-    return MutationId ? MutationId : NRpc::GenerateMutationId();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,45 +186,6 @@ NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cache
 }
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
-{
-    switch (Action) {
-        case NSecurityClient::ESecurityAction::Allow:
-            return TError();
-
-        case NSecurityClient::ESecurityAction::Deny: {
-            TError error;
-            if (ObjectName && SubjectName) {
-                error = TError(
-                    NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission is denied for %Qv by ACE at %v",
-                    permission,
-                    *SubjectName,
-                    *ObjectName);
-            } else {
-                error = TError(
-                    NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission is not allowed by any matching ACE",
-                    permission);
-            }
-            error.Attributes().Set("user", user);
-            error.Attributes().Set("permission", permission);
-            if (ObjectId) {
-                error.Attributes().Set("denied_by", ObjectId);
-            }
-            if (SubjectId) {
-                error.Attributes().Set("denied_for", SubjectId);
-            }
-            return error;
-        }
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,6 +227,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TJobInputReader)
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TQueryPreparer
     : public virtual TRefCounted
@@ -399,12 +304,12 @@ struct TDeleteRowsBufferTag
 struct TGetInSyncReplicasTag
 { };
 
-class TNativeClient
-    : public INativeClient
+class TClient
+    : public IClient
 {
 public:
-    TNativeClient(
-        INativeConnectionPtr connection,
+    TClient(
+        IConnectionPtr connection,
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
@@ -472,7 +377,7 @@ public:
     }
 
 
-    virtual IConnectionPtr GetConnection() override
+    virtual NApi::IConnectionPtr GetConnection() override
     {
         return Connection_;
     }
@@ -487,7 +392,7 @@ public:
         return Connection_->GetTimestampProvider();
     }
 
-    virtual const INativeConnectionPtr& GetNativeConnection() override
+    virtual const IConnectionPtr& GetNativeConnection() override
     {
         return Connection_;
     }
@@ -556,13 +461,13 @@ public:
     }
 
 
-    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
+    virtual TFuture<ITransactionPtr> StartNativeTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
         return TransactionManager_->Start(type, options).Apply(
             BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) {
-                auto wrappedTransaction = CreateNativeTransaction(this_, transaction, Logger);
+                auto wrappedTransaction = CreateTransaction(this_, transaction, Logger);
                 if (options.Sticky) {
                     Connection_->RegisterStickyTransaction(wrappedTransaction);
                 }
@@ -570,7 +475,7 @@ public:
             }));
     }
 
-    virtual INativeTransactionPtr AttachNativeTransaction(
+    virtual ITransactionPtr AttachNativeTransaction(
         const TTransactionId& transactionId,
         const TTransactionAttachOptions& options) override
     {
@@ -578,18 +483,18 @@ public:
             return Connection_->GetStickyTransaction(transactionId);
         } else {
             auto wrappedTransaction = TransactionManager_->Attach(transactionId, options);
-            return CreateNativeTransaction(this, std::move(wrappedTransaction), Logger);
+            return CreateTransaction(this, std::move(wrappedTransaction), Logger);
         }
     }
 
-    virtual TFuture<ITransactionPtr> StartTransaction(
+    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
-        return StartNativeTransaction(type, options).As<ITransactionPtr>();
+        return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
     }
 
-    virtual ITransactionPtr AttachTransaction(
+    virtual NApi::ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId,
         const TTransactionAttachOptions& options) override
     {
@@ -604,7 +509,7 @@ public:
             #method, \
             options, \
             BIND( \
-                &TNativeClient::doMethod, \
+                &TClient::doMethod, \
                 Unretained(this), \
                 DROP_BRACES args)); \
     }
@@ -748,14 +653,14 @@ public:
         const TYPath& path,
         const TFileReaderOptions& options) override
     {
-        return NApi::CreateFileReader(this, path, options);
+        return NNative::CreateFileReader(this, path, options);
     }
 
     virtual IFileWriterPtr CreateFileWriter(
         const TYPath& path,
         const TFileWriterOptions& options) override
     {
-        return NApi::CreateFileWriter(this, path, options);
+        return NNative::CreateFileWriter(this, path, options);
     }
 
 
@@ -763,35 +668,35 @@ public:
         const TYPath& path,
         const TJournalReaderOptions& options) override
     {
-        return NApi::CreateJournalReader(this, path, options);
+        return NNative::CreateJournalReader(this, path, options);
     }
 
     virtual IJournalWriterPtr CreateJournalWriter(
         const TYPath& path,
         const TJournalWriterOptions& options) override
     {
-        return NApi::CreateJournalWriter(this, path, options);
+        return NNative::CreateJournalWriter(this, path, options);
     }
 
     virtual TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override
     {
-        return NApi::CreateTableReader(this, path, options, New<TNameTable>());
+        return NNative::CreateTableReader(this, path, options, New<TNameTable>());
     }
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options) override
     {
-        return NApi::LocateSkynetShare(this, path, options);
+        return NNative::LocateSkynetShare(this, path, options);
     }
 
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override
     {
-        return NApi::CreateTableWriter(this, path, options);
+        return NNative::CreateTableWriter(this, path, options);
     }
 
     IMPLEMENT_METHOD(std::vector<TColumnarStatistics>, GetColumnarStatistics, (
@@ -926,9 +831,9 @@ public:
 #undef IMPLEMENT_METHOD
 
 private:
-    friend class TNativeTransaction;
+    friend class TTransaction;
 
-    const INativeConnectionPtr Connection_;
+    const IConnectionPtr Connection_;
     const TClientOptions Options_;
 
     TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
@@ -963,7 +868,7 @@ private:
                 if (!client) {
                     THROW_ERROR_EXCEPTION("Client was abandoned");
                 }
-                auto& Logger = client->Logger;
+                const auto& Logger = client->Logger;
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
@@ -1146,7 +1051,7 @@ private:
         using TDecoder = std::function<TTypeErasedRow(TWireProtocolReader*)>;
 
         TTabletCellLookupSession(
-            TNativeConnectionConfigPtr config,
+            TConnectionConfigPtr config,
             const TNetworkPreferenceList& networks,
             const TCellId& cellId,
             const TLookupRowsOptionsBase& options,
@@ -1218,7 +1123,7 @@ private:
         }
 
     private:
-        const TNativeConnectionConfigPtr Config_;
+        const TConnectionConfigPtr Config_;
         const TNetworkPreferenceList Networks_;
         const TCellId CellId_;
         const TLookupRowsOptionsBase Options_;
@@ -1295,7 +1200,7 @@ private:
         TWireProtocolReader*)>;
     template <class TResult>
     using TReplicaFallbackHandler = std::function<TFuture<TResult>(
-        const IClientPtr&,
+        const NApi::IClientPtr&,
         const TTableReplicaInfoPtr&)>;
 
     static NTableClient::TColumnFilter RemapColumnFilter(
@@ -1352,7 +1257,7 @@ private:
         };
 
         TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
-            const IClientPtr& replicaClient,
+            const NApi::IClientPtr& replicaClient,
             const TTableReplicaInfoPtr& replicaInfo)
         {
             return replicaClient->LookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
@@ -1402,7 +1307,7 @@ private:
         };
 
         TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
-            const IClientPtr& replicaClient,
+            const NApi::IClientPtr& replicaClient,
             const TTableReplicaInfoPtr& replicaInfo)
         {
             return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
@@ -1618,7 +1523,7 @@ private:
     }
 
 
-    IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName)
+    NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName)
     {
         const auto& clusterDirectory = Connection_->GetClusterDirectory();
         auto replicaConnection = clusterDirectory->FindConnection(clusterName);
@@ -1632,7 +1537,7 @@ private:
         return clusterDirectory->GetConnectionOrThrow(clusterName);
     }
 
-    IClientPtr CreateReplicaClient(const TString& clusterName)
+    NApi::IClientPtr CreateReplicaClient(const TString& clusterName)
     {
         auto replicaConnection = GetReplicaConnectionOrThrow(clusterName);
         return replicaConnection->CreateClient(Options_);
@@ -3305,7 +3210,7 @@ private:
         TPutFileToCacheResult result;
 
         // Start transaction.
-        ITransactionPtr transaction;
+        NApi::ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
             auto attributes = CreateEphemeralAttributes();
@@ -6132,21 +6037,21 @@ private:
         }
         return meta;
     }
-
 };
 
-DEFINE_REFCOUNTED_TYPE(TNativeClient)
+DEFINE_REFCOUNTED_TYPE(TClient)
 
-INativeClientPtr CreateNativeClient(
-    INativeConnectionPtr connection,
+IClientPtr CreateClient(
+    IConnectionPtr connection,
     const TClientOptions& options)
 {
     YCHECK(connection);
 
-    return New<TNativeClient>(std::move(connection), options);
+    return New<TClient>(std::move(connection), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

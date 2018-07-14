@@ -10,8 +10,9 @@
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -34,7 +35,6 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
-
 
 #include <util/generic/ymath.h>
 
@@ -72,7 +72,11 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TPeer(const TString& address, TNodeDescriptor nodeDescriptor, EPeerType peerType, EAddressLocality locality)
+    TPeer(
+        const TString& address,
+        TNodeDescriptor nodeDescriptor,
+        EPeerType peerType,
+        EAddressLocality locality)
         : Address(address)
         , NodeDescriptor(nodeDescriptor)
         , Type(peerType)
@@ -113,7 +117,7 @@ public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
         const TChunkId& chunkId,
@@ -214,7 +218,7 @@ private:
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
@@ -374,7 +378,7 @@ private:
     const NLogging::TLogger Logger;
 
     const TReplicationReaderConfigPtr Config_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TChunkId ChunkId_;
     const IInvokerPtr LocateChunksInvoker_;
@@ -1771,7 +1775,7 @@ TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     const TChunkId& chunkId,

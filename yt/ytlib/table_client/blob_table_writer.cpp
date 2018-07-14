@@ -48,7 +48,7 @@ TTableSchema TBlobTableSchema::ToTableSchema() const
 TBlobTableWriter::TBlobTableWriter(
     const TBlobTableSchema& blobTableSchema,
     const std::vector<TYsonString>& blobIdColumnValues,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     const TTransactionId& transactionId,

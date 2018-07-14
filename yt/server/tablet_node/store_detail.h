@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/api/native/public.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
@@ -187,7 +189,7 @@ public:
         NDataNode::TChunkRegistryPtr chunkRegistry,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager,
         TVersionedChunkMetaManagerPtr chunkMetaManager,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
@@ -245,7 +247,7 @@ protected:
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
     const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
     const TVersionedChunkMetaManagerPtr ChunkMetaManager_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;

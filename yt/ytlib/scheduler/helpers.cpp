@@ -1,7 +1,8 @@
 #include "helpers.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -353,7 +354,7 @@ TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
+void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
 {
     if (files.empty()) {
         return;
@@ -361,7 +362,7 @@ void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, cons
 
     auto connection = client->GetNativeConnection();
 
-    ITransactionPtr transaction;
+    NApi::ITransactionPtr transaction;
     {
         NApi::TTransactionStartOptions options;
         auto attributes = CreateEphemeralAttributes();
@@ -534,7 +535,7 @@ void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, cons
 void ValidateOperationPermission(
     const TString& user,
     const TOperationId& operationId,
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     EPermission permission,
     const TLogger& logger,
     const TString& subnodePath)

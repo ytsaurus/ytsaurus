@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/logging/log.h>
 
@@ -32,7 +32,7 @@ IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 
@@ -57,7 +57,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         IFetcherChunkScraperPtr chunkScraper,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TInputChunkPtr chunk) override;
@@ -93,7 +93,7 @@ protected:
         const std::vector<int>& chunkIndexes);
 
 private:
-    NApi::INativeClientPtr Client_;
+    NApi::NNative::IClientPtr Client_;
 
     //! Indexes of chunks for which no info is fetched yet.
     THashSet<int> UnfetchedChunkIndexes_;
@@ -109,6 +109,8 @@ private:
     void OnFetchingRoundCompleted(const TError& error);
     void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas);
 };
+
+DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

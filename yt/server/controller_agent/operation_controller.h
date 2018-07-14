@@ -4,7 +4,7 @@
 
 #include <yt/server/scheduler/job_metrics.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 
@@ -213,7 +213,7 @@ struct IOperationControllerHost
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
         bool recursive) = 0;
 
-    virtual const NApi::INativeClientPtr& GetClient() = 0;
+    virtual const NApi::NNative::IClientPtr& GetClient() = 0;
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;

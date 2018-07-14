@@ -1,10 +1,10 @@
 #include "admin.h"
 #include "config.h"
-#include "native_connection.h"
-#include "native_client.h"
-#include "native_admin.h"
-#include "native_transaction_participant.h"
-#include "native_transaction.h"
+#include "connection.h"
+#include "client.h"
+#include "admin.h"
+#include "transaction_participant.h"
+#include "transaction.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -42,6 +42,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -57,13 +58,13 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeConnection
-    : public INativeConnection
+class TConnection
+    : public IConnection
 {
 public:
-    TNativeConnection(
-        TNativeConnectionConfigPtr config,
-        const TNativeConnectionOptions& options)
+    TConnection(
+        TConnectionConfigPtr config,
+        const TConnectionOptions& options)
         : Config_(config)
         , Options_(options)
         , Logger(NLogging::TLogger(ApiLogger)
@@ -187,12 +188,12 @@ public:
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
     {
-        return CreateNativeAdmin(this, options);
+        return NNative::CreateAdmin(this, options);
     }
 
-    virtual IClientPtr CreateClient(const TClientOptions& options) override
+    virtual NApi::IClientPtr CreateClient(const TClientOptions& options) override
     {
-        return CreateNativeClient(options);
+        return NNative::CreateClient(this, options);
     }
 
     virtual void ClearMetadataCaches() override
@@ -200,9 +201,9 @@ public:
         TableMountCache_->Clear();
     }
 
-    // INativeConnection implementation.
+    // NNative::IConnection implementation.
 
-    virtual const TNativeConnectionConfigPtr& GetConfig() override
+    virtual const TConnectionConfigPtr& GetConfig() override
     {
         return Config_;
     }
@@ -299,9 +300,9 @@ public:
     }
 
 
-    virtual INativeClientPtr CreateNativeClient(const TClientOptions& options) override
+    virtual IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
-        return NApi::CreateNativeClient(this, options);
+        return NNative::CreateClient(this, options);
     }
 
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
@@ -312,7 +313,7 @@ public:
         // is responsible for populating cell directory. Transaction participants,
         // on the other hand, have no other way to keep cell directory up-to-date.
         CellDirectorySynchronizer_->Start();
-        return NApi::CreateNativeTransactionParticipant(
+        return NNative::CreateTransactionParticipant(
             CellDirectory_,
             CellDirectorySynchronizer_,
             TimestampProvider_,
@@ -321,14 +322,14 @@ public:
             options);
     }
 
-    virtual INativeTransactionPtr RegisterStickyTransaction(INativeTransactionPtr transaction) override
+    virtual ITransactionPtr RegisterStickyTransaction(NNative::ITransactionPtr transaction) override
     {
         const auto& transactionId = transaction->GetId();
         TStickyTransactionEntry entry{
             transaction,
             TLeaseManager::CreateLease(
                 transaction->GetTimeout(),
-                BIND(&TNativeConnection::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId))
+                BIND(&TConnection::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId))
         };
 
         {
@@ -336,8 +337,8 @@ public:
             YCHECK(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
         }
 
-        transaction->SubscribeCommitted(BIND(&TNativeConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
-        transaction->SubscribeAborted(BIND(&TNativeConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+        transaction->SubscribeCommitted(BIND(&TConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+        transaction->SubscribeAborted(BIND(&TConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
 
         LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
             transactionId);
@@ -345,9 +346,9 @@ public:
         return transaction;
     }
 
-    virtual INativeTransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
+    virtual ITransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
     {
-        INativeTransactionPtr transaction;
+        ITransactionPtr transaction;
         TLease lease;
         {
             TReaderGuard guard(StickyTransactionLock_);
@@ -385,8 +386,8 @@ public:
     }
 
 private:
-    const TNativeConnectionConfigPtr Config_;
-    const TNativeConnectionOptions Options_;
+    const TConnectionConfigPtr Config_;
+    const TConnectionOptions Options_;
 
     const NLogging::TLogger Logger;
 
@@ -416,7 +417,7 @@ private:
 
     struct TStickyTransactionEntry
     {
-        INativeTransactionPtr Transaction;
+        ITransactionPtr Transaction;
         TLease Lease;
     };
 
@@ -454,7 +455,7 @@ private:
 
     void OnStickyTransactionLeaseExpired(const TTransactionId& transactionId)
     {
-        INativeTransactionPtr transaction;
+        ITransactionPtr transaction;
         {
             TWriterGuard guard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
@@ -491,16 +492,17 @@ private:
     }
 };
 
-INativeConnectionPtr CreateNativeConnection(
-    TNativeConnectionConfigPtr config,
-    const TNativeConnectionOptions& options)
+IConnectionPtr CreateConnection(
+    TConnectionConfigPtr config,
+    const TConnectionOptions& options)
 {
-    auto connection = New<TNativeConnection>(config, options);
+    auto connection = New<TConnection>(config, options);
     connection->Initialize();
     return connection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT

@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 

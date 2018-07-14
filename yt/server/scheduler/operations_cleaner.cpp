@@ -7,7 +7,8 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
+
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/operation_archive_schema.h>
 

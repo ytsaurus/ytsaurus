@@ -3,11 +3,12 @@
 //%NUM_SCHEDULERS=0
 //%DELTA_MASTER_CONFIG={ "object_service": { "timeout_backoff_lead_time": 100 } }
 
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
+
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -66,8 +67,8 @@ class TApiTestBase
     : public ::testing::Test
 {
 protected:
-    static INativeConnectionPtr Connection_;
-    static INativeClientPtr Client_;
+    static NNative::IConnectionPtr Connection_;
+    static NNative::IClientPtr Client_;
 
     static void SetUpTestCase()
     {
@@ -79,7 +80,7 @@ protected:
             NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogConfigPtr>(logging));
         }
 
-        Connection_ = CreateNativeConnection(ConvertTo<TNativeConnectionConfigPtr>(config->GetChild("driver")));
+        Connection_ = NApi::NNative::CreateConnection(ConvertTo<NNative::TConnectionConfigPtr>(config->GetChild("driver")));
 
         CreateClient(RootUserName);
     }
@@ -98,8 +99,8 @@ protected:
     }
 };
 
-INativeConnectionPtr TApiTestBase::Connection_;
-INativeClientPtr TApiTestBase::Client_;
+NNative::IConnectionPtr TApiTestBase::Connection_;
+NNative::IClientPtr TApiTestBase::Client_;
 
 ////////////////////////////////////////////////////////////////////////////////
 

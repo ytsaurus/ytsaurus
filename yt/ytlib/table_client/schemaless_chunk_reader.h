@@ -3,7 +3,7 @@
 #include "public.h"
 #include "schemaless_reader.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
@@ -88,7 +88,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -107,7 +107,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -126,7 +126,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

@@ -14,8 +14,8 @@
 
 #include <yt/server/misc/update_executor.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>

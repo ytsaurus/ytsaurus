@@ -42,7 +42,7 @@ public:
     TNullable<TString> RootPath;
 
     // Job-independent parameters.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;

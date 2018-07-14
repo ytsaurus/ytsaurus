@@ -146,7 +146,7 @@ void TStderrWriter::SaveCurrentDataTo(IOutputStream* output) const
 void TStderrWriter::Upload(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NObjectClient::TTransactionId& transactionId,
     NChunkClient::TTrafficMeterPtr trafficMeter)
 {

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -15,7 +15,6 @@
 
 #include <yt/core/actions/public.h>
 
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -25,14 +24,14 @@ struct IUserJobIOFactory
     : public virtual TRefCounted
 {
     virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateReader(
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TColumnFilter& columnFilter) = 0;
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
@@ -51,7 +50,7 @@ struct TUserJobIOFactoryBase
 
 protected:
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
-    NChunkClient::TTrafficMeterPtr TrafficMeter_;
+    const NChunkClient::TTrafficMeterPtr TrafficMeter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

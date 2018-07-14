@@ -1,5 +1,5 @@
 #include "table_writer.h"
-#include "native_client.h"
+#include "client.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -9,6 +9,7 @@
 
 namespace NYT {
 namespace NApi {
+namespace NNative {
 
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -16,7 +17,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<ISchemalessWriterPtr> CreateTableWriter(
-    const INativeClientPtr& client,
+    const IClientPtr& client,
     const NYPath::TRichYPath& path,
     const TTableWriterOptions& options)
 {
@@ -26,7 +27,7 @@ TFuture<ISchemalessWriterPtr> CreateTableWriter(
     auto writerOptions = New<NTableClient::TTableWriterOptions>();
     writerOptions->EnableValidationOptions();
 
-    ITransactionPtr transaction;
+    NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
         TTransactionAttachOptions transactionOptions;
         transactionOptions.Ping = options.Ping;
@@ -45,6 +46,7 @@ TFuture<ISchemalessWriterPtr> CreateTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNative
 } // namespace NApi
 } // namespace NYT
 

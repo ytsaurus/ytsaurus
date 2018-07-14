@@ -1,13 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "client.h"
 
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/ref.h>
-
-#include <yt/core/ypath/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -28,11 +25,6 @@ struct IJournalReader
 };
 
 DEFINE_REFCOUNTED_TYPE(IJournalReader)
-
-IJournalReaderPtr CreateJournalReader(
-    INativeClientPtr client,
-    const NYPath::TYPath& path,
-    const TJournalReaderOptions& options = TJournalReaderOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,10 +4,13 @@
 #include "config.h"
 #include "lazy_changelog.h"
 
+#include <yt/ytlib/api/native/journal_reader.h>
+#include <yt/ytlib/api/native/journal_writer.h>
+
 #include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/journal_reader.h>
 #include <yt/ytlib/api/journal_writer.h>
-#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 

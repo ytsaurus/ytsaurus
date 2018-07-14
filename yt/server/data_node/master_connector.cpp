@@ -23,8 +23,9 @@
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_slot.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/election/config.h>

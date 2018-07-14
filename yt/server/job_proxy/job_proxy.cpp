@@ -17,7 +17,8 @@
 #include <yt/server/exec_agent/supervisor_service.pb.h>
 
 #include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -454,7 +455,7 @@ TJobResult TJobProxy::DoRun()
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-        auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
+        auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
         Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
@@ -658,7 +659,7 @@ void TJobProxy::OnPrepared()
     req->Invoke();
 }
 
-NApi::INativeClientPtr TJobProxy::GetClient() const
+NApi::NNative::IClientPtr TJobProxy::GetClient() const
 {
     return Client_;
 }

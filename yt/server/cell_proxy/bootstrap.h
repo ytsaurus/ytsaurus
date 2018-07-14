@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/auth/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/monitoring/public.h>
 
@@ -40,8 +40,8 @@ public:
     const TCellProxyConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetWorkerInvoker() const;
-    const NApi::INativeConnectionPtr& GetNativeConnection() const;
-    const NApi::INativeClientPtr& GetNativeClient() const;
+    const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
+    const NApi::NNative::IClientPtr& GetNativeClient() const;
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
@@ -65,8 +65,8 @@ private:
     NHttp::IServerPtr HttpServer_;
     ICoreDumperPtr CoreDumper_;
 
-    NApi::INativeConnectionPtr NativeConnection_;
-    NApi::INativeClientPtr NativeClient_;
+    NApi::NNative::IConnectionPtr NativeConnection_;
+    NApi::NNative::IClientPtr NativeClient_;
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;

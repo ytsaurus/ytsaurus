@@ -142,7 +142,7 @@ public:
 
 private:
     const TJobId JobId_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     TAsyncSemaphorePtr AsyncSemaphore_;
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr IOInvoker_;
@@ -150,8 +150,8 @@ private:
     const TTableWriterOptionsPtr TableWriterOptions_;
     const TTransactionId Transaction_;
     const TChunkListId ChunkList_;
-
     const TDuration ReadWriteTimeout_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     // Promise that is set when there are no cores that are currently processed.
     TPromise<TCoreResult> CoreResultPromise_;
@@ -163,8 +163,6 @@ private:
     std::vector<TCoreInfo> CoreInfos_;
 
     int ActiveCoreCount_ = 0;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     TLogger Logger;
 

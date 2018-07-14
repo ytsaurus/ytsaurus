@@ -44,8 +44,9 @@
 
 #include <yt/server/misc/interned_attributes.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
+
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>

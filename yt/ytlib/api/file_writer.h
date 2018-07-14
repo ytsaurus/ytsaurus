@@ -1,12 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "client.h"
+
+#include <yt/core/actions/future.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>
-
-#include <yt/core/ypath/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -32,11 +31,6 @@ struct IFileWriter
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileWriter)
-
-IFileWriterPtr CreateFileWriter(
-    INativeClientPtr client,
-    const NYPath::TYPath& path,
-    const TFileWriterOptions& options = TFileWriterOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

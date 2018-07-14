@@ -3,7 +3,7 @@
 #include "public.h"
 #include "functions.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
@@ -50,7 +50,7 @@ struct TExternalCGInfo
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<TString>& functionNames,
     const TString& udfRegistryPath,
-    const NApi::INativeClientPtr& client);
+    const NApi::NNative::IClientPtr& client);
 
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typeInferrers,
@@ -71,12 +71,12 @@ struct IFunctionRegistry
 IFunctionRegistryPtr CreateFunctionRegistryCache(
     const TString& udfRegistryPath,
     TAsyncExpiringCacheConfigPtr config,
-    TWeakPtr<NApi::INativeClient> client,
+    TWeakPtr<NApi::NNative::IClient> client,
     IInvokerPtr invoker);
 
 TFunctionImplCachePtr CreateFunctionImplCache(
     const TSlruCacheConfigPtr& config,
-    TWeakPtr<NApi::INativeClient> client);
+    TWeakPtr<NApi::NNative::IClient> client);
 
 ////////////////////////////////////////////////////////////////////////////////
 
