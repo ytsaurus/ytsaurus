@@ -142,8 +142,8 @@ private:
                         switch (EBlackboxException(value)) {
                             case EBlackboxException::Ok:
                                 return result;
-                            case EBlackboxException::DbFetchFailed:
-                            case EBlackboxException::DbException:
+                            case EBlackboxException::DBFetchFailed:
+                            case EBlackboxException::DBException:
                                 LOG_WARNING(
                                     "Blackbox has raised an exception, backing off (CallId: %v, Attempt: %v)",
                                     callId,
