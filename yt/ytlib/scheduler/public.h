@@ -112,6 +112,7 @@ DEFINE_ENUM(EAbortReason,
     ((Unknown)                         ( 11))
     ((RevivalConfirmationTimeout)      ( 12))
     ((IntermediateChunkLimitExceeded)  ( 13))
+    ((NodeBanned)                      ( 14))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

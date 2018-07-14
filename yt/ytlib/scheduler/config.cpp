@@ -226,6 +226,13 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
         .Default(false);
 
+    RegisterParameter("ban_nodes_with_failed_jobs", BanNodesWithFailedJobs)
+        .Default(false);
+    RegisterParameter("ignore_job_failures_at_banned_nodes", IgnoreJobFailuresAtBannedNodes)
+        .Default(false);
+    RegisterParameter("fail_on_all_nodes_banned", FailOnAllNodesBanned)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

@@ -1981,11 +1981,20 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
+    auto joblet = GetJoblet(jobId);
+    if (Spec_->BanNodesWithFailedJobs && BannedNodeIds_.find(joblet->NodeDescriptor.Id)) {
+        LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
+            "(JobId: %v, Address: %v)",
+            jobId,
+            joblet->NodeDescriptor.Address);
+        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
+        OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
+        return;
+    }
+
     auto error = FromProto<TError>(result.error());
 
     JobCounter->Failed(1);
-
-    auto joblet = GetJoblet(jobId);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
@@ -2026,9 +2035,18 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     if (Spec_->FailOnJobRestart) {
         OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job failed; operation failed because spec option fail_on_job_restart is set")
+            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
+    }
+    
+    if (Spec_->BanNodesWithFailedJobs) {
+        if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
+            LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
+                jobId,
+                joblet->NodeDescriptor.Id,
+                joblet->NodeDescriptor.Address);
+        }
     }
 
     ReleaseJobs({jobId});
@@ -2664,35 +2682,51 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (AvailableExecNodesWereObserved_) {
-        return;
-    }
-
     if (ShouldSkipSanityCheck()) {
         return;
     }
 
-    bool success = false;
-    for (const auto& pair : GetExecNodeDescriptors()) {
-        const auto& descriptor = pair.second;
-        for (const auto& pair : PoolTreeToSchedulingTagFilter_) {
-            const auto& filter = pair.second;
+    // If no available nodes were seen then re-check all nodes on each tick.
+    // After such nodes were discovered, only re-check within BannedExecNodesCheckPeriod.
+    auto now = TInstant::Now();
+    if (AvailableExecNodesObserved_ && now < LastAvailableExecNodesCheckTime_ + Config->BannedExecNodesCheckPeriod) {
+        return;
+    }
+
+    bool foundMatching = false;
+    bool foundMatchingNotBanned = false;
+    for (const auto& nodePair : GetExecNodeDescriptors()) {
+        const auto& descriptor = nodePair.second;
+        for (const auto& treePair : PoolTreeToSchedulingTagFilter_) {
+            const auto& filter = treePair.second;
             if (descriptor.CanSchedule(filter)) {
-                success = true;
-                break;
+                foundMatching = true;
+                if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
+                    foundMatchingNotBanned = true;
+                }
             }
         }
-        if (success) {
+        // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
+        if (foundMatchingNotBanned) {
             break;
         }
     }
 
-    if (!success) {
+
+    if (!AvailableExecNodesObserved_ && !foundMatching) {
         OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv",
             Spec_->SchedulingTagFilter.GetFormula()));
-    } else {
-        AvailableExecNodesWereObserved_ = true;
+        return;
     }
+
+    if (foundMatching && !foundMatchingNotBanned && Spec_->FailOnAllNodesBanned) {
+        OnOperationFailed(TError("All online nodes that match operation scheduling tag filter %Qv were banned",
+            Spec_->SchedulingTagFilter.GetFormula()));
+        return;
+    }
+
+    AvailableExecNodesObserved_ = true;
+    LastAvailableExecNodesCheckTime_ = now;
 }
 
 void TOperationControllerBase::AnalyzeTmpfsUsage()
@@ -3300,14 +3334,24 @@ void TOperationControllerBase::DoScheduleJob(
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-    } else if (GetPendingJobCount() == 0) {
+        return;
+    }
+
+    if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
-    } else {
-        DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
-        if (!scheduleJobResult->StartDescriptor) {
-            DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
-        }
+        return;
+    }
+
+    if (BannedNodeIds_.find(context->GetNodeDescriptor().Id) != BannedNodeIds_.end()) {
+        LOG_TRACE("Node is banned, scheduling request ignored");
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::NodeBanned);
+        return;
+    }
+
+    DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
+    if (!scheduleJobResult->StartDescriptor) {
+        DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
     }
 }
 
@@ -6962,10 +7006,10 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     for (const auto& table : InputTables) {
         if (table.SchemaMode != OutputTables_[0].TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-                    << TErrorAttribute("input_table1_path", table.GetPath())
-                    << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
-                    << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
-                    << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
+                << TErrorAttribute("input_table1_path", table.GetPath())
+                << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
+                << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
+                << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
         }
     }
 
@@ -7114,7 +7158,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
-    Persist(context, AvailableExecNodesWereObserved_);
+    Persist(context, AvailableExecNodesObserved_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 300015) {
+        Persist(context, BannedNodeIds_);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.

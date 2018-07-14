@@ -501,6 +501,7 @@ public:
     TDuration OperationControllerFailTimeout;
 
     TDuration AvailableExecNodesCheckPeriod;
+    TDuration BannedExecNodesCheckPeriod;
 
     TDuration OperationProgressAnalysisPeriod;
 

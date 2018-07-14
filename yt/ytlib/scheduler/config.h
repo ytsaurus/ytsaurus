@@ -334,6 +334,7 @@ public:
 
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
+    //! An arbitrary user-provided string that is, however, logged by the scheduler.
     TNullable<TString> Title;
 
     //! Limit on operation execution time.
@@ -358,6 +359,7 @@ public:
     //! Also disables partitioned data balancing for small operations.
     i64 MinLocalityInputDataWeight;
 
+    //! Various auto-merge knobs.
     TAutoMergeConfigPtr AutoMerge;
 
     // TODO(max42): make this field per-task.
@@ -385,7 +387,18 @@ public:
     NYTree::IMapNodePtr Description;
     NYTree::IMapNodePtr Annotations;
 
+    //! If true, enables the columnar statistics machinery to estimate job sizes.
+    //! Note that turning this on may significantly affect workload partitioning for existing operations.
     bool UseColumnarStatistics;
+
+    //! If true, node is banned each time a job is failed there.
+    bool BanNodesWithFailedJobs;
+
+    // If true, job failed at a banned node is considered aborted.
+    bool IgnoreJobFailuresAtBannedNodes;
+
+    // If true, operations fails if all available nodes get banned.
+    bool FailOnAllNodesBanned;
 
     TOperationSpecBase();
 

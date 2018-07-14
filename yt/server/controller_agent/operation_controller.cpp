@@ -440,6 +440,7 @@ bool TScheduleJobResult::IsBackoffNeeded() const
         !StartDescriptor &&
         Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
         Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleJobFailReason::NodeBanned] == 0 &&
         Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
 }
 
