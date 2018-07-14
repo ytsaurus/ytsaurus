@@ -1008,7 +1008,10 @@ private:
     //! Timestamp of last successfull uploaded snapshot.
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
-    bool AvailableExecNodesWereObserved_ = false;
+    bool AvailableExecNodesObserved_ = false;
+    TInstant LastAvailableExecNodesCheckTime_;
+
+    THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
     TSpinLock AlertsLock_;
     TOperationAlertMap Alerts_;
