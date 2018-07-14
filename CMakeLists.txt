@@ -344,6 +344,21 @@ if(YT_CAN_BUILD_PACKAGE)
     COMMENT "Creating yandex-yt-python-proto changelog..."
   )
 
+  add_custom_target(driver-rpc-changelog
+    COMMAND rm -f ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver-rpc/debian/changelog
+    COMMAND dch
+      --create
+      ${DCH_VENDOR_FLAG} "yandex"
+      --package "yandex-yt-python-driver-rpc"
+      --distribution "unstable"
+      --newversion "${YT_RPC_PROXY_PROTOCOL_VERSION}.1"
+      --urgency "low"
+      --force-distribution
+      "Proto package release."
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver-rpc
+    COMMENT "Creating yandex-yt-python-driver-rpc changelog..."
+  )
+
   find_package(Git)
   if (NOT GIT_FOUND)
     message(FATAL_ERROR "Git is required for packaging")
@@ -387,7 +402,7 @@ if(YT_CAN_BUILD_PACKAGE)
       ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
     COMMENT "Packaging YT Python..."
-    DEPENDS changelog proto-changelog
+    DEPENDS changelog proto-changelog driver-rpc-changelog
   )
 
   function(HOOK_FOR_DEBIAN package component)
