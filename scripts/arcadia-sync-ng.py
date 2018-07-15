@@ -692,6 +692,7 @@ contrib-libs-libbz2
 contrib-libs-lz4
 contrib-libs-lzmasdk
 contrib-libs-minilzo
+contrib-libs-msgpack
 contrib-libs-nanopb
 contrib-libs-openssl
 contrib-libs-protobuf

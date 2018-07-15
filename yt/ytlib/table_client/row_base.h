@@ -200,6 +200,16 @@ TValue MakeSentinelValue(EValueType type, int id = 0, bool aggregate = false)
 }
 
 template <class TValue>
+TValue MakeNullValue(int id = 0, bool aggregate = false)
+{
+    TValue result{};
+    result.Id = id;
+    result.Type = EValueType::Null;
+    result.Aggregate = aggregate;
+    return result;
+}
+
+template <class TValue>
 TValue MakeInt64Value(i64 value, int id = 0, bool aggregate = false)
 {
     TValue result{};

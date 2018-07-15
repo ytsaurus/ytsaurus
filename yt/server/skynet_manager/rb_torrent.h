@@ -2,9 +2,13 @@
 
 #include "public.h"
 
+#include <yt/server/skynet_manager/resource.pb.h>
+
 #include <yt/core/crypto/crypto.h>
 
 #include <yt/core/yson/consumer.h>
+
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <util/stream/buffer.h>
 
@@ -13,40 +17,41 @@ namespace NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileMeta
+struct TResourceDescription
 {
-    //! MD5 in binary format
-    NCrypto::TMD5Hash MD5;
-
-    //! SHA1 of file chunks in binary format
-    std::vector<NCrypto::TSHA1Hash> SHA1;
-
-    bool Executable = false;
-
-    ui64 FileSize = 0;
-
-    TString GetFullSHA1() const;
+    TResourceId ResourceId;
+    NYTree::INodePtr TorrentMeta;
 };
 
-struct TSkynetShareMeta
+TResourceDescription ConvertResource(const NProto::TResource& resource, bool needHash, bool needMeta);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableShard
 {
-    std::map<TString, TFileMeta> Files;
+    NTableClient::TOwningKey Key;
+    NProto::TResource Resource;
 };
 
-struct TSkynetRbTorrent
-{
-    //! The string user would pass to `sky get` command.
-    TString RbTorrentId;
+////////////////////////////////////////////////////////////////////////////////
 
-    //! RbTorrentId without prefix.
-    TString RbTorrentHash;
-    
-    //! Bencoded description of this share, we are passing it to skynet daemon.
-    TString BencodedTorrentMeta;
+struct TRowRangeLocation
+{
+    i64 RowIndex;
+    i64 RowCount = 0;
+
+    TNullable<i64> LowerLimit;
+
+    NChunkClient::TChunkId ChunkId;
+
+    std::vector<TString> Nodes;
+
+    friend bool operator < (const TRowRangeLocation& rhs, const TRowRangeLocation& lhs);
 };
 
-//! Convert bunch of metadata to resource description.
-TSkynetRbTorrent GenerateResource(const TSkynetShareMeta& meta);
+NYTree::INodePtr MakeLinks(
+    const NProto::TResource& resource,
+    const std::vector<TRowRangeLocation>& locations);
 
 ////////////////////////////////////////////////////////////////////////////////
 
