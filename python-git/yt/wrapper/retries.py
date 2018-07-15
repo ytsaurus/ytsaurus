@@ -1,6 +1,6 @@
 from .common import YtError, total_seconds
 from .errors import YtRetriableError, YtResponseError
-from yt import logger as logger
+from yt import logger as yt_logger
 
 from yt.packages.six.moves import xrange
 
@@ -52,13 +52,14 @@ def run_chaos_monkey(chaos_monkey):
 
 
 class Retrier(object):
-    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None):
+    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None, logger=None):
         self.retry_config = copy.deepcopy(retry_config)
         if not self.retry_config["enable"]:
             self.retry_config["count"] = 1
         self.exceptions = exceptions
         self.timeout = timeout
         self._chaos_monkey = chaos_monkey
+        self._logger = logger if logger is not None else yt_logger
 
     def run(self):
         retry_count = self.retry_config["count"]
@@ -109,9 +110,9 @@ class Retrier(object):
             raise YtError("Incorrect retry backoff policy '{0}'".format(backoff_config["policy"]))
 
     def backoff_action(self, attempt, backoff):
-        logger.warning("Sleep for %.2lf seconds before next retry", backoff)
+        self._logger.warning("Sleep for %.2lf seconds before next retry", backoff)
         time.sleep(backoff)
-        logger.warning("New retry (%d) ...", attempt + 1)
+        self._logger.warning("New retry (%d) ...", attempt + 1)
 
     def except_action(self, exception, attempt):
         pass
