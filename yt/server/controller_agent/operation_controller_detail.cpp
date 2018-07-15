@@ -2715,14 +2715,16 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
 
     if (!AvailableExecNodesObserved_ && !foundMatching) {
-        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv",
-            Spec_->SchedulingTagFilter.GetFormula()));
+        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv in trees %v",
+            Spec_->SchedulingTagFilter.GetFormula(),
+            GetKeys(PoolTreeToSchedulingTagFilter_)));
         return;
     }
 
     if (foundMatching && !foundMatchingNotBanned && Spec_->FailOnAllNodesBanned) {
-        OnOperationFailed(TError("All online nodes that match operation scheduling tag filter %Qv were banned",
-            Spec_->SchedulingTagFilter.GetFormula()));
+        OnOperationFailed(TError("All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
+            Spec_->SchedulingTagFilter.GetFormula(),
+            GetKeys(PoolTreeToSchedulingTagFilter_)));
         return;
     }
 
