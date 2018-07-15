@@ -107,8 +107,6 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        YCHECK(!Finished);
-
         auto cookie = InputCookieToInternalCookies_.size();
         InputCookieToInternalCookies_.emplace_back();
         InputCookieIsSuspended_.emplace_back(false);
