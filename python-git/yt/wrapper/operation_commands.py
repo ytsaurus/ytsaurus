@@ -460,7 +460,7 @@ def get_operation_url(operation, client=None):
     if not proxy_url:
         return None
 
-    cluster_path = "ui/" if is_local_mode() else ""
+    cluster_path = "ui/" if is_local_mode(client) else ""
 
     return get_config(client)["proxy"]["operation_link_pattern"].format(
         proxy=get_proxy_url(client=client),
