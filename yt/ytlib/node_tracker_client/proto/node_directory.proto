@@ -1,6 +1,6 @@
 package NYT.NNodeTrackerClient.NProto;
 
-import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/node_tracker_client/proto/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

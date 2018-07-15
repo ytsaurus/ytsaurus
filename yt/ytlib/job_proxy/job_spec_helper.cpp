@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

@@ -44,7 +44,7 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>

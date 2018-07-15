@@ -2,7 +2,7 @@ package NYT.NJobTrackerClient.NProto;
 
 import "yt/core/misc/proto/error.proto";
 import "yt/core/misc/proto/guid.proto";
-import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/node_tracker_client/proto/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

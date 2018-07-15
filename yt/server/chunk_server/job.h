@@ -5,7 +5,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <yt/ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
 
 #include <yt/core/erasure/public.h>
 
