@@ -690,20 +690,26 @@ class ConfigsProvider_19(ConfigsProvider):
             config = {
                 "port": next(ports_generator),
                 "monitoring_port": next(ports_generator),
-                "enable_skybone_mds": manager_index == 0,
+                "peer_id_file": "peer_id_" + str(manager_index),
+                "announcer": {
+                    "trackers": ["sas1-skybonecoord1.search.yandex.net:2399"],
+                    "peer_udp_port": 7001 + 2 * manager_index,
+                    "out_of_order_update_ttl": 5000,
+                },
+                "skynet_port": 7000 + 2 * manager_index,
+                "sync_iteration_interval": 1000,
+                "removed_tables_scan_interval": 1000,
             }
-            config["self_url"] = "http://localhost:{}".format(config["port"])
             config["clusters"] = [
                 {
                     "cluster_name": "local",
-                    "proxy_url": "http://" + proxy_address,
                     "root": "//sys/skynet_manager",
                     "user": "root",
                     "oauth_token_env": "",
                     "connection": {
                         "connection_type": "rpc",
-                        "addresses": rpc_proxy_addresses
-                    }
+                        "cluster_url": "http://" + proxy_address,
+                    },
                 }
             ]
             config["logging"] = init_logging(config.get("logging"), logs_dir,
