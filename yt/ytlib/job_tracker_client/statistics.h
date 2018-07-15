@@ -3,7 +3,7 @@
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/core/yson/forwarding_consumer.h>
 #include <yt/core/yson/consumer.h>

@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_spec_service.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
 #include <yt/core/yson/consumer.h>

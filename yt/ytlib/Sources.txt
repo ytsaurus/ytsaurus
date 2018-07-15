@@ -191,10 +191,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_read_controller.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job_tracker_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job_spec_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job.proto
-  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job_tracker_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job_spec_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/statistics.cpp
 
@@ -210,15 +210,15 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/monitoring_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/private.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/proto/node.proto
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/proto/node_directory.proto
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/proto/node_tracker_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node.proto
-  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_statistics.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_tracker_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/private.cpp
 

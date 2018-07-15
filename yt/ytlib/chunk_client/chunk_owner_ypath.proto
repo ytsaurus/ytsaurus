@@ -4,7 +4,7 @@ package NYT.NChunkClient.NProto;
 
 import "yt/core/crypto/proto/crypto.proto";
 import "yt/core/misc/proto/guid.proto";
-import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/node_tracker_client/proto/node_directory.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/read_limit.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";

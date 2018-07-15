@@ -7,11 +7,11 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/job_prober_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
 
 #include <yt/core/actions/signal.h>
 

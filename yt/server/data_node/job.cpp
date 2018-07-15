@@ -27,7 +27,7 @@
 #include <yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>

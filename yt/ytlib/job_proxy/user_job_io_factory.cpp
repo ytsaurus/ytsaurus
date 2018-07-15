@@ -11,7 +11,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/object_client/helpers.h>

@@ -2,7 +2,7 @@ package NYT.NObjectClient.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/ytree/proto/attributes.proto";
-import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/node_tracker_client/proto/node_directory.proto";
 import "yt/ytlib/hive/cluster_directory.proto";
 import "yt/ytlib/chunk_client/medium_directory.proto";
 

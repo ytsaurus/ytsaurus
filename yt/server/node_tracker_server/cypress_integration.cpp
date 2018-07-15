@@ -21,7 +21,7 @@
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/core/ytree/exception_helpers.h>
 #include <yt/core/ytree/fluent.h>
