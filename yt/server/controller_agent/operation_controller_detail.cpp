@@ -1983,7 +1983,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     const auto& result = jobSummary->Result;
 
     auto joblet = GetJoblet(jobId);
-    if (Spec_->BanNodesWithFailedJobs && BannedNodeIds_.find(joblet->NodeDescriptor.Id)) {
+    if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
         LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
             "(JobId: %v, Address: %v)",
             jobId,
