@@ -107,7 +107,7 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        // No check for finished here, because stripes may be added for interrupted jobs.
+        YCHECK(!Finished);
 
         auto cookie = InputCookieToInternalCookies_.size();
         InputCookieToInternalCookies_.emplace_back();
@@ -678,14 +678,6 @@ private:
     {
         int internalCookie = Stripes.size();
 
-        bool suspended = false;
-        for (const auto& dataSlice : stripe->DataSlices) {
-            YCHECK(dataSlice->Tag);
-            auto inputCookie = *dataSlice->Tag;
-            InputCookieToInternalCookies_[inputCookie].insert(internalCookie);
-            suspended |= InputCookieIsSuspended_[inputCookie];
-        }
-
         ++PendingStripeCount;
         TSuspendableStripe suspendableStripe(stripe);
 
@@ -703,8 +695,13 @@ private:
             Register(internalCookie);
         }
 
-        if (suspended) {
-            DoSuspend(internalCookie);
+        for (const auto& dataSlice : stripe->DataSlices) {
+            YCHECK(dataSlice->Tag);
+            auto inputCookie = *dataSlice->Tag;
+            InputCookieToInternalCookies_[inputCookie].insert(internalCookie);
+            if (InputCookieIsSuspended_[inputCookie]) {
+                DoSuspend(internalCookie);
+            }
         }
     }
 
