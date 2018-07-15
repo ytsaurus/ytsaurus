@@ -15,6 +15,7 @@ target_link_libraries(yt-library-server
   yt-core-re2
   yt-core-rpc-grpc
   deps-arcadia-library-http
+  deps-arcadia-contrib-libs-msgpack
 )
 
 

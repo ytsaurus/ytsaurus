@@ -37,19 +37,27 @@ void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
     rsp->GetHeaders()->Add("X-YT-Response-Message", error.GetMessage());
 }
 
-TError ParseYTError(const IResponsePtr& rsp)
+TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers)
 {
-    TString errorJson;
     TString source;
-    auto* errorHeader = rsp->GetHeaders()->Find("X-YT-Error");
-    if (errorHeader) {
+
+    const TString* errorHeader;
+    if (!fromTrailers) {
         source = "header";
-        errorJson = *errorHeader;
+        errorHeader = rsp->GetHeaders()->Find("X-YT-Error");
     } else {
-        source = "body";
-        errorJson = ToString(rsp->ReadBody());
+        source = "trailer";
+        errorHeader = rsp->GetTrailers()->Find("X-YT-Error");
     }
 
+    TString errorJson;
+    if (!errorHeader) {
+        source = "body";
+        errorJson = ToString(rsp->ReadBody());
+    } else {
+        errorJson = *errorHeader;
+    }
+    
     TStringInput errorJsonInput(errorJson);
     std::unique_ptr<IBuildingYsonConsumer<TError>> buildingConsumer;
     CreateBuildingYsonConsumer(&buildingConsumer, EYsonType::Node);

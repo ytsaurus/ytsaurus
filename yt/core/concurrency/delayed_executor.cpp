@@ -1,5 +1,6 @@
 #include "delayed_executor.h"
 #include "action_queue.h"
+#include "scheduler.h"
 #include "private.h"
 
 #include <yt/core/misc/lock_free.h>

@@ -17,12 +17,33 @@ namespace NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAnnouncerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<TString> Trackers;
+    int PeerUdpPort;
+    TDuration OutOfOrderUpdateTtl;
+
+    TAnnouncerConfig()
+    {
+        RegisterParameter("trackers", Trackers);
+        RegisterParameter("peer_udp_port", PeerUdpPort)
+            .Default(7001);
+        RegisterParameter("out_of_order_update_ttl", OutOfOrderUpdateTtl)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAnnouncerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClusterConnectionConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TString ClusterName;
-    TString ProxyUrl;
     TString User;
     TString OAuthTokenEnv;
 
@@ -30,28 +51,17 @@ public:
 
     NYPath::TYPath Root;
 
-    NYTree::INodePtr Connection;
+
+    NRpcProxy::TConnectionConfigPtr Connection;
 
     NConcurrency::TThroughputThrottlerConfigPtr UserRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr BackgroundThrottler;
     
-    void LoadToken()
-    {
-        if (OAuthTokenEnv.empty()) {
-            return;
-        }
-
-        auto token = getenv(OAuthTokenEnv.c_str());
-        if (!token) {
-            THROW_ERROR_EXCEPTION("%v environment variable is not set", OAuthTokenEnv);
-        }
-        OAuthToken = token;
-    }
+    void LoadToken();
 
     TClusterConnectionConfig()
     {
         RegisterParameter("cluster_name", ClusterName);
-        RegisterParameter("proxy_url", ProxyUrl);
         RegisterParameter("user", User)
             .Default("robot-yt-skynet-m5r");
         RegisterParameter("oauth_token_env", OAuthTokenEnv)
@@ -67,6 +77,12 @@ public:
 
         RegisterParameter("background_throttler", BackgroundThrottler)
             .DefaultNew();
+
+        RegisterPostprocessor([this] () {
+            if (!Connection->ClusterUrl) {
+                THROW_ERROR_EXCEPTION("\"cluster_url\" is required");
+            }
+        });
     }
 };
 
@@ -74,64 +90,45 @@ DEFINE_REFCOUNTED_TYPE(TClusterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTombstoneCacheConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration Ttl;
-    int MaxSize;
-
-    TTombstoneCacheConfig()
-    {
-        RegisterParameter("ttl", Ttl)
-            .Default(TDuration::Seconds(30));
-
-        RegisterParameter("max_size", MaxSize)
-            .Default(1000 * 1000);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TTombstoneCacheConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSkynetManagerConfig
     : public TServerConfig
 {
 public:
-    //! Passed to skynet daemon, so it can call us back.
-    TString SelfUrl;
-
-    bool EnableSkyboneMds;
-    TString SkynetPythonInterpreterPath;
-    TString SkynetMdsToolPath;
-
     int IOPoolSize;
 
     int Port;
+    int SkynetPort;
+
+    TString PeerIdFile;
+
+    TAsyncExpiringCacheConfigPtr Cache;
 
     std::vector<TClusterConnectionConfigPtr> Clusters;
 
     NHttp::TServerConfigPtr HttpServer;
     NHttp::TClientConfigPtr HttpClient;
 
-    TTombstoneCacheConfigPtr TombstoneCache;
-    
+    TAnnouncerConfigPtr Announcer;
+
+    int TableShardLimit;
+    i64 ResourceSizeLimit;
+
+    TDuration SyncIterationInterval;
+    TDuration RemovedTablesScanInterval;
+
     TSkynetManagerConfig()
     {
-        RegisterParameter("self_url", SelfUrl);
-
-        RegisterParameter("enable_skybone_mds", EnableSkyboneMds)
-            .Default(true);
-        RegisterParameter("skynet_mds_tool_path", SkynetMdsToolPath)
-            .Default("/skynet/tools/skybone-mds-ctl");
-        RegisterParameter("skynet_python_interpreter_path", SkynetPythonInterpreterPath)
-            .Default("/skynet/python/bin/python");
-
         RegisterParameter("io_pool_size", IOPoolSize)
             .Default(4);
 
         RegisterParameter("port", Port);
+        RegisterParameter("skynet_port", SkynetPort)
+            .Default(7000);
+
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+        RegisterParameter("peer_id_file", PeerIdFile)
+            .Default("peer_id");
 
         RegisterParameter("clusters", Clusters);
 
@@ -140,8 +137,19 @@ public:
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
 
-        RegisterParameter("tombstone_cache", TombstoneCache)
+        RegisterParameter("announcer", Announcer)
             .DefaultNew();
+
+        RegisterParameter("table_shard_limit", TableShardLimit)
+            .Default(65536);
+        RegisterParameter("resource_size_limit", ResourceSizeLimit)
+            .Default(1_TB);
+
+        RegisterParameter("sync_iteration_interval", SyncIterationInterval)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("removed_tables_scan_interval", RemovedTablesScanInterval)
+            .Default(TDuration::Seconds(60));
     }
 };
 

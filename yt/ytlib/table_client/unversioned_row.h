@@ -101,6 +101,11 @@ inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 
     return MakeSentinelValue<TUnversionedValue>(type, id, aggregate);
 }
 
+inline TUnversionedValue MakeUnversionedNullValue(int id = 0, bool aggregate = false)
+{
+    return MakeNullValue<TUnversionedValue>(id, aggregate);
+}
+
 inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0, bool aggregate = false)
 {
     return MakeInt64Value<TUnversionedValue>(value, id, aggregate);

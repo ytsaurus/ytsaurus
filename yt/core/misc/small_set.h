@@ -44,6 +44,10 @@ public:
     return isSmall() ? Vector.size() : Set.size();
   }
 
+  const T& front() const {
+    return isSmall() ? Vector.front() : *Set.begin();
+  }
+
   /// count - Return true if the element is in the set.
   bool count(const T &V) const {
     if (isSmall()) {
