@@ -379,6 +379,7 @@ class YTInstance(object):
         provision["enable_debug_logging"] = self._enable_debug_logging
 
         master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
+
         cluster_configuration = configs_provider.build_configs(
             self._get_ports_generator(port_range_start),
             master_dirs,
@@ -1179,8 +1180,9 @@ class YTInstance(object):
         def skynet_manager_ready():
             self._validate_processes_are_running("skynet_manager")
 
-            return ("skynet_manager" in native_client.list("//sys") and
-                len(native_client.list("//sys/skynet_manager/managers")) == self.skynet_manager_count)
+            http_port = self.configs["skynet_manager"][0]["port"]
+            requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
+            return True
 
         self._wait_or_skip(lambda: self._wait_for(skynet_manager_ready, "skynet_manager", max_wait_time=20), sync)
 
