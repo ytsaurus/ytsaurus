@@ -348,10 +348,12 @@ protected:
     TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, int splitJobCount)
     {
         TCompletedJobSummary jobSummary;
-        std::copy(
-            stripeList->Stripes[0]->DataSlices.begin(),
-            stripeList->Stripes[0]->DataSlices.end(),
-            std::back_inserter(jobSummary.UnreadInputDataSlices));
+        for (const auto& stripe : stripeList->Stripes) {
+            std::copy(
+                stripe->DataSlices.begin(),
+                stripe->DataSlices.end(),
+                std::back_inserter(jobSummary.UnreadInputDataSlices));
+        }
         jobSummary.SplitJobCount = splitJobCount;
         jobSummary.InterruptReason = EInterruptReason::JobSplit;
         return jobSummary;
@@ -477,7 +479,7 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
     }
 }
 
-TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks)
+TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
 {
     InitTables(
         {false} /* isTeleportable */,
@@ -517,6 +519,47 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks)
     ChunkPool_->Resume(0);
     EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
     EXPECT_EQ(2, ChunkPool_->Extract(TNodeId()));
+}
+
+TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
+{
+    InitTables(
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+
+    DataSizePerJob_ = 5_KB;
+    IsExplicitJobCount_ = true;
+    JobCount_ = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(0);
+    auto chunkB = CreateChunk(0);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
+    auto stripeList = ChunkPool_->GetStripeList(0);
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+    EXPECT_EQ(2, stripeList->Stripes.size());
+    EXPECT_TRUE(teleportChunks.empty());
+
+    ChunkPool_->Suspend(0);
+    ChunkPool_->Suspend(1);
+    SplitJob(0, 1);
+    ChunkPool_->Resume(0);
+    ChunkPool_->Resume(1);
+
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
+    stripeList = ChunkPool_->GetStripeList(1);
+    EXPECT_EQ(1, stripeList->Stripes.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
