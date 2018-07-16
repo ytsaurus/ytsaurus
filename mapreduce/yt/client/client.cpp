@@ -7,7 +7,6 @@
 #include "file_writer.h"
 #include "format_hints.h"
 #include "lock.h"
-#include "mock_client.h"
 #include "operation.h"
 #include "retryful_writer.h"
 #include "skiff.h"
@@ -932,12 +931,6 @@ IClientPtr CreateClient(
     const TString& serverName,
     const TCreateClientOptions& options)
 {
-    bool mockRun = GetEnv("YT_CLIENT_MOCK_RUN") ? FromString<bool>(GetEnv("YT_CLIENT_MOCK_RUN")) : false;
-    if (mockRun) {
-        LOG_INFO("Running client in mock regime");
-        return new TMockClient();
-    }
-
     auto globalTxId = GetGuid(TConfig::Get()->GlobalTxId);
 
     TAuth auth;
