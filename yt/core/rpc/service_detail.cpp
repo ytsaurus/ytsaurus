@@ -518,7 +518,7 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    if (requestProtocolVersion != GenericProtocolVersion) {
+    if (requestProtocolVersion.Major != GenericProtocolVersion.Major) {
         if (ProtocolVersion_.Major != requestProtocolVersion.Major) {
             auto error = TError(
                 EErrorCode::ProtocolError,
