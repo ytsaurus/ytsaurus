@@ -4758,6 +4758,10 @@ private:
             auto& columnFilter = lookupOptions.ColumnFilter;
             auto& tableIndex = tableDescriptor.Index;
             for (auto row : rows) {
+                if (!row) {
+                    continue;
+                }
+
                 TOperation operation;
 
                 operation.BriefProgress = getYson(row[columnFilter.GetIndex(tableIndex.BriefProgress)]);
