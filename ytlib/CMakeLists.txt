@@ -9,6 +9,12 @@ if(YT_ADD_HEADERS_TO_SRCS)
     set(YT_SRCS ${YT_SRCS} ${HEADERS})
 endif()
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/rpc_proxy/protocol_version_variables.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/rpc_proxy/protocol_version_variables.h
+  @ONLY
+)
+
 set(YT_SOURCE_FILES)
 protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
@@ -28,8 +34,6 @@ foreach(proto_suffix "hive/hive_service.proto" "hive/timestamp_map.proto"
 endforeach(proto_suffix)
 
 add_custom_target(yt-ytlib-python-protos ALL DEPENDS ${PROTO_TARGETS})
-
-add_dependencies(yt-ytlib-python-protos yt-core-python-protos)
 
 target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2

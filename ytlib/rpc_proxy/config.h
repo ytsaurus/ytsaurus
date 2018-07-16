@@ -18,7 +18,6 @@ class TConnectionConfig
     : public NApi::TConnectionConfig
 {
 public:
-    TString Domain;
     TNullable<TString> ClusterUrl;
     TNullable<TString> ProxyRole;
     std::vector<TString> Addresses;

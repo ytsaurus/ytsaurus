@@ -583,6 +583,25 @@ void ValidateOperationPermission(
         operationId);
 }
 
+void BuildOperationAce(
+    const std::vector<TString>& owners,
+    const TString& authenticatedUser,
+    const std::vector<EPermission>& permissions,
+    TFluentList fluent)
+{
+    fluent
+        .Item().BeginMap()
+            .Item("action").Value(ESecurityAction::Allow)
+            .Item("subjects").BeginList()
+                .Item().Value(authenticatedUser)
+                .DoFor(owners, [] (TFluentList fluent, const TString& owner) {
+                    fluent.Item().Value(owner);
+                })
+            .EndList()
+            .Item("permissions").Value(permissions)
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

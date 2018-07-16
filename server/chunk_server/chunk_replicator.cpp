@@ -2146,7 +2146,11 @@ void TChunkReplicator::CacheRequisition(const TChunk* chunk, const TChunkRequisi
         return;
     }
 
-    ChunkRequisitionCache_.LastChunkParents = chunk->Parents();
+    if (ChunkRequisitionCache_.LastChunkParents != chunk->Parents()) {
+        ClearChunkRequisitionCache();
+        ChunkRequisitionCache_.LastChunkParents = chunk->Parents();
+    }
+
     if (chunk->IsErasure()) {
         ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = requisition;
     } else {

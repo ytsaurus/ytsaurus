@@ -89,8 +89,8 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "events",
         "alerts",
         "full_spec",
-        "unrecognized_spec"
-        "runtime_parameters"
+        "unrecognized_spec",
+        "runtime_parameters",
     };
 
     return attributeKeys;
@@ -258,9 +258,13 @@ class TOperationsCleaner::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
+    TImpl(
+        TOperationsCleanerConfigPtr config,
+        IOperationsCleanerHost* host,
+        TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
+        , Host_(host)
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
     { }
@@ -375,6 +379,7 @@ public:
 private:
     TOperationsCleanerConfigPtr Config_;
     const TBootstrap* const Bootstrap_;
+    IOperationsCleanerHost* const Host_;
 
     TPeriodicExecutorPtr AnalysisExecutor_;
 
@@ -415,11 +420,6 @@ private:
         return CancelableControlInvoker_;
     }
 
-    void ScheduleRemoveOperations()
-    {
-        GetInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
-    }
-
     void ScheduleArchiveOperations()
     {
         GetInvoker()->Invoke(BIND(&TImpl::ArchiveOperations, MakeStrong(this)));
@@ -442,7 +442,8 @@ private:
 
             AnalysisExecutor_->Start();
 
-            ScheduleRemoveOperations();
+            GetInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
+
             ScheduleArchiveOperations();
             DoStartArchivation();
 
@@ -462,6 +463,7 @@ private:
         if (Config_->Enable && Config_->EnableArchivation && !ArchivationEnabled_) {
             ArchivationEnabled_ = true;
             TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
             LOG_INFO("Operations archivation started");
         }
@@ -475,6 +477,7 @@ private:
 
         ArchivationEnabled_ = false;
         TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
         LOG_INFO("Operations archivation stopped");
     }
@@ -715,7 +718,7 @@ private:
                 }
 
                 if (ArchivePendingCounter_.GetCurrent() > Config_->MaxOperationCountEnqueuedForArchival) {
-                    TemporaryDisableArchivation();
+                    TemporarilyDisableArchivation();
                     break;
                 } else {
                     auto sleepDelay = Config_->MinArchivationRetrySleepDelay +
@@ -743,60 +746,129 @@ private:
             .ValueOrThrow();
 
         if (!batch.empty()) {
-            LOG_DEBUG("Removing operations from Cypress (BatchSize: %v)", batch.size());
-
-            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader, PrimaryMasterCellTag);
-
-            TObjectServiceProxy proxy(channel);
-            auto batchReq = proxy.ExecuteBatch();
-
-            for (const auto& operationId : batch) {
-                // Remove old operation node.
-                {
-                    auto req = TYPathProxy::Remove(GetOperationPath(operationId));
-                    req->set_recursive(true);
-                    batchReq->AddRequest(req, "remove_operation");
-                }
-                // Remove new operation node.
-                {
-                    auto req = TYPathProxy::Remove(GetNewOperationPath(operationId));
-                    req->set_recursive(true);
-                    batchReq->AddRequest(req, "remove_operation_new");
-                }
-            }
+            LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
 
             std::vector<TOperationId> failedOperationIds;
+            std::vector<TOperationId> operationIdsToRemove;
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            if (batchRspOrError.IsOK()) {
-                const auto& batchRsp = batchRspOrError.Value();
-                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
-                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation_new");
-                YCHECK(rsps.size() == rspsNew.size());
-                YCHECK(rsps.size() == batch.size());
+            {
+                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+                    EMasterChannelKind::Follower,
+                    PrimaryMasterCellTag);
 
-                for (int index = 0; index < batch.size(); ++index) {
-                    const auto& operationId = batch[index];
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
 
-                    for (const auto& rsp : {rsps[index], rspsNew[index]}) {
-                        if (!rsp.IsOK()) {
-                            if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                                continue;
-                            }
-
-                            LOG_DEBUG(rsp, "Failed to remove finished operation from Cypress (OperationId: %v)",
-                                operationId);
-                            failedOperationIds.push_back(operationId);
-                            break;
-                        }
+                for (const auto& operationId : batch) {
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@lock_count");
+                        batchReq->AddRequest(req, "get_lock_count");
+                    }
+                    {
+                        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@lock_count");
+                        batchReq->AddRequest(req, "get_lock_count_new");
                     }
                 }
-            } else {
-                LOG_WARNING(batchRspOrError, "Failed to remove finished operations from Cypress (BatchSize: %v)", batch.size());
-                failedOperationIds = batch;
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+                if (batchRspOrError.IsOK()) {
+                    const auto& batchRsp = batchRspOrError.Value();
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count_new");
+                    YCHECK(rsps.size() == rspsNew.size());
+                    YCHECK(rsps.size() == batch.size());
+
+                    for (int index = 0; index < rsps.size(); ++index) {
+                        bool isLocked = false;
+                        for (const auto& rsp : {rsps[index], rspsNew[index]}) {
+                            if (rsp.IsOK()) {
+                                auto lockCountNode = ConvertToNode(TYsonString(rsp.Value()->value()));
+                                if (lockCountNode->AsUint64()->GetValue() > 0) {
+                                    isLocked = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        const auto& operationId = batch[index];
+                        if (isLocked) {
+                            failedOperationIds.push_back(operationId);
+                        } else {
+                            operationIdsToRemove.push_back(operationId);
+                        }
+                    }
+                } else {
+                    LOG_WARNING(
+                        batchRspOrError,
+                        "Failed to get lock count for operations from Cypress (OperationCount: %v)",
+                        batch.size());
+
+                    failedOperationIds = batch;
+                }
             }
 
+            if (!operationIdsToRemove.empty()) {
+                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+                    EMasterChannelKind::Leader,
+                    PrimaryMasterCellTag);
+
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
+
+                for (const auto& operationId : operationIdsToRemove) {
+                    {
+                        auto req = TYPathProxy::Remove(GetOperationPath(operationId));
+                        req->set_recursive(true);
+                        batchReq->AddRequest(req, "remove_operation");
+                    }
+                    {
+                        auto req = TYPathProxy::Remove(GetNewOperationPath(operationId));
+                        req->set_recursive(true);
+                        batchReq->AddRequest(req, "remove_operation_new");
+                    }
+                }
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                if (batchRspOrError.IsOK()) {
+                    const auto& batchRsp = batchRspOrError.Value();
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
+                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation_new");
+                    YCHECK(rsps.size() == rspsNew.size());
+                    YCHECK(rsps.size() == operationIdsToRemove.size());
+
+                    for (int index = 0; index < operationIdsToRemove.size(); ++index) {
+                        const auto& operationId = operationIdsToRemove[index];
+
+                        for (const auto& rsp : {rsps[index], rspsNew[index]}) {
+                            if (!rsp.IsOK()) {
+                                if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                                    continue;
+                                }
+
+                                LOG_DEBUG(
+                                    rsp,
+                                    "Failed to remove finished operation from Cypress (OperationId: %v)",
+                                    operationId);
+
+                                failedOperationIds.push_back(operationId);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    LOG_WARNING(
+                        batchRspOrError,
+                        "Failed to remove finished operations from Cypress (OperationCount: %v)",
+                        operationIdsToRemove.size());
+
+                    for (const auto& operationId : operationIdsToRemove) {
+                        failedOperationIds.push_back(operationId);
+                    }
+                }
+            }
+
+            YCHECK(batch.size() >= failedOperationIds.size());
             int removedCount = batch.size() - failedOperationIds.size();
             LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
 
@@ -810,10 +882,13 @@ private:
             Profiler.Increment(RemovePendingCounter_, -removedCount);
         }
 
-        ScheduleRemoveOperations();
+        auto callback = BIND(&TImpl::RemoveOperations, MakeStrong(this))
+            .Via(GetInvoker());
+
+        TDelayedExecutor::Submit(callback, RandomDuration(Config_->MaxRemovalSleepDelay));
     }
 
-    void TemporaryDisableArchivation()
+    void TemporarilyDisableArchivation()
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -827,7 +902,13 @@ private:
             Config_->ArchivationEnableDelay);
 
         auto enableTime = TInstant::Now() + Config_->ArchivationEnableDelay;
-        LOG_INFO("Archivation is temporary disabled (EnableTime: %v)", enableTime);
+
+        Host_->SetSchedulerAlert(
+            ESchedulerAlertType::OperationsArchivation,
+            TError("Max enqueued operations limit reached; archivation is temporarily disabled")
+            << TErrorAttribute("enable_time", enableTime));
+
+        LOG_INFO("Archivation is temporarily disabled (EnableTime: %v)", enableTime);
     }
 
     void FetchFinishedOperations()
@@ -883,8 +964,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationsCleaner::TOperationsCleaner(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TOperationsCleaner::TOperationsCleaner(
+    TOperationsCleanerConfigPtr config,
+    IOperationsCleanerHost* host,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(std::move(config), host, bootstrap))
 { }
 
 void TOperationsCleaner::Start()

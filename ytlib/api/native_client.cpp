@@ -794,10 +794,10 @@ public:
         return NApi::CreateTableWriter(this, path, options);
     }
 
-    IMPLEMENT_METHOD(TColumnarStatistics, GetColumnarStatistics, (
-        const TRichYPath& path,
+    IMPLEMENT_METHOD(std::vector<TColumnarStatistics>, GetColumnarStatistics, (
+        const std::vector<TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options),
-        (path, options))
+        (paths, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
@@ -2230,23 +2230,17 @@ private:
         return replicaIds;
     }
 
-    TColumnarStatistics DoGetColumnarStatistics(
-        const TRichYPath& path,
+    std::vector<TColumnarStatistics> DoGetColumnarStatistics(
+        const std::vector<TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options)
     {
-        LOG_INFO("Collecting table input chunks (Path: %v)", path);
+        std::vector<TColumnarStatistics> allStatistics;
+        allStatistics.reserve(paths.size());
+
+        std::vector<ui64> chunkCount;
+        chunkCount.reserve(paths.size());
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        auto inputChunks = CollectTableInputChunks(
-            path,
-            this,
-            nodeDirectory,
-            options.FetchChunkSpecConfig,
-            options.TransactionId,
-            Logger);
-
-        LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
-
         auto fetcher = New<TColumnarStatisticsFetcher>(
             options.FetcherConfig,
             nodeDirectory,
@@ -2254,20 +2248,41 @@ private:
             nullptr /* scraper */,
             this,
             Logger);
+        
+        for (const auto &path : paths) {
+            LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
-        for (const auto& inputChunk : inputChunks) {
-            fetcher->AddChunk(inputChunk, *path.GetColumns());
+            auto inputChunks = CollectTableInputChunks(
+                path,
+                this,
+                nodeDirectory,
+                options.FetchChunkSpecConfig,
+                options.TransactionId,
+                Logger);
+
+            LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+
+
+            for (const auto& inputChunk : inputChunks) {
+                fetcher->AddChunk(inputChunk, *path.GetColumns());
+            }
+            chunkCount.push_back(inputChunks.size());
         }
 
         WaitFor(fetcher->Fetch())
             .ThrowOnError();
 
         const auto& chunkStatistics = fetcher->GetChunkStatistics();
-        TColumnarStatistics totalStatistics = TColumnarStatistics::MakeEmpty(path.GetColumns()->size());
-        for (const auto& statistics : chunkStatistics) {
-            totalStatistics += statistics;
+
+        ui64 statisticsIndex = 0;
+
+        for (int pathIndex = 0; pathIndex < paths.size(); ++pathIndex) {
+            allStatistics.push_back(TColumnarStatistics::MakeEmpty(paths[pathIndex].GetColumns()->size()));
+            for (ui64 chunkIndex = 0; chunkIndex < chunkCount[pathIndex]; ++statisticsIndex, ++chunkIndex) {
+                allStatistics[pathIndex] += chunkStatistics[statisticsIndex];
+            }
         }
-        return totalStatistics;
+        return allStatistics;
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(
@@ -3761,6 +3776,9 @@ private:
         MakeArchiveOperationAttributes(
             options.Attributes ? *options.Attributes : AllowedOperationAttributes,
             std::inserter(fields, fields.end()));
+        if (DoGetOperationsArchiveVersion() < 22) {
+            fields.erase("runtime_parameters");
+        }
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
@@ -4726,8 +4744,7 @@ private:
                 keys.push_back(key);
             }
 
-            TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
+            std::vector<int> columns = {
                 tableDescriptor.Index.IdHi,
                 tableDescriptor.Index.IdLo,
                 tableDescriptor.Index.OperationType,
@@ -4737,8 +4754,12 @@ private:
                 tableDescriptor.Index.BriefSpec,
                 tableDescriptor.Index.StartTime,
                 tableDescriptor.Index.FinishTime,
-                tableDescriptor.Index.RuntimeParameters,
-            });
+            };
+            if (DoGetOperationsArchiveVersion() >= 22) {
+                columns.push_back(tableDescriptor.Index.RuntimeParameters);
+            }
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columns);
             lookupOptions.KeepMissingRows = true;
             lookupOptions.Timeout = deadline - Now();
 
@@ -4809,7 +4830,9 @@ private:
                     operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
                 }
 
-                operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+                if (DoGetOperationsArchiveVersion() >= 22) {
+                    operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+                }
                 archiveData.push_back(operation);
             }
         }
@@ -5024,6 +5047,12 @@ private:
         auto statisticsIndex = itemsQueryBuilder.AddSelectExpression("statistics");
         auto stderrSizeIndex = itemsQueryBuilder.AddSelectExpression("stderr_size");
         auto hasSpecIndex = itemsQueryBuilder.AddSelectExpression("has_spec");
+        auto hasFailContextIndex = itemsQueryBuilder.AddSelectExpression("has_fail_context");
+
+        TNullable<int> failContextSizeIndex;
+        if (archiveVersion >= 23) {
+            failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
+        }
 
         auto operationIdExpression = Format(
             "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
@@ -5055,7 +5084,13 @@ private:
         }
 
         if (options.WithFailContext) {
-            if (archiveVersion >= 21) {
+            if (archiveVersion >= 23) {
+                if (*options.WithFailContext) {
+                    itemsQueryBuilder.AddWhereExpression("(fail_context_size != 0 AND NOT is_null(fail_context_size))");
+                } else {
+                    itemsQueryBuilder.AddWhereExpression("(fail_context_size = 0 OR is_null(fail_context_size))");
+                }
+            } else if (archiveVersion >= 21) {
                 if (*options.WithFailContext) {
                     itemsQueryBuilder.AddWhereExpression("(has_fail_context AND NOT is_null(has_fail_context))");
                 } else {
@@ -5186,7 +5221,17 @@ private:
                 }
 
                 if (row[stderrSizeIndex].Type != EValueType::Null) {
-                    job.StderrSize = row[stderrSizeIndex].Data.Int64;
+                    job.StderrSize = row[stderrSizeIndex].Data.Uint64;
+                }
+
+                if (failContextSizeIndex) {
+                    if (row[*failContextSizeIndex].Type != EValueType::Null) {
+                        job.FailContextSize = row[*failContextSizeIndex].Data.Uint64;
+                    }
+                } else {
+                    if (row[hasFailContextIndex].Type != EValueType::Null && row[hasFailContextIndex].Data.Boolean) {
+                        job.FailContextSize = 1024;
+                    }
                 }
 
                 if (row[hasSpecIndex].Type != EValueType::Null) {

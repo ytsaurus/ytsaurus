@@ -234,6 +234,9 @@ public:
     //! Duration after which archivation will be turned on again.
     TDuration ArchivationEnableDelay;
 
+    //! Max sleep delay between two removal invocations.
+    TDuration MaxRemovalSleepDelay;
+
     TOperationsCleanerConfig();
 };
 

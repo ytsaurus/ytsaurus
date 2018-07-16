@@ -4,6 +4,7 @@
 
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/logging/log.h>
 
@@ -100,6 +101,12 @@ void ValidateOperationPermission(
     NYTree::EPermission permission,
     const NLogging::TLogger& logger,
     const TString& subnodePath = "");
+
+void BuildOperationAce(
+    const std::vector<TString>& owners,
+    const TString& authenticatedUser,
+    const std::vector<NYTree::EPermission>& permissions,
+    NYTree::TFluentList fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 

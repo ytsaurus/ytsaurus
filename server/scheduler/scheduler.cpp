@@ -157,6 +157,7 @@ class TScheduler::TImpl
     : public TRefCounted
     , public ISchedulerStrategyHost
     , public INodeShardHost
+    , public IOperationsCleanerHost
     , public TEventLogHostBase
 {
 public:
@@ -192,7 +193,7 @@ public:
             CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
 
-        OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, Bootstrap_);
+        OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
         ServiceAddress_ = BuildServiceAddress(
             GetLocalHostName(),

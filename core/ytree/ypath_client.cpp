@@ -91,6 +91,11 @@ const TString& TYPathRequest::GetUser() const
     Y_UNREACHABLE();
 }
 
+void TYPathRequest::SetUserAgent(const TString& userAgent)
+{
+    Y_UNREACHABLE();
+}
+
 bool TYPathRequest::GetRetry() const
 {
     return Header_.retry();

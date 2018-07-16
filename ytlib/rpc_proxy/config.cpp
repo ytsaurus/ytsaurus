@@ -7,8 +7,6 @@ namespace NRpcProxy {
 
 TConnectionConfig::TConnectionConfig()
 {
-    RegisterParameter("domain", Domain)
-        .Default("yt.yandex-team.ru");
     RegisterParameter("cluster_url", ClusterUrl)
         .Default();
     RegisterParameter("proxy_role", ProxyRole)

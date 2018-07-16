@@ -547,7 +547,7 @@ private:
     const IInvokerPtr DefaultInvoker_;
     const IAuthenticatorPtr Authenticator_;
     const TServiceId ServiceId_;
-    const int ProtocolVersion_;
+    const TProtocolVersion ProtocolVersion_;
 
     const NProfiling::TTagId ServiceTagId_;
 
@@ -565,6 +565,8 @@ private:
     NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
     NProfiling::TAggregateGauge AuthenticationTimeCounter_;
     int MaxAuthenticationQueueSize_ = TServiceConfig::DefaultMaxAuthenticationQueueSize;
+
+    TNullable<TString> CookieDomain_;
 
 private:
     struct TAcceptedRequest

@@ -119,7 +119,11 @@ public:
     {
         InitializeCodegen();
 
+#if !LLVM_VERSION_GE(6, 0)
         Context_.setDiagnosticHandler(&TImpl::DiagnosticHandler, nullptr);
+#else
+        Context_.setDiagnosticHandlerCallBack(&TImpl::DiagnosticHandler, nullptr);
+#endif
 
         // Infer host parameters.
         auto hostCpu = llvm::sys::getHostCPUName();
@@ -270,7 +274,11 @@ private:
 
         if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
+#if !LLVM_VERSION_GE(5, 0)
             Module_->dump();
+#else
+            Module_->print(llvm::errs(), nullptr);
+#endif
             llvm::errs() << "\n****************************************************************\n";
         }
 
@@ -325,7 +333,11 @@ private:
 
         if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** After Optimization ************************************\n";
+#if !LLVM_VERSION_GE(5, 0)
             Module_->dump();
+#else
+            Module_->print(llvm::errs(), nullptr);
+#endif
             llvm::errs() << "\n****************************************************************\n";
         }
 

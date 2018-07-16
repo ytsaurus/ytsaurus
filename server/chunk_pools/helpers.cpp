@@ -79,33 +79,21 @@ const TChunkStripeStatistics& TSuspendableStripe::GetStatistics() const
     return Statistics_;
 }
 
-void TSuspendableStripe::Suspend()
+bool TSuspendableStripe::Suspend()
 {
-    YCHECK(!Suspended_);
-
-    Suspended_ = true;
+    return SuspendedStripeCount_++ == 0;
 }
 
 bool TSuspendableStripe::IsSuspended() const
 {
-    return Suspended_;
+    return SuspendedStripeCount_ > 0;
 }
 
-void TSuspendableStripe::Resume()
+bool TSuspendableStripe::Resume()
 {
-    YCHECK(Suspended_);
+    YCHECK(SuspendedStripeCount_ > 0);
 
-    Suspended_ = false;
-}
-
-void TSuspendableStripe::Resume(TChunkStripePtr stripe)
-{
-    YCHECK(stripe);
-    YCHECK(Suspended_);
-
-    // NB: do not update statistics on resume to preserve counters.
-    Suspended_ = false;
-    Stripe_ = stripe;
+    return --SuspendedStripeCount_ == 0;
 }
 
 void TSuspendableStripe::Reset(TChunkStripePtr stripe)
@@ -121,7 +109,7 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
     Persist(context, ExtractedCookie_);
     Persist(context, Stripe_);
     Persist(context, Teleport_);
-    Persist(context, Suspended_);
+    Persist(context, SuspendedStripeCount_);
     Persist(context, Statistics_);
 }
 

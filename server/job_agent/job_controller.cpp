@@ -53,8 +53,6 @@ using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NScheduler;
 
-using NScheduler::NProto::TSchedulerJobSpecExt;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobTrackerServerLogger;

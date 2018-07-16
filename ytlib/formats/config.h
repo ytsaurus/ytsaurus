@@ -94,6 +94,7 @@ class TYamrFormatConfigBase
 public:
     bool HasSubkey;
     bool Lenval;
+    bool EnableEom;
 };
 
 DEFINE_REFCOUNTED_TYPE(TYamrFormatConfigBase)
@@ -144,6 +145,14 @@ public:
             .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
+        RegisterParameter("enable_eom", EnableEom)
+            .Default(false);
+
+        RegisterPreprocessor([&] {
+            if (EnableEom && !Lenval) {
+                THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");
+            }
+        });
     }
 };
 
@@ -219,8 +228,16 @@ public:
             .Default();
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
+        RegisterParameter("enable_eom", EnableEom)
+            .Default(false);
+            
+        RegisterPreprocessor([&] {
+            if (EnableEom && !Lenval) {
+                THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");
+            }
+        });
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             THashSet<TString> names;
 
             for (const auto& name : KeyColumnNames) {
@@ -296,7 +313,7 @@ public:
         RegisterParameter("enable_column_names_header", EnableColumnNamesHeader)
             .Default();
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             if (Columns) {
                 THashSet<TString> names;
                 for (const auto& name : *Columns) {
@@ -427,24 +444,27 @@ class TSchemalessWebJsonFormatConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    int ColumnLimit;
+    int MaxSelectedColumnCount;
     int FieldWeightLimit;
-    int AllColumnNamesLimit;
+    int MaxAllColumnNamesCount;
+    TNullable<std::vector<TString>> ColumnNames;
 
     // Intentionally do not reveal following options to user.
     bool SkipSystemColumns = true;
 
     TSchemalessWebJsonFormatConfig()
     {
-        RegisterParameter("column_limit", ColumnLimit)
+        RegisterParameter("max_selected_column_count", MaxSelectedColumnCount)
             .Default(50)
             .GreaterThanOrEqual(0);
         RegisterParameter("field_weight_limit", FieldWeightLimit)
             .Default(1_KB)
             .GreaterThanOrEqual(0);
-        RegisterParameter("all_column_names_limit", AllColumnNamesLimit)
-            .Default(1000)
+        RegisterParameter("max_all_column_names_count", MaxAllColumnNamesCount)
+            .Default(2000)
             .GreaterThanOrEqual(0);
+        RegisterParameter("column_names", ColumnNames)
+            .Default();
     }
 };
 

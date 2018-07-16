@@ -18,7 +18,7 @@ class TSslPemKeyCertPairConfig
 public:
     NCrypto::TPemBlobConfigPtr PrivateKey;
     NCrypto::TPemBlobConfigPtr CertChain;
-        
+
     TSslPemKeyCertPairConfig()
     {
         RegisterParameter("private_key", PrivateKey)

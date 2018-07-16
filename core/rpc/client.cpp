@@ -41,7 +41,7 @@ TClientRequest::TClientRequest(
     IChannelPtr channel,
     const TString& service,
     const TString& method,
-    int protocolVersion)
+    TProtocolVersion protocolVersion)
     : Channel_(std::move(channel))
 {
     Y_ASSERT(Channel_);
@@ -49,7 +49,8 @@ TClientRequest::TClientRequest(
     Header_.set_service(service);
     Header_.set_method(method);
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
-    Header_.set_protocol_version(protocolVersion);
+    Header_.set_protocol_version_major(protocolVersion.Major);
+    Header_.set_protocol_version_minor(protocolVersion.Minor);
 }
 
 TClientRequest::TClientRequest(const TClientRequest& other)
@@ -142,6 +143,11 @@ void TClientRequest::SetUser(const TString& user)
     } else {
         Header_.set_user(user);
     }
+}
+
+void TClientRequest::SetUserAgent(const TString& userAgent)
+{
+    Header_.set_user_agent(userAgent);
 }
 
 bool TClientRequest::GetRetry() const
@@ -353,9 +359,17 @@ TServiceDescriptor::TServiceDescriptor(const TString& serviceName)
     : ServiceName(serviceName)
 { }
 
-TServiceDescriptor& TServiceDescriptor::SetProtocolVersion(int value)
+TServiceDescriptor& TServiceDescriptor::SetProtocolVersion(int majorVersion)
 {
-    ProtocolVersion = value;
+    auto version = DefaultProtocolVersion;
+    version.Major = majorVersion;
+    ProtocolVersion = version;
+    return *this;
+}
+
+TServiceDescriptor& TServiceDescriptor::SetProtocolVersion(TProtocolVersion version)
+{
+    ProtocolVersion = version;
     return *this;
 }
 

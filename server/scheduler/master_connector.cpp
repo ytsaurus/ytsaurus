@@ -163,7 +163,7 @@ public:
             .BeginAttributes()
                 .Do(BIND(&BuildMinimalOperationAttributes, operation))
                 .Item("opaque").Value(true)
-                .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                .Item("acl").Do(std::bind(&TImpl::BuildAcl, operation, _1))
                 .Item("owners").Value(operation->GetOwners())
                 .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .EndAttributes()
@@ -196,7 +196,7 @@ public:
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
             attributes->Set("acl", BuildYsonStringFluently()
-                .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1)));
+                .Do(std::bind(&TImpl::BuildAcl, operation, _1)));
 
             for (const auto& path : secureVaultPaths) {
                 auto req = TCypressYPathProxy::Create(path);
@@ -1222,23 +1222,18 @@ private:
         StartConnecting(true);
     }
 
-    static void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
+    static void BuildAcl(const TOperationPtr& operation, TFluentAny fluent)
     {
-        auto owners = operation->GetOwners();
-        owners.push_back(operation->GetAuthenticatedUser());
-
         fluent
             .BeginList()
-                .Item().BeginMap()
-                    .Item("action").Value(ESecurityAction::Allow)
-                    .Item("subjects").Value(owners)
-                    .Item("permissions").BeginList()
-                        .Item().Value(EPermission::Write)
-                    .EndList()
-                .EndMap()
+                .Do(std::bind(
+                    &BuildOperationAce,
+                    operation->GetOwners(),
+                    operation->GetAuthenticatedUser(),
+                    std::vector<EPermission>({EPermission::Write}),
+                    _1))
             .EndList();
     }
-
 
 
     void StartPeriodicActivities()
@@ -1331,7 +1326,7 @@ private:
                     auto aclBatchReq = StartObjectBatchRequest();
                     auto req = TYPathProxy::Set(operationPath + "/@acl");
                     req->set_value(BuildYsonStringFluently()
-                        .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                        .Do(std::bind(&TImpl::BuildAcl, operation, _1))
                         .GetData());
                     aclBatchReq->AddRequest(req, "set_acl");
 

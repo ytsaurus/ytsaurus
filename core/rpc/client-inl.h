@@ -13,7 +13,7 @@ TTypedClientRequest<TRequestMessage, TResponse>::TTypedClientRequest(
     IChannelPtr channel,
     const TString& path,
     const TString& method,
-    int protocolVersion)
+    TProtocolVersion protocolVersion)
     : TClientRequest(
     std::move(channel),
     path,

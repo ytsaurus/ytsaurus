@@ -355,9 +355,9 @@ public:
         , MasterClient_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
         , ProfilerTags_(profilerTags)
-    {
-        Logger.AddTag("Path: %v", Path_);
-    }
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("Path: %v", Path_))
+    { }
 
     virtual TFuture<IChangelogStorePtr> Lock() override
     {
@@ -374,7 +374,7 @@ private:
     const TTransactionId PrerequisiteTransactionId_;
     const NProfiling::TTagIdList ProfilerTags_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
 
     IChangelogStorePtr DoLock()
@@ -397,8 +397,8 @@ private:
                 reachableVersion,
                 ProfilerTags_);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error locking remote changelog store")
-                << TErrorAttribute("changelog_path", Path_)
+            THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
+                Path_)
                 << ex;
         }
     }
@@ -469,8 +469,8 @@ private:
 
             const auto& attributes = node->Attributes();
             if (!attributes.Get<bool>("sealed")) {
-                THROW_ERROR_EXCEPTION("Changelog is not sealed")
-                    << TErrorAttribute("changelog_path", path);
+                THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
+                    path);
             }
             recordCount = attributes.Get<int>("quorum_row_count");
         }

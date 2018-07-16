@@ -270,7 +270,7 @@ TDiscoverProxiesCommand::TDiscoverProxiesCommand()
 
 void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 {
-    if (Type != EProxyType::Rpc) {
+    if (Type != EProxyType::Rpc && Type != EProxyType::Grpc) {
         THROW_ERROR_EXCEPTION("Proxy type is not supported")
             << TErrorAttribute("proxy_type", Type);
     }
@@ -279,7 +279,9 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {BannedAttributeName, RoleAttributeName};
 
-    auto nodesYson = WaitFor(context->GetClient()->GetNode(RpcProxiesPath, options))
+    TString path = (Type == EProxyType::Rpc) ? RpcProxiesPath : GrpcProxiesPath;
+
+    auto nodesYson = WaitFor(context->GetClient()->GetNode(path, options))
         .ValueOrThrow();
 
     std::vector<TString> addresses;

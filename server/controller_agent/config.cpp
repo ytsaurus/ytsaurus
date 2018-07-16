@@ -237,12 +237,6 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
 
     RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
         .DefaultNew();
-
-    RegisterParameter("data_balancing_violation_logging_min_consecutive_count", DataBalancingViolationLoggingMinConsecutiveCount)
-        .Default(1000);
-
-    RegisterParameter("data_balancing_violation_logging_period", DataBalancingViolationLoggingPeriod)
-        .Default(TDuration::Minutes(1));
 }
 
 TControllerAgentConfig::TControllerAgentConfig()

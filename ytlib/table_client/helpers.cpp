@@ -579,7 +579,8 @@ TVersionedRow YsonToVersionedRow(
     const TRowBufferPtr& rowBuffer,
     const TString& keyYson,
     const TString& valueYson,
-    const std::vector<TTimestamp>& deleteTimestamps)
+    const std::vector<TTimestamp>& deleteTimestamps,
+    const std::vector<TTimestamp>& extraWriteTimestamps)
 {
     TVersionedRowBuilder builder(rowBuffer);
 
@@ -635,6 +636,10 @@ TVersionedRow YsonToVersionedRow(
 
     for (auto timestamp : deleteTimestamps) {
         builder.AddDeleteTimestamp(timestamp);
+    }
+
+    for (auto timestamp : extraWriteTimestamps) {
+        builder.AddWriteTimestamp(timestamp);
     }
 
     return builder.FinishRow();

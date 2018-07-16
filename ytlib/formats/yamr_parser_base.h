@@ -112,6 +112,7 @@ DEFINE_ENUM(EYamrLenvalBaseParserState,
     (InsideKey)
     (InsideSubkey)
     (InsideValue)
+    (InsideEom)
 );
 
 class TYamrLenvalBaseParser
@@ -120,7 +121,8 @@ class TYamrLenvalBaseParser
 public:
     TYamrLenvalBaseParser(
         IYamrConsumerPtr consumer,
-        bool hasSubkey);
+        bool enableSubkey,
+        bool enableEom);
 
     virtual void Read(TStringBuf data) override;
     virtual void Finish() override;
@@ -129,26 +131,29 @@ private:
     using EState = EYamrLenvalBaseParserState;
 
     const char* Consume(const char* begin, const char* end);
-    const char* ConsumeInt(const char* begin, const char* end);
+    const char* ConsumeInt(const char* begin, const char* end, int length);
     const char* ConsumeLength(const char* begin, const char* end);
     const char* ConsumeData(const char* begin, const char* end);
 
     IYamrConsumerPtr Consumer;
 
-    bool HasSubkey;
+    bool EnableSubkey;
 
     TString CurrentToken;
 
     union {
-        ui32 Value;
-        char Bytes[4];
+        ui64 Value;
+        char Bytes[8];
     } Union;
 
-    bool ReadingLength;
-    ui32 BytesToRead;
+    bool ReadingLength = true;
+    ui32 BytesToRead = 4;
 
-    EState State;
+    EState State = EState::InsideKey;
 
+    bool EnableEom;
+    bool MetEom = false;
+    ui64 RowCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

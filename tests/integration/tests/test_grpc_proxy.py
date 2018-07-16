@@ -1,9 +1,12 @@
 from yt_env_setup import YTEnvSetup, wait
-# NOTE(asaitgalin): No yt_commands import here, only rpc api should be used! :)
+# NOTE(asaitgalin): No full yt_commands import here, only rpc api should be used! :)
+from yt_commands import discover_proxies
 
+from yt_driver_bindings import Driver
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
 
 import yt_proto.yt.ytlib.rpc_proxy.proto.api_service_pb2 as api_service_pb2
+import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, guid_to_parts, parts_to_guid, underscore_case_to_camel_case
@@ -13,6 +16,7 @@ import sys
 import struct
 from datetime import datetime
 from cStringIO import StringIO
+from copy import deepcopy
 
 SERIALIZATION_ALIGNMENT = 8
 
@@ -193,8 +197,12 @@ class TestGrpcProxy(YTEnvSetup):
     @classmethod
     def setup_class(cls):
         super(TestGrpcProxy, cls).setup_class()
-        addresses = cls.Env.get_grpc_proxy_addresses()
-        cls.channel = grpc.insecure_channel(addresses[0])
+        cls.grpc_proxy_address = cls.Env.get_grpc_proxy_address()
+        cls.channel = grpc.insecure_channel(cls.grpc_proxy_address)
+
+        config = deepcopy(cls.Env.configs["driver"])
+        config["api_version"] = 4
+        cls.driver = Driver(config)
 
     def _wait_response(self, future):
         while True:
@@ -214,10 +222,14 @@ class TestGrpcProxy(YTEnvSetup):
             request_serializer=req_msg_class.SerializeToString,
             response_deserializer=rsp_msg_class.FromString)
 
+        metadata = [
+            ("yt-protocol-version", "1.0")
+        ]
+
         print >>sys.stderr
         print >>sys.stderr, str(datetime.now()), method, params
 
-        rsp = unary.future(loads_proto(dumps(params), req_msg_class))
+        rsp = unary.future(loads_proto(dumps(params), req_msg_class), metadata=metadata)
         self._wait_response(rsp)
         return dumps_proto(rsp.result())
 
@@ -228,7 +240,10 @@ class TestGrpcProxy(YTEnvSetup):
         rsp_msg_class = getattr(api_service_pb2, "TRsp" + camel_case_method)
 
         serialized_message = loads_proto(dumps(params), req_msg_class).SerializeToString()
-        metadata = [("yt-message-body-size", str(len(serialized_message)))]
+        metadata = [
+            ("yt-message-body-size", str(len(serialized_message))),
+            ("yt-protocol-version", "1.0")
+        ]
 
         message_parts = [serialized_message]
 
@@ -384,3 +399,31 @@ class TestGrpcProxy(YTEnvSetup):
 
         selected_rows = fmt.load_rows(attachments, [col["name"] for col in msg["rowset_descriptor"]["columns"]])
         assert_items_equal(selected_rows, rows)
+
+    def test_protocol_version(self):
+        msg = api_service_pb2.TReqGetNode(path="//tmp")
+
+        unary = self.channel.unary_unary(
+            "/ApiService/GetNode",
+            request_serializer=api_service_pb2.TReqGetNode.SerializeToString,
+            response_deserializer=api_service_pb2.TReqGetNode.FromString)
+
+        # Require min protocol version
+        rsp = unary.future(msg, metadata=[("yt-protocol-version", "3.14")])
+        self._wait_response(rsp)
+
+        error_found = False
+        for key, value in rsp.trailing_metadata():
+            if key == "yt-error-bin":
+                error = error_pb2.TError()
+                error.ParseFromString(value)
+                assert "protocol version" in error.message
+                error_found = True
+                break
+
+        assert error_found, "Request should fail!"
+
+    def test_discovery(self):
+        proxies = discover_proxies(type_="grpc", driver=self.driver)["proxies"]
+        assert len(proxies) == 1
+        assert proxies[0] == self.grpc_proxy_address
