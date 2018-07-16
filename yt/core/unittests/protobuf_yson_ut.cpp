@@ -94,7 +94,7 @@ TEST(TYsonToProtobufYsonTest, Success)
             .Item("nested_message2").BeginMap()
             .EndMap()
             .Item("string_field").Value("hello")
-            .Item("repeated_nested_message").BeginList()
+            .Item("repeated_nested_message1").BeginList()
                 .Item().BeginMap()
                     .Item("int32_field").Value(456)
                 .EndMap()
@@ -154,9 +154,9 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(2, message.repeated_int32_field().Get(1));
     EXPECT_EQ(3, message.repeated_int32_field().Get(2));
 
-    EXPECT_EQ(2, message.repeated_nested_message().size());
-    EXPECT_EQ(456, message.repeated_nested_message().Get(0).int32_field());
-    EXPECT_EQ(654, message.repeated_nested_message().Get(1).int32_field());
+    EXPECT_EQ(2, message.repeated_nested_message1().size());
+    EXPECT_EQ(456, message.repeated_nested_message1().Get(0).int32_field());
+    EXPECT_EQ(654, message.repeated_nested_message1().Get(1).int32_field());
 
     EXPECT_EQ(3, message.attributes().attributes_size());
     EXPECT_EQ("k1", message.attributes().attributes(0).key());
@@ -271,7 +271,7 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                .Item("repeated_nested_message").BeginList()
+                .Item("repeated_nested_message1").BeginList()
                     .Item().BeginMap()
                         .Item("color").Value("blue")
                     .EndMap()
@@ -280,28 +280,28 @@ TEST(TYsonToProtobufTest, Failure)
                     .EndMap()
                 .EndList()
             .EndMap();
-    }, "/repeated_nested_message/1/color");
+    }, "/repeated_nested_message1/1/color");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                .Item("repeated_nested_message").BeginList()
+                .Item("repeated_nested_message1").BeginList()
                     .Item().BeginList()
                     .EndList()
                 .EndList()
             .EndMap();
-    }, "/repeated_nested_message/0");
+    }, "/repeated_nested_message1/0");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                .Item("repeated_nested_message").BeginList()
+                .Item("repeated_nested_message1").BeginList()
                     .Item().BeginMap()
                         .Item("color").Value("black")
                     .EndMap()
                 .EndList()
             .EndMap();
-    }, "/repeated_nested_message/0/color");
+    }, "/repeated_nested_message1/0/color");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
@@ -403,7 +403,7 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                  .Item("int64_field").Value(std::numeric_limits<ui64>::max())
+                .Item("int64_field").Value(std::numeric_limits<ui64>::max())
             .EndMap();
     }, "/int64_field");
 
@@ -411,7 +411,7 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                  .Item("uint64_field").Value(-1)
+                .Item("uint64_field").Value(-1)
             .EndMap();
     }, "/uint64_field");
 
@@ -419,21 +419,21 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                  .Item("fixed32_field").Value(10000000000)
+                .Item("fixed32_field").Value(10000000000)
             .EndMap();
     }, "/fixed32_field");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                  .Item("fixed32_field").Value(10000000000U)
+                .Item("fixed32_field").Value(10000000000U)
             .EndMap();
     }, "/fixed32_field");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                  .Item("fixed32_field").Value(-10000000000)
+                .Item("fixed32_field").Value(-10000000000)
             .EndMap();
     }, "/fixed32_field");
 
@@ -441,9 +441,42 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                  .Item("fixed64_field").Value(-1)
+                .Item("fixed64_field").Value(-1)
             .EndMap();
     }, "/fixed64_field");
+
+    // YT-9094
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("repeated_int32_field").BeginList()
+                .EndList()
+                .Item("repeated_nested_message1").BeginList()
+                    .Item().BeginMap()
+                    .EndMap()
+                    .Item().BeginMap()
+                        .Item("int32_field").Value(1)
+                    .EndMap()
+                    .Item().BeginMap()
+                        .Item("int32_field").Value(1)
+                    .EndMap()
+                    .Item().BeginMap()
+                        .Item("int32_field").Value(1)
+                    .EndMap()
+                .EndList()
+                .Item("repeated_nested_message2").BeginList()
+                    .Item().BeginMap()
+                        .Item("int32_field").Value(1)
+                    .EndMap()
+                .EndList()
+            .Item("attributes").BeginMap()
+                .Item("host").Value("localhost")
+            .EndMap()
+            .Item("nested_message1").BeginList()
+                .EndList()
+            .EndMap();
+    }, "/nested_message1");
+
 }
 
 TEST(TYsonToProtobufTest, ErrorProto)
@@ -479,13 +512,13 @@ TEST(TYsonToProtobufTest, UnknownFields)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
-                .Item("repeated_nested_message").BeginList()
+                .Item("repeated_nested_message1").BeginList()
                     .Item().BeginMap()
                         .Item("unknown_field").Value(1)
                     .EndMap()
                 .EndList()
             .EndMap();
-    }, "/repeated_nested_message/0");
+    }, "/repeated_nested_message1/0");
 
     {
         TProtobufWriterOptions options;
@@ -502,7 +535,7 @@ TEST(TYsonToProtobufTest, UnknownFields)
                         .EndMap()
                     .EndMap()
                 .EndMap()
-                .Item("repeated_nested_message").BeginList()
+                .Item("repeated_nested_message1").BeginList()
                     .Item().BeginMap()
                         .Item("int32_field").Value(456)
                         .Item("unknown_list").BeginList()
@@ -518,8 +551,8 @@ TEST(TYsonToProtobufTest, UnknownFields)
         EXPECT_EQ(123, message.nested_message1().int32_field());
         EXPECT_TRUE(message.nested_message1().has_nested_message());
 
-        EXPECT_EQ(1, message.repeated_nested_message().size());
-        EXPECT_EQ(456, message.repeated_nested_message().Get(0).int32_field());
+        EXPECT_EQ(1, message.repeated_nested_message1().size());
+        EXPECT_EQ(456, message.repeated_nested_message1().Get(0).int32_field());
     }
 }
 
@@ -585,14 +618,14 @@ TEST(TProtobufToYsonTest, Success)
     message.mutable_nested_message1()->mutable_nested_message()->set_color(NYT::NProto::Color_Green);
 
     {
-        auto* proto = message.add_repeated_nested_message();
+        auto* proto = message.add_repeated_nested_message1();
         proto->set_int32_field(456);
         proto->add_repeated_int32_field(1);
         proto->add_repeated_int32_field(2);
         proto->add_repeated_int32_field(3);
     }
     {
-        auto* proto = message.add_repeated_nested_message();
+        auto* proto = message.add_repeated_nested_message1();
         proto->set_int32_field(654);
     }
     {
@@ -646,7 +679,7 @@ TEST(TProtobufToYsonTest, Success)
                     .Item("color").Value("green")
                 .EndMap()
             .EndMap()
-            .Item("repeated_nested_message").BeginList()
+            .Item("repeated_nested_message1").BeginList()
                 .Item().BeginMap()
                     .Item("int32_field").Value(456)
                     .Item("repeated_int32_field").BeginList()
@@ -761,30 +794,30 @@ TEST(TProtobufToYsonTest, Failure)
 
     EXPECT_YPATH({
         TEST_PROLOGUE()
-        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message1*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
         codedStream.WriteVarint64(3);
         codedStream.WriteTag(WireFormatLite::MakeTag(19 /*color*/, WireFormatLite::WIRETYPE_VARINT));
         codedStream.WriteVarint64(2);
-        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message1*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
         codedStream.WriteVarint64(3);
         codedStream.WriteTag(WireFormatLite::MakeTag(19 /*color*/, WireFormatLite::WIRETYPE_VARINT));
         codedStream.WriteVarint64(4);
         TEST_EPILOGUE(TMessage)
-    }, "/repeated_nested_message/1/color");
+    }, "/repeated_nested_message1/1/color");
 
     EXPECT_YPATH({
         TEST_PROLOGUE()
-        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message1*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
         codedStream.WriteVarint64(3);
         codedStream.WriteTag(WireFormatLite::MakeTag(19 /*color*/, WireFormatLite::WIRETYPE_VARINT));
         codedStream.WriteVarint64(2);
-        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteTag(WireFormatLite::MakeTag(18 /*repeated_nested_message1*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
         codedStream.WriteVarint64(6);
         codedStream.WriteTag(WireFormatLite::MakeTag(100 /*repeated_int32_field*/, WireFormatLite::WIRETYPE_VARINT));
         codedStream.WriteVarint64(0);
         codedStream.WriteTag(WireFormatLite::MakeTag(100 /*repeated_int32_field*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
         TEST_EPILOGUE(TMessage)
-    }, "/repeated_nested_message/1/repeated_int32_field/1");
+    }, "/repeated_nested_message1/1/repeated_int32_field/1");
 
     EXPECT_YPATH({
         TEST_PROLOGUE()

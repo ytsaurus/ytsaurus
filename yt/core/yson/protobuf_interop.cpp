@@ -487,6 +487,7 @@ private:
         const TProtobufMessageType* Type;
         TFieldNumberList RequiredFieldNumbers;
         TFieldNumberList NonRequiredFieldNumbers;
+        int CurrentMapIndex = 0;
     };
     std::vector<TTypeEntry> TypeStack_;
 
@@ -620,7 +621,6 @@ private:
     {
         ValidateNotRepeated();
         FieldStack_.pop_back();
-        YPathStack_.Pop();
     }
 
     virtual void OnMyBeginList() override
@@ -629,10 +629,18 @@ private:
         ValidateRepeated();
     }
 
+    void MaybePopListIndexFromYPathStack()
+    {
+        if (FieldStack_.back().CurrentListIndex > 0) {
+            YPathStack_.Pop();
+        }
+    }
+
     virtual void OnMyListItem() override
     {
         Y_ASSERT(!TypeStack_.empty());
         const auto* field = FieldStack_.back().Field;
+        MaybePopListIndexFromYPathStack();
         int index = FieldStack_.back().CurrentListIndex++;
         FieldStack_.emplace_back(field, index, true);
         YPathStack_.Push(index);
@@ -641,6 +649,7 @@ private:
     virtual void OnMyEndList() override
     {
         Y_ASSERT(!TypeStack_.empty());
+        MaybePopListIndexFromYPathStack();
         FieldStack_.pop_back();
     }
 
@@ -666,11 +675,19 @@ private:
         NestedIndexStack_.push_back(nestedIndex);
     }
 
+    void MaybePopMapKeyFromYPathStack()
+    {
+        Y_ASSERT(TypeStack_.size() > 0);
+        auto& typeEntry = TypeStack_.back();
+        if (typeEntry.CurrentMapIndex > 0) {
+            YPathStack_.Pop();
+        }
+    }
+
     virtual void OnMyKeyedItem(TStringBuf key) override
     {
         Y_ASSERT(TypeStack_.size() > 0);
         const auto* type = TypeStack_.back().Type;
-
         if (type->IsAttributeDictionary()) {
             OnMyKeyedItemAttributeDictionary(key);
         } else {
@@ -694,13 +711,15 @@ private:
                 << TErrorAttribute("proto_type", type->GetFullName());
         }
 
+        MaybePopMapKeyFromYPathStack();
         auto number = field->GetNumber();
+        auto& typeEntry = TypeStack_.back();
+        ++typeEntry.CurrentMapIndex;
         if (field->IsRequired()) {
-            TypeStack_.back().RequiredFieldNumbers.push_back(number);
+            typeEntry.RequiredFieldNumbers.push_back(number);
         } else {
-            TypeStack_.back().NonRequiredFieldNumbers.push_back(number);
+            typeEntry.NonRequiredFieldNumbers.push_back(number);
         }
-
         FieldStack_.emplace_back(field, 0, false);
         YPathStack_.Push(field->GetYsonName());
 
@@ -745,6 +764,8 @@ private:
 
     virtual void OnMyEndMap() override
     {
+        MaybePopMapKeyFromYPathStack();
+
         auto& typeEntry = TypeStack_.back();
         auto* type = typeEntry.Type;
 
@@ -765,7 +786,6 @@ private:
         }
 
         FieldStack_.pop_back();
-        YPathStack_.Pop();
         int nestedIndex = NestedIndexStack_.back();
         NestedIndexStack_.pop_back();
         EndNestedMessage(nestedIndex);
@@ -940,7 +960,6 @@ private:
         WriteTag();
         func();
         FieldStack_.pop_back();
-        YPathStack_.Pop();
     }
 
 
