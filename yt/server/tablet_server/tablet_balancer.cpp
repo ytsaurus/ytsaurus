@@ -289,7 +289,7 @@ private:
     {
         const auto& config = bundle->TabletBalancerConfig();
 
-        if (!config->EnableInMemoryCellsBalancer) {
+        if (!config->EnableInMemoryCellBalancer) {
             return;
         }
 

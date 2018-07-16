@@ -79,7 +79,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
     } else if (context.GetVersion() >= 614) {
         bool enableTabletBalancer;
         Load(context, enableTabletBalancer);
-        TabletBalancerConfig_->EnableInMemoryCellsBalancer = enableTabletBalancer;
+        TabletBalancerConfig_->EnableInMemoryCellBalancer = enableTabletBalancer;
         TabletBalancerConfig_->EnableTabletSizeBalancer = enableTabletBalancer;
     }
 
