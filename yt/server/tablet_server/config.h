@@ -19,10 +19,11 @@ class TTabletBalancerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableInMemoryBalancer;
+    bool EnableInMemoryCellBalancer;
     bool EnableTabletSizeBalancer;
 
-    double CellBalanceFactor;
+    double HardInMemoryCellBalanceThreshold;
+    double SoftInMemoryCellBalanceThreshold;
 
     i64 MinTabletSize;
     i64 MaxTabletSize;
@@ -38,14 +39,19 @@ public:
 
     TTabletBalancerConfig()
     {
-        RegisterParameter("enable_in_memory_balancer", EnableInMemoryBalancer)
-            .Default(true);
+        RegisterParameter("enable_in_memory_cell_balancer", EnableInMemoryCellBalancer)
+            .Default(true)
+            .Alias("enable_in_memory_balancer");
 
         RegisterParameter("enable_tablet_size_balancer", EnableTabletSizeBalancer)
             .Default(true);
 
-        RegisterParameter("cell_balance_factor", CellBalanceFactor)
-            .Default(0.05);
+        RegisterParameter("soft_in_memory_cell_balance_threshold", SoftInMemoryCellBalanceThreshold)
+            .Default(0.05)
+            .Alias("cell_balance_factor");
+
+        RegisterParameter("hard_in_memory_cell_balance_threshold", HardInMemoryCellBalanceThreshold)
+            .Default(0.15);
 
         RegisterParameter("min_tablet_size", MinTabletSize)
             .Default(128_MB);
@@ -84,6 +90,10 @@ public:
             }
             if (DesiredInMemoryTabletSize >= MaxInMemoryTabletSize) {
                 THROW_ERROR_EXCEPTION("\"desired_in_memory_tablet_size\" must be less than \"max_in_memory_tablet_size\"");
+            }
+            if (SoftInMemoryCellBalanceThreshold > HardInMemoryCellBalanceThreshold) {
+                THROW_ERROR_EXCEPTION("\"soft_in_memory_cell_balance_threshold\" must less than or equal to "
+                    "\"hard_in_memory_cell_balance_threshold\"");
             }
         });
     }
