@@ -1452,6 +1452,10 @@ TOperationElementFixedState::TOperationElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOperationElementSharedState::TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod)
+    : UpdatePreemptableJobsListLoggingPeriod_(updatePreemptableJobsListLoggingPeriod)
+{ }
+
 TJobResources TOperationElementSharedState::Disable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1566,9 +1570,25 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         properties->AggressivelyPreemptable = false;
     };
 
+    bool enableLogging = (UpdatePreemptableJobsListCount_.fetch_add(1) % UpdatePreemptableJobsListLoggingPeriod_) == 0;
+
+    LOG_DEBUG_IF(enableLogging,
+        "Update preemptable job lists inputs (FairShareRatio: %v, TotalResourceLimits: %v, "
+        "PreemtionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
+        fairShareRatio,
+        FormatResources(totalResourceLimits),
+        preemptionSatisfactionThreshold,
+        aggressivePreemptionSatisfactionThreshold);
+
     // NB: We need 2 iterations since thresholds may change significantly such that we need
     // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
     for (int iteration = 0; iteration < 2; ++iteration) {
+        LOG_DEBUG_IF(enableLogging,
+            "Preemptable lists usage bounds before update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, Iteration: %v)",
+            FormatResources(NonpreemptableResourceUsage_),
+            FormatResources(AggressivelyPreemptableResourceUsage_),
+            iteration);
+
         auto startNonPreemptableAndAggressivelyPreemptableResourceUsage_ = NonpreemptableResourceUsage_ + AggressivelyPreemptableResourceUsage_;
 
         NonpreemptableResourceUsage_ = balanceLists(
@@ -1589,6 +1609,11 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
 
         AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
+
+    LOG_DEBUG_IF(enableLogging,
+        "Preemptable lists usage bounds after update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v)",
+        FormatResources(NonpreemptableResourceUsage_),
+        FormatResources(AggressivelyPreemptableResourceUsage_));
 }
 
 bool TOperationElementSharedState::IsJobKnown(const TJobId& jobId) const
@@ -1777,7 +1802,7 @@ TOperationElement::TOperationElement(
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
-    , SharedState_(New<TOperationElementSharedState>())
+    , SharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
     , Controller_(controller)
 { }
 
