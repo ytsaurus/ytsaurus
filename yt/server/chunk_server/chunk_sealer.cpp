@@ -288,7 +288,7 @@ private:
         for (auto replica : chunk->StoredReplicas()) {
             auto mediumIndex = replica.GetMediumIndex();
             if (result != InvalidMediumIndex && result != mediumIndex) {
-                THROW_ERROR_EXCEPTION("Journal chunk resides on multiple media: %v and %v",
+                THROW_ERROR_EXCEPTION("Journal chunk %v resides on multiple media: %v and %v",
                     chunk->GetId(),
                     result,
                     mediumIndex);
