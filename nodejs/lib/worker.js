@@ -325,7 +325,7 @@ logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : proce
 
 application = connect()
     .use(yt.YtLogRequest())
-    .use(yt.YtAcao())
+    .use(yt.YtAcao(config.disable_cors_check))
     .use(yt.YtCheckPythonWrapperVersion())
     .use(connect.favicon())
     .use("/hosts", yt.YtApplicationHosts())

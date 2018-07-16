@@ -968,8 +968,8 @@ private:
                 if (cmpMax != 0) {
                     return cmpMax < 0;
                 }
-                // This is possible only when both chunks contain the same only key.
-                YCHECK(lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
+                // This is possible only when both chunks contain the same only key or we comparing chunk with itself.
+                YCHECK(&lhs == &rhs || lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
                 return false;
             });
 

@@ -176,6 +176,13 @@ void FromProto(
     }
 }
 
+const TServiceDescriptor& GetDescriptor()
+{
+    static const auto descriptor = TServiceDescriptor(ApiServiceName)
+        .SetProtocolVersion(GetCurrentProtocolVersion());
+    return descriptor;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +195,7 @@ public:
         NCellProxy::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
-            TApiServiceProxy::GetDescriptor(),
+            GetDescriptor(),
             RpcProxyLogger,
             NullRealmId,
             bootstrap->GetRpcAuthenticator())
@@ -342,7 +349,7 @@ private:
                     // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
                 } else {
-                    context->Reply(TError("Internal RPC call failed")
+                    context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
                         << TError(valueOrError));
                 }
             }));
@@ -362,7 +369,7 @@ private:
                         context->Reply(TError(ex));
                     }
                 } else {
-                    context->Reply(TError("Internal RPC call failed")
+                    context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
                         << TError(valueOrError));
                 }
             }));
@@ -1667,11 +1674,11 @@ private:
 
         const auto& path = request->path();
         auto tabletIndexes = FromProto<std::vector<int>>(request->tablet_indexes());
-        
+
         context->SetRequestInfo("Path: %v, TabletIndexes: %v",
             path,
             tabletIndexes);
-        
+
         TGetTabletsInfoOptions options;
         SetTimeoutOptions(&options, context.Get());
 

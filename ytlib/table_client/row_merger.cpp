@@ -379,10 +379,8 @@ TVersionedRowMerger::TVersionedRowMerger(
         }
     }
 
-    ColumnIdToIndex_.resize(columnCount);
-    for (int id = 0; id < columnCount; ++id) {
-        ColumnIdToIndex_[id] = -1;
-    }
+    ColumnIdToIndex_.resize(columnCount, std::numeric_limits<int>::max());
+
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
         int id = ColumnIds_[index];
         if (id >= KeyColumnCount_) {
@@ -413,11 +411,10 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         }
     }
 
-    for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-        if (ColumnIdToIndex_[value->Id] != -1) {
-            PartialValues_.push_back(*value);
-        }
-    }
+    PartialValues_.insert(
+        PartialValues_.end(),
+        row.BeginValues(),
+        row.EndValues());
 
     DeleteTimestamps_.insert(
         DeleteTimestamps_.end(),
@@ -471,10 +468,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt != partialValueIt->Id) {
             ++columnIdsBeginIt;
         }
-        if (columnIdsBeginIt == columnIdsEndIt) {
-            partialValueIt = columnEndIt;
-            continue;
-        }
+
+        bool needToSaveColumn = columnIdsBeginIt != columnIdsEndIt;
 
         // Merge with delete timestamps and put result into ColumnValues_.
         // Delete timestamps are represented by TheBottom sentinels.
@@ -508,12 +503,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
         // Apply retention config if present.
         if (Config_) {
-            // Compute safety limit by MinDataVersions.
-            if (ColumnValues_.size() > Config_->MinDataVersions) {
-                retentionBeginIt = ColumnValues_.end() - Config_->MinDataVersions;
-            }
+            retentionBeginIt = ColumnValues_.end();
 
-            // Adjust safety limit by MinDataTtl.
+            // Compute safety limit by MinDataTtl.
             while (retentionBeginIt != ColumnValues_.begin()) {
                 auto timestamp = (retentionBeginIt - 1)->Timestamp;
                 if (timestamp < CurrentTimestamp_ &&
@@ -522,6 +514,13 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                     break;
                 }
                 --retentionBeginIt;
+            }
+
+            // Adjust safety limit by MinDataVersions.
+            if (std::distance(ColumnValues_.begin(), retentionBeginIt) > Config_->MinDataVersions) {
+                retentionBeginIt -= Config_->MinDataVersions;
+            } else {
+                retentionBeginIt = ColumnValues_.begin();
             }
 
             // Compute retention limit by MaxDataVersions and MaxDataTtl.
@@ -597,7 +596,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             const auto& value = *it;
             if (value.Type != EValueType::TheBottom) {
                 WriteTimestamps_.push_back(value.Timestamp);
-                MergedValues_.push_back(value);
+                if (needToSaveColumn) {
+                    MergedValues_.push_back(value);
+                }
             }
         }
 
@@ -648,7 +649,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
     Cleanup();
-        
+
     return row;
 }
 

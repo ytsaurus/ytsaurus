@@ -2,6 +2,12 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include # for udfs
 )
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/protocol_version.py.in
+  ${PROJECT_SOURCE_DIR}/python/yt_proto/protocol_version.py
+  @ONLY
+)
+
 add_subdirectory(build)
 add_subdirectory(core)
 add_subdirectory(core/test_framework)

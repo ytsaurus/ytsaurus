@@ -379,6 +379,240 @@ TEST(TYamrLenvalParserTest, HugeLength)
     EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
 }
 
+TEST(TYamrLenvalParserTest, SimpleEndOfMessage)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key1"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("value1"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginAttributes());
+        EXPECT_CALL(Mock, OnKeyedItem("table_index"));
+        EXPECT_CALL(Mock, OnInt64Scalar(1));
+    EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnEntity());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key2"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("value2"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    TString input = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    auto config = New<TYamrFormatConfig>();
+    config->Lenval = true;
+    config->EnableEom = true;
+
+    ParseYamr(input, &Mock, config);
+}
+
+TEST(TYamrLenvalParserTest, EmptyFieldsWithEOM)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    TString input = TString(
+        "\x00\x00\x00\x00"
+        "\x00\x00\x00\x00"
+        "\x00\x00\x00\x00"
+        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
+        , 3 * 4 + 12
+    );
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+    config->Lenval = true;
+    config->EnableEom = true;
+
+    ParseYamr(input, &Mock, config);
+}
+
+TEST(TYamrParserTest, IncorrectPlaceOfEOM)
+{
+    auto Null = GetNullYsonConsumer();
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = false;
+    config->Lenval = true;
+    config->EnableEom = true;
+
+    TString input1 = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+        
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    TString input2 = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
+        
+        "\x06\x00\x00\x00" "value2"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    EXPECT_THROW(ParseYamr(input1, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input2, Null, config), std::exception);
+}
+
+TEST(TYamrParserTest, IncorrectEOM)
+{
+    auto Null = GetNullYsonConsumer();
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = false;
+    config->Lenval = true;
+    config->EnableEom = true;
+
+    // Garbage after EOM marker
+    TString input1 = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+        
+        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    // Row count mismatch
+    TString input2 = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+
+        "\xfb\xff\xff\xff" "\x03\x00\x00\x00\x00\x00\x00\x00"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    // Missing EOM marker
+    TString input3 = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+
+        , 2 * (2 * 4 + 4 + 6) + 8 // all i32 + lengths of keys
+    );
+
+    // Missing EOM marker with empty fields
+    TString input4 = TString(
+        "\x00\x00\x00\x00"
+        "\x00\x00\x00\x00"
+        "\x00\x00\x00\x00"
+        , 3 * 4
+    );
+
+    EXPECT_THROW(ParseYamr(input1, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input2, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input3, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input4, Null, config), std::exception);
+}
+
+TEST(TYamrParserTest, UnsupportedEOMInTextMode)
+{
+    auto Null = GetNullYsonConsumer();
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = false;
+    config->Lenval = false;
+    config->EnableEom = true;
+
+    TString input = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+        
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
+}
+
+TEST(TYamrParserTest, UnexpectedEOM)
+{
+    auto Null = GetNullYsonConsumer();
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = false;
+    config->Lenval = true;
+    config->EnableEom = false;
+    
+    TString input = TString(
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
+        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
+    );
+
+    EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

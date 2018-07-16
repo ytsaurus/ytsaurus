@@ -275,12 +275,15 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
 TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
 {
-    RegisterParameter("path", Path);
+    RegisterParameter("paths", Paths);
     RegisterPostprocessor([&] {
-        Path = Path.Normalize();
-        const auto& columns = Path.GetColumns();
-        if (!columns) {
-            THROW_ERROR_EXCEPTION("It is required to specify column selectors in YPath for getting columnar statistics");
+        for (auto& path : Paths) {
+            path = path.Normalize();
+            const auto& columns = path.GetColumns();
+            if (!columns) {
+                THROW_ERROR_EXCEPTION("It is required to specify column selectors in YPath for getting columnar statistics")
+                    << TErrorAttribute("path", path);
+            }
         }
     });
 }
@@ -290,26 +293,43 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
     Options.FetcherConfig = context->GetConfig()->Fetcher;
 
-    auto columns = *Path.GetColumns();
+    std::vector<std::vector<TString>> allColumns;
+    allColumns.reserve(Paths.size());
+    for (int index = 0; index < Paths.size(); ++index) {
+        allColumns.push_back(*Paths[index].GetColumns());
+    }
 
     auto transaction = AttachTransaction(context, false);
-    auto statistics = WaitFor(context->GetClient()->GetColumnarStatistics(Path, Options))
+    auto allStatistics = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options))
         .ValueOrThrow();
-    YCHECK(columns.size() == statistics.ColumnDataWeights.size());
+
+    YCHECK(allStatistics.size() == Paths.size());
+    for (int index = 0; index < allStatistics.size(); ++index) {
+        YCHECK(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
+    }
+
     auto producer = [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("column_data_weights").DoMap([&] (TFluentMap fluent) {
-                    for (int index = 0; index < columns.size(); ++index) {
-                        fluent
-                            .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
-                    }
-                })
-                .DoIf(statistics.TimestampTotalWeight.HasValue(), [&] (TFluentMap fluent) {
-                    fluent.Item("timestamp_total_weight").Value(statistics.TimestampTotalWeight);
-                })
-                .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
-            .EndMap();
+            .DoList([&] (TFluentList fluent) {
+                for (int index = 0; index < Paths.size(); ++index) {
+                    const auto& columns = allColumns[index];
+                    const auto& statistics = allStatistics[index];
+                    fluent
+                        .Item()
+                        .BeginMap()
+                            .Item("column_data_weights").DoMap([&] (TFluentMap fluent) {
+                                for (int index = 0; index < columns.size(); ++index) {
+                                    fluent
+                                        .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
+                                }
+                            })
+                            .DoIf(statistics.TimestampTotalWeight.HasValue(), [&] (TFluentMap fluent) {
+                                fluent.Item("timestamp_total_weight").Value(statistics.TimestampTotalWeight);
+                            })
+                            .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
+                        .EndMap();
+                }
+            });
     };
     ProduceOutput(context, producer, producer);
 }

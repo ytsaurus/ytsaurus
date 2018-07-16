@@ -3,7 +3,7 @@ from yt_commands import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_datetime
+from yt.common import date_string_to_datetime, date_string_to_timestamp
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -2277,8 +2277,8 @@ class TestSchedulerSnapshots(YTEnvSetup):
         copy(snapshot_path, snapshot_backup_path)
         assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
-        ts = get(op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time")
-        assert time.time() - datetime_str_to_ts(ts) < 60
+        ts_str = get(op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time")
+        assert time.time() - date_string_to_timestamp(ts_str) < 60
 
         release_breakpoint()
         op.track()

@@ -23,14 +23,32 @@ class TestColumnarStatistics(YTEnvSetup):
     }
 
     def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, expected_timestamp_weight=None):
-        path = "//tmp/t{{{0}}}[{1}:{2}]".format(columns,
+        path = '["//tmp/t{{{0}}}[{1}:{2}]";]'.format(columns,
                                                 "#" + str(lower_row_index) if lower_row_index is not None else "",
                                                 "#" + str(upper_row_index) if upper_row_index is not None else "")
-        statistics = get_table_columnar_statistics(path)
+        statistics = get_table_columnar_statistics(path)[0]
         assert statistics["legacy_chunks_data_weight"] == 0
         assert statistics["column_data_weights"] == dict(zip(columns.split(','), expected_data_weights))
         if expected_timestamp_weight is not None:
             assert statistics["timestamp_total_weight"] == expected_timestamp_weight
+
+    def _expect_multi_statistics(self, paths, lower_row_indices, upper_row_indices, all_columns, all_expected_data_weights, all_expected_timestamp_weight=None):
+        assert len(paths) == len(all_columns)
+        for index in range(len(paths)):
+            paths[index] = '{0}{{{1}}}[{2}:{3}]'.format(paths[index], all_columns[index],
+                                                "#" + str(lower_row_indices[index]) if lower_row_indices[index] is not None else "",
+                                                "#" + str(upper_row_indices[index]) if upper_row_indices[index] is not None else "")
+        yson_paths = "["
+        for path in paths:
+            yson_paths += '"' + path + '";'
+        yson_paths += "]"
+        allStatistics = get_table_columnar_statistics(yson_paths)
+        assert len(allStatistics) == len(all_expected_data_weights)
+        for index in range(len(allStatistics)):
+            assert allStatistics[index]["legacy_chunks_data_weight"] == 0
+            assert allStatistics[index]["column_data_weights"] == dict(zip(all_columns[index].split(','), all_expected_data_weights[index]))
+            if all_expected_timestamp_weight is not None:
+                assert allStatistics[index] == all_expected_timestamp_weight[index]
 
     def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
         create("table", path,
@@ -46,13 +64,68 @@ class TestColumnarStatistics(YTEnvSetup):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
         with pytest.raises(YtError):
-            get_table_columnar_statistics("//tmp/t")
+            get_table_columnar_statistics('["//tmp/t";]')
         self._expect_statistics(2, 2, "a,b,c", [0, 0, 0])
         self._expect_statistics(0, 6, "a,b,c", [1300, 8, 17])
         self._expect_statistics(0, 6, "a,c,x", [1300, 17, 0])
         self._expect_statistics(1, 5, "a,b,c", [1300, 8, 17])
         self._expect_statistics(2, 5, "a", [1200])
         self._expect_statistics(1, 4, "", [])
+
+    def test_get_table_columnar_statistics_multi(self):
+        create("table", "//tmp/t")
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 10, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 20}, {"c": True}])
+        write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 100}])
+
+        create("table", "//tmp/t2")
+        write_table("<append=%true>//tmp/t2", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t2", [{"a": "x" * 200}, {"c": True}])
+        write_table("<append=%true>//tmp/t2", [{"b": None, "c": 0}, {"a": "x" * 1000}])
+
+        paths = []
+        lower_row_indices = []
+        upper_row_indices = []
+        all_columns = []
+        all_expected_data_weights = []
+
+        paths.append("//tmp/t")
+        lower_row_indices.append(2)
+        upper_row_indices.append(2)
+        all_columns.append("a,b,c")
+        all_expected_data_weights.append([0, 0, 0])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(0)
+        upper_row_indices.append(6)
+        all_columns.append("a,b,c")
+        all_expected_data_weights.append([1300, 8, 17])
+
+        paths.append("//tmp/t")
+        lower_row_indices.append(0)
+        upper_row_indices.append(6)
+        all_columns.append("a,c,x")
+        all_expected_data_weights.append([130, 17, 0])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(1)
+        upper_row_indices.append(5)
+        all_columns.append("a,b,c")
+        all_expected_data_weights.append([1300, 8, 17])
+
+        paths.append("//tmp/t")
+        lower_row_indices.append(2)
+        upper_row_indices.append(5)
+        all_columns.append("a")
+        all_expected_data_weights.append([120])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(1)
+        upper_row_indices.append(4)
+        all_columns.append("")
+        all_expected_data_weights.append([])
+
+        self._expect_multi_statistics(paths, lower_row_indices, upper_row_indices, all_columns, all_expected_data_weights)
 
     def test_map_thin_column(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})

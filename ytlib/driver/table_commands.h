@@ -91,7 +91,7 @@ public:
     TGetTableColumnarStatisticsCommand();
 
 private:
-    NYPath::TRichYPath Path;
+    std::vector<NYPath::TRichYPath> Paths;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

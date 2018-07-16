@@ -38,9 +38,11 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 # can't succeed then operations will be just removed.
                 "max_operation_count_enqueued_for_archival": 5,
                 "max_operation_count_per_user": 3,
-                "fetch_batch_size": 1
+                "fetch_batch_size": 1,
+                "max_removal_sleep_delay": 100
             },
-            "static_orchid_cache_update_period": 100
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100
         }
     }
 
@@ -128,6 +130,14 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         # Earliest operations should be removed
         wait(lambda: len(self._get_removed_operations(ops)) == 6)
         assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:6])
+
+        def scheduler_alert_set():
+            for alert in get("//sys/scheduler/@alerts"):
+                if "archivation" in alert["message"]:
+                    return True
+            return False
+
+        wait(scheduler_alert_set)
 
     def test_start_stop(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())

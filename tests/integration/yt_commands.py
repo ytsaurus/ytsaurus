@@ -2,6 +2,7 @@ import yt.yson as yson
 from yt_driver_bindings import Driver, Request
 import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
+from yt.environment.helpers import wait
 
 import copy as pycopy
 import os
@@ -61,6 +62,13 @@ def init_drivers(clusters):
                 secondary_drivers.append(Driver(config=secondary_driver_config))
 
             clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
+
+def wait_drivers():
+    for cluster in clusters_drivers.values():
+        def driver_is_ready():
+            return get("//@", driver=cluster[0])
+
+        wait(driver_is_ready, ignore_exceptions=True)
 
 def terminate_drivers():
     clusters_drivers.clear()
@@ -141,6 +149,11 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
 
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
+
+    if "paths" in parameters:
+        parameters["paths"] = yson.loads(parameters["paths"])
+        for index in range(len(parameters["paths"])):
+            parameters["paths"][index] = prepare_path(parameters["paths"][index])
 
     response_parameters = parameters.pop("response_parameters", None)
 
@@ -231,8 +244,8 @@ def get_job_input(job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_input", kwargs)
 
-def get_table_columnar_statistics(path, **kwargs):
-    kwargs["path"] = path
+def get_table_columnar_statistics(paths, **kwargs):
+    kwargs["paths"] = paths
     return yson.loads(execute_command("get_table_columnar_statistics", kwargs))
 
 def get_job_stderr(operation_id, job_id, **kwargs):
@@ -539,6 +552,10 @@ def put_file_to_cache(path, md5, **kwargs):
     kwargs["path"] = path
     kwargs["md5"] = md5
     return yson.loads(execute_command("put_file_to_cache", kwargs))
+
+def discover_proxies(type_, **kwargs):
+    kwargs["type"] = type_
+    return yson.loads(execute_command("discover_proxies", kwargs))
 
 ###########################################################################
 
@@ -1169,15 +1186,6 @@ def make_schema(columns, **attributes):
     for attr, value in attributes.items():
         schema.attributes[attr] = value
     return schema
-
-#########################################
-
-def total_seconds(td):
-    return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
-
-def datetime_str_to_ts(dt_str):
-    FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
-    return calendar.timegm(datetime.strptime(dt_str, FORMAT).timetuple())
 
 ##################################################################
 

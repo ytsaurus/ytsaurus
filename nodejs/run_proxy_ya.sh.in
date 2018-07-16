@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#
+# Version of run_proxy.sh suitable for working with ya build
+# 
+
+set -e
+
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+SOURCE_PATH="@ARCADIA_ROOT@"
+
+PROXY_INSTALL_DIR="$INSTALL_DIR/local-proxy-install-dir"
+if [[ ! -d "$PROXY_INSTALL_DIR" ]] ; then
+    mkdir "$PROXY_INSTALL_DIR"
+fi
+
+if [[ ! -d "$PROXY_INSTALL_DIR/node_modules" ]] ; then
+    if [[ ! -f "$INSTALL_DIR/resource.tar.gz" ]] ; then
+        echo resource.tar.gz is not found >&2
+        exit 1
+    fi
+    tar xf "$INSTALL_DIR/resource.tar.gz" -C "$PROXY_INSTALL_DIR"
+fi
+
+[[ ! -L $PROXY_INSTALL_DIR/node_modules/yt ]] && ln -s $SOURCE_PATH/yt/nodejs $PROXY_INSTALL_DIR/node_modules/yt
+
+export NODE_PATH="$PROXY_INSTALL_DIR/node_modules"
+
+cd $PROXY_INSTALL_DIR
+exec $INSTALL_DIR/ytnode $PROXY_INSTALL_DIR/node_modules/yt/bin/yt_http_proxy "$@"

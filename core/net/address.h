@@ -71,7 +71,7 @@ public:
 
     TIP6Address ToIP6Address() const;
 
-    TString FormatIP() const;
+    TString FormatIP(bool withPort = false) const;
 
 private:
     sockaddr_storage Storage;

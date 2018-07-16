@@ -94,6 +94,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     (UpdateArchiveVersion)
     (SyncClusterDirectory)
     (UnrecognizedConfigOptions)
+    (OperationsArchivation)
 );
 
 DEFINE_ENUM(EOperationAlertType,

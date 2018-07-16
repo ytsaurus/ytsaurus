@@ -37,12 +37,16 @@ public:
     static const int DefaultMaxAuthenticationQueueSize;
     int MaxAuthenticationQueueSize;
 
+    TNullable<TString> CookieDomain;
+
     TServiceConfig()
     {
         RegisterParameter("methods", Methods)
             .Default();
         RegisterParameter("max_authentication_queue_size", MaxAuthenticationQueueSize)
             .Default(DefaultMaxAuthenticationQueueSize);
+        RegisterParameter("cookie_domain", CookieDomain)
+            .Optional();
     }
 };
 

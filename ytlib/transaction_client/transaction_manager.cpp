@@ -186,6 +186,7 @@ public:
                 if (options.StartTimestamp != NullTimestamp) {
                     return OnGotStartTimestamp(options, options.StartTimestamp);
                 } else {
+                    LOG_DEBUG("Generating transaction start timestamp");
                     return Owner_->TimestampProvider_->GenerateTimestamps()
                         .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
                 }
