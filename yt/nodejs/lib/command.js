@@ -520,7 +520,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     var is_control = this.coordinator.getSelf().role === "control";
     var is_suppress = typeof(this.req.headers["x-yt-suppress-redirect"]) !== "undefined";
     var is_ui = this.req.authenticated_from === "blackbox_session_cookie";
-    var config = YtRegistry.get("config");
+    var config = YtRegistry.get("config") || {};
 
     if (is_heavy && is_control && !is_suppress && !(is_ui && config.disable_ui_redirects)) {
         if (this.descriptor.input_type_as_integer !== binding.EDataType_Null) {
