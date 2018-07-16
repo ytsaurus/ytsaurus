@@ -998,6 +998,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("tentative_tree_eligibility", TentativeTreeEligibility)
         .DefaultNew();
+    RegisterParameter("update_preemptable_jobs_list_logging_period", UpdatePreemptableJobsListLoggingPeriod)
+        .Default(1000);
 }
 
 TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()

@@ -514,6 +514,8 @@ class TOperationElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
+    explicit TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod);
+
     TJobResources IncreaseJobResourceUsage(
         const TJobId& jobId,
         const TJobResources& resourcesDelta);
@@ -624,6 +626,8 @@ private:
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
+    std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
+    int UpdatePreemptableJobsListLoggingPeriod_;
     std::atomic<int> RunningJobCount_ = {0};
 
     TJobResources NonpreemptableResourceUsage_;
