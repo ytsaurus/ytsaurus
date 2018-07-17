@@ -17,7 +17,7 @@ YT_PROTOS="
     yt/ytlib/rpc_proxy/proto/api_service.proto
     yt/ytlib/rpc_proxy/proto/discovery_service.proto
 
-    yt/ytlib/node_tracker_client/node.proto
+    yt/ytlib/node_tracker_client/proto/node.proto
 "
 
 PROTO_PATHS=""
