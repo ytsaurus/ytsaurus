@@ -174,6 +174,54 @@ TFuture<void> TFileWriter::GetReadyEvent()
     return MakeFuture(Error_);
 }
 
+TFuture<void> TFileWriter::WriteMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+{
+    // Write meta.
+    ChunkMeta_.CopyFrom(chunkMeta);
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
+
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
+
+    return IOEngine_->Open(metaFileName + NFS::TempFileSuffix, FileMode)
+        .Apply(BIND([this, _this = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& chunkMetaFile) {
+            auto metaData = SerializeProtoToRefWithEnvelope(ChunkMeta_);
+
+            TChunkMetaHeader_2 header;
+            header.Signature = header.ExpectedSignature;
+            header.Checksum = GetChecksum(metaData);
+            header.ChunkId = ChunkId_;
+
+            MetaDataSize_ = metaData.Size() + sizeof(header);
+
+            TSharedMutableRef buffer = Buffer_;
+            if (buffer.Size() < MetaDataSize_) {
+                auto data = TSharedMutableRef::Allocate<TNull>(MetaDataSize_ + Alignment_, false);
+                data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
+                data = data.Slice(data.Begin(), data.Begin() + MetaDataSize_);
+                buffer = data;
+            }
+
+            ::memcpy(buffer.Begin(), &header, sizeof(header));
+            ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
+
+            return IOEngine_->Pwrite(chunkMetaFile, buffer, 0)
+                .Apply(BIND(&IIOEngine::Close, IOEngine_, chunkMetaFile, MetaDataSize_, SyncOnClose_));
+        }))
+        .Apply(BIND([metaFileName, this, _this = MakeStrong(this)] () {
+            NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
+            NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
+
+            if (SyncOnClose_) {
+                return IOEngine_->FlushDirectory(NFS::GetDirectoryName(FileName_));
+            } else {
+                return VoidFuture;
+            }
+        }))
+        .Apply(BIND([this, _this = MakeStrong(this)] () {
+            ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
+        }));
+}
+
 TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     if (!IsOpen_ || !Error_.IsOK()) {
@@ -183,66 +231,8 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     IsOpen_ = false;
     IsClosed_ = true;
 
-    try {
-        NFS::ExpectIOErrors([&] () {
-            DataFile_->Resize(DataSize_);
-            if (SyncOnClose_) {
-                DataFile_->Flush();
-            }
-            DataFile_->Close();
-            DataFile_.reset();
-        });
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(
-            "Error closing chunk data file %v",
-            FileName_)
-            << ex);
-    }
-
-    // Write meta.
-    ChunkMeta_.CopyFrom(chunkMeta);
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
-
-    auto metaData = SerializeProtoToRefWithEnvelope(ChunkMeta_);
-
-    TChunkMetaHeader_2 header;
-    header.Signature = header.ExpectedSignature;
-    header.Checksum = GetChecksum(metaData);
-    header.ChunkId = ChunkId_;
-
-    auto metaFileName = FileName_ + ChunkMetaSuffix;
-
-    try {
-        NFS::ExpectIOErrors([&] () {
-            TFile chunkMetaFile(metaFileName + NFS::TempFileSuffix, FileMode);
-
-            WritePod(chunkMetaFile, header);
-
-            chunkMetaFile.Write(metaData.Begin(), metaData.Size());
-
-            if (SyncOnClose_) {
-                chunkMetaFile.Flush();
-            }
-
-            chunkMetaFile.Close();
-
-            NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
-            NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
-
-            if (SyncOnClose_) {
-                NFS::FlushDirectory(NFS::GetDirectoryName(FileName_));
-            }
-        });
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(
-            "Error writing chunk meta file %v",
-            metaFileName)
-            << ex);
-    }
-
-    ChunkInfo_.set_disk_space(DataSize_ + metaData.Size() + sizeof (TChunkMetaHeader_2));
-
-    return VoidFuture;
+    return IOEngine_->Close(DataFile_, DataSize_, SyncOnClose_)
+        .Apply(BIND(&TFileWriter::WriteMeta, MakeStrong(this), chunkMeta));
 }
 
 void TFileWriter::Abort()
