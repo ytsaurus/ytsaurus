@@ -273,7 +273,7 @@ def build(options, build_context):
                 [get_bin_dir(options)])
     else:
         assert options.build_system == "ya"
-        run_yall(["--threads", str(cpus)], options, mkdirs=True)
+        run_yall([], options, mkdirs=True)
 
 @build_step
 def set_suid_bit(options, build_context):
