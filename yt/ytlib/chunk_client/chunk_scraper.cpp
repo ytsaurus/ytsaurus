@@ -136,13 +136,13 @@ private:
 
     void DoLocateChunks(const TError& error)
     {
-        auto finallyGuard = Finally([&] () {
-            PeriodicExecutor_->ScheduleNext();
-        });
-
         if (!Started_) {
             return;
         }
+
+        auto finallyGuard = Finally([&] () {
+            PeriodicExecutor_->ScheduleNext();
+        });
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
