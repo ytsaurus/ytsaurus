@@ -69,6 +69,7 @@ public:
         , ChunkList_(chunkList)
         , ReadWriteTimeout_(readWriteTimeout)
         , TrafficMeter_(jobHost->GetTrafficMeter())
+        , OutThrottler_(jobHost->GetOutThrottler())
         , Logger(logger)
     {
         BoundaryKeys_.set_empty(true);
@@ -152,6 +153,7 @@ private:
     const TChunkListId ChunkList_;
     const TDuration ReadWriteTimeout_;
     const TTrafficMeterPtr TrafficMeter_;
+    const IThroughputThrottlerPtr OutThrottler_;
 
     // Promise that is set when there are no cores that are currently processed.
     TPromise<TCoreResult> CoreResultPromise_;
@@ -210,7 +212,8 @@ private:
                 TableWriterOptions_,
                 Transaction_,
                 ChunkList_,
-                TrafficMeter_);
+                TrafficMeter_,
+                OutThrottler_);
 
             auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), 1_MB /* blockSize */);
             auto writer = CreateZeroCopyAdapter(CreateAsyncAdapter(&blobWriter));

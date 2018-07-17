@@ -36,6 +36,8 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/net/local_address.h>
+
 #include <util/generic/ymath.h>
 
 #include <util/random/shuffle.h>
@@ -52,6 +54,7 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
+using namespace NNet;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1345,8 +1348,11 @@ private:
               bytesReceived,
               rsp->peer_descriptors_size());
 
-        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
-        YCHECK(throttleResult.IsOK());
+
+        if (peerAddress != GetLocalHostName()) {
+            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            YCHECK(throttleResult.IsOK());
+        }
 
         RequestBlocks();
     }
@@ -1562,9 +1568,11 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
-
-        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
-        YCHECK(throttleResult.IsOK());
+        
+        if (peerAddress != GetLocalHostName()) {
+            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            YCHECK(throttleResult.IsOK());
+        }
 
         if (blocksReceived > 0) {
             OnSessionSucceeded();

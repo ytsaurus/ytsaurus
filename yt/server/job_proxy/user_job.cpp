@@ -182,7 +182,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, Host_),
             SandboxDirectoryNames[ESandboxKind::Udf],
             BlockReadOptions_,
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetInThrottler());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
@@ -642,7 +643,8 @@ private:
                 CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId,
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
 
             const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
@@ -731,7 +733,8 @@ private:
                 CreateFileOptions(),
                 Host_->GetClient(),
                 FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
         }
     }
 

@@ -69,7 +69,8 @@ public:
             TColumnFilter(),
             TKeyColumns(),
             /* partitionTag */ Null,
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetInThrottler());
 
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 
@@ -95,7 +96,8 @@ public:
             transactionId,
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetOutThrottler());
     }
 
 private:

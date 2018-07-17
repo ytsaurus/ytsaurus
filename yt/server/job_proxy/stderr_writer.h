@@ -44,7 +44,8 @@ public:
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
         const NObjectClient::TTransactionId& transactionId,
-        NChunkClient::TTrafficMeterPtr trafficMeter);
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     size_t GetCurrentSize() const;
     TString GetCurrentData() const;

@@ -311,7 +311,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClosure onNetworkRelease,
     TNullable<TString> udfDirectory,
     TClientBlockReadOptions& blockReadOptions,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         return New<TUserJobReadController>(
@@ -320,7 +321,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             invoker,
             nodeDescriptor,
             onNetworkRelease,
-            CreateUserJobIOFactory(jobSpecHelper, blockReadOptions, trafficMeter),
+            CreateUserJobIOFactory(jobSpecHelper, blockReadOptions, trafficMeter, throttler, nullptr),
             udfDirectory);
     } else {
         return New<TVanillaUserJobReadController>();

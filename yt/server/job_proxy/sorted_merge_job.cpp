@@ -72,7 +72,8 @@ public:
                 TColumnFilter(),
                 keyColumns,
                 /* partitionTag */ Null,
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetInThrottler());
 
             readers.push_back(reader);
         }
@@ -97,7 +98,8 @@ public:
             transactionId,
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetOutThrottler());
     }
 
 private:

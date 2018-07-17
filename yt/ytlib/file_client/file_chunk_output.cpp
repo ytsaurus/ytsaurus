@@ -49,6 +49,7 @@ TFileChunkOutput::TFileChunkOutput(
     NNative::IClientPtr client,
     const TTransactionId& transactionId,
     TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler,
     i64 sizeLimit)
     : Logger(FileClientLogger)
     , Config_(config)
@@ -83,7 +84,8 @@ TFileChunkOutput::TFileChunkOutput(
         New<TNodeDirectory>(),
         Client_,
         GetNullBlockCache(),
-        trafficMeter);
+        trafficMeter,
+        throttler);
 
     FileChunkWriter_ = CreateFileChunkWriter(
         Config_,

@@ -65,7 +65,8 @@ public:
         bool isApproximate,
         int partitionTag,
         const TClientBlockReadOptions& blockReadOptions,
-        TTrafficMeterPtr trafficMeter)
+        TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr throttler)
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
         , OnNetworkReleased_(onNetworkReleased)
@@ -98,7 +99,8 @@ public:
             KeyColumns_,
             partitionTag,
             blockReadOptions,
-            trafficMeter);
+            trafficMeter,
+            throttler);
 
         SortQueue_ = New<TActionQueue>("Sort");
         ReadyEvent_ = BIND(
@@ -568,7 +570,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     bool isApproximate,
     int partitionTag,
     const TClientBlockReadOptions& blockReadOptions,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
 {
     return New<TSchemalessPartitionSortReader>(
         config,
@@ -584,7 +587,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         isApproximate,
         partitionTag,
         blockReadOptions,
-        trafficMeter);
+        trafficMeter,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
