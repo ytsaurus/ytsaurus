@@ -141,6 +141,20 @@ public:
             .Run();
     }
 
+    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool flush)
+    {
+        return BIND(&TThreadedIOEngine::DoClose, MakeStrong(this), fh, newSize, flush)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    virtual TFuture<void> FlushDirectory(const TString& path)
+    {
+        return BIND(&TThreadedIOEngine::DoFlushDirectory, MakeStrong(this), path)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
     virtual TFuture<TSharedMutableRef> Pread(
         const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 priority) override
     {
@@ -230,6 +244,26 @@ private:
     bool DoFlush(const std::shared_ptr<TFileHandle>& fh)
     {
         return fh->Flush();
+    }
+
+    void DoClose(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool flush)
+    {
+        NFS::ExpectIOErrors([&]() {
+            if (newSize >= 0) {
+                fh->Resize(newSize);
+            }
+            if (flush) {
+                fh->Flush();
+            }
+            fh->Close();
+        });
+    }
+
+    void DoFlushDirectory(const TString& path)
+    {
+        NFS::ExpectIOErrors([&]() {
+            NFS::FlushDirectory(path);
+        });
     }
 
     std::shared_ptr<TFileHandle> DoOpen(const TString& fName, EOpenMode oMode)
@@ -652,6 +686,20 @@ public:
         return false;
     }
 
+    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool /*flush*/)
+    {
+        return BIND(&TAioEngine::DoClose, MakeStrong(this), fh, newSize)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> FlushDirectory(const TString& path)
+    {
+        return BIND(&TAioEngine::DoFlushDirectory, MakeStrong(this), path)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
 private:
     aio_context_t Ctx_ = 0;
     const int MaxQueueSize_;
@@ -675,6 +723,23 @@ private:
         }
         fh->SetDirect();
         return fh;
+    }
+
+    void DoClose(const std::shared_ptr<TFileHandle>& fh, i64 newSize)
+    {
+        NFS::ExpectIOErrors([&]() {
+            if (newSize >= 0) {
+                fh->Resize(newSize);
+            }
+            fh->Close();
+        });
+    }
+
+    void DoFlushDirectory(const TString& path)
+    {
+        NFS::ExpectIOErrors([&]() {
+            NFS::FlushDirectory(path);
+        });
     }
 
     void Loop()

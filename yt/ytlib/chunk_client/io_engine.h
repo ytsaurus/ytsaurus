@@ -36,6 +36,9 @@ struct IIOEngine
         const TString& fName, EOpenMode oMode, i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual bool IsSick() const = 0;
+
+    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& fh, i64 newSize = -1, bool flush = false) = 0;
+    virtual TFuture<void> FlushDirectory(const TString& path) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
