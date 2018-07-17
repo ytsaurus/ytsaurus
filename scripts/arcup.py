@@ -27,9 +27,10 @@ PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
 ARCUP_WORKING_PATH = os.path.join(PROJECT_PATH, ".arcup")
 ARGV0 = sys.argv[0]
 
-TARGET_PLATFORM_LIST = [
-    "linux",
-    "darwin",
+YALL_BUILD_MODES = [
+    ["--target-platform=linux"],
+    ["--target-platform=darwin"],
+    ["--target-platform=linux", "--yall-asan-build"],
 ]
 
 # TODO: to git-svn
@@ -253,13 +254,12 @@ class ReplaceSvnStuffStep(Step):
             svn.call("checkout", arcadia_svn_url, "--depth=empty", "--revision", str(revision), ".")
             svn.call("update", "--revision", str(revision), *arcadia_updatable_files)
 
-            for target_platform in TARGET_PLATFORM_LIST:
+            for additional_args in YALL_BUILD_MODES:
                 subprocess.check_call([
                     "./yall",
                     "--threads=0",
-                    "--checkout",
-                    "--target-platform", target_platform,
-                ])
+                    "--checkout"
+                ] + additional_args)
 
             #
             # Now it's time to put all the stuff that we checked out from svn to our git submodules.
