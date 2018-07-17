@@ -18,7 +18,10 @@ def kill_process(*args, **kwargs):
     get_driver_instance(None).kill_process(*args, **kwargs)
 
 def write_core_dump(*args, **kwargs):
-    get_driver_instance(None).write_core_dump(*args, **kwargs)
+    print(get_driver_instance(None).write_core_dump(*args, **kwargs))
+
+def write_operation_controller_core_dump(*args, **kwargs):
+    print(get_driver_instance(None).write_operation_controller_core_dump(*args, **kwargs))
 
 def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
@@ -46,6 +49,12 @@ def main():
                                                                            "core dump. This (presumably) does not affect the state of the process.")
     write_core_dump_parser.add_argument("address")
     write_core_dump_parser.set_defaults(func=write_core_dump)
+
+    write_operation_controller_core_dump_parser = subparsers.add_parser("write-operation-controller-core-dump",
+                                                                        help="Make operation controller write a run-time core dump." +
+                                                                             "This (presumably) does not affect the state of the process.")
+    write_operation_controller_core_dump_parser.add_argument("operation_id")
+    write_operation_controller_core_dump_parser.set_defaults(func=write_operation_controller_core_dump)
 
     clear_metadata_caches_parser = subparsers.add_parser("clear-caches", help="Clear metadata caches")
     clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
