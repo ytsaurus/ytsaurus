@@ -288,10 +288,11 @@ def set_suid_bit(options, build_context):
         run(["sudo", "chmod", "4755", path])
 
 @build_step
-@disable_for_ya
 def import_yt_wrapper(options, build_context):
-    src_root = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, os.path.join(src_root, "python"))
+    sys.path.insert(0, os.path.join(options.checkout_directory, "python"))
+    if options.build_system == "ya":
+        sys.path.insert(0, get_bin_dir(options))
+
     try:
         import yt.wrapper
     except ImportError as err:
