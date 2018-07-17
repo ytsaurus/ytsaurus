@@ -3,7 +3,8 @@
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
                                is_prefix, prefix, first_not_none, group_blobs_by_size,
-                               datetime_to_string, date_string_to_timestamp, chunk_iter_list)
+                               datetime_to_string, date_string_to_timestamp, chunk_iter_list,
+                               escape_c)
 
 from yt.packages.six.moves import xrange, cPickle as pickle
 
@@ -105,3 +106,18 @@ def test_chunk_iter_list():
     assert list(chunk_iter_list([1, 2, 3], chunk_size=2)) == [[1, 2], [3]]
     assert list(chunk_iter_list([1, 2, 3], chunk_size=5)) == [[1, 2, 3]]
     assert list(chunk_iter_list([], chunk_size=1)) == []
+
+def test_escape_c():
+    assert escape_c("http://ya.ru/") == "http://ya.ru/"
+    assert escape_c("http://ya.ru/\x17\n") == "http://ya.ru/\\x17\\n"
+    assert escape_c("http://ya.ru/\0") == "http://ya.ru/\\0"
+    assert escape_c("http://ya.ru/\0\0" + "0") == "http://ya.ru/\\0\\0000"
+    assert escape_c("http://ya.ru/\0\x00" + "1") == "http://ya.ru/\\0\\0001"
+    assert escape_c("\2\4\6" + "78") == "\\2\\4\\00678"
+    assert escape_c("\2\4\6" + "89") == "\\2\\4\\689"
+    assert escape_c("\"Hello\", Alice said.") == "\\\"Hello\\\", Alice said."
+    assert escape_c("Slash\\dash!") == "Slash\\\\dash!"
+    assert escape_c("There\nare\r\nnewlines.") == "There\\nare\\r\\nnewlines."
+    assert escape_c("There\tare\ttabs.") == "There\\tare\\ttabs."
+    assert escape_c("There are questions ???") == "There are questions \\x3F\\x3F?"
+    assert escape_c("There are questions ??") == "There are questions \\x3F?"

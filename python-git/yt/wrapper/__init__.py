@@ -33,7 +33,7 @@ from .user_statistics import write_statistics, get_blkio_cgroup_statistics, get_
 from .yamr_mode import set_yamr_mode
 from .dynamic_table_commands import ASYNC_LAST_COMMITED_TIMESTAMP, SYNC_LAST_COMMITED_TIMESTAMP
 
-from .common import get_version, is_inside_job
+from .common import get_version, is_inside_job, escape_c
 __version__ = VERSION = get_version()
 
 # Some usefull parts of private API.
