@@ -958,8 +958,10 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         node->Descriptor.GetDefaultAddress(),
         Size_);
 
-    auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
-    YCHECK(throttleResult.IsOK());
+    if (node->Descriptor.GetDefaultAddress() != GetLocalHostName()) {
+        auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
+        YCHECK(throttleResult.IsOK());
+    }
 
     LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
         FirstBlockIndex_,

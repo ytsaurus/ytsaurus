@@ -76,7 +76,8 @@ public:
                 columnFilter,
                 TKeyColumns(),
                 /* partitionTag */ Null,
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetInThrottler());
             return Reader_;
         };
 
@@ -103,7 +104,8 @@ public:
                 transactionId,
                 chunkListId,
                 CreatePartitioner(),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
             return Writer_;
         };
     }

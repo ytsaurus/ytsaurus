@@ -63,6 +63,9 @@ public:
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
+    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler() const override;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler() const override;
+
 private:
     const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
@@ -119,6 +122,9 @@ private:
     std::vector<int> Ports_;
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
+
+    NConcurrency::IThroughputThrottlerPtr InThrottler_;
+    NConcurrency::IThroughputThrottlerPtr OutThrottler_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 

@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -62,7 +64,8 @@ public:
         TTableWriterOptionsPtr tableWriterOptions,
         const NCypressClient::TTransactionId& transactionId,
         const NChunkClient::TChunkListId& chunkListId,
-        NChunkClient::TTrafficMeterPtr trafficMeter);
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     NScheduler::NProto::TOutputResult GetOutputResult() const;
 

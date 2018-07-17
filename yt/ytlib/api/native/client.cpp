@@ -4037,7 +4037,8 @@ private:
             BIND([] { }) /* onNetworkRelease */,
             Null /* udfDirectory */,
             blockReadOptions,
-            nullptr /* trafficMeter */);
+            nullptr /* trafficMeter */,
+            NConcurrency::GetUnlimitedThrottler());
 
         auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();

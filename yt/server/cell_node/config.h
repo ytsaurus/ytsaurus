@@ -114,6 +114,9 @@ public:
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;
 
+    //! Timeout for RPC query in JobBandwidthThrottler.
+    TDuration JobBandwidthThrottlerRpcTimeout;
+
     i64 FootprintMemorySize;
 
     int SkynetHttpPort;
@@ -143,6 +146,8 @@ public:
             .Default();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
+        RegisterParameter("job_bandwidth_throttler_rpc_timeout", JobBandwidthThrottlerRpcTimeout)
+            .Default(TDuration::Minutes(15));
 
         RegisterParameter("footprint_memory_size", FootprintMemorySize)
             .Default(1_GB)

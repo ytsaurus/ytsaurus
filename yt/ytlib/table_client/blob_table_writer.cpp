@@ -20,6 +20,7 @@ namespace NTableClient {
 static const auto& Logger = TableClientLogger;
 
 using namespace NYson;
+using namespace NConcurrency;
 
 using NConcurrency::WaitFor;
 using NCypressClient::TTransactionId;
@@ -56,7 +57,8 @@ TBlobTableWriter::TBlobTableWriter(
     TTableWriterOptionsPtr tableWriterOptions,
     const TTransactionId& transactionId,
     const TChunkListId& chunkListId,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
 {
     LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
@@ -95,7 +97,8 @@ TBlobTableWriter::TBlobTableWriter(
         transactionId,
         chunkListId,
         TChunkTimestamps(),
-        trafficMeter);
+        trafficMeter,
+        throttler);
 }
 
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const

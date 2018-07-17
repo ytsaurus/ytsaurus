@@ -10,6 +10,7 @@
 #include "user_job.h"
 #include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
+#include "job_bandwidth_throttler.h"
 
 #include <yt/server/containers/public.h>
 
@@ -76,6 +77,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobProberClient;
+using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
@@ -161,6 +163,16 @@ IServerPtr TJobProxy::GetRpcServer() const
 TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
 {
     return TrafficMeter_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetInThrottler() const
+{
+    return InThrottler_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetOutThrottler() const
+{
+    return OutThrottler_;
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)
@@ -462,6 +474,18 @@ TJobResult TJobProxy::DoRun()
         Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
         RetrieveJobSpec();
+        
+        InThrottler_ = CreateInJobBandwidthThrottler(
+            supervisorChannel,
+            GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
+            JobId_,
+            Config_->BandwidthThrottlerRpcTimeout);
+
+        OutThrottler_ = CreateOutJobBandwidthThrottler(
+            supervisorChannel,
+            GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+            JobId_,
+            Config_->BandwidthThrottlerRpcTimeout);
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);

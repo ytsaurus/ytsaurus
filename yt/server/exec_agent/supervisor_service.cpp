@@ -8,7 +8,13 @@
 #include <yt/server/job_agent/job_controller.h>
 #include <yt/server/job_agent/public.h>
 
+#include <yt/server/job_proxy/job_bandwidth_throttler.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/client/misc/workload.h>
+
+#include <yt/core/concurrency/scheduler-inl.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -17,6 +23,8 @@ using namespace NJobAgent;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NYson;
+using namespace NConcurrency;
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +43,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleBandwidth));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
@@ -155,6 +164,37 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
     resourceUsage.set_network(jobProxyResourceUsage.network());
 
     job->SetResourceUsage(resourceUsage);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleBandwidth)
+{
+    auto direction = static_cast<EJobBandwidthDirection>(request->direction());
+    auto byteCount = request->byte_count();
+    auto descriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+    auto jobId = FromProto<TJobId>(request->job_id());
+
+    context->SetRequestInfo("Direction: %v, Count: %v, JobId: %v, WorkloadDescriptor: %v",
+        direction,
+        byteCount,
+        jobId,
+        descriptor);
+
+    IThroughputThrottlerPtr throttler;
+    switch (direction) {
+        case EJobBandwidthDirection::In:
+            throttler = Bootstrap->GetInThrottler(descriptor);
+            break;
+        case EJobBandwidthDirection::Out:
+            throttler = Bootstrap->GetOutThrottler(descriptor);
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+
+    WaitFor(throttler->Throttle(byteCount))
+        .ThrowOnError();
 
     context->Reply();
 }

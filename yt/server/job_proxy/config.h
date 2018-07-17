@@ -58,6 +58,7 @@ public:
     TNullable<TString> DataCenter;
 
     TDuration CoreForwarderTimeout;
+    TDuration BandwidthThrottlerRpcTimeout;
 
     i64 AheadMemoryReserve;
 
@@ -105,6 +106,9 @@ public:
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
+
+        RegisterParameter("bandwidth_throttler_rpc_timeout", BandwidthThrottlerRpcTimeout)
+            .Default(TDuration::Minutes(15));
 
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);

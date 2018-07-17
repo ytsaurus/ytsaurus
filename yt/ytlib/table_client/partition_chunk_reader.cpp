@@ -159,7 +159,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const TKeyColumns& keyColumns,
     int partitionTag,
     const TClientBlockReadOptions& blockReadOptions,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -179,7 +180,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         TNodeDescriptor(),
                         blockCache,
                         trafficMeter,
-                        GetUnlimitedThrottler());
+                        throttler);
 
                     YCHECK(!chunkSpec.has_lower_limit());
                     YCHECK(!chunkSpec.has_upper_limit());
