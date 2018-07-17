@@ -689,9 +689,17 @@ private:
     TSharedRef Data_;
     TIterator Current_;
 
+    void ValidateSizeAvailable(size_t size)
+    {
+        if (Current_ + size > Data_.End()) {
+            THROW_ERROR_EXCEPTION("Premature end of stream while reading %v bytes", size);
+        }
+    }
+
     void ReadRaw(void* buffer, size_t size)
     {
-        YCHECK(Current_ + size <= Data_.End());
+        ValidateSizeAvailable(size);
+
         memcpy(buffer, Current_, size);
         Current_ += size;
         Current_ += GetPaddingSize(size);
@@ -699,7 +707,8 @@ private:
 
     const char* PeekRaw(size_t size)
     {
-        YCHECK(Current_ + size <= Data_.End());
+        ValidateSizeAvailable(size);
+
         auto result = Current_;
         Current_ += size;
         Current_ += GetPaddingSize(size);
@@ -709,7 +718,8 @@ private:
     template <class T>
     void ReadPod(T* value)
     {
-        YCHECK(Current_ + sizeof(T) <= Data_.End());
+        ValidateSizeAvailable(sizeof(T));
+
         memcpy(value, Current_, sizeof(T));
         Current_ += sizeof(T);
         Current_ += GetPaddingSize(sizeof(T));
