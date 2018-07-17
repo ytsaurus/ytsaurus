@@ -1181,7 +1181,12 @@ class YTInstance(object):
             self._validate_processes_are_running("skynet_manager")
 
             http_port = self.configs["skynet_manager"][0]["port"]
-            requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
+            try:
+                rsp = requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
+                rsp.raise_for_status()
+            except (requests.exceptions.RequestException, socket.error):
+                return False
+
             return True
 
         self._wait_or_skip(lambda: self._wait_for(skynet_manager_ready, "skynet_manager", max_wait_time=20), sync)
