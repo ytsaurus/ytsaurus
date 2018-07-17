@@ -116,6 +116,8 @@ def run_yall(options, mkdirs=False, env=None):
     args = [
         yall,
         "-T",
+        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
+        "-DYT_VERSION_BRANCH={0}".format(options.branch),
         "--build", options.ya_build_type,
         "--no-src-links",
         "--output", output_dir,
@@ -150,6 +152,8 @@ def prepare(options, build_context):
     options.git_branch = options.branch
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
+
+    options.patch_number = run_captured([os.path.join(options.checkout_directory, "git-depth.py")], cwd=options.checkout_directory)
 
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
