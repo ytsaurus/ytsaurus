@@ -92,7 +92,7 @@ def get_git_depth(options):
         capture_output=True)
     return run_result.stdout.rstrip("\n")
 
-def run_yall(args, options, mkdirs=False, env=None):
+def run_yall(options, mkdirs=False, env=None):
     assert options.build_system == "ya"
     yall = os.path.join(options.checkout_directory, "yall")
 
@@ -113,13 +113,18 @@ def run_yall(args, options, mkdirs=False, env=None):
     if env is not None:
         run_env.update(env)
 
-    run([yall,
-         "-T",
-         "--build", options.ya_build_type,
-         "--no-src-links",
-         "--output", output_dir,
-         "--install", bin_dir,
-        ] + args,
+    args = [
+        yall,
+        "-T",
+        "--build", options.ya_build_type,
+        "--no-src-links",
+        "--output", output_dir,
+        "--install", bin_dir,
+    ]
+    if options.use_asan:
+        args += ["--yall-asan-build"]
+
+    run(args,
         cwd=options.checkout_directory,
         env=run_env)
 
@@ -273,7 +278,7 @@ def build(options, build_context):
                 [get_bin_dir(options)])
     else:
         assert options.build_system == "ya"
-        run_yall([], options, mkdirs=True)
+        run_yall(options, mkdirs=True)
 
 @build_step
 def set_suid_bit(options, build_context):
