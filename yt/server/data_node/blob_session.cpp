@@ -407,9 +407,7 @@ void TBlobSession::DoOpenWriter()
         try {
             auto fileName = Location_->GetChunkPath(GetChunkId());
             Writer_ = New<TFileWriter>(Location_->GetIOEngine(), GetChunkId(), fileName, Options_.SyncOnClose, Options_.EnableWriteDirectIO);
-            // File writer opens synchronously.
-            Writer_->Open()
-                .Get()
+            WaitFor(Writer_->Open())
                 .ThrowOnError();
         }
         catch (const std::exception& ex) {
@@ -492,8 +490,8 @@ void TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
 
     PROFILE_TIMING ("/blob_chunk_close_time") {
         try {
-            auto result = Writer_->Close(chunkMeta).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(Writer_->Close(chunkMeta))
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,

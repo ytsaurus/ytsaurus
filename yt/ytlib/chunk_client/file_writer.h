@@ -71,6 +71,7 @@ private:
     bool IsOpening_ = false;
     bool IsClosed_ = false;
     i64 DataSize_ = 0;
+    i64 MetaDataSize_ = 0;
 
     TSharedMutableRef Buffer_;
     i64 BufferPosition_ = 0;
@@ -86,6 +87,7 @@ private:
 
     TFuture<void> LockDataFile(const std::shared_ptr<TFileHandle>& file);
     void TryLockDataFile(TPromise<void> promise);
+    TFuture<void> WriteMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileWriter)
