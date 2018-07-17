@@ -5,7 +5,7 @@ import yt.yson as yson
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, PY3
-from yt.packages.six.moves import xrange, map as imap, filter as ifilter
+from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
 
 import argparse
 import collections
@@ -23,7 +23,7 @@ from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
                                    current_process as dummy_current_process)
 from collections import Mapping
-from itertools import chain
+from itertools import chain, starmap
 from functools import reduce, wraps
 
 EMPTY_GENERATOR = (i for i in [])
@@ -339,3 +339,42 @@ class _DummyProcess(DummyProcess):
 class ThreadPoolHelper(ThreadPool):
     # See: http://bugs.python.org/issue10015
     Process = _DummyProcess
+
+def escape_c(string):
+    def is_printable(symbol):
+        num = ord(symbol)
+        return 32 <= num and num <= 126
+    def is_oct_digit(symbol):
+        return "0" <= symbol and symbol <= "7"
+    def is_hex_digit(symbol):
+        return ("0" <= symbol and symbol <= "9") or \
+            ("A" <= symbol and symbol <= "F") or \
+            ("a" <= symbol and symbol <= "f")
+    def oct_digit(num):
+        return chr(ord("0") + num)
+    def hex_digit(num):
+        return chr(ord("0") + num) if num < 10 else chr(ord("A") + num - 10)
+
+    def escape_symbol(symbol, next):
+        if symbol == '"':
+            return '\\"'
+        elif symbol == '\\':
+            return "\\\\"
+        elif is_printable(symbol) and not (symbol == "?" and next == "?"):
+            return symbol
+        elif symbol == "\r":
+            return "\\r"
+        elif symbol == "\n":
+            return "\\n"
+        elif symbol == "\t":
+            return "\\t"
+        elif ord(symbol) < 8 and not is_oct_digit(next):
+            return "\\" + oct_digit(ord(symbol))
+        elif not is_hex_digit(next):
+            num = ord(symbol)
+            return "\\x" + hex_digit(num / 16) + hex_digit(num % 16)
+        else:
+            num = ord(symbol)
+            return "\\" + oct_digit(num / 64) + oct_digit((num / 8) % 8) + oct_digit(num % 8)
+
+    return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
