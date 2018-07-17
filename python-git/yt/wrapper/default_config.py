@@ -131,6 +131,9 @@ default_config = {
         "constant_time": 5 * 1000
     }),
 
+    # Maximum number of rows to sample without operation
+    "max_row_count_for_local_sampling": 100,
+
     # Timeout for waiting for tablets to become ready.
     "tablets_ready_timeout": 60 * 1000,
 
@@ -266,7 +269,7 @@ default_config = {
         # Compression level of archive with modules (from 1 to 9)
         "modules_archive_compression_level": 6,
         # Compression codec for archive with modules
-        "modules_archive_compression_codec": "gzip"
+        "modules_archive_compression_codec": "gzip",
     },
 
     # Enables special behavior if client works with local mode cluster.
