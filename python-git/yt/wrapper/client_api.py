@@ -8,6 +8,7 @@ from .operation_commands import get_operation_state, abort_operation, complete_o
 from .file_commands import read_file, write_file, smart_upload_file
 from .transaction import PingTransaction
 from .batch_helpers import create_batch_client, batch_apply
+from .random_sample import sample_rows_from_table
 from .shuffle import shuffle_table
 from .table import TempTable
 from .transaction import Transaction
