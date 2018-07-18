@@ -341,6 +341,7 @@ class ThreadPoolHelper(ThreadPool):
     Process = _DummyProcess
 
 def escape_c(string):
+    """Escapes string literal to be used in query language."""
     def is_printable(symbol):
         num = ord(symbol)
         return 32 <= num and num <= 126
