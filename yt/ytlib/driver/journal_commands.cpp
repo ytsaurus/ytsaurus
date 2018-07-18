@@ -107,7 +107,7 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
             break;
 
         for (auto row : rows) {
-            BuildYsonListFluently(consumer.get())
+            BuildYsonListFragmentFluently(consumer.get())
                 .Item().BeginMap()
                     .Item("data").Value(TStringBuf(row.Begin(), row.Size()))
                 .EndMap();
