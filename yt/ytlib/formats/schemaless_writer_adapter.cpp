@@ -320,7 +320,7 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
     EControlAttribute controlAttribute,
     T value)
 {
-    BuildYsonListFluently(Consumer_.get())
+    BuildYsonListFragmentFluently(Consumer_.get())
         .Item()
         .BeginAttributes()
             .Item(FormatEnum(controlAttribute)).Value(value)

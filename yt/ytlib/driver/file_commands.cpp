@@ -40,7 +40,7 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
             Options))
         .ValueOrThrow();
 
-    BuildYsonMapFluently(context->Request().ResponseParametersConsumer)
+    BuildYsonMapFragmentFluently(context->Request().ResponseParametersConsumer)
         .Item("revision").Value(reader->GetRevision());
 
     if (EtagRevision) {

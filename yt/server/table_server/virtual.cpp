@@ -199,7 +199,7 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
         return;
     }
     auto builtinAttributeKeys = GetBuiltinAttributeKeys();
-    BuildYsonMapFluently(consumer)
+    BuildYsonMapFragmentFluently(consumer)
         .DoFor(*attributeKeys, [&] (TFluentMap fluent, const TString& key) {
             auto internedKey = GetInternedAttributeKey(key);
             if (builtinAttributeKeys.has(internedKey)) {

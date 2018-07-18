@@ -616,14 +616,12 @@ static inline TFluentAny BuildYsonFluently(NYson::IYsonConsumer* consumer)
     return TFluentYsonBuilder::TAny<TFluentYsonVoid>(consumer, TFluentYsonVoid());
 }
 
-//TODO(renadeen): rename to ListFragment
-static inline TFluentList BuildYsonListFluently(NYson::IYsonConsumer* consumer)
+static inline TFluentList BuildYsonListFragmentFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentList(consumer);
 }
 
-//TODO(renadeen): rename to MapFragment
-static inline TFluentMap BuildYsonMapFluently(NYson::IYsonConsumer* consumer)
+static inline TFluentMap BuildYsonMapFragmentFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentMap(consumer);
 }

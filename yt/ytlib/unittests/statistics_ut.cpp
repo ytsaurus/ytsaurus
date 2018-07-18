@@ -126,7 +126,7 @@ TEST(TStatistics, Consumer)
 {
     TStatisticsUpdater statisticsUpdater;
     TStatisticsConsumer consumer(BIND(&TStatisticsUpdater::AddSample, &statisticsUpdater));
-    BuildYsonListFluently(&consumer)
+    BuildYsonListFragmentFluently(&consumer)
         .Item()
             .BeginMap()
                 .Item("k1").Value(4)
