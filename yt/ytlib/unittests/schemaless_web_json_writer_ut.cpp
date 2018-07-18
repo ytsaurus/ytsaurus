@@ -3,7 +3,7 @@
 #include <yt/ytlib/formats/schemaless_web_json_writer.h>
 
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/async_stream.h>
 

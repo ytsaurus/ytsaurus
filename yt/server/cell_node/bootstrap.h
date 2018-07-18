@@ -20,7 +20,7 @@
 
 #include <yt/ytlib/misc/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/public.h>
 

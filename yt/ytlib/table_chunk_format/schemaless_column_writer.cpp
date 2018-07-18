@@ -4,7 +4,7 @@
 #include "compressed_integer_vector.h"
 #include "helpers.h"
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTableChunkFormat {

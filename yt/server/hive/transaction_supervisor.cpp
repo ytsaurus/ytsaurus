@@ -16,15 +16,16 @@
 
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/transaction_participant.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/action.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/hive/transaction_participant.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/api/connection.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/periodic_executor.h>

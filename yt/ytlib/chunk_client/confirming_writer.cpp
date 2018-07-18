@@ -1,7 +1,6 @@
 #include "confirming_writer.h"
 #include "private.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_replica.h"
 #include "config.h"
 #include "dispatcher.h"
 #include "erasure_writer.h"

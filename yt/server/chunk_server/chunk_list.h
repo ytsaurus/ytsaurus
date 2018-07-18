@@ -6,7 +6,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>

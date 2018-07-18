@@ -5,13 +5,10 @@
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "private.h"
-#include "schema.h"
 #include "schemaful_reader_adapter.h"
 #include "schemaless_chunk_reader.h"
-#include "unversioned_row.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
-#include "versioned_reader.h"
 #include "versioned_reader_adapter.h"
 
 #include <yt/ytlib/chunk_client/block_cache.h>
@@ -21,16 +18,19 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/versioned_reader.h>
 
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/timestamp_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -40,7 +40,6 @@ namespace NTableClient {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NTableClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 

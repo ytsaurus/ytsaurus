@@ -5,7 +5,7 @@
 #include "dispatcher.h"
 #include "public.h"
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

@@ -3,7 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
-import "yt/ytlib/node_tracker_client/proto/node.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

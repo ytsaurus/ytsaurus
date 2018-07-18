@@ -32,7 +32,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 
@@ -44,7 +44,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/ytlib/query_client/public.h>

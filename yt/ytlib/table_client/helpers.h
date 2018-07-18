@@ -1,7 +1,9 @@
 #pragma once
 
-#include "versioned_row.h"
-#include "unversioned_row.h"
+#include "public.h"
+
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/ytlib/api/native/public.h>
 

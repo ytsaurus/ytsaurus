@@ -8,9 +8,8 @@
 
 #include <yt/ytlib/formats/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 #include <yt/core/actions/public.h>

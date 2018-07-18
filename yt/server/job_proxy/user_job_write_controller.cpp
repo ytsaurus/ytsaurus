@@ -6,13 +6,13 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 

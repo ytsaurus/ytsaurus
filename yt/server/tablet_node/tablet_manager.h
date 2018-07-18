@@ -8,7 +8,7 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -16,7 +16,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/misc/small_vector.h>
 
@@ -46,8 +46,8 @@ public:
         const TString& user,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NTableClient::TRetentionConfigPtr retentionConfig,
-        NTabletClient::TWireProtocolReader* reader,
-        NTabletClient::TWireProtocolWriter* writer);
+        NTableClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolWriter* writer);
 
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
@@ -60,7 +60,7 @@ public:
         const TString& user,
         bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 
     TFuture<void> Trim(

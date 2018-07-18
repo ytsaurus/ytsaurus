@@ -4,7 +4,7 @@
 
 #include <yt/server/misc/job_table_schema.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 

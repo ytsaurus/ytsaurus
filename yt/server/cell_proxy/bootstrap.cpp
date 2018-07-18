@@ -68,7 +68,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NApi;
-using namespace NRpcProxy;
+using namespace NYT::NRpcProxy;
 using namespace NAuth;
 using namespace NLogging;
 

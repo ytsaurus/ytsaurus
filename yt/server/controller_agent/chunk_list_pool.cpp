@@ -4,11 +4,11 @@
 
 #include <yt/server/scheduler/config.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>

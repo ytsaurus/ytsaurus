@@ -1,6 +1,5 @@
 #include "fetcher.h"
 #include "private.h"
-#include "chunk_replica.h"
 #include "input_chunk.h"
 #include "config.h"
 
@@ -8,8 +7,11 @@
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>

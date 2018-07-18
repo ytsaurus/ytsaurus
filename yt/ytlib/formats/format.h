@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/concurrency/public.h>
 

@@ -2,8 +2,8 @@
 #include "private.h"
 #include "job_detail.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/config.h>
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -21,9 +21,9 @@
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 

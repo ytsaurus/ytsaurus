@@ -9,10 +9,10 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/operation_archive_schema.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/operation_archive_schema.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

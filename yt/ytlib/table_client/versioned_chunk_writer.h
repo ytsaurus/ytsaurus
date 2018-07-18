@@ -1,14 +1,15 @@
 #pragma once
 
 #include "public.h"
-#include "schema.h"
-#include "versioned_writer.h"
 
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/versioned_writer.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 

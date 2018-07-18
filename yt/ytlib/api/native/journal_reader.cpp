@@ -5,12 +5,12 @@
 #include "transaction.h"
 #include "private.h"
 
-#include <yt/ytlib/api/journal_reader.h>
+#include <yt/client/api/journal_reader.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -19,10 +19,10 @@
 
 #include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>

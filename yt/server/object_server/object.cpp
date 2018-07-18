@@ -5,7 +5,7 @@
 
 #include <yt/server/cypress_server/node.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NObjectServer {

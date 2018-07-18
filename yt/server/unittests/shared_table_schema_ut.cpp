@@ -2,7 +2,7 @@
 
 #include <yt/server/table_server/shared_table_schema.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
 
 namespace NYT {

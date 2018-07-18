@@ -1,6 +1,6 @@
 #include "job_table_schema.h"
 
-#include <yt/ytlib/table_client/row_base.h>
+#include <yt/client/table_client/row_base.h>
 
 namespace NYT {
 

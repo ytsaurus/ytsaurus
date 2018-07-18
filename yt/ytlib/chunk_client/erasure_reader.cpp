@@ -2,7 +2,6 @@
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
-#include "chunk_replica.h"
 #include "chunk_writer.h"
 #include "config.h"
 #include "dispatcher.h"
@@ -13,9 +12,11 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

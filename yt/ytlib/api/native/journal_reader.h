@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/core/ypath/public.h>
 

@@ -1,7 +1,8 @@
 #include "node_directory_builder.h"
-#include "node_directory.h"
 
-#include <yt/ytlib/node_tracker_client/proto/node_directory.pb.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/node_tracker_client/proto/node_directory.pb.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

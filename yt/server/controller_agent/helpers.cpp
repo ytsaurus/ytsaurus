@@ -6,9 +6,9 @@
 
 #include <yt/server/scheduler/config.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 

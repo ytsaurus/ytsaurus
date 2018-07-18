@@ -26,7 +26,7 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/election/config.h>
 
@@ -40,9 +40,9 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/medium_directory.h>
 

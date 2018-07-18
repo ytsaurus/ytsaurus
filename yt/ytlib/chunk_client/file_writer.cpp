@@ -1,13 +1,14 @@
 #include "file_writer.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_replica.h"
 #include "format.h"
 #include "block.h"
 
+#include <yt/ytlib/chunk_client/io_engine.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
-
-#include <yt/ytlib/chunk_client/io_engine.h>
 
 #include <util/system/align.h>
 

@@ -1,7 +1,7 @@
 #include "controller_agent.h"
 #include "private.h"
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

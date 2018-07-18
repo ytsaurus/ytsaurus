@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 namespace NYT {
 namespace NDriver {

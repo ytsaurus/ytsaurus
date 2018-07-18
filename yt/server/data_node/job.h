@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT {
 namespace NDataNode {

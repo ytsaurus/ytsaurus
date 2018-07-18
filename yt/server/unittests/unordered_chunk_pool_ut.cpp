@@ -7,7 +7,7 @@
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>

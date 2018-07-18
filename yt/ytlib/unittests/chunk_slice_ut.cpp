@@ -3,12 +3,12 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_client.h>

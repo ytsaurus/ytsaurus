@@ -1,6 +1,6 @@
 #include "node_statistics.h"
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/core/misc/format.h>
 

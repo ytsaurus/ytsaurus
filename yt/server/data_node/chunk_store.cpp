@@ -13,7 +13,7 @@
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/fs.h>
 

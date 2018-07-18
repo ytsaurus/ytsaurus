@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/api/connection.h>
 
 namespace NYT {
 namespace NApi {

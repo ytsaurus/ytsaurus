@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/monitoring/public.h>
 
+#include <yt/client/node_tracker_client/public.h>
+
 #include <yt/core/bus/public.h>
 
 #include <yt/core/actions/public.h>

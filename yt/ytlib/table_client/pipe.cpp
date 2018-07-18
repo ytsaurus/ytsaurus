@@ -1,7 +1,8 @@
 #include "pipe.h"
-#include "row_buffer.h"
-#include "schemaful_reader.h"
-#include "schemaful_writer.h"
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
 
 #include <yt/core/misc/ring_queue.h>
 

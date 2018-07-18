@@ -58,11 +58,13 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/schema.h>
+
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 

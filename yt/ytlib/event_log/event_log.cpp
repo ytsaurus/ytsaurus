@@ -1,7 +1,7 @@
 #include "event_log.h"
 
 #include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/client/table_client/schemaless_writer.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/ytlib/table_client/value_consumer.h>
 

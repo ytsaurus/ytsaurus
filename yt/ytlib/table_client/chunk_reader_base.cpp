@@ -3,7 +3,7 @@
 #include "config.h"
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <algorithm>
 

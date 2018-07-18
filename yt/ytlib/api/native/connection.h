@@ -2,9 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/api/connection.h>
 
 #include <yt/ytlib/query_client/public.h>
+
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/hive/public.h>
 

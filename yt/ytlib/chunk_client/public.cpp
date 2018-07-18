@@ -1,7 +1,5 @@
 #include "public.h"
 
-#include <yt/ytlib/misc/workload.h>
-
 namespace NYT {
 namespace NChunkClient {
 

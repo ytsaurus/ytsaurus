@@ -6,16 +6,16 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/connection.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 

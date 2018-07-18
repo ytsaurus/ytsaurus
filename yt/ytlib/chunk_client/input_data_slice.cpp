@@ -3,8 +3,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/serialize.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/serialize.h>
 #include <yt/core/logging/log.h>
 
 namespace NYT {

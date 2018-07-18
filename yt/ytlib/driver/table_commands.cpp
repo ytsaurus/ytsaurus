@@ -1,25 +1,25 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <yt/ytlib/api/rowset.h>
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/skynet.h>
+#include <yt/client/api/rowset.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/skynet.h>
 
 #include <yt/ytlib/api/native/table_reader.h>
 
 #include <yt/ytlib/query_client/query_statistics.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/versioned_writer.h>
+#include <yt/client/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 #include <yt/ytlib/table_client/columnar_statistics.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/formats/config.h>
 #include <yt/ytlib/formats/parser.h>

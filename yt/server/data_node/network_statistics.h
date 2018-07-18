@@ -8,7 +8,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT {
 namespace NDataNode {

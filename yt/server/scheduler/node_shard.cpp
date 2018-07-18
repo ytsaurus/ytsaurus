@@ -15,7 +15,7 @@
 
 #include <yt/ytlib/job_proxy/public.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 #include <yt/ytlib/job_tracker_client/helpers.h>

@@ -6,14 +6,14 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/misc/collection_helpers.h>
 

@@ -10,8 +10,8 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-server
-  yt-library-client
-  yt-library-client-auth
+  yt-library-ytlib
+  yt-library-ytlib-auth
   yt-core-re2
   yt-core-rpc-grpc
   deps-arcadia-library-http

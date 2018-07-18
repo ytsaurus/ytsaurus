@@ -1,7 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/chunk_meta.pb.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -11,6 +13,8 @@ namespace {
 
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTableSchemaTest
     : public ::testing::Test
@@ -258,12 +262,12 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
 
     for (const auto& tableSchema : invalidSchemas) {
         TTableSchema schema(tableSchema);
-        EXPECT_THROW(ValidateTableSchema(schema, true), std::exception);
+        EXPECT_THROW(ValidateTableSchemaHeavy(schema, true), std::exception);
     }
 
     for (const auto& tableSchema : validSchemas) {
         TTableSchema schema(tableSchema);
-        ValidateTableSchema(schema);
+        ValidateTableSchemaHeavy(schema, false);
     }
 }
 

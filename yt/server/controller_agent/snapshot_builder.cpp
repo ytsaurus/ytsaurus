@@ -6,8 +6,8 @@
 #include "config.h"
 #include "operation.h"
 
-#include <yt/ytlib/api/file_writer.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/file_writer.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 

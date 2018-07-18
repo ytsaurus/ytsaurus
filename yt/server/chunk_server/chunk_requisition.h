@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
 

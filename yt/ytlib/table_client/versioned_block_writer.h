@@ -4,8 +4,9 @@
 #include "private.h"
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
-#include "schema.h"
-#include "versioned_row.h"
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/versioned_row.h>
 
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/chunked_output_stream.h>

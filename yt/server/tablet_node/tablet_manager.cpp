@@ -45,23 +45,23 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 

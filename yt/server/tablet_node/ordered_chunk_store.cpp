@@ -14,8 +14,8 @@
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/core/misc/protobuf_helpers.h>

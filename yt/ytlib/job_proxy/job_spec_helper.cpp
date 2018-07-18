@@ -1,6 +1,8 @@
 #include "job_spec_helper.h"
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/ytlib/scheduler/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
@@ -11,7 +13,6 @@
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/yson/string.h>
-
 
 namespace NYT {
 namespace NJobProxy {

@@ -7,7 +7,7 @@
 #include "parser.hpp"
 #include "query_helpers.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/convert.h>

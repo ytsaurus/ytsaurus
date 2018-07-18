@@ -1,15 +1,14 @@
 #include "blob_table_writer.h"
-
 #include "helpers.h"
-#include "name_table.h"
 #include "private.h"
-#include "public.h"
 #include "schemaless_chunk_writer.h"
 
 #include <yt/core/yson/lexer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
 
 namespace NYT {
 namespace NTableClient {

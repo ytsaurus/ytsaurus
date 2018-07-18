@@ -5,7 +5,7 @@
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 

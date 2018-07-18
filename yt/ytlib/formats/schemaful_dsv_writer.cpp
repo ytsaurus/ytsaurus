@@ -2,7 +2,7 @@
 
 #include "escape.h"
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/string.h>

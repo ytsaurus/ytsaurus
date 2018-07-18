@@ -18,7 +18,7 @@
 
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 

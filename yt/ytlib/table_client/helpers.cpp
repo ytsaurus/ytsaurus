@@ -4,9 +4,6 @@
 #include "schemaless_chunk_reader.h"
 #include "schemaless_chunk_writer.h"
 #include "private.h"
-#include "schemaless_reader.h"
-#include "schemaless_writer.h"
-#include "name_table.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -16,13 +13,18 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/formats/parser.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
+
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -46,7 +48,6 @@ using namespace NFormats;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NProto;
 using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
@@ -716,9 +717,9 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
 
     result.set_unique_keys(writer->GetSchema().GetUniqueKeys());
 
-    auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
+    auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
-    auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
+    auto backBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     result.set_max(backBoundaryKeys.max());
 
     return result;
@@ -728,7 +729,7 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount)
 {
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+    auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkMeta.extensions());
     auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
     auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
     return std::make_pair(minKey, maxKey);
@@ -854,7 +855,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TValue>
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
 {
     for (const auto& value : values) {
         auto id = value.Id;
@@ -865,12 +866,12 @@ void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, con
     }
 }
 
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
 }
 
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));

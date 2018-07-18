@@ -20,21 +20,21 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/key_set.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 

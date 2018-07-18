@@ -3,7 +3,8 @@
 #include "public.h"
 #include "private.h"
 #include "block_writer.h"
-#include "unversioned_row.h"
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/chunked_output_stream.h>
 

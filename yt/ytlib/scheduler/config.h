@@ -14,7 +14,7 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/rpc/config.h>
 

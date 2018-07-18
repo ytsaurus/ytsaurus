@@ -4,14 +4,15 @@
 #include "file_snapshot_store.h"
 #include "snapshot.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/file_reader.h>
-#include <yt/ytlib/api/file_writer.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/config.h>
+#include <yt/client/api/connection.h>
+#include <yt/client/api/file_reader.h>
+#include <yt/client/api/file_writer.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/config.h>
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/scheduler.h>

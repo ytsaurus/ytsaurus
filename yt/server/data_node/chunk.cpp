@@ -1,9 +1,9 @@
 #include "chunk.h"
 #include "journal_chunk.h"
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NDataNode {

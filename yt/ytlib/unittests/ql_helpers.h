@@ -2,16 +2,16 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/helpers.h>
 
 #define _MIN_ "<\"type\"=\"min\">#"

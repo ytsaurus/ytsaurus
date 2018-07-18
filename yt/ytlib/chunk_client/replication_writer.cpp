@@ -3,7 +3,6 @@
 #include "traffic_meter.h"
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_replica.h"
 #include "chunk_service_proxy.h"
 #include "chunk_writer.h"
 #include "config.h"
@@ -14,14 +13,17 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>

@@ -36,7 +36,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
@@ -52,11 +52,13 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/api/native/connection.h>
 

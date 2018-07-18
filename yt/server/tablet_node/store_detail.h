@@ -8,11 +8,11 @@
 
 #include <yt/server/data_node/public.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/api/native/public.h>
 

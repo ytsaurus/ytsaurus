@@ -1,4 +1,4 @@
-#include <yt/ytlib/table_client/unversioned_value.h>
+#include <yt/client/table_client/unversioned_value.h>
 
 #include <yt/core/misc/hyperloglog.h>
 

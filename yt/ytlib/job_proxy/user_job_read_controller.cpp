@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
 #include <yt/core/concurrency/action_queue.h>

@@ -3,6 +3,6 @@ add_executable(run_codec
 )
 
 target_link_libraries(run_codec
-  yt-library-client
+  yt-library-ytlib
   deps-arcadia-library-lfalloc
 )

@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/job_prober_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/core/actions/signal.h>
 

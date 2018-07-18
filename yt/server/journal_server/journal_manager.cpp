@@ -14,12 +14,12 @@
 #include <yt/server/cell_master/automaton.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 #include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NJournalServer {

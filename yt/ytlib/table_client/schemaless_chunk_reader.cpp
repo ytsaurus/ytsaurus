@@ -4,14 +4,10 @@
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "helpers.h"
-#include "name_table.h"
 #include "overlapping_reader.h"
 #include "private.h"
-#include "row_buffer.h"
 #include "row_merger.h"
 #include "row_sampler.h"
-#include "schema.h"
-#include "schemaful_reader.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_chunk_reader.h"
 #include "versioned_chunk_reader.h"
@@ -32,7 +28,12 @@
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_reader.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
@@ -51,7 +52,6 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
-using namespace NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
@@ -66,6 +66,8 @@ using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::TRange;
 
+////////////////////////////////////////////////////////////////////////////////
+
 TColumnarChunkMetaPtr DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
@@ -73,12 +75,12 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
 {
     // Download chunk meta.
     std::vector<int> extensionTags = {
-        TProtoExtensionTag<TMiscExt>::Value,
-        TProtoExtensionTag<TTableSchemaExt>::Value,
-        TProtoExtensionTag<TBlockMetaExt>::Value,
-        TProtoExtensionTag<TColumnMetaExt>::Value,
-        TProtoExtensionTag<TNameTableExt>::Value,
-        TProtoExtensionTag<TKeyColumnsExt>::Value
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+        TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
+        TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TColumnMetaExt>::Value,
+        TProtoExtensionTag<NProto::TNameTableExt>::Value,
+        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
     auto asynChunkMeta = chunkReader->GetMeta(
@@ -197,7 +199,7 @@ protected:
 
     TInterruptDescriptor GetInterruptDescriptorImpl(
         const TRange<TUnversionedRow>& unreadRows,
-        const TMiscExt& misc,
+        const NChunkClient::NProto::TMiscExt& misc,
         const NProto::TBlockMetaExt& blockMeta,
         const TChunkSpec& chunkSpec,
         const TReadLimit& lowerLimit,
@@ -794,7 +796,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
 void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 {
     std::vector<int> extensionTags = {
-        TProtoExtensionTag<TKeyColumnsExt>::Value,
+        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value,
     };
 
     DownloadChunkMeta(extensionTags, PartitionTag_);
@@ -804,7 +806,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         THROW_ERROR_EXCEPTION("Requested lookup for an unsorted chunk");
     }
     if (!misc.unique_keys()) {
-        THROW_ERROR_EXCEPTION("Requested lookup for a chunk without unique_keys restriction");
+        THROW_ERROR_EXCEPTION("Requested lookup for a chunk without \"unique_keys\" restriction");
     }
 
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();

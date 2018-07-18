@@ -7,7 +7,7 @@
 #include "query_statistics.h"
 
 #include <yt/ytlib/table_client/pipe.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_reader.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

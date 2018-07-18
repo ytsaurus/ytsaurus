@@ -3,10 +3,11 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/ytlib/hive/transaction_participant.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/hive/transaction_participant.h>
+
+#include <yt/client/api/connection.h>
 
 namespace NYT {
 namespace NApi {

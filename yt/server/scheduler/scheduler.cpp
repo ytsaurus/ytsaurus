@@ -24,20 +24,20 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
-#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/client/table_client/schemaless_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/api/native/connection.h>
 

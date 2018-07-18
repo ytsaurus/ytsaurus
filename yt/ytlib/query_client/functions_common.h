@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/row_base.h>
+#include <yt/client/table_client/row_base.h>
 #include <yt/core/misc/variant.h>
 
 namespace NYT {

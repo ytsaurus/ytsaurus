@@ -16,7 +16,7 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/query.h>
@@ -24,9 +24,9 @@
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schemaful_writer.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/core/compression/codec.h>
 

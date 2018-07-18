@@ -2,13 +2,13 @@
 
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/ytlib/table_client/value_consumer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>

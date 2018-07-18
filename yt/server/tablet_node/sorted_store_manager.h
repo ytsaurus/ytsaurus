@@ -30,7 +30,7 @@ public:
 
     // IStoreManager overrides.
     virtual bool ExecuteWrites(
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
     TSortedDynamicRowRef ModifyRow(

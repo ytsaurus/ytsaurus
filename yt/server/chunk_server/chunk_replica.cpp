@@ -3,7 +3,7 @@
 
 #include <yt/server/node_tracker_server/node.h>
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/misc/string.h>

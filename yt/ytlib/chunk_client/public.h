@@ -6,7 +6,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/client/chunk_client/public.h>
+
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/nullable.h>
 
@@ -17,16 +18,7 @@ namespace NChunkClient {
 
 namespace NProto {
 
-class TChunkInfo;
-class TChunkSpec;
-class TChunkMeta;
-class TMiscExt;
-
-class TReadRange;
-
 class TReqFetch;
-
-class TDataStatistics;
 
 class TReqExportChunks;
 class TRspExportChunks;
@@ -48,50 +40,21 @@ class TDataSourceDirectoryExt;
 
 struct TBlock;
 
-using TChunkId = NObjectClient::TObjectId;
-extern const TChunkId NullChunkId;
-
-using TChunkListId = NObjectClient::TObjectId;
-extern const TChunkListId NullChunkListId;
-
-using TChunkTreeId = NObjectClient::TObjectId;
-extern const TChunkTreeId NullChunkTreeId;
-
 using TMediumId = NObjectClient::TObjectId;
 
 using TReadSessionId = NObjectClient::TObjectId;
 
 struct TSessionId;
 
-const int DefaultPartIndex = -1;
-
-const int MinReplicationFactor = 1;
-const int MaxReplicationFactor = 10;
-const int DefaultReplicationFactor = 3;
+constexpr int DefaultPartIndex = -1;
 
 //! Estimated memory overhead per chunk reader.
-const i64 ChunkReaderMemorySize = 16_KB;
+constexpr i64 ChunkReaderMemorySize = 16_KB;
 
-//! Used as an expected upper bound in SmallVector.
-/*
- *  Maximum regular number of replicas is 16 (for LRC codec).
- *  Additional +8 enables some flexibility during balancing.
- */
-const int TypicalReplicaCount = 24;
-
-constexpr int MaxMediumCount = 7;
-constexpr int DefaultStoreMediumIndex = 0;
-constexpr int DefaultCacheMediumIndex = 1;
-extern const TString DefaultStoreAccountName;
-extern const TString DefaultStoreMediumName;
-extern const TString DefaultCacheMediumName;
 constexpr int MaxMediumPriority = 10;
 
-const i64 DefaultMaxBlockSize = 16_MB;
-const int MaxInputChunkReplicaCount = 16;
-
-class TChunkReplica;
-using TChunkReplicaList = SmallVector<TChunkReplica, TypicalReplicaCount>;
+constexpr i64 DefaultMaxBlockSize = 16_MB;
+constexpr int MaxInputChunkReplicaCount = 16;
 
 //! Represents an offset inside a chunk.
 using TBlockOffset = i64;
@@ -117,56 +80,6 @@ DEFINE_ENUM(EIOEngineType,
     (Aio)
 );
 
-const int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for regular chunks
-
-// Journal chunks only:
-const int ActiveChunkReplicaIndex   = 0; // the replica is currently being written
-const int UnsealedChunkReplicaIndex = 1; // the replica is finished but not sealed yet
-const int SealedChunkReplicaIndex   = 2; // the replica is finished and sealed
-
-//! Valid indexes are in range |[0, ChunkReplicaIndexBound)|.
-const int ChunkReplicaIndexBound = 32;
-
-//! For pretty-printing only.
-DEFINE_ENUM(EJournalReplicaType,
-    ((Generic)   (GenericChunkReplicaIndex))
-    ((Active)    (ActiveChunkReplicaIndex))
-    ((Unsealed)  (UnsealedChunkReplicaIndex))
-    ((Sealed)    (SealedChunkReplicaIndex))
-);
-
-const int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
-const int InvalidMediumIndex = -1;
-
-//! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
-const int MediumIndexBound = AllMediaIndex + 1;
-
-DEFINE_ENUM(EErrorCode,
-    ((AllTargetNodesFailed)     (700))
-    ((SendBlocksFailed)         (701))
-    ((NoSuchSession)            (702))
-    ((SessionAlreadyExists)     (703))
-    ((ChunkAlreadyExists)       (704))
-    ((WindowError)              (705))
-    ((BlockContentMismatch)     (706))
-    ((NoSuchBlock)              (707))
-    ((NoSuchChunk)              (708))
-    ((NoLocationAvailable)      (710))
-    ((IOError)                  (711))
-    ((MasterCommunicationFailed)(712))
-    ((NoSuchChunkTree)          (713))
-    ((NoSuchChunkList)          (717))
-    ((MasterNotConnected)       (714))
-    ((ChunkUnavailable)         (716))
-    ((WriteThrottlingActive)    (718))
-    ((NoSuchMedium)             (719))
-    ((OptimisticLockFailure)    (720))
-    ((InvalidBlockChecksum)     (721))
-    ((BlockOutOfRange)          (722))
-    ((ObjectNotReplicated)      (723))
-    ((MissingExtension)         (724))
-);
-
 //! Values must be contiguous.
 DEFINE_ENUM(ESessionType,
     ((User)                     (0))
@@ -176,22 +89,12 @@ DEFINE_ENUM(ESessionType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
-DECLARE_REFCOUNTED_CLASS(TErasureReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
-DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)
-DECLARE_REFCOUNTED_CLASS(TFetchChunkSpecConfig)
-DECLARE_REFCOUNTED_CLASS(TBlockFetcherConfig)
-DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TEncodingWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TFetcherConfig)
 DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)

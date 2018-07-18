@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NCypressServer {

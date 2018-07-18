@@ -4,7 +4,7 @@
 #include "dynamic_store_bits.h"
 #include "store_detail.h"
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <array>
 #include <atomic>

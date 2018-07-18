@@ -9,7 +9,7 @@
 #include "query_statistics.h"
 #include "functions_cache.h"
 
-#include <yt/ytlib/api/tablet_helpers.h>
+#include <yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -18,12 +18,12 @@
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/client/table_client/schemaful_reader.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 
@@ -46,11 +46,9 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NApi;
+using namespace NApi::NNative;
 
 using NYT::ToProto;
-
-using NApi::ValidateTabletMountedOrFrozen;
-using NApi::GetPrimaryTabletPeerDescriptor;
 
 using NChunkClient::NProto::TDataStatistics;
 

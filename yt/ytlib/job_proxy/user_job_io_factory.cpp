@@ -3,9 +3,9 @@
 #include "job_spec_helper.h"
 #include "helpers.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -14,11 +14,11 @@
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>

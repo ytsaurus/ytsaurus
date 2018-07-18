@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>

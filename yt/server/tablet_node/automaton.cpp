@@ -7,7 +7,7 @@
 
 #include <yt/server/hydra/hydra_manager.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 

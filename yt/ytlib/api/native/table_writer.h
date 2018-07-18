@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/ypath/public.h>
+#include <yt/client/ypath/public.h>
 
 namespace NYT {
 namespace NApi {

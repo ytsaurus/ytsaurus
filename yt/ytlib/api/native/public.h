@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 namespace NYT {
 namespace NApi {

@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_replica.h"
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/server/chunk_server/chunk_replica.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/core/erasure/public.h>
 

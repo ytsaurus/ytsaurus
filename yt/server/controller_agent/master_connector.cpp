@@ -16,11 +16,11 @@
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>

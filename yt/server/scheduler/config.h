@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/ypath/public.h>
+#include <yt/client/ypath/public.h>
 
 #include <yt/ytlib/event_log/config.h>
 

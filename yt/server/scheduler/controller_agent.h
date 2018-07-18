@@ -5,7 +5,7 @@
 
 #include <yt/server/controller_agent/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

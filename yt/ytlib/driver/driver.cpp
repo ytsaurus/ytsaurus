@@ -10,8 +10,10 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-#include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/connection.h>
+
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/connection.h>
 
 #include <yt/core/yson/null_consumer.h>
 

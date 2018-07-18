@@ -14,13 +14,13 @@
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/transaction.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>

@@ -14,27 +14,27 @@
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/versioned_writer.h>
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/row_merger.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 namespace NYT {
 namespace NTabletNode {

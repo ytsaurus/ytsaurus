@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/hive/config.h>
 

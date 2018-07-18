@@ -11,8 +11,8 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
 
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/config.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/api/native/connection.h>
 
@@ -25,7 +25,9 @@
 #include <yt/ytlib/query_client/query.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/schema.h>
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 

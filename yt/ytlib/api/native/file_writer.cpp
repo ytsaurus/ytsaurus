@@ -5,7 +5,7 @@
 #include "transaction.h"
 #include "private.h"
 
-#include <yt/ytlib/api/file_writer.h>
+#include <yt/client/api/file_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -18,13 +18,13 @@
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

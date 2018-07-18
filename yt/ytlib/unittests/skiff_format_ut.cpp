@@ -8,7 +8,7 @@
 #include <yt/ytlib/formats/skiff_writer.h>
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/skiff/schema_match.h>
 

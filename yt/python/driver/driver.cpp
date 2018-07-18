@@ -5,8 +5,8 @@
 #include <yt/python/common/buffered_stream.h>
 #include <yt/python/common/helpers.h>
 
-#include <yt/ytlib/api/admin.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/admin.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/driver/config.h>
 

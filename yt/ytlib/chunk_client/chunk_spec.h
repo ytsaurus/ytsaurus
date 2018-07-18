@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
