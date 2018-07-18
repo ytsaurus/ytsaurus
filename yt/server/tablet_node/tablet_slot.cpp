@@ -47,13 +47,13 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/connection.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 

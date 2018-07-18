@@ -1,12 +1,12 @@
 #include "transaction_participant_provider.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/connection.h>
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/transaction_participant.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>

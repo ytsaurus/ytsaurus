@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -37,7 +37,7 @@ public:
     virtual void StopEpoch() override;
 
     virtual bool ExecuteWrites(
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
     virtual bool IsOverflowRotationNeeded() const override;

@@ -1,9 +1,10 @@
 #include "schemaful_reader_adapter.h"
-#include "name_table.h"
-#include "schema.h"
-#include "schemaful_reader.h"
-#include "schemaless_reader.h"
 #include "schemaless_row_reorderer.h"
+
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaless_reader.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/blob_output.h>

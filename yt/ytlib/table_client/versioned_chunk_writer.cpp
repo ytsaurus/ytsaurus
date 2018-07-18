@@ -2,11 +2,8 @@
 #include "private.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "unversioned_row.h"
 #include "versioned_block_writer.h"
-#include "versioned_writer.h"
 #include "row_merger.h"
-#include "row_buffer.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -23,6 +20,10 @@
 #include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/ytlib/chunk_client/encoding_writer.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/versioned_writer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/random.h>

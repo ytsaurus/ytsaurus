@@ -4,7 +4,7 @@
 #include "transaction.h"
 #include "connection.h"
 
-#include <yt/ytlib/api/journal_writer.h>
+#include <yt/client/api/journal_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -20,17 +20,17 @@
 
 #include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/config.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/nonblocking_queue.h>

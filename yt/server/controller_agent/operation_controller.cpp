@@ -11,7 +11,7 @@
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/object_client/public.h>
 

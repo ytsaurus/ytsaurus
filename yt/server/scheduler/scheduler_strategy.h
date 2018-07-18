@@ -4,7 +4,7 @@
 #include "event_log.h"
 #include "job_metrics.h"
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

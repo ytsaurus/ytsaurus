@@ -5,7 +5,7 @@ from yt_commands import discover_proxies
 from yt_driver_bindings import Driver
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
 
-import yt_proto.yt.ytlib.rpc_proxy.proto.api_service_pb2 as api_service_pb2
+import yt_proto.yt.client.rpc_proxy.proto.api_service_pb2 as api_service_pb2
 import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
 
 from yt.environment.helpers import assert_items_equal

@@ -18,18 +18,18 @@
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/writer.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/writer.h>
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/config.h>

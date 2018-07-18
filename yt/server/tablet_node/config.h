@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/ytlib/table_client/config.h>
 

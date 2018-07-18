@@ -1,10 +1,12 @@
 #include "versioned_reader_adapter.h"
-#include "versioned_reader.h"
-#include "schemaful_reader.h"
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/schemaful_reader.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 namespace NYT {

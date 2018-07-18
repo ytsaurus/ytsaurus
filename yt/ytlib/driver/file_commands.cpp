@@ -1,8 +1,8 @@
 #include "file_commands.h"
 #include "config.h"
 
-#include <yt/ytlib/api/file_reader.h>
-#include <yt/ytlib/api/file_writer.h>
+#include <yt/client/api/file_reader.h>
+#include <yt/client/api/file_writer.h>
 
 #include <yt/core/ytree/fluent.h>
 

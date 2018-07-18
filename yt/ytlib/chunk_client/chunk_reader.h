@@ -5,7 +5,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -15,7 +15,7 @@
 #include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>

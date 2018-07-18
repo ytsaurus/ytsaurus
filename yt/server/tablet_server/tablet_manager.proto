@@ -1,7 +1,7 @@
 package NYT.NTabletServer.NProto;
 
 import "yt/core/misc/proto/guid.proto";
-import "yt/ytlib/node_tracker_client/proto/node.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/tablet_client/heartbeat.proto";
 import "yt/server/tablet_node/tablet_manager.proto";
 

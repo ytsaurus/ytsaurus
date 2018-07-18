@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/actions/future.h>
 

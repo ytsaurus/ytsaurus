@@ -22,10 +22,10 @@
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/functions_builder.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/pipe.h>
 

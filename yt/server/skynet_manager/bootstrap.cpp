@@ -7,9 +7,9 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/http_integration.h>
 
-#include <yt/ytlib/rpc_proxy/connection.h>
+#include <yt/client/api/rpc_proxy/connection.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/api/connection.h>
 
 #include <yt/core/net/listener.h>
 #include <yt/core/net/local_address.h>
@@ -44,7 +44,7 @@ using namespace NNet;
 using namespace NHttp;
 using namespace NLogging;
 using namespace NApi;
-using namespace NRpcProxy;
+using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 

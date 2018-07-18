@@ -23,16 +23,16 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/scheduler.h>

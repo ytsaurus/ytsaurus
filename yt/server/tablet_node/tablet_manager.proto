@@ -1,8 +1,8 @@
 package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/proto/guid.proto";
-import "yt/ytlib/table_client/chunk_meta.proto";
-import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt/ytlib/tablet_client/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

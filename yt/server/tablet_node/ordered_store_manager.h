@@ -32,7 +32,7 @@ public:
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
 
     virtual bool ExecuteWrites(
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
     TOrderedDynamicRowRef WriteRow(

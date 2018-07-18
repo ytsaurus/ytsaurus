@@ -21,11 +21,11 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>

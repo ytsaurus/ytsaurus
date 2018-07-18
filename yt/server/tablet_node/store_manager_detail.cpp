@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/core/utilex/random.h>
 

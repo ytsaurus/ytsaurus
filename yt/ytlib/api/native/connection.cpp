@@ -24,13 +24,13 @@
 
 #include <yt/ytlib/scheduler/scheduler_channel.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/native_table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/config.h>
-#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
+#include <yt/client/transaction_client/remote_timestamp_provider.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>

@@ -16,7 +16,7 @@
 
 #include <yt/server/job_agent/job.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -30,9 +30,9 @@
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

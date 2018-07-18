@@ -1,6 +1,8 @@
 #pragma once
 
-#include "unversioned_row.h"
+#include "public.h"
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/ytlib/api/native/client.h>
 

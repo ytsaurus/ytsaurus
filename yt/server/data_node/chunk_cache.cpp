@@ -12,10 +12,10 @@
 
 #include <yt/ytlib/formats/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -31,10 +31,10 @@
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
 #include <yt/core/concurrency/async_stream.h>

@@ -5,7 +5,7 @@
 
 #include <yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/compression/codec.h>

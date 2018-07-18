@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_replica.h"
 #include "data_statistics.h"
 #include "multi_chunk_writer.h"
 

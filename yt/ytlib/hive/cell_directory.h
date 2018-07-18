@@ -9,7 +9,7 @@
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/misc/nullable.h>
 

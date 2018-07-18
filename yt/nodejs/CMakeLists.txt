@@ -1,7 +1,7 @@
 function(NODE target)
   add_library(${target} MODULE ${ARGN})
   target_link_libraries(${target}
-    yt-library-client
+    yt-library-ytlib
     deps-arcadia-library-streams-lzop
     deps-arcadia-library-string_utils-base64
   )

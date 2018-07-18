@@ -2,22 +2,22 @@
 #include "connection.h"
 #include "config.h"
 
-#include <yt/ytlib/api/tablet_helpers.h>
+#include <yt/ytlib/api/native/tablet_helpers.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>

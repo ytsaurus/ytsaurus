@@ -12,23 +12,23 @@
 #include "skynet.h"
 #include "private.h"
 
-#include <yt/ytlib/api/rowset.h>
-#include <yt/ytlib/api/operation_archive_schema.h>
-#include <yt/ytlib/api/tablet_helpers.h>
-#include <yt/ytlib/api/file_reader.h>
-#include <yt/ytlib/api/file_writer.h>
-#include <yt/ytlib/api/journal_reader.h>
-#include <yt/ytlib/api/journal_writer.h>
+#include <yt/client/api/rowset.h>
+#include <yt/client/api/operation_archive_schema.h>
+#include <yt/ytlib/api/native/tablet_helpers.h>
+#include <yt/client/api/file_reader.h>
+#include <yt/client/api/file_writer.h>
+#include <yt/client/api/journal_reader.h>
+#include <yt/client/api/journal_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/medium_directory.pb.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -49,7 +49,7 @@
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -68,25 +68,25 @@
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/compression/codec.h>
@@ -137,6 +137,7 @@ using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHiveClient;
 using namespace NHydra;
+using namespace NJobTrackerClient;
 
 using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::TReadLimit;

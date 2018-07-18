@@ -7,7 +7,7 @@
 
 #include <yt/server/hydra/composite_automaton.h>
 
-#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/client/table_client/versioned_row.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 

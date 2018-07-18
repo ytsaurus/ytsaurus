@@ -21,8 +21,8 @@
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/key_set.h>
@@ -31,9 +31,9 @@
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
 
 #include <yt/core/ytree/permission.h>

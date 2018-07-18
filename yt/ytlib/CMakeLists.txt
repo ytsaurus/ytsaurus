@@ -9,12 +9,6 @@ if(YT_ADD_HEADERS_TO_SRCS)
     set(YT_SRCS ${YT_SRCS} ${HEADERS})
 endif()
 
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/rpc_proxy/protocol_version_variables.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/rpc_proxy/protocol_version_variables.h
-  @ONLY
-)
-
 set(YT_SOURCE_FILES)
 protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
@@ -22,20 +16,19 @@ include(query_client/CMakeLists.txt)
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_library(yt-library-client ${YT_SRCS_RESOLVED})
+add_library(yt-library-ytlib ${YT_SRCS_RESOLVED})
 
 # These protos are used in YT python client.
 
 SET(PROTO_TARGETS "")
 
-foreach(proto_suffix "hive/hive_service.proto" "hive/timestamp_map.proto"
-                     "rpc_proxy/proto/api_service.proto" "rpc_proxy/proto/discovery_service.proto")
-  prepare_proto(${PROJECT_SOURCE_DIR}/python yt/ytlib/${proto_suffix} PROTO_TARGETS)
+foreach(proto_suffix "ytlib/hive/hive_service.proto")
+  prepare_proto(${PROJECT_SOURCE_DIR}/python yt/${proto_suffix} PROTO_TARGETS)
 endforeach(proto_suffix)
 
 add_custom_target(yt-ytlib-python-protos ALL DEPENDS ${PROTO_TARGETS})
 
-target_link_libraries(yt-library-client
+target_link_libraries(yt-library-ytlib
   deps-arcadia-contrib-libs-re2
   deps-arcadia-library-http
   yt-core
@@ -44,9 +37,10 @@ target_link_libraries(yt-library-client
   yt-core-crypto
   yt-core-skiff
   yt-core-erasure
+  yt-library-client
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    target_link_libraries(yt-library-client deps-yt-contrib-coredumper)
-    target_link_libraries(yt-library-client deps-yt-contrib-portoapi)
+    target_link_libraries(yt-library-ytlib deps-yt-contrib-coredumper)
+    target_link_libraries(yt-library-ytlib deps-yt-contrib-portoapi)
 endif()

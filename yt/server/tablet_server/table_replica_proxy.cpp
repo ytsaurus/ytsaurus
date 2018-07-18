@@ -14,7 +14,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/tablet_client/table_replica_ypath.pb.h>
 

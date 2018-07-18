@@ -3,7 +3,7 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/ytlib/ypath/public.h>
+#include <yt/client/ypath/public.h>
 
 #include <yt/core/rpc/public.h>
 

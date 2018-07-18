@@ -16,7 +16,7 @@
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/supervisor_service.pb.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/api/native/connection.h>
 
@@ -29,7 +29,7 @@
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>

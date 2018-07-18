@@ -3,7 +3,7 @@
 #include "job.h"
 #include "config.h"
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {

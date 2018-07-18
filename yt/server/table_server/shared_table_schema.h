@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
 #include <util/generic/hash_set.h>
 

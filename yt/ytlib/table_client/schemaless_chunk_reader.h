@@ -1,15 +1,17 @@
 #pragma once
 
 #include "public.h"
-#include "schemaless_reader.h"
 
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/reader_base.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/table_client/schemaless_reader.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 

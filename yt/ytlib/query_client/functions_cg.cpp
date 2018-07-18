@@ -2,7 +2,7 @@
 #include "cg_fragment_compiler.h"
 
 #include <yt/ytlib/table_client/llvm_types.h>
-#include <yt/ytlib/table_client/row_base.h>
+#include <yt/client/table_client/row_base.h>
 
 #include <yt/core/codegen/llvm_migrate_helpers.h>
 #include <yt/core/codegen/routine_registry.h>

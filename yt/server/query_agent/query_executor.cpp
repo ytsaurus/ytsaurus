@@ -28,13 +28,13 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -52,8 +52,8 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/pipe.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -77,7 +77,6 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
-using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 namespace NYT {
 

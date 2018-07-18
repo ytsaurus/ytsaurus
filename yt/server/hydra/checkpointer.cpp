@@ -9,7 +9,7 @@
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
-#include <yt/ytlib/hydra/version.h>
+#include <yt/client/hydra/version.h>
 
 namespace NYT {
 namespace NHydra {

@@ -23,7 +23,7 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -31,7 +31,7 @@
 
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

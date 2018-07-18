@@ -1,17 +1,15 @@
 #include "schemaless_chunk_writer.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "name_table.h"
 #include "partitioner.h"
 #include "schemaless_block_writer.h"
 #include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 #include "helpers.h"
-#include "row_buffer.h"
 #include "skynet_column_evaluator.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/schemaless_column_writer.h>
@@ -26,21 +24,25 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/config.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

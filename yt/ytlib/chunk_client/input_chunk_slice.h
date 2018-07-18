@@ -3,11 +3,12 @@
 #include "public.h"
 #include "data_source.h"
 #include "input_chunk.h"
-#include "read_limit.h"
+
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.pb.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/new.h>
 #include <yt/core/misc/nullable.h>

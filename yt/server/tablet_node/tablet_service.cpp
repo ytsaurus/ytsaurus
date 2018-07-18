@@ -17,9 +17,9 @@
 #include <yt/server/hydra/mutation.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

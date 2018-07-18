@@ -7,7 +7,7 @@
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/user.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NCypressServer {

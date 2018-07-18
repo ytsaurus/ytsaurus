@@ -5,7 +5,7 @@
 
 
 #include <yt/ytlib/table_client/llvm_types.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/codegen/module.h>
 #include <yt/core/codegen/llvm_migrate_helpers.h>

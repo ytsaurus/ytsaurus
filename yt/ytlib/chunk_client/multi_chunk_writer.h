@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_replica.h"
 #include "data_statistics.h"
 #include "writer_base.h"
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 namespace NYT {
 namespace NChunkClient {

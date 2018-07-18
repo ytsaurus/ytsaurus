@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/hydra/config.h>
 
+#include <yt/client/tablet_client/config.h>
+
 #include <yt/core/misc/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -46,14 +48,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTableMountCacheConfig
-    : public TAsyncExpiringCacheConfig
-{  };
-
-DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

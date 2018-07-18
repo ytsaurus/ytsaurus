@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "schemaless_writer.h"
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -11,6 +10,8 @@
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 

@@ -1,12 +1,13 @@
 #include "cached_versioned_chunk_meta.h"
-#include "schema.h"
-#include "name_table.h"
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/ytree/convert.h>
 

@@ -6,7 +6,7 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 namespace NYT {
 namespace NChunkClient {

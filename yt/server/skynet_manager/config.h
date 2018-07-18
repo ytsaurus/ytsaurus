@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
-#include <yt/ytlib/rpc_proxy/config.h>
+#include <yt/client/api/rpc_proxy/config.h>
 
 #include <yt/server/misc/config.h>
 
@@ -51,8 +51,7 @@ public:
 
     NYPath::TYPath Root;
 
-
-    NRpcProxy::TConnectionConfigPtr Connection;
+    NApi::NRpcProxy::TConnectionConfigPtr Connection;
 
     NConcurrency::TThroughputThrottlerConfigPtr UserRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr BackgroundThrottler;

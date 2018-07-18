@@ -5,7 +5,7 @@
 #include "partition_chunk_reader.h"
 #include "schemaless_block_reader.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 

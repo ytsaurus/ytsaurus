@@ -1,10 +1,10 @@
 #include "etc_commands.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
-#include <yt/ytlib/rpc_proxy/public.h>
+#include <yt/client/api/rpc_proxy/public.h>
 
 #include <yt/build/build.h>
 
@@ -23,9 +23,9 @@ using namespace NYson;
 using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NConcurrency;
-using namespace NApi;
 using namespace NFormats;
-using namespace NRpcProxy;
+using namespace NApi;
+using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 

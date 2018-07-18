@@ -4,7 +4,7 @@
 #include "helpers.h"
 #include "compressed_integer_vector.h"
 
-#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/client/table_client/versioned_row.h>
 
 #include <yt/core/misc/zigzag.h>
 

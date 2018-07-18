@@ -2,8 +2,10 @@
 
 #include "client.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
 
 namespace NYT {
 namespace NApi {

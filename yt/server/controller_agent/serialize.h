@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-#include <yt/ytlib/table_client/serialize.h>
+#include <yt/client/table_client/serialize.h>
 
 namespace NYT {
 namespace NControllerAgent {

@@ -10,7 +10,6 @@ namespace NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,7 +16,7 @@
 
 #include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/nullable.h>

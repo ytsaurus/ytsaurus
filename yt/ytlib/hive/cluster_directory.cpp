@@ -2,13 +2,18 @@
 #include "cluster_directory.h"
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/hive/proto/cluster_directory.pb.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <yt/ytlib/hive/cluster_directory.pb.h>
+#include <yt/client/api/connection.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/core/misc/collection_helpers.h>
+
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NHiveClient {
@@ -16,7 +21,6 @@ namespace NHiveClient {
 using namespace NRpc;
 using namespace NApi;
 using namespace NObjectClient;
-using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NConcurrency;
 

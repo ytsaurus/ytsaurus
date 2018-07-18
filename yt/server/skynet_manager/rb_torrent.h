@@ -8,7 +8,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <util/stream/buffer.h>
 

@@ -4,9 +4,9 @@
 #include "callbacks.h"
 #include "function_context.h"
 
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/rowset.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

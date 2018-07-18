@@ -5,7 +5,7 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 #include <yt/ytlib/query_client/functions_cache.pb.h>
 

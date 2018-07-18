@@ -24,7 +24,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 

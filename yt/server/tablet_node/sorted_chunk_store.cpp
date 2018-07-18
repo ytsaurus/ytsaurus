@@ -11,15 +11,15 @@
 
 #include <yt/server/query_agent/config.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -28,7 +28,7 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_reader.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

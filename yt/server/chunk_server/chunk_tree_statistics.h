@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/core/yson/public.h>
 

@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/rpc_proxy/discovery_service_proxy.h>
+#include <yt/client/api/rpc_proxy/discovery_service_proxy.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -38,6 +38,7 @@ namespace NYT {
 namespace NRpcProxy {
 
 using namespace NApi;
+using namespace NApi::NRpcProxy;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -328,7 +329,7 @@ private:
         }
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, DiscoverProxies)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscoverProxies)
     {
         if (!Coordinator_->IsOperable(context)) {
             return;

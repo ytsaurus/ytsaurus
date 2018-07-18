@@ -2,7 +2,7 @@
 #include "config.h"
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/bus/tcp/config.h>
 #include <yt/core/bus/tcp/client.h>

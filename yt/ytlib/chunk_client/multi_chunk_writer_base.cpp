@@ -1,19 +1,21 @@
 #include "multi_chunk_writer_base.h"
 #include "private.h"
-#include "chunk_replica.h"
 #include "chunk_writer.h"
 #include "config.h"
 #include "confirming_writer.h"
 #include "dispatcher.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/config.h>
+#include <yt/client/api/connection.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
-
-#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

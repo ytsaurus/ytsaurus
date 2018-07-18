@@ -30,7 +30,7 @@
 
 #include <yt/server/transaction_server/transaction_manager.pb.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_service.pb.h>
 

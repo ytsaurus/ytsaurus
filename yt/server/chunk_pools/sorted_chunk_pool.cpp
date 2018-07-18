@@ -10,7 +10,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 

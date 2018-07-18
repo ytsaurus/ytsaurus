@@ -4,7 +4,7 @@
 #include "chunk_writer.h"
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <util/system/file.h>
 

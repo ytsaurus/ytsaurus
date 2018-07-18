@@ -4,7 +4,7 @@
 #include "connection.h"
 #include "private.h"
 
-#include <yt/ytlib/api/admin.h>
+#include <yt/client/api/admin.h>
 
 #include <yt/ytlib/admin/admin_service_proxy.h>
 

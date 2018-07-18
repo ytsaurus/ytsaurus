@@ -1,6 +1,6 @@
 #include "schemaless_row_reorderer.h"
-#include "name_table.h"
 
+#include <yt/client/table_client/name_table.h>
 
 namespace NYT {
 namespace NTableClient {

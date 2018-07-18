@@ -4,7 +4,7 @@
 #error "Direct inclusion of this file is not allowed, include chunk_replica.h"
 #endif
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/misc/serialize.h>
 

@@ -7,12 +7,12 @@
 #include "transaction.h"
 #include "store_manager.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/versioned_row.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

@@ -6,7 +6,7 @@
 #include "bootstrap.h"
 #include "http.h"
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/net/listener.h>
 #include <yt/core/net/local_address.h>

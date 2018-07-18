@@ -3,7 +3,7 @@
 #include "scheduler.h"
 #include "bootstrap.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>

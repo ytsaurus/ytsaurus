@@ -3,16 +3,16 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/rowset.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/convert.h>

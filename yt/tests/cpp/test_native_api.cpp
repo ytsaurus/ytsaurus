@@ -3,8 +3,8 @@
 //%NUM_SCHEDULERS=0
 //%DELTA_MASTER_CONFIG={ "object_service": { "timeout_backoff_lead_time": 100 } }
 
-#include <yt/ytlib/api/rowset.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/rowset.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/client.h>
@@ -17,10 +17,10 @@
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

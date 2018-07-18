@@ -2,7 +2,7 @@
 #include "client.h"
 #include "private.h"
 
-#include <yt/ytlib/api/skynet.h>
+#include <yt/client/api/skynet.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/private.h>

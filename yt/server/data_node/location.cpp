@@ -20,7 +20,7 @@
 #include <yt/ytlib/chunk_client/format.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/fs.h>
 

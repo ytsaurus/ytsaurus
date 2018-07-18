@@ -18,8 +18,8 @@ void LookupRows(
     TTimestamp timestamp,
     const TString& user,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NTabletClient::TWireProtocolReader* reader,
-    NTabletClient::TWireProtocolWriter* writer);
+    NTableClient::TWireProtocolReader* reader,
+    NTableClient::TWireProtocolWriter* writer);
 
 void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
@@ -27,8 +27,8 @@ void VersionedLookupRows(
     const TString& user,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,
-    NTabletClient::TWireProtocolReader* reader,
-    NTabletClient::TWireProtocolWriter* writer);
+    NTableClient::TWireProtocolReader* reader,
+    NTableClient::TWireProtocolWriter* writer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

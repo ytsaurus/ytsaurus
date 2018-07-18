@@ -5,7 +5,7 @@
 
 #include <yt/ytlib/chunk_client/block_id.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

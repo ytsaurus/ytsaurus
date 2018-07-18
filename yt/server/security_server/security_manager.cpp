@@ -35,10 +35,10 @@
 
 #include <yt/server/hive/hive_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
 

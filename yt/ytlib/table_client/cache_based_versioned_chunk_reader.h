@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/core/misc/range.h>

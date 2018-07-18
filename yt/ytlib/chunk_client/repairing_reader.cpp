@@ -6,7 +6,7 @@
 #include "dispatcher.h"
 #include "chunk_reader_statistics.h"
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
