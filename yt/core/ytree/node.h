@@ -215,8 +215,7 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-     //TODO(renadeen): swap arguments
-    virtual bool AddChild(const INodePtr& child, const TString& key) = 0;
+    virtual bool AddChild(const TString& key, const INodePtr& child) = 0;
 
     //! Removes a child by its key.
     /*!

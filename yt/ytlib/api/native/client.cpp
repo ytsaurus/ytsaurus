@@ -3615,13 +3615,13 @@ private:
             }
 
             attrNode->RemoveChild("type");
-            YCHECK(attrNode->AddChild(CloneNode(child), "type"));
+            YCHECK(attrNode->AddChild("type", CloneNode(child)));
         }
 
         if (auto child = attrNode->FindChild("key")) {
             attrNode->RemoveChild("key");
             attrNode->RemoveChild("id");
-            YCHECK(attrNode->AddChild(child, "id"));
+            YCHECK(attrNode->AddChild("id", child));
         }
 
         if (options.Attributes && !options.Attributes->has("state")) {
@@ -3695,7 +3695,7 @@ private:
 
                     if (progressAttributeNode) {
                         attrNode->RemoveChild(attribute);
-                        YCHECK(attrNode->AddChild(progressAttributeNode, attribute));
+                        YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
                     }
                 }
             };
