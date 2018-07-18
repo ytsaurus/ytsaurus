@@ -128,13 +128,13 @@ static void CheckYajlCode(int yajlCode)
             errorMessage = "JSON: a generator function (yajl_gen_XXX) was called while in an error state";
             break;
         case yajl_gen_generation_complete:
-            errorMessage = "Attempt to alter already completed json document";
+            errorMessage = "Attempt to alter already completed JSON document";
             break;
         case yajl_gen_invalid_number:
-            errorMessage = "Invalid floating point value in json";
+            errorMessage = "Invalid floating point value in JSON";
             break;
         case yajl_gen_invalid_string:
-            errorMessage = "Invalid UTF-8 string in json";
+            errorMessage = "Invalid UTF-8 string in JSON";
             break;
         default:
             errorMessage = Sprintf("Yajl writer failed with code %d", yajlCode);
