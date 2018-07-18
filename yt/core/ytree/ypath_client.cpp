@@ -627,7 +627,7 @@ void SetNodeByYPath(
             if (child) {
                 currentMap->ReplaceChild(child, value);
             } else {
-                YCHECK(currentMap->AddChild(value, key));
+                YCHECK(currentMap->AddChild(key, value));
             }
             break;
         }
@@ -680,7 +680,7 @@ void ForceYPath(
                 child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
                     child = factory->CreateMap();
-                    YCHECK(currentMap->AddChild(child, key));
+                    YCHECK(currentMap->AddChild(key, child));
                 }
                 break;
             }
@@ -720,9 +720,9 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
         for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                YCHECK(resultMap->AddChild(PatchNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
+                YCHECK(resultMap->AddChild(key, PatchNode(baseMap->GetChild(key), patchMap->GetChild(key))));
             } else {
-                YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
+                YCHECK(resultMap->AddChild(key, CloneNode(patchMap->GetChild(key))));
             }
         }
         result->MutableAttributes()->MergeFrom(patch->Attributes());

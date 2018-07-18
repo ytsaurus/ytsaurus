@@ -54,8 +54,8 @@ void TTabletCellBundle::Load(TLoadContext& context)
     } else {
         auto str = NYT::Load<TYsonString>(context);
         auto node = ConvertTo<INodePtr>(str);
-        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "changelog_account");
-        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "snapshot_account");
+        node->AsMap()->AddChild("changelog_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
+        node->AsMap()->AddChild("snapshot_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
         Options_->Load(node);
     }
     // COMPAT(babenko)

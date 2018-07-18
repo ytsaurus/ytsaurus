@@ -389,7 +389,7 @@ void TMapNodeMixin::SetChild(
 
             auto newChild = lastStep ? child : factory->CreateMap();
             if (currentNode != rootNode) {
-                YCHECK(currentNode->AddChild(newChild, key));
+                YCHECK(currentNode->AddChild(key, newChild));
             } else {
                 rootChild = newChild;
                 rootKey = key;
@@ -409,7 +409,7 @@ void TMapNodeMixin::SetChild(
     }
 
     YCHECK(rootKey);
-    rootNode->AddChild(rootChild, rootKey);
+    rootNode->AddChild(rootKey, rootChild);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const
@@ -446,7 +446,7 @@ void TMapNodeMixin::SetChildren(TReqMultiset* request, TRspMultiset* /* response
 
         auto factory = CreateFactory();
         auto childNode = ConvertToNode(value, factory.get());
-        YCHECK(mapNode->AddChild(childNode, key));
+        YCHECK(mapNode->AddChild(key, childNode));
         factory->Commit();
     }
 }
