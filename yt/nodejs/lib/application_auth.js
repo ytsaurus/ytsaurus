@@ -217,7 +217,10 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
             target.path = null;
 
             if (target.hostname.match(hostname_pattern) == null) {
-                throw new Error("Target hostname is not safe");
+                throw new Error("Return path hostname is not safe");
+            }
+            if (!(target.protocol === "http:" || target.protocol === "https:")) {
+                throw new Error("Return path protocol must be \"http\" or \"https\"");
             }
 
             target = url.format(target);
