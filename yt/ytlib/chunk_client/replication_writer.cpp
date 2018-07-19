@@ -771,6 +771,7 @@ private:
         }
 
         if (!hasUnfinishedNode || (Config_->EnableEarlyFinish && finishedNodeCount >= MinUploadReplicationFactor_)) {
+            State_ = EReplicationWriterState::Closed;
             ClosePromise_.TrySet();
             CancelWriter();
             LOG_INFO("Writer closed");
