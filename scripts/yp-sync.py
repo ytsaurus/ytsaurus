@@ -95,7 +95,7 @@ def rmrf(path):
 class LocalGit(object):
     def __init__(self, root):
         self.root = os.path.realpath(root)
-        assert os.path.isdir(os.path.join(self.root, '.git'))
+        assert os.path.exists(os.path.join(self.root, '.git'))
         self.git = Git(root)
 
     def ls_files(self, pathspec):
