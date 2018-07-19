@@ -225,7 +225,7 @@ public:
         TTestingOptions()
         {
             RegisterParameter("pipe_delay", PipeDelay)
-                .Default(TDuration::Zero());
+                .Default();
         }
     };
 

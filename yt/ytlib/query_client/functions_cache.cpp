@@ -13,6 +13,8 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/config.h>
+
 #include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
@@ -21,6 +23,7 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/file_client/file_chunk_reader.h>

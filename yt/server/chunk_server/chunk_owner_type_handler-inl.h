@@ -17,7 +17,8 @@
 
 #include <yt/server/cell_master/hydra_facade.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/helpers.h>
 
 namespace NYT {

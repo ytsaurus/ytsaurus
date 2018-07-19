@@ -9,10 +9,12 @@
 #include <yt/client/api/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/config.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 

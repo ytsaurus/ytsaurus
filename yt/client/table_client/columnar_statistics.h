@@ -1,6 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/common.h>
+#include "public.h"
+
 #include <yt/core/misc/nullable.h>
 
 namespace NYT {

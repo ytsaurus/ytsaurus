@@ -1,12 +1,14 @@
 #include <yt/core/test_framework/framework.h>
+
 #include "ql_helpers.h"
+
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/folding_profiler.h>
 #include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions.h>
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/coordinator.h>

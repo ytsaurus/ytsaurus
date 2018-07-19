@@ -6,13 +6,10 @@ namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
- 
-static const TString NullPtrName("<nullptr>"); 
-
-////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRetentionConfigPtr& obj)
 {
+    static const TString NullPtrName("<nullptr>");
     return obj
         ? NYTree::ConvertToYsonString(obj, NYson::EYsonFormat::Text).GetData()
         : NullPtrName;

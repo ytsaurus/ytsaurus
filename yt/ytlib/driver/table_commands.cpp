@@ -4,20 +4,22 @@
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/skynet.h>
+#include <yt/client/api/table_reader.h>
 
 #include <yt/ytlib/api/native/table_reader.h>
 
-#include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/client/query_client/query_statistics.h>
 
-#include <yt/ytlib/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/versioned_writer.h>
+#include <yt/client/table_client/columnar_statistics.h>
+
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/client/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/columnar_statistics.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
@@ -118,7 +120,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
     PipeReaderToWriter(
         reader,
         writer,
-        std::move(options));
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,13 +247,15 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     Options.Config = config;
 
-    auto writer = WaitFor(context->GetClient()->CreateTableWriter(
+    auto apiWriter = WaitFor(context->GetClient()->CreateTableWriter(
         Path,
         Options))
         .ValueOrThrow();
 
+    auto schemalessWriter = CreateSchemalessFromApiWriterAdapter(std::move(apiWriter));
+
     TWritingValueConsumer valueConsumer(
-        writer,
+        schemalessWriter,
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()),
         MaxRowBufferSize);
 
@@ -266,7 +270,7 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     WaitFor(valueConsumer.Flush())
         .ThrowOnError();
 
-    WaitFor(writer->Close())
+    WaitFor(schemalessWriter->Close())
         .ThrowOnError();
 
     ProduceEmptyOutput(context);

@@ -29,8 +29,6 @@ class TRspImportChunks;
 class TReqExecuteBatch;
 class TRspExecuteBatch;
 
-class TMediumDirectory;
-
 class TDataSource;
 class TDataSourceDirectoryExt;
 

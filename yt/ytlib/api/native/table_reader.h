@@ -16,7 +16,7 @@ namespace NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+TFuture<ITableReaderPtr> CreateTableReader(
     IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
@@ -25,7 +25,7 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    NTableClient::ISchemalessChunkReaderPtr reader,
+    ITableReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
     const TNullable<TString>& dataColumnName,
     i64 startPartIndex,

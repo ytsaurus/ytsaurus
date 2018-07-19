@@ -6,7 +6,7 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

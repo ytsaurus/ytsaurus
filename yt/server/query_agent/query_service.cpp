@@ -21,8 +21,9 @@
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
+
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/schemaful_writer.h>
 

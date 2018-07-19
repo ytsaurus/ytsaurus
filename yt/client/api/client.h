@@ -5,21 +5,23 @@
 
 #include <yt/client/cypress_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/client/job_tracker_client/public.h>
 
 #include <yt/client/object_client/public.h>
 
-#include <yt/ytlib/query_client/public.h>
-#include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/scheduler/public.h>
 
 #include <yt/client/security_client/public.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/client/node_tracker_client/public.h>
+
+#include <yt/client/table_client/config.h>
 #include <yt/client/table_client/row_base.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/ytlib/table_client/columnar_statistics.h>
+
+#include <yt/client/table_client/columnar_statistics.h>
 
 #include <yt/client/tablet_client/public.h>
 
@@ -46,9 +48,9 @@
 
 #include <yt/core/yson/string.h>
 
-#include <yt/core/misc/enum.h>
-
 #include <yt/core/profiling/profiler.h>
+
+#include <yt/core/erasure/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -911,11 +913,11 @@ struct IClientBase
         const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+    virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 
-    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+    virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 

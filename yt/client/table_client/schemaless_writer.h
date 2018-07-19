@@ -2,7 +2,7 @@
 
 #include "unversioned_row.h"
 
-#include <yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/client/chunk_client/writer_base.h>
 
 #include <yt/core/actions/future.h>
 

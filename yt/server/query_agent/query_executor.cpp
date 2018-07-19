@@ -36,6 +36,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/query_client/query_statistics.h>
+
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
@@ -45,7 +47,6 @@
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/private.h>
-#include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/executor.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>

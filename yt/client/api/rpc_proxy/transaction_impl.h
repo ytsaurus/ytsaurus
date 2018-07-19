@@ -104,11 +104,11 @@ public:
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
-    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+    virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const NApi::TTableReaderOptions& options) override;
 
-    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+    virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 

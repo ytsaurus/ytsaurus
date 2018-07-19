@@ -1,15 +1,16 @@
 #pragma once
 
-#include <yt/core/misc/guid.h>
 #include <yt/core/misc/public.h>
+
+#include <yt/client/job_tracker_client/public.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TJobId = TGuid;
-using TOperationId = TGuid;
+using NJobTrackerClient::TJobId;
+using NJobTrackerClient::TOperationId;
 
 DEFINE_ENUM(EOperationType,
     (Map)

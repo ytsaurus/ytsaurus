@@ -4,9 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/ytlib/chunk_client/public.h>
-
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -169,25 +167,17 @@ TCodecStatistics& TCodecStatistics::Append(const TCodecDuration& codecTime)
 
 TCodecStatistics& TCodecStatistics::Append(const std::pair<ECodec, TDuration>& codecTime)
 {
-    Map_[codecTime.first] += codecTime.second;
+    CodecToDuration_[codecTime.first] += codecTime.second;
     TotalDuration_ += codecTime.second;
     return *this;
 }
 
 TCodecStatistics& TCodecStatistics::operator+=(const TCodecStatistics& other)
 {
-    for (const auto& pair : other.Map_) {
+    for (const auto& pair : other.CodecToDuration_) {
         Append(pair);
     }
     return *this;
-}
-
-void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const
-{
-    for (const auto& pair : Map_) {
-        auto codecStr = to_lower(TEnumTraits<ECodec>::ToString(pair.first));
-        statistics->AddSample(path + '/' + codecStr, pair.second);
-    }
 }
 
 TDuration TCodecStatistics::GetTotalDuration() const

@@ -6,7 +6,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -15,20 +14,27 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/client/api/table_reader.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
+
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -67,12 +73,12 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessTableReader
-    : public ISchemalessMultiChunkReader
+class TTableReader
+    : public ITableReader
     , public TTransactionListener
 {
 public:
-    TSchemalessTableReader(
+    TTableReader(
         TTableReaderConfigPtr config,
         // TODO(ignat): Unused?
         TRemoteReaderOptionsPtr options,
@@ -82,26 +88,95 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter,
         bool unordered,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr throttler)
+        : Config_(std::move(config))
+        , Options_(std::move(options))
+        , Client_(std::move(client))
+        , Transaction_(std::move(transaction))
+        , RichPath_(richPath)
+        , NameTable_(std::move(nameTable))
+        , ColumnFilter_(columnFilter)
+        , Unordered_(unordered)
+        , Throttler_(std::move(throttler))
+        , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
+    {
+        YCHECK(Config_);
+        YCHECK(Client_);
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TFuture<void> GetReadyEvent() override;
+        BlockReadOptions_.WorkloadDescriptor = Config_->WorkloadDescriptor;
+        BlockReadOptions_.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
+        BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
 
-    virtual i64 GetTableRowIndex() const override;
-    virtual const TNameTablePtr& GetNameTable() const override;
-    virtual i64 GetTotalRowCount() const override;
+        Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+            RichPath_.GetPath(),
+            TransactionId_,
+            BlockReadOptions_.ReadSessionId);
 
-    virtual TKeyColumns GetKeyColumns() const override;
+        ReadyEvent_ = BIND(&TTableReader::DoOpen, MakeStrong(this))
+            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .Run();
+    }
 
-    // not actually used
-    virtual i64 GetSessionRowIndex() const override;
-    virtual bool IsFetchingCompleted() const override;
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
-    virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override;
-    virtual void Interrupt() override;
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        rows->clear();
+
+        if (IsAborted()) {
+            return true;
+        }
+
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return true;
+        }
+
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->Read(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return ReadyEvent_;
+        }
+
+        if (IsAborted()) {
+            return MakeFuture(GetAbortError());
+        }
+
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetTableRowIndex();
+    }
+
+    virtual i64 GetTotalRowCount() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetTotalRowCount();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetNameTable();
+    }
+
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetKeyColumns();
+    }
 
 private:
     const TTableReaderConfigPtr Config_;
@@ -124,364 +199,225 @@ private:
 
     NLogging::TLogger Logger = ApiLogger;
 
-    void DoOpen();
-    void CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const;
+    void DoOpen()
+    {
+        const auto& path = RichPath_.GetPath();
+
+        LOG_INFO("Opening table reader");
+
+        TUserObject userObject;
+        userObject.Path = path;
+
+        GetUserObjectBasicAttributes(
+            Client_,
+            TMutableRange<TUserObject>(&userObject, 1),
+            Transaction_ ? Transaction_->GetId() : NullTransactionId,
+            Logger,
+            EPermission::Read,
+            Config_->SuppressAccessTracking);
+
+        const auto& objectId = userObject.ObjectId;
+        const auto tableCellTag = userObject.CellTag;
+
+        TYPath objectIdPath;
+        if (objectId) {
+            objectIdPath = FromObjectId(objectId);
+            if (userObject.Type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                    path,
+                    EObjectType::Table,
+                    userObject.Type);
+            }
+        } else {
+            LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
+            objectIdPath = path;
+        }
+
+        int chunkCount;
+        bool dynamic;
+        TTableSchema schema;
+        auto timestamp = RichPath_.GetTimestamp();
+
+        {
+            LOG_INFO("Requesting table schema");
+
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+            SetTransactionId(req, Transaction_);
+            SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
+            std::vector<TString> attributeKeys{
+                "chunk_count",
+                "dynamic",
+                "retained_timestamp",
+                "schema",
+                "unflushed_timestamp"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table schema %v",
+                path);
+
+            const auto& rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            chunkCount = attributes->Get<int>("chunk_count");
+            dynamic = attributes->Get<bool>("dynamic");
+            schema = attributes->Get<TTableSchema>("schema");
+
+            // Validate that timestamp is correct.
+            ValidateDynamicTableTimestamp(RichPath_, dynamic, schema, *attributes);
+        }
+
+        auto nodeDirectory = New<TNodeDirectory>();
+        std::vector<TChunkSpec> chunkSpecs;
+
+        {
+            LOG_INFO("Fetching table chunks");
+
+            FetchChunkSpecs(
+                Client_,
+                nodeDirectory,
+                tableCellTag,
+                objectIdPath,
+                RichPath_.GetRanges(),
+                chunkCount,
+                Config_->MaxChunksPerFetch,
+                Config_->MaxChunksPerLocateRequest,
+                [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->set_fetch_parity_replicas(Config_->EnableAutoRepair);
+                    SetTransactionId(req, Transaction_);
+                    SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
+                },
+                Logger,
+                &chunkSpecs,
+                Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip /* skipUnavailableChunks */);
+
+            CheckUnavailableChunks(&chunkSpecs);
+        }
+
+        auto options = New<NTableClient::TTableReaderOptions>();
+        options->EnableTableIndex = true;
+        options->EnableRangeIndex = true;
+        options->EnableRowIndex = true;
+
+        auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
+        if (dynamic && schema.IsSorted()) {
+            dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
+                path,
+                schema,
+                RichPath_.GetColumns(),
+                timestamp.Get(AsyncLastCommittedTimestamp)));
+
+            auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
+
+            UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
+                Config_,
+                options,
+                Client_,
+                // HTTP proxy doesn't have a node descriptor.
+                TNodeDescriptor(),
+                Client_->GetNativeConnection()->GetBlockCache(),
+                nodeDirectory,
+                dataSourceDirectory,
+                dataSliceDescriptor,
+                NameTable_,
+                BlockReadOptions_,
+                ColumnFilter_,
+                /* trafficMeter */ nullptr,
+                Throttler_);
+        } else {
+            dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+                path,
+                schema,
+                RichPath_.GetColumns()));
+
+            std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+            for (auto& chunkSpec : chunkSpecs) {
+                dataSliceDescriptors.emplace_back(chunkSpec);
+            }
+
+            auto factory = Unordered_
+                ? CreateSchemalessParallelMultiReader
+                : CreateSchemalessSequentialMultiReader;
+            UnderlyingReader_ = factory(
+                Config_,
+                options,
+                Client_,
+                // HTTP proxy doesn't have a node descriptor.
+                TNodeDescriptor(),
+                Client_->GetNativeConnection()->GetBlockCache(),
+                nodeDirectory,
+                dataSourceDirectory,
+                std::move(dataSliceDescriptors),
+                NameTable_,
+                BlockReadOptions_,
+                ColumnFilter_,
+                schema.GetKeyColumns(),
+                /* partitionTag */ Null,
+                /* trafficMeter */ nullptr,
+                Throttler_);
+        }
+
+        WaitFor(UnderlyingReader_->GetReadyEvent())
+            .ThrowOnError();
+
+        if (Transaction_) {
+            ListenTransaction(Transaction_);
+        }
+
+        LOG_INFO("Table reader opened");
+    }
+
+    void CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
+    {
+        std::vector<TChunkSpec> availableChunkSpecs;
+
+        for (auto& chunkSpec : *chunkSpecs) {
+            if (!IsUnavailable(chunkSpec)) {
+                availableChunkSpecs.push_back(std::move(chunkSpec));
+                continue;
+            }
+
+            auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+            auto throwUnavailable = [&] () {
+                THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
+            };
+
+            switch (Config_->UnavailableChunkStrategy) {
+                case EUnavailableChunkStrategy::ThrowError:
+                    throwUnavailable();
+                    break;
+
+                case EUnavailableChunkStrategy::Restore:
+                    if (IsErasureChunkId(chunkId)) {
+                        availableChunkSpecs.push_back(std::move(chunkSpec));
+                    } else {
+                        throwUnavailable();
+                    }
+                    break;
+
+                case EUnavailableChunkStrategy::Skip:
+                    // Just skip this chunk.
+                    break;
+
+                default:
+                    Y_UNREACHABLE();
+            };
+        }
+
+        *chunkSpecs = std::move(availableChunkSpecs);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessTableReader::TSchemalessTableReader(
-    TTableReaderConfigPtr config,
-    TRemoteReaderOptionsPtr options,
-    IClientPtr client,
-    NApi::ITransactionPtr transaction,
-    const TRichYPath& richPath,
-    TNameTablePtr nameTable,
-    const TColumnFilter& columnFilter,
-    bool unordered,
-    IThroughputThrottlerPtr throttler)
-    : Config_(std::move(config))
-    , Options_(std::move(options))
-    , Client_(std::move(client))
-    , Transaction_(std::move(transaction))
-    , RichPath_(richPath)
-    , NameTable_(std::move(nameTable))
-    , ColumnFilter_(columnFilter)
-    , Unordered_(unordered)
-    , Throttler_(std::move(throttler))
-    , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-{
-    YCHECK(Config_);
-    YCHECK(Client_);
-
-    BlockReadOptions_.WorkloadDescriptor = Config_->WorkloadDescriptor;
-    BlockReadOptions_.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
-    BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
-
-    Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-        RichPath_.GetPath(),
-        TransactionId_,
-        BlockReadOptions_.ReadSessionId);
-
-    ReadyEvent_ = BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
-        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-        .Run();
-}
-
-void TSchemalessTableReader::DoOpen()
-{
-    const auto& path = RichPath_.GetPath();
-
-    LOG_INFO("Opening table reader");
-
-    TUserObject userObject;
-    userObject.Path = path;
-
-    GetUserObjectBasicAttributes(
-        Client_,
-        TMutableRange<TUserObject>(&userObject, 1),
-        Transaction_ ? Transaction_->GetId() : NullTransactionId,
-        Logger,
-        EPermission::Read,
-        Config_->SuppressAccessTracking);
-
-    const auto& objectId = userObject.ObjectId;
-    const auto tableCellTag = userObject.CellTag;
-
-    TYPath objectIdPath;
-    if (objectId) {
-        objectIdPath = FromObjectId(objectId);
-        if (userObject.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                userObject.Type);
-        }
-    } else {
-        LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
-        objectIdPath = path;
-    }
-
-    int chunkCount;
-    bool dynamic;
-    TTableSchema schema;
-    auto timestamp = RichPath_.GetTimestamp();
-
-    {
-        LOG_INFO("Requesting table schema");
-
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(channel);
-
-        auto req = TYPathProxy::Get(objectIdPath + "/@");
-        SetTransactionId(req, Transaction_);
-        SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-        std::vector<TString> attributeKeys{
-            "chunk_count",
-            "dynamic",
-            "retained_timestamp",
-            "schema",
-            "unflushed_timestamp"
-        };
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table schema %v",
-            path);
-
-        const auto& rsp = rspOrError.Value();
-        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-
-        chunkCount = attributes->Get<int>("chunk_count");
-        dynamic = attributes->Get<bool>("dynamic");
-        schema = attributes->Get<TTableSchema>("schema");
-
-        // Validate that timestamp is correct.
-        ValidateDynamicTableTimestamp(RichPath_, dynamic, schema, *attributes);
-    }
-
-    auto nodeDirectory = New<TNodeDirectory>();
-    std::vector<TChunkSpec> chunkSpecs;
-
-    {
-        LOG_INFO("Fetching table chunks");
-
-        FetchChunkSpecs(
-            Client_,
-            nodeDirectory,
-            tableCellTag,
-            objectIdPath,
-            RichPath_.GetRanges(),
-            chunkCount,
-            Config_->MaxChunksPerFetch,
-            Config_->MaxChunksPerLocateRequest,
-            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                req->set_fetch_parity_replicas(Config_->EnableAutoRepair);
-                SetTransactionId(req, Transaction_);
-                SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-            },
-            Logger,
-            &chunkSpecs,
-            Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip /* skipUnavailableChunks */);
-
-        CheckUnavailableChunks(&chunkSpecs);
-    }
-
-    auto options = New<NTableClient::TTableReaderOptions>();
-    options->EnableTableIndex = true;
-    options->EnableRangeIndex = true;
-    options->EnableRowIndex = true;
-
-    auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
-    if (dynamic && schema.IsSorted()) {
-        dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
-            path,
-            schema,
-            RichPath_.GetColumns(),
-            timestamp.Get(AsyncLastCommittedTimestamp)));
-
-        auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
-
-        UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
-            Config_,
-            options,
-            Client_,
-            // HTTP proxy doesn't have a node descriptor.
-            TNodeDescriptor(),
-            Client_->GetNativeConnection()->GetBlockCache(),
-            nodeDirectory,
-            dataSourceDirectory,
-            dataSliceDescriptor,
-            NameTable_,
-            BlockReadOptions_,
-            ColumnFilter_,
-            /* trafficMeter */ nullptr,
-            Throttler_);
-    } else {
-        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-            path,
-            schema,
-            RichPath_.GetColumns()));
-
-        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        for (auto& chunkSpec : chunkSpecs) {
-            dataSliceDescriptors.emplace_back(chunkSpec);
-        }
-
-        auto factory = Unordered_
-            ? CreateSchemalessParallelMultiReader
-            : CreateSchemalessSequentialMultiReader;
-        UnderlyingReader_ = factory(
-            Config_,
-            options,
-            Client_,
-            // HTTP proxy doesn't have a node descriptor.
-            TNodeDescriptor(),
-            Client_->GetNativeConnection()->GetBlockCache(),
-            nodeDirectory,
-            dataSourceDirectory,
-            std::move(dataSliceDescriptors),
-            NameTable_,
-            BlockReadOptions_,
-            ColumnFilter_,
-            schema.GetKeyColumns(),
-            /* partitionTag */ Null,
-            /* trafficMeter */ nullptr,
-            Throttler_);
-    }
-
-    WaitFor(UnderlyingReader_->GetReadyEvent())
-        .ThrowOnError();
-
-    if (Transaction_) {
-        ListenTransaction(Transaction_);
-    }
-
-    LOG_INFO("Table reader opened");
-}
-
-bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
-{
-    rows->clear();
-
-    if (IsAborted()) {
-        return true;
-    }
-
-    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-        return true;
-    }
-
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->Read(rows);
-}
-
-TFuture<void> TSchemalessTableReader::GetReadyEvent()
-{
-    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-        return ReadyEvent_;
-    }
-
-    if (IsAborted()) {
-        return MakeFuture(GetAbortError());
-    }
-
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetReadyEvent();
-}
-
-i64 TSchemalessTableReader::GetTableRowIndex() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetTableRowIndex();
-}
-
-i64 TSchemalessTableReader::GetTotalRowCount() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetTotalRowCount();
-}
-
-const TNameTablePtr& TSchemalessTableReader::GetNameTable() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetNameTable();
-}
-
-TKeyColumns TSchemalessTableReader::GetKeyColumns() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetKeyColumns();
-}
-
-i64 TSchemalessTableReader::GetSessionRowIndex() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetSessionRowIndex();
-}
-
-bool TSchemalessTableReader::IsFetchingCompleted() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->IsFetchingCompleted();
-}
-
-NChunkClient::NProto::TDataStatistics TSchemalessTableReader::GetDataStatistics() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetDataStatistics();
-}
-
-NChunkClient::TCodecStatistics TSchemalessTableReader::GetDecompressionStatistics() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetDecompressionStatistics();
-}
-
-std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetFailedChunkIds();
-}
-
-TInterruptDescriptor TSchemalessTableReader::GetInterruptDescriptor(
-    const TRange<TUnversionedRow>& unreadRows) const
-{
-    Y_UNREACHABLE();
-}
-
-void TSchemalessTableReader::Interrupt()
-{
-    Y_UNREACHABLE();
-}
-
-void TSchemalessTableReader::CheckUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
-{
-    std::vector<TChunkSpec> availableChunkSpecs;
-
-    for (auto& chunkSpec : *chunkSpecs) {
-        if (!IsUnavailable(chunkSpec)) {
-            availableChunkSpecs.push_back(std::move(chunkSpec));
-            continue;
-        }
-
-        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto throwUnavailable = [&] () {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
-        };
-
-        switch (Config_->UnavailableChunkStrategy) {
-            case EUnavailableChunkStrategy::ThrowError:
-                throwUnavailable();
-                break;
-
-            case EUnavailableChunkStrategy::Restore:
-                if (IsErasureChunkId(chunkId)) {
-                    availableChunkSpecs.push_back(std::move(chunkSpec));
-                } else {
-                    throwUnavailable();
-                }
-                break;
-
-            case EUnavailableChunkStrategy::Skip:
-                // Just skip this chunk.
-                break;
-
-            default:
-                Y_UNREACHABLE();
-        };
-    }
-
-    *chunkSpecs = std::move(availableChunkSpecs);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
+TFuture<ITableReaderPtr> CreateTableReader(
     IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
@@ -497,7 +433,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
         transaction = client->AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    auto reader = New<TSchemalessTableReader>(
+    auto reader = New<TTableReader>(
         options.Config ? options.Config : New<TTableReaderConfig>(),
         New<TRemoteReaderOptions>(),
         client,
@@ -508,7 +444,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
         options.Unordered,
         throttler);
 
-    return reader->GetReadyEvent().Apply(BIND([=] () -> ISchemalessMultiChunkReaderPtr {
+    return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
     }));
 }
@@ -525,7 +461,7 @@ class TBlobTableReader
 {
 public:
     TBlobTableReader(
-        ISchemalessChunkReaderPtr reader,
+        ITableReaderPtr reader,
         const TNullable<TString>& partIndexColumnName,
         const TNullable<TString>& dataColumnName,
         i64 startPartIndex,
@@ -560,7 +496,7 @@ public:
     }
 
 private:
-    const ISchemalessChunkReaderPtr Reader_;
+    const ITableReaderPtr Reader_;
     const TString PartIndexColumnName_;
     const TString DataColumnName_;
 
@@ -569,8 +505,8 @@ private:
     TNullable<i64> PreviousPartSize_;
 
     std::vector<TUnversionedRow> Rows_;
-    size_t Index_ = 0;
-    size_t NextPartIndex_;
+    i64 Index_ = 0;
+    i64 NextPartIndex_;
 
     TEnumIndexedVector<TNullable<size_t>, EColumnType> ColumnIndex_;
 
@@ -674,7 +610,7 @@ private:
 };
 
 IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    ISchemalessChunkReaderPtr reader,
+    ITableReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
     const TNullable<TString>& dataColumnName,
     i64 startPartIndex,

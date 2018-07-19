@@ -3,6 +3,10 @@
 #include "private.h"
 #include "schemaless_chunk_writer.h"
 
+#include <yt/ytlib/chunk_client/config.h>
+
+#include <yt/ytlib/table_client/config.h>
+
 #include <yt/core/yson/lexer.h>
 
 #include <yt/client/object_client/helpers.h>

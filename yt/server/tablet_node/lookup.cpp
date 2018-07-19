@@ -7,13 +7,15 @@
 
 #include <yt/server/tablet_node/config.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
+
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/versioned_reader.h>
 

@@ -146,14 +146,14 @@ public:
 
 
     // Tables
-    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+    virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath&,
         const NApi::TTableReaderOptions&) override
     {
         ThrowUnimplemented("read_table");
     }
 
-    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+    virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath&,
         const NApi::TTableWriterOptions&) override
     {

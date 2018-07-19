@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/client/query_client/public.h>
+
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/public.h>
@@ -27,7 +29,6 @@ class TJoinClause;
 class TQuery;
 class TQueryOptions;
 class TDataRanges;
-class TQueryStatistics;
 
 } // namespace NProto
 

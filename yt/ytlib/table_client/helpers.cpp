@@ -5,6 +5,9 @@
 #include "schemaless_chunk_writer.h"
 #include "private.h"
 
+#include <yt/client/api/table_reader.h>
+#include <yt/client/api/table_writer.h>
+
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -35,7 +38,6 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
-
 
 namespace NYT {
 namespace NTableClient {
@@ -69,18 +71,18 @@ TTableOutput::~TTableOutput() = default;
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
-    YCHECK(IsParserValid_);
+    YCHECK(ParserValid_);
     try {
         Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
     } catch (const std::exception& ex) {
-        IsParserValid_ = false;
+        ParserValid_ = false;
         throw;
     }
 }
 
 void TTableOutput::DoFinish()
 {
-    if (IsParserValid_) {
+    if (ParserValid_) {
         // Dump everything into consumer.
         Parser_->Finish();
     }
@@ -88,19 +90,164 @@ void TTableOutput::DoFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiFromSchemalessChunkReaderAdapter
+    : public NApi::ITableReader
+{
+public:
+    explicit TApiFromSchemalessChunkReaderAdapter(ISchemalessChunkReaderPtr underlyingReader)
+        : UnderlyingReader_(std::move(underlyingReader))
+    { }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        return UnderlyingReader_->GetTableRowIndex();
+    }
+
+    virtual i64 GetTotalRowCount() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    {
+        return UnderlyingReader_->Read(rows);
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingReader_->GetNameTable();
+    }
+
+    virtual NTableClient::TKeyColumns GetKeyColumns() const override
+    {
+        return UnderlyingReader_->GetKeyColumns();
+    }
+
+private:
+    const ISchemalessChunkReaderPtr UnderlyingReader_;
+};
+
+NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
+    ISchemalessChunkReaderPtr underlyingReader)
+{
+    return New<TApiFromSchemalessChunkReaderAdapter>(std::move(underlyingReader));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TApiFromSchemalessWriterAdapter
+    : public NApi::ITableWriter
+{
+public:
+    explicit TApiFromSchemalessWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
+    { }
+
+    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    {
+        return UnderlyingWriter_->Write(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+
+private:
+    const ISchemalessWriterPtr UnderlyingWriter_;
+};
+
+NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
+    ISchemalessWriterPtr underlyingWriter)
+{
+    return New<TApiFromSchemalessWriterAdapter>(std::move(underlyingWriter));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessApiFromWriterAdapter
+    : public ISchemalessWriter
+{
+public:
+    explicit TSchemalessApiFromWriterAdapter(NApi::ITableWriterPtr underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
+    { }
+
+    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    {
+        return UnderlyingWriter_->Write(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+
+private:
+    const NApi::ITableWriterPtr UnderlyingWriter_;
+};
+
+ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+    NApi::ITableWriterPtr underlyingWriter)
+{
+    return New<TSchemalessApiFromWriterAdapter>(std::move(underlyingWriter));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PipeReaderToWriter(
-    ISchemalessReaderPtr reader,
+    NApi::ITableReaderPtr reader,
     ISchemalessWriterPtr writer,
-    TPipeReaderToWriterOptions options)
+    const TPipeReaderToWriterOptions& options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
-    int bufferRowCount = options.BufferRowCount;
 
     std::vector<TUnversionedRow> rows;
-    rows.reserve(bufferRowCount);
+    rows.reserve(options.BufferRowCount);
 
     while (reader->Read(&rows)) {
         yielder.TryYield();
+
         if (rows.empty()) {
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
@@ -141,6 +288,17 @@ void PipeReaderToWriter(
     YCHECK(rows.empty());
 }
 
+void PipeReaderToWriter(
+    ISchemalessChunkReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    const TPipeReaderToWriterOptions& options)
+{
+    PipeReaderToWriter(
+        CreateApiFromSchemalessChunkReaderAdapter(reader),
+        std::move(writer),
+        options);
+}
+
 void PipeInputToOutput(
     IInputStream* input,
     IOutputStream* output,
@@ -170,7 +328,7 @@ void PipeInputToOutput(
     i64 bufferBlockSize)
 {
     struct TWriteBufferTag { };
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize, false);
 
     while (true) {
         auto length = WaitFor(input->Read(buffer))
@@ -185,7 +343,6 @@ void PipeInputToOutput(
 
     output->Finish();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

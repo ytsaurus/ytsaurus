@@ -117,6 +117,12 @@ DEFINE_ENUM(EControlAttribute,
     (RowIndex)
 );
 
+DEFINE_ENUM(EUnavailableChunkStrategy,
+    ((ThrowError)   (0))
+    ((Restore)      (1))
+    ((Skip)         (2))
+);
+
 //! NB: |int| is important since we use negative values to indicate that
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
 using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;
@@ -171,30 +177,13 @@ DECLARE_REFCOUNTED_STRUCT(ISchemafulWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
-DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
-
-DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
-
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
+DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 
-DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
-
-DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
-
-DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
-
-DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
-
-class TSchemafulRowMerger;
-class TUnversionedRowMerger;
-class TVersionedRowMerger;
-class TSamplingRowMerger;
 
 class TSaveContext;
 class TLoadContext;

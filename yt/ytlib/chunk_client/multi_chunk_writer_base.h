@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
-#include "data_statistics.h"
 #include "multi_chunk_writer.h"
+
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/api/native/public.h>
 

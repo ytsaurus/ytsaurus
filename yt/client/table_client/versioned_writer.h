@@ -2,7 +2,7 @@
 
 #include "versioned_row.h"
 
-#include <yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/client/chunk_client/writer_base.h>
 
 #include <yt/core/misc/range.h>
 

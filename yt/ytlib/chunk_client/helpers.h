@@ -9,6 +9,9 @@
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/ytlib/job_tracker_client/public.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -164,6 +167,13 @@ i64 CalculateDiskSpaceUsage(
     int replicationFactor,
     i64 regularDiskSpace,
     i64 erasureDiskSpace);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void DumpCodecStatistics(
+    const TCodecStatistics& codecStatistics,
+    const NYPath::TYPath& path,
+    NJobTrackerClient::TStatistics* statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

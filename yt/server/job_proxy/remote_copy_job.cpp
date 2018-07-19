@@ -4,6 +4,9 @@
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/config.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -12,7 +15,6 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>

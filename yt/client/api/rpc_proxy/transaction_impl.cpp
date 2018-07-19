@@ -385,7 +385,7 @@ TFuture<TSelectRowsResult> TTransaction::SelectRows(
         PatchTransactionTimestamp(options));
 }
 
-TFuture<ISchemalessMultiChunkReaderPtr> TTransaction::CreateTableReader(
+TFuture<ITableReaderPtr> TTransaction::CreateTableReader(
     const TRichYPath& path,
     const NApi::TTableReaderOptions& options)
 {
@@ -395,7 +395,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> TTransaction::CreateTableReader(
         PatchTransactionId(options));
 }
 
-TFuture<ISchemalessWriterPtr> TTransaction::CreateTableWriter(
+TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
     const TRichYPath& path,
     const NApi::TTableWriterOptions& options)
 {

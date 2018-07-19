@@ -5,7 +5,8 @@
 #include "folding_profiler.h"
 #include "helpers.h"
 #include "query.h"
-#include "query_statistics.h"
+
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/schemaful_writer.h>
 

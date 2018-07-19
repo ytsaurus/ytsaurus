@@ -22,7 +22,6 @@
 #include <yt/core/misc/common.h>
 
 #include <vector>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 
 namespace NYT {
 

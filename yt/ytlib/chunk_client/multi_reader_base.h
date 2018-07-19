@@ -1,10 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "data_statistics.h"
-#include "reader_base.h"
 
 #include <yt/client/api/public.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/reader_base.h>
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 

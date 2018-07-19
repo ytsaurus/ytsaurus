@@ -37,7 +37,6 @@ class TTableOutput
 {
 public:
     TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
-
     explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
 
     ~TTableOutput();
@@ -48,24 +47,40 @@ private:
 
     const std::unique_ptr<NFormats::IParser> Parser_;
 
-    bool IsParserValid_ = true;
+    bool ParserValid_ = true;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
+    ISchemalessChunkReaderPtr underlyingReader);
+
+NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
+    ISchemalessWriterPtr underlyingWriter);
+
+ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+    NApi::ITableWriterPtr underlyingWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPipeReaderToWriterOptions
 {
-    int BufferRowCount = 0;
+    i64 BufferRowCount = 0;
     bool ValidateValues = false;
-    NConcurrency::IThroughputThrottlerPtr Throttler = nullptr;
+    NConcurrency::IThroughputThrottlerPtr Throttler;
     // Used only for testing.
     TDuration PipeDelay;
 };
 
 void PipeReaderToWriter(
-    ISchemalessReaderPtr reader,
+    NApi::ITableReaderPtr reader,
     ISchemalessWriterPtr writer,
-    TPipeReaderToWriterOptions options);
+    const TPipeReaderToWriterOptions& options);
+
+void PipeReaderToWriter(
+    ISchemalessChunkReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    const TPipeReaderToWriterOptions& options);
 
 void PipeInputToOutput(
     IInputStream* input,
@@ -76,7 +91,6 @@ void PipeInputToOutput(
     NConcurrency::IAsyncInputStreamPtr input,
     IOutputStream* output,
     i64 bufferBlockSize);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

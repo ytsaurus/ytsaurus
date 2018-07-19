@@ -3,7 +3,8 @@
 #include "public.h"
 #include "exec_node.h"
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
