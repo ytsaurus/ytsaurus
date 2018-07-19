@@ -11,7 +11,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/client/table_client/unversioned_row.h>

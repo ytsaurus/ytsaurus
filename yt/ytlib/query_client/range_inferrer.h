@@ -4,7 +4,8 @@
 #include "callbacks.h"
 #include "column_evaluator.h"
 #include "query.h"
-#include "query_statistics.h"
+
+#include <yt/client/query_client/query_statistics.h>
 
 #include <functional>
 

@@ -3,9 +3,10 @@
 #include "config.h"
 #include "folding_profiler.h"
 #include "query_preparer.h"
-#include "query_statistics.h"
 #include "functions.h"
 #include "functions_cg.h"
+
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/core/misc/sync_cache.h>
 

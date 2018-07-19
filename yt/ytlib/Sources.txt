@@ -44,7 +44,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.proto
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_writer.cpp
@@ -176,7 +175,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job_tracker_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job_spec_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/statistics.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/journal_client/helpers.cpp
@@ -237,8 +235,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_preparer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/program/program.cpp
@@ -293,16 +289,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_statistics_fetcher.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/overlapping_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/partition_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/partitioner.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/pipe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/row_merger.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/row_sampler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/samples_fetcher.cpp

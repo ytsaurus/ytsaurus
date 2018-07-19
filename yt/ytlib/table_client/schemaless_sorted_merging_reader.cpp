@@ -3,7 +3,7 @@
 #include "schemaless_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/table_client/name_table.h>
 

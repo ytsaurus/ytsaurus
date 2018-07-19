@@ -5,11 +5,11 @@
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/reader_base.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/client/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/reader_base.h>
 
 #include <yt/client/table_client/schemaless_reader.h>
 
@@ -26,11 +26,11 @@ struct ISchemalessChunkReader
     : public virtual NChunkClient::IReaderBase
     , public ISchemalessReader
 {
-    //! The current row index (measured from the table beginning).
+    //! Return the current row index (measured from the start of the table).
     //! Only makes sense if the read range is nonempty.
     virtual i64 GetTableRowIndex() const = 0;
 
-    //! Return unreadRows to reader and build data slice descriptors for read and unread data.
+    //! Returns #unreadRows to reader and builds data slice descriptors for read and unread data.
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         const NYT::TRange<NTableClient::TUnversionedRow>& unreadRows) const = 0;
 };
@@ -72,14 +72,14 @@ struct ISchemalessMultiChunkReader
     : public virtual NChunkClient::IReaderBase
     , public ISchemalessChunkReader
 {
-    //! Index of the next, unread row.
+    //! Return the index of the next, unread row.
     virtual i64 GetSessionRowIndex() const = 0;
 
-    //! Approximate row count readable with this reader.
+    //! Returns the row count readable with this reader.
     //! May change over time and finally converges to actually read row count.
     virtual i64 GetTotalRowCount() const = 0;
 
-    //! Interrupt the reader, notify consumer via end of stream in Read() method.
+    //! Interrupts the reader, notifies the consumer via end of stream in Read() method.
     virtual void Interrupt() = 0;
 };
 

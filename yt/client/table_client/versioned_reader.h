@@ -1,9 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "versioned_row.h"
 
-#include <yt/ytlib/chunk_client/reader_base.h>
+#include <yt/client/chunk_client/reader_base.h>
 
 #include <yt/core/misc/error.h>
 

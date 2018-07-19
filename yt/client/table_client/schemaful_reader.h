@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
 #include <yt/client/chunk_client/public.h>
 
 #include <yt/core/actions/future.h>

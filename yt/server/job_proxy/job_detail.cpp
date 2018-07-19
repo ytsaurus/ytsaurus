@@ -5,6 +5,7 @@
 #include <yt/server/exec_agent/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -13,6 +14,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+
 #include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/misc/collection_helpers.h>
@@ -140,7 +142,10 @@ TJobResult TSimpleJobBase::Run()
             options.BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount;
             options.PipeDelay = Host_->GetJobSpecHelper()->GetJobIOConfig()->Testing->PipeDelay;
             options.ValidateValues = true;
-            PipeReaderToWriter(Reader_, Writer_, std::move(options));
+            PipeReaderToWriter(
+                Reader_,
+                Writer_,
+                options);
         }
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");
@@ -199,13 +204,13 @@ TStatistics TSimpleJobBase::GetStatistics() const
     TStatistics result;
     if (Reader_) {
         result.AddSample("/data/input", Reader_->GetDataStatistics());
-        Reader_->GetDecompressionStatistics().DumpTo(&result, "/codec/cpu/decode");
+        DumpCodecStatistics(Reader_->GetDecompressionStatistics(), "/codec/cpu/decode", &result);
         DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
     }
 
     if (Writer_) {
         result.AddSample("/data/output/0", Writer_->GetDataStatistics());
-        Writer_->GetCompressionStatistics().DumpTo(&result, "/codec/cpu/encode/0");
+        DumpCodecStatistics(Writer_->GetCompressionStatistics(), "/codec/cpu/encode/0", &result);
     }
 
     return result;

@@ -2,15 +2,14 @@
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/core/compression/public.h>
-
-#include <yt/core/misc/dense_map.h>
 
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
+
+#include <yt/core/misc/dense_map.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -46,21 +45,22 @@ struct TCodecDuration
 class TCodecStatistics
 {
 public:
+    using TCodecToDuration = SmallDenseMap<
+        NCompression::ECodec,
+        TDuration,
+        1,
+        TEnumTraits<NCompression::ECodec>::TDenseMapInfo>;
+
+    DEFINE_BYREF_RO_PROPERTY(TCodecToDuration, CodecToDuration);
+
+public:
     TCodecStatistics& Append(const TCodecDuration& codecTime);
 
     TCodecStatistics& operator+=(const TCodecStatistics& other);
 
-    void DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const;
-
     TDuration GetTotalDuration() const;
 
 private:
-    SmallDenseMap<
-        NCompression::ECodec,
-        TDuration,
-        1,
-        TEnumTraits<NCompression::ECodec>::TDenseMapInfo> Map_;
-
     TDuration TotalDuration_;
 
     TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);

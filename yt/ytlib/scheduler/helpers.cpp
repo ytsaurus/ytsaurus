@@ -6,9 +6,11 @@
 #include <yt/client/api/transaction.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 

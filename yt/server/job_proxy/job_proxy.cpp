@@ -22,14 +22,16 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>

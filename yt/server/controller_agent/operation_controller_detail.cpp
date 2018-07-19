@@ -16,11 +16,12 @@
 
 #include <yt/server/chunk_pools/helpers.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>

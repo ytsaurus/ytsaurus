@@ -510,12 +510,12 @@ public:
         const TJournalWriterOptions& options),
         (path, options))
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessMultiChunkReaderPtr>, CreateTableReader, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (
         const TRichYPath& path,
         const TTableReaderOptions& options),
         (path, options))
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessWriterPtr>, CreateTableWriter, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (
         const TRichYPath& path,
         const TTableWriterOptions& options),
         (path, options))

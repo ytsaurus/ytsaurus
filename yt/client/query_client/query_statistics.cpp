@@ -1,6 +1,6 @@
 #include "query_statistics.h"
 
-#include <yt/ytlib/query_client/query_statistics.pb.h>
+#include <yt/client/query_client/proto/query_statistics.pb.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 

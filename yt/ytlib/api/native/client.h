@@ -4,6 +4,8 @@
 
 #include <yt/client/api/client.h>
 
+#include <yt/ytlib/query_client/public.h>
+
 namespace NYT {
 namespace NApi {
 namespace NNative {

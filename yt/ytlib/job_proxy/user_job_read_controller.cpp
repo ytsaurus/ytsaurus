@@ -175,7 +175,7 @@ private:
             PipeReaderToWriter(
                 Reader_,
                 writer,
-                std::move(options));
+                options);
             WaitFor(asyncOutput->Close())
                 .ThrowOnError();
         }).AsyncVia(SerializedInvoker_);

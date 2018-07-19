@@ -864,7 +864,7 @@ private:
                 PipeReaderToWriter(
                     reader,
                     writer,
-                    std::move(options));
+                    options);
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);

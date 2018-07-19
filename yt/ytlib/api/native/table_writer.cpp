@@ -2,10 +2,10 @@
 #include "client.h"
 
 #include <yt/client/table_client/name_table.h>
+
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/config.h>
-
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 namespace NYT {
 namespace NApi {
@@ -16,7 +16,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<ISchemalessWriterPtr> CreateTableWriter(
+TFuture<ITableWriterPtr> CreateTableWriter(
     const IClientPtr& client,
     const NYPath::TRichYPath& path,
     const TTableWriterOptions& options)
@@ -35,13 +35,17 @@ TFuture<ISchemalessWriterPtr> CreateTableWriter(
         transaction = client->AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    return CreateSchemalessTableWriter(
+    auto asyncSchemalessWriter = CreateSchemalessTableWriter(
         options.Config,
         writerOptions,
         path,
         nameTable,
         client,
         transaction);
+
+    return asyncSchemalessWriter.Apply(BIND([] (const ISchemalessWriterPtr& schemalessWriter) {
+        return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

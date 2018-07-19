@@ -21,6 +21,8 @@ class TDataStatistics;
 
 class TReadRange;
 
+class TMediumDirectory;
+
 } // namespace NProto
 
 DEFINE_ENUM(EErrorCode,
@@ -115,6 +117,9 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
+
+struct TCodecDuration;
+class TCodecStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 

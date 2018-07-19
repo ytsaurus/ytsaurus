@@ -18,12 +18,6 @@ DEFINE_ENUM(ETableChunkFormat,
     ((UnversionedColumnar)  (6))
 );
 
-DEFINE_ENUM(EUnavailableChunkStrategy,
-    ((ThrowError)   (0))
-    ((Restore)      (1))
-    ((Skip)         (2))
-);
-
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;
@@ -82,6 +76,23 @@ DECLARE_REFCOUNTED_CLASS(TSkynetColumnEvaluator)
 
 DECLARE_REFCOUNTED_CLASS(TCachedBlockMeta)
 DECLARE_REFCOUNTED_CLASS(TBlockMetaCache)
+
+class TSchemafulRowMerger;
+class TUnversionedRowMerger;
+class TVersionedRowMerger;
+class TSamplingRowMerger;
+
+DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
+
+DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
+
+DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

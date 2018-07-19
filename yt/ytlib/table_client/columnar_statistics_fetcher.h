@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "columnar_statistics.h"
+#include <yt/client/table_client/columnar_statistics.h>
 
 #include <yt/ytlib/chunk_client/fetcher.h>
 

@@ -7,7 +7,6 @@
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer.h>
-#include <yt/ytlib/chunk_client/writer_base.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

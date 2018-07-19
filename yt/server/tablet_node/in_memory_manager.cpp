@@ -11,12 +11,13 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>

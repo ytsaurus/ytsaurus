@@ -679,7 +679,7 @@ public:
         return NNative::CreateJournalWriter(this, path, options);
     }
 
-    virtual TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
+    virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override
     {
@@ -693,7 +693,7 @@ public:
         return NNative::LocateSkynetShare(this, path, options);
     }
 
-    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+    virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override
     {

@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 

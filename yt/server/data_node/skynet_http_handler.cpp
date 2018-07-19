@@ -130,7 +130,7 @@ public:
             chunkPtr,
             Bootstrap_->GetChunkBlockManager(),
             Bootstrap_->GetBlockCache(),
-            Bootstrap_->GetBlockMetaCache() );
+            Bootstrap_->GetBlockMetaCache());
 
         auto chunkState = New<TChunkState>(
             Bootstrap_->GetBlockCache(),
@@ -152,8 +152,10 @@ public:
             TColumnFilter(),
             readRange);
 
-        auto stream = NNative::CreateBlobTableReader(
-            schemalessReader,
+        auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));
+
+        auto blobReader = NNative::CreateBlobTableReader(
+            apiReader,
             TString("part_index"),
             TString("data"),
             startPartIndex);
@@ -162,7 +164,7 @@ public:
 
         auto throttler = Bootstrap_->GetSkynetOutThrottler();
         while (true) {
-            auto blob = WaitFor(stream->Read())
+            auto blob = WaitFor(blobReader->Read())
                 .ValueOrThrow();
 
             if (blob.Empty()) {
