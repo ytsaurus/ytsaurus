@@ -490,7 +490,6 @@ def run_prepare(options, build_context):
     run(["ln", "-s", nodejs_source, link_path])
 
 @build_step
-@disable_for_ya
 def run_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
         return
@@ -556,13 +555,14 @@ def run_sandbox_upload(options, build_context):
     sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
 
     # Nodejs package
-    nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
-    nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
-    with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
-        tar.add(nodejs_build, arcname="/node_modules", recursive=True)
+    if options.build_system == "cmake":
+        nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
+        nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
+        with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
+            tar.add(nodejs_build, arcname="/node_modules", recursive=True)
 
-    rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
-    sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
+        rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
+        sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
@@ -863,7 +863,6 @@ def log_sandbox_upload(options, build_context, task_id):
     yt_wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
 
 @build_step
-@disable_for_ya
 def wait_for_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
         return
