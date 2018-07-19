@@ -646,6 +646,38 @@ class TestDynamicTables(TestDynamicTablesBase):
         for node in ls("//sys/nodes"):
             set_node_decommissioned(node, False)
 
+    def test_tablet_error_count(self):
+        LARGE_STRING = "a" * 15 * 1024 * 1024
+        MAX_UNVERSIONED_ROW_WEIGHT = 512 * 1024 * 1024
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        # Create several versions such that their total weight exceeds
+        # MAX_UNVERSIONED_ROW_WEIGHT. No error happens in between because rows
+        # are flushed chunk by chunk.
+        row = [{"key": 0, "value": LARGE_STRING}]
+        for i in range(MAX_UNVERSIONED_ROW_WEIGHT / len(LARGE_STRING) + 2):
+            insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+        set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+
+        # Compaction fails with "Versioned row data weight is too large".
+        wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+        assert len(get("//tmp/t/@tablet_errors")) == 1
+        assert get("//tmp/t/@tablet_error_count") == 1
+
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        # After reshard all errors should be gone.
+        assert len(get("//tmp/t/@tablet_errors")) == 0
+        assert get("//tmp/t/@tablet_error_count") == 0
+
     def test_disallowed_dynamic_table_alter(self):
         sorted_schema = make_schema([
                 {"name": "key", "type": "string", "sort_order": "ascending"},

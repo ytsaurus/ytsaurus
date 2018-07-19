@@ -468,20 +468,48 @@ void TTablet::SetTable(TTableNode* table)
 {
     if (Table_) {
         --Table_->GetTrunkNode()->MutableTabletCountByState()[State_];
+        int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
+        Y_ASSERT(restTabletErrorCount >= 0);
+        Table_->SetTabletErrorCount(restTabletErrorCount);
     }
     if (table) {
         YCHECK(table->IsTrunk());
         ++table->MutableTabletCountByState()[State_];
+        table->SetTabletErrorCount(table->GetTabletErrorCount() + GetErrorCount());
     }
     Table_ = table;
+}
+
+void TTablet::SetErrors(std::vector<TError> errors)
+{
+    if (Table_) {
+        int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
+        Y_ASSERT(restTabletErrorCount >= 0);
+        Table_->SetTabletErrorCount(restTabletErrorCount);
+    }
+
+    ErrorCount_ = 0;
+    for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+        size_t idx = static_cast<size_t>(errorKey);
+        if (idx < errors.size()) {
+            Errors_[errorKey] = errors[idx];
+            ErrorCount_ += !errors[idx].IsOK();
+        } else {
+            Errors_[errorKey] = TError{};
+        }
+    }
+
+    if (Table_) {
+        Table_->SetTabletErrorCount(Table_->GetTabletErrorCount() + GetErrorCount());
+    }
 }
 
 std::vector<TError> TTablet::GetErrors() const
 {
     std::vector<TError> errors;
     for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-        if (!Errors()[key].IsOK()) {
-            errors.push_back(Errors()[key]);
+        if (!Errors_[key].IsOK()) {
+            errors.push_back(Errors_[key]);
         }
     }
     return errors;
