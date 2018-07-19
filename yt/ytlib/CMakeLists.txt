@@ -22,12 +22,6 @@ add_library(yt-library-ytlib ${YT_SRCS_RESOLVED})
 
 SET(PROTO_TARGETS "")
 
-foreach(proto_suffix "ytlib/hive/hive_service.proto")
-  prepare_proto(${PROJECT_SOURCE_DIR}/python yt/${proto_suffix} PROTO_TARGETS)
-endforeach(proto_suffix)
-
-add_custom_target(yt-ytlib-python-protos ALL DEPENDS ${PROTO_TARGETS})
-
 target_link_libraries(yt-library-ytlib
   deps-arcadia-contrib-libs-re2
   deps-arcadia-library-http

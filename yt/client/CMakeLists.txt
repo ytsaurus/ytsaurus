@@ -18,12 +18,15 @@ configure_file(
   @ONLY
 )
 
+SET(PROTO_TARGETS "")
+
 foreach(proto_suffix "client/hive/proto/timestamp_map.proto"
-                     "client/rpc_proxy/proto/api_service.proto"
-                     "client/rpc_proxy/proto/discovery_service.proto")
+                     "client/api/rpc_proxy/proto/api_service.proto"
+                     "client/api/rpc_proxy/proto/discovery_service.proto")
   prepare_proto(${PROJECT_SOURCE_DIR}/python yt/${proto_suffix} PROTO_TARGETS)
 endforeach(proto_suffix)
 
+add_custom_target(yt-client-python-protos ALL DEPENDS ${PROTO_TARGETS})
 
 add_library(yt-library-client ${YT_SRCS_RESOLVED})
 
