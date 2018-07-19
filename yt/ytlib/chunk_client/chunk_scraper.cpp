@@ -11,7 +11,6 @@
 
 #include <yt/ytlib/api/native_client.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/finally.h>
