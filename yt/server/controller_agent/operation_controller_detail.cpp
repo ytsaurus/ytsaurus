@@ -3937,9 +3937,13 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     if (stderrChunkId && shouldCreateJobNode) {
         summary->ArchiveStderr = true;
+        // Job spec is necessary for ACL checks for stderr.
+        summary->ArchiveJobSpec = true;
     }
     if (failContextChunkId && shouldCreateJobNode) {
         summary->ArchiveFailContext = true;
+        // Job spec is necessary for ACL checks for fail context.
+        summary->ArchiveJobSpec = true;
     }
 
     auto inputPaths = BuildInputPathYson(joblet);
