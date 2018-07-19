@@ -316,7 +316,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
                 usage_operations = extract_metric_distribution(item, "usage_ratio", "operations")
                 if usage_pools is not None and "test_pool" in usage_pools["pools"] and \
                    usage_operations is not None and operation_id in usage_operations["operations"]:
-                    error_count += (usage_pools["pools"]["test_pool"] == usage_operations["operations"][operation_id])
+                    error_count += (usage_pools["pools"]["test_pool"] != usage_operations["operations"][operation_id])
                     pool_and_operations_validated = True
         # NB: some explanation of possible non-zero error count:
         # 1. Scheduler simulator are running by 2 (default value) thread in this test.
