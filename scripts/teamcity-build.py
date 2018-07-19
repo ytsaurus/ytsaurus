@@ -285,6 +285,20 @@ def build(options, build_context):
         run_yall(options, mkdirs=True)
 
 @build_step
+def gather_build_info(options, build_context):
+    if options.build_system == "cmake":
+        run(["make", "version"], cwd=options.working_directory, silent_stdout=True)
+        ytversion_file = os.path.join(options.working_directory, "ytversion")
+    else:
+        assert options.build_system == "ya"
+        ytversion_file = os.path.join(get_bin_dir(options), "ytversion")
+
+    with open(ytversion_file) as handle:
+        version = handle.read().strip()
+    build_context["yt_version"] = version
+    build_context["build_time"] = datetime.now().isoformat()
+
+@build_step
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(get_bin_dir(options), binary)
@@ -400,11 +414,6 @@ def package(options, build_context):
             run(["make", "-j", "8", "package"])
             run(["make", "-j", "8", "python-package"])
             run(["make", "version"])
-
-            with open("ytversion") as handle:
-                version = handle.read().strip()
-            build_context["yt_version"] = version
-            build_context["build_time"] = datetime.now().isoformat()
 
             teamcity_message("We have built a package")
             teamcity_interact("setParameter", name="yt.package_built", value=1)
