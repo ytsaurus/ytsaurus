@@ -109,5 +109,22 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClusterDirectorySynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration SyncPeriod;
+
+    TClusterDirectorySynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Seconds(3));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NHiveServer
 } // namespace NYT
