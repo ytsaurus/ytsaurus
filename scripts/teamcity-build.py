@@ -417,19 +417,18 @@ def package(options, build_context):
 
             teamcity_message("We have built a package")
             teamcity_interact("setParameter", name="yt.package_built", value=1)
-            teamcity_interact("setParameter", name="yt.package_version", value=version)
-            teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
+            teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
+            teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(build_context["yt_version"]))
 
             share_packages(options, build_context)
 
-            artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
+            artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(build_context["yt_version"]))
             if artifacts:
                 for repository in options.repositories:
                     run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
                     teamcity_message("We have uploaded a package to " + repository)
                     teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
         else:
-            cpus = int(os.sysconf("SC_NPROCESSORS_ONLN")) # TODO: factorize
             os.mkdir("ARTIFACTS")
             with cwd("ARTIFACTS"):
                 package_script = os.path.join(options.checkout_directory, "scripts", "package.py")
