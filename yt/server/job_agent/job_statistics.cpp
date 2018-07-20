@@ -61,10 +61,10 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
                 .BeginMap()
                 .Item("time").Value(event.Timestamp())
                 .DoIf(event.State().HasValue(), [&] (TFluentMap fluent) {
-                    fluent.Item("state").Value(FormatEnum(*event.State()));
+                    fluent.Item("state").Value(*event.State());
                 })
                 .DoIf(event.Phase().HasValue(), [&] (TFluentMap fluent) {
-                    fluent.Item("phase").Value(FormatEnum(*event.Phase()));
+                    fluent.Item("phase").Value(*event.Phase());
                 })
                 .EndMap();
         })

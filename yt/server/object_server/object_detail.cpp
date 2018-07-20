@@ -494,31 +494,25 @@ TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttribu
 
 bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
+    if (!acd) {
+        return false;
+    }
 
     switch (key) {
-        case EInternedAttributeKey::InheritAcl:
-            if (!acd) {
-                break;
-            }
-
+        case EInternedAttributeKey::InheritAcl: {
             ValidateNoTransaction();
 
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
-
+        }
 
         case EInternedAttributeKey::Acl: {
-            if (!acd) {
-                break;
-            }
-
             ValidateNoTransaction();
 
-            auto valueNode = ConvertToNode(value);
             TAccessControlList newAcl;
-            Deserialize(newAcl, valueNode, securityManager);
+            Deserialize(newAcl, ConvertToNode(value), securityManager);
 
             acd->ClearEntries();
             for (const auto& ace : newAcl.Entries) {
@@ -529,10 +523,6 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         }
 
         case EInternedAttributeKey::Owner: {
-            if (!acd) {
-                break;
-            }
-
             ValidateNoTransaction();
 
             auto name = ConvertTo<TString>(value);

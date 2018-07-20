@@ -27,6 +27,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/core/logging/fluent_log.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ypath/tokenizer.h>
@@ -47,6 +49,7 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NYTree;
+using namespace NLogging;
 using namespace NYson;
 using namespace NYPath;
 using namespace NRpc;
@@ -57,6 +60,10 @@ using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NCypressClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -431,6 +438,20 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             return true;
         }
 
+        case EInternedAttributeKey::InheritAcl:
+        case EInternedAttributeKey::Acl:
+        case EInternedAttributeKey::Owner: {
+            auto attributeApplied = TObjectProxyBase::SetBuiltinAttribute(key, value);
+            if (attributeApplied) {
+                LogStructuredEventFluently(Logger, ELogLevel::Info)
+                    .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
+                    .Item("attribute").Value(GetUninternedAttributeKey(key))
+                    .Item("path").Value(GetPath())
+                    .Item("value").Value(value);
+            }
+            return attributeApplied;
+        }
+
         default:
             break;
     }
@@ -589,7 +610,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
         case EInternedAttributeKey::LockMode:
             BuildYsonFluently(consumer)
-                .Value(FormatEnum(node->GetLockMode()));
+                .Value(node->GetLockMode());
             return true;
 
         case EInternedAttributeKey::Path:
@@ -2747,4 +2768,3 @@ void TDocumentNodeProxy::SetImplValue(const TYsonString& value)
 
 } // namespace NCypressServer
 } // namespace NYT
-

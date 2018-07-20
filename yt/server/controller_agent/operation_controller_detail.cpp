@@ -2213,7 +2213,7 @@ void TOperationControllerBase::BuildJobAttributes(
     static const auto EmptyMapYson = TYsonString("{}");
 
     fluent
-        .Item("job_type").Value(FormatEnum(job->JobType))
+        .Item("job_type").Value(job->JobType)
         .Item("state").Value(state)
         .Item("address").Value(job->NodeDescriptor.Address)
         .Item("start_time").Value(job->StartTime)
@@ -6434,7 +6434,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
                     fluent.Item(ToString(joblet->JobId))
                         .BeginMap()
                             .Item("operation_id").Value(ToString(OperationId))
-                            .Item("type").Value(FormatEnum(joblet->JobType))
+                            .Item("type").Value(joblet->JobType)
                             .Item("brief_statistics").Value(joblet->BriefStatistics)
                             .Item("node").Value(joblet->NodeDescriptor.Address)
                             .Item("last_activity_time").Value(joblet->LastActivityTime)
