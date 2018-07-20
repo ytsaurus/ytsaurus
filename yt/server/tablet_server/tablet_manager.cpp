@@ -2915,6 +2915,26 @@ private:
                 prerequisiteTransactionId);
         };
 
+        auto requestUpdateSlot = [&] (const TTabletCell* cell) {
+            if (!response)
+                return;
+
+            auto* protoInfo = response->add_tablet_slots_update();
+
+            const auto& cellId = cell->GetId();
+
+            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
+
+            const auto* cellBundle = cell->GetCellBundle();
+            protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
+            protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).GetData());
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
+                node->GetDefaultAddress(),
+                cellId,
+                cellBundle->GetDynamicConfigVersion());
+        };
+
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
             if (!response)
                 return;
@@ -3012,6 +3032,12 @@ private:
             if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(&slot);
             }
+
+            if (slotInfo.has_dynamic_config_version() &&
+                slotInfo.dynamic_config_version() != cell->GetCellBundle()->GetDynamicConfigVersion())
+            {
+                requestUpdateSlot(slot.Cell);
+            }
         }
 
         // Check for expected slots that are missing.
@@ -3035,6 +3061,7 @@ private:
                     }
                     if (actualCells.find(cell) == actualCells.end()) {
                         requestCreateSlot(cell);
+                        requestUpdateSlot(cell);
                         --availableSlots;
                     }
                 }

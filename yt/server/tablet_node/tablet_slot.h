@@ -93,6 +93,11 @@ public:
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const;
 
+    double GetUsedCpu(double cpuPerTabletSlot) const;
+
+    i32 GetDynamicConfigVersion() const;
+    void UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

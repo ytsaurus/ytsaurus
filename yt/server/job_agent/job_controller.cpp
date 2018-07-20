@@ -334,7 +334,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
 
     if (result.has_cpu()) {
         const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletCpu = tabletSlotManager->GetUsedTableSlotCount() * Config_->CpuPerTabletSlot;
+        auto tabletCpu = tabletSlotManager->GetUsedCpu(Config_->CpuPerTabletSlot);
         result.set_cpu(std::max(0.0, result.cpu() - tabletCpu));
     }
 
