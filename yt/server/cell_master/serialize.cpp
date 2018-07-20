@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 715;
+    return 716;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -75,7 +75,8 @@ bool ValidateSnapshotVersion(int version)
         version == 712 || // aozeritsky
         version == 713 || // savrus: Add tablet cell decommission
         version == 714 || // savrus: Change TReqKickOrphanedTabletActions
-        version == 715;   // ifsmirnov: Fix tablet_error_count lag
+        version == 715 || // ifsmirnov: Fix tablet_error_count lag
+        version == 716;   // savrus: Add dynamic tablet cell options
 }
 
 ////////////////////////////////////////////////////////////////////////////////

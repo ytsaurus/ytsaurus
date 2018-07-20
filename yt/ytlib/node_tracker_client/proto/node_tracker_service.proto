@@ -68,6 +68,7 @@ message TRspIncrementalHeartbeat
     repeated NTabletClient.NProto.TCreateTabletSlotInfo tablet_slots_to_create = 1;
     repeated NTabletClient.NProto.TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
     repeated NTabletClient.NProto.TConfigureTabletSlotInfo tablet_slots_configure = 3;
+    repeated NTabletClient.NProto.TUpdateTabletSlotInfo tablet_slots_update = 4;
 
     // Node Tracker stuff.
     optional string rack = 6;

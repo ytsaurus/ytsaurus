@@ -38,7 +38,10 @@ public:
     int GetAvailableTabletSlotCount() const;
 
     //! Returns the number of currently used slots.
-    int GetUsedTableSlotCount() const;
+    int GetUsedTabletSlotCount() const;
+
+    //! Returns fraction of cpu used by tablet slots (in terms of resource limits).
+    double GetUsedCpu(double cpuPerTabletSlot) const;
 
     const std::vector<TTabletSlotPtr>& Slots() const;
     TTabletSlotPtr FindSlot(const NHydra::TCellId& id);
