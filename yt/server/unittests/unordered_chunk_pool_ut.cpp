@@ -562,6 +562,36 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
     EXPECT_EQ(1, stripeList->Stripes.size());
 }
 
+TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
+{
+    InitTables(
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+
+    InputSliceRowCount_ = 500;
+    IsExplicitJobCount_ = true;
+    JobCount_ = 1;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    auto chunk = CreateChunk(0);
+
+    // Should divide this chunk into two parts thus creating two internal cookies.
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
+    ChunkPool_->Suspend(0);
+    SplitJob(0, 1);
+    EXPECT_EQ(0, ChunkPool_->GetPendingJobCount());
+    ChunkPool_->Resume(0);
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
