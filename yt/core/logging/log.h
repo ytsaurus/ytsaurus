@@ -96,6 +96,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void LogStructuredEvent(const TLogger& logger,
+    NYson::TYsonString message,
+    ELogLevel level);
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef YT_ENABLE_TRACE_LOGGING
 #define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Trace, __VA_ARGS__)
 #define LOG_TRACE_IF(condition, ...)        if (condition)    LOG_TRACE(__VA_ARGS__)
@@ -164,4 +170,3 @@ protected:
 #define LOG_INL_H_
 #include "log-inl.h"
 #undef LOG_INL_H_
-

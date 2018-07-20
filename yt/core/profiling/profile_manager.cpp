@@ -275,7 +275,7 @@ private:
                                 fluent
                                     .Item(tag.Key).Value(tag.Value);
                             })
-                            .Item("metric_type").Value(FormatEnum(sample.MetricType))
+                            .Item("metric_type").Value(sample.MetricType)
                         .EndMap();
                 }).GetData());
 

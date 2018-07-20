@@ -48,41 +48,44 @@ inline TString FormatLogMessage(TString&& message)
     return std::move(message);
 }
 
+inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
+{
+    TLogEvent event;
+    event.Instant = NProfiling::GetCpuInstant();
+    event.Category = logger.GetCategory();
+    event.Level = level;
+    event.ThreadId = TThread::CurrentThreadId();
+    event.FiberId = NConcurrency::GetCurrentFiberId();
+    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
+    return event;
+}
+
 inline void LogEventImpl(
     const TLogger& logger,
     ELogLevel level,
     TString message)
 {
-    TLogEvent event;
-    event.Format = ELogEventFormat::PlainText;
-    event.Instant = NProfiling::GetCpuInstant();
-    event.Category = logger.GetCategory();
-    event.Level = level;
+    TLogEvent event = CreateLogEvent(logger, level);
     event.Message = std::move(message);
-    event.ThreadId = TThread::CurrentThreadId();
-    event.FiberId = NConcurrency::GetCurrentFiberId();
-    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
-    logger.Write(std::move(event));
-}
-
-inline void LogStructuredEventImpl(
-    const TLogger& logger,
-    ELogLevel level,
-    NYson::TYsonString message)
-{
-    TLogEvent event;
-    event.Format = ELogEventFormat::Json;
-    event.Instant = NProfiling::GetCpuInstant();
-    event.Category = logger.GetCategory();
-    event.Level = level;
-    event.StructuredMessage = std::move(message);
-    event.ThreadId = TThread::CurrentThreadId();
-    event.FiberId = NConcurrency::GetCurrentFiberId();
-    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
+    event.Format = ELogEventFormat::PlainText;
     logger.Write(std::move(event));
 }
 
 } // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void LogStructuredEvent(
+    const TLogger& logger,
+    NYson::TYsonString message,
+    ELogLevel level)
+{
+    YCHECK(message.GetType() == NYson::EYsonType::MapFragment);
+    TLogEvent event = NDetail::CreateLogEvent(logger, level);
+    event.StructuredMessage = std::move(message);
+    event.Format = ELogEventFormat::Json;
+    logger.Write(std::move(event));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

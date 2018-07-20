@@ -38,11 +38,14 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
+
 #include <yt/client/security_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/nullable.h>
+
+#include <yt/core/logging/fluent_log.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -59,6 +62,7 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
+using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressServer;
@@ -67,6 +71,7 @@ using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NHiveServer;
 using namespace NProfiling;
+using namespace NLogging;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -568,7 +573,7 @@ public:
 
     void DestroySubject(TSubject* subject)
     {
-        for (auto* group  : subject->MemberOf()) {
+        for (auto* group : subject->MemberOf()) {
             YCHECK(group->Members().erase(subject) == 1);
         }
         subject->MemberOf().clear();
@@ -579,7 +584,6 @@ public:
         }
         subject->LinkedObjects().clear();
     }
-
 
     TUser* CreateUser(const TString& name, const TObjectId& hintId)
     {
@@ -603,7 +607,10 @@ public:
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         auto* user = DoCreateUser(id, name);
         if (user) {
-            LOG_DEBUG("User %Qv created", name);
+            LOG_DEBUG("User created (User: %v)", name);
+            LogStructuredEventFluently(Logger, ELogLevel::Info)
+                .Item("event").Value(EAccessControlEvent::UserCreated)
+                .Item("name").Value(user->GetName());
         }
         return user;
     }
@@ -612,6 +619,10 @@ public:
     {
         YCHECK(UserNameMap_.erase(user->GetName()) == 1);
         DestroySubject(user);
+
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::UserDestroyed)
+            .Item("name").Value(user->GetName());
     }
 
     TUser* FindUserByName(const TString& name)
@@ -683,7 +694,10 @@ public:
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         auto* group = DoCreateGroup(id, name);
         if (group) {
-            LOG_DEBUG("Group %Qv created", name);
+            LOG_DEBUG("Group created (Group: %v)", name);
+            LogStructuredEventFluently(Logger, ELogLevel::Info)
+                .Item("event").Value(EAccessControlEvent::GroupCreated)
+                .Item("name").Value(name);
         }
         return group;
     }
@@ -700,6 +714,10 @@ public:
         DestroySubject(group);
 
         RecomputeMembershipClosure();
+
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::GroupDestroyed)
+            .Item("name").Value(group->GetName());
     }
 
     TGroup* FindGroupByName(const TString& name)
@@ -777,6 +795,12 @@ public:
         LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
+
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::MemberAdded)
+            .Item("group_name").Value(group->GetName())
+            .Item("member_type").Value(member->GetType())
+            .Item("member_name").Value(member->GetName());
     }
 
     void RemoveMember(TGroup* group, TSubject* member, bool force)
@@ -797,6 +821,12 @@ public:
         LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
+
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::MemberRemoved)
+            .Item("group_name").Value(group->GetName())
+            .Item("member_type").Value(member->GetType())
+            .Item("member_name").Value(member->GetName());
     }
 
 
@@ -825,6 +855,13 @@ public:
             default:
                 Y_UNREACHABLE();
         }
+
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::SubjectRenamed)
+            .Item("subject_type").Value(subject->GetType())
+            .Item("old_name").Value(subject->GetName())
+            .Item("new_name").Value(newName);
+
         subject->SetName(newName);
     }
 
@@ -870,7 +907,6 @@ public:
 
         return result;
     }
-
 
     void SetAuthenticatedUser(TUser* user)
     {
@@ -1112,25 +1148,41 @@ public:
         if (result.Action == ESecurityAction::Deny) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             TError error;
+            auto objectName = objectManager->GetHandler(object)->GetName(object);
             if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: cluster is in safe mode. "
                     "Check for the announces before reporting any issues");
             } else if (result.Object && result.Subject) {
+                const auto deniedBy = objectManager->GetHandler(result.Object)->GetName(result.Object);
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v is denied for %Qv by ACE at %v",
                     permission,
-                    objectManager->GetHandler(object)->GetName(object),
+                    objectName,
                     result.Subject->GetName(),
-                    objectManager->GetHandler(result.Object)->GetName(result.Object));
+                    deniedBy);
+                LogStructuredEventFluently(Logger, ELogLevel::Info)
+                    .Item("event").Value(EAccessControlEvent::AccessDenied)
+                    .Item("reason").Value(EAccessDeniedReason::DeniedByAce)
+                    .Item("permission").Value(permission)
+                    .Item("object_name").Value(objectName)
+                    .Item("user").Value(user->GetName())
+                    .Item("denied_for").Value(result.Subject->GetName())
+                    .Item("denied_by").Value(deniedBy);
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v is not allowed by any matching ACE",
                     permission,
-                    objectManager->GetHandler(object)->GetName(object));
+                    objectName);
+                LogStructuredEventFluently(Logger, ELogLevel::Info)
+                    .Item("event").Value(EAccessControlEvent::AccessDenied)
+                    .Item("reason").Value(EAccessDeniedReason::NoAllowingAce)
+                    .Item("permission").Value(permission)
+                    .Item("object_name").Value(objectName)
+                    .Item("user").Value(user->GetName());
             }
             error.Attributes().Set("permission", permission);
             error.Attributes().Set("user", user->GetName());

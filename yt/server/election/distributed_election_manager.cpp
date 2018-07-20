@@ -561,7 +561,7 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
         auto epochContext = EpochContext;
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("state").Value(FormatEnum(State))
+                .Item("state").Value(State)
                 .Item("peers").BeginList()
                     .DoFor(0, CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
                         fluent.Item().Value(CellManager->GetPeerConfig(id));
