@@ -400,6 +400,9 @@ if(YT_CAN_BUILD_PACKAGE)
     COMMAND mv
       ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
+    COMMAND mv
+      ../yandex-yt-python-*
+      ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
     COMMENT "Packaging YT Python..."
     DEPENDS changelog proto-changelog driver-rpc-changelog
