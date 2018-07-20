@@ -1039,11 +1039,15 @@ private:
     {
         auto preparedRequest = PrepareHeartbeatRequest();
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
+            "OperationEventCount: %v, JobEventCount: %v, ScheduleJobResponseCount: %v)",
             preparedRequest.ExecNodesRequested,
             preparedRequest.OperationsSent,
             preparedRequest.OperationAlertsSent,
-            preparedRequest.SuspiciousJobsSent);
+            preparedRequest.SuspiciousJobsSent,
+            preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size(),
+            preparedRequest.RpcRequest->agent_to_scheduler_job_events().items_size(),
+            preparedRequest.RpcRequest->agent_to_scheduler_schedule_job_responses().items_size());
 
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
