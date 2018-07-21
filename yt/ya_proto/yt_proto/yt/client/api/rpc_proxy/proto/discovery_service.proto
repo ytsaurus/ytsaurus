@@ -1,4 +1,4 @@
-package NYtPython.NRpcProxy.NProto;
+package NYtPython.NApi.NRpcProxy.NProto;
 
 option java_package = "ru.yandex.yt";
 option java_outer_classname = "DiscoveryProtos";
