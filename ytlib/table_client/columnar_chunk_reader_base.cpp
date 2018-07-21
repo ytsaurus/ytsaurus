@@ -2,10 +2,11 @@
 #include "columnar_chunk_meta.h"
 
 #include "config.h"
-#include "unversioned_row.h"
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 

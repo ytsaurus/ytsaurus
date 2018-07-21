@@ -15,9 +15,9 @@
 
 #include <yt/ytlib/job_proxy/public.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 #include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
@@ -348,6 +348,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     auto* request = &context->Request();
     auto* response = &context->Response();
+
+    int jobReporterWriteFailuresCount = 0;
+    if (request->has_job_reporter_write_failures_count()) {
+        jobReporterWriteFailuresCount = request->job_reporter_write_failures_count();
+    }
+    JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order_relaxed);
 
     auto nodeId = request->node_id();
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
@@ -1174,6 +1180,11 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 
     OperationIdToJobIterators_.erase(entry.OperationIdToJobIdsIterator);
     JobIdToScheduleEntry_.erase(it);
+}
+
+int TNodeShard::ExtractJobReporterWriteFailuresCount()
+{
+    return JobReporterWriteFailuresCount_.exchange(0);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)

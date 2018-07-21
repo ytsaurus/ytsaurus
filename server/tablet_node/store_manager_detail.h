@@ -4,7 +4,7 @@
 
 #include <yt/server/hydra/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/logging/log.h>
 
@@ -23,7 +23,7 @@ public:
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager,
         TInMemoryManagerPtr inMemoryManager,
-        NApi::INativeClientPtr client);
+        NApi::NNative::IClientPtr client);
 
     virtual bool HasActiveLocks() const override;
     virtual bool HasUnflushedStores() const override;
@@ -88,7 +88,7 @@ protected:
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const TInMemoryManagerPtr InMemoryManager_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
 
     bool RotationScheduled_ = false;
     ui64 InMemoryConfigRevision_ = 0;

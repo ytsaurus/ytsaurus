@@ -5,16 +5,16 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <util/random/shuffle.h>
 
@@ -61,40 +61,27 @@ public:
     //! Starts periodic polling.
     void Start()
     {
-        if (Started_ || ChunkIds_.empty()) {
-            return;
-        }
-
-        Started_ = true;
-        NextChunkIndex_ = 0;
-
         LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
-        PeriodicExecutor_ = New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
-            TDuration::Zero(),
-            EPeriodicExecutorMode::Manual);
+        LocateFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (!Started_) {
+                Started_ = true;
+                NextChunkIndex_ = 0;
 
-        PeriodicExecutor_->Start();
+                LocateChunks();
+            }
+        }).Via(Invoker_));
     }
 
     //! Stops periodic polling.
     TFuture<void> Stop()
     {
-        if (!Started_) {
-            return VoidFuture;
-        }
         LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
         Started_ = false;
-
-        return LocateFuture_
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& /* error */) {
-                return PeriodicExecutor_->Stop();
-            }));
+        return LocateFuture_;
     }
 
 private:
@@ -103,7 +90,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
     const TChunkLocatedHandler OnChunkLocated_;
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
 
     TFuture<void> LocateFuture_ = VoidFuture;
 
@@ -118,12 +105,10 @@ private:
     std::atomic<bool> Started_ = { false };
     int NextChunkIndex_ = 0;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-
 
     void LocateChunks()
     {
-        if (ChunkIds_.empty()) {
+        if (!Started_.load() || ChunkIds_.empty()) {
             return;
         }
 
@@ -137,7 +122,7 @@ private:
     void DoLocateChunks(const TError& error)
     {
         auto finallyGuard = Finally([&] () {
-            PeriodicExecutor_->ScheduleNext();
+            LocateChunks();
         });
 
         if (!Started_) {
@@ -157,8 +142,14 @@ private:
         auto req = Proxy_.LocateChunks();
         req->SetHeavy(true);
 
+
+        constexpr int maxSampleChunkCount = 5;
+        SmallVector<TChunkId, maxSampleChunkCount> sampleChunkIds;
         for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerRequest; ++chunkCount) {
             ToProto(req->add_subrequests(), ChunkIds_[NextChunkIndex_]);
+            if (sampleChunkIds.size() < maxSampleChunkCount) {
+                sampleChunkIds.push_back(ChunkIds_[NextChunkIndex_]);
+            }
             ++NextChunkIndex_;
             if (NextChunkIndex_ >= ChunkIds_.size()) {
                 NextChunkIndex_ = 0;
@@ -169,7 +160,9 @@ private:
             }
         }
 
-        LOG_DEBUG("Locating chunks (Count: %v)", req->subrequests_size());
+        LOG_DEBUG("Locating chunks (Count: %v, SampleChunkIds: %v)",
+            req->subrequests_size(),
+            sampleChunkIds);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
@@ -180,7 +173,9 @@ private:
         const auto& rsp = rspOrError.Value();
         YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
-        LOG_DEBUG("Chunks located");
+        LOG_DEBUG("Chunks located (Count: %v, SampleChunkIds: %v)",
+            req->subrequests_size(),
+            sampleChunkIds);
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
 
@@ -206,7 +201,7 @@ TChunkScraper::TChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const THashSet<TChunkId>& chunkIds,
     TChunkLocatedHandler onChunkLocated,
@@ -232,7 +227,7 @@ void TChunkScraper::Start()
 TFuture<void> TChunkScraper::Stop()
 {
     std::vector<TFuture<void>> futures;
-    for (auto& task : ScraperTasks_) {
+    for (const auto& task : ScraperTasks_) {
         futures.push_back(task->Stop());
     }
     return Combine(futures);

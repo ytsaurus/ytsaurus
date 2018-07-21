@@ -14,7 +14,7 @@
 
 #include <yt/server/table_server/table_node.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 

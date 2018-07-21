@@ -23,14 +23,15 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -288,7 +289,7 @@ public:
                 chunkId,
                 "input_context"
             };
-            auto client = CreateNativeClient(Bootstrap_->GetMasterClient()->GetNativeConnection(), TClientOptions(user));
+            auto client = Bootstrap_->GetMasterClient()->GetNativeConnection()->CreateNativeClient(TClientOptions(user));
             SaveJobFiles(client, operationId, { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)

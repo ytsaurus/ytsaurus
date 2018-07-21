@@ -9,7 +9,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/profiling/timing.h>
 

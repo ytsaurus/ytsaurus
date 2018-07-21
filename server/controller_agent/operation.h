@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/controller_agent/proto/controller_agent_service.pb.h>
-
 #include <yt/server/scheduler/scheduling_tag.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
+
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

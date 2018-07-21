@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/event_log/config.h>
 
@@ -501,6 +501,7 @@ public:
     TDuration OperationControllerFailTimeout;
 
     TDuration AvailableExecNodesCheckPeriod;
+    TDuration BannedExecNodesCheckPeriod;
 
     TDuration OperationProgressAnalysisPeriod;
 
@@ -665,7 +666,7 @@ class TControllerAgentBootstrapConfig
 {
 public:
     //! Node-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     //! Node directory synchronization.
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;

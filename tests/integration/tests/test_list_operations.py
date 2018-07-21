@@ -56,7 +56,7 @@ class _TestListOperationsBase(YTEnvSetup):
         return op
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
         create("table", self._input_path, recursive=True, ignore_existing=True)
         write_table(self._input_path, {"key": 1, "value": 2})

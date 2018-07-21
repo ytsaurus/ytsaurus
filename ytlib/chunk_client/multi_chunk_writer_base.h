@@ -1,11 +1,10 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_replica.h"
-#include "data_statistics.h"
 #include "multi_chunk_writer.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/chunk_client/data_statistics.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -27,7 +26,7 @@ public:
     TNontemplateMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
@@ -56,7 +55,7 @@ public:
 
 protected:
     NLogging::TLogger Logger;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
 
     bool TrySwitchSession();
 
@@ -90,6 +89,7 @@ private:
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     TSession CurrentSession_;
 
@@ -102,8 +102,6 @@ private:
     TCodecStatistics CodecStatistics;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunksFullMeta_;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     void InitSession();
     void FinishSession();
@@ -125,7 +123,7 @@ public:
     TMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,

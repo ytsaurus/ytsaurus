@@ -3,8 +3,8 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/property.h>

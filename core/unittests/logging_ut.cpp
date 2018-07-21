@@ -4,6 +4,10 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/writer.h>
 
+#include <yt/core/json/json_parser.h>
+
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <util/system/fs.h>
@@ -17,6 +21,7 @@ namespace NLogging {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,25 +33,39 @@ public:
         : SomeDate("2014-04-24 23:41:09,804")
         , DateLength(SomeDate.length())
         , Logger("Test")
-    { }
+    {
+        Category.Name = "category";
+    }
 
 protected:
+    TLoggingCategory Category;
     TString SomeDate;
     int DateLength;
 
     TLogger Logger;
 
-    void WriteEvent(ILogWriter* writer)
+    IMapNodePtr DeserializeJson(const TString& source)
     {
-        TLoggingCategory category;
-        category.Name = "category";
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        builder->BeginTree();
+        TStringStream stream(source);
+        ParseJson(&stream, builder.get());
+        return builder->EndTree()->AsMap();
+    }
 
+    void WritePlainTextEvent(ILogWriter* writer) {
         TLogEvent event;
-        event.Category = &category;
+        event.Format = ELogEventFormat::PlainText;
+        event.Category = &Category;
         event.Level = ELogLevel::Debug;
         event.Message = "message";
         event.ThreadId = 0xba;
 
+        WriteEvent(writer, event);
+    }
+
+    void WriteEvent(ILogWriter* writer, const TLogEvent& event)
+    {
         writer->Write(event);
         writer->Flush();
     }
@@ -69,15 +88,15 @@ protected:
 
 TEST_F(TLoggingTest, ReloadsOnSigHup)
 {
-    LOG_INFO("Prepaing logging thread");
-    sleep(1.0); // In sleep() we trust.
+    LOG_INFO("Preparing logging thread");
+    Sleep(TDuration::MilliSeconds(100)); // In sleep() we trust.
 
     int version = TLogManager::Get()->GetVersion();
 
     kill(getpid(), SIGHUP);
 
     LOG_INFO("Awaking logging thread");
-    sleep(1.0); // In sleep() we trust.
+    Sleep(TDuration::MilliSeconds(100)); // In sleep() we trust.
 
     int newVersion = TLogManager::Get()->GetVersion();
 
@@ -90,8 +109,9 @@ TEST_F(TLoggingTest, FileWriter)
 {
     NFs::Remove("test.log");
 
-    auto writer = New<TFileLogWriter>("test.log");
-    WriteEvent(writer.Get());
+    TIntrusivePtr<TFileLogWriter> writer;
+    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test.log");
+    WritePlainTextEvent(writer.Get());
 
     {
         auto lines = ReadFile("test.log");
@@ -101,7 +121,7 @@ TEST_F(TLoggingTest, FileWriter)
     }
 
     writer->Reload();
-    WriteEvent(writer.Get());
+    WritePlainTextEvent(writer.Get());
 
     {
         auto lines = ReadFile("test.log");
@@ -119,9 +139,9 @@ TEST_F(TLoggingTest, FileWriter)
 TEST_F(TLoggingTest, StreamWriter)
 {
     TStringStream stringOutput;
-    auto writer = New<TStreamLogWriter>(&stringOutput);
+    auto writer = New<TStreamLogWriter>(&stringOutput, std::make_unique<TPlainTextLogFormatter>());
 
-    WriteEvent(writer.Get());
+    WritePlainTextEvent(writer.Get());
 
     EXPECT_EQ(
        "\tD\tcategory\tmessage\tba\t\t\n",
@@ -140,10 +160,10 @@ TEST_F(TLoggingTest, Rule)
 
     EXPECT_TRUE(rule->IsApplicable("some_service"));
     EXPECT_FALSE(rule->IsApplicable("bus"));
-    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug));
-    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogEventFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogEventFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogEventFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogEventFormat::PlainText));
 }
 
 TEST_F(TLoggingTest, LogManager)
@@ -184,7 +204,7 @@ TEST_F(TLoggingTest, LogManager)
     LOG_INFO("Info message");
     LOG_ERROR("Error message");
 
-    sleep(1.0);
+    Sleep(TDuration::Seconds(1));
 
     auto infoLog = ReadFile("test.log");
     auto errorLog = ReadFile("test.error.log");
@@ -194,6 +214,38 @@ TEST_F(TLoggingTest, LogManager)
 
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
+}
+
+TEST_F(TLoggingTest, StructuredJsonLogging)
+{
+    NFs::Remove("test.log");
+
+    TLogEvent event;
+    event.Format = ELogEventFormat::Json;
+    event.Category = &Category;
+    event.Level = ELogLevel::Debug;
+    event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Item("message")
+        .Value("test_message")
+        .Finish();
+
+    auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(), "test.log");
+    WriteEvent(writer.Get(), event);
+    Sleep(TDuration::MilliSeconds(100));
+
+    auto log = ReadFile("test.log");
+
+    auto logStartedJson = DeserializeJson(log[0]);
+    EXPECT_EQ(logStartedJson->GetChild("message")->AsString()->GetValue(), "Logging started");
+    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "Info");
+    EXPECT_EQ(logStartedJson->GetChild("category")->AsString()->GetValue(), "Logging");
+
+    auto contentJson = DeserializeJson(log[1]);
+    EXPECT_EQ(contentJson->GetChild("message")->AsString()->GetValue(), "test_message");
+    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "Debug");
+    EXPECT_EQ(contentJson->GetChild("category")->AsString()->GetValue(), "category");
+
+    NFs::Remove("test.log");
 }
 
 // This test is for manual check of LOG_FATAL
@@ -225,7 +277,7 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     LOG_INFO("Info message");
 
-    sleep(1);
+    Sleep(TDuration::MilliSeconds(100));
 
     LOG_INFO("Info message");
     LOG_FATAL("FATAL");

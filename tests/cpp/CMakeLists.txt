@@ -6,6 +6,6 @@ include_directories(
 
 target_link_libraries(test_native_api
   deps-arcadia-library-lfalloc
-  yt-library-client
+  yt-library-ytlib
   yt-core-test-framework
 )

@@ -15,14 +15,15 @@
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
 
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/event_log/event_log.h>
 
@@ -1038,11 +1039,15 @@ private:
     {
         auto preparedRequest = PrepareHeartbeatRequest();
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
+            "OperationEventCount: %v, JobEventCount: %v, ScheduleJobResponseCount: %v)",
             preparedRequest.ExecNodesRequested,
             preparedRequest.OperationsSent,
             preparedRequest.OperationAlertsSent,
-            preparedRequest.SuspiciousJobsSent);
+            preparedRequest.SuspiciousJobsSent,
+            preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size(),
+            preparedRequest.RpcRequest->agent_to_scheduler_job_events().items_size(),
+            preparedRequest.RpcRequest->agent_to_scheduler_schedule_job_responses().items_size());
 
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {

@@ -1,10 +1,10 @@
 #include "etc_commands.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
-#include <yt/ytlib/rpc_proxy/public.h>
+#include <yt/client/api/rpc_proxy/public.h>
 
 #include <yt/build/build.h>
 
@@ -23,9 +23,9 @@ using namespace NYson;
 using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NConcurrency;
-using namespace NApi;
 using namespace NFormats;
-using namespace NRpcProxy;
+using namespace NApi;
+using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +101,37 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
             .DoIf(result.ObjectName.HasValue(), [&] (TFluentMap fluent) {
                 fluent.Item("object_name").Value(result.ObjectName);
             })
+            .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_id").Value(result.SubjectId);
+            })
+            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_name").Value(result.SubjectName);
+            })
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCheckPermissionByAclCommand::TCheckPermissionByAclCommand()
+{
+    RegisterParameter("user", User);
+    RegisterParameter("permission", Permission);
+    RegisterParameter("acl", Acl);
+}
+
+void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result =
+        WaitFor(context->GetClient()->CheckPermissionByAcl(
+            User,
+            Permission,
+            Acl,
+            Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("action").Value(result.Action)
             .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })

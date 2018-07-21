@@ -2,8 +2,8 @@
 #include "private.h"
 #include "timestamp_manager.h"
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
-#include <yt/ytlib/transaction_client/timestamp_service_proxy.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_service_proxy.h>
 
 #include <yt/core/rpc/dispatcher.h>
 #include <yt/core/rpc/server.h>

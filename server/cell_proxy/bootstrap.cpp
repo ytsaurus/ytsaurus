@@ -12,8 +12,8 @@
 
 #include <yt/ytlib/program/build_attributes.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
@@ -68,7 +68,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NApi;
-using namespace NRpcProxy;
+using namespace NYT::NRpcProxy;
 using namespace NAuth;
 using namespace NLogging;
 
@@ -108,9 +108,9 @@ void TBootstrap::DoRun()
         GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
-    TNativeConnectionOptions connectionOptions;
+    NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    NativeConnection_ = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
+    NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::RootUserName;
@@ -214,12 +214,12 @@ const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
     return WorkerPool_->GetInvoker();
 }
 
-const INativeConnectionPtr& TBootstrap::GetNativeConnection() const
+const NNative::IConnectionPtr& TBootstrap::GetNativeConnection() const
 {
     return NativeConnection_;
 }
 
-const INativeClientPtr& TBootstrap::GetNativeClient() const
+const NNative::IClientPtr& TBootstrap::GetNativeClient() const
 {
     return NativeClient_;
 }

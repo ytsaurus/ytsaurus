@@ -1,9 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "schemaless_writer.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -11,6 +10,8 @@
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -66,7 +67,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TTableSchema& schema,
     NTableClient::TOwningKey lastKey,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
@@ -80,7 +81,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
@@ -96,7 +97,7 @@ TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NApi::ITransactionPtr transaction,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());

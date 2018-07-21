@@ -1,10 +1,12 @@
 #include "controller_agent_service.h"
 #include "controller_agent.h"
-#include "controller_agent_service_proxy.h"
 #include "bootstrap.h"
 #include "private.h"
+#include "operation.h"
 
 #include <yt/core/rpc/service_detail.h>
+
+#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -37,6 +39,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteOperationControllerCoreDump));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterOperation));
     }
 
@@ -303,6 +306,24 @@ private:
 
             WaitFor(controllerAgent->AbortOperation(operation))
                 .ThrowOnError();
+
+            context->Reply();
+        });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, WriteOperationControllerCoreDump)
+    {
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        context->SetRequestInfo("OperationId: %v",
+            operationId);
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        controllerAgent->ValidateConnected();
+
+        WrapAgentException([&] {
+            const auto& operation = controllerAgent->GetOperationOrThrow(operationId);
+            response->set_path(operation->GetControllerOrThrow()->WriteCoreDump());
 
             context->Reply();
         });

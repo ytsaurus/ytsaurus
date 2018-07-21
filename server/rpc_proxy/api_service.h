@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_proxy/public.h>
 
-#include <yt/ytlib/rpc_proxy/public.h>
+#include <yt/client/api/rpc_proxy/public.h>
 
 #include <yt/core/rpc/public.h>
 

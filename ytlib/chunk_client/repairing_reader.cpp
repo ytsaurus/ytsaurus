@@ -6,7 +6,7 @@
 #include "dispatcher.h"
 #include "chunk_reader_statistics.h"
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -150,7 +150,7 @@ private:
             auto bannedPartIndices = reader->GetBannedIndices();
 
             if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
-                THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not changed")
+                THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not change")
                     << error;
             }
 

@@ -11,6 +11,17 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLogWritersCacheKey
+{
+    TString Category;
+    ELogLevel LogLevel;
+    ELogEventFormat Format;
+};
+
+bool operator == (const TLogWritersCacheKey& lhs, const TLogWritersCacheKey& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLogManager
     : public IShutdownable
 {
@@ -57,4 +68,17 @@ struct TSingletonTraits<NYT::NLogging::TLogManager>
     {
         Priority = 2048
     };
+};
+
+template <>
+struct hash<NYT::NLogging::TLogWritersCacheKey>
+{
+    size_t operator () (const NYT::NLogging::TLogWritersCacheKey& obj) const
+    {
+        size_t hash = 0;
+        NYT::HashCombine(hash, THash<TString>()(obj.Category));
+        NYT::HashCombine(hash, static_cast<size_t>(obj.LogLevel));
+        NYT::HashCombine(hash, static_cast<size_t>(obj.Format));
+        return hash;
+    }
 };

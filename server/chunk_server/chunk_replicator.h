@@ -2,7 +2,6 @@
 
 #include "private.h"
 #include "chunk.h"
-#include "chunk_replica.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -10,9 +9,9 @@
 
 #include <yt/server/node_tracker_server/data_center.h>
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/core/concurrency/public.h>
 

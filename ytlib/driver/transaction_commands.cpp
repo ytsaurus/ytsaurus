@@ -1,9 +1,9 @@
 #include "config.h"
 #include "transaction_commands.h"
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

@@ -3,10 +3,10 @@
 #include "tablet.h"
 #include "private.h"
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -25,7 +25,7 @@ TReplicatedStoreManager::TReplicatedStoreManager(
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
     TInMemoryManagerPtr inMemoryManager,
-    INativeClientPtr client)
+    NNative::IClientPtr client)
     : Config_(config)
     , Tablet_(tablet)
     , TabletContext_(tabletContext)

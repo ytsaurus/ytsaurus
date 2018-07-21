@@ -1,7 +1,10 @@
 #pragma once
 
-#include <yt/ytlib/table_client/chunk_meta.pb.h>
-#include "schema.h"
+#include "public.h"
+
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
+
+#include <yt/client/table_client/schema.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -16,7 +16,7 @@
 
 #include <yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/node_tracker_client/config.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
@@ -78,7 +78,7 @@ public:
     TDuration OrchidCacheUpdatePeriod;
 
     //! Node-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     //! Node directory synchronization.
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;

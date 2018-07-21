@@ -20,7 +20,7 @@ class TestJournals(YTEnvSetup):
 
     def _write_and_wait_until_sealed(self, path, data):
         write_journal(path, data)
-        self.wait_until_sealed(path)
+        wait_until_sealed(path)
 
     def test_create_success(self):
         create("journal", "//tmp/j")

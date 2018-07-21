@@ -32,7 +32,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 
@@ -44,7 +44,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/ytlib/query_client/public.h>
@@ -123,11 +123,11 @@ public: \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
             ProcessSafeException(ex); \
-            return MakeDefault<returnType>(); \
+            return returnType(); \
         } catch (const std::exception& ex) { \
             if (catchStdException) { \
                 ProcessSafeException(ex); \
-                return MakeDefault<returnType>(); \
+                return returnType(); \
             } \
             throw; \
         } \
@@ -334,6 +334,8 @@ public:
 
     virtual NYTree::IYPathServicePtr GetOrchid() const override;
 
+    virtual TString WriteCoreDump() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -354,9 +356,9 @@ protected:
     // But `remote copy' operation connects InputClient to remote cluster.
     // OutputClient is created for the sake of symmetry with Input;
     // i.e. Client and OutputClient are always connected to the same cluster.
-    NApi::INativeClientPtr Client;
-    NApi::INativeClientPtr InputClient;
-    NApi::INativeClientPtr OutputClient;
+    NApi::NNative::IClientPtr Client;
+    NApi::NNative::IClientPtr InputClient;
+    NApi::NNative::IClientPtr OutputClient;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr Invoker;
@@ -449,7 +451,7 @@ protected:
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NTransactionClient::TTransactionId& parentTransactionId = {},
         const NTransactionClient::TTransactionId& prerequisiteTransactionId = {});
 
@@ -1008,7 +1010,10 @@ private:
     //! Timestamp of last successfull uploaded snapshot.
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
-    bool AvailableExecNodesWereObserved_ = false;
+    bool AvailableExecNodesObserved_ = false;
+    TInstant LastAvailableExecNodesCheckTime_;
+
+    THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
     TSpinLock AlertsLock_;
     TOperationAlertMap Alerts_;
@@ -1116,7 +1121,7 @@ private:
         , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:
-        //! Used only for persistense.
+        //! Used only for persistence.
         TSink() = default;
 
         TSink(TThis* controller, int outputTableIndex);
@@ -1138,12 +1143,6 @@ private:
         TThis* Controller_;
         int OutputTableIndex_ = -1;
     };
-
-    template <class T>
-    static T MakeDefault()
-    {
-        return T();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

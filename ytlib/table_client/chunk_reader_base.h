@@ -1,12 +1,11 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_meta_extensions.h"
 
+#include <yt/client/chunk_client/reader_base.h>
+#include <yt/client/chunk_client/read_limit.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/reader_base.h>
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 
 namespace NYT {

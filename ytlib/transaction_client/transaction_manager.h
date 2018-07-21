@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/hive/public.h>
 

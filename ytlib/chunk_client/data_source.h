@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/public.h>
+
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>

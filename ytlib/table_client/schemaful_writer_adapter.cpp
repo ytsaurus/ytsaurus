@@ -1,9 +1,10 @@
 #include "schemaful_writer_adapter.h"
-#include "name_table.h"
-#include "schema.h"
-#include "schemaful_writer.h"
 #include "schemaless_row_reorderer.h"
-#include "schemaless_writer.h"
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 

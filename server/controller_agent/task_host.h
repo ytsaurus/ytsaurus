@@ -10,7 +10,7 @@
 
 #include <yt/server/scheduler/public.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/ytlib/object_client/public.h>
 

@@ -6,12 +6,9 @@
 #include "chunk_state.h"
 #include "config.h"
 #include "private.h"
-#include "schema.h"
 #include "schemaless_block_reader.h"
-#include "unversioned_row.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
-#include "versioned_reader.h"
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/block_id.h>
@@ -21,13 +18,17 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/timestamp_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/versioned_reader.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -36,7 +37,6 @@ namespace NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NTableClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 

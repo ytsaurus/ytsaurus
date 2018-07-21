@@ -1,10 +1,13 @@
 #include "journal_commands.h"
 #include "config.h"
 
-#include <yt/ytlib/api/journal_reader.h>
-#include <yt/ytlib/api/journal_writer.h>
+#include <yt/ytlib/api/native/journal_reader.h>
+#include <yt/ytlib/api/native/journal_writer.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/api/journal_reader.h>
+#include <yt/client/api/journal_writer.h>
+
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/parser.h>
@@ -104,7 +107,7 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
             break;
 
         for (auto row : rows) {
-            BuildYsonListFluently(consumer.get())
+            BuildYsonListFragmentFluently(consumer.get())
                 .Item().BeginMap()
                     .Item("data").Value(TStringBuf(row.Begin(), row.Size()))
                 .EndMap();

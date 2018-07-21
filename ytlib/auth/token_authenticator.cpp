@@ -4,7 +4,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
 

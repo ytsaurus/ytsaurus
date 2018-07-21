@@ -1,6 +1,6 @@
 #pragma once
 
-#include "node_directory.h"
+#include "public.h"
 
 #include <yt/core/rpc/channel.h>
 

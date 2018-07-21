@@ -25,12 +25,11 @@ Y_WEAK int GetVersionPatch()
     return @YT_VERSION_PATCH@;
 }
 
-
 #if defined(YT_IN_ARCADIA)
 
 Y_WEAK const char* GetVersion()
 {
-    static TString version = CreateYtVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, AsStringBuf("local"));
+    static TString version = CreateYtVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
     return version.c_str();
 }
 

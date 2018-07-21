@@ -4,7 +4,7 @@
 #include "helpers.h"
 #include "job_resources.h"
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
@@ -14,7 +14,7 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -94,6 +94,8 @@ public:
 
     TSchedulableConfig();
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TExtendedSchedulableConfig
     : public TSchedulableConfig
@@ -187,6 +189,8 @@ public:
     // whether a job should (or shouldn't) be launched in a pool tree marked as tentative.
     TTentativeTreeEligibilityConfigPtr TentativeTreeEligibility;
 
+    int UpdatePreemptableJobsListLoggingPeriod;
+
     TStrategyOperationSpec();
 
 private:
@@ -221,7 +225,7 @@ public:
         TTestingOptions()
         {
             RegisterParameter("pipe_delay", PipeDelay)
-                .Default(TDuration::Zero());
+                .Default();
         }
     };
 
@@ -334,6 +338,7 @@ public:
 
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
+    //! An arbitrary user-provided string that is, however, logged by the scheduler.
     TNullable<TString> Title;
 
     //! Limit on operation execution time.
@@ -348,9 +353,6 @@ public:
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
 
-    //! If no candidate exec node is seen for more than this timeout then the operation fails.
-    TDuration AvailableNodesMissingTimeout;
-
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 
@@ -361,6 +363,7 @@ public:
     //! Also disables partitioned data balancing for small operations.
     i64 MinLocalityInputDataWeight;
 
+    //! Various auto-merge knobs.
     TAutoMergeConfigPtr AutoMerge;
 
     // TODO(max42): make this field per-task.
@@ -388,7 +391,18 @@ public:
     NYTree::IMapNodePtr Description;
     NYTree::IMapNodePtr Annotations;
 
+    //! If true, enables the columnar statistics machinery to estimate job sizes.
+    //! Note that turning this on may significantly affect workload partitioning for existing operations.
     bool UseColumnarStatistics;
+
+    //! If true, node is banned each time a job is failed there.
+    bool BanNodesWithFailedJobs;
+
+    // If true, job failed at a banned node is considered aborted.
+    bool IgnoreJobFailuresAtBannedNodes;
+
+    // If true, operations fails if all available nodes get banned.
+    bool FailOnAllNodesBanned;
 
     TOperationSpecBase();
 
@@ -545,7 +559,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -565,7 +579,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TMapOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TMapOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -585,7 +599,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -614,8 +628,9 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
@@ -625,8 +640,9 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec, 0xff44f136);
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
@@ -636,7 +652,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -679,7 +695,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -699,7 +715,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -714,7 +730,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -736,7 +752,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TNewReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TNewReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -807,7 +823,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -829,7 +845,7 @@ private:
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TSortOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -862,8 +878,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
 };
 
-
-DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -873,7 +888,7 @@ class TRemoteCopyOperationSpec
 public:
     TNullable<TString> ClusterName;
     TNullable<TString> NetworkName;
-    TNullable<NApi::TNativeConnectionConfigPtr> ClusterConnection;
+    TNullable<NApi::NNative::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     int MaxChunkCountPerJob;

@@ -71,7 +71,7 @@ IMapNodePtr IAttributeDictionary::ToMap() const
     auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = List();
     for (const auto& key : keys) {
-        map->AddChild(ConvertToNode(GetYson(key)), key);
+        map->AddChild(key, ConvertToNode(GetYson(key)));
     }
     return map;
 }

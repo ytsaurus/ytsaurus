@@ -1,6 +1,6 @@
 package NYT.NChunkClient.NProto;
 
-import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

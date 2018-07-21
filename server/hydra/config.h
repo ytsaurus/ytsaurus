@@ -4,7 +4,9 @@
 
 #include <yt/server/election/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
+
+#include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/core/compression/public.h>
 

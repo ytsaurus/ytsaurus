@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/ytlib/formats/format.h>
 

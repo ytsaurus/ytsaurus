@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/misc/ref.h>
 

@@ -5,7 +5,7 @@
 #include "partition_chunk_reader.h"
 #include "schemaless_block_reader.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -53,7 +53,7 @@ class TSchemalessPartitionSortReader
 public:
     TSchemalessPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
@@ -556,7 +556,7 @@ private:
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TMultiChunkReaderConfigPtr config,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,

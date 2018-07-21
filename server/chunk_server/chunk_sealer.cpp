@@ -15,9 +15,9 @@
 
 #include <yt/ytlib/journal_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/session_id.h>
@@ -288,7 +288,7 @@ private:
         for (auto replica : chunk->StoredReplicas()) {
             auto mediumIndex = replica.GetMediumIndex();
             if (result != InvalidMediumIndex && result != mediumIndex) {
-                THROW_ERROR_EXCEPTION("Journal chunk resides on multiple media: %v and %v",
+                THROW_ERROR_EXCEPTION("Journal chunk %v resides on multiple media: %v and %v",
                     chunk->GetId(),
                     result,
                     mediumIndex);

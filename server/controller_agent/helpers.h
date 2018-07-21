@@ -182,12 +182,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::INativeConnectionPtr FindRemoteConnection(
-    const NApi::INativeConnectionPtr& connection,
+NApi::NNative::IConnectionPtr FindRemoteConnection(
+    const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
 
-NApi::INativeConnectionPtr GetRemoteConnectionOrThrow(
-    const NApi::INativeConnectionPtr& connection,
+NApi::NNative::IConnectionPtr GetRemoteConnectionOrThrow(
+    const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
 
 ////////////////////////////////////////////////////////////////////////////////

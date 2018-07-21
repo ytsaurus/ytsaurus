@@ -1,4 +1,5 @@
 #include "connection.h"
+#include "packet_connection.h"
 #include "private.h"
 
 #include <yt/core/concurrency/poller.h>
@@ -99,6 +100,63 @@ private:
     bool DelayFirstRead_ = false;
 
     TPromise<size_t> ResultPromise_ = NewPromise<size_t>();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReceiveFromOperation
+    : public IIOOperation
+{
+public:
+    TReceiveFromOperation(const TSharedMutableRef& buffer)
+        : Buffer_(buffer)
+    { }
+
+    virtual TErrorOr<TIOResult> PerformIO(int fd) override
+    {
+        ssize_t size = HandleEintr(
+            ::recvfrom,
+            fd,
+            Buffer_.Begin(),
+            Buffer_.Size(),
+            0, // flags
+            RemoteAddress_.GetSockAddr(),
+            RemoteAddress_.GetLengthPtr());
+
+        if (size == -1) {
+            if (errno == EAGAIN) {
+                return TIOResult(true, 0);
+            }
+
+            return TError("Read failed")
+                << TError::FromSystem();
+        }
+
+        Position_ += size;
+        return TIOResult(false, size);
+    }
+
+    virtual void Abort(const TError& error) override
+    {
+        ResultPromise_.Set(error);
+    }
+
+    virtual void SetResult() override
+    {
+        ResultPromise_.Set(std::make_pair(Position_, RemoteAddress_));
+    }
+
+    TFuture<std::pair<size_t, TNetworkAddress>> ToFuture() const
+    {
+        return ResultPromise_.ToFuture();
+    }
+
+private:
+    TSharedMutableRef Buffer_;
+    size_t Position_ = 0;
+    TNetworkAddress RemoteAddress_;
+
+    TPromise<std::pair<size_t, TNetworkAddress>> ResultPromise_ = NewPromise<std::pair<size_t, TNetworkAddress>>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,6 +336,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError SyncSendTo(int fd, const TSharedRef& buffer, const TNetworkAddress& address) noexcept
+{
+    auto res = HandleEintr(
+        ::sendto,
+        fd,
+        buffer.Begin(),
+        buffer.Size(),
+        0, // flags
+        address.GetSockAddr(),
+        address.GetLength());
+
+    if (res == -1) {
+        return TError("Write failed")
+            << TError::FromSystem();
+    }
+
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFDConnectionImpl
     : public IPollable
 {
@@ -335,7 +414,7 @@ public:
             auto guard = Guard(Lock_);
 
             // IO callback is responsible for closing file descriptor and setting future.
-            if (ReadDirection_.Starting || WriteDirection_.Starting) {
+            if (ReadDirection_.Starting || WriteDirection_.Starting || SynchronousIOCount_) {
                 AbortDelayed_ = true;
                 return;
             }
@@ -363,6 +442,22 @@ public:
         auto future = read->ToFuture();
         StartIO(&ReadDirection_, std::move(read));
         return future;
+    }
+
+    TFuture<std::pair<size_t, TNetworkAddress>> ReceiveFrom(const TSharedMutableRef& buffer)
+    {
+        auto receive = std::make_unique<TReceiveFromOperation>(buffer);
+        auto future = receive->ToFuture();
+        StartIO(&ReadDirection_, std::move(receive));
+        return future;
+    }
+
+    void SendTo(const TSharedRef& buffer, const TNetworkAddress& address)
+    {
+        EnterSychronousIO();
+        auto error = SyncSendTo(FD_, buffer, address);
+        ExitSynchronousIO();
+        error.ThrowOnError();
     }
 
     TFuture<void> Write(const TSharedRef& data)
@@ -513,6 +608,8 @@ private:
     TIODirection WriteDirection_;
     bool AbortDelayed_ = false;
 
+    int SynchronousIOCount_ = 0;
+    
     TError Error_;
     TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
@@ -533,6 +630,29 @@ private:
         WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &WriteDirection_, false);
         WriteDirection_.PollFlag = EPollControl::Write;
         Poller_->Register(this);
+    }
+
+    void EnterSychronousIO()
+    {
+        auto guard = Guard(Lock_);
+        Error_.ThrowOnError();
+        SynchronousIOCount_++;
+    }
+
+    void ExitSynchronousIO()
+    {
+        bool needClose = false;
+        {
+            auto guard = Guard(Lock_);
+            SynchronousIOCount_--;
+            if (AbortDelayed_ && !WriteDirection_.Starting && !ReadDirection_.Starting && !SynchronousIOCount_) {
+                needClose = true;
+            }
+        }
+
+        if (needClose) {
+            FinishShutdown();
+        }
     }
 
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
@@ -615,7 +735,7 @@ private:
               }
 
             direction->Starting = false;
-            if (AbortDelayed_ && !WriteDirection_.Starting && !ReadDirection_.Starting) {
+            if (AbortDelayed_ && !WriteDirection_.Starting && !ReadDirection_.Starting && !SynchronousIOCount_) {
                 // Object is in the middle of shutdown. We are responsible for closing FD_.
                 needClose = true;
             }
@@ -871,8 +991,67 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
             << TErrorAttribute("path", pipePath);
     }
 
-    SafeMakeNonblocking(fd);
+    try {
+        SafeMakeNonblocking(fd);
+    } catch (...) {
+        SafeClose(fd, false);
+        throw;
+    }
     return New<TFDConnection>(fd, pipePath, poller, pipeHolder, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPacketConnection
+    : public IPacketConnection
+{
+public:
+    TPacketConnection(
+        int fd,
+        const TNetworkAddress& localAddress,
+        const IPollerPtr& poller)
+        : Impl_(New<TFDConnectionImpl>(fd, localAddress, TNetworkAddress{}, poller))
+    { }
+
+    ~TPacketConnection()
+    {
+        Abort();
+    }
+
+    virtual TFuture<std::pair<size_t, TNetworkAddress>> ReceiveFrom(
+        const TSharedMutableRef& buffer) override
+    {
+        return Impl_->ReceiveFrom(buffer);
+    }
+
+    virtual void SendTo(const TSharedRef& buffer, const TNetworkAddress& address) override
+    {
+        Impl_->SendTo(buffer, address);
+    }
+
+    virtual TFuture<void> Abort() override
+    {
+        return Impl_->Abort(TError("Connection is abandoned"));
+    }
+
+private:
+    TFDConnectionImplPtr Impl_;
+};
+
+IPacketConnectionPtr CreatePacketConnection(
+    const TNetworkAddress& at,
+    const NConcurrency::IPollerPtr& poller)
+{
+    auto fd = CreateUdpSocket();
+    try {
+        SetReuseAddrFlag(fd);
+        BindSocket(fd, at);
+    } catch (...) {
+        SafeClose(fd, false);
+        throw;
+    }
+
+    return New<TPacketConnection>(fd, at, poller);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

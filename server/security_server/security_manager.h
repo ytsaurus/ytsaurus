@@ -207,6 +207,12 @@ public:
         TUser* user,
         EPermission permission);
 
+    //! Checks if given ACL allows access with #permission.
+    TPermissionCheckResult CheckPermission(
+        TUser* user,
+        EPermission permission,
+        const TAccessControlList& acl);
+
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
     /*!
      *  If NHiveServer::IsHiveMutation returns |true| then this check is suppressed.

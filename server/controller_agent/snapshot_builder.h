@@ -7,7 +7,7 @@
 
 #include <yt/server/misc/fork_executor.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/pipes/pipe.h>
 

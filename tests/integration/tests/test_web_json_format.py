@@ -190,10 +190,10 @@ class TestWebJsonFormat(YTEnvSetup):
 
     @unix_only
     def test_select_rows_from_sorted_dynamic_table(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         schema = get_schema(key_column_names=["string32_column"], unique_keys=True, strict=True)
         create("table", TABLE_PATH, attributes={"schema": schema, "dynamic": True})
-        self.sync_mount_table(TABLE_PATH)
+        sync_mount_table(TABLE_PATH)
 
         insert_rows(TABLE_PATH, ROWS)
 
@@ -208,11 +208,11 @@ class TestWebJsonFormat(YTEnvSetup):
         expected_output["rows"].sort(key=lambda c: c["string32_column"]["$value"])
         assert output == expected_output
 
-        self.sync_unmount_table(TABLE_PATH)
+        sync_unmount_table(TABLE_PATH)
 
     @unix_only
     def test_select_rows_from_ordered_dynamic_table(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         schema = get_schema(strict=True)
         create("table", TABLE_PATH, attributes={"schema": schema, "dynamic": True})
 
@@ -221,7 +221,7 @@ class TestWebJsonFormat(YTEnvSetup):
             rows[i]["$tablet_index"] = i
         reshard_table(TABLE_PATH, len(rows))
 
-        self.sync_mount_table(TABLE_PATH)
+        sync_mount_table(TABLE_PATH)
 
         insert_rows(TABLE_PATH, rows)
 
@@ -245,4 +245,4 @@ class TestWebJsonFormat(YTEnvSetup):
         output["rows"].sort(key=lambda column: (column["$$tablet_index"], column["$$row_index"]))
         assert output == expected_output
 
-        self.sync_unmount_table(TABLE_PATH)
+        sync_unmount_table(TABLE_PATH)

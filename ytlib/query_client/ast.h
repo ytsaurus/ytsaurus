@@ -3,7 +3,7 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/hash.h>

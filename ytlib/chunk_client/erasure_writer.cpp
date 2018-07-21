@@ -1,7 +1,6 @@
 #include "erasure_writer.h"
 #include "public.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_replica.h"
 #include "chunk_writer.h"
 #include "config.h"
 #include "dispatcher.h"
@@ -11,14 +10,16 @@
 #include "block.h"
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
@@ -461,7 +462,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     const TSessionId& sessionId,
     ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)

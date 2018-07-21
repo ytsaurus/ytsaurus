@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
 namespace NYT {
 namespace NChunkClient {

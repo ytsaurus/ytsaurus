@@ -33,7 +33,7 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -96,8 +96,9 @@ public:
         , Config_(Bootstrap_->GetConfig()->ExecAgent)
         , Invoker_(Bootstrap_->GetControlInvoker())
         , StartTime_(TInstant::Now())
+        , TrafficMeter_(New<TTrafficMeter>(
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
         , ResourceUsage_(resourceUsage)
-        , TrafficMeter_(New<TTrafficMeter>(Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -610,6 +611,7 @@ private:
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TInstant StartTime_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     TJobSpec JobSpec_;
 
@@ -668,8 +670,6 @@ private:
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     // Helpers.
 

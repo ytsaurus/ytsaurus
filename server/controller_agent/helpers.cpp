@@ -6,16 +6,16 @@
 
 #include <yt/server/scheduler/config.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/scheduler/proto/output_result.pb.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 
@@ -962,8 +962,8 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INativeConnectionPtr FindRemoteConnection(
-    const INativeConnectionPtr& connection,
+NNative::IConnectionPtr FindRemoteConnection(
+    const NNative::IConnectionPtr& connection,
     TCellTag cellTag)
 {
     if (cellTag == connection->GetCellTag()) {
@@ -975,11 +975,11 @@ INativeConnectionPtr FindRemoteConnection(
         return nullptr;
     }
 
-    return dynamic_cast<INativeConnection*>(remoteConnection.Get());
+    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
 }
 
-INativeConnectionPtr GetRemoteConnectionOrThrow(
-    const INativeConnectionPtr& connection,
+NNative::IConnectionPtr GetRemoteConnectionOrThrow(
+    const NNative::IConnectionPtr& connection,
     TCellTag cellTag)
 {
     auto remoteConnection = FindRemoteConnection(connection, cellTag);

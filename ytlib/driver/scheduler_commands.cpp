@@ -2,11 +2,11 @@
 #include "config.h"
 #include "driver.h"
 
-#include <yt/ytlib/api/file_reader.h>
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/file_reader.h>
+#include <yt/client/api/rowset.h>
 
-#include <yt/ytlib/table_client/schemaful_writer.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

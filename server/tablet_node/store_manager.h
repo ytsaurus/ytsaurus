@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/actions/future.h>
 
@@ -41,7 +41,7 @@ struct IStoreManager
     virtual void StopEpoch() = 0;
 
     virtual bool ExecuteWrites(
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) = 0;
 
     virtual bool IsOverflowRotationNeeded() const = 0;

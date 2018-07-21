@@ -6,10 +6,10 @@
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/signal.h>

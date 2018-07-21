@@ -4,7 +4,7 @@
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/blob_output.h>
 

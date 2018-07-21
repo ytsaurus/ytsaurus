@@ -6,7 +6,7 @@
 #include <yt/server/cypress_server/node_proxy_detail.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 namespace NYT {
 namespace NChunkServer {

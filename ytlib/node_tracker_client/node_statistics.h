@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node.pb.h>
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <array>
 

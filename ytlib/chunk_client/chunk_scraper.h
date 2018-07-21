@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/logging/log.h>
 
@@ -17,7 +17,10 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<void(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)> TChunkLocatedHandler;
+using TChunkLocatedHandler = TCallback<void(
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas,
+    bool missing)>;
 
 //! A chunk scraper for unavailable chunks.
 class TChunkScraper
@@ -28,7 +31,7 @@ public:
         const TChunkScraperConfigPtr config,
         const IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const THashSet<TChunkId>& chunkIds,
         TChunkLocatedHandler onChunkLocated,
@@ -48,7 +51,7 @@ private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TThrottlerManagerPtr ThrottlerManager_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TChunkLocatedHandler OnChunkLocated_;
     const NLogging::TLogger Logger;

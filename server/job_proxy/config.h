@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/cgroup/config.h>
 
-#include <yt/ytlib/file_client/config.h>
+#include <yt/client/file_client/config.h>
 
 #include <yt/ytlib/hydra/config.h>
 
@@ -42,7 +42,7 @@ public:
     TNullable<TString> RootPath;
 
     // Job-independent parameters.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
