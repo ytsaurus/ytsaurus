@@ -321,7 +321,7 @@ public:
 
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
-        TString controllers = "freezer;cpu;cpuacct;net_cls;blkio;devices";
+        TString controllers = "freezer;cpu;cpuacct;net_cls;blkio;devices;pids";
         if (RequireMemoryController_) {
             controllers += ";memory";
         }
