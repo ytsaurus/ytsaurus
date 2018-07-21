@@ -243,7 +243,16 @@ public:
     TCGroupJobEnvironment(TCGroupJobEnvironmentConfigPtr config, const TBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
-    { }
+    {
+        // Freezer is always implicitly supported.
+        TNonOwningCGroup freezer("freezer", "slots");
+        CGroups_.push_back(freezer.GetFullPath());
+
+        for (const auto& type : Config_->SupportedCGroups) {
+            TNonOwningCGroup group(type, "slots");
+            CGroups_.push_back(group.GetFullPath());
+        }
+    }
 
     virtual void CleanProcesses(int slotIndex) override
     {
@@ -305,6 +314,8 @@ private:
     const TCGroupJobEnvironmentConfigPtr Config_;
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
+    std::vector<TString> CGroups_;
+
     virtual void DoInit(int slotCount, double jobsCpuLimit) override
     {
         if (!HasRootPermissions()) {
@@ -324,17 +335,9 @@ private:
     std::vector<TString> GetCGroupPaths(int slotIndex) const
     {
         std::vector<TString> result;
-        auto subgroupName = GetSlotProcessGroup(slotIndex);
-
-        // Freezer is always implicitly supported.
-        TNonOwningCGroup freezer("freezer", subgroupName);
-        result.push_back(freezer.GetFullPath());
-
-        for (const auto& type : Config_->SupportedCGroups) {
-            TNonOwningCGroup group(type, subgroupName);
-            result.push_back(group.GetFullPath());
+        for (const auto& cgroup : CGroups_) {
+            result.push_back(Format("%v/%v", cgroup, slotIndex));
         }
-
         return result;
     }
 };
