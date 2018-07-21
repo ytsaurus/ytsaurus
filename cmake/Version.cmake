@@ -138,13 +138,13 @@ if (NOT YT_BUILD_VCS_NUMBER)
       message(WARNING
         "Error running command `${_GIT} -C ${PROJECT_SOURCE_DIR} rev-parse HEAD` \
         for getting local build commit SHA.\nStderr:\n${GIT_ERROR}")
-      set(YT_BUILD_VCS_NUMBER "0000000")
+      set(YT_BUILD_VCS_NUMBER "0000000000")
     else()
-      string(SUBSTRING ${YT_BUILD_VCS_NUMBER} 0 7 YT_BUILD_VCS_NUMBER)
+      string(SUBSTRING ${YT_BUILD_VCS_NUMBER} 0 10 YT_BUILD_VCS_NUMBER)
       message(STATUS "Setting local build commit SHA `${YT_BUILD_VCS_NUMBER}`")
     endif()
   else()
-    set(YT_BUILD_VCS_NUMBER "0000000")
+    set(YT_BUILD_VCS_NUMBER "0000000000")
   endif()
 endif()
 
