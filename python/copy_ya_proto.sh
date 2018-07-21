@@ -23,4 +23,4 @@ for path in $YP_PROTOS; do
     python ../../replace-imports.py <"../../$path" >"ya_proto/yp_proto/$path"
 done
 
-echo -e "SET(PROTO_SRCS${PROTO_PATHS}\n)" >ya_proto/ya.make.inc
+echo "SET(PROTO_SRCS${PROTO_PATHS}\n)" >ya_proto/ya.make.inc
