@@ -6,10 +6,9 @@ yt_proto/yt/core/ytree/proto/attributes.proto
 yt_proto/yt/core/ytree/proto/ypath.proto
 yt_proto/yt/core/rpc/proto/rpc.proto
 yt_proto/yt/core/rpc/grpc/proto/grpc.proto
-yt_proto/yt/ytlib/hive/hive_service.proto
-yt_proto/yt/ytlib/hive/timestamp_map.proto
-yt_proto/yt/ytlib/hive/cell_directory.proto
-yt_proto/yt/ytlib/rpc_proxy/proto/api_service.proto
-yt_proto/yt/ytlib/rpc_proxy/proto/discovery_service.proto
-yt_proto/yt/ytlib/node_tracker_client/proto/node.proto
+yt_proto/yt/client/hive/proto/timestamp_map.proto
+yt_proto/yt/client/hive/proto/cluster_directory.proto
+yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto
+yt_proto/yt/client/api/rpc_proxy/proto/discovery_service.proto
+yt_proto/yt/client/node_tracker_client/proto/node.proto
 )
