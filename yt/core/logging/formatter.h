@@ -28,6 +28,7 @@ private:
 class ILogFormatter
 {
 public:
+    virtual ~ILogFormatter() {}
     virtual void WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const = 0;
 };
