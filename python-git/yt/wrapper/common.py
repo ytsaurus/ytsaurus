@@ -373,9 +373,9 @@ def escape_c(string):
             return "\\" + oct_digit(ord(symbol))
         elif not is_hex_digit(next):
             num = ord(symbol)
-            return "\\x" + hex_digit(num / 16) + hex_digit(num % 16)
+            return "\\x" + hex_digit(num // 16) + hex_digit(num % 16)
         else:
             num = ord(symbol)
-            return "\\" + oct_digit(num / 64) + oct_digit((num / 8) % 8) + oct_digit(num % 8)
+            return "\\" + oct_digit(num // 64) + oct_digit((num // 8) % 8) + oct_digit(num % 8)
 
     return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
