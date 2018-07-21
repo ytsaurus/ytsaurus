@@ -53,7 +53,7 @@ def prepare(options):
     options.codename = codename
     options.repositories = ["yt-" + codename, "yandex-" + codename]
 
-    available_python_versions = ["2.6", "2.7", "3.4", "pypy"]
+    available_python_versions = ["2.7", "3.4", "pypy"]
 
     options.enabled_python_versions = set()
 
@@ -294,10 +294,6 @@ def _run_tests_for_python_version(options, python_version):
     bindings_version = "2.7" if python_version == "pypy" else python_version
     _prepare_bindings(options, bindings_version)
     _run_tests(options, python_version)
-
-@build_step
-def run_python_2_6_tests(options):
-    _run_tests_for_python_version(options, "2.6")
 
 @build_step
 def run_python_2_7_tests(options):

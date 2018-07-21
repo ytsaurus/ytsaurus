@@ -26,7 +26,7 @@ def main():
     opts, args = parser.parse_args()
 
     if opts.requested and len(args) <= 1 and sys.version_info[0] == 2:
-        print "2.7 2.6"
+        print "2.7"
     else:
         subprocess.check_call(["/usr/bin/pyversions"] + sys.argv[1:], stdout=sys.stdout, stderr=sys.stderr)
 
