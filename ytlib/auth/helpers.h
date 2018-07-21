@@ -5,7 +5,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_client.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 namespace NYT {
 namespace NAuth {

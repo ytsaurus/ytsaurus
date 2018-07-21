@@ -1,5 +1,6 @@
-#include <yt/core/ytree/convert.h>
 #include "config.h"
+
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -185,9 +186,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("secure_vault", SecureVault)
         .Default();
 
-    RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
-        .Default(TDuration::Hours(1));
-
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
@@ -202,7 +200,7 @@ TOperationSpecBase::TOperationSpecBase()
         .DefaultNew();
 
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        .DefaultNew(0.5, 2.0, 1.0);
 
     RegisterParameter("fail_on_job_restart", FailOnJobRestart)
         .Default(false);
@@ -228,6 +226,13 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
         .Default(false);
+
+    RegisterParameter("ban_nodes_with_failed_jobs", BanNodesWithFailedJobs)
+        .Default(false);
+    RegisterParameter("ignore_job_failures_at_banned_nodes", IgnoreJobFailuresAtBannedNodes)
+        .Default(false);
+    RegisterParameter("fail_on_all_nodes_banned", FailOnAllNodesBanned)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -993,6 +998,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("tentative_tree_eligibility", TentativeTreeEligibility)
         .DefaultNew();
+    RegisterParameter("update_preemptable_jobs_list_logging_period", UpdatePreemptableJobsListLoggingPeriod)
+        .Default(1000);
 }
 
 TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()

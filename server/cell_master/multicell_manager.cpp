@@ -14,7 +14,7 @@
 
 #include <yt/core/rpc/retrying_channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 

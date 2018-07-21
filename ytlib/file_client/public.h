@@ -1,13 +1,13 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/client/file_client/public.h>
 
 namespace NYT {
 namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int FormatVersion = 1;
+constexpr int FormatVersion = 1;
 
 class TFileChunkOutput;
 
@@ -15,8 +15,6 @@ DECLARE_REFCOUNTED_STRUCT(IFileReader)
 
 DECLARE_REFCOUNTED_STRUCT(IFileChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IFileMultiChunkWriter)
-
-DECLARE_REFCOUNTED_CLASS(TFileChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

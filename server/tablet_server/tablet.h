@@ -16,7 +16,7 @@
 
 #include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/nullable.h>
@@ -195,9 +195,7 @@ public:
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
-    using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
-    DEFINE_BYREF_RW_PROPERTY(TErrorVector, Errors);
-    DEFINE_BYVAL_RW_PROPERTY(int, ErrorCount);
+    DEFINE_BYVAL_RO_PROPERTY(int, ErrorCount);
 
     using TReplicaMap = THashMap<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
@@ -206,6 +204,7 @@ public:
 
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
+    DECLARE_BYVAL_RW_PROPERTY(std::vector<TError>, Errors);
 
 public:
     explicit TTablet(const TTabletId& id);
@@ -231,11 +230,12 @@ public:
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
 
-    std::vector<TError> GetErrors() const;
-
 private:
+    using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
+
     ETabletState State_ = ETabletState::Unmounted;
     NTableServer::TTableNode* Table_ = nullptr;
+    TErrorVector Errors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

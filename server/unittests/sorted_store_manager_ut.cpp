@@ -3,8 +3,8 @@
 #include <yt/server/tablet_node/lookup.h>
 #include <yt/server/tablet_node/sorted_store_manager.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -13,7 +13,8 @@ namespace {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NObjectClient;
-using namespace NTabletClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////

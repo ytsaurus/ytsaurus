@@ -16,9 +16,9 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWriteTest
+class TWriteFileChunkTest
     : public ::testing::Test
-        , public ::testing::WithParamInterface<std::tuple<
+    , public ::testing::WithParamInterface<std::tuple<
         EIOEngineType,
         const char*>>
 {
@@ -43,7 +43,7 @@ protected:
     }
 };
 
-TEST_P(TWriteTest, Simple)
+TEST_P(TWriteFileChunkTest, Simple)
 {
     const auto& args = GetParam();
     const auto& type = std::get<0>(args);
@@ -51,25 +51,27 @@ TEST_P(TWriteTest, Simple)
         NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
 
     auto engine = CreateIOEngine(type, config);
-    TString fileName = GenerateRandomFileName("TFileWriterTest");
-    TString tmpFileName = fileName + NFS::TempFileSuffix;
+    auto fileName = GenerateRandomFileName("TFileWriterTest");
+    auto tmpFileName = fileName + NFS::TempFileSuffix;
 
-    TFileWriter writer(engine, TGuid::Create(), fileName);
+    auto writer = New<TFileWriter>(engine, TGuid::Create(), fileName);
 
-    writer.Open().Get().ThrowOnError();
+    writer->Open()
+        .Get()
+        .ThrowOnError();
 
     TFile tmpFile(tmpFileName, RdOnly);
 
     TBlock block1(RandomBlock(10));
-    EXPECT_EQ(writer.WriteBlock(block1), true);
+    EXPECT_EQ(writer->WriteBlock(block1), true);
     TBlock block2(RandomBlock(10));
-    EXPECT_EQ(writer.WriteBlock(block2), true);
+    EXPECT_EQ(writer->WriteBlock(block2), true);
     TBlock block3(RandomBlock(4096));
-    EXPECT_EQ(writer.WriteBlock(block3), true);
+    EXPECT_EQ(writer->WriteBlock(block3), true);
     TBlock block4(RandomBlock(1_MB+1));
-    EXPECT_EQ(writer.WriteBlock(block4), true);
+    EXPECT_EQ(writer->WriteBlock(block4), true);
     TBlock block5(RandomBlock(5_MB+1));
-    EXPECT_EQ(writer.WriteBlock(block5), true);
+    EXPECT_EQ(writer->WriteBlock(block5), true);
 
     EXPECT_EQ(tmpFile.GetLength(), 6_MB + 2*4096);
 
@@ -79,13 +81,15 @@ TEST_P(TWriteTest, Simple)
     EXPECT_TRUE(CheckBlock(tmpFile, block4));
     EXPECT_TRUE(CheckBlock(tmpFile, block5));
 
-    writer.Close(NChunkClient::NProto::TChunkMeta());
+    writer->Close(NChunkClient::NProto::TChunkMeta())
+        .Get()
+        .ThrowOnError();
 
     TFile file(fileName, RdOnly);
     EXPECT_EQ(file.GetLength(), block1.Size() + block2.Size() + block3.Size() + block4.Size() + block5.Size());
 }
 
-TEST_P(TWriteTest, Specific)
+TEST_P(TWriteFileChunkTest, Specific)
 {
     std::vector<TBlock> blocks;
     const auto& args = GetParam();
@@ -94,12 +98,14 @@ TEST_P(TWriteTest, Specific)
         NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
 
     auto engine = CreateIOEngine(type, config);
-    TString fileName = GenerateRandomFileName("TFileWriterTestSpecific");
-    TString tmpFileName = fileName + NFS::TempFileSuffix;
+    auto fileName = GenerateRandomFileName("TFileWriterTestSpecific");
+    auto tmpFileName = fileName + NFS::TempFileSuffix;
 
-    TFileWriter writer(engine, TGuid::Create(), fileName);
+    auto writer = New<TFileWriter>(engine, TGuid::Create(), fileName);
 
-    writer.Open().Get().ThrowOnError();
+    writer->Open()
+        .Get()
+        .ThrowOnError();
 
     TFile tmpFile(tmpFileName, RdOnly);
 
@@ -114,7 +120,7 @@ TEST_P(TWriteTest, Specific)
         int blockSize = sizes[i];
         TBlock block = RandomBlock(blockSize);
         blocks.push_back(block);
-        EXPECT_EQ(writer.WriteBlock(block), true);
+        EXPECT_EQ(writer->WriteBlock(block), true);
 
         tmpFile.Seek(0, sSet);
         for (int j = 0; j < blocks.size(); ++j) {
@@ -123,7 +129,7 @@ TEST_P(TWriteTest, Specific)
     }
 }
 
-TEST_P(TWriteTest, Random)
+TEST_P(TWriteFileChunkTest, Random)
 {
     std::vector<TBlock> blocks;
 
@@ -133,12 +139,14 @@ TEST_P(TWriteTest, Random)
         NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
 
     auto engine = CreateIOEngine(type, config);
-    TString fileName = GenerateRandomFileName("TFileWriterTestRandom");
-    TString tmpFileName = fileName + NFS::TempFileSuffix;
+    auto fileName = GenerateRandomFileName("TFileWriterTestRandom");
+    auto tmpFileName = fileName + NFS::TempFileSuffix;
 
-    TFileWriter writer(engine, TGuid::Create(), fileName);
+    auto writer = New<TFileWriter>(engine, TGuid::Create(), fileName);
 
-    writer.Open().Get().ThrowOnError();
+    writer->Open()
+        .Get()
+        .ThrowOnError();
 
     TFile tmpFile(tmpFileName, RdOnly);
 
@@ -150,7 +158,7 @@ TEST_P(TWriteTest, Random)
         int blockSize = 1_MB * ((double) rand() / RAND_MAX + 1);
         TBlock block = RandomBlock(blockSize);
         blocks.push_back(block);
-        EXPECT_EQ(writer.WriteBlock(block), true);
+        EXPECT_EQ(writer->WriteBlock(block), true);
 
         tmpFile.Seek(0, sSet);
         for (int j = 0; j < blocks.size(); ++j) {
@@ -160,8 +168,8 @@ TEST_P(TWriteTest, Random)
 }
 
 INSTANTIATE_TEST_CASE_P(
-    TWriteTest,
-    TWriteTest,
+    TWriteFileChunkTest,
+    TWriteFileChunkTest,
     ::testing::Values(
         std::make_tuple(EIOEngineType::ThreadPool, "{ }"),
         std::make_tuple(EIOEngineType::ThreadPool, "{ use_direct_io = true; }"),

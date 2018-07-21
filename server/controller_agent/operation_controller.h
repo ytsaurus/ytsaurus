@@ -4,7 +4,7 @@
 
 #include <yt/server/scheduler/job_metrics.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 
@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/event_log/public.h>
 
@@ -213,7 +213,7 @@ struct IOperationControllerHost
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
         bool recursive) = 0;
 
-    virtual const NApi::INativeClientPtr& GetClient() = 0;
+    virtual const NApi::NNative::IClientPtr& GetClient() = 0;
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
@@ -608,6 +608,8 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker.
      */
     virtual NYTree::IYPathServicePtr GetOrchid() const = 0;
+
+    virtual TString WriteCoreDump() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

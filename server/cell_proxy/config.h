@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/core/rpc/grpc/config.h>
 
@@ -25,7 +25,7 @@ class TCellProxyConfig
 {
 public:
     //! Proxy-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
     NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.

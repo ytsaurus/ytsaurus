@@ -20,7 +20,7 @@
 #include <yt/ytlib/chunk_client/format.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -549,8 +549,7 @@ void TLocation::ValidateWritable()
     NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
-    HealthChecker_->RunCheck()
-        .Get()
+    WaitFor(HealthChecker_->RunCheck())
         .ThrowOnError();
 }
 
@@ -991,15 +990,13 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& c
     if (hasData) {
         const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
         // NB: This also creates the index file, if missing.
-        auto changelog = dispatcher->OpenChangelog(this, chunkId)
-            .Get()
+        auto changelog = WaitFor(dispatcher->OpenChangelog(this, chunkId))
             .ValueOrThrow();
         TChunkDescriptor descriptor;
         descriptor.Id = chunkId;
         descriptor.DiskSpace = changelog->GetDataSize();
         descriptor.RowCount = changelog->GetRecordCount();
-        descriptor.Sealed = dispatcher->IsChangelogSealed(this, chunkId)
-            .Get()
+        descriptor.Sealed = WaitFor(dispatcher->IsChangelogSealed(this, chunkId))
             .ValueOrThrow();
         return descriptor;
 

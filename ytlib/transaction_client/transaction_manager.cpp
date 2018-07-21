@@ -2,17 +2,18 @@
 #include "private.h"
 #include "config.h"
 #include "helpers.h"
-#include "timestamp_provider.h"
 #include "action.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
-#include <yt/ytlib/hive/timestamp_map.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/hive/timestamp_map.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 

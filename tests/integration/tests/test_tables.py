@@ -53,12 +53,12 @@ class TestTables(YTEnvSetup):
 
         nodes = ls("//sys/nodes")
         for node in nodes:
-            self.set_node_banned(node, True)
+            set_node_banned(node, True)
 
         with pytest.raises(YtError): read_table("//tmp/table")
 
         for node in nodes:
-            self.set_node_banned(node, False)
+            set_node_banned(node, False)
 
     def test_sorted_write_table(self):
         create("table", "//tmp/table")

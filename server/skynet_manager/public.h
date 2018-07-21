@@ -11,27 +11,36 @@ namespace NSkynetManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr size_t SkynetPieceSize = 4_MB;
+constexpr size_t MaxTableShards = 16 * 1024;
+constexpr i64 MaxResourceSize = 1_TB;
+
+typedef TString TResourceId;
 
 struct TCluster;
+
+typedef std::function<void(i64 current)>
+    TProgressCallback;
+
 
 DECLARE_REFCOUNTED_STRUCT(TBootstrap)
 
 DECLARE_REFCOUNTED_CLASS(TClusterConnectionConfig)
-DECLARE_REFCOUNTED_CLASS(TCypressCoordinationConfig)
 DECLARE_REFCOUNTED_CLASS(TSkynetManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TTombstoneCacheConfig)
 
-DECLARE_REFCOUNTED_CLASS(TSkynetManager)
-DECLARE_REFCOUNTED_CLASS(TCypressSync)
-DECLARE_REFCOUNTED_CLASS(TShareCache)
-DECLARE_REFCOUNTED_CLASS(TShareInfo)
+DECLARE_REFCOUNTED_CLASS(TPeerConnection)
+DECLARE_REFCOUNTED_CLASS(TPeerListener)
+DECLARE_REFCOUNTED_CLASS(TAnnouncer)
+DECLARE_REFCOUNTED_CLASS(TAnnouncerConfig)
 
-DECLARE_REFCOUNTED_STRUCT(ISkynetApi)
+DECLARE_REFCOUNTED_CLASS(TTables)
 
-DECLARE_REFCOUNTED_STRUCT(IShareHost)
+DECLARE_REFCOUNTED_STRUCT(TResourceLink)
 
-//! (Cluster, TablePath, TableRevision).
-typedef std::tuple<TString, NYPath::TYPath, i64> TShareKey;
+DECLARE_REFCOUNTED_CLASS(TShareOperation)
+DECLARE_REFCOUNTED_CLASS(TClusterConnection)
+DECLARE_REFCOUNTED_CLASS(TSkynetService)
+
+DECLARE_REFCOUNTED_CLASS(TTrackerConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,24 +9,25 @@
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/token_authenticator.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/rowset.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/rpc_proxy/api_service_proxy.h>
-#include <yt/ytlib/rpc_proxy/helpers.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/rowset.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/api/rpc_proxy/api_service_proxy.h>
+#include <yt/client/api/rpc_proxy/helpers.h>
+
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -76,7 +77,7 @@ void SetTimeoutOptions(
 
 void FromProto(
     TTransactionalOptions* options,
-    const NProto::TTransactionalOptions& proto)
+    const NApi::NRpcProxy::NProto::TTransactionalOptions& proto)
 {
     if (proto.has_transaction_id()) {
         FromProto(&options->TransactionId, proto.transaction_id());
@@ -94,7 +95,7 @@ void FromProto(
 
 void FromProto(
     TPrerequisiteOptions* options,
-    const NProto::TPrerequisiteOptions& proto)
+    const NApi::NRpcProxy::NProto::TPrerequisiteOptions& proto)
 {
     options->PrerequisiteTransactionIds.resize(proto.transactions_size());
     for (int i = 0; i < proto.transactions_size(); ++i) {
@@ -115,7 +116,7 @@ void FromProto(
 
 void FromProto(
     TMasterReadOptions* options,
-    const NProto::TMasterReadOptions& proto)
+    const NApi::NRpcProxy::NProto::TMasterReadOptions& proto)
 {
     if (proto.has_read_from()) {
         options->ReadFrom = CheckedEnumCast<EMasterChannelKind>(proto.read_from());
@@ -133,7 +134,7 @@ void FromProto(
 
 void FromProto(
     TMutatingOptions* options,
-    const NProto::TMutatingOptions& proto)
+    const NApi::NRpcProxy::NProto::TMutatingOptions& proto)
 {
     if (proto.has_mutation_id()) {
         FromProto(&options->MutationId, proto.mutation_id());
@@ -145,7 +146,7 @@ void FromProto(
 
 void FromProto(
     TSuppressableAccessTrackingOptions* options,
-    const NProto::TSuppressableAccessTrackingOptions& proto)
+    const NApi::NRpcProxy::NProto::TSuppressableAccessTrackingOptions& proto)
 {
     if (proto.has_suppress_access_tracking()) {
         options->SuppressAccessTracking = proto.suppress_access_tracking();
@@ -157,7 +158,7 @@ void FromProto(
 
 void FromProto(
     TTabletRangeOptions* options,
-    const NProto::TTabletRangeOptions& proto)
+    const NApi::NRpcProxy::NProto::TTabletRangeOptions& proto)
 {
     if (proto.has_first_tablet_index()) {
         options->FirstTabletIndex = proto.first_tablet_index();
@@ -169,7 +170,7 @@ void FromProto(
 
 void FromProto(
     TTabletReadOptions* options,
-    const NProto::TTabletReadOptions& proto)
+    const NApi::NRpcProxy::NProto::TTabletReadOptions& proto)
 {
     if (proto.has_read_from()) {
         options->ReadFrom = CheckedEnumCast<NHydra::EPeerKind>(proto.read_from());
@@ -178,8 +179,8 @@ void FromProto(
 
 const TServiceDescriptor& GetDescriptor()
 {
-    static const auto descriptor = TServiceDescriptor(ApiServiceName)
-        .SetProtocolVersion(GetCurrentProtocolVersion());
+    static const auto descriptor = TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
+        .SetProtocolVersion(NApi::NRpcProxy::GetCurrentProtocolVersion());
     return descriptor;
 }
 
@@ -257,9 +258,9 @@ private:
 
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
-    THashMap<TString, INativeClientPtr> AuthenticatedClients_;
+    THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
 
-    INativeClientPtr GetOrCreateClient(const TString& user)
+    NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
         auto guard = Guard(SpinLock_);
 
@@ -296,7 +297,7 @@ private:
         return address;
     }
 
-    INativeClientPtr GetAuthenticatedClientOrAbortContext(
+    NNative::IClientPtr GetAuthenticatedClientOrAbortContext(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
@@ -375,7 +376,7 @@ private:
             }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GenerateTimestamps)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -401,7 +402,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, StartTransaction)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartTransaction)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -442,7 +443,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, PingTransaction)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingTransaction)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -470,7 +471,7 @@ private:
             transaction->Ping());
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CommitTransaction)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -505,7 +506,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AbortTransaction)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortTransaction)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -533,7 +534,7 @@ private:
             transaction->Abort());
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AttachTransaction)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTransaction)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -571,16 +572,16 @@ private:
             return;
         }
 
-        response->set_type(static_cast<NProto::ETransactionType>(transaction->GetType()));
+        response->set_type(static_cast<NApi::NRpcProxy::NProto::ETransactionType>(transaction->GetType()));
         response->set_start_timestamp(transaction->GetStartTimestamp());
-        response->set_atomicity(static_cast<NProto::EAtomicity>(transaction->GetAtomicity()));
-        response->set_durability(static_cast<NProto::EDurability>(transaction->GetDurability()));
+        response->set_atomicity(static_cast<NApi::NRpcProxy::NProto::EAtomicity>(transaction->GetAtomicity()));
+        response->set_durability(static_cast<NApi::NRpcProxy::NProto::EDurability>(transaction->GetDurability()));
         response->set_timeout(static_cast<i64>(transaction->GetTimeout().GetValue()));
 
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CreateObject)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateObject)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -606,7 +607,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetTableMountInfo)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTableMountInfo)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -651,7 +652,7 @@ private:
     // CYPRESS
     ////////////////////////////////////////////////////////////////////////////////
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ExistsNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExistsNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -690,7 +691,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -742,7 +743,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ListNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -794,7 +795,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CreateNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -850,7 +851,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemoveNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -885,7 +886,7 @@ private:
             client->RemoveNode(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SetNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -918,7 +919,7 @@ private:
             client->SetNode(path, value, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LockNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LockNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -967,7 +968,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CopyNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1023,7 +1024,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, MoveNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MoveNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1073,7 +1074,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LinkNode)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LinkNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1123,7 +1124,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ConcatenateNodes)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ConcatenateNodes)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1158,7 +1159,7 @@ private:
     // TABLES (NON-TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, MountTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MountTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1191,7 +1192,7 @@ private:
             client->MountTable(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnmountTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnmountTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1220,7 +1221,7 @@ private:
             client->UnmountTable(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemountTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemountTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1246,7 +1247,7 @@ private:
             client->RemountTable(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, FreezeTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FreezeTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1272,7 +1273,7 @@ private:
             client->FreezeTable(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnfreezeTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnfreezeTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1298,7 +1299,7 @@ private:
             client->UnfreezeTable(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ReshardTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1346,7 +1347,7 @@ private:
         }
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, TrimTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TrimTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1374,7 +1375,7 @@ private:
                 options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1409,7 +1410,7 @@ private:
             client->AlterTable(path, options));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTableReplica)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTableReplica)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1445,18 +1446,18 @@ private:
     static bool LookupRowsPrologue(
         const TIntrusivePtr<TContext>& context,
         TRequest* request,
-        const NProto::TRowsetDescriptor& rowsetDescriptor,
+        const NApi::NRpcProxy::NProto::TRowsetDescriptor& rowsetDescriptor,
         TNameTablePtr* nameTable,
         TSharedRange<TUnversionedRow>* keys,
         TOptions* options)
     {
-        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::RK_UNVERSIONED);
+        NApi::NRpcProxy::ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NApi::NRpcProxy::NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
             context->Reply(TError("Request is missing rowset in attachments"));
             return false;
         }
 
-        auto rowset = DeserializeRowset<TUnversionedRow>(
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
         *nameTable = TNameTable::FromSchema(rowset->Schema());
@@ -1486,13 +1487,13 @@ private:
         TResponse* response,
         const TIntrusivePtr<IRowset<TRow>>& rowset)
     {
-        response->Attachments() = SerializeRowset(
+        response->Attachments() = NApi::NRpcProxy::SerializeRowset(
             rowset->Schema(),
             rowset->GetRows(),
             response->mutable_rowset_descriptor());
     };
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LookupRows)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LookupRows)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1531,7 +1532,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, VersionedLookupRows)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, VersionedLookupRows)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1570,7 +1571,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SelectRows)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SelectRows)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1623,7 +1624,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetInSyncReplicas)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetInSyncReplicas)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1638,7 +1639,7 @@ private:
             options.Timestamp = request->timestamp();
         }
 
-        auto rowset = DeserializeRowset<TUnversionedRow>(
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
 
@@ -1665,7 +1666,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetTabletInfos)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTabletInfos)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -1698,7 +1699,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ModifyRows)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
     {
         const auto& path = request->path();
 
@@ -1716,7 +1717,7 @@ private:
             return;
         }
 
-        auto rowset = DeserializeRowset<TUnversionedRow>(
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
 
@@ -1763,7 +1764,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, BuildSnapshot)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BuildSnapshot)
     {
         if (Bootstrap_->GetConfig()->RequireAuthentication ||
             context->GetUser() != NSecurityClient::RootUserName)
@@ -1804,7 +1805,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GCCollect)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect)
     {
         if (Bootstrap_->GetConfig()->RequireAuthentication ||
             context->GetUser() != NSecurityClient::RootUserName)

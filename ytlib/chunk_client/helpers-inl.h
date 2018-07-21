@@ -5,12 +5,12 @@
 
 #include "private.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/public.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 
@@ -26,7 +26,7 @@ namespace NChunkClient {
 
 template <class T>
 void GetUserObjectBasicAttributes(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TMutableRange<T> objects,
     const NObjectClient::TTransactionId& defaultTransactionId,
     const NLogging::TLogger& logger,

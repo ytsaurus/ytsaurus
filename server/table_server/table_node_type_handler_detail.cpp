@@ -6,6 +6,8 @@
 #include "shared_table_schema.h"
 #include "private.h"
 
+#include <yt/ytlib/table_client/schema.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 

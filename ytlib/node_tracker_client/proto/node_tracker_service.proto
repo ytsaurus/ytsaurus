@@ -1,0 +1,80 @@
+package NYT.NNodeTrackerClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
+import "yt/ytlib/tablet_client/heartbeat.proto";
+import "yt/ytlib/chunk_client/heartbeat.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterNode
+{
+    required TNodeAddressMap node_addresses = 1;
+    required TNodeStatistics statistics = 2;
+    optional NYT.NProto.TGuid lease_transaction_id = 3;
+    optional int32 node_id = 4;
+    repeated string tags = 5;
+}
+
+message TRspRegisterNode
+{
+    required int32 node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFullHeartbeat
+{
+    message TMediumChunkStatistics
+    {
+        required int32 medium_index = 1;
+        required int32 chunk_count = 2;
+    }
+
+    required int32 node_id = 1;
+    required TNodeStatistics statistics = 2;
+
+    // Chunk Manager stuff.
+    repeated NChunkClient.NProto.TChunkAddInfo chunks = 3;
+    repeated TMediumChunkStatistics chunk_statistics = 4;
+}
+
+message TRspFullHeartbeat
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIncrementalHeartbeat
+{
+    required int32 node_id = 1;
+
+    // Node Tracker stuff.
+    required TNodeStatistics statistics = 2;
+    repeated NYT.NProto.TError alerts = 3;
+
+    // Chunk Manager stuff.
+    repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 4;
+    repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 5;
+
+    // Tablet Manager stuff.
+    repeated NTabletClient.NProto.TTabletSlotInfo tablet_slots = 6;
+    repeated NTabletClient.NProto.TTabletInfo tablets = 8;
+}
+
+message TRspIncrementalHeartbeat
+{
+    // Tablet Manager stuff.
+    repeated NTabletClient.NProto.TCreateTabletSlotInfo tablet_slots_to_create = 1;
+    repeated NTabletClient.NProto.TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
+    repeated NTabletClient.NProto.TConfigureTabletSlotInfo tablet_slots_configure = 3;
+
+    // Node Tracker stuff.
+    optional string rack = 6;
+    optional string data_center = 9;
+    repeated string tags = 10;
+    optional TNodeResourceLimitsOverrides resource_limits_overrides = 7;
+    optional bool disable_scheduler_jobs = 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////

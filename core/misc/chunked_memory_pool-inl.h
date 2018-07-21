@@ -45,6 +45,13 @@ inline T* TChunkedMemoryPool::AllocateUninitialized(int n, int align)
     return reinterpret_cast<T*>(AllocateAligned(sizeof(T) * n, align));
 }
 
+inline char* TChunkedMemoryPool::Capture(TRef src, int align)
+{
+    auto* dst = AllocateAligned(src.Size(), align);
+    ::memcpy(dst, src.Begin(), src.Size());
+    return dst;
+}
+
 inline void TChunkedMemoryPool::Free(char* from, char* to)
 {
     if (FreeZoneBegin_ == to) {

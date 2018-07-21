@@ -7,8 +7,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -116,8 +116,8 @@ struct TTabletSnapshot
     NTableClient::TTableSchema TableSchema;
     NTableClient::TTableSchema PhysicalSchema;
     NTableClient::TTableSchema QuerySchema;
-    NTabletClient::TSchemaData PhysicalSchemaData;
-    NTabletClient::TSchemaData KeysSchemaData;
+    NTableClient::TSchemaData PhysicalSchemaData;
+    NTableClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
     NTabletClient::TTableReplicaId UpstreamReplicaId;
     int HashTableSize = 0;
@@ -288,8 +288,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
 
-    DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, PhysicalSchemaData);
-    DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, KeysSchemaData);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, PhysicalSchemaData);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, KeysSchemaData);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, LockIndexToName);

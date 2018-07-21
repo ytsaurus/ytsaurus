@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -79,6 +79,22 @@ private:
     TString User;
     NYPath::TRichYPath Path;
     NYTree::EPermission Permission;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCheckPermissionByAclCommand
+    : public TTypedCommand<NApi::TCheckPermissionByAclOptions>
+{
+public:
+    TCheckPermissionByAclCommand();
+
+private:
+    TNullable<TString> User;
+    NYTree::EPermission Permission;
+    NYTree::INodePtr Acl;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/rpc/protocol_version.h>
+
+namespace NYT {
+namespace NApi {
+namespace NRpcProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::TProtocolVersion GetCurrentProtocolVersion();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRpcProxy
+} // namespace NApi
+} // namespace NYT

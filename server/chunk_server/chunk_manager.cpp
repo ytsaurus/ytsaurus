@@ -55,7 +55,7 @@
 
 #include <yt/ytlib/journal_client/helpers.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 

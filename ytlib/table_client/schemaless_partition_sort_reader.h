@@ -3,7 +3,7 @@
 #include "public.h"
 #include "schemaless_chunk_reader.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -18,7 +18,7 @@ namespace NTableClient {
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,

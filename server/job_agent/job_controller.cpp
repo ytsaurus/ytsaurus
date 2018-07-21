@@ -15,23 +15,23 @@
 
 #include <yt/server/tablet_node/slot_manager.h>
 
+#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
-#include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
-#include <yt/ytlib/node_tracker_client/node.pb.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -725,6 +725,8 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
 
     *request->mutable_disk_info() = GetDiskInfo();
+
+    request->set_job_reporter_write_failures_count(Bootstrap_->GetStatisticsReporter()->ExtractWriteFailuresCount());
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.

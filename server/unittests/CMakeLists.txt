@@ -10,6 +10,6 @@ add_executable(unittester-ytserver
 
 target_link_libraries(unittester-ytserver
   yt-core-test-framework
-  yt-library-client
+  yt-library-ytlib
   yt-library-server
 )

@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/ypath/public.h>
+#include <yt/client/ypath/public.h>
 
 #include <yt/ytlib/event_log/config.h>
 
@@ -365,6 +365,10 @@ public:
 
     int MinAgentCountForWaitingOperation;
 
+    TDuration JobReporterWriteFailuresCheckPeriod;
+
+    int JobReporterWriteFailuresAlertThreshold;
+
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;
 
@@ -378,7 +382,7 @@ class TSchedulerBootstrapConfig
 {
 public:
     //! Node-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 

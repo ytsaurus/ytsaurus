@@ -1,13 +1,13 @@
 #include "query.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/ytlib/query_client/query.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/core/ytree/serialize.h>
 #include <yt/core/ytree/convert.h>
@@ -322,7 +322,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TInExpression::in_expression);
         ToProto(proto->mutable_arguments(), inExpr->Arguments);
 
-        NTabletClient::TWireProtocolWriter writer;
+        NTableClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(inExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
     } else if (auto betweenExpr = original->As<TBetweenExpression>()) {
@@ -330,7 +330,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TBetweenExpression::between_expression);
         ToProto(proto->mutable_arguments(), betweenExpr->Arguments);
 
-        NTabletClient::TWireProtocolWriter rangesWriter;
+        NTableClient::TWireProtocolWriter rangesWriter;
         for (const auto& range : betweenExpr->Ranges) {
             rangesWriter.WriteUnversionedRow(range.first);
             rangesWriter.WriteUnversionedRow(range.second);
@@ -341,7 +341,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_expression);
         ToProto(proto->mutable_arguments(), transformExpr->Arguments);
 
-        NTabletClient::TWireProtocolWriter writer;
+        NTableClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(transformExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
         if (transformExpr->DefaultExpression) {
@@ -422,7 +422,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TInExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TInExpression::in_expression);
             FromProto(&result->Arguments, ext.arguments());
-            NTabletClient::TWireProtocolReader reader(
+            NTableClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
                 New<TRowBuffer>(TExpressionRowsetTag()));
             result->Values = reader.ReadUnversionedRowset(true);
@@ -437,7 +437,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
             TRowRanges ranges;
             auto rowBuffer = New<TRowBuffer>(TExpressionRowsetTag());
-            NTabletClient::TWireProtocolReader rangesReader(
+            NTableClient::TWireProtocolReader rangesReader(
                 TSharedRef::FromString<TExpressionRowsetTag>(ext.ranges()),
                 rowBuffer);
             while (!rangesReader.IsFinished()) {
@@ -454,7 +454,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TTransformExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_expression);
             FromProto(&result->Arguments, ext.arguments());
-            NTabletClient::TWireProtocolReader reader(
+            NTableClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
                 New<TRowBuffer>(TExpressionRowsetTag()));
             result->Values = reader.ReadUnversionedRowset(true);
@@ -771,7 +771,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
     ToProto(serialized->mutable_id(), original.Id);
     serialized->set_mount_revision(original.MountRevision);
 
-    NTabletClient::TWireProtocolWriter rangesWriter;
+    NTableClient::TWireProtocolWriter rangesWriter;
     for (const auto& range : original.Ranges) {
         rangesWriter.WriteUnversionedRow(range.first);
         rangesWriter.WriteUnversionedRow(range.second);
@@ -785,7 +785,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
         }
 
         TTableSchema schema(columns);
-        NTabletClient::TWireProtocolWriter keysWriter;
+        NTableClient::TWireProtocolWriter keysWriter;
         keysWriter.WriteTableSchema(schema);
         keysWriter.WriteSchemafulRowset(original.Keys);
         ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
@@ -804,7 +804,7 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
 
     TRowRanges ranges;
     auto rowBuffer = New<TRowBuffer>(TDataRangesBufferTag());
-    NTabletClient::TWireProtocolReader rangesReader(
+    NTableClient::TWireProtocolReader rangesReader(
         TSharedRef::FromString<TDataRangesBufferTag>(serialized.ranges()),
         rowBuffer);
     while (!rangesReader.IsFinished()) {
@@ -815,7 +815,7 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
     original->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
 
     if (serialized.has_keys()) {
-        NTabletClient::TWireProtocolReader keysReader(
+        NTableClient::TWireProtocolReader keysReader(
             TSharedRef::FromString<TDataRangesBufferTag>(serialized.keys()),
             rowBuffer);
 

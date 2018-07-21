@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/core/misc/error.h>
 

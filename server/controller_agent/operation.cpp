@@ -1,6 +1,6 @@
 #include "operation.h"
 
-#include <yt/server/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
 
 #include <yt/core/ytree/convert.h>
 

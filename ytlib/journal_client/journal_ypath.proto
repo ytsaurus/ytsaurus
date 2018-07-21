@@ -1,6 +1,6 @@
 package NYT.NJournalClient.NProto;
 
-import "yt/ytlib/chunk_client/data_statistics.proto";
+import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -72,6 +72,13 @@ Y_STATIC_THREAD(std::vector<TLogEvent>) PerThreadBatchingEventsHolder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator == (const TLogWritersCacheKey& lhs, const TLogWritersCacheKey& rhs)
+{
+    return lhs.Category == rhs.Category && lhs.LogLevel == rhs.LogLevel && lhs.Format == rhs.Format;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNotificationHandle
     : private TNonCopyable
 {
@@ -602,7 +609,7 @@ private:
             return SystemWriters_;
         }
 
-        std::pair<TString, ELogLevel> cacheKey(event.Category->Name, event.Level);
+        TLogWritersCacheKey cacheKey{event.Category->Name, event.Level, event.Format};
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
             return it->second;
@@ -610,7 +617,7 @@ private:
 
         THashSet<TString> writerIds;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(event.Category->Name, event.Level)) {
+            if (rule->IsApplicable(event.Category->Name, event.Level, event.Format)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
@@ -703,7 +710,7 @@ private:
         event.Promise.Set();
     }
 
-    void DoUpdateConfig(const TLogConfigPtr& config)
+    void DoUpdateConfig(const TLogConfigPtr& logConfig)
     {
         {
             decltype(Writers_) writers;
@@ -712,7 +719,7 @@ private:
             TGuard<TForkAwareSpinLock> guard(SpinLock_);
             Writers_.swap(writers);
             CachedWriters_.swap(cachedWriters);
-            Config_ = config;
+            Config_ = logConfig;
             HighBacklogWatermark_ = Config_->HighBacklogWatermark;
             LowBacklogWatermark_ = Config_->LowBacklogWatermark;
 
@@ -727,17 +734,29 @@ private:
             const auto& config = pair.second;
 
             ILogWriterPtr writer;
+            std::unique_ptr<ILogFormatter> formatter;
             std::unique_ptr<TNotificationWatch> watch;
+
+            switch (config->LogFormat) {
+                case ELogEventFormat::PlainText:
+                    formatter = std::make_unique<TPlainTextLogFormatter>();
+                    break;
+                case ELogEventFormat::Json:
+                    formatter = std::make_unique<TJsonLogFormatter>();
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
 
             switch (config->Type) {
                 case EWriterType::Stdout:
-                    writer = New<TStdoutLogWriter>();
+                    writer = New<TStdoutLogWriter>(std::move(formatter));
                     break;
                 case EWriterType::Stderr:
-                    writer = New<TStderrLogWriter>();
+                    writer = New<TStderrLogWriter>(std::move(formatter));
                     break;
                 case EWriterType::File:
-                    writer = New<TFileLogWriter>(config->FileName);
+                    writer = New<TFileLogWriter>(std::move(formatter), config->FileName);
                     watch = CreateNotificationWatch(writer, config->FileName);
                     break;
                 default:
@@ -972,7 +991,7 @@ private:
     std::atomic<ui64> FlushedEvents_ = {0};
 
     THashMap<TString, ILogWriterPtr> Writers_;
-    THashMap<std::pair<TString, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
+    THashMap<TLogWritersCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
     volatile bool ReopenRequested_ = false;

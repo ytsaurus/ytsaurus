@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

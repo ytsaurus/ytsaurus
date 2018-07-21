@@ -14,7 +14,7 @@
 
 #include <yt/server/misc/object_helpers.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/collection_helpers.h>
 

@@ -10,18 +10,18 @@
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
 
-#include <yt/ytlib/table_client/chunk_meta.pb.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
 

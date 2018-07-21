@@ -1,5 +1,3 @@
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rb_torrent_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_api_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/share_cache_ut.cpp
 )

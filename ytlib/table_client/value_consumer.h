@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "unversioned_row.h"
 #include "config.h"
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/small_vector.h>

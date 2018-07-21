@@ -2,9 +2,12 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/table_client/config.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>

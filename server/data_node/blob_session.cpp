@@ -9,14 +9,14 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -407,9 +407,7 @@ void TBlobSession::DoOpenWriter()
         try {
             auto fileName = Location_->GetChunkPath(GetChunkId());
             Writer_ = New<TFileWriter>(Location_->GetIOEngine(), GetChunkId(), fileName, Options_.SyncOnClose, Options_.EnableWriteDirectIO);
-            // File writer opens synchronously.
-            Writer_->Open()
-                .Get()
+            WaitFor(Writer_->Open())
                 .ThrowOnError();
         }
         catch (const std::exception& ex) {
@@ -492,8 +490,8 @@ void TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
 
     PROFILE_TIMING ("/blob_chunk_close_time") {
         try {
-            auto result = Writer_->Close(chunkMeta).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(Writer_->Close(chunkMeta))
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,

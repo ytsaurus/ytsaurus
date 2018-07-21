@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
-#include <yt/ytlib/table_client/row_base.h>
+#include <yt/client/table_client/row_base.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

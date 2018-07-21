@@ -16,12 +16,15 @@ class TWriterConfig
 public:
     EWriterType Type;
     TString FileName;
+    ELogEventFormat LogFormat;
 
     TWriterConfig()
     {
         RegisterParameter("type", Type);
         RegisterParameter("file_name", FileName)
             .Default();
+        RegisterParameter("log_format", LogFormat)
+            .Default(ELogEventFormat::PlainText);
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
@@ -47,6 +50,8 @@ public:
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
+    ELogEventFormat LogEventFormat;
+
     std::vector<TString> Writers;
 
     TRuleConfig()
@@ -59,12 +64,14 @@ public:
             .Default(ELogLevel::Minimum);
         RegisterParameter("max_level", MaxLevel)
             .Default(ELogLevel::Maximum);
+        RegisterParameter("log_event_format", LogEventFormat)
+            .Default(ELogEventFormat::PlainText);
         RegisterParameter("writers", Writers)
             .NonEmpty();
     }
 
     bool IsApplicable(const TString& category) const;
-    bool IsApplicable(const TString& category, ELogLevel level) const;
+    bool IsApplicable(const TString& category, ELogLevel level, ELogEventFormat format) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuleConfig)

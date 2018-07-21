@@ -4,11 +4,11 @@
 #include "schemaless_chunk_reader.h"
 #include "schemaless_chunk_writer.h"
 #include "private.h"
-#include "schemaless_reader.h"
-#include "schemaless_writer.h"
-#include "name_table.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/client/api/table_reader.h>
+#include <yt/client/api/table_writer.h>
+
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -16,13 +16,18 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/formats/parser.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
+
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -33,7 +38,6 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
-
 
 namespace NYT {
 namespace NTableClient {
@@ -46,7 +50,6 @@ using namespace NFormats;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NProto;
 using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
@@ -68,18 +71,18 @@ TTableOutput::~TTableOutput() = default;
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
-    YCHECK(IsParserValid_);
+    YCHECK(ParserValid_);
     try {
         Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
     } catch (const std::exception& ex) {
-        IsParserValid_ = false;
+        ParserValid_ = false;
         throw;
     }
 }
 
 void TTableOutput::DoFinish()
 {
-    if (IsParserValid_) {
+    if (ParserValid_) {
         // Dump everything into consumer.
         Parser_->Finish();
     }
@@ -87,19 +90,164 @@ void TTableOutput::DoFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiFromSchemalessChunkReaderAdapter
+    : public NApi::ITableReader
+{
+public:
+    explicit TApiFromSchemalessChunkReaderAdapter(ISchemalessChunkReaderPtr underlyingReader)
+        : UnderlyingReader_(std::move(underlyingReader))
+    { }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        return UnderlyingReader_->GetTableRowIndex();
+    }
+
+    virtual i64 GetTotalRowCount() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    {
+        return UnderlyingReader_->Read(rows);
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingReader_->GetNameTable();
+    }
+
+    virtual NTableClient::TKeyColumns GetKeyColumns() const override
+    {
+        return UnderlyingReader_->GetKeyColumns();
+    }
+
+private:
+    const ISchemalessChunkReaderPtr UnderlyingReader_;
+};
+
+NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
+    ISchemalessChunkReaderPtr underlyingReader)
+{
+    return New<TApiFromSchemalessChunkReaderAdapter>(std::move(underlyingReader));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TApiFromSchemalessWriterAdapter
+    : public NApi::ITableWriter
+{
+public:
+    explicit TApiFromSchemalessWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
+    { }
+
+    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    {
+        return UnderlyingWriter_->Write(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+
+private:
+    const ISchemalessWriterPtr UnderlyingWriter_;
+};
+
+NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
+    ISchemalessWriterPtr underlyingWriter)
+{
+    return New<TApiFromSchemalessWriterAdapter>(std::move(underlyingWriter));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessApiFromWriterAdapter
+    : public ISchemalessWriter
+{
+public:
+    explicit TSchemalessApiFromWriterAdapter(NApi::ITableWriterPtr underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
+    { }
+
+    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    {
+        return UnderlyingWriter_->Write(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+
+private:
+    const NApi::ITableWriterPtr UnderlyingWriter_;
+};
+
+ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+    NApi::ITableWriterPtr underlyingWriter)
+{
+    return New<TSchemalessApiFromWriterAdapter>(std::move(underlyingWriter));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PipeReaderToWriter(
-    ISchemalessReaderPtr reader,
+    NApi::ITableReaderPtr reader,
     ISchemalessWriterPtr writer,
-    TPipeReaderToWriterOptions options)
+    const TPipeReaderToWriterOptions& options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
-    int bufferRowCount = options.BufferRowCount;
 
     std::vector<TUnversionedRow> rows;
-    rows.reserve(bufferRowCount);
+    rows.reserve(options.BufferRowCount);
 
     while (reader->Read(&rows)) {
         yielder.TryYield();
+
         if (rows.empty()) {
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
@@ -140,6 +288,17 @@ void PipeReaderToWriter(
     YCHECK(rows.empty());
 }
 
+void PipeReaderToWriter(
+    ISchemalessChunkReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    const TPipeReaderToWriterOptions& options)
+{
+    PipeReaderToWriter(
+        CreateApiFromSchemalessChunkReaderAdapter(reader),
+        std::move(writer),
+        options);
+}
+
 void PipeInputToOutput(
     IInputStream* input,
     IOutputStream* output,
@@ -169,7 +328,7 @@ void PipeInputToOutput(
     i64 bufferBlockSize)
 {
     struct TWriteBufferTag { };
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize, false);
 
     while (true) {
         auto length = WaitFor(input->Read(buffer))
@@ -184,7 +343,6 @@ void PipeInputToOutput(
 
     output->Finish();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -716,9 +874,9 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
 
     result.set_unique_keys(writer->GetSchema().GetUniqueKeys());
 
-    auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
+    auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
-    auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
+    auto backBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     result.set_max(backBoundaryKeys.max());
 
     return result;
@@ -728,7 +886,7 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount)
 {
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+    auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkMeta.extensions());
     auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
     auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
     return std::make_pair(minKey, maxKey);
@@ -768,7 +926,7 @@ void ValidateDynamicTableTimestamp(
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
 std::vector<TInputChunkPtr> CollectTableInputChunks(
     const TRichYPath& path,
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
     const TTransactionId& transactionId,
@@ -854,7 +1012,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TValue>
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
 {
     for (const auto& value : values) {
         auto id = value.Id;
@@ -865,12 +1023,12 @@ void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, con
     }
 }
 
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
 }
 
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));

@@ -37,10 +37,10 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             wait(lambda: all_preloaded())
 
     def test_mount(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
 
@@ -53,24 +53,24 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert tablet_ids == [tablet_id]
 
     def test_unmount(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
 
-        self.sync_mount_table("//tmp/t")
-        self.sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
     def test_access_to_frozen(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         rows = [{"a": 1}]
         insert_rows("//tmp/t", rows)
-        self.sync_freeze_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == rows
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
@@ -78,9 +78,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     @flaky(max_runs=3)
     def test_ordered_tablet_node_profiling(self):
         path = "//tmp/x"
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table(path)
-        self.sync_mount_table(path)
+        sync_mount_table(path)
 
         tablet_profiling = self._get_table_profiling(path)
         select_profiling = self._get_profiling(path)
@@ -118,25 +118,25 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_profiling.get_counter("select/cpu_time") > 0
 
     def test_insert(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
         insert_rows("//tmp/t", rows)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
     def test_flush(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
         insert_rows("//tmp/t", rows)
 
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -144,10 +144,10 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get("#" + chunk_id + "/@row_count") == 100
 
     def test_insert_with_explicit_tablet_index(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 10)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         for i in xrange(10):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
@@ -157,18 +157,18 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("dynamic", [True, False])
     def test_select_from_single_tablet(self, dynamic):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         write_rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", write_rows)
 
         if not dynamic:
-            self.sync_unmount_table("//tmp/t")
+            sync_unmount_table("//tmp/t")
             assert get("//tmp/t/@chunk_count") == 1
-            self.sync_mount_table("//tmp/t")
+            sync_mount_table("//tmp/t")
 
         assert select_rows("* from [//tmp/t]") == query_rows
         assert select_rows("[$row_index], a from [//tmp/t]") == [{"$row_index": row["$row_index"], "a": row["a"]} for row in query_rows]
@@ -179,10 +179,10 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_rows("a + 1 as aa from [//tmp/t] where a < 10") == [{"aa": a} for a in xrange(1, 11)]
 
     def test_select_from_dynamic_multi_tablet(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 10)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         assert get("//tmp/t/@tablet_count") == 10
 
         for i in xrange(10):
@@ -192,25 +192,25 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert_items_equal(select_rows("a from [//tmp/t]"), [{"a": j} for i in xrange(10) for j in xrange(100)])
 
     def test_select_from_multi_store(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         for k in xrange(5):
             write_rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
             insert_rows("//tmp/t", write_rows)
             if k < 4:
-                self.sync_unmount_table("//tmp/t")
+                sync_unmount_table("//tmp/t")
                 assert get("//tmp/t/@chunk_count") == k + 1
-                self.sync_mount_table("//tmp/t")
+                sync_mount_table("//tmp/t")
 
         query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in xrange(10, 490)]
         assert select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489") == query_rows
 
     def test_select_with_limits(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         write_rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", write_rows)
@@ -226,14 +226,14 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     @skip_if_rpc_driver_backend
     def test_dynamic_to_static(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows)
 
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", dynamic=False)
 
         assert not get("//tmp/t/@dynamic")
@@ -242,7 +242,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     @skip_if_rpc_driver_backend
     def test_static_to_dynamic(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         for i in xrange(10):
@@ -254,12 +254,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         alter_table("//tmp/t", dynamic=True)
         assert get("//tmp/t/@dynamic")
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
 
     @skip_if_rpc_driver_backend
     def test_no_duplicate_chunks_in_dynamic(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         write_table("//tmp/t", [{"a": 0}])
@@ -268,7 +268,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     @skip_if_rpc_driver_backend
     def test_chunk_list_kind(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         write_table("//tmp/t", [{"a": 0}])
@@ -286,25 +286,25 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get("#{0}/@kind".format(chunk_list)) == "static"
 
     def test_trim_failure(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError): trim_rows("//tmp/t", -1, 0)
         with pytest.raises(YtError): trim_rows("//tmp/t", +1, 0)
         with pytest.raises(YtError): trim_rows("//tmp/t", 0, 100)
 
     def test_trim_noop(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
     @skip_if_rpc_driver_backend
     def test_trim_drops_chunks(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         for i in xrange(10):
@@ -315,7 +315,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get("//tmp/t/@row_count") == 1000
 
         alter_table("//tmp/t", dynamic=True)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         root_chunk_list_id = get("//tmp/t/@chunk_list_id")
         tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
@@ -331,9 +331,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     @skip_if_rpc_driver_backend
     def test_read_obeys_trim(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"a": i} for i in xrange(100)])
         trim_rows("//tmp/t", 0, 30)
@@ -341,40 +341,40 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     @skip_if_rpc_driver_backend
     def test_make_static_after_trim(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(0, 100)])
         write_table("<append=true>//tmp/t", [{"a": j * 10} for j in xrange(0, 100)])
 
         alter_table("//tmp/t", dynamic=True)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         trim_rows("//tmp/t", 0, 110)
         sleep(0.2)
 
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", dynamic=False)
 
         assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in xrange(0, 100)]
 
     @skip_if_rpc_driver_backend
     def test_trimmed_rows_perserved_on_unmount(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(0, 100)])
         write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100, 300)])
 
         alter_table("//tmp/t", dynamic=True)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
 
         trim_rows("//tmp/t", 0, 100)
 
         sleep(0.2)
 
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         assert get("//tmp/t/@resource_usage/chunk_count") == 1
         chunk_list_id = get("//tmp/t/@chunk_list_id")
@@ -382,12 +382,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 300
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 100
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
 
     @skip_if_rpc_driver_backend
     def test_trim_optimizes_chunk_list(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
         for i in xrange(20):
@@ -405,10 +405,10 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             assert get("//tmp/t/@chunk_ids") == expected_chunk_ids
 
         def _trim(trimmed_row_count):
-            self.sync_mount_table("//tmp/t")
+            sync_mount_table("//tmp/t")
             trim_rows("//tmp/t", 0, trimmed_row_count)
             sleep(0.2)
-            self.sync_unmount_table("//tmp/t")
+            sync_unmount_table("//tmp/t")
 
         _check(20, 0, chunk_ids)
         _trim(3)
@@ -417,16 +417,16 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         _check(2, 0, chunk_ids[18:])
 
     def test_reshard_adds_tablets(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 5)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
             trim_rows("//tmp/t", i, 1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         reshard_table("//tmp/t", 5, first_tablet_index=1, last_tablet_index=3)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 7
         for i in xrange(7):
@@ -445,17 +445,17 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
 
     def test_reshard_joins_tablets(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 5)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
             if i < 2 or i > 3:
                 trim_rows("//tmp/t", i, 1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=3)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 4
         for i in xrange(4):
@@ -475,24 +475,24 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
 
     def test_reshard_join_fails_on_trimmed_rows(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 2)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         for i in xrange(2):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
             trim_rows("//tmp/t", i, 1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
 
     def test_reshard_after_trim(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
-        self.sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/t")
         trim_rows("//tmp/t", 0, 1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         def _verify(expected_flushed, expected_trimmed):
             tablet = get("//tmp/t/@tablets/0")
@@ -502,19 +502,19 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         _verify(1, 1)
         reshard_table("//tmp/t", 1)
         _verify(1, 1)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         _verify(2, 1)
 
     def test_freeze_empty(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-        self.sync_freeze_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"a": 0}])
-        self.sync_unfreeze_table("//tmp/t")
-        self.sync_unmount_table("//tmp/t")
+        sync_unfreeze_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
     def test_change_commit_ordering(self):
         self._create_simple_table("//tmp/t")
@@ -523,9 +523,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         with pytest.raises(YtError): set("//tmp/t/@commit_ordering", "cool")
 
     def test_no_commit_ordering_change_for_mounted(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@commit_ordering", "strong")
 
     def test_set_commit_ordering_upon_construction(self):
@@ -547,11 +547,11 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
 
     def test_tablet_snapshots(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
 
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
         insert_rows("//tmp/t", rows)
@@ -566,7 +566,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         time.sleep(3.0)
         self.Env.start_nodes()
 
-        self.wait_for_cells()
+        wait_for_cells()
 
         # Wait to make sure all tablets are up
         time.sleep(3.0)
@@ -578,15 +578,15 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
         insert_rows("//tmp/t", rows)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         actual = read_table("//tmp/t")
         assert actual == rows
@@ -594,12 +594,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory(self, mode, optimize_for):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
 
         set("//tmp/t/@in_memory_mode", mode)
         set("//tmp/t/@max_dynamic_store_row_count", 10)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = self._get_tablet_leader_address(tablet_id)
@@ -620,8 +620,8 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         rows1 = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 10)]
         insert_rows("//tmp/t", rows1)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1
@@ -629,62 +629,62 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         # Check preload after flush.
         rows2 = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i + 1)} for i in xrange(0, 10)]
         insert_rows("//tmp/t", rows2)
-        self.sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/t")
         self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
         # Disable in-memory mode
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         _check_preload_state("disabled")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
         # Re-enable in-memory mode
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", mode)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
     def test_reshard_trimmed_shared_yt_6948(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", tablet_count=5)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         assert get("//tmp/t/@chunk_count") == 10
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         for i in xrange(5):
             trim_rows("//tmp/t", i, 1)
         wait(lambda: get("//tmp/t/@chunk_count") == 5)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         copy("//tmp/t", "//tmp/t2")
         reshard_table("//tmp/t", 1)
 
     def test_copy_trimmed_yt_7422(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 0}])
-        self.sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/t")
         trim_rows("//tmp/t", 0, 1)
-        self.sync_freeze_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
         copy("//tmp/t", "//tmp/t2")
-        self.sync_unfreeze_table("//tmp/t")
+        sync_unfreeze_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
-        self.sync_freeze_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
 
     def test_timestamp_column(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t", attributes={
             "dynamic": True,
             "schema": [
@@ -692,7 +692,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 {"name": "$timestamp", "type": "uint64"}
             ]
         })
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         timestamp0 = generate_timestamp()
         insert_rows("//tmp/t", [{"a": "hello"}])
@@ -707,11 +707,11 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert timestamp2 < timestamp3
 
     def test_data_ttl(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", min_data_ttl=0, max_data_ttl=0, min_data_versions=0)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 0}])
-        self.sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
 
     def test_required_columns(self):
@@ -719,9 +719,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 {"name": "a", "type": "int64", "required": True},
                 {"name": "b", "type": "int64"}]
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=schema)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict()])
@@ -737,7 +737,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 {"name": "computed", "type": "int64", "expression": "key * 10", "required": True},
                 {"name": "value", "type": "string"}]
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", schema=schema)
 
@@ -746,9 +746,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "int64", "aggregate": "sum", "required": True}]
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=schema)
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict(key=1)])

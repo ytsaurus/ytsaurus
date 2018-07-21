@@ -1,0 +1,121 @@
+package NYT.NTableClient.NProto;
+
+import "yt/client/table_chunk_format/proto/column_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TColumnSchema
+{
+    required string name = 1;
+
+    // `type' and `logical_type' describe type of the column.
+    // `type' describes physical type and can be derived from `logical_type'
+    // but old tables might miss `logical_type' field.
+    //
+    // `type' contains value of enumeration NTableClient::EValueType.
+    // `logical_type' contains value of enumeration NTableClient::ELogicalValueType.
+    required int32 type = 2;
+    optional int32 logical_type = 8;
+
+    optional string lock = 3;
+    optional string expression = 4;
+    optional string aggregate = 5;
+    optional int32 sort_order = 6;
+    optional string group = 7;
+    optional bool required = 9 [default = false];
+    // Next tag: 10
+}
+
+message TTableSchemaExt
+{
+    repeated TColumnSchema columns = 1;
+    optional bool strict = 2 [default = true];
+    optional bool unique_keys = 3 [default = false];
+}
+
+message TSchemaDictionary
+{
+    repeated TColumnSchema columns = 1;
+
+    message TTableSchemaInternal
+    {
+        repeated int32 columns = 1;
+        optional bool strict = 2 [default = true];
+        optional bool unique_keys = 3 [default = false];
+    }
+
+    repeated TTableSchemaInternal tables = 2;
+}
+
+message TNameTableExt
+{
+    repeated string names = 1;
+}
+
+message TBlockMeta
+{
+    required int32 row_count = 1;
+    required int64 uncompressed_size = 2;
+    required int64 chunk_row_count = 3;
+
+    required int32 block_index = 7;
+
+    optional int32 partition_index = 8 [default = -1];
+    optional bytes last_key = 9;
+
+    extensions 100 to max;
+}
+
+message TSimpleVersionedBlockMeta
+{
+    extend TBlockMeta
+    {
+        optional TSimpleVersionedBlockMeta block_meta_ext = 100;
+    }
+
+    required int32 value_count = 1;
+    required int32 timestamp_count = 2;
+}
+
+message TBlockMetaExt
+{
+    repeated TBlockMeta blocks = 1;
+}
+
+// Chunk meta extension.
+message TBoundaryKeysExt
+{
+    required bytes min = 1;
+    required bytes max = 2;
+}
+
+message TSamplesExt
+{
+    repeated bytes entries = 1;
+    repeated int32 weights = 2;
+}
+
+message TPartitionsExt
+{
+    repeated int64 row_counts = 1;
+    repeated int64 uncompressed_data_sizes = 2;
+}
+
+message TKeyColumnsExt
+{
+    repeated string names = 1;
+}
+
+message TColumnMetaExt
+{
+    repeated NTableChunkFormat.NProto.TColumnMeta columns = 1;
+}
+
+message TColumnarStatisticsExt
+{
+    repeated int64 data_weights = 1;
+    // Total weight of all write and delete timestamps.
+    optional int64 timestamp_weight = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

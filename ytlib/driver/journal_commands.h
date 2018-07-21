@@ -4,9 +4,9 @@
 
 #include <yt/ytlib/formats/format.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 namespace NYT {
 namespace NDriver {

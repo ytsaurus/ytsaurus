@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/table_chunk_format/public.h>
 
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTableChunkFormat {

@@ -9,8 +9,8 @@
 
 #include <yt/server/job_agent/job_controller.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 

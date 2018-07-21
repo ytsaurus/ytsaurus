@@ -22,14 +22,15 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/core/erasure/codec.h>
 

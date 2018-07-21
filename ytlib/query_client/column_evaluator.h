@@ -3,7 +3,7 @@
 #include "public.h"
 #include "evaluation_helpers.h"
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {

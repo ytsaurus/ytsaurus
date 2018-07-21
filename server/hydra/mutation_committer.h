@@ -7,7 +7,7 @@
 #include <yt/ytlib/election/public.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
-#include <yt/ytlib/hydra/version.h>
+#include <yt/client/hydra/version.h>
 
 #include <yt/core/actions/signal.h>
 

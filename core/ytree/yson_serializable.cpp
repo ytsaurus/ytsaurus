@@ -32,7 +32,7 @@ IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
         const auto& name = pair.first;
         auto unrecognized = parameter->GetUnrecognizedRecursively();
         if (unrecognized && unrecognized->AsMap()->GetChildCount() > 0) {
-            result->AddChild(unrecognized, name);
+            result->AddChild(name, unrecognized);
         }
     }
     return result;
@@ -104,7 +104,7 @@ void TYsonSerializableLite::Load(
             auto child = pair.second;
             if (registeredKeys.find(key) == registeredKeys.end()) {
                 Unrecognized->RemoveChild(key);
-                YCHECK(Unrecognized->AddChild(ConvertToNode(child), key));
+                YCHECK(Unrecognized->AddChild(key, ConvertToNode(child)));
             }
         }
     }

@@ -454,7 +454,7 @@ public:
     virtual std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
     virtual std::vector<TString> GetKeys() const override;
     virtual NYTree::INodePtr FindChild(const TString& key) const override;
-    virtual bool AddChild(const NYTree::INodePtr& child, const TString& key) override;
+    virtual bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
     virtual bool RemoveChild(const TString& key) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;

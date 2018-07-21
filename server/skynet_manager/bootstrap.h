@@ -19,17 +19,6 @@ namespace NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCluster
-{
-    NConcurrency::IThroughputThrottlerPtr UserRequestThrottler;
-    NConcurrency::IThroughputThrottlerPtr BackgroundThrottler;
-
-    TCypressSyncPtr CypressSync;
-    TClusterConnectionConfigPtr Config;
-
-    void ThrottleBackground() const;
-};
-
 struct TBootstrap
     : public TRefCounted
 {
@@ -37,17 +26,14 @@ public:
     explicit TBootstrap(TSkynetManagerConfigPtr config);
 
     void Run();
-    void DoRun();
-
-    const TCluster& GetCluster(const TString& name) const;
-    size_t GetClustersCount() const;
 
     IInvokerPtr GetInvoker() const;
-    const ISkynetApiPtr& GetSkynetApi() const;
     const TSkynetManagerConfigPtr& GetConfig() const;
     const NHttp::IServerPtr& GetHttpServer() const;
     const NHttp::IClientPtr& GetHttpClient() const;
-    const TShareCachePtr& GetShareCache() const;
+    const TAnnouncerPtr& GetAnnouncer() const;
+    const NNet::IListenerPtr& GetPeerListener() const;
+    const std::vector<TClusterConnectionPtr>& GetClusters() const;
 
 private:
     TSkynetManagerConfigPtr Config_;
@@ -63,13 +49,14 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringHttpServer_;
 
-    NConcurrency::TActionQueuePtr SkynetApiActionQueue_;
-    ISkynetApiPtr SkynetApi_;
-    TShareCachePtr ShareCache_;
+    NConcurrency::TActionQueuePtr ActionQueue_;
 
-    std::vector<TCluster> Clusters_;
+    NNet::IListenerPtr PeerListener_;
+    TAnnouncerPtr Announcer_;
 
-    TSkynetManagerPtr Manager_;
+    std::vector<TClusterConnectionPtr> Clusters_;
+
+    TSkynetServicePtr SkynetService_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

@@ -1181,6 +1181,115 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
 
+    def test_ban_nodes_with_failed_jobs(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="exit 1",
+            spec={
+                "resource_limits": {
+                    "cpu": 1
+                },
+                "max_failed_job_count": 10,
+                "ban_nodes_with_failed_jobs": True
+            })
+        with pytest.raises(YtError):
+            op.track()
+
+        jobs = ls("//sys/operations/{}/jobs".format(op.id), attributes=["state", "address"])
+        assert all(job.attributes["state"] == "failed" for job in jobs)
+        assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
+
+##################################################################
+
+class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 10,
+                    "cpu": 10
+                }
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "banned_exec_nodes_check_period": 100
+        }
+    }
+
+    def test_ignore_job_failures_at_banned_nodes(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("BREAKPOINT ; exit 1"),
+            spec={
+                "job_count": 10,
+                "max_failed_job_count": 2,
+                "ban_nodes_with_failed_jobs": True,
+                "ignore_job_failures_at_banned_nodes": True,
+                "fail_on_all_nodes_banned": False,
+                "mapper": {
+                    "memory_limit": 100 * 1024 * 1024
+                }
+            })
+
+        jobs = wait_breakpoint(job_count=10)
+        for id in jobs:
+            release_breakpoint(job_id=id)
+
+        cypress_path = "//sys/operations/{0}".format(op.id)
+        wait(lambda: get("{0}/@progress/jobs/failed".format(cypress_path)) == 1)
+        wait(lambda: get("{0}/@progress/jobs/aborted/scheduled/node_banned".format(cypress_path)) == 9)
+
+    def test_fail_on_all_nodes_banned(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            job_count=10,
+            command=with_breakpoint("BREAKPOINT ; exit 1"),
+            spec={
+                "job_count": 10,
+                "max_failed_job_count": 2,
+                "ban_nodes_with_failed_jobs": True,
+                "ignore_job_failures_at_banned_nodes": True,
+                "fail_on_all_nodes_banned": True,
+                "mapper": {
+                    "memory_limit": 100 * 1024 * 1024
+                }
+            })
+
+        jobs = wait_breakpoint(job_count=10)
+        for id in jobs:
+            release_breakpoint(job_id=id)
+
+        with pytest.raises(YtError):
+            op.track()
+
 ##################################################################
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
@@ -3140,8 +3249,26 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+        },
+    }
+
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):
@@ -3517,5 +3644,4 @@ class TestNewLivePreview(YTEnvSetup):
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
-
 

@@ -137,6 +137,9 @@ public:
     template <class T>
     T* AllocateUninitialized(int n, int align = alignof(T));
 
+    //! Allocates space and copies #src inside it.
+    char* Capture(TRef src, int align = 8);
+
     //! Frees memory range if possible: namely, if the free region is a suffix of last allocated region.
     void Free(char* from, char* to);
 

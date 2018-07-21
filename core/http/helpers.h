@@ -11,7 +11,7 @@ namespace NHttp {
 
 void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error);
 
-TError ParseYTError(const IResponsePtr& rsp);
+TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers = false);
 
 //! Catches exception thrown from underlying handler body and
 //! translates it into HTTP error.

@@ -9,12 +9,12 @@
 #include <yt/server/data_node/config.h>
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/misc/proc.h>
 

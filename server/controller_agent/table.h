@@ -7,7 +7,7 @@
 
 #include <yt/server/chunk_pools/chunk_stripe_key.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 

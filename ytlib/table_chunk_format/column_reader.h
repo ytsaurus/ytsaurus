@@ -2,9 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_chunk_format/column_meta.pb.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/client/table_chunk_format/proto/column_meta.pb.h>
+
+#include <yt/client/table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTableChunkFormat {
@@ -14,8 +16,7 @@ namespace NTableChunkFormat {
 struct IColumnReaderBase
     : public TNonCopyable
 {
-    virtual ~IColumnReaderBase()
-    { }
+    virtual ~IColumnReaderBase() = default;
 
     virtual void ResetBlock(TSharedRef block, int blockIndex) = 0;
 

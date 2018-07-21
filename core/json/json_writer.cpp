@@ -127,11 +127,14 @@ static void CheckYajlCode(int yajlCode)
         case yajl_gen_in_error_state:
             errorMessage = "JSON: a generator function (yajl_gen_XXX) was called while in an error state";
             break;
+        case yajl_gen_generation_complete:
+            errorMessage = "Attempt to alter already completed JSON document";
+            break;
         case yajl_gen_invalid_number:
-            errorMessage = "Invalid floating point value in json";
+            errorMessage = "Invalid floating point value in JSON";
             break;
         case yajl_gen_invalid_string:
-            errorMessage = "Invalid UTF-8 string in json";
+            errorMessage = "Invalid UTF-8 string in JSON";
             break;
         default:
             errorMessage = Sprintf("Yajl writer failed with code %d", yajlCode);
@@ -232,17 +235,17 @@ TJsonConsumer::TJsonConsumer(IOutputStream* output,
     TJsonFormatConfigPtr config)
     : Output(output)
     , Type(type)
-    , Config(config)
+    , Config(std::move(config))
     , Utf8Transcoder(Config->EncodeUtf8)
 {
     if (Type == EYsonType::MapFragment) {
         THROW_ERROR_EXCEPTION("Map fragments are not supported by JSON");
     }
 
-    JsonWriter.reset(new TJsonWriter(
+    JsonWriter = std::make_unique<TJsonWriter>(
         output,
         Config->Format == EJsonFormat::Pretty,
-        Config->SupportInfinity));
+        Config->SupportInfinity);
 }
 
 void TJsonConsumer::EnterNode()
@@ -546,7 +549,7 @@ std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
     EYsonType type,
     TJsonFormatConfigPtr config)
 {
-    return std::make_unique<TJsonConsumer>(output, type, config);
+    return std::make_unique<TJsonConsumer>(output, type, std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

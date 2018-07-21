@@ -81,10 +81,10 @@ class TestLogicalType(YTEnvSetup):
                 write_table("//test-table", [bad_value])
 
     def test_dynamic_tables(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//test-dynamic-table", attributes={"schema": SCHEMA, "dynamic": True})
 
-        self.sync_mount_table("//test-dynamic-table")
+        sync_mount_table("//test-dynamic-table")
 
         key = 0
         for val in GOOD_VALUE_LIST:
@@ -100,7 +100,7 @@ class TestLogicalType(YTEnvSetup):
             with pytest.raises(YtError):
                 insert_rows("//test-dynamic-table", [val])
 
-        self.sync_unmount_table("//test-dynamic-table")
+        sync_unmount_table("//test-dynamic-table")
 
     def test_bad_alter_table(self):
         def single_column_schema(typename):
@@ -290,12 +290,12 @@ class TestRequiredOption(YTEnvSetup):
                 {"name": "value_req", "type": "string", "required": True},
                 {"name": "value_opt", "type": "string"}]
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t", attributes={"schema": schema, "dynamic": True})
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key_req": 1, "key_opt": 2, "value_req": "x", "value_opt": "y"}])
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         # Required columns cannot be added
         with pytest.raises(YtError):

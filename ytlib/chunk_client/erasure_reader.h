@@ -3,7 +3,7 @@
 #include "public.h"
 #include "client_block_cache.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -23,7 +23,7 @@ namespace NChunkClient {
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,

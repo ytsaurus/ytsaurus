@@ -1,11 +1,12 @@
 #include "overlapping_reader.h"
 #include "row_merger.h"
-#include "schemaful_reader.h"
-#include "unversioned_row.h"
-#include "versioned_reader.h"
-#include "versioned_row.h"
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

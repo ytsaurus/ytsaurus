@@ -10,7 +10,7 @@
 #include <yt/server/security_server/cluster_resources.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/erasure/public.h>
 

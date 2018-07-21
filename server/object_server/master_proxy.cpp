@@ -6,6 +6,9 @@
 #include <yt/server/cell_master/bootstrap.h>
 
 #include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/subject.h>
+#include <yt/server/security_server/acl.h>
+#include <yt/server/security_server/user.h>
 
 #include <yt/server/transaction_server/transaction.h>
 #include <yt/server/transaction_server/transaction_manager.h>
@@ -57,6 +60,7 @@ private:
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
         DISPATCH_YPATH_HEAVY_SERVICE_METHOD(GetClusterMeta);
+        DISPATCH_YPATH_SERVICE_METHOD(CheckPermissionByAcl);
         return TBase::DoInvoke(context);
     }
 
@@ -88,6 +92,37 @@ private:
         ToProto(response->mutable_object_id(), objectId);
 
         context->SetResponseInfo("ObjectId: %v", objectId);
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermissionByAcl)
+    {
+        DeclareNonMutating();
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+
+        auto* user = request->has_user()
+            ? securityManager->GetUserByNameOrThrow(request->user())
+            : securityManager->GetAuthenticatedUser();
+        auto permission = EPermission(request->permission());
+
+        context->SetRequestInfo("User: %v, Permission: %v",
+            user->GetName(),
+            permission);
+
+        auto aclNode = ConvertToNode(TYsonString(request->acl()));
+        TAccessControlList acl;
+        Deserialize(acl, aclNode, securityManager);
+
+        auto result = securityManager->CheckPermission(user, permission, acl);
+
+        response->set_action(static_cast<int>(result.Action));
+        if (result.Subject) {
+            ToProto(response->mutable_subject_id(), result.Subject->GetId());
+            response->set_subject_name(result.Subject->GetName());
+        }
+
+        context->SetResponseInfo("Action: %v", result.Action);
         context->Reply();
     }
 

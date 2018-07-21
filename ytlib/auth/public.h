@@ -38,8 +38,8 @@ DEFINE_ENUM(EBlackboxException,
     ((Ok)                (0))
     ((Unknown)           (1))
     ((InvalidParameters) (2))
-    ((DbFetchFailed)     (9))
-    ((DbException)      (10))
+    ((DBFetchFailed)     (9))
+    ((DBException)      (10))
     ((AccessDenied)     (21))
 );
 

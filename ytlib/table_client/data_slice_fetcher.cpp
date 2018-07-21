@@ -22,7 +22,7 @@ TDataSliceFetcher::TDataSliceFetcher(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     IFetcherChunkScraperPtr chunkScraper,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
     : ChunkSliceFetcher_(CreateChunkSliceFetcher(

@@ -61,12 +61,12 @@ class TestLayers(YTEnvSetup):
                 open(layer_location["path"] + "/disabled", "w")
 
         self.Env.start_nodes(sync=True)
-        self.wait_for_nodes()
+        wait_for_nodes()
 
         self.Env.kill_nodes()
         os.unlink(disabled_path + "/disabled")
         self.Env.start_nodes(sync=True)
-        self.wait_for_nodes()
+        wait_for_nodes()
 
         time.sleep(5)
 

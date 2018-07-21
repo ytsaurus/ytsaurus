@@ -212,7 +212,7 @@ public:
         return it == KeyToChild_.end() ? nullptr : it->second;
     }
 
-    virtual bool AddChild(const INodePtr& child, const TString& key) override
+    virtual bool AddChild(const TString& key, const INodePtr& child) override
     {
         Y_ASSERT(child);
         ValidateYTreeKey(key);

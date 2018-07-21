@@ -1,8 +1,6 @@
 #include "partition_chunk_reader.h"
 #include "private.h"
 #include "chunk_meta_extensions.h"
-#include "name_table.h"
-#include "schema.h"
 #include "schemaless_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/config.h>
@@ -12,7 +10,10 @@
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -149,7 +150,7 @@ void TPartitionMultiChunkReader::OnReaderSwitched()
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const TDataSourceDirectoryPtr& dataSourceDirectory,

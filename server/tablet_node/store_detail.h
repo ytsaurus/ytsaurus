@@ -8,11 +8,13 @@
 
 #include <yt/server/data_node/public.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -187,7 +189,7 @@ public:
         NDataNode::TChunkRegistryPtr chunkRegistry,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager,
         TVersionedChunkMetaManagerPtr chunkMetaManager,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
@@ -245,7 +247,7 @@ protected:
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
     const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
     const TVersionedChunkMetaManagerPtr ChunkMetaManager_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;

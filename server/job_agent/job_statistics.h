@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/core/yson/string.h>
 

@@ -17,8 +17,8 @@
 
 #include <yt/ytlib/program/build_attributes.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
@@ -115,9 +115,9 @@ void TBootstrap::DoRun()
 {
     LOG_INFO("Starting scheduler");
 
-    TNativeConnectionOptions connectionOptions;
+    NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
+    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::SchedulerUserName;
@@ -207,7 +207,7 @@ const TSchedulerBootstrapConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-const INativeClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
 }

@@ -6,15 +6,16 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/connection.h>
+#include <yt/client/api/transaction.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -144,7 +145,7 @@ public:
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
         const TString& reporterName,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
@@ -190,6 +191,11 @@ public:
         return Data_;
     }
 
+    int ExtractWriteFailuresCount()
+    {
+        return WriteFailuresCount_.exchange(0);
+    }
+
 protected:
     TLogger Logger = ReporterLogger;
 
@@ -197,13 +203,14 @@ private:
     TMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
     TMonotonicCounter DequeuedCounter_ = {"/dequeued"};
     TMonotonicCounter DroppedCounter_ = {"/dropped"};
+    TMonotonicCounter WriteFailuresCounter_ = {"/write_failures"};
     TSimpleGauge PendingCounter_ = {"/pending"};
     TMonotonicCounter CommittedCounter_ = {"/committed"};
     TMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
     const TSharedDataPtr Data_;
     const TStatisticsReporterConfigPtr Config_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TProfiler& Profiler_;
     TLimiter Limiter_;
     TNonblockingBatch<TJobStatistics> Batcher_;
@@ -211,6 +218,7 @@ private:
     TAsyncSemaphore EnableSemaphore_ {1};
     std::atomic<bool> Enabled_ = {false};
     std::atomic<ui64> DroppedCount_ = {0};
+    std::atomic<ui64> WriteFailuresCount_ = {0};
 
     // Must return dataweight of written batch inside transaction.
     virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) = 0;
@@ -250,6 +258,8 @@ private:
                 Limiter_.Decrease(dataSize);
                 return;
             } catch (const std::exception& ex) {
+                WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
+                Profiler_.Increment(WriteFailuresCounter_);
                 LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
                     GetPendingCount());
@@ -343,7 +353,7 @@ public:
         const TString& localAddress,
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -435,7 +445,7 @@ public:
     TJobSpecHandler(
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -489,7 +499,7 @@ public:
     TJobStderrHandler(
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -540,7 +550,7 @@ public:
     TJobFailContextHandler(
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
             std::move(data),
@@ -669,8 +679,17 @@ public:
         Data_->SetOperationArchiveVersion(version);
     }
 
+    int ExtractWriteFailuresCount()
+    {
+        return
+            JobHandler_->ExtractWriteFailuresCount() +
+            JobSpecHandler_->ExtractWriteFailuresCount() +
+            JobStderrHandler_->ExtractWriteFailuresCount() +
+            JobFailContextHandler_->ExtractWriteFailuresCount();
+    }
+
 private:
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
     const TSharedDataPtr Data_ = New<TSharedData>();
     const TJobHandlerPtr JobHandler_;
@@ -730,6 +749,14 @@ void TStatisticsReporter::SetOperationArchiveVersion(int version)
     if (Impl_) {
         Impl_->SetOperationArchiveVersion(version);
     }
+}
+
+int TStatisticsReporter::ExtractWriteFailuresCount()
+{
+    if (Impl_) {
+        return Impl_->ExtractWriteFailuresCount();
+    }
+    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

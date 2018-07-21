@@ -1,9 +1,9 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_meta_extensions.h"
-#include "data_statistics.h"
-#include "writer_base.h"
+
+#include <yt/client/chunk_client/writer_base.h>
+#include <yt/client/chunk_client/data_statistics.h>
 
 namespace NYT {
 namespace NChunkClient {

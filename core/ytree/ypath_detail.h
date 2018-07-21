@@ -451,7 +451,7 @@ private:
 
     void OnForwardingFinished()
     {
-        YCHECK(Map_->AddChild(TreeBuilder_->EndTree(), ItemKey_));
+        YCHECK(Map_->AddChild(ItemKey_, TreeBuilder_->EndTree()));
         ItemKey_.clear();
     }
 

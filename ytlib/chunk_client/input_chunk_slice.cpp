@@ -2,8 +2,8 @@
 #include "private.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/serialize.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/serialize.h>
 
 #include <yt/core/erasure/codec.h>
 #include <yt/core/misc/numeric_helpers.h>
@@ -12,7 +12,6 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <cmath>
-
 
 namespace NYT {
 namespace NChunkClient {

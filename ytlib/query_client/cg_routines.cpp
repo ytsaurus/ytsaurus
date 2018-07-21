@@ -3,15 +3,17 @@
 #include "cg_types.h"
 #include "evaluation_helpers.h"
 #include "helpers.h"
-#include "query_statistics.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/query_client/query_statistics.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_row.h>
+
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/pipe.h>
 
 #include <yt/core/yson/lexer.h>
@@ -37,18 +39,18 @@
 
 #include <string.h>
 
-
 namespace llvm {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <bool Cross>
 class TypeBuilder<re2::RE2*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
-} // namespace llvm
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace llvm
 
 namespace NYT {
 namespace NQueryClient {
@@ -57,8 +59,9 @@ namespace NRoutines {
 using namespace NConcurrency;
 using namespace NTableClient;
 
-static const auto& Logger = QueryClientLogger;
+////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = QueryClientLogger;
 static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
 
 class TYielder

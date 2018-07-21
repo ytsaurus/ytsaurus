@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/cypress_client/public.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 namespace NYT {
 namespace NDriver {

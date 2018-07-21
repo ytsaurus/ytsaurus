@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/hive/timestamp_map.h>
+#include <yt/client/hive/timestamp_map.h>
 
 #include <yt/core/actions/future.h>
 
@@ -14,7 +14,7 @@
 #include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/rpc/public.h>
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 namespace NYT {
 namespace NHiveServer {

@@ -17,25 +17,26 @@
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_transaction.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
-#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_row.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
 
@@ -809,7 +810,7 @@ private:
                 blockReadOptions,
                 stores.size());
 
-            INativeTransactionPtr transaction;
+            NNative::ITransactionPtr transaction;
             {
                 LOG_INFO("Creating Eden partitioning transaction");
 
@@ -1207,7 +1208,7 @@ private:
                 blockReadOptions,
                 stores.size());
 
-            INativeTransactionPtr transaction;
+            NNative::ITransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
 
