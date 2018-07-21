@@ -41,7 +41,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
     return SimpleRetrier().run()
 
 class Retrier(object):
-    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey_enable=False):
+    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey_enable=False, chaos_monkey=None, logger=None):
         self.retry_config = copy.deepcopy(retry_config)
         if not self.retry_config["enable"]:
             self.retry_config["count"] = 1
