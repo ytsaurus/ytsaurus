@@ -11,13 +11,12 @@ YT_PROTOS="
     yt/core/rpc/proto/rpc.proto
     yt/core/rpc/grpc/proto/grpc.proto
 
-    yt/ytlib/hive/hive_service.proto
-    yt/ytlib/hive/timestamp_map.proto
-    yt/ytlib/hive/cell_directory.proto
-    yt/ytlib/rpc_proxy/proto/api_service.proto
-    yt/ytlib/rpc_proxy/proto/discovery_service.proto
+    yt/client/hive/timestamp_map.proto
+    yt/client/hive/cell_directory.proto
+    yt/client/rpc_proxy/proto/api_service.proto
+    yt/client/rpc_proxy/proto/discovery_service.proto
 
-    yt/ytlib/node_tracker_client/proto/node.proto
+    yt/client/node_tracker_client/proto/node.proto
 "
 
 PROTO_PATHS=""
