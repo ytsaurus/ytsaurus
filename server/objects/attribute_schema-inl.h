@@ -242,10 +242,10 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
                 schema.Initializer(transaction, typedObject, &protobuf);
             }
             if (schema.OldNewValueValidator) {
-                schema.OldNewValueValidator(attribute->Load(), protobuf);
+                schema.OldNewValueValidator(transaction, typedObject, attribute->Load(), protobuf);
             }
             if (schema.NewValueValidator) {
-                schema.NewValueValidator(protobuf);
+                schema.NewValueValidator(transaction, typedObject, protobuf);
             }
             attribute->Store(std::move(protobuf));
         };
@@ -279,15 +279,17 @@ template <class TTypedObject, class TTypedValue>
 struct TAttributeValidatorTraits<TScalarAttributeSchema<TTypedObject, TTypedValue>>
 {
     static void Run(
+        const TTransactionPtr& transaction,
+        TTypedObject* typedObject,
         const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema,
         TScalarAttribute<TTypedValue>* attribute,
         TTypedValue* value)
     {
         if (schema.OldNewValueValidator) {
-            schema.OldNewValueValidator(attribute->Load(), *value);
+            schema.OldNewValueValidator(transaction, typedObject, attribute->Load(), *value);
         }
         if (schema.NewValueValidator) {
-            schema.NewValueValidator(*value);
+            schema.NewValueValidator(transaction, typedObject, *value);
         }
     }
 };
@@ -320,7 +322,7 @@ void TAttributeSchema::InitSetter(const TSchema& schema)
             if (object->GetState() == EObjectState::Creating && schema.Initializer) {
                 schema.Initializer(transaction, typedObject, &typedValue);
             }
-            TAttributeValidatorTraits<TSchema>::Run(schema, attribute, &typedValue);
+            TAttributeValidatorTraits<TSchema>::Run(transaction, typedObject, schema, attribute, &typedValue);
             attribute->Store(typedValue);
         };
 }
@@ -340,7 +342,7 @@ void TAttributeSchema::InitInitializer(const TSchema& schema)
             auto* attribute = schema.AttributeGetter(typedObject);
             TTypedValue typedValue{};
             schema.Initializer(transaction, typedObject, &typedValue);
-            TAttributeValidatorTraits<TSchema>::Run(schema, attribute, &typedValue);
+            TAttributeValidatorTraits<TSchema>::Run(transaction, typedObject, schema, attribute, &typedValue);
             attribute->Store(typedValue);
         };
 }
@@ -350,7 +352,7 @@ void TAttributeSchema::InitRemover(const TSchema& schema)
 {
     Remover_ =
         [=] (
-            const TTransactionPtr& /*transaction*/,
+            const TTransactionPtr& transaction,
             TObject* object,
             const NYT::NYPath::TYPath& path)
         {
@@ -368,7 +370,7 @@ void TAttributeSchema::InitRemover(const TSchema& schema)
             auto newValue = existingValue;
 
             auto typedValue = NYTree::ConvertTo<TTypedValue>(newValue);
-            TAttributeValidatorTraits<TSchema>::Run(schema, attribute, &typedValue);
+            TAttributeValidatorTraits<TSchema>::Run(transaction, typedObject, schema, attribute, &typedValue);
             attribute->Store(typedValue);
         };
 }

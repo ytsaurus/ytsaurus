@@ -21,7 +21,7 @@ public:
             ->SetAttribute(TNodeSegment::SpecSchema);
 
         StatusAttributeSchema_
-            ->SetComposite();
+            ->SetAttribute(TNodeSegment::StatusSchema);
     }
 
     virtual const TDBTable* GetTable() override

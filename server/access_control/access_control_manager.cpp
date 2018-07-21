@@ -12,8 +12,9 @@
 #include <yp/server/objects/object.h>
 #include <yp/server/objects/helpers.h>
 
-#include <yt/ytlib/api/rowset.h>
-#include <yt/ytlib/api/native_client.h>
+#include <yt/client/api/rowset.h>
+
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/error.h>
@@ -103,9 +104,14 @@ class TUser
     : public TSubject
 {
 public:
-    explicit TUser(TObjectId id)
+    explicit TUser(
+        TObjectId id,
+        NClient::NApi::NProto::TUserSpec spec)
         : TSubject(std::move(id), EObjectType::User)
+        , Spec_(std::move(spec))
     { }
+
+    DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TUserSpec, Spec);
 };
 
 TUser* TSubject::AsUser()
@@ -188,11 +194,11 @@ public:
         }
 
         {
-            auto* superusersSubject = FindSubject(SuperusersSubjectId);
+            auto* superusersSubject = FindSubject(SuperusersGroupId);
             if (superusersSubject) {
                 if (superusersSubject->GetType() != EObjectType::Group) {
                     THROW_ERROR_EXCEPTION("%Qv must be a group",
-                        SuperusersSubjectId);
+                        SuperusersGroupId);
                 }
                 SuperusersGroup_ = superusersSubject->AsGroup();
             }
@@ -204,13 +210,17 @@ public:
         EAccessControlPermission permission,
         const TObjectId& userId)
     {
+        TNullable<std::tuple<EAccessControlAction, TObjectId>> result;
         for (const auto& ace : acl) {
-            auto result = ApplyAce(ace, permission, userId);
-            if (result) {
-                return result;
+            auto subresult = ApplyAce(ace, permission, userId);
+            if (subresult) {
+                if (std::get<0>(*subresult) == EAccessControlAction::Deny) {
+                    return subresult;
+                }
+                result = subresult;
             }
         }
-        return Null;
+        return result;
     }
 
 private:
@@ -318,7 +328,7 @@ public:
     }
 
     TPermissionCheckResult CheckPermission(
-        const TString& userId,
+        const TObjectId& subjectId,
         TObject* object,
         EAccessControlPermission permission)
     {
@@ -327,14 +337,14 @@ public:
 
         auto snapshot = GetClusterSnapshot();
 
-        if (snapshot->IsSuperuser(userId)) {
+        if (snapshot->IsSuperuser(subjectId)) {
             result.Action = EAccessControlAction::Allow;
             return result;
         }
 
         while (object) {
             const auto& acl = object->Acl().Load();
-            auto subresult = snapshot->ApplyAcl(acl, permission, userId);
+            auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
             if (subresult) {
                 result.ObjectId = object->GetId();
                 result.ObjectType = object->GetType();
@@ -367,6 +377,29 @@ public:
 
     void SetAuthenticatedUser(const TObjectId& userId)
     {
+        auto snapshot = GetClusterSnapshot();
+        auto* subject = snapshot->FindSubject(userId);
+        if (!subject) {
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::AuthenticationError,
+                "Authenticated user %Qv is not registered",
+                userId);
+        }
+        if (subject->GetType() != EObjectType::User) {
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::AuthenticationError,
+                "Authenticated user %Qv is registered as %Qlv",
+                userId,
+                subject->GetType());
+        }
+        auto* user = subject->AsUser();
+        if (user->Spec().banned()) {
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::UserBanned,
+                "Authenticated user %Qv is banned",
+                userId);
+        }
+
         *AuthenticatedUserId_ = userId;
     }
 
@@ -544,8 +577,9 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v] from [%v] where is_null([%v])",
+            "[%v], [%v] from [%v] where is_null([%v])",
             UsersTable.Fields.Meta_Id.Name,
+            UsersTable.Fields.Spec.Name,
             ytConnector->GetTablePath(&UsersTable),
             UsersTable.Fields.Meta_RemovalTime.Name);
     }
@@ -564,11 +598,13 @@ private:
     void ParseUserFromRow(const TClusterSnapshotPtr& snapshot, TUnversionedRow row)
     {
         TObjectId userId;
+        NClient::NApi::NProto::TUserSpec spec;
         FromDBRow(
             row,
-            &userId);
+            &userId,
+            &spec);
 
-        auto user = std::make_unique<TUser>(std::move(userId));
+        auto user = std::make_unique<TUser>(std::move(userId), std::move(spec));
         snapshot->AddSubject(std::move(user));
     }
 
@@ -602,12 +638,12 @@ void TAccessControlManager::Initialize()
 }
 
 TPermissionCheckResult TAccessControlManager::CheckPermission(
-    const TString& userId,
+    const TObjectId& subjectId,
     TObject* object,
     EAccessControlPermission permission)
 {
     return Impl_->CheckPermission(
-        userId,
+        subjectId,
         object,
         permission);
 }

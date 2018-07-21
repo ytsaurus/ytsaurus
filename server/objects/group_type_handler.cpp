@@ -3,9 +3,14 @@
 #include "group.h"
 #include "db_schema.h"
 
+#include <yp/server/access_control/public.h>
+
 namespace NYP {
 namespace NServer {
 namespace NObjects {
+
+using namespace NAccessControl;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +45,11 @@ public:
     {
         YCHECK(!parentId);
         return std::unique_ptr<TObject>(new TGroup(id, this, session));
+    }
+
+    virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
+    {
+        return {};
     }
 };
 

@@ -3,13 +3,21 @@
 #include "pod_set.h"
 #include "pod.h"
 #include "node_segment.h"
+#include "account.h"
 #include "db_schema.h"
+
+#include <yp/server/master/bootstrap.h>
+
+#include <yp/server/access_control/access_control_manager.h>
 
 namespace NYP {
 namespace NServer {
 namespace NObjects {
 
 using namespace NAccessControl;
+
+using std::placeholders::_1;
+using std::placeholders::_2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +36,13 @@ public:
 
                 MakeAttributeSchema("node_segment_id")
                     ->SetAttribute(TPodSet::TSpec::NodeSegmentSchema)
+                    ->SetUpdatable(),
+
+                MakeAttributeSchema("account_id")
+                    ->SetAttribute(TPodSet::TSpec::AccountSchema)
                     ->SetUpdatable()
+                    ->SetUpdateHandler<TPodSet>(std::bind(&TPodSetTypeHandler::OnAccountUpdated, this, _1, _2))
+                    ->SetValidator<TPodSet>(std::bind(&TPodSetTypeHandler::ValidateAccount, this, _1, _2))
             });
 
         StatusAttributeSchema_
@@ -61,6 +75,35 @@ private:
         result.push_back(EAccessControlPermission::SshAccess);
         result.push_back(EAccessControlPermission::RootSshAccess);
         return result;
+    }
+
+    virtual void BeforeObjectCreated(
+        const TTransactionPtr& transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
+
+        auto* podSet = object->As<TPodSet>();
+        auto* tmpAccount = transaction->GetAccount(TmpAccountId);
+
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(tmpAccount, EAccessControlPermission::Use);
+
+        tmpAccount->PodSets().Add(podSet);
+    }
+
+    void ValidateAccount(const TTransactionPtr& transaction, TPodSet* podSet)
+    {
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        auto* account = podSet->Spec().Account().Load();
+        accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
+    }
+
+    void OnAccountUpdated(const TTransactionPtr& transaction, TPodSet* podSet)
+    {
+        for (auto* pod : podSet->Pods().Load()) {
+            transaction->ScheduleValidateAccounting(pod);
+        }
     }
 };
 

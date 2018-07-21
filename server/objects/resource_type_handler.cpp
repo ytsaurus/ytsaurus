@@ -88,13 +88,44 @@ private:
         return {};
     }
 
-    static void ValidateSpec(const TResource::TSpec& oldSpec, const TResource::TSpec& newSpec)
+    static EResourceKind DeriveKind(TResource* resource, const TResource::TSpec& spec)
     {
-        if (oldSpec.has_kind() &&
-            newSpec.has_kind() &&
-            oldSpec.kind() != newSpec.kind())
-        {
-            THROW_ERROR_EXCEPTION("Changing resource kind is forbidden");
+        TNullable<EResourceKind> maybeKind;
+        auto setKind = [&] (EResourceKind kind) {
+            if (maybeKind) {
+                THROW_ERROR_EXCEPTION("Resource %Qv has multiple kinds",
+                    resource->GetId());
+            }
+            maybeKind = kind;
+        };
+        if (spec.has_cpu()) {
+            setKind(EResourceKind::Cpu);
+        }
+        if (spec.has_memory()) {
+            setKind(EResourceKind::Memory);
+        }
+        if (spec.has_disk()) {
+            setKind(EResourceKind::Disk);
+        }
+        if (!maybeKind) {
+            THROW_ERROR_EXCEPTION("Resource %Qv is of an unrecognized kind",
+                resource->GetId());
+        }
+        return *maybeKind;
+    }
+
+    static void ValidateSpec(
+        const TTransactionPtr& transaction,
+        TResource* resource,
+        const TResource::TSpec& spec)
+    {
+        auto oldKind = resource->Kind().Load();
+        auto newKind = DeriveKind(resource, spec);
+        if (oldKind != EResourceKind::Undefined && oldKind != newKind) {
+            THROW_ERROR_EXCEPTION("Changing kind of resource %Qv from %Qlv to %Qlv is forbidden",
+                resource->GetId(),
+                oldKind,
+                newKind);
         }
     }
 
@@ -106,6 +137,17 @@ private:
 
         auto* resource = object->As<TResource>();
         transaction->ScheduleValidateNodeResources(resource->Node().Load());
+        resource->Kind() = EResourceKind::Undefined;
+    }
+
+    virtual void AfterObjectCreated(
+        const TTransactionPtr& transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
+
+        auto* resource = object->As<TResource>();
+        resource->Kind() = DeriveKind(resource, resource->Spec().Load());
     }
 
     virtual void BeforeObjectRemoved(
@@ -115,11 +157,7 @@ private:
         TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);
 
         auto* resource = object->As<TResource>();
-        resource->Status().ScheduledAllocations().ScheduleLoad();
-        resource->Status().ActualAllocations().ScheduleLoad();
-        if (!resource->Status().ScheduledAllocations().Load().empty() ||
-            !resource->Status().ActualAllocations().Load().empty())
-        {
+        if (!resource->Status().ScheduledAllocations().Load().empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove resource %Qv since it is being used",
                 resource->GetId());
         }

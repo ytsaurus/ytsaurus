@@ -1,11 +1,4 @@
 SET(PROTO_SRCS
-yt_proto/yt/core/misc/proto/error.proto
-yt_proto/yt/core/misc/proto/guid.proto
-yt_proto/yt/core/misc/proto/protobuf_helpers.proto
-yt_proto/yt/core/ytree/proto/attributes.proto
-yt_proto/yt/core/ytree/proto/ypath.proto
-yt_proto/yt/core/rpc/proto/rpc.proto
-yt_proto/yt/core/rpc/grpc/proto/grpc.proto
 yp_proto/yp/client/api/proto/cluster_api.proto
 yp_proto/yp/client/api/proto/pod_agent.proto
 yp_proto/yp/client/api/proto/data_model.proto

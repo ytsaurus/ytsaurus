@@ -14,6 +14,7 @@
 #include "user_type_handler.h"
 #include "group_type_handler.h"
 #include "internet_address_type_handler.h"
+#include "account_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -23,9 +24,9 @@
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/rowset.h>
 
 #include <yt/ytlib/query_client/ast.h>
 
@@ -78,6 +79,7 @@ public:
         RegisterTypeHandler(CreateUserTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));

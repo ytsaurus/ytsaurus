@@ -7,6 +7,10 @@ namespace NObjects {
 ////////////////////////////////////////////////////////////////////////////////
 
 const TObjectId NullObjectId;
+const TObjectId RootUserId("root");
+const TObjectId SuperusersGroupId("superusers");
+const TObjectId TmpAccountId("tmp");
+const TObjectId EveryoneSubjectId("everyone");
 
 ////////////////////////////////////////////////////////////////////////////////
 

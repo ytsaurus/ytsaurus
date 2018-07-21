@@ -69,7 +69,7 @@ class TestInternetAddresses(object):
         yp_client.update_hfsm_state(node_id, "up", "Test")
 
         return node_id
-        
+
     def _create_pod(self, yp_client, pod_set_id, enable_internet):
         pod_id = yp_client.create_object("pod", attributes={
             "meta": {

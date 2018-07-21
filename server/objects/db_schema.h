@@ -156,6 +156,7 @@ extern const struct TPodSetsTable
     {
         TDBField Spec_AntiaffinityConstraints{"spec.antiaffinity_constraints"};
         TDBField Spec_NodeSegmentId{"spec.node_segment_id"};
+        TDBField Spec_AccountId{"spec.account_id"};
     } Fields;
 } PodSetsTable;
 
@@ -310,6 +311,7 @@ extern const struct TNodeSegmentsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec{"spec"};
+        TDBField Status{"status"};
     } Fields;
 } NodeSegmentsTable;
 
@@ -365,6 +367,7 @@ extern const struct TUsersTable
     struct TFields
         : public TObjectTableBase::TFields
     {
+        TDBField Spec{"spec"};
     } Fields;
 } UsersTable;
 
@@ -406,6 +409,65 @@ extern const struct TInternetAddressesTable
         TDBField Status{"status"};
     } Fields;
 } InternetAddressesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TAccountsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TAccountsTable()
+        : TDBTable("accounts")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec_ParentId{"spec.parent_id"};
+        TDBField Spec_Other{"spec.other"};
+        TDBField Status{"status"};
+    } Fields;
+} AccountsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TAccountParentToChildrenTable
+    : public TDBTable
+{
+    TAccountParentToChildrenTable()
+        : TDBTable("account_parent_to_children")
+    {
+        Key = {&Fields.ParentId, &Fields.ChildId};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField ParentId{"parent_id"};
+        TDBField ChildId{"child_id"};
+    } Fields;
+} AccountParentToChildrenTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TAccountToPodSetsTable
+    : public TDBTable
+{
+    TAccountToPodSetsTable()
+        : TDBTable("account_to_pod_sets")
+    {
+        Key = {&Fields.AccountId, &Fields.PodSetId};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField AccountId{"account_id"};
+        TDBField PodSetId{"pod_set_id"};
+    } Fields;
+} AccountToPodSetsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

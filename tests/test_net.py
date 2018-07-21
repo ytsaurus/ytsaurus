@@ -1,7 +1,7 @@
 import pytest
 
 from yt.yson import YsonEntity
-from yp.client import YpResponseError
+from yp.common import YtResponseError
 from yt.environment.helpers import wait
 
 @pytest.mark.usefixtures("yp_env")
@@ -35,7 +35,7 @@ class TestNet(object):
                 }
             })
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
 
     def test_invalid_pod_network_id(self, yp_env):
@@ -64,7 +64,7 @@ class TestNet(object):
                 }
             })
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
 
     def test_assign_pod_ip6_address_manual(self, yp_env):
@@ -177,7 +177,7 @@ class TestNet(object):
         assert allocations[1]["transient_fqdn"] == "{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
         assert allocations[2]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
         assert allocations[2]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
-                
+
     def test_assign_pod_ip6_address_scheduler(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -216,7 +216,7 @@ class TestNet(object):
                 }
             })
         yp_client.update_hfsm_state(node_id, "up", "Test")
-           
+
         pod_id = yp_client.create_object("pod", attributes={
             "meta": {
                 "pod_set_id": pod_set_id
@@ -235,4 +235,3 @@ class TestNet(object):
         assert allocations[0]["vlan_id"] == "somevlan"
         assert allocations[0]["address"].startswith("1:2:3:4:0:7b:")
         assert allocations[0]["manual"] == False
-

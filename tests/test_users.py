@@ -1,6 +1,6 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YpInvalidObjectIdError, YpDuplicateObjectIdError, YtResponseError
 from yt.environment.helpers import assert_items_equal
 
 @pytest.mark.usefixtures("yp_env")
@@ -17,41 +17,46 @@ class TestUsers(object):
         yp_client = yp_env.yp_client
 
         for _ in xrange(5):
-	        yp_client.create_object("group", attributes={"meta": {"id": "g"}})
-	        assert yp_client.get_object("group", "g", selectors=["/meta/id"]) == ["g"]
-	        yp_client.remove_object("group", "g")
+            yp_client.create_object("group", attributes={"meta": {"id": "g"}})
+            assert yp_client.get_object("group", "g", selectors=["/meta/id"]) == ["g"]
+            yp_client.remove_object("group", "g")
 
     def test_subject_ids(self, yp_env):
-    	yp_client = yp_env.yp_client
+        yp_client = yp_env.yp_client
 
-    	yp_client.create_object("user", attributes={"meta": {"id": "u"}})
-    	assert yp_client.get_object("user", "u", selectors=["/meta/id"]) == ["u"]
-    	with pytest.raises(YpResponseError): 
-    	    yp_client.create_object("group", attributes={"meta": {"id": "u"}})
-    	yp_client.remove_object("user", "u")
-    	yp_client.create_object("group", attributes={"meta": {"id": "u"}})
+        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        assert yp_client.get_object("user", "u", selectors=["/meta/id"]) == ["u"]
+        with pytest.raises(YpDuplicateObjectIdError):
+            yp_client.create_object("group", attributes={"meta": {"id": "u"}})
+        yp_client.remove_object("user", "u")
+        yp_client.create_object("group", attributes={"meta": {"id": "u"}})
 
     def test_builtin_users(self, yp_env):
         yp_client = yp_env.yp_client
 
-        users = yp_client.select_objects("user", selectors=["/meta/id"])
-        assert_items_equal([x[0] for x in users], ["root"])
+        users = [x[0] for x in yp_client.select_objects("user", selectors=["/meta/id"])]
+        assert_items_equal(users, ["root"])
+
+        for user in users:
+            with pytest.raises(YtResponseError):
+                yp_client.remove_object("user", user)
 
     def test_builtin_groups(self, yp_env):
         yp_client = yp_env.yp_client
 
-        print list(yp_env.yt_client.select_rows("* from [//yp/db/groups]"))
-
-        groups = yp_client.select_objects("group", selectors=["/meta/id"])
-        assert_items_equal([x[0] for x in groups], ["superusers"])
+        groups = [x[0] for x in yp_client.select_objects("group", selectors=["/meta/id"])]
+        assert_items_equal(groups, ["superusers"])
 
         assert_items_equal(yp_client.get_object("group", "superusers", selectors=["/spec/members"])[0], ["root"])
+
+        for group in groups:
+            with pytest.raises(YtResponseError):
+                yp_client.remove_object("group", group)
 
     def test_cannot_create_wellknown(self, yp_env):
         yp_client = yp_env.yp_client
 
         for type in ["user", "group"]:
             for id in ["everyone"]:
-                with pytest.raises(YpResponseError): 
+                with pytest.raises(YpInvalidObjectIdError):
                     yp_client.create_object(type, attributes={"meta": {"id": id}})
-

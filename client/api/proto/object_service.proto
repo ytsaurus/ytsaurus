@@ -325,6 +325,46 @@ message TRspSelectObjects
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqCheckObjectPermissions
+{
+    message TSubrequest
+    {
+        // Id of the object to check.
+        required string object_id = 1;
+
+        // Type of the object to check.
+        required EObjectType object_type = 2;
+
+        // Id of subject accessing the object (either user or group).
+        required string subject_id = 3;
+
+        // Permission to check.
+        required EAccessControlPermission permission = 4;
+    }
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspCheckObjectPermissions
+{
+    message TSubresponse
+    {
+        // Was request allowed or declined?
+        required EAccessControlAction action = 1;
+
+        // The object whose ACL contains the matching ACE. Can be null.
+        optional string object_id = 2;
+
+        // The type of object referred by object_id. Can be null.
+        optional EObjectType object_type = 3;
+
+        //! Subject to which the decision applies. Can be null.
+        optional string subject_id = 4;
+    }
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqWatchObjects
 {
     // Only fetches events with timestamp > start_timestamp.
@@ -408,6 +448,8 @@ service ObjectService
 
     // Executes a query and fetches attributes for relevant objects.
     rpc SelectObjects (TReqSelectObjects) returns (TRspSelectObjects);
+
+    rpc CheckObjectPermissions (TReqCheckObjectPermissions) returns (TRspCheckObjectPermissions);
 
     // Reads updates from event queue.
     rpc WatchObjects (TReqWatchObjects) returns (TRspWatchObjects);

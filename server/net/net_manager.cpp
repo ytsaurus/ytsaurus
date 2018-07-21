@@ -20,7 +20,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/rowset.h>
 
 #include <yt/core/net/address.h>
 
@@ -127,7 +127,7 @@ private:
 
     bool ShouldReassignPodAddresses(const TTransactionPtr& transaction, const TPod* pod)
     {
-        if (pod->RemovalPending()) {
+        if (pod->IsRemoving()) {
             return true;
         }
         
@@ -288,12 +288,12 @@ private:
 
     void AcquirePodAddresss(const TTransactionPtr& transaction, TPod* pod)
     {
-        if (pod->RemovalPending()) {
+        if (pod->IsRemoving()) {
             return;
         }
         
         const auto* node = pod->Spec().Node().Load();
-        if (!node || node->RemovalPending()) {
+        if (!node || node->IsRemoving()) {
             return;
         }
 
@@ -405,7 +405,7 @@ private:
 
     void UpdateVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
     {
-        if (pod->RemovalPending()) {
+        if (pod->IsRemoving()) {
             return;
         }
 
@@ -434,7 +434,7 @@ private:
 
     void UpdateFqdns(TPod* pod)
     {
-        if (pod->RemovalPending()) {
+        if (pod->IsRemoving()) {
             return;
         }
 

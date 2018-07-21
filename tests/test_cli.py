@@ -36,4 +36,3 @@ class TestCli(object):
 
         result = check_output([cli_path, "select", "pod", "--filter", '[/meta/id] = "{}"'.format(pod_id), "--no-tabular"] + config_arg)
         assert yson.loads(result) == [[]]
-

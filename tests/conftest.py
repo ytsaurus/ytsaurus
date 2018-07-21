@@ -1,5 +1,5 @@
+from yp.common import YtResponseError
 from yp.local import YpInstance, ACTUAL_DB_VERSION
-from yp.client import YpResponseError
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
@@ -37,6 +37,7 @@ OBJECT_TYPES = [
     "user",
     "group",
     "internet_address",
+    "account"
 ]
 
 NODE_CONFIG = {
@@ -79,7 +80,7 @@ class YpTestEnvironment(object):
             try:
                 pod_set_id = self.yp_client.create_object("pod_set")
                 self.yp_client.remove_object("pod_set", pod_set_id)
-            except YpResponseError:
+            except YtResponseError:
                 return False
             return True
 
@@ -108,6 +109,8 @@ def test_method_teardown(yp_env):
                 continue
             if object_type == "group" and object_id == "superusers":
                 continue
+            if object_type == "account" and object_id == "tmp":
+                continue
             yp_client.remove_object(object_type, object_id)
 
 
@@ -126,14 +129,14 @@ def yp_env(request, test_environment):
 @pytest.fixture(scope="class")
 def test_environment_configurable(request):
     environment = YpTestEnvironment(
-        yp_master_config=getattr(request.cls, "YP_MASTER_CONFIG"),
+        yp_master_config=getattr(request.cls, "YP_MASTER_CONFIG", None),
         enable_ssl=getattr(request.cls, "ENABLE_SSL", False))
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 @pytest.fixture(scope="function")
 def yp_env_configurable(request, test_environment_configurable):
-    test_method_setup(test_environment)
+    test_method_setup(test_environment_configurable)
     request.addfinalizer(lambda: test_method_teardown(test_environment_configurable))
     return test_environment_configurable
 

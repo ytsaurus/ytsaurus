@@ -5,9 +5,10 @@
 
 #include <yp/server/objects/db_schema.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -15,7 +16,7 @@
 #include <yt/ytlib/query_client/functions.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -58,7 +59,7 @@ public:
             BIND(&TImpl::OnMasterDiscovery, MakeWeak(this)),
             Config_->MasterDiscoveryPeriod))
         , DBPath_(GetRootPath() + "/db")
-        , Connection_(CreateNativeConnection(Config_->Connection))
+        , Connection_(NApi::NNative::CreateConnection(Config_->Connection))
         , Client_(Connection_->CreateNativeClient(TClientOptions(Config_->User)))
     { }
 
@@ -75,7 +76,7 @@ public:
     }
 
 
-    const INativeClientPtr& GetClient()
+    const NNative::IClientPtr& GetClient()
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Client_;
@@ -162,8 +163,8 @@ private:
 
     const TYPath DBPath_;
 
-    const INativeConnectionPtr Connection_;
-    const INativeClientPtr Client_;
+    const NNative::IConnectionPtr Connection_;
+    const NNative::IClientPtr Client_;
 
     bool UdfsLoaded_ = false;
     TTypeInferrerMapPtr TypeInferrers_;
@@ -590,7 +591,7 @@ void TYTConnector::Initialize()
     Impl_->Initialize();
 }
 
-const INativeClientPtr& TYTConnector::GetClient()
+const NNative::IClientPtr& TYTConnector::GetClient()
 {
     return Impl_->GetClient();
 }

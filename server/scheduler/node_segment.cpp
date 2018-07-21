@@ -14,14 +14,18 @@ using namespace NYT::NYson;
 TNodeSegment::TNodeSegment(
     const TObjectId& id,
     TYsonString labels,
-    std::unique_ptr<TLabelFilterCache<TNode>> nodeLabelFilterCache)
+    std::vector<TNode*> allNodes,
+    std::vector<TNode*> schedulableNodes,
+    std::unique_ptr<TLabelFilterCache<TNode>> schedulableNodeLabelFilterCache)
     : TObject(id, std::move(labels))
-    , NodeLabelFilterCache_(std::move(nodeLabelFilterCache))
+    , AllNodes_(std::move(allNodes))
+    , SchedulableNodes_(std::move(schedulableNodes))
+    , SchedulableNodeLabelFilterCache_(std::move(schedulableNodeLabelFilterCache))
 { }
 
-TLabelFilterCache<TNode>* TNodeSegment::GetNodeLabelFilterCache() const
+TLabelFilterCache<TNode>* TNodeSegment::GetSchedulableNodeLabelFilterCache() const
 {
-    return NodeLabelFilterCache_.get();
+    return SchedulableNodeLabelFilterCache_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

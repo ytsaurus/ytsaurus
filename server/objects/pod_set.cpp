@@ -1,6 +1,7 @@
 #include "pod_set.h"
 #include "pod.h"
 #include "node_segment.h"
+#include "account.h"
 #include "db_schema.h"
 
 namespace NYP {
@@ -20,9 +21,16 @@ const TManyToOneAttributeSchema<TPodSet, TNodeSegment> TPodSet::TSpec::NodeSegme
     [] (TNodeSegment* segment) { return &segment->PodSets(); }
 };
 
+const TManyToOneAttributeSchema<TPodSet, TAccount> TPodSet::TSpec::AccountSchema{
+    &PodSetsTable.Fields.Spec_AccountId,
+    [] (TPodSet* podSet) { return &podSet->Spec().Account(); },
+    [] (TAccount* account) { return &account->PodSets(); }
+};
+
 TPodSet::TSpec::TSpec(TPodSet* podSet)
     : AntiaffinityConstraints_(podSet, &AntiaffinityConstraintsSchema)
     , NodeSegment_(podSet, &NodeSegmentSchema)
+    , Account_(podSet, &AccountSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

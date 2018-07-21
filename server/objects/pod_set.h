@@ -41,6 +41,10 @@ public:
         static const TManyToOneAttributeSchema<TPodSet, TNodeSegment> NodeSegmentSchema;
         using TNodeSegmentAttribute = TManyToOneAttribute<TPodSet, TNodeSegment>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TNodeSegmentAttribute, NodeSegment);
+
+        static const TManyToOneAttributeSchema<TPodSet, TAccount> AccountSchema;
+        using TAccountAttribute = TManyToOneAttribute<TPodSet, TAccount>;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

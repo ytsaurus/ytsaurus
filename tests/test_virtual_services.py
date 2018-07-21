@@ -1,6 +1,5 @@
 import pytest
 
-from yp.client import YpResponseError
 from yt.yson import YsonEntity, YsonUint64
 
 @pytest.mark.usefixtures("yp_env")

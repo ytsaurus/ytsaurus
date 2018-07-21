@@ -68,7 +68,7 @@ public:
     void Initialize();
 
     TPermissionCheckResult CheckPermission(
-        const TString& userId,
+        const NObjects::TObjectId& subjectId,
         NObjects::TObject* object,
         EAccessControlPermission permission);
     

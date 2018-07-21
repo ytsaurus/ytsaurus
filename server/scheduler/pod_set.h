@@ -22,10 +22,13 @@ public:
         const TObjectId& id,
         NYT::NYson::TYsonString labels,
         TNodeSegment* nodeSegment,
+        TAccount* account,
         std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint> antiaffinityConstraints);
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeSegment*, NodeSegment);
+    DEFINE_BYVAL_RO_PROPERTY(TAccount*, Account);
     DEFINE_BYREF_RO_PROPERTY(std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint>, AntiaffinityConstraints);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

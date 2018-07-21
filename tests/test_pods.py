@@ -1,6 +1,6 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YtResponseError, YpNoSuchObjectError
 from yt.yson import YsonEntity, YsonUint64
 
 @pytest.mark.usefixtures("yp_env")
@@ -8,7 +8,8 @@ class TestPods(object):
     def test_pod_set_required_on_create(self, yp_env):
         yp_client = yp_env.yp_client
 
-        with pytest.raises(YpResponseError): yp_client.create_object(object_type="pod")
+        with pytest.raises(YtResponseError):
+            yp_client.create_object(object_type="pod")
 
     def test_get_pod(self, yp_env):
         yp_client = yp_env.yp_client
@@ -23,7 +24,8 @@ class TestPods(object):
     def test_parent_pod_set_must_exist(self, yp_env):
         yp_client = yp_env.yp_client
 
-        with pytest.raises(YpResponseError): yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": "nonexisting_pod_set_id"}})
+        with pytest.raises(YpNoSuchObjectError):
+            yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": "nonexisting_pod_set_id"}})
 
     def test_pod_create_destroy(self, yp_env):
         yp_client = yp_env.yp_client
@@ -113,7 +115,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client)
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.create_object("pod", attributes={
                     "meta": {
                         "pod_set_id": pod_set_id
@@ -147,7 +149,7 @@ class TestPods(object):
 
         cpu_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "cpu"', selectors=["/meta/id"])[0][0]
         memory_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "memory"', selectors=["/meta/id"])[0][0]
-        
+
         assert \
           sorted([cpu_resource_id, memory_resource_id]) == \
           sorted([x["resource_id"] for x in yp_client.get_object("pod", pod_id, selectors=["/status/scheduled_resource_allocations"])[0]])
@@ -176,7 +178,7 @@ class TestPods(object):
             })
 
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
-        
+
         assert \
           sorted([hdd_resource_id]) == \
           sorted([x["resource_id"] for x in yp_client.get_object("pod", pod_id, selectors=["/status/scheduled_resource_allocations"])[0]])
@@ -213,7 +215,7 @@ class TestPods(object):
 
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         ssd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "ssd"', selectors=["/meta/id"])[0][0]
-        
+
         assert \
           sorted([hdd_resource_id, ssd_resource_id]) == \
           sorted([x["resource_id"] for x in yp_client.get_object("pod", pod_id, selectors=["/status/scheduled_resource_allocations"])[0]])
@@ -226,7 +228,7 @@ class TestPods(object):
 
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         ssd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "ssd"', selectors=["/meta/id"])[0][0]
-        
+
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -288,7 +290,8 @@ class TestPods(object):
                 }
             })
         yp_client.select_objects("resource", selectors=["/spec", "/status"])
-        with pytest.raises(YpResponseError): yp_client.create_object("pod", attributes={
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
                 },
@@ -311,7 +314,8 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, ssd_capacity=2000)
-        with pytest.raises(YpResponseError): yp_client.create_object("pod", attributes={
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
                 },
@@ -363,7 +367,8 @@ class TestPods(object):
             })
 
         yp_client.update_object("resource", hdd_resource_id, set_updates=[{"path": "/spec/disk/supported_policies", "value": ["exclusive"]}])
-        with pytest.raises(YpResponseError): try_create_pod()
+        with pytest.raises(YtResponseError):
+            try_create_pod()
         yp_client.update_object("resource", hdd_resource_id, set_updates=[{"path": "/spec/disk/supported_policies", "value": ["quota"]}])
         try_create_pod()
 
@@ -371,7 +376,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set")
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -396,7 +401,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set")
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -448,7 +453,7 @@ class TestPods(object):
 
         allocations2 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod", pod_id, set_updates=[
                 {
                     "path": "/spec/disk_volume_requests/0/quota_policy/capacity",
@@ -489,7 +494,7 @@ class TestPods(object):
         volume_id4 = allocations3[1]["disk"]["volume_id"]
 
         assert allocations1[0]["disk"] == {"exclusive": False, "volume_id": volume_id1, "capacity": YsonUint64(500)}
-        
+
         assert allocations2[0]["disk"] == {"exclusive": False, "volume_id": volume_id1, "capacity": YsonUint64(500)}
         assert allocations2[1]["disk"] == {"exclusive": False, "volume_id": volume_id2, "capacity": YsonUint64(100)}
 
@@ -536,7 +541,7 @@ class TestPods(object):
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, hdd_volume_slots=5)
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
-        
+
         def create_pod():
             yp_client.create_object("pod", attributes={
                 "meta": {
@@ -556,7 +561,8 @@ class TestPods(object):
 
         for i in xrange(5):
             create_pod()
-        with pytest.raises(YpResponseError): create_pod()
+        with pytest.raises(YtResponseError):
+            create_pod()
 
     def test_pod_fqdns(self, yp_env):
         yp_client = yp_env.yp_client
@@ -620,16 +626,16 @@ class TestPods(object):
                 }
             }]
         }
-        
+
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/iss"])[0] == {}
         yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss", "value": iss_spec}])
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/iss"])[0] == iss_spec
-        
+
         yp_client.get_object("pod", pod_id, selectors=["/spec/iss_payload"])[0]
 
         yp_client.update_object("pod",pod_id, set_updates=[{"path": "/spec/iss/instances/0/id/slot/service", "value": "another-service"}])
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/iss/instances/0/id/slot/service"])[0] == "another-service"
-        
+
     def test_iss_status(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -663,7 +669,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        with pytest.raises(YpResponseError) as create_error:
+        with pytest.raises(YpNoSuchObjectError):
             yp_client.create_object(object_type="pod", attributes={
                 "meta": {"pod_set_id": pod_set_id},
                 "spec": {
@@ -672,7 +678,6 @@ class TestPods(object):
                     },
                 },
             })
-        assert create_error.value.is_missing_object_id()
 
     def test_host_device_constraints(self, yp_env):
         yp_client = yp_env.yp_client
@@ -699,7 +704,7 @@ class TestPods(object):
         pod_set_id = yp_client.create_object(object_type="pod_set")
 
         for incorrect_device in incorrect_host_devices:
-            with pytest.raises(YpResponseError) as create_error:
+            with pytest.raises(YtResponseError) as create_error:
                 yp_client.create_object(object_type="pod", attributes={
                     "meta": {"pod_set_id": pod_set_id},
                     "spec": {
@@ -811,7 +816,7 @@ class TestPods(object):
             yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/host_devices", "value": [{"path": x, "mode": "rw"}]}])
 
         for x in ["/dev/xyz"]:
-            with pytest.raises(YpResponseError):
+            with pytest.raises(YtResponseError):
                 yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/host_devices", "value": [{"path": x, "mode": "rw"}]}])
 
     def test_sysctl_properties(self, yp_env):
@@ -881,7 +886,7 @@ class TestPods(object):
         for x in ["someother.property",
                   "net.ipv4.blablabla",
                   "net.ipv4.neigh.default.blablabla"]:
-            with pytest.raises(YpResponseError):
+            with pytest.raises(YtResponseError):
                 yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/sysctl_properties", "value": [{"name": x, "value": "0"}]}])
 
         for v in ["value; injection",
@@ -889,7 +894,7 @@ class TestPods(object):
                   "; injection",
                   "injection;",
                   "   ;"]:
-            with pytest.raises(YpResponseError) as create_error:
+            with pytest.raises(YtResponseError) as create_error:
                 yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/sysctl_properties", "value": [{"name": "net.core.somaxconn", "value": v}]}])
             assert "\";\" symbol is not allowed" in str(create_error.value)
 
@@ -898,3 +903,10 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/antiaffinity_constraints"]) == [[]]
+
+    def test_default_pod_acl(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        assert yp_client.get_object("pod", pod_id, selectors=["/meta/acl"])[0] == []

@@ -4,7 +4,7 @@
 
 #include <yp/server/objects/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/query_client/public.h>
 
@@ -39,7 +39,7 @@ public:
 
     void Initialize();
 
-    const NYT::NApi::INativeClientPtr& GetClient();
+    const NYT::NApi::NNative::IClientPtr& GetClient();
     const NYT::NQueryClient::TTypeInferrerMapPtr& GetTypeInferrers();
     const NYT::NQueryClient::TFunctionProfilerMapPtr& GetFunctionProfilers();
     const NYT::NYPath::TYPath& GetRootPath();

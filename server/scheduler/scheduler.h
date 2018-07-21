@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/actions/signal.h>
+
 namespace NYP {
 namespace NServer {
 namespace NScheduler {
@@ -17,6 +19,13 @@ public:
         TSchedulerConfigPtr config);
 
     void Initialize();
+
+    //! Raised within scheduler thread each time cluster state is reconciled.
+    DECLARE_SIGNAL(void(), ClusterReconciled);
+
+    //! Returns the cluster state. Note that this state is being updated
+    //! from a dedicated scheduler thread.
+    const TClusterPtr& GetCluster() const;
 
 private:
     class TImpl;

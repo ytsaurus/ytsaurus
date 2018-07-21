@@ -28,6 +28,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateObjects);
     DEFINE_RPC_PROXY_METHOD(NProto, GetObject);
     DEFINE_RPC_PROXY_METHOD(NProto, SelectObjects);
+    DEFINE_RPC_PROXY_METHOD(NProto, CheckObjectPermissions);
     DEFINE_RPC_PROXY_METHOD(NProto, WatchObjects);
 };
 

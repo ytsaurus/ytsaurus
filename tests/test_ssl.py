@@ -2,19 +2,35 @@ import pytest
 
 from yp.client import YpClient
 
-import sys
+
+def get_root_certificate(environment):
+    return environment.yp_instance.config["secure_client_grpc_server"]["addresses"][0]["credentials"]["pem_root_certs"]["value"]
+
 
 @pytest.mark.usefixtures("yp_env_configurable")
-@pytest.mark.skipif('not hasattr(sys, "extra_modules")')
 class TestSsl(object):
     ENABLE_SSL = True
     YP_MASTER_CONFIG = {}
 
-    def test_simple(self, yp_env_configurable):
-        # NB: grpc bindings and python should be built with the same version of crypto library.
-        # It is not true in standard suite, therefore we disable test in that case.
-        address = yp_env_configurable.yp_instance.yp_client_secure_grpc_address
-        root_certificate = yp_env_configurable.yp_instance.config["secure_client_grpc_server"]["addresses"][0]["credentials"]["pem_root_certs"]["value"]
-        client = YpClient(address, config={"enable_ssl": True, "root_certificate": {"value": root_certificate}})
+    @pytest.mark.parametrize("transport", ["http", "grpc"])
+    def test_via_file_name(self, yp_env_configurable, transport, tmpdir):
+        root_certificate = get_root_certificate(yp_env_configurable)
+
+        root_certificate_file = tmpdir.join("YandexInternalRootCA.crt")
+        root_certificate_file.write(root_certificate)
+
+        client = yp_env_configurable.yp_instance.create_client(
+            config={"enable_ssl": True, "root_certificate": {"file_name": str(root_certificate_file)}},
+            transport=transport)
+
         assert client.generate_timestamp() > 0
 
+    @pytest.mark.parametrize("transport", ["grpc"])
+    def test_via_value(self, yp_env_configurable, transport):
+        root_certificate = get_root_certificate(yp_env_configurable)
+
+        client = yp_env_configurable.yp_instance.create_client(
+            config={"enable_ssl": True, "root_certificate": {"value": root_certificate}},
+            transport=transport)
+
+        assert client.generate_timestamp() > 0

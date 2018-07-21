@@ -21,18 +21,10 @@ DEFINE_ENUM(EAccessControlPermission,
     ((Create)        (3))
     ((SshAccess)     (4))
     ((RootSshAccess) (5))
+    ((Use)           (6))
 );
 
 struct TPermissionCheckResult;
-
-// Built-in users.
-extern const TString RootUserId;
-
-// Built-in groups.
-extern const TString SuperusersSubjectId;
-
-// Pseudo-subjects.
-extern const TString EveryoneSubjectId;
 
 DECLARE_REFCOUNTED_CLASS(TAccessControlManagerConfig)
 

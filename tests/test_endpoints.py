@@ -1,6 +1,6 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YpNoSuchObjectError
 
 @pytest.mark.usefixtures("yp_env")
 class TestEndpoints(object):
@@ -22,8 +22,8 @@ class TestEndpoints(object):
         assert yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/meta/id"])[0] == endpoint_set_id
 
         yp_client.remove_object("endpoint_set", endpoint_set_id)
-        with pytest.raises(YpResponseError): yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/meta/id"])
+        with pytest.raises(YpNoSuchObjectError):
+            yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/meta/id"])
 
         yp_client.create_object("endpoint_set", attributes={"meta": {"id": endpoint_set_id}})
         assert yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/meta/id"])[0] == endpoint_set_id
-        

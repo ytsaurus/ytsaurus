@@ -12,9 +12,11 @@
 
 #include <yp/server/access_control/config.h>
 
+#include <yp/server/accounting/config.h>
+
 #include <yt/ytlib/program/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/auth/config.h>
 
@@ -36,7 +38,7 @@ class TYTConnectorConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
-    NYT::NApi::TNativeConnectionConfigPtr Connection;
+    NYT::NApi::NNative::TConnectionConfigPtr Connection;
     TString User;
     NYT::NYPath::TYPath RootPath;
     TClusterTag ClusterTag;
@@ -92,6 +94,7 @@ public:
     NNodes::TNodeTrackerConfigPtr NodeTracker;
     NScheduler::TSchedulerConfigPtr Scheduler;
     NAccessControl::TAccessControlManagerConfigPtr AccessControlManager;
+    NAccounting::TAccountingManagerConfigPtr AccountingManager;
     NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
     int WorkerThreadPoolSize;
 
@@ -120,6 +123,8 @@ public:
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
         RegisterParameter("access_control_manager", AccessControlManager)
+            .DefaultNew();
+        RegisterParameter("accounting_manager", AccountingManager)
             .DefaultNew();
         RegisterParameter("authentication_manager", AuthenticationManager)
             .DefaultNew();

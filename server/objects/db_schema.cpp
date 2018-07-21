@@ -26,6 +26,9 @@ const TSubjectToTypeTable SubjectToTypeTable;
 const TUsersTable UsersTable;
 const TGroupsTable GroupsTable;
 const TInternetAddressesTable InternetAddressesTable;
+const TAccountsTable AccountsTable;
+const TAccountParentToChildrenTable AccountParentToChildrenTable;
+const TAccountToPodSetsTable AccountToPodSetsTable;
 
 const std::vector<const TDBTable*> Tables = {
     &SchemasTable,
@@ -47,6 +50,9 @@ const std::vector<const TDBTable*> Tables = {
     &UsersTable,
     &GroupsTable,
     &InternetAddressesTable,
+    &AccountsTable,
+    &AccountParentToChildrenTable,
+    &AccountToPodSetsTable
 };
 
 ////////////////////////////////////////////////////////////////////////////////

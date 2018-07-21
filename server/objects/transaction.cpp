@@ -1,12 +1,14 @@
 #include "transaction.h"
 #include "object_manager.h"
 #include "node.h"
+#include "node_segment.h"
 #include "pod.h"
 #include "pod_set.h"
 #include "internet_address.h"
 #include "resource.h"
 #include "network_project.h"
 #include "virtual_service.h"
+#include "account.h"
 #include "schema.h"
 #include "config.h"
 #include "db_schema.h"
@@ -26,12 +28,14 @@
 
 #include <yp/server/access_control/access_control_manager.h>
 
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/rowset.h>
+#include <yp/server/accounting/accounting_manager.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/rowset.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/query_client/ast.h>
 #include <yt/ytlib/query_client/query_preparer.h>
@@ -238,6 +242,9 @@ public:
 
     TObject* CreateObject(EObjectType type, const IMapNodePtr& attributes, IUpdateContext* context)
     {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->GetTypeHandlerOrThrow(type);
+        
         auto* schema = GetSchema(type);
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(schema, EAccessControlPermission::Create);
@@ -495,6 +502,12 @@ public:
     }
 
 
+    TNodeSegment* GetNodeSegment(const TObjectId& id)
+    {
+        return GetTypedObject<TNodeSegment>(id);
+    }
+
+
     TPod* GetPod(const TObjectId& id)
     {
         return GetTypedObject<TPod>(id);
@@ -537,6 +550,12 @@ public:
     }
 
 
+    TAccount* GetAccount(const TObjectId& id)
+    {
+        return GetTypedObject<TAccount>(id);
+    }
+
+
     TFuture<TTransactionCommitResult> Commit()
     {
         EnsureReadWrite();
@@ -556,19 +575,24 @@ public:
         };
 
         for (auto* node : NodesAwaitingResourceValidation_) {
-            if (node->Exists()) {
+            if (node->DoesExist()) {
                 resourceManager->ValidateNodeResource(node);
             }
         }
 
         for (auto* pod : PodsAwaitingSpecUpdate_) {
-            if (pod->Exists()) {
+            if (pod->DoesExist()) {
                 resourceManager->UpdatePodSpec(Owner_, pod);
             }
         }
 
+        const auto& accountingManager = Bootstrap_->GetAccountingManager();
+        accountingManager->ValidateAccounting(std::vector<TPod*>(
+            PodsAwaitingAccountingValidation_.begin(),
+            PodsAwaitingAccountingValidation_.end()));
+
         for (auto* pod : PodsAwaitingResourceAllocation_) {
-            if (pod->Exists()) {
+            if (pod->DoesExist()) {
                 resourceManager->ReallocatePodResources(Owner_, &resourceManagerContext, pod);
             }
         }
@@ -650,6 +674,18 @@ public:
             resourceManager->PrepareUpdatePodSpec(MakeStrong(Owner_), pod);
 
             LOG_DEBUG("Pod spec update scheduled (PodId: %v)",
+                pod->GetId());
+        }
+    }
+
+    void ScheduleValidateAccounting(TPod* pod)
+    {
+        EnsureReadWrite();
+        if (PodsAwaitingAccountingValidation_.insert(pod).second) {
+            const auto& accountingManager = Bootstrap_->GetAccountingManager();
+            accountingManager->PrepareValidateAccounting(pod);
+
+            LOG_DEBUG("Pod accounting validation scheduled (PodId: %v)",
                 pod->GetId());
         }
     }
@@ -1178,9 +1214,14 @@ private:
             ValidateCreatedObjects();
             FlushObjectsCreation();
             FlushObjectsDeletion();
+            std::vector<TError> errors;
             while (HasPendingLoads() || HasPendingStores()) {
-                FlushLoadsOnce();
-                FlushStoresOnce();
+                FlushLoadsOnce(&errors);
+                FlushStoresOnce(&errors);
+            }
+            if (!errors.empty()) {
+                THROW_ERROR_EXCEPTION("Persistence failure")
+                    << errors;
             }
         }
 
@@ -1230,14 +1271,17 @@ private:
             auto* object = objectHolder.get();
 
             YCHECK(InstantiatedObjects_.emplace(key, std::move(objectHolder)).second);
-
-            object->SetState(EObjectState::Creating);
+            object->InitializeCreating();
             CreatedObjects_.push_back(object);
 
             typeHandler->BeforeObjectCreated(MakeStrong(Owner_->Owner_), object);
 
             if (parentType != EObjectType::Null) {
                 auto* parent = GetObject(parentType, parentId);
+
+                const auto& accessControlManager = Owner_->Bootstrap_->GetAccessControlManager();
+                accessControlManager->ValidatePermission(parent, EAccessControlPermission::Write);
+
                 auto* attribute = typeHandler->GetParentChildrenAttribute(parent);
                 TChildrenAttributeHelper::Add(attribute, object);
             }
@@ -1267,10 +1311,7 @@ private:
                 auto objectHolder = typeHandler->InstantiateObject(id, parentId, this);
                 auto* object = objectHolder.get();
                 it = InstantiatedObjects_.emplace(key, std::move(objectHolder)).first;
-
-                object->ScheduleExists();
-                object->InheritAcl().ScheduleLoad();
-                object->Acl().ScheduleLoad();
+                object->InitializeInstantiated();
 
                 LOG_DEBUG("Object instantiated (ObjectId: %v, ParentId: %v, Type: %v)",
                     id,
@@ -1292,8 +1333,7 @@ private:
             if (state == EObjectState::Removing ||
                 state == EObjectState::Removed ||
                 state == EObjectState::CreatedRemoving ||
-                state == EObjectState::CreatedRemoved ||
-                state == EObjectState::Missing)
+                state == EObjectState::CreatedRemoved)
             {
                 return;
             }
@@ -1363,8 +1403,13 @@ private:
 
         virtual void FlushLoads() override
         {
+            std::vector<TError> errors;
             while (HasPendingLoads()) {
-                FlushLoadsOnce();
+                FlushLoadsOnce(&errors);
+            }
+            if (!errors.empty()) {
+                THROW_ERROR_EXCEPTION("Persistence failure")
+                    << errors;
             }
         }
 
@@ -1451,7 +1496,7 @@ private:
             }
 
             for (const auto& pair : objectParentPairs) {
-                if (!pair.second->Exists()) {
+                if (!pair.second->DoesExist()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::NoSuchObject,
                         "Parent %v %Qv of %v %Qv does not exist",
@@ -1544,7 +1589,7 @@ private:
             LOG_DEBUG("Finished preparing objects deletion");
         }
 
-        void FlushLoadsOnce()
+        void FlushLoadsOnce(std::vector<TError>* errors)
         {
             for (int priority = 0; priority < LoadPriorityCount; ++priority) {
                 auto& scheduledLoads = ScheduledLoads_[priority];
@@ -1561,7 +1606,11 @@ private:
                 std::decay<decltype(scheduledLoads)>::type swappedLoads;
                 std::swap(scheduledLoads, swappedLoads);
                 for (const auto& callback: swappedLoads) {
-                    callback(&context);
+                    try {
+                        callback(&context);
+                    } catch (const std::exception& ex) {
+                        errors->push_back(ex);
+                    }
                 }
 
                 LOG_DEBUG("Finished preparing reads");
@@ -1570,7 +1619,7 @@ private:
             }
         }
 
-        void FlushStoresOnce()
+        void FlushStoresOnce(std::vector<TError>* errors)
         {
             if (ScheduledStores_.empty()) {
                 return;
@@ -1584,7 +1633,11 @@ private:
             decltype(ScheduledStores_) swappedStores;
             std::swap(ScheduledStores_, swappedStores);
             for (const auto& callback : swappedStores) {
-                callback(&context);
+                try {
+                    callback(&context);
+                } catch (const std::exception& ex) {
+                    errors->push_back(ex);
+                }
             }
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
@@ -1618,6 +1671,7 @@ private:
     THashSet<TPod*> PodsAwaitingResourceAllocation_;
     THashSet<TNode*> NodesAwaitingResourceValidation_;
     THashSet<TPod*> PodsAwaitingSpecUpdate_;
+    THashSet<TPod*> PodsAwaitingAccountingValidation_;
 
 
     static TEnumIndexedVector<TObjectId, EObjectType> BuildTypeToSchemaIdMap()
@@ -2239,6 +2293,11 @@ TNode* TTransaction::CreateNode(const TObjectId& id)
     return Impl_->CreateNode(id);
 }
 
+TNodeSegment* TTransaction::GetNodeSegment(const TObjectId& id)
+{
+    return Impl_->GetNodeSegment(id);
+}
+
 TPod* TTransaction::GetPod(const TObjectId& id)
 {
     return Impl_->GetPod(id);
@@ -2269,6 +2328,11 @@ TInternetAddress* TTransaction::GetInternetAddress(const TObjectId& id)
     return Impl_->GetInternetAddress(id);
 }
 
+TAccount* TTransaction::GetAccount(const TObjectId& id)
+{
+    return Impl_->GetAccount(id);
+}
+
 TFuture<TTransactionCommitResult> TTransaction::Commit()
 {
     return Impl_->Commit();
@@ -2297,6 +2361,11 @@ void TTransaction::ScheduleValidateNodeResources(TNode* node)
 void TTransaction::ScheduleUpdatePodSpec(TPod* pod)
 {
     Impl_->ScheduleUpdatePodSpec(pod);
+}
+
+void TTransaction::ScheduleValidateAccounting(TPod* pod)
+{
+    Impl_->ScheduleValidateAccounting(pod);
 }
 
 TAsyncSemaphoreGuard TTransaction::AcquireLock()

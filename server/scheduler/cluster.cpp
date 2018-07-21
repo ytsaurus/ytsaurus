@@ -5,6 +5,7 @@
 #include "internet_address.h"
 #include "topology_zone.h"
 #include "node_segment.h"
+#include "account.h"
 #include "helpers.h"
 #include "label_filter_cache.h"
 #include "private.h"
@@ -18,7 +19,7 @@
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/rowset.h>
 
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/convert.h>
@@ -81,11 +82,6 @@ public:
         return node;
     }
 
-    int GetNodeCount()
-    {
-        return static_cast<int>(NodeMap_.size());
-    }
-
 
     std::vector<TNodeSegment*> GetNodeSegments()
     {
@@ -122,11 +118,6 @@ public:
         return segment;
     }
 
-    int GetNodeSegmentCount()
-    {
-        return static_cast<int>(NodeSegmentMap_.size());
-    }
-
 
     std::vector<TPodSet*> GetPodSets()
     {
@@ -157,11 +148,6 @@ public:
             THROW_ERROR_EXCEPTION("No such pod set %Qv", id);
         }
         return podSet;
-    }
-
-    int GetPodSetCount()
-    {
-        return static_cast<int>(PodSetMap_.size());
     }
 
 
@@ -197,10 +183,6 @@ public:
         return pod;
     }
 
-    int GetPodCount()
-    {
-        return static_cast<int>(PodMap_.size());
-    }
 
     std::vector<TInternetAddress*> GetInternetAddresses()
     {
@@ -211,6 +193,46 @@ public:
         }
         return result;
     }
+
+
+    std::vector<TAccount*> GetAccounts()
+    {
+        std::vector<TAccount*> result;
+        result.reserve(AccountMap_.size());
+        for (const auto& pair : AccountMap_) {
+            result.push_back(pair.second.get());
+        }
+        return result;
+    }
+
+    TAccount* FindAccount(const TObjectId& id)
+    {
+        if (!id) {
+            THROW_ERROR_EXCEPTION("Account id cannot be null");
+        }
+        auto it = AccountMap_.find(id);
+        return it == AccountMap_.end() ? nullptr : it->second.get();
+    }
+
+    TAccount* GetAccount(const TObjectId& id)
+    {
+        auto* account = FindAccount(id);
+        YCHECK(account);
+        return account;
+    }
+
+    TAccount* GetAccountThrow(const TObjectId& id)
+    {
+        if (!id) {
+            THROW_ERROR_EXCEPTION("Account id cannot be null");
+        }
+        auto* account = FindAccount(id);
+        if (!account) {
+            THROW_ERROR_EXCEPTION("No such account %Qv", id);
+        }
+        return account;
+    }
+
 
     void LoadSnapshot()
     {
@@ -266,8 +288,46 @@ public:
                 session->FlushLoads();
             }
 
+            {
+                session->ScheduleLoad(
+                    [&] (ILoadContext* context) {
+                        context->ScheduleSelect(
+                            GetAccountQueryString(),
+                            [&](const IUnversionedRowsetPtr& rowset) {
+                                LOG_DEBUG("Parsing accounts");
+                                for (auto row : rowset->GetRows()) {
+                                    ParseAccountFromRow(row);
+                                }
+                            });
+                    });
+
+                LOG_DEBUG("Querying accounts");
+                session->FlushLoads();
+            }
+
+            {
+                session->ScheduleLoad(
+                    [&] (ILoadContext* context) {
+                        context->ScheduleSelect(
+                            GetAccountHierarchyQueryString(),
+                            [&](const IUnversionedRowsetPtr& rowset) {
+                                LOG_DEBUG("Parsing accounts hierarchy");
+                                for (auto row : rowset->GetRows()) {
+                                    ParseAccountHierarchyFromRow(row);
+                                }
+                            });
+                    });
+
+                LOG_DEBUG("Querying accounts hierarchy");
+                session->FlushLoads();
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            NodeSegmentsLabelFilterCache_ = std::make_unique<TLabelFilterCache<TNode>>(
+            AllNodeSegmentsLabelFilterCache_ = std::make_unique<TLabelFilterCache<TNode>>(
+                Bootstrap_->GetYTConnector(),
+                objectManager->GetTypeHandler(EObjectType::Node),
+                GetNodes());
+            SchedulableNodeSegmentsLabelFilterCache_ = std::make_unique<TLabelFilterCache<TNode>>(
                 Bootstrap_->GetYTConnector(),
                 objectManager->GetTypeHandler(EObjectType::Node),
                 GetSchedulableNodes());
@@ -340,12 +400,14 @@ public:
                 session->FlushLoads();
             }
 
-            InitNodePods();
+            InitializeNodePods();
+            InitializeAccountPodSets();
             InitializeAntiaffinityVacancies();
 
-            LOG_DEBUG("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v)",
-                GetPodCount(),
-                GetNodeCount());
+            LOG_DEBUG("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
+                PodMap_.size(),
+                NodeMap_.size(),
+                NodeSegmentMap_.size());
         } catch (const std::exception& ex) {
             Clear();
             THROW_ERROR_EXCEPTION("Error loading cluster snapshot")
@@ -358,23 +420,42 @@ private:
 
     NObjects::TTimestamp Timestamp_ = NObjects::NullTimestamp;
     THashMap<TObjectId, std::unique_ptr<TNode>> NodeMap_;
-    std::unique_ptr<TLabelFilterCache<TNode>> NodeSegmentsLabelFilterCache_;
+    std::unique_ptr<TLabelFilterCache<TNode>> AllNodeSegmentsLabelFilterCache_;
+    std::unique_ptr<TLabelFilterCache<TNode>> SchedulableNodeSegmentsLabelFilterCache_;
     THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
     THashMap<TObjectId, std::unique_ptr<TPodSet>> PodSetMap_;
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
+    THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
     THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
 
     THashMap<std::pair<TString, TString>, std::unique_ptr<TTopologyZone>> TopologyZoneMap_;
     THashMultiMap<TString, TTopologyZone*> TopologyKeyZoneMap_;
 
 
-    void InitNodePods()
+    void InitializeNodePods()
     {
         for (const auto& pair : PodMap_) {
             auto* pod = pair.second.get();
             if (pod->GetNode()) {
                 YCHECK(pod->GetNode()->Pods().insert(pod).second);
             }
+        }
+    }
+
+    void InitializePodSetPods()
+    {
+        for (const auto& pair : PodMap_) {
+            auto* pod = pair.second.get();
+            auto* podSet = pod->GetPodSet();
+            YCHECK(podSet->Pods().insert(pod).second);
+        }
+    }
+
+    void InitializeAccountPodSets()
+    {
+        for (const auto& pair : PodSetMap_) {
+            auto* podSet = pair.second.get();
+            YCHECK(podSet->GetAccount()->PodSets().insert(podSet).second);
         }
     }
 
@@ -535,6 +616,7 @@ private:
         return zones;
     }
 
+
     TString GetInternetAddressQueryString()
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
@@ -634,23 +716,94 @@ private:
             &labels,
             &spec);
 
-        auto nodesOrError = NodeSegmentsLabelFilterCache_->GetFilteredObjects(spec.node_filter());
-        if (!nodesOrError.IsOK()) {
+        auto allNodesOrError = AllNodeSegmentsLabelFilterCache_->GetFilteredObjects(spec.node_filter());
+        auto schedulableNodesOrError = SchedulableNodeSegmentsLabelFilterCache_->GetFilteredObjects(spec.node_filter());
+        if (!allNodesOrError.IsOK() || !schedulableNodesOrError.IsOK()) {
             LOG_ERROR("Invalid node segment node filter; scheduling for this segment is disabled (NodeSegmentId: %v)",
                 segmentId);
+            return;
         }
+        const auto& allNodes = allNodesOrError.Value();
+        const auto& schedulableNodes = schedulableNodesOrError.Value();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto nodeLabelFilterCache = std::make_unique<TLabelFilterCache<TNode>>(
+        auto schedulableNodeLabelFilterCache = std::make_unique<TLabelFilterCache<TNode>>(
             Bootstrap_->GetYTConnector(),
             objectManager->GetTypeHandler(EObjectType::Node),
-            nodesOrError.Value());
+            schedulableNodes);
 
         auto segment = std::make_unique<TNodeSegment>(
             segmentId,
             std::move(labels),
-            std::move(nodeLabelFilterCache));
+            std::move(allNodes),
+            std::move(schedulableNodes),
+            std::move(schedulableNodeLabelFilterCache));
         YCHECK(NodeSegmentMap_.emplace(segment->GetId(), std::move(segment)).second);
+    }
+
+
+    TString GetAccountQueryString()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        return Format(
+            "[%v], [%v] from [%v] where is_null([%v])",
+            AccountsTable.Fields.Meta_Id.Name,
+            AccountsTable.Fields.Labels.Name,
+            ytConnector->GetTablePath(&AccountsTable),
+            AccountsTable.Fields.Meta_RemovalTime.Name);
+    }
+
+    void ParseAccountFromRow(TUnversionedRow row)
+    {
+        TObjectId accountId;
+        TYsonString labels;
+        FromDBRow(
+            row,
+            &accountId,
+            &labels);
+
+        auto account = std::make_unique<TAccount>(
+            accountId,
+            std::move(labels));
+        YCHECK(AccountMap_.emplace(account->GetId(), std::move(account)).second);
+    }
+
+
+    TString GetAccountHierarchyQueryString()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        return Format(
+            "[%v], [%v] from [%v] where is_null([%v])",
+            AccountsTable.Fields.Meta_Id.Name,
+            AccountsTable.Fields.Spec_ParentId.Name,
+            ytConnector->GetTablePath(&AccountsTable),
+            AccountsTable.Fields.Meta_RemovalTime.Name);
+    }
+
+    void ParseAccountHierarchyFromRow(TUnversionedRow row)
+    {
+        TObjectId accountId;
+        TObjectId parentId;
+        FromDBRow(
+            row,
+            &accountId,
+            &parentId);
+
+        auto* account = GetAccount(accountId);
+        if (!parentId) {
+            return;
+        }
+
+        auto* parent = FindAccount(parentId);
+        if (!parent) {
+            LOG_WARNING("Account refers to an unknown parent (AccountId: %v, ParentId: %v)",
+                accountId,
+                parentId);
+            return;
+        }
+
+        account->SetParent(parent);
+        YCHECK(parent->Children().insert(account).second);
     }
 
 
@@ -718,11 +871,12 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             PodSetsTable.Fields.Meta_Id.Name,
             PodSetsTable.Fields.Labels.Name,
             PodSetsTable.Fields.Spec_AntiaffinityConstraints.Name,
             PodSetsTable.Fields.Spec_NodeSegmentId.Name,
+            PodSetsTable.Fields.Spec_AccountId.Name,
             ytConnector->GetTablePath(&PodSetsTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name);
     }
@@ -733,12 +887,14 @@ private:
         TYsonString labels;
         std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint> antiaffinityConstraints;
         TObjectId nodeSegmentId;
+        TObjectId accountId;
         FromDBRow(
             row,
             &podSetId,
             &labels,
             &antiaffinityConstraints,
-            &nodeSegmentId);
+            &nodeSegmentId,
+            &accountId);
 
         auto* nodeSegment = FindNodeSegment(nodeSegmentId);
         if (nodeSegmentId && !nodeSegment) {
@@ -748,10 +904,19 @@ private:
             return;
         }
 
+        auto* account = FindAccount(accountId);
+        if (!account) {
+            LOG_WARNING("Pod set refers to an account (PodSetId: %v, AccountId: %v)",
+                podSetId,
+                accountId);
+            return;
+        }
+
         auto podSet = std::make_unique<TPodSet>(
             podSetId,
             std::move(labels),
             nodeSegment,
+            account,
             std::move(antiaffinityConstraints));
         YCHECK(PodSetMap_.emplace(podSet->GetId(), std::move(podSet)).second);
     }
@@ -762,11 +927,13 @@ private:
         NodeMap_.clear();
         PodMap_.clear();
         PodSetMap_.clear();
+        AccountMap_.clear();
         InternetAddressMap_.clear();
         TopologyZoneMap_.clear();
         TopologyKeyZoneMap_.clear();
         NodeSegmentMap_.clear();
-        NodeSegmentsLabelFilterCache_.reset();
+        AllNodeSegmentsLabelFilterCache_.reset();
+        SchedulableNodeSegmentsLabelFilterCache_.reset();
         Timestamp_ = NullTimestamp;
     }
 };
@@ -792,11 +959,6 @@ TNode* TCluster::GetNodeOrThrow(const TObjectId& id)
     return Impl_->GetNodeOrThrow(id);
 }
 
-int TCluster::GetNodeCount()
-{
-    return Impl_->GetNodeCount();
-}
-
 std::vector<TPod*> TCluster::GetPods()
 {
     return Impl_->GetPods();
@@ -812,14 +974,29 @@ TPod* TCluster::GetPodOrThrow(const TObjectId& id)
     return Impl_->GetPodOrThrow(id);
 }
 
-int TCluster::GetPodCount()
+std::vector<TNodeSegment*> TCluster::GetNodeSegments()
 {
-    return Impl_->GetPodCount();
+    return Impl_->GetNodeSegments();
+}
+
+TNodeSegment* TCluster::FindNodeSegment(const TObjectId& id)
+{
+    return Impl_->FindNodeSegment(id);
+}
+
+TNodeSegment* TCluster::GetNodeSegmentOrThrow(const TObjectId& id)
+{
+    return Impl_->GetNodeSegmentOrThrow(id);
 }
 
 std::vector<TInternetAddress*> TCluster::GetInternetAddresses()
 {
     return Impl_->GetInternetAddresses();
+}
+
+std::vector<TAccount*> TCluster::GetAccounts()
+{
+    return Impl_->GetAccounts();
 }
 
 void TCluster::LoadSnapshot()

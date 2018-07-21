@@ -1,22 +1,63 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YtResponseError
 from yt.yson import YsonEntity, YsonUint64
 from yt.environment.helpers import wait
 from collections import defaultdict
 
 ALL_NODES_SEGMENT = "all"
+TEST_ACCOUNT = "test"
+DEFAULT_POD_SET_SPEC = {
+        "account_id": TEST_ACCOUNT,
+        "node_segment_id": ALL_NODES_SEGMENT
+    }
 
-@pytest.mark.usefixtures("yp_env")
-class TestScheduler(object):
-    def _create_all_nodes_segment(self, yp_env):
-        yp_client = yp_env.yp_client
-        
-        yp_client.create_object("node_segment", attributes={
+@pytest.fixture(scope="function")
+def yp_env_scheduler(request, yp_env):
+    yp_client = yp_env.yp_client
+
+    yp_client.create_object("node_segment", attributes={
             "meta": {"id": ALL_NODES_SEGMENT},
             "spec": {"node_filter": "0=0"}
         })
+    yp_client.create_object("account", attributes={
+            "meta": {"id": TEST_ACCOUNT},
+            "spec": {
+                "resource_limits": {
+                    "per_segment": [
+                        {
+                            "key": ALL_NODES_SEGMENT,
+                            "value": {
+                                "cpu": {
+                                    "capacity": 1000
+                                },
+                                "memory": {
+                                    "capacity": 1000000000
+                                },
+                                "disk_per_storage_class": [
+                                    {
+                                        "key": "hdd",
+                                        "value": {
+                                            "capacity": 10000000000
+                                        }
+                                    },
+                                    {
+                                        "key": "ssd",
+                                        "value": {
+                                            "capacity": 10000000000
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        })
+    return yp_env
 
+@pytest.mark.usefixtures("yp_env_scheduler")
+class TestScheduler(object):
     def _create_nodes(self, yp_env, node_count, rack_count = 1, hfsm_state="up"):
         yp_client = yp_env.yp_client
 
@@ -81,10 +122,9 @@ class TestScheduler(object):
     def test_create_with_enabled_scheduling(self, yp_env):
         yp_client = yp_env.yp_client
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         node_id = yp_client.create_object("node")
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.create_object("pod", attributes={
                     "meta": {
                         "pod_set_id": pod_set_id
@@ -97,12 +137,11 @@ class TestScheduler(object):
 
     def test_force_assign(self, yp_env):
         yp_client = yp_env.yp_client
-        
+
         node_ids = self._create_nodes(yp_env, 1)
         node_id = node_ids[0]
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -122,7 +161,7 @@ class TestScheduler(object):
             set_updates=[
                 {"path": "/spec/node_id", "value": ""}
             ])
-    
+
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["disabled"]
 
         yp_client.update_object("pod", pod_id,
@@ -131,12 +170,11 @@ class TestScheduler(object):
             ])
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["assigned"]
-    
+
     def test_enable_disable_scheduling(self, yp_env):
         yp_client = yp_env.yp_client
-        
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -150,7 +188,7 @@ class TestScheduler(object):
 
         node_ids = self._create_nodes(yp_env, 10)
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod", pod_id,
                 set_updates=[
                     {"path": "/spec/enable_scheduling", "value": True},
@@ -168,8 +206,7 @@ class TestScheduler(object):
     def test_simple(self, yp_env):
         yp_client = yp_env.yp_client
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -200,8 +237,7 @@ class TestScheduler(object):
     def test_cpu_limit(self, yp_env):
         yp_client = yp_env.yp_client
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         for i in xrange(10):
             pod_id = yp_client.create_object("pod", attributes={
                     "meta": {
@@ -221,7 +257,7 @@ class TestScheduler(object):
 
         node_id = yp_client.select_objects("node", selectors=["/meta/id"])[0][0]
         unassigned_pod_id = yp_client.select_objects("pod", filter="[/status/scheduling/state] != \"assigned\"", selectors=["/meta/id"])[0][0]
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod", unassigned_pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}])
 
     def test_node_filter(self, yp_env):
@@ -233,8 +269,7 @@ class TestScheduler(object):
             {"path": "/labels/status", "value": "good"}
         ])
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -253,9 +288,8 @@ class TestScheduler(object):
     def test_malformed_node_filter(self, yp_env):
         yp_client = yp_env.yp_client
 
-        self._create_all_nodes_segment(yp_env)
         self._create_nodes(yp_env, 10)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
@@ -276,15 +310,13 @@ class TestScheduler(object):
     def test_antiaffinity_per_node(self, yp_env):
         yp_client = yp_env.yp_client
 
-        self._create_all_nodes_segment(yp_env)
         self._create_nodes(yp_env, 10)
         pod_set_id = yp_client.create_object("pod_set", attributes={
-                "spec": {
+                "spec": dict(DEFAULT_POD_SET_SPEC, **{
                     "antiaffinity_constraints": [
                         {"key": "node", "max_pods": 1}
-                    ],
-                    "node_segment_id": ALL_NODES_SEGMENT
-                }
+                    ]
+                })
             })
         for i in xrange(10):
             yp_client.create_object("pod", attributes={
@@ -295,7 +327,7 @@ class TestScheduler(object):
                         "enable_scheduling": True
                     }
                 })
-        
+
         self._wait_for_pod_assignment(yp_env)
         node_ids = set(x[0] for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
         assert len(node_ids) == 10
@@ -303,16 +335,14 @@ class TestScheduler(object):
     def test_antiaffinity_per_node_and_rack(self, yp_env):
         yp_client = yp_env.yp_client
 
-        self._create_all_nodes_segment(yp_env)
         self._create_nodes(yp_env, 10, 2)
         pod_set_id = yp_client.create_object("pod_set", attributes={
-                "spec": {
+                "spec": dict(DEFAULT_POD_SET_SPEC, **{
                     "antiaffinity_constraints": [
                         {"key": "node", "max_pods": 1},
                         {"key": "rack", "max_pods": 3}
                     ],
-                    "node_segment_id": ALL_NODES_SEGMENT
-                }
+                })
             })
         for i in xrange(6):
             yp_client.create_object("pod", attributes={
@@ -323,7 +353,7 @@ class TestScheduler(object):
                         "enable_scheduling": True
                     }
                 })
-        
+
         self._wait_for_pod_assignment(yp_env)
         node_ids = set(x[0] for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
         assert len(node_ids) == 6
@@ -338,12 +368,11 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         node_ids = self._create_nodes(yp_env, 10, hfsm_state="down")
-        
+
         up_node_id = node_ids[5]
         yp_client.update_hfsm_state(up_node_id, "up", "Test")
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         for _ in xrange(10):
             yp_client.create_object("pod", attributes={
                     "meta": {
@@ -363,8 +392,7 @@ class TestScheduler(object):
         node_ids = self._create_nodes(yp_env, 1)
         node_id = node_ids[0]
 
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ALL_NODES_SEGMENT}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_ids = []
         for _ in xrange(10):
             pod_ids.append(yp_client.create_object("pod", attributes={
@@ -435,8 +463,7 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         self._create_nodes(yp_env, 1)
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": "all"}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
             "meta": {
                 "pod_set_id": pod_set_id
@@ -453,8 +480,7 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         self._create_nodes(yp_env, 1)
-        self._create_all_nodes_segment(yp_env)
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": "all"}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_id = yp_client.create_object("pod", attributes={
             "meta": {
                 "pod_set_id": pod_set_id

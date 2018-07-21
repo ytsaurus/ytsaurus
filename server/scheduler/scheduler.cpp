@@ -59,6 +59,14 @@ public:
         ytConnector->SubscribeStoppedLeading(BIND(&TImpl::OnStoppedLeading, MakeWeak(this)));
     }
 
+    const TClusterPtr& GetCluster() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Cluster_;
+    }
+
+    DEFINE_SIGNAL(void(), ClusterReconciled);
+
 private:
     TBootstrap* const Bootstrap_;
     const TSchedulerConfigPtr Config_;
@@ -121,6 +129,8 @@ private:
             Allocator_.ReconcileState(Owner_->Cluster_);
 
             LOG_DEBUG("State reconciled");
+
+            Owner_->ClusterReconciled_.Fire();
         }
 
         void RequestPodEvictionAtNodesWithRequestedMaintenance()
@@ -320,7 +330,7 @@ private:
         {
             const auto& podId = pod->GetId();
 
-            if (!pod->Exists()) {
+            if (!pod->DoesExist()) {
                 LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
                     podId);
                 return false;
@@ -473,6 +483,13 @@ void TScheduler::Initialize()
 {
     Impl_->Initialize();
 }
+
+const TClusterPtr& TScheduler::GetCluster() const
+{
+    return Impl_->GetCluster();
+}
+
+DELEGATE_SIGNAL(TScheduler, void(), ClusterReconciled, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

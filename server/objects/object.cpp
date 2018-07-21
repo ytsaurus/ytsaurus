@@ -49,6 +49,19 @@ TObject::TObject(
     , ParentIdAttribute_(this, parentId)
 { }
 
+void TObject::InitializeCreating()
+{
+    State_= EObjectState::Creating;
+}
+
+void TObject::InitializeInstantiated()
+{
+    State_= EObjectState::Instantiated;
+    ExistenceChecker_.ScheduleCheck();
+    InheritAcl_.ScheduleLoad();
+    Acl_.ScheduleLoad();
+}
+
 const TObjectId& TObject::GetId() const
 {
     return Id_;
@@ -74,29 +87,10 @@ void TObject::Remove()
     Session_->RemoveObject(this);
 }
 
-void TObject::ScheduleExists() const
+bool TObject::DoesExist() const
 {
     switch (State_) {
-        case EObjectState::Normal:
-        case EObjectState::Removing:
-            ExistenceChecker_.ScheduleCheck();
-            break;
-        case EObjectState::Creating:
-        case EObjectState::Created:
-        case EObjectState::Removed:
-        case EObjectState::CreatedRemoving:
-        case EObjectState::CreatedRemoved:
-        case EObjectState::Missing:
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-bool TObject::Exists() const
-{
-    switch (State_) {
-        case EObjectState::Normal:
+        case EObjectState::Instantiated:
         case EObjectState::Removing:
             return ExistenceChecker_.Check();
         case EObjectState::Creating:
@@ -105,7 +99,23 @@ bool TObject::Exists() const
             return true;
         case EObjectState::Removed:
         case EObjectState::CreatedRemoved:
-        case EObjectState::Missing:
+            return false;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+bool TObject::DidExist() const
+{
+    switch (State_) {
+        case EObjectState::Instantiated:
+        case EObjectState::Removing:
+        case EObjectState::Removed:
+            return ExistenceChecker_.Check();
+        case EObjectState::Creating:
+        case EObjectState::Created:
+        case EObjectState::CreatedRemoving:
+        case EObjectState::CreatedRemoved:
             return false;
         default:
             Y_UNREACHABLE();
@@ -114,7 +124,7 @@ bool TObject::Exists() const
 
 void TObject::ValidateExists() const
 {
-    if (!Exists()) {
+    if (!DoesExist()) {
         THROW_ERROR_EXCEPTION(
             NClient::NApi::EErrorCode::NoSuchObject,
             "%v %Qv does not exist",
@@ -123,9 +133,14 @@ void TObject::ValidateExists() const
     }
 }
 
-bool TObject::RemovalPending() const
+bool TObject::IsRemoving() const
 {
     return State_ == EObjectState::Removing || State_ == EObjectState::CreatedRemoving;
+}
+
+bool TObject::IsBuiltin() const
+{
+    return false;
 }
 
 void TObject::RegisterAttribute(IPersistentAttribute* attribute)
@@ -169,7 +184,7 @@ void ValidateObjectId(EObjectType type, const TObjectId& id)
         "0123456789"
         "abcdefghijklmnopqrstuvwxyz"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "-_.";
+        "-_.:";
     static const char ValidDnsChars[] =
         "0123456789"
         "abcdefghijklmnopqrstuvwxyz"

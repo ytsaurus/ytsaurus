@@ -19,6 +19,11 @@ TResourceBase::TResourceBase(
     , AllocatedCapacities_(allocatedCapacities)
 { }
 
+const TResourceCapacities& TResourceBase::GetTotalCapacities() const
+{
+    return TotalCapacities_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool THomogeneousResource::TryAllocate(const TResourceCapacities& capacities)
@@ -46,6 +51,11 @@ TDiskResource::TDiskResource(
     , Used_(used)
     , UsedExclusively_(usedExclusively)
 { }
+
+const TString& TDiskResource::GetStorageClass() const
+{
+    return StorageClass_;
+}
 
 bool TDiskResource::TryAllocate(
     bool exclusive,

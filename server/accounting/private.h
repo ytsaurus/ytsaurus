@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/logging/log.h>
+
+namespace NYP {
+namespace NServer {
+namespace NAccounting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NYT::NLogging::TLogger Logger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NAccounting
+} // namespace NServer
+} // namespace NYP

@@ -1,6 +1,6 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YtResponseError
 
 @pytest.mark.usefixtures("yp_env")
 class TestLabels(object):
@@ -37,7 +37,7 @@ class TestLabels(object):
         yp_client = yp_env.yp_client
 
         id = yp_client.create_object("pod_set")
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod_set", id, set_updates=[{"path": "/labels/a/b", "value": 123}])
         yp_client.update_object("pod_set", id, set_updates=[{"path": "/labels/a/b", "value": 123, "recursive": True}])
         assert yp_client.get_object("pod_set", id, selectors=["/labels"]) == [{"a": {"b": 123}}]

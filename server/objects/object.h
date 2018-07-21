@@ -23,6 +23,9 @@ public:
         ISession* session);
     virtual ~TObject() = default;
 
+    void InitializeCreating();
+    void InitializeInstantiated();
+
     static const TScalarAttributeSchema<TObject, TObjectId> IdSchema;
     const TObjectId& GetId() const;
     const TObjectId& GetParentId() const;
@@ -34,7 +37,7 @@ public:
 
     void Remove();
 
-    DEFINE_BYVAL_RW_PROPERTY(EObjectState, State, EObjectState::Normal);
+    DEFINE_BYVAL_RW_PROPERTY(EObjectState, State, EObjectState::Unknown);
 
     using TAttributeList = SmallVector<IPersistentAttribute*, 16>;
     DEFINE_BYREF_RO_PROPERTY(TAttributeList, Attributes);
@@ -54,11 +57,13 @@ public:
     static const TScalarAttributeSchema<TObject, TAcl> AclSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TAcl>, Acl);
 
-    void ScheduleExists() const;
-    bool Exists() const;
+    bool DoesExist() const;
+    bool DidExist() const;
     void ValidateExists() const;
 
-    bool RemovalPending() const;
+    bool IsRemoving() const;
+
+    virtual bool IsBuiltin() const;
 
     template <class T>
     void ValidateAs() const;

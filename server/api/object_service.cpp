@@ -63,6 +63,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjects));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckObjectPermissions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchObjects));
     }
 
@@ -527,6 +528,39 @@ private:
             }
         }
         context->SetResponseInfo("Count: %v", result.Objects.size());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, CheckObjectPermissions)
+    {
+        context->SetRequestInfo("SubrequestCount: %v",
+            request->subrequests_size());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
+            .ValueOrThrow();
+
+        std::vector<TObject*> objects;
+        for (const auto& subrequest : request->subrequests()) {
+            auto objectType = static_cast<EObjectType>(subrequest.object_type());
+            const auto& objectId = subrequest.object_id();
+            objects.push_back(transaction->GetObject(objectType, objectId));
+        }
+
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        for (int index = 0; index < request->subrequests_size(); ++index) {
+            const auto& subrequest = request->subrequests(index);
+            const auto& subjectId = subrequest.subject_id();
+            auto permission = static_cast<EAccessControlPermission>(subrequest.permission());
+            auto* object = objects[index];
+            auto result = accessControlManager->CheckPermission(subjectId, object, permission);
+            auto* subresponse = response->add_subresponses();
+            subresponse->set_action(static_cast<NClient::NApi::NProto::EAccessControlAction>(result.Action));
+            subresponse->set_object_id(result.ObjectId);
+            subresponse->set_object_type(static_cast<NClient::NApi::NProto::EObjectType>(result.ObjectType));
+            subresponse->set_subject_id(result.SubjectId);
+        }
+
         context->Reply();
     }
 

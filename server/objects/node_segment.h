@@ -32,6 +32,10 @@ public:
     static const TScalarAttributeSchema<TNodeSegment, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
 
+    using TStatus = NClient::NApi::NProto::TNodeSegmentStatus;
+    static const TScalarAttributeSchema<TNodeSegment, TStatus> StatusSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
+
     static const TOneToManyAttributeSchema<TNodeSegment, TPodSet> PodSetsSchema;
     using TPodSets = TOneToManyAttribute<TNodeSegment, TPodSet>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSets, PodSets);

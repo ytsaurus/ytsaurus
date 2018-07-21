@@ -204,6 +204,8 @@ public:
                     "Pod created with scheduling disabled");
             }
         }
+
+        transaction->ScheduleValidateAccounting(pod);
     }
 
     virtual void AfterObjectRemoved(
@@ -222,6 +224,8 @@ public:
 
         const auto& resourceManager = Bootstrap_->GetResourceManager();
         resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, pod);
+
+        transaction->ScheduleValidateAccounting(pod);
     }
 
 private:
@@ -241,10 +245,10 @@ private:
             .Value(pod->Spec().UpdateTimestamp().Load());
     }
 
-
     void OnSpecUpdated(const TTransactionPtr& transaction, TPod* pod)
     {
         transaction->ScheduleUpdatePodSpec(pod);
+        transaction->ScheduleValidateAccounting(pod);
     }
 
     void ValidateSpec(const TTransactionPtr& transaction, TPod* pod)

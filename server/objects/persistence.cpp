@@ -5,9 +5,9 @@
 #include "private.h"
 #include "helpers.h"
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/api/rowset.h>
+#include <yt/client/api/rowset.h>
 
 #include <yt/ytlib/query_client/ast.h>
 
@@ -652,9 +652,9 @@ TRange<TUnversionedValue> CaptureCompositeObjectKey(
     auto* typeHandler = object->GetTypeHandler();
     auto parentType = typeHandler->GetParentType();
     auto capture = [&] (const auto& key) {
-        auto* values = reinterpret_cast<TUnversionedValue*>(rowBuffer->GetPool()->AllocateAligned(key.size() * sizeof (TUnversionedValue)));
-        ::memcpy(values, key.data(), sizeof (TUnversionedValue) * key.size());
-        return MakeRange(values, key.size());
+        return MakeRange(
+            reinterpret_cast<TUnversionedValue*>(rowBuffer->GetPool()->Capture(TRef::FromPod(key))),
+            key.size());
     };
     if (parentType == EObjectType::Null) {
         return capture(
@@ -978,8 +978,13 @@ void TScalarAttributeBase::OnLoad() const
         Owner_->GetSession()->FlushLoads();
     }
 
-    Owner_->ValidateExists();
-    YCHECK(!Missing_);
+    if (!Owner_->DidExist()) {
+        THROW_ERROR_EXCEPTION(
+            NClient::NApi::EErrorCode::NoSuchObject,
+            "%v %Qv does not exist",
+            GetCapitalizedHumanReadableTypeName(Owner_->GetType()),
+            Owner_->GetId());
+    }
 }
 
 void TScalarAttributeBase::OnStore()

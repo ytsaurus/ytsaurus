@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/program/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/auth/config.h>
 

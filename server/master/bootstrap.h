@@ -12,6 +12,8 @@
 
 #include <yp/server/access_control/public.h>
 
+#include <yp/server/accounting/public.h>
+
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/core/concurrency/public.h>
@@ -36,8 +38,10 @@ public:
     const NNet::TNetManagerPtr& GetNetManager();
     const NObjects::TTransactionManagerPtr& GetTransactionManager();
     const NNodes::TNodeTrackerPtr& GetNodeTracker();
+    const NScheduler::TSchedulerPtr& GetScheduler();
     const NScheduler::TResourceManagerPtr& GetResourceManager();
     const NAccessControl::TAccessControlManagerPtr& GetAccessControlManager();
+    const NAccounting::TAccountingManagerPtr& GetAccountingManager();
     const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager();
 
     const TString& GetFqdn();

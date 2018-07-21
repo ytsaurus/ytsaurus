@@ -1,7 +1,5 @@
 import pytest
 
-from yp.client import YpResponseError
-
 @pytest.mark.usefixtures("yp_env")
 class TestEndpointSets(object):
     def test_simple(self, yp_env):

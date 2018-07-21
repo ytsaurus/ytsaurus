@@ -2,7 +2,7 @@
 
 #include "persistence.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/actions/future.h>
 
@@ -176,6 +176,8 @@ public:
     TNode* GetNode(const TObjectId& id);
     TNode* CreateNode(const TObjectId& id = TObjectId());
 
+    TNodeSegment* GetNodeSegment(const TObjectId& id);
+
     TPod* GetPod(const TObjectId& id);
 
     TPodSet* GetPodSet(const TObjectId& id);
@@ -188,6 +190,8 @@ public:
 
     TInternetAddress* GetInternetAddress(const TObjectId& id);
 
+    TAccount* GetAccount(const TObjectId& id);
+
     TFuture<TTransactionCommitResult> Commit();
     void Abort();
 
@@ -195,6 +199,7 @@ public:
     void ScheduleAllocateResources(TPod* pod);
     void ScheduleValidateNodeResources(TNode* node);
     void ScheduleUpdatePodSpec(TPod* pod);
+    void ScheduleValidateAccounting(TPod* pod);
 
     NYT::NConcurrency::TAsyncSemaphoreGuard AcquireLock();
 

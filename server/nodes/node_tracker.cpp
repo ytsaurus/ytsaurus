@@ -172,10 +172,10 @@ public:
                     // COMPAT(babenko)
                     if (podEntry.status().has_iss_payload()) {
                         pod->Status().Agent().IssPayload() = podEntry.status().iss_payload();
-                    } else {
+                    }
+                    if (podEntry.status().has_pod_agent_payload()) {
                         pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
                     }
-                    pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
                 }
 
                 pod->Status().AgentSpecTimestamp() = agentTimestamp;

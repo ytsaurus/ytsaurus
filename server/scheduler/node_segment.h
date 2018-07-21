@@ -21,12 +21,17 @@ public:
     TNodeSegment(
         const TObjectId& id,
         NYT::NYson::TYsonString labels,
-        std::unique_ptr<TLabelFilterCache<TNode>> nodeLabelFilterCache);
+        std::vector<TNode*> allNodes,
+        std::vector<TNode*> schedulableNodes,
+        std::unique_ptr<TLabelFilterCache<TNode>> schedulableNodeLabelFilterCache);
 
-    TLabelFilterCache<TNode>* GetNodeLabelFilterCache() const;
+    TLabelFilterCache<TNode>* GetSchedulableNodeLabelFilterCache() const;
+
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TNode*>, AllNodes);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TNode*>, SchedulableNodes);
 
 private:
-    const std::unique_ptr<TLabelFilterCache<TNode>> NodeLabelFilterCache_;
+    const std::unique_ptr<TLabelFilterCache<TNode>> SchedulableNodeLabelFilterCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

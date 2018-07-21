@@ -8,10 +8,11 @@
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/lease_manager.h>

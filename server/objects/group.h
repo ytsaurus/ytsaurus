@@ -29,6 +29,8 @@ public:
     using TSpec = NYP::NClient::NApi::NProto::TGroupSpec;
     static const TScalarAttributeSchema<TGroup, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
+
+    virtual bool IsBuiltin() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,8 +9,8 @@ target_link_libraries(yp-library-server
   yt-core-https
   yt-core-rpc-grpc
   yt-core-rpc-http
-  yt-library-client
-  yt-library-client-auth
+  yt-library-ytlib
+  yt-library-ytlib-auth
   yp-library-client
   deps-arcadia-library-http
 )

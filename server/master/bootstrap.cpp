@@ -19,6 +19,8 @@
 
 #include <yp/server/access_control/access_control_manager.h>
 
+#include <yp/server/accounting/accounting_manager.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
@@ -26,7 +28,7 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/core/http/server.h>
 
@@ -69,6 +71,7 @@ using namespace NServer::NNet;
 using namespace NServer::NNodes;
 using namespace NServer::NScheduler;
 using namespace NServer::NAccessControl;
+using namespace NServer::NAccounting;
 using namespace NServer::NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +122,11 @@ public:
         return NodeTracker_;
     }
 
+    const TSchedulerPtr& GetScheduler()
+    {
+        return Scheduler_;
+    }
+
     const TResourceManagerPtr& GetResourceManager()
     {
         return ResourceManager_;
@@ -127,6 +135,11 @@ public:
     const TAccessControlManagerPtr& GetAccessControlManager()
     {
         return AccessControlManager_;
+    }
+
+    const TAccountingManagerPtr& GetAccountingManager()
+    {
+        return AccountingManager_;
     }
 
     const TAuthenticationManagerPtr& GetAuthenticationManager()
@@ -188,6 +201,7 @@ private:
     TNodeTrackerPtr NodeTracker_;
     TResourceManagerPtr ResourceManager_;
     TAccessControlManagerPtr AccessControlManager_;
+    TAccountingManagerPtr AccountingManager_;
     TAuthenticationManagerPtr AuthenticationManager_;
     TSchedulerPtr Scheduler_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
@@ -261,6 +275,7 @@ private:
         NodeTracker_ = New<TNodeTracker>(Bootstrap_, Config_->NodeTracker);
         ResourceManager_ = New<TResourceManager>(Bootstrap_);
         AccessControlManager_ = New<TAccessControlManager>(Bootstrap_, Config_->AccessControlManager);
+        AccountingManager_ = New<TAccountingManager>(Bootstrap_, Config_->AccountingManager);
         AuthenticationManager_ = New<TAuthenticationManager>(
             Config_->AuthenticationManager,
             GetWorkerPoolInvoker(),
@@ -270,6 +285,7 @@ private:
         YTConnector_->Initialize();
         ObjectManager_->Initialize();
         AccessControlManager_->Initialize();
+        AccountingManager_->Initialize();
         Scheduler_->Initialize();
 
         MonitoringManager_ = New<NMonitoring::TMonitoringManager>();
@@ -421,6 +437,11 @@ const TNodeTrackerPtr& TBootstrap::GetNodeTracker()
     return Impl_->GetNodeTracker();
 }
 
+const TSchedulerPtr& TBootstrap::GetScheduler()
+{
+    return Impl_->GetScheduler();
+}
+
 const TResourceManagerPtr& TBootstrap::GetResourceManager()
 {
     return Impl_->GetResourceManager();
@@ -429,6 +450,11 @@ const TResourceManagerPtr& TBootstrap::GetResourceManager()
 const TAccessControlManagerPtr& TBootstrap::GetAccessControlManager()
 {
     return Impl_->GetAccessControlManager();
+}
+
+const TAccountingManagerPtr& TBootstrap::GetAccountingManager()
+{
+    return Impl_->GetAccountingManager();
 }
 
 const TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager()

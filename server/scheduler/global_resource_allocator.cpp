@@ -149,13 +149,13 @@ TErrorOr<TNode*> TGlobalResourceAllocator::ComputeAllocation(TPod* pod)
         return nullptr;
     }
 
-    const auto& cache = nodeSegment->GetNodeLabelFilterCache();
+    const auto& cache = nodeSegment->GetSchedulableNodeLabelFilterCache();
 
     const auto& allSegmentNodesOrError = cache->GetFilteredObjects(TString());
     YCHECK(allSegmentNodesOrError.IsOK());
     const auto& allSegmentNodes = allSegmentNodesOrError.Value();
     if (allSegmentNodes.empty()) {
-        return TError("No alive nodes in segment %Qv",
+        return TError("No schedulable nodes in segment %Qv",
             nodeSegment->GetId());
     }
 

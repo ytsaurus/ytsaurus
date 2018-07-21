@@ -113,7 +113,10 @@ private:
         transaction->ScheduleValidateNodeResources(node);
     }
 
-    static void InitializeSpec(const TTransactionPtr& /*transaction*/, TNode* node, NClient::NApi::NProto::TNodeSpec* spec)
+    static void InitializeSpec(
+        const TTransactionPtr& /*transaction*/,
+        TNode* node,
+        NClient::NApi::NProto::TNodeSpec* spec)
     {
         if (!spec->has_short_name()) {
             spec->set_short_name(BuildDefaultShortNodeName(node->GetId()));
@@ -126,7 +129,10 @@ private:
         }
     }
 
-    static void ValidateSpec(const NClient::NApi::NProto::TNodeSpec& spec)
+    static void ValidateSpec(
+        const TTransactionPtr& /*transaction*/,
+        TNode* /*node*/,
+        const NClient::NApi::NProto::TNodeSpec& spec)
     {
         ValidateNodeShortName(spec.short_name());
         for (const auto& subnet : spec.ip6_subnets()) {

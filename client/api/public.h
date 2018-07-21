@@ -35,6 +35,8 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidTransactionId)        (100008))
     ((InvalidObjectState)          (100009))
     ((NoSuchTransaction)           (100010))
+    ((UserBanned)                  (100011))
+    ((AccountLimitExceeded)        (100012))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

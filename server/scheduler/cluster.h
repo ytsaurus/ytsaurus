@@ -21,14 +21,18 @@ public:
     std::vector<TNode*> GetNodes();
     TNode* FindNode(const TObjectId& id);
     TNode* GetNodeOrThrow(const TObjectId& id);
-    int GetNodeCount();
 
     std::vector<TPod*> GetPods();
     TPod* FindPod(const TObjectId& id);
     TPod* GetPodOrThrow(const TObjectId& id);
-    int GetPodCount();
+
+    std::vector<TNodeSegment*> GetNodeSegments();
+    TNodeSegment* FindNodeSegment(const TObjectId& id);
+    TNodeSegment* GetNodeSegmentOrThrow(const TObjectId& id);
 
     std::vector<TInternetAddress*> GetInternetAddresses();
+    
+    std::vector<TAccount*> GetAccounts();
 
     void LoadSnapshot();
 

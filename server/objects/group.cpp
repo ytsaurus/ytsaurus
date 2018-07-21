@@ -25,6 +25,11 @@ EObjectType TGroup::GetType() const
     return EObjectType::Group;
 }
 
+bool TGroup::IsBuiltin() const
+{
+    return GetId() == SuperusersGroupId;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjects

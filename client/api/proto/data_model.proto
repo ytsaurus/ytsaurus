@@ -54,6 +54,9 @@ enum EObjectType
     OT_INTERNET_ADDRESS = 11
     [(NYT.NYson.NProto.enum_value_name) = "internet_address"];
 
+    OT_ACCOUNT = 12
+    [(NYT.NYson.NProto.enum_value_name) = "account"];
+
     OT_SCHEMA = 256
     [(NYT.NYson.NProto.enum_value_name) = "schema"];
 }
@@ -97,6 +100,9 @@ enum EAccessControlPermission
 
     ACA_ROOT_SSH_ACCESS = 5
     [(NYT.NYson.NProto.enum_value_name) = "root_ssh_access"];
+
+    ACA_USE = 6
+    [(NYT.NYson.NProto.enum_value_name) = "use"];
 }
 
 message TAccessControlEntry
@@ -109,6 +115,38 @@ message TAccessControlEntry
 
     // List of subjects (users and groups) this entry applies to.
     repeated string subjects = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPerSegmentResourceTotals
+{
+    message TMemoryTotals
+    {
+        // In bytes.
+        optional int64 capacity = 1;
+    }
+
+    message TCpuTotals
+    {
+        // In VCPU units.
+        optional int64 capacity = 1;
+    }
+
+    message TDiskTotals
+    {
+        // In bytes.
+        optional int64 capacity = 1;
+    }
+
+    optional TMemoryTotals memory = 1;
+    optional TMemoryTotals cpu = 2;
+    map<string, TDiskTotals> disk_per_storage_class = 3;
+}
+
+message TResourceTotals
+{
+    map<string, TPerSegmentResourceTotals> per_segment = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +178,9 @@ message TSchema
 
 enum EResourceKind
 {
+    RK_UNDEFINED = -1
+    [(NYT.NYson.NProto.enum_value_name) = "undefined"];
+
     RK_CPU = 0
     [(NYT.NYson.NProto.enum_value_name) = "cpu"];
 
@@ -172,11 +213,6 @@ message TResourceMeta
 
 message TResourceSpec
 {
-    // TODO(babenko): deprecate
-    optional EResourceKind kind = 1;
-    // TODO(babenko): deprecate
-    optional uint64 total_capacity = 2;
-
     message TCpuSpec
     {
         // In VCPU units.
@@ -880,6 +916,9 @@ message TPodSetSpec
 
     // Specifies a node segment where all pods of this pod set must be scheduled to.
     optional string node_segment_id = 2;
+
+    // Account that must be charged for this podset.
+    optional string account_id = 3;
 }
 
 message TPodSetStatus
@@ -1008,7 +1047,12 @@ message TNodeSegmentSpec
 }
 
 message TNodeSegmentStatus
-{ }
+{
+    // Aggregates for all nodes belonging to this segment, regardless of their HFSM state.
+    optional TPerSegmentResourceTotals total_resources = 1;
+    // Aggreates for all nodes belonging to this segment and having "up" HFSM state.
+    optional TPerSegmentResourceTotals schedulable_resources = 2;
+}
 
 message TNodeSegment
 {
@@ -1062,7 +1106,10 @@ message TUserMeta
 }
 
 message TUserSpec
-{ }
+{
+    // If true, user is forbidden from accessing the cluster.
+    optional bool banned = 1;
+}
 
 message TUserStatus
 { }
@@ -1112,6 +1159,8 @@ message TInternetAddressMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
 }
 
 message TInternetAddressSpec
@@ -1130,6 +1179,38 @@ message TInternetAddress
     optional TInternetAddressMeta meta = 1;
     optional TInternetAddressSpec spec = 2;
     optional TInternetAddressStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccountMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TAccountSpec
+{
+    optional string parent_id = 1;
+    optional TResourceTotals resource_limits = 2;
+}
+
+message TAccountStatus
+{
+    optional TResourceTotals resource_usage = 1;
+    optional TResourceTotals immediate_resource_usage = 2;
+}
+
+message TAccount
+{
+    optional TAccountMeta meta = 1;
+    optional TAccountSpec spec = 2;
+    optional TAccountStatus status = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

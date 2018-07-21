@@ -1,6 +1,6 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YtResponseError
 
 @pytest.mark.usefixtures("yp_env")
 class TestNodes(object):
@@ -15,7 +15,7 @@ class TestNodes(object):
     def test_invalid_ip6_subnet(self, yp_env):
         yp_client = yp_env.yp_client
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.create_object(object_type="node", attributes={
                 "spec": {
                     "ip6_subnets": [
@@ -25,7 +25,7 @@ class TestNodes(object):
     def test_invalid_ip6_address(self, yp_env):
         yp_client = yp_env.yp_client
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.create_object(object_type="node", attributes={
                 "spec": {
                     "ip6_addresses": [
@@ -46,7 +46,7 @@ class TestNodes(object):
             }
         })
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.remove_object("node", node_id)
         yp_client.remove_object("pod", pod_id)
         yp_client.remove_object("node", node_id)

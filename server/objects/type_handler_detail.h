@@ -8,7 +8,7 @@
 
 #include <yp/server/access_control/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 namespace NYP {
 namespace NServer {

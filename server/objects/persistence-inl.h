@@ -3,7 +3,7 @@
 #error "Direct inclusion of this file is not allowed, include persistence.h"
 #endif
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/yson/protobuf_interop.h>
 
@@ -345,8 +345,7 @@ const T& TScalarAttribute<T>::Load() const
     if (NewValue_) {
         return *NewValue_;
     }
-    OnLoad();
-    return *OldValue_;
+    return LoadOld();
 }
 
 template <class T>
@@ -358,8 +357,24 @@ TScalarAttribute<T>::operator const T&() const
 template <class T>
 const T& TScalarAttribute<T>::LoadOld() const
 {
-    OnLoad();
-    return *OldValue_;
+    switch (Owner_->GetState()) {
+        case EObjectState::Instantiated:
+        case EObjectState::Removing:
+        case EObjectState::Removed:
+            OnLoad();
+            return *OldValue_;
+
+        case EObjectState::Creating:
+        case EObjectState::Created:
+        case EObjectState::CreatedRemoving:
+        case EObjectState::CreatedRemoved: {
+            static const T Default{};
+            return Default;
+        }
+
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 template <class T>

@@ -1,4 +1,5 @@
 #include "type_handler_detail.h"
+#include "helpers.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -127,13 +128,16 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
 
     const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
     object->InheritAcl() = true;
-    NClient::NApi::NProto::TAccessControlEntry ace;
-    ace.set_action(NClient::NApi::NProto::ACA_ALLOW);
-    for (auto permission : GetDefaultPermissions()) {
-        ace.add_permissions(static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission));
+    auto permissions = GetDefaultPermissions();
+    if (!permissions.empty()) {
+        NClient::NApi::NProto::TAccessControlEntry ace;
+        ace.set_action(NClient::NApi::NProto::ACA_ALLOW);
+        for (auto permission : GetDefaultPermissions()) {
+            ace.add_permissions(static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission));
+        }
+        ace.add_subjects(accessControlManager->GetAuthenticatedUser());
+        object->Acl()->push_back(std::move(ace));        
     }
-    ace.add_subjects(accessControlManager->GetAuthenticatedUser());
-    object->Acl()->push_back(std::move(ace));
 }
 
 void TObjectTypeHandlerBase::AfterObjectCreated(
@@ -143,8 +147,14 @@ void TObjectTypeHandlerBase::AfterObjectCreated(
 
 void TObjectTypeHandlerBase::BeforeObjectRemoved(
     const TTransactionPtr& /*transaction*/,
-    TObject* /*object*/)
-{ }
+    TObject* object)
+{
+    if (object->IsBuiltin()) {
+        THROW_ERROR_EXCEPTION("Cannot remove built-in %v %Qv",
+            GetCapitalizedHumanReadableTypeName(object->GetType()),
+            object->GetId());
+    }
+}
 
 void TObjectTypeHandlerBase::AfterObjectRemoved(
     const TTransactionPtr& /*transaction*/,

@@ -2,7 +2,7 @@ import pytest
 
 from yt.yson import YsonEntity
 
-from yp.client import YpResponseError
+from yp.common import YtResponseError
 
 @pytest.mark.usefixtures("yp_env")
 class TestAnnotations(object):
@@ -34,12 +34,12 @@ class TestAnnotations(object):
 
         yp_client.commit_transaction(tx_id)
         assert yp_client.get_object("pod_set", id, selectors=["/annotations/a"]) == [[1, 2]]
-    
+
     def test_set_recursive(self, yp_env):
         yp_client = yp_env.yp_client
 
         id = yp_client.create_object("pod_set")
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.update_object("pod_set", id, set_updates=[{"path": "/annotations/a/b", "value": 123}])
         yp_client.update_object("pod_set", id, set_updates=[{"path": "/annotations/a/b", "value": 123, "recursive": True}])
         assert yp_client.get_object("pod_set", id, selectors=["/annotations/a"]) == [{"b": 123}]
@@ -106,5 +106,5 @@ class TestAnnotations(object):
         yp_client.update_object("pod_set", id, set_updates=[{"path": "/annotations", "value": {"hello": "yp"}}], transaction_id=tx_id)
         yp_client.update_object("pod_set", id, set_updates=[{"path": "/annotations/extra", "value": "value2"}], transaction_id=tx_id)
         yp_client.commit_transaction(tx_id)
-        
+
         assert yp_client.get_object("pod_set", id, selectors=["/annotations"]) == [{"hello": "yp", "extra": "value2"}]

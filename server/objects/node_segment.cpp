@@ -13,6 +13,11 @@ const TScalarAttributeSchema<TNodeSegment, TNodeSegment::TSpec> TNodeSegment::Sp
     [] (TNodeSegment* segment) { return &segment->Spec(); }
 };
 
+const TScalarAttributeSchema<TNodeSegment, TNodeSegment::TStatus> TNodeSegment::StatusSchema{
+    &NodeSegmentsTable.Fields.Status,
+    [] (TNodeSegment* segment) { return &segment->Status(); }
+};
+
 const TOneToManyAttributeSchema<TNodeSegment, TPodSet> TNodeSegment::PodSetsSchema{
     &NodeSegmentToPodSetsTable,
     &NodeSegmentToPodSetsTable.Fields.NodeSegmentId,
@@ -27,6 +32,7 @@ TNodeSegment::TNodeSegment(
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
     , Spec_(this, &SpecSchema)
+    , Status_(this, &StatusSchema)
     , PodSets_(this, &PodSetsSchema)
 { }
 

@@ -22,6 +22,8 @@ public:
         const TResourceCapacities& allocatedCapacities);
     TResourceBase(const TResourceBase&) = default;
 
+    const TResourceCapacities& GetTotalCapacities() const;
+
 protected:
     TResourceCapacities TotalCapacities_ = {};
     TResourceCapacities AllocatedCapacities_ = {};
@@ -57,6 +59,8 @@ public:
         bool usedExclusively,
         const TResourceCapacities& allocatedCapacities);
     TDiskResource(const TDiskResource&) = default;
+
+    const TString& GetStorageClass() const;
 
     bool TryAllocate(
         bool exclusive,

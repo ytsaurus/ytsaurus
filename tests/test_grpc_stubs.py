@@ -11,7 +11,7 @@ import yt.yson as yson
 class TestGrpcStubs(object):
     def _test_some_methods(self, yp_client):
         object_stub = yp_client.create_grpc_object_stub()
-        
+
         req = object_service_pb2.TReqCreateObject()
         req.object_type = data_model_pb2.OT_POD_SET
         rsp = object_stub.CreateObject(req)

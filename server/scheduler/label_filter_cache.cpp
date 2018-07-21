@@ -13,7 +13,7 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/folding_profiler.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 namespace NYP {
 namespace NServer {

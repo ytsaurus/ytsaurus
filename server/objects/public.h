@@ -14,7 +14,14 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
-///////////////////////////////////////et_/////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TPodSpecOther;
+class TPodStatusOther;
+
+} // namespace NProto
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
@@ -63,6 +70,7 @@ class TUser;
 class TGroup;
 class TSchema;
 class TInternetAddress;
+class TAccount;
 
 class TAttributeSchema;
 
@@ -93,14 +101,14 @@ class TChildrenAttributeBase;
 class TAnnotationsAttribute;
 
 DEFINE_ENUM(EObjectState,
-    (Normal)
+    (Unknown)
+    (Instantiated)
     (Creating)
     (Created)
     (Removing)
     (Removed)
     (CreatedRemoving)
     (CreatedRemoved)
-    (Missing)
 );
 
 // Must be kept in sync with protos
@@ -118,6 +126,7 @@ DEFINE_ENUM(EObjectType,
     ((User)            (9))
     ((Group)          (10))
     ((InternetAddress)(11))
+    ((Account)        (12))
     ((Schema)        (256))
 );
 
@@ -135,6 +144,7 @@ DEFINE_ENUM(EPodTargetState,
 );
 
 DEFINE_ENUM(EResourceKind,
+    ((Undefined)      (-1))
     ((Cpu)             (0))
     ((Memory)          (1))
     ((Disk)            (2))
@@ -187,6 +197,18 @@ using NMaster::TMasterInstanceTag;
 
 using NYT::NTransactionClient::TTimestamp;
 using NYT::NTransactionClient::NullTimestamp;
+
+// Built-in users.
+extern const TObjectId RootUserId;
+
+// Built-in groups.
+extern const TObjectId SuperusersGroupId;
+
+// Built-in accounts.
+extern const TObjectId TmpAccountId;
+
+// Pseudo-subjects.
+extern const TObjectId EveryoneSubjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

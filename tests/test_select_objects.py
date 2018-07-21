@@ -1,13 +1,13 @@
 import pytest
 
-from yp.client import YpResponseError
+from yp.common import YtResponseError, YpInvalidObjectTypeError
 
 @pytest.mark.usefixtures("yp_env")
 class TestSelectObjects(object):
     def test_select_null(self, yp_env):
         yp_client = yp_env.yp_client
 
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YpInvalidObjectTypeError):
             yp_client.select_objects("null", selectors=["/meta"])
 
     def test_select_limit(self, yp_env):
@@ -19,7 +19,7 @@ class TestSelectObjects(object):
         assert len(yp_client.select_objects("node", selectors=["/meta/id"])) == 10
         assert len(yp_client.select_objects("node", selectors=["/meta/id"], limit=5)) == 5
         assert len(yp_client.select_objects("node", selectors=["/meta/id"], limit=0)) == 0
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.select_objects("node", selectors=["/meta/id"], limit=-10)
 
     def test_select_offset(self, yp_env):
@@ -33,7 +33,7 @@ class TestSelectObjects(object):
         assert len(yp_client.select_objects("node", selectors=["/meta/id"], offset=10)) == 0
         assert len(yp_client.select_objects("node", selectors=["/meta/id"], offset=2)) == 8
         assert len(yp_client.select_objects("node", selectors=["/meta/id"], offset=0)) == 10
-        with pytest.raises(YpResponseError):
+        with pytest.raises(YtResponseError):
             yp_client.select_objects("node", selectors=["/meta/id"], offset=-10)
 
     def test_select_paging(self, yp_env):

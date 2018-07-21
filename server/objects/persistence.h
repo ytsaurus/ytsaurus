@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/range.h>
@@ -241,7 +241,7 @@ private:
 
     bool CheckScheduled_ = false;
     bool Checked_ = false;
-    bool Exists_;
+    bool Exists_ = false;
 
     void LoadFromDB(ILoadContext* context);
     void StoreToDB(IStoreContext* context);
@@ -404,14 +404,14 @@ struct TScalarAttributeSchema
         return result;
     }
 
-    TScalarAttributeSchema SetValidator(std::function<void(const TTypedValue&, const TTypedValue&)> validator) const
+    TScalarAttributeSchema SetValidator(std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&, const TTypedValue&)> validator) const
     {
         auto result = *this;
         result.OldNewValueValidator = std::move(validator);
         return result;
     }
 
-    TScalarAttributeSchema SetValidator(std::function<void(const TTypedValue&)> validator) const
+    TScalarAttributeSchema SetValidator(std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&)> validator) const
     {
         auto result = *this;
         result.NewValueValidator = std::move(validator);
@@ -421,8 +421,8 @@ struct TScalarAttributeSchema
 
     std::function<TScalarAttribute<TTypedValue>*(TTypedObject*)> AttributeGetter;
     std::function<void(const TTransactionPtr&, TTypedObject*, TTypedValue*)> Initializer;
-    std::function<void(const TTypedValue&, const TTypedValue&)> OldNewValueValidator;
-    std::function<void(const TTypedValue&)> NewValueValidator;
+    std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&, const TTypedValue&)> OldNewValueValidator;
+    std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&)> NewValueValidator;
 };
 
 template <class T>
