@@ -1610,7 +1610,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         }
 
         case EJobState::Failed: {
-            auto error = FromProto<TError>(jobStatus->result().error());
+            auto error = FromProto<TError>(jobStatus->result().error()).Truncate();
             LOG_DEBUG(error, "Job failed, storage scheduled");
             AddRecentlyFinishedJob(job);
             OnJobFailed(job, jobStatus);
@@ -1619,7 +1619,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         }
 
         case EJobState::Aborted: {
-            auto error = FromProto<TError>(jobStatus->result().error());
+            auto error = FromProto<TError>(jobStatus->result().error()).Truncate();
             LOG_DEBUG(error, "Job aborted, storage scheduled");
             AddRecentlyFinishedJob(job);
             if (job->GetPreempted() &&
