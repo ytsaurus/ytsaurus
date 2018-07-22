@@ -152,7 +152,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::TSkiffSchemaPtr schema, boo
             break;
         }
         case NSkiff::EWireType::String32: {
-            if (!value.isString()) {
+            if (!(PyBytes_Check(value.ptr()) || PyUnicode_Check(value.ptr()))) {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord")
                     << TErrorAttribute("expected_type", "string")
                     << TErrorAttribute("value", TString(value.as_string()));
