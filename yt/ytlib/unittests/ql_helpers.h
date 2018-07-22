@@ -11,8 +11,7 @@
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/client/table_client/helpers.h>
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
