@@ -19,7 +19,7 @@ IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying);
 
 bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp);
 
-THashMap<TString, TString> ParseCookies(const TStringBuf& cookies);
+THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 
 ////////////////////////////////////////////////////////////////////////////////
 
