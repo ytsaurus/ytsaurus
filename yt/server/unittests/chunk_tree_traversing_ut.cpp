@@ -13,7 +13,8 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/helpers.h>
+
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/core/actions/invoker_util.h>
 

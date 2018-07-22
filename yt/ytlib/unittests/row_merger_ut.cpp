@@ -5,7 +5,6 @@
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
@@ -21,6 +20,7 @@
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>

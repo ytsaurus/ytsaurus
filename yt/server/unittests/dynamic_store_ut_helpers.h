@@ -20,12 +20,13 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/writer.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/client/table_client/helpers.h>
+
+#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
