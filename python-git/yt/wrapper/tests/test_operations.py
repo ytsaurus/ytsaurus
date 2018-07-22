@@ -1486,7 +1486,7 @@ print(op.id)
 
         assert result[2][1] == 2
 
-        with pytest.raises(KeyError):
+        with pytest.raises(LookupError):
             result[2]["t"]
 
         yt.run_map(mapper, table, table, format=format)
