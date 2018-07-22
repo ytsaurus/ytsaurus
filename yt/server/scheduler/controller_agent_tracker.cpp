@@ -534,6 +534,8 @@ private:
         auto statusHolder = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
         if (status) {
             statusHolder->CopyFrom(*status);
+            auto truncatedError = FromProto<TError>(status->result().error()).Truncate();
+            ToProto(statusHolder->mutable_result()->mutable_error(), truncatedError);
         }
         ToProto(statusHolder->mutable_job_id(), job->GetId());
         ToProto(statusHolder->mutable_operation_id(), job->GetOperationId());
