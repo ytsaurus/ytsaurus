@@ -182,7 +182,7 @@ TError TError::Sanitize() const
         result.Attributes_ = std::move(attributes);
     }
 
-    for (auto& innerError : InnerErrors_) {
+    for (const auto& innerError : InnerErrors_) {
         result.InnerErrors_.push_back(innerError.Sanitize());
     }
 
@@ -197,7 +197,7 @@ TError TError::Truncate() const
     result.Attributes_ = Attributes_->Clone();
 
     if (InnerErrors_.size() <= 2) {
-        for (auto& innerError : InnerErrors_) {
+        for (const auto& innerError : InnerErrors_) {
             result.InnerErrors_.push_back(innerError.Truncate());
         }
     } else {
