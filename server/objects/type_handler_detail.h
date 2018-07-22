@@ -55,6 +55,8 @@ protected:
     NMaster::TBootstrap* const Bootstrap_;
     const EObjectType Type_;
 
+    const TObjectId SchemaId_;
+
     std::vector<std::unique_ptr<TAttributeSchema>> AttributeSchemas_;
     TAttributeSchema* RootAttributeSchema_ = nullptr;
     TAttributeSchema* IdAttributeSchema_ = nullptr;
@@ -70,6 +72,7 @@ protected:
 
 protected:
     virtual std::vector<NAccessControl::EAccessControlPermission> GetDefaultPermissions();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

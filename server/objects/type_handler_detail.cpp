@@ -24,6 +24,7 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
     EObjectType type)
     : Bootstrap_(bootstrap)
     , Type_(type)
+    , SchemaId_(FormatEnum(Type_))
 {
     RootAttributeSchema_ = MakeAttributeSchema(TString())
         ->AddChildren({
@@ -100,9 +101,8 @@ TObject* TObjectTypeHandlerBase::GetAccessControlParent(TObject* object)
     if (GetType() == EObjectType::Schema) {
         return nullptr;
     }
-    static const auto SchemaId = FormatEnum(GetType());
     auto* session = object->GetSession();
-    return session->GetObject(EObjectType::Schema, SchemaId);
+    return session->GetObject(EObjectType::Schema, SchemaId_);
 }
 
 TAttributeSchema* TObjectTypeHandlerBase::GetIdAttributeSchema()

@@ -5,58 +5,12 @@ from yt.yson import YsonEntity, YsonUint64
 from yt.environment.helpers import wait
 from collections import defaultdict
 
-ALL_NODES_SEGMENT = "all"
-TEST_ACCOUNT = "test"
 DEFAULT_POD_SET_SPEC = {
-        "account_id": TEST_ACCOUNT,
-        "node_segment_id": ALL_NODES_SEGMENT
+        "account_id": "tmp",
+        "node_segment_id": "default"
     }
 
-@pytest.fixture(scope="function")
-def yp_env_scheduler(request, yp_env):
-    yp_client = yp_env.yp_client
-
-    yp_client.create_object("node_segment", attributes={
-            "meta": {"id": ALL_NODES_SEGMENT},
-            "spec": {"node_filter": "0=0"}
-        })
-    yp_client.create_object("account", attributes={
-            "meta": {"id": TEST_ACCOUNT},
-            "spec": {
-                "resource_limits": {
-                    "per_segment": [
-                        {
-                            "key": ALL_NODES_SEGMENT,
-                            "value": {
-                                "cpu": {
-                                    "capacity": 1000
-                                },
-                                "memory": {
-                                    "capacity": 1000000000
-                                },
-                                "disk_per_storage_class": [
-                                    {
-                                        "key": "hdd",
-                                        "value": {
-                                            "capacity": 10000000000
-                                        }
-                                    },
-                                    {
-                                        "key": "ssd",
-                                        "value": {
-                                            "capacity": 10000000000
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }
-        })
-    return yp_env
-
-@pytest.mark.usefixtures("yp_env_scheduler")
+@pytest.mark.usefixtures("yp_env")
 class TestScheduler(object):
     def _create_nodes(self, yp_env, node_count, rack_count = 1, hfsm_state="up"):
         yp_client = yp_env.yp_client

@@ -39,6 +39,8 @@ public:
     static const TOneToManyAttributeSchema<TNodeSegment, TPodSet> PodSetsSchema;
     using TPodSets = TOneToManyAttribute<TNodeSegment, TPodSet>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSets, PodSets);
+
+    virtual bool IsBuiltin() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,6 +41,11 @@ EObjectType TNodeSegment::GetType() const
     return EObjectType::NodeSegment;
 }
 
+bool TNodeSegment::IsBuiltin() const
+{
+    return GetId() == DefaultNodeSegmentId;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjects

@@ -111,6 +111,8 @@ def test_method_teardown(yp_env):
                 continue
             if object_type == "account" and object_id == "tmp":
                 continue
+            if object_type == "node_segment" and object_id == "default":
+                continue
             yp_client.remove_object(object_type, object_id)
 
 
