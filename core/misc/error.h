@@ -88,6 +88,8 @@ public:
 
     TError Sanitize() const;
 
+    TError Truncate() const;
+
     bool IsOK() const;
 
     void ThrowOnError() const;

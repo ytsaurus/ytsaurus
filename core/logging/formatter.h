@@ -25,13 +25,16 @@ private:
     NProfiling::TCpuInstant Liveline_ = 0;
 };
 
-class ILogFormatter
+////////////////////////////////////////////////////////////////////////////////
+
+struct ILogFormatter
 {
-public:
-    virtual ~ILogFormatter() {}
+    virtual ~ILogFormatter() = default;
     virtual void WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPlainTextLogFormatter
     : public ILogFormatter
@@ -46,6 +49,8 @@ private:
     std::unique_ptr<TMessageBuffer> Buffer_;
     std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TJsonLogFormatter
     : public ILogFormatter
