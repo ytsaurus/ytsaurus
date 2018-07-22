@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CreateYtVersion(int major, int minor, int patch, const TStringBuf& branch) {
+TString CreateYtVersion(int major, int minor, int patch, TStringBuf branch) {
     TStringStream out;
     out << major << "." << minor << "." << patch;
     out << "-" << branch;
