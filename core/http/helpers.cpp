@@ -136,7 +136,7 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
     return false;
 }
 
-THashMap<TString, TString> ParseCookies(const TStringBuf& cookies)
+THashMap<TString, TString> ParseCookies(TStringBuf cookies)
 {
     THashMap<TString, TString> map;
     size_t index = 0;

@@ -182,8 +182,31 @@ TError TError::Sanitize() const
         result.Attributes_ = std::move(attributes);
     }
 
-    for (auto& innerError : InnerErrors_) {
+    for (const auto& innerError : InnerErrors_) {
         result.InnerErrors_.push_back(innerError.Sanitize());
+    }
+
+    return result;
+}
+
+TError TError::Truncate() const
+{
+    TError result;
+    result.Code_ = Code_;
+    result.Message_ = Message_;
+    if (Attributes_) {
+        result.Attributes_ = Attributes_->Clone();
+    }
+
+    if (InnerErrors_.size() <= 2) {
+        for (const auto& innerError : InnerErrors_) {
+            result.InnerErrors_.push_back(innerError.Truncate());
+        }
+    } else {
+        // NB: Attributes_ could be nullptr
+        result.Attributes().Set("inner_errors_truncated", true);
+        result.InnerErrors_.push_back(InnerErrors_.front().Truncate());
+        result.InnerErrors_.push_back(InnerErrors_.back().Truncate());
     }
 
     return result;
