@@ -126,8 +126,9 @@ struct TNetworkInterfaceStatistics
     TTransmitStatistics Tx;
 };
 
-//! Return mapping from interface name to network statistics.
-THashMap<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics();
+using TNetworkInterfaceStatisticsMap = THashMap<TString, TNetworkInterfaceStatistics>();
+//! Returns a mapping from interface name to network statistics.
+TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 

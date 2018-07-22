@@ -368,7 +368,14 @@ std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes(const
 
 void TPeerBlockDistributor::UpdateTransmittedBytes()
 {
-    auto interfaceToStatistics = GetNetworkInterfaceStatistics();
+    TNetworkInterfaceStatisticsMap interfaceToStatistics;
+    try {
+        interfaceToStatistics = GetNetworkInterfaceStatistics();
+    } catch (const std::exception& ex) {
+        LOG_WARNING(ex, "Error getting network interface statistics");
+        return;
+    }
+
     TransmittedBytes_ = 0;
     for (const auto& pair : interfaceToStatistics) {
         const auto& interface = pair.first;
