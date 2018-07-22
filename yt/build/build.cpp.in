@@ -29,7 +29,7 @@ Y_WEAK int GetVersionPatch()
 
 Y_WEAK const char* GetVersion()
 {
-    static TString version = CreateYTVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
+    static auto version = CreateYTVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
     return version.c_str();
 }
 
