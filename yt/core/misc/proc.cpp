@@ -913,7 +913,7 @@ bool HasRootPermissions()
 #endif
 }
 
-THashMap<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
+TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
 {
 #ifdef _linux_
     // According to https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
@@ -924,7 +924,7 @@ THashMap<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics()
     // First two lines are header.
     Y_UNUSED(procNetDev.ReadLine());
     Y_UNUSED(procNetDev.ReadLine());
-    THashMap<TString, TNetworkInterfaceStatistics> interfaceToStatistics;
+    TNetworkInterfaceStatisticsMap interfaceToStatistics;
     for (TString line; procNetDev.ReadLine(line) != 0; ) {
         TNetworkInterfaceStatistics statistics;
         auto lineParts = SplitStringBySet(line.data(), ": ");
