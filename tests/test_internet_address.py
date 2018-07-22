@@ -31,18 +31,9 @@ class TestInternetAddresses(object):
             }
         })
 
-        yp_client.create_object("node_segment", attributes={
-            "meta": {
-                "id": "all"
-            },
-            "spec": {
-                "node_filter": "0=0"
-            }
-        })
-
         pod_set_id = yp_client.create_object("pod_set", attributes={
             "spec": {
-                "node_segment_id": "all"
+                "node_segment_id": "default"
             }
         })
 
