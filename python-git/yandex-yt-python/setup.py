@@ -13,11 +13,12 @@ def main():
         with open("stable_versions") as fin:
             stable_versions = fin.read().split("\n")
 
-    if version not in stable_versions:
-        version = version + "a1"
-
+    # NB: version in package should be without alpha suffix.
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
+
+    if version not in stable_versions:
+        version = version + "a1"
 
     binaries = [
         "yt/wrapper/bin/mapreduce-yt",
