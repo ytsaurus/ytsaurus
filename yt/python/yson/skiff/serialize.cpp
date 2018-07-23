@@ -3,6 +3,7 @@
 #include "record.h"
 #include "switch.h"
 #include "../serialize.h"
+#include "../helpers.h"
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
@@ -24,6 +25,7 @@ void SerializeField(
     NSkiff::TSkiffSchemaPtr schema,
     const Py::Object& object,
     bool required,
+    const TNullable<TString>& encoding,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter)
 {
     if (!required) {
@@ -62,7 +64,7 @@ void SerializeField(
             break;
         }
         case NSkiff::EWireType::String32: {
-            auto value = ConvertToStringBuf(object);
+            auto value = ConvertToStringBuf(EncodeStringObject(object, encoding));
             skiffWriter->WriteString32(value);
             break;
         }
@@ -88,7 +90,7 @@ void SerializeSkiff(
         const auto& fieldInfo = schema->GetDenceField(idx);
         const auto& object = record->GetDenseField(idx);
 
-        SerializeField(fieldInfo.Name, fieldInfo.DeoptionalizedSchema, object, fieldInfo.Required, skiffWriter);
+        SerializeField(fieldInfo.Name, fieldInfo.DeoptionalizedSchema, object, fieldInfo.Required, encoding, skiffWriter);
     }
 
     if (schema->GetSparseFieldsCount() > 0) {
@@ -101,7 +103,7 @@ void SerializeSkiff(
             }
 
             skiffWriter->WriteVariant16Tag(idx);
-            SerializeField(fieldInfo.Name, fieldInfo.DeoptionalizedSchema, object, true, skiffWriter);
+            SerializeField(fieldInfo.Name, fieldInfo.DeoptionalizedSchema, object, /* required */ true, encoding, skiffWriter);
         }
         skiffWriter->WriteVariant16Tag(NSkiff::EndOfSequenceTag<ui16>());
     }

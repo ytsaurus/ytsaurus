@@ -1,13 +1,11 @@
 #include "serialize.h"
 #include "yson_lazy_map.h"
+#include "helpers.h"
+#include "error.h"
 
 #include <yt/core/misc/finally.h>
 
 namespace NYT {
-
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
 
 using NYson::TToken;
 using NYson::ETokenType;
@@ -16,59 +14,8 @@ using NYson::IYsonConsumer;
 using NYTree::INodePtr;
 using NYTree::ENodeType;
 using NPython::GetYsonTypeClass;
-
-////////////////////////////////////////////////////////////////////////////////
-
-Py::Exception CreateYsonError(const std::string& message, TContext* context)
-{
-    thread_local PyObject* ysonErrorClass = nullptr;
-    if (!ysonErrorClass) {
-        auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), /* owned */ true);
-        ysonErrorClass = PyObject_GetAttrString(ysonModule.ptr(), "YsonError");
-    }
-    Py::Dict attributes;
-    if (context->RowIndex) {
-        attributes.setItem("row_index", Py::Long(context->RowIndex.Get()));
-    }
-
-    bool endedWithDelimiter = false;
-    TStringBuilder builder;
-    for (const auto& pathPart : context->PathParts) {
-        if (pathPart.InAttributes) {
-            YCHECK(!endedWithDelimiter);
-            builder.AppendString("/@");
-            endedWithDelimiter = true;
-        } else {
-            if (!endedWithDelimiter) {
-                builder.AppendChar('/');
-            }
-            if (!pathPart.Key.empty()) {
-                builder.AppendString(pathPart.Key);
-            }
-            if (pathPart.Index != -1) {
-                builder.AppendFormat("%v", pathPart.Index);
-            }
-            endedWithDelimiter = false;
-        }
-    }
-
-    TString contextRowKeyPath = builder.Flush();
-    if (!contextRowKeyPath.empty()) {
-        attributes.setItem("row_key_path", Py::ConvertToPythonString(contextRowKeyPath));
-    }
-
-    Py::Dict options;
-    options.setItem("message", Py::ConvertToPythonString(TString(message)));
-    options.setItem("code", Py::Long(1));
-    options.setItem("attributes", attributes);
-
-    auto ysonError = Py::Callable(ysonErrorClass).apply(Py::Tuple(), options);
-    return Py::Exception(*ysonError.type(), ysonError);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
+using NPython::EncodeStringObject;
+using NPython::CreateYsonError;
 
 namespace NPython {
 
@@ -87,37 +34,6 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& encoding, TContext* context)
-{
-    if (PyUnicode_Check(obj.ptr())) {
-        if (!encoding) {
-            throw CreateYsonError(
-                Format(
-                    "Cannot encode unicode object %s to bytes "
-                    "since 'encoding' parameter is None",
-                    Py::Repr(obj)
-                ),
-                context);
-        }
-        return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), ~encoding.Get(), "strict"), true);
-    } else {
-#if PY_MAJOR_VERSION >= 3
-        if (encoding) {
-            throw CreateYsonError(
-                Format(
-                    "Bytes object %s cannot be encoded to %s. "
-                    "Only unicode strings are expected if 'encoding' "
-                    "parameter is not None",
-                    Py::Repr(obj),
-                    encoding
-                ),
-                context);
-        }
-#endif
-        return Py::Bytes(PyObject_Bytes(*obj), true);
-    }
-}
 
 void SerializeLazyMapFragment(
     const Py::Object& map,

@@ -1,5 +1,6 @@
 SET(YT_SRCS
   error.cpp
+  helpers.cpp
   lazy_dict.cpp
   lazy_dict_producer.cpp
   lazy_list_fragment_parser.cpp

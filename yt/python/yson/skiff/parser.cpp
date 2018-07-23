@@ -1,6 +1,7 @@
 #include "parser.h"
 #include "raw_iterator.h"
 #include "parser_helpers.h"
+#include "../helpers.h"
 
 #include <yt/core/ytree/convert.h>
 
@@ -18,11 +19,12 @@ void TSkiffIterator::Initialize(
     std::unique_ptr<IInputStream> inputStreamOwner,
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
     const TString& rangeIndexColumnName,
-    const TString& rowIndexColumnName)
+    const TString& rowIndexColumnName,
+    const TNullable<TString>& encoding)
 {
     YCHECK(inputStreamOwner.get() == inputStream);
     InputStream_ = inputStream;
-    Consumer_ = std::make_unique<TPythonSkiffRecordBuilder>(pythonSkiffschemaList);
+    Consumer_ = std::make_unique<TPythonSkiffRecordBuilder>(pythonSkiffschemaList, encoding);
     InputStreamOwner_ = std::move(inputStreamOwner);
 
     Parser_ = CreateSkiffMultiTableParser<TPythonSkiffRecordBuilder>(
@@ -62,6 +64,8 @@ Py::Object LoadSkiff(Py::Tuple& args, Py::Dict& kwargs)
         raw = Py::Boolean(arg);
     }
 
+    auto encoding = ParseEncodingArgument(args, kwargs);
+
     ValidateArgumentsEmpty(args, kwargs);
 
     std::vector<Py::PythonClassObject<TSkiffSchemaPython>> pythonSkiffSchemas;
@@ -92,7 +96,8 @@ Py::Object LoadSkiff(Py::Tuple& args, Py::Dict& kwargs)
             std::move(inputStreamHolder),
             pythonSkiffSchemas,
             rangeIndexColumnName,
-            rowIndexColumnName);
+            rowIndexColumnName,
+            encoding);
         return pythonIter;
     }
 }
