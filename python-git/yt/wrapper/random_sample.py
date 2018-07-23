@@ -5,7 +5,7 @@ from .errors import YtError
 from .run_operation_commands import run_merge
 from .shuffle import shuffle_table
 from .table import TempTable, TablePath
-from .table_commands import create_temp_table, read_table, write_table
+from .table_commands import read_table, write_table
 
 import random
 
