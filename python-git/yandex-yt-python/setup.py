@@ -17,7 +17,7 @@ def main():
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
 
-    if version not in stable_versions:
+    if "DEB" not in os.environ and version not in stable_versions:
         version = version + "a1"
 
     binaries = [
