@@ -2,7 +2,7 @@ from .common import forbidden_inside_job
 from .run_operation_commands import run_map_reduce
 
 @forbidden_inside_job
-def shuffle_table(table, sync=True, temp_column_name="__random_number", client=None):
+def shuffle_table(table, sync=True, temp_column_name="__random_number", spec=None, client=None):
     """Shuffles table randomly.
 
     :param table: table.
@@ -22,4 +22,4 @@ def shuffle_table(table, sync=True, temp_column_name="__random_number", client=N
             del row[temp_column_name]
             yield row
 
-    return run_map_reduce(shuffle_mapper, shuffle_reducer, table, table, reduce_by=temp_column_name, sync=sync, client=client)
+    return run_map_reduce(shuffle_mapper, shuffle_reducer, table, table, reduce_by=temp_column_name, sync=sync, spec=spec, client=client)

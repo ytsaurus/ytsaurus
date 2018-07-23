@@ -145,27 +145,21 @@ def download_job_input(operation_id, job_id, job_input_path, mode):
             download_file(output_path, job_input_path)
         finally:
             yt.remove(output_path, force=True)
-    elif mode == "failed":
-        logger.info("Job is failed, using its fail context as local input")
-
-        cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
-        fail_context_path = yt.ypath_join(cypress_job_path, "fail_context")
-        if not yt.exists(fail_context_path):
-            raise yt.YtError("Job input data is missing. Neither input context nor fail context exists")
-
-        download_file(fail_context_path, job_input_path)
-    elif mode == "full":
-        logger.info("Downloading full job input")
-
+    elif mode in ["failed", "full"]:
+        if mode == "failed":
+            logger.info("Job is failed, using its fail context as local input")
+            method = "get_job_fail_context"
+        else:
+            logger.info("Downloading full job input")
+            method = "get_job_input"
         job_input_f = yt.driver.make_request(
-            "get_job_input",
+            method,
             {"operation_id": operation_id, "job_id": job_id},
             return_content=False,
             use_heavy_proxy=True)
         with open(job_input_path, "wb") as out:
             for chunk in chunk_iter_stream(job_input_f, 16 * MB):
                 out.write(chunk)
-
     else:
         raise ValueError("Unknown mode: {0}".format(mode))
 
@@ -286,7 +280,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
 
     file_count = len(attributes["spec"][op_type]["file_paths"])
     for index, file_ in enumerate(attributes["spec"][op_type]["file_paths"]):
-        file_attrs = yt.get(file_ + "/@", attributes=["key", "type"])
+        file_attrs = yt.get(file_ + "&/@", attributes=["key", "type"])
         file_name = file_.attributes.get("file_name", file_attrs.get("key"))
         logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
         destination_path = os.path.join(sandbox_path, file_name)

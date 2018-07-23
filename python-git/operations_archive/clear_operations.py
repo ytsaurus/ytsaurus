@@ -159,6 +159,8 @@ class OperationArchiver(object):
         if self.version >= 17:
             value_columns.append("full_spec")
             value_columns.append("unrecognized_spec")
+        if self.version >= 22:
+            value_columns.append("runtime_parameters")
 
         by_id_row = {}
         for key in index_columns + value_columns:
@@ -198,7 +200,7 @@ class OperationArchiver(object):
                     by_start_time_row[key] = data[key]
 
         if self.version >= 15:
-            by_start_time_row["pool"] = by_id_row["brief_spec"].get("pool")
+            by_start_time_row["pool"] = by_id_row.get("brief_spec", {}).get("pool")
 
         return by_id_row, by_start_time_row
 
@@ -497,7 +499,7 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
         else:
             error = yt.YtResponseError(response.get_error())
             if not error.is_resolve_error():
-                raise
+                raise error
 
     # It is important to make additional existance check due to possible races.
     exists_responses = []

@@ -6,7 +6,7 @@ def list_jobs(operation_id,
               sort_field=None, sort_order=None,
               limit=None, offset=None, with_stderr=None,
               include_cypress=None, include_runtime=None, include_archive=None,
-              client=None):
+              data_source=None, format=None, client=None):
     """List jobs of operation."""
     params = {"operation_id": operation_id}
     set_param(params, "job_type", job_type)
@@ -19,12 +19,21 @@ def list_jobs(operation_id,
     set_param(params, "include_cypress", include_cypress)
     set_param(params, "include_runtime", include_runtime)
     set_param(params, "include_archive", include_archive)
+    set_param(params, "data_source", data_source)
     return make_formatted_request(
         "list_jobs",
         params=params,
-        format=None,
+        format=format,
         client=client)
 
+def get_job(operation_id, job_id, format=None, client=None):
+    """Get job of operation.
+
+    :param str operation_id: operation id.
+    :param str job_id: job id.
+    """
+    params = {"operation_id": operation_id, "job_id": job_id}
+    return make_formatted_request("get_job", params=params, format=format, client=client)
 
 def run_job_shell(job_id, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.

@@ -28,7 +28,7 @@ def mount_table(client, path):
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None, attributes={}):
-        def make_column(name, type_name, expression=None):
+        def make_column(name, type_name):
             return {
                 "name": name,
                 "type": type_name
@@ -128,9 +128,7 @@ class Convert(object):
 
             if client.exists(source_table):
                 table_info.create_table(client, target_table)
-                mapper = self.mapper
-                if not mapper:
-                    mapper = table_info.get_default_mapper()
+                mapper = self.mapper if self.mapper else table_info.get_default_mapper()
                 unmount_table(client, source_table)
 
                 logging.info("Run mapper '%s': %s -> %s", mapper.__name__, source_table, target_table)
@@ -422,9 +420,24 @@ def create_operations_archive_account(client):
     logging.info("Setting account limits %s", limits)
     client.set("//sys/accounts/{0}/@{1}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
 
+def set_operations_archive_account(client):
+    for obj in client.search(BASE_PATH, attributes=["account", "type", "dynamic"]):
+        if obj.attributes["account"] == OPERATIONS_ARCHIVE_ACCOUNT_NAME:
+            continue
+
+        is_dynamic_table = obj.attributes["type"] == "table" and obj.attributes.get("dynamic", False)
+
+        if is_dynamic_table:
+            client.unmount_table(obj, sync=True)
+
+        client.set(obj + "/@account", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
+
+        if is_dynamic_table:
+            client.mount_table(obj, sync=True)
+
 ACTIONS[8] = [
     create_operations_archive_account,
-    ExecAction("yt_set_account.py", BASE_PATH, OPERATIONS_ARCHIVE_ACCOUNT_NAME)
+    set_operations_archive_account
 ]
 
 TRANSFORMS[9] = [
@@ -673,8 +686,7 @@ TRANSFORMS[19] = [
             ], [
                 ("stderr", "string")
             ],
-            attributes={"atomicity": "none"}),
-        use_default_mapper=True)
+            attributes={"atomicity": "none"}))
 ]
 
 TRANSFORMS[20] = [
@@ -745,6 +757,90 @@ TRANSFORMS[21] = [
                 ("update_time", "int64"),
             ],
             attributes={"atomicity": "none"})),
+]
+
+TRANSFORMS[22] = [
+    Convert(
+        "ordered_by_id",
+        table_info=TableInfo([
+            ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+            ("id_hi", "uint64"),
+            ("id_lo", "uint64"),
+        ], [
+            ("state", "string"),
+            ("authenticated_user", "string"),
+            ("operation_type", "string"),
+            ("progress", "any"),
+            ("spec", "any"),
+            ("brief_progress", "any"),
+            ("brief_spec", "any"),
+            ("start_time", "int64"),
+            ("finish_time", "int64"),
+            ("filter_factors", "string"),
+            ("result", "any"),
+            ("events", "any"),
+            ("alerts", "any"),
+            ("slot_index", "int64"),
+            ("unrecognized_spec", "any"),
+            ("full_spec", "any"),
+            ("runtime_parameters", "any")
+        ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots))
+]
+
+TRANSFORMS[23] = [
+    Convert(
+        "jobs",
+            table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+            ],
+            attributes={"atomicity": "none"})),
+]
+
+ACTIONS[23] = [
+    set_table_ttl_1week("stderrs"),
+    set_table_ttl_1week("fail_contexts"),
+]
+
+TRANSFORMS[24] = [
+    Convert(
+        "ordered_by_start_time",
+        table_info=TableInfo([
+                ("start_time", "int64"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("operation_type", "string"),
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("filter_factors", "string"),
+                ("pool", "string"),
+                ("pools", "any"),
+                ("has_failed_jobs", "boolean"),
+            ],
+            in_memory=True)),
 ]
 
 def swap_table(client, target, source, version):
@@ -833,6 +929,8 @@ def main():
 
     client = YtClient(proxy=config["proxy"]["url"], token=config["token"])
 
+    client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
+
     if client.exists(archive_path):
         current_version = client.get("{0}/@".format(archive_path)).get("version", -1)
     else:
@@ -846,6 +944,6 @@ def main():
         target_version = args.target_version
         transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
+
 if __name__ == "__main__":
     main()
-

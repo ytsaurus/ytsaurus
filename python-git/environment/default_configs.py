@@ -71,6 +71,12 @@ b"""
         default_transaction_timeout = 300000;
     };
 
+    timestamp_manager = {
+        commit_advance = 2000;
+        request_backoff_time = 10;
+        calibration_period = 10;
+    };
+
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 10;
@@ -404,6 +410,7 @@ def get_proxy_config():
         "filename" : "/dev/null"
     },
 
+    "disable_cors_check" : true,
     "authentication" : {
         "enable" : false
     },

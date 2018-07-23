@@ -9,7 +9,7 @@ from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_s
                                create, link, get, set)
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 from .ypath import FilePath, ypath_join, ypath_dirname
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
@@ -276,11 +276,12 @@ class PutFileToCacheRetrier(Retrier):
                             get_config(client)["proxy"]["request_timeout"])
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
+        chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)
         super(PutFileToCacheRetrier, self).__init__(
             retry_config=retry_config,
             timeout=retries_timeout,
             exceptions=(YtConcurrentTransactionLockConflict,),
-            chaos_monkey_enable=get_option("_ENABLE_HTTP_CHAOS_MONKEY", client))
+            chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
         self._params = params
         self._client = client

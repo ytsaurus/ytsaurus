@@ -8,6 +8,7 @@ from .cypress_commands import exists, get, list
 from .ypath import ypath_join
 from .file_commands import read_file
 from .job_commands import list_jobs, get_job_stderr
+from .local_mode import is_local_mode
 from . import yson
 
 import yt.logger as logger
@@ -72,7 +73,7 @@ def complete_operation(operation, client=None):
         return
     return make_request("complete_op", {"operation_id": operation}, client=client)
 
-def get_operation(operation_id, attributes=None, include_scheduler=None, client=None):
+def get_operation(operation_id, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
     """
     params={"operation_id": operation_id}
@@ -81,13 +82,13 @@ def get_operation(operation_id, attributes=None, include_scheduler=None, client=
     return make_formatted_request(
         "get_operation",
         params,
-        format=None,
+        format=format,
         client=client)
 
 def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
                     include_archive=None, include_counters=None, limit=None, enable_ui_mode=False,
-                    client=None):
+                    format=None, client=None):
     """List operations that satisfy given options.
     """
     def format_time(time):
@@ -114,7 +115,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
     return make_formatted_request(
         "list_operations",
         params=params,
-        format=None,
+        format=format,
         client=client)
 
 def update_operation_parameters(operation_id, parameters, client=None):
@@ -342,6 +343,8 @@ def get_stderrs(operation, only_failed_jobs, client=None):
                     pass
                 elif not ignore_errors:
                     raise
+                else:
+                    logger.debug("Stderr download failed %s", str(err))
         else:
             stderr_path = ypath_join(OPERATIONS_PATH, operation, "jobs", job, "stderr")
             has_stderr = exists(stderr_path, client=yt_client)
@@ -457,8 +460,11 @@ def get_operation_url(operation, client=None):
     if not proxy_url:
         return None
 
+    cluster_path = "ui/" if is_local_mode(client) else ""
+
     return get_config(client)["proxy"]["operation_link_pattern"].format(
         proxy=get_proxy_url(client=client),
+        cluster_path=cluster_path,
         id=operation)
 
 class Operation(object):

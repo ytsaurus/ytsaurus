@@ -15,13 +15,13 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
-from yt.wrapper.http_helpers import make_request_with_retries
+from yt.wrapper.skiff import convert_to_skiff_schema
 
-from yt.environment.helpers import assert_almost_equal
+from yt.environment.helpers import are_almost_equal
 from yt.local import start, stop
 
-from yt.yson import YsonMap
-import yt.yson as yson
+from yt.yson import YsonMap, YsonList
+from yt.skiff import SkiffTableSwitch
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -40,6 +40,7 @@ import logging
 import pytest
 import signal
 import uuid
+import io
 
 class AggregateMapper(object):
     def __init__(self):
@@ -1355,42 +1356,6 @@ print(op.id)
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
-    def test_list_operations_compatibility(self, yt_env):
-        if yt.config["backend"] == "native":
-            pytest.skip()
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": "0"}])
-        yt.run_map("cat; echo 'AAA' >&2", table, table)
-
-        operations_old = yson.json_to_yson(make_request_with_retries("GET", url="http://{0}/api/v3/_list_operations".format(yt.config["proxy"]["url"])).json())
-        operations_new = yt.list_operations(enable_ui_mode=True)
-        del operations_old["timings"]
-        for op in operations_new["operations"]:
-            # TODO(asaitgalin): weight should always be presented in list operation response.
-            if "weight" in op.attributes:
-                op.attributes["weight"] = int(op.attributes["weight"])
-
-        assert operations_new == operations_old
-
-    #def test_get_operation_compatibility(self):
-    #    if yt.config["backend"] == "native":
-    #        pytest.skip()
-
-    #    table = TEST_DIR + "/table"
-    #    yt.write_table(table, [{"x": "0"}])
-    #    op = yt.run_map("cat; echo 'AAA' >&2", table, table)
-
-    #    operation_old = yson.json_to_yson(make_request_with_retries("GET", url="http://{0}/api/v3/_get_operation?id={1}".format(yt.config["proxy"]["url"], op.id)).json())
-    #    operation_new = yt.get_operation(op.id, attributes=["id"])
-    #
-    #    with open("/home/ignat/operation_old", "w") as fout:
-    #        yson.dump(operation_old, fout, yson_format="pretty")
-    #    with open("/home/ignat/operation_new", "w") as fout:
-    #        yson.dump(operation_new, fout, yson_format="pretty")
-
-    #    assert operation_old == operation_new
-
     def test_lazy_yson(self):
         def mapper(row):
             assert not isinstance(row, (YsonMap, dict))
@@ -1465,6 +1430,238 @@ print(op.id)
         op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
         wait(lambda: op.get_state() == "running")
         yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
-        assert assert_almost_equal(
+        assert are_almost_equal(
             yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
             10.0)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_skiff(self):
+        table = TEST_DIR + "/table"
+
+        def mapper(row):
+            row["y"] = row["x"] ** 2
+            yield row
+
+        table_skiff_schemas = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "x"
+                    },
+                    {
+                        "wire_type": "variant8",
+                        "children": [
+                            {
+                                "wire_type": "nothing"
+                            },
+                            {
+                                "wire_type": "int64"
+                            }
+                        ],
+                        "name": "y"
+                    }
+                ]
+            }
+        ]
+        format = yt.format.SkiffFormat(table_skiff_schemas)
+
+        schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
+        schema = YsonList(schema)
+        schema.attributes["strict"] = False
+
+        yt.create("table", table, attributes={"schema": schema})
+        yt.write_table(table, [{"x": 3, "y": 1}, {"x": 5}, {"x": 0, "y": 2}])
+
+        stream = io.BytesIO()
+        format.dump_rows(yt.read_table(table, format=format), stream)
+        stream.seek(0)
+        result = list(format.load_rows(stream))
+        assert result[0]["x"] == 3
+        assert result[0]["y"] == 1
+
+        assert result[1][0] == 5
+        assert result[1][1] is None
+
+        assert result[2][1] == 2
+
+        with pytest.raises(LookupError):
+            result[2]["t"]
+
+        yt.run_map(mapper, table, table, format=format)
+        assert list(yt.read_table(table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_skiff_multi_table(self):
+        first_table = TEST_DIR + "/table1"
+        second_table = TEST_DIR + "/table2"
+
+        first_output_table = TEST_DIR + "/table_output1"
+        second_output_table = TEST_DIR + "/table_output2"
+
+        def mapper(row):
+            if row[0] < 0:
+                yield SkiffTableSwitch(1)
+            else:
+                yield SkiffTableSwitch(0)
+            row["y"] = row[0] ** 2
+            yield row
+
+        table_skiff_schemas = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "x"
+                    },
+                    {
+                        "wire_type": "variant8",
+                        "children": [
+                            {
+                                "wire_type": "nothing"
+                            },
+                            {
+                                "wire_type": "int64"
+                            }
+                        ],
+                        "name": "y"
+                    }
+                ]
+            },
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "z"
+                    },
+                    {
+                        "wire_type": "int64",
+                        "name": "y"
+                    }
+                ]
+            }
+        ]
+        format = yt.format.SkiffFormat(table_skiff_schemas)
+
+        schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
+        schema = YsonList(schema)
+        schema.attributes["strict"] = False
+
+        yt.create("table", first_table, attributes={"schema": schema})
+        yt.write_table(first_table, [{"x": 3}, {"x": 5}, {"x": 0}])
+
+        schema = [{"name": "z", "type": "int64"}, {"name": "y", "type": "int64"}]
+        schema = YsonList(schema)
+        yt.create("table", second_table, attributes={"schema": schema})
+        yt.write_table(second_table, [{"z": -1, "y": 0}, {"z": -2, "y": 0}, {"z": -5, "y": 0}])
+
+        yt.run_map(mapper, [first_table, second_table], [first_output_table, second_output_table], format=format)
+        assert list(yt.read_table(first_output_table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
+        assert list(yt.read_table(second_output_table)) == [{"z": -1, "y": 1}, {"z": -2, "y": 4}, {"z": -5, "y": 25}]
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_with_skiff_schemas(self):
+        input_table = TEST_DIR + "/table"
+
+        first_output_table = TEST_DIR + "/table_output1"
+        second_output_table = TEST_DIR + "/table_output2"
+
+        @yt.with_skiff_schemas
+        def mapper(row, skiff_input_schemas, skiff_output_schemas):
+            assert row.get_schema() is skiff_input_schemas[0]
+            if row[0] < 0:
+                yield SkiffTableSwitch(1)
+                record = skiff_output_schemas[1].create_record()
+                record["x"] = row["x"] * 2
+            else:
+                yield SkiffTableSwitch(0)
+                record = skiff_output_schemas[0].create_record()
+                record["z"] = row["x"] * 3
+
+            yield record
+
+        input_table_skiff_schemas = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "f"
+                    },
+                    {
+                        "wire_type": "int64",
+                        "name": "x"
+                    },
+                ]
+            }
+        ]
+        input_format = yt.format.SkiffFormat(input_table_skiff_schemas)
+
+        output_table_skiff_schemas = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "z"
+                    }
+                ]
+            },
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "x"
+                    }
+                ]
+            }
+        ]
+        output_format = yt.format.SkiffFormat(output_table_skiff_schemas)
+
+        schema = [{"name": "f", "type": "int64"}, {"name": "x", "type": "int64"}]
+        schema = YsonList(schema)
+        schema.attributes["strict"] = False
+
+        yt.create("table", input_table, attributes={"schema": schema})
+        yt.write_table(input_table, [{"f": 1, "x": 3}, {"f": -1, "x": 5}, {"f": -1, "x": 7}])
+
+        yt.run_map(mapper, input_table, [first_output_table, second_output_table], input_format=input_format, output_format=output_format)
+        assert list(yt.read_table(first_output_table)) == [{"z": 9}]
+        assert list(yt.read_table(second_output_table)) == [{"x": 10}, {"x": 14}]
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_skiff_schema_from_table(self):
+        @yt.with_skiff_schemas
+        def mapper(row, skiff_input_schemas, skiff_output_schemas):
+            result = skiff_output_schemas[0].create_record()
+            result["y"] = row["x"] ** 2
+            yield result
+
+        input_table = TEST_DIR + "/input_   table"
+        input_table_schema = [{"name": "x", "type": "int64", "required": True}, {"name": "y", "type": "string"}]
+        yt.create("table", input_table, attributes={"schema": input_table_schema})
+
+        output_table = TEST_DIR + "/output_table"
+        output_table_schema = [{"name": "y", "type": "int64", "required": True}]
+        output_table_schema = YsonList(output_table_schema)
+        output_table_schema.attributes["strict"] = True
+
+        yt.create("table", output_table, attributes={"schema": output_table_schema})
+
+        input_format = yt.format.SkiffFormat(convert_to_skiff_schema(input_table_schema))
+        output_format = yt.format.SkiffFormat(convert_to_skiff_schema(output_table_schema))
+
+        yt.write_table(input_table, [{"x": 3, "y": "aba"}, {"x": 5}, {"x": 0, "y": "abacaba"}])
+
+        yt.run_map(mapper, input_table, output_table, input_format=input_format, output_format=output_format)
+        assert list(yt.read_table(output_table)) == [{"y": 9}, {"y": 25}, {"y": 0}]
+
+        yt.run_map(mapper, input_table, output_table)
+        assert list(yt.read_table(output_table)) == [{"y": 9}, {"y": 25}, {"y": 0}]
+
+        yt.run_map(mapper, input_table, TEST_DIR + "/output_table2")
+        assert list(yt.read_table(TEST_DIR + "/output_table2")) == [{"y": 9}, {"y": 25}, {"y": 0}]

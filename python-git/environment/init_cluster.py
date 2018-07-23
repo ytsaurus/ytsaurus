@@ -99,7 +99,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         add_member(cron_user, "superusers", client)
         client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
 
-    client.create("map_node", "//sys/cron")
+    client.create("map_node", "//sys/cron", ignore_existing=True)
 
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
@@ -290,12 +290,13 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     client.link("//tmp/trash", "//trash", ignore_existing=True)
 
     if configure_pool_trees:
-        client.create("map_node", "//sys/pool_trees/physical", attributes={"nodes_filter": "internal"})
+        client.create("map_node", "//sys/pool_trees/physical", attributes={"nodes_filter": "internal"}, ignore_existing=True)
         client.set("//sys/pool_trees/@default_tree", "physical")
-        client.link("//sys/pool_trees/physical", "//sys/pools")
+        client.link("//sys/pool_trees/physical", "//sys/pools", force=True)
         # Configure research pool
         client.create("map_node", "//sys/pool_trees/physical/research",
-                      attributes={"forbid_immediate_operations": True})
+                      attributes={"forbid_immediate_operations": True},
+                      ignore_existing=True)
         client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
 
 def main():

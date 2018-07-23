@@ -27,18 +27,14 @@ def lazy_import_driver_bindings():
 
 def read_config(path):
     lazy_import_driver_bindings()
-
     driver_config = yson.load(open(path, "rb"))
-    if not hasattr(read_config, "logging_and_tracing_initialized"):
-        if "logging" in driver_config:
-            driver_bindings.configure_logging(driver_config["logging"])
-        if "tracing" in driver_config:
-            driver_bindings.configure_tracing(driver_config["tracing"])
-        setattr(read_config, "logging_and_tracing_initialized", True)
-    return driver_config["driver"]
+    return driver_config["driver"], driver_config.get("logging"), driver_config.get("tracing"), driver_config.get("address_resolver")
 
-def get_driver_instance(client):
-    lazy_import_driver_bindings()
+logging_configured = False
+def configure_logging(logging_config_from_file, client):
+    global logging_configured
+    if logging_configured:
+        return
 
     config = get_config(client)
     if config["driver_logging_config"] is not None:
@@ -60,22 +56,56 @@ def get_driver_instance(client):
             },
         }
         driver_bindings.configure_logging(logging_config)
+    elif logging_config_from_file is not None:
+        driver_bindings.configure_logging(logging_config_from_file)
     else:
         driver_bindings.configure_logging({"rules": [], "writers": {}})
 
+    logging_configured = True
+
+tracing_configured = False
+def configure_tracing(tracing_config_from_file, client):
+    global tracing_configured
+    if tracing_configured:
+        return
+
+    if tracing_config_from_file is not None:
+        driver_bindings.configure_tracing(tracing_config_from_file)
+
+    tracing_configured = True
+
+address_resolver_configured = False
+def configure_address_resolver(address_resolver_config, client):
+    global address_resolver_configured
+    if address_resolver_configured:
+        return
+
+    config = get_config(client)
     if config["driver_address_resolver_config"] is not None:
         driver_bindings.configure_address_resolver(config["driver_address_resolver_config"])
+    elif address_resolver_config is not None:
+        driver_bindings.configure_address_resolver(address_resolver_config)
+
+    address_resolver_configured = True
+
+def get_driver_instance(client):
+    lazy_import_driver_bindings()
 
     driver = get_option("_driver", client=client)
     if driver is None:
         if driver_bindings is None:
             raise YtError("Driver class not found, install yt driver bindings.")
 
+        logging_config = None
+        tracing_config = None
+        address_resolver_config = None
+
         config = get_config(client)
         if config["driver_config"] is not None:
             driver_config = config["driver_config"]
         elif config["driver_config_path"] is not None:
-            driver_config = read_config(config["driver_config_path"])
+            driver_config, logging_config, tracing_config, address_resolver_config = \
+                read_config(config["driver_config_path"])
         else:
             if config["backend"] == "rpc":
                 if config["proxy"]["url"] is None:
@@ -92,8 +122,13 @@ def get_driver_instance(client):
                 raise YtError("Driver connection type and client backend mismatch (driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], config["backend"]))
 
+        configure_logging(logging_config, client)
+        configure_tracing(tracing_config, client)
+        configure_address_resolver(address_resolver_config, client)
+
         set_option("_driver", driver_bindings.Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
+
     return driver
 
 def create_driver_for_cell(driver, cell_id):

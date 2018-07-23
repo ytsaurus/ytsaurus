@@ -10,7 +10,7 @@ from .file_commands import LocalFile
 from .ypath import TablePath
 from .py_wrapper import OperationParameters
 from .table_commands import is_empty, is_sorted
-from .table_helpers import (FileUploader, _prepare_formats, _is_python_function,
+from .table_helpers import (FileUploader, _prepare_operation_formats, _is_python_function,
                             _prepare_binary, _prepare_source_tables, _prepare_destination_tables,
                             _prepare_table_writer, _prepare_stderr_table)
 
@@ -265,6 +265,10 @@ class UserJobSpecBuilder(object):
     def file_paths(self, paths):
         return _set_spec_value(self, "file_paths", paths)
 
+    @spec_option("The list of paths to Porto layers in Cypress")
+    def layer_paths(self, paths):
+        return _set_spec_value(self, "layer_paths", paths)
+
     @deprecated(alternative='file_paths with local paths wrapped with LocalFile object '
                             '(e.g. .file_paths([yt.LocalFile("/home/user/file")]))')
     def local_files(self, files):
@@ -490,7 +494,7 @@ class UserJobSpecBuilder(object):
     def _apply_spec_patch(self, spec):
         self._spec_patch = update(spec, self._spec_patch)
 
-    def build(self, input_table_count, output_table_count, operation_type, requires_command,
+    def build(self, input_tables, output_tables, operation_type, requires_command,
               local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         spec = update(self._spec_patch, self._deepcopy_spec())
@@ -501,14 +505,15 @@ class UserJobSpecBuilder(object):
 
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
         format_ = spec.pop("format", None)
-        input_format, output_format = _prepare_formats(format_, spec.get("input_format"), spec.get("output_format"),
-                                                       spec["command"], client)
+        input_format, output_format = _prepare_operation_formats(
+            format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
+            input_tables, output_tables, client)
         spec["input_format"] = input_format.to_yson_type()
         spec["output_format"] = output_format.to_yson_type()
 
         spec = self._prepare_ld_library_path(spec, client)
         spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove,
-                                                              input_format, output_format, input_table_count, output_table_count, client)
+                                                              input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
                         bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
         spec.setdefault("check_input_fully_consumed",
@@ -695,15 +700,15 @@ class SpecBuilder(object):
         if single_output_table:
             spec[output_tables_param] = unlist(spec[output_tables_param])
 
-    def _build_user_job_spec(self, spec, job_type, input_table_count,
-                             output_table_count, requires_command=True, group_by=None, client=None):
+    def _build_user_job_spec(self, spec, job_type, input_tables, output_tables,
+                             requires_command=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
             spec[job_type] = job_spec_builder.build(group_by=group_by,
                                                     local_files_to_remove=self._local_files_to_remove,
                                                     operation_type=self.operation_type,
-                                                    input_table_count=input_table_count,
-                                                    output_table_count=output_table_count,
+                                                    input_tables=input_tables,
+                                                    output_tables=output_tables,
                                                     requires_command=requires_command,
                                                     client=client)
             if spec[job_type] is None:
@@ -901,8 +906,8 @@ class ReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
-                                             input_table_count=len(self.get_input_table_paths()),
-                                             output_table_count=len(self.get_output_table_paths()),
+                                             input_tables=self.get_input_table_paths(),
+                                             output_tables=self.get_output_table_paths(),
                                              group_by=group_by,
                                              client=client)
         spec = self._apply_spec_defaults(spec, client=client)
@@ -975,8 +980,8 @@ class JoinReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
-                                             input_table_count=len(self.get_output_table_paths()),
-                                             output_table_count=len(self.get_output_table_paths()),
+                                             input_tables=self.get_output_table_paths(),
+                                             output_tables=self.get_output_table_paths(),
                                              group_by=spec.get("join_by"),
                                              client=client)
         spec = self._apply_spec_defaults(spec, client=client)
@@ -1047,8 +1052,8 @@ class MapSpecBuilder(SpecBuilder):
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec=spec,
                                              job_type="mapper",
-                                             input_table_count=len(self.get_input_table_paths()),
-                                             output_table_count=len(self.get_output_table_paths()),
+                                             input_tables=self.get_input_table_paths(),
+                                             output_tables=self.get_output_table_paths(),
                                              client=client)
         spec = self._apply_spec_defaults(spec, client=client)
         return spec
@@ -1200,28 +1205,29 @@ class MapReduceSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
-        mapper_output_table_count = 1 + additional_mapper_output_table_count
         reducer_output_table_count = len(self.get_output_table_paths()) - additional_mapper_output_table_count
+        reducer_output_tables = self.get_output_table_paths()[:reducer_output_table_count]
+        mapper_output_tables = [None] + self.get_output_table_paths()[reducer_output_table_count:]
 
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="mapper",
-                                             input_table_count=len(self.get_input_table_paths()),
-                                             output_table_count=mapper_output_table_count,
+                                             input_tables=self.get_input_table_paths(),
+                                             output_tables=mapper_output_tables,
                                              requires_command=False,
                                              client=client)
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
-                                             input_table_count=1,
-                                             output_table_count=reducer_output_table_count,
+                                             input_tables=[None],
+                                             output_tables=reducer_output_tables,
                                              group_by=spec.get("reduce_by"),
                                              client=client)
         if "reduce_combiner" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reduce_combiner",
-                                             input_table_count=1,
-                                             output_table_count=1,
+                                             input_tables=[None],
+                                             output_tables=[None],
                                              group_by=spec.get("reduce_by"),
                                              requires_command=False,
                                              client=client)
@@ -1400,8 +1406,10 @@ class SortSpecBuilder(SpecBuilder):
             return spec
 
         if "output_table_path" not in spec:
-            require(len(input_table_paths) == 1 and not input_table_paths[0].has_delimiters(),
+            require(len(input_table_paths) == 1,
                     lambda: YtError("You must specify destination sort table in case of multiple source tables"))
+            require(not input_table_paths[0].has_delimiters(),
+                    lambda: YtError("Source table must not have delimiters in case of inplace sort"))
             spec["output_table_path"] = input_table_paths[0]
 
         output_table_path = _prepare_destination_tables(spec["output_table_path"], client=client)
@@ -1543,8 +1551,8 @@ class VanillaSpecBuilder(SpecBuilder):
         for task in self._user_job_scripts:
             spec["tasks"] = self._build_user_job_spec(spec=spec["tasks"],
                                                       job_type=task,
-                                                      input_table_count=0,
-                                                      output_table_count=0,
+                                                      input_tables=[],
+                                                      output_tables=[],
                                                       client=client)
         return spec
 
