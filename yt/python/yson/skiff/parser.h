@@ -33,7 +33,8 @@ public:
         std::unique_ptr<IInputStream> inputStreamOwner,
         const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
         const TString& rangeIndexColumnName,
-        const TString& rowIndexColumnName);
+        const TString& rowIndexColumnName,
+        const TNullable<TString>& encoding);
 
     static void InitType();
 

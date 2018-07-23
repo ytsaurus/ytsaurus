@@ -12,6 +12,7 @@ namespace NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 Py::Exception CreateYsonError(const TString& message, const TError& error);
+Py::Exception CreateYsonError(const TString& message, TContext* context);
 
 #define CATCH_AND_CREATE_YSON_ERROR(message) \
     catch (const NYT::TErrorException& error) { \

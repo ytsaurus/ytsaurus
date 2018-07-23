@@ -20,7 +20,9 @@ namespace NPython {
 class TPythonSkiffRecordBuilder
 {
 public:
-    explicit TPythonSkiffRecordBuilder(const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& schemas);
+    TPythonSkiffRecordBuilder(
+        const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& schemas,
+        const TNullable<TString>& encoding);
 
     void OnBeginRow(ui16 schemaIndex);
     void OnEndRow();
@@ -39,6 +41,8 @@ public:
 
 private:
     std::vector<Py::PythonClassObject<TSkiffSchemaPython>> Schemas_;
+    TNullable<TString> Encoding_;
+
     std::queue<Py::Object> Objects_;
 
     TIntrusivePtr<TSkiffRecord> CurrentRecord_;

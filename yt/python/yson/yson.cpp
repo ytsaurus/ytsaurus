@@ -7,6 +7,7 @@
 #include "protobuf_descriptor_pool.h"
 #include "list_fragment_parser.h"
 #include "error.h"
+#include "helpers.h"
 
 #include "skiff/schema.h"
 #include "skiff/record.h"
@@ -402,21 +403,7 @@ private:
             raw = Py::Boolean(arg);
         }
 
-        TNullable<TString> encoding;
-        if (HasArgument(args, kwargs, "encoding")) {
-            auto arg = ExtractArgument(args, kwargs, "encoding");
-            if (!arg.isNone()) {
-#if PY_MAJOR_VERSION < 3
-                throw CreateYsonError("Encoding parameter is not supported for Python 2");
-#else
-                encoding = ConvertStringObjectToString(arg);
-#endif
-            }
-#if PY_MAJOR_VERSION >= 3
-        } else {
-            encoding = "utf-8";
-#endif
-        }
+        auto encoding = ParseEncodingArgument(args, kwargs);
 
         bool lazy = false;
         if (HasArgument(args, kwargs, "lazy")) {
