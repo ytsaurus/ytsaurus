@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "job_size_constraints.h"
 #include "operation_controller_detail.h"
 #include "task.h"
 #include "operation.h"
@@ -282,31 +283,37 @@ protected:
 
     void CalculateSizes()
     {
-        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
-            switch (OperationType) {
-                case EOperationType::Merge:
-                    return CreateMergeJobSizeConstraints(
-                        Spec_,
-                        Options_,
-                        TotalEstimatedInputChunkCount,
-                        PrimaryInputDataWeight,
-                        DataWeightRatio,
-                        InputCompressionRatio);
+        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
 
-                default:
-                    return CreateUserJobSizeConstraints(
-                        Spec_,
-                        Options_,
-                        OutputTables_.size(),
-                        DataWeightRatio,
-                        TotalEstimatedInputChunkCount,
-                        PrimaryInputDataWeight,
-                        std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
-                        GetForeignInputDataWeight());
-            }
-        };
+        switch (OperationType) {
+            case EOperationType::Merge:
+                JobSizeConstraints_ = CreateMergeJobSizeConstraints(
+                    Spec_,
+                    Options_,
+                    Logger,
+                    TotalEstimatedInputChunkCount,
+                    PrimaryInputDataWeight,
+                    DataWeightRatio,
+                    InputCompressionRatio,
+                    InputTables.size(),
+                    GetForeignInputTableCount());
+                break;
+            default:
+                JobSizeConstraints_ = CreateUserJobSizeConstraints(
+                    Spec_,
+                    Options_,
+                    Logger,
+                    OutputTables_.size(),
+                    DataWeightRatio,
+                    TotalEstimatedInputChunkCount,
+                    PrimaryInputDataWeight,
+                    std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
+                    GetForeignInputDataWeight(),
+                    InputTables.size(),
+                    GetForeignInputTableCount());
+                break;
+        }
 
-        JobSizeConstraints_ = createJobSizeConstraints();
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
         LOG_INFO(

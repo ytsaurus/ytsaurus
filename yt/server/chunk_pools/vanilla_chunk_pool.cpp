@@ -4,8 +4,6 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
 namespace NYT {
 namespace NChunkPools {
 

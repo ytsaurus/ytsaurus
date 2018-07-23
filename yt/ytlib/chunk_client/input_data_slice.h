@@ -54,6 +54,12 @@ public:
 
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
+    using TChunkSignature = SmallVector<TInputChunkPtr, 1>;
+    //! Return a vector of input chunks that correspond to this data slice.
+    //! This method is used to detect data slices corresponding to the same chunk sets
+    //! in order to make a better estimation of a total data weight.
+    TChunkSignature GetChunkSignature() const;
+
     std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
 
     TChunkSliceList ChunkSlices;

@@ -1032,6 +1032,14 @@ TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
     return TInputStreamDirectory(std::move(inputStreams));
 }
 
+int TOperationControllerBase::GetForeignInputTableCount() const
+{
+    return std::count_if(
+        InputTables.begin(),
+        InputTables.end(),
+        [] (const TInputTable& table) { return table.IsForeign(); });
+}
+
 IFetcherChunkScraperPtr TOperationControllerBase::CreateFetcherChunkScraper() const
 {
     return Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait

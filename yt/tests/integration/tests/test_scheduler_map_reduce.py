@@ -862,6 +862,36 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    def test_sampling(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string"},
+                                                           {"name": "value", "type": "string"}]})
+        create("table", "//tmp/t2") # This table is used for job counting.
+        create("table", "//tmp/t3") # This table will contain the cat'ed input.
+        write_table("//tmp/t1",
+                    [{"key": ("%02d" % (i // 100)), "value": "x" * 10**2} for i in range(10000)],
+                    table_writer={"block_size": 1024})
+
+        map_reduce(in_="//tmp/t1",
+                   out=["//tmp/t2", "//tmp/t3"],
+                   mapper_command="cat; echo '{a=1}' >&4",
+                   reducer_command="cat",
+                   sort_by=["key"],
+                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                         "mapper_output_table_count": 1})
+        assert get("//tmp/t2/@row_count") == 1
+        assert 0.25 * 10000 <= get("//tmp/t3/@row_count") <= 0.75 * 10000
+
+        map_reduce(in_="//tmp/t1",
+                   out=["//tmp/t2", "//tmp/t3"],
+                   mapper_command="cat; echo '{a=1}' >&4",
+                   reducer_command="cat",
+                   sort_by=["key"],
+                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                         "map_job_count": 10,
+                         "mapper_output_table_count": 1})
+        assert get("//tmp/t2/@row_count") > 1
+        assert 0.25 * 10000 <= get("//tmp/t3/@row_count") <= 0.75 * 10000
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):

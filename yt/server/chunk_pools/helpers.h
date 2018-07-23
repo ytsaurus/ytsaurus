@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <random>
+
 namespace NYT {
 namespace NChunkPools {
 
@@ -53,5 +55,40 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A simple helper that is used in sampling routines across the chunk pools.
+//! It is deterministic and persistable (as POD).
+class TBernoulliSampler
+    : public TIntrinsicRefCounted
+{
+public:
+    TBernoulliSampler() = default;
+
+    TBernoulliSampler(TNullable<double> samplingRate);
+
+    bool Sample();
+
+private:
+    TNullable<double> SamplingRate_;
+    std::mt19937 Generator_;
+    std::bernoulli_distribution Distribution_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBernoulliSampler);
+
+//! This method is used only to make TPodSerializer work with the class.
+//! Unfortunately it wants to be able to dump the structure using "%v", but actually
+//! it will never be called.
+TString ToString(const TBernoulliSampler& /* sampler */);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkPools
 } // namespace NYT
+
+// Make sampler persistable as POD.
+template<>
+struct TTypeTraits<NYT::NChunkPools::TBernoulliSampler>
+{
+    static const bool IsPod = true;
+};
+

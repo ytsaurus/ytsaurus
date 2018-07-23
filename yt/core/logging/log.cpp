@@ -1,6 +1,8 @@
 #include "log.h"
 #include "log_manager.h"
 
+#include <yt/core/misc/serialize.h>
+
 namespace NYT {
 namespace NLogging {
 
@@ -70,6 +72,25 @@ TLogger& TLogger::AddRawTag(const TString& tag)
 const TString& TLogger::GetContext() const
 {
     return Context_;
+}
+
+void TLogger::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, TString(Category_->Name));
+    Save(context, Context_);
+}
+
+void TLogger::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    TString categoryName;
+    Load(context, categoryName);
+    LogManager_ = TLogManager::Get();
+    Category_ = LogManager_->GetCategory(categoryName.data());
+    Load(context, Context_);
 }
 
 TString TLogger::GetMessageWithContext(const TString& originalMessage, const TString& context)

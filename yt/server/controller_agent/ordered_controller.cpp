@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "job_size_constraints.h"
 #include "operation_controller_detail.h"
 #include "operation.h"
 #include "config.h"
@@ -289,34 +290,36 @@ protected:
 
     void CalculateSizes()
     {
-        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
-            switch (OperationType) {
-                case EOperationType::Merge:
-                case EOperationType::Erase:
-                case EOperationType::RemoteCopy:
-                    return CreateMergeJobSizeConstraints(
-                        Spec_,
-                        Options_,
-                        TotalEstimatedInputChunkCount,
-                        PrimaryInputDataWeight,
-                        DataWeightRatio,
-                        InputCompressionRatio);
+        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
 
-                case EOperationType::Map:
-                    return CreateUserJobSizeConstraints(
-                        Spec_,
-                        Options_,
-                        OutputTables_.size(),
-                        DataWeightRatio,
-                        TotalEstimatedInputChunkCount,
-                        PrimaryInputDataWeight);
+        switch (OperationType) {
+            case EOperationType::Merge:
+            case EOperationType::Erase:
+            case EOperationType::RemoteCopy:
+                JobSizeConstraints_ = CreateMergeJobSizeConstraints(
+                    Spec_,
+                    Options_,
+                    Logger,
+                    TotalEstimatedInputChunkCount,
+                    PrimaryInputDataWeight,
+                    DataWeightRatio,
+                    InputCompressionRatio);
+                break;
 
-                default:
-                    Y_UNREACHABLE();
-            }
-        };
+            case EOperationType::Map:
+                JobSizeConstraints_ = CreateUserJobSizeConstraints(
+                    Spec_,
+                    Options_,
+                    Logger,
+                    OutputTables_.size(),
+                    DataWeightRatio,
+                    TotalEstimatedInputChunkCount,
+                    PrimaryInputDataWeight);
+                break;
 
-        JobSizeConstraints_ = createJobSizeConstraints();
+            default:
+                Y_UNREACHABLE();
+        }
 
         IsExplicitJobCount_ = JobSizeConstraints_->IsExplicitJobCount();
 

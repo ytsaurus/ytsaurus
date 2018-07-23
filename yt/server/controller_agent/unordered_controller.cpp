@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "job_size_constraints.h"
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "task.h"
@@ -247,11 +248,14 @@ protected:
 
     void InitJobSizeConstraints()
     {
+        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+
         switch (OperationType) {
             case EOperationType::Merge:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
                     Spec,
                     Options,
+                    Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
                     DataWeightRatio,
@@ -262,6 +266,7 @@ protected:
                 JobSizeConstraints_ = CreateUserJobSizeConstraints(
                     Spec,
                     Options,
+                    Logger,
                     GetOutputTablePaths().size(),
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
@@ -289,6 +294,7 @@ protected:
     {
         TUnorderedChunkPoolOptions options;
         options.MinTeleportChunkSize = MinTeleportChunkSize();
+        options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
         options.OperationId = OperationId;
         options.JobSizeConstraints = JobSizeConstraints_;
         options.SliceErasureChunksByParts = Spec->SliceErasureChunksByParts;

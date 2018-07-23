@@ -189,6 +189,28 @@ DEFINE_REFCOUNTED_TYPE(TTentativeTreeEligibilityConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSamplingConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! The probability for each particular row to remain in the output.
+    TNullable<double> SamplingRate;
+
+    //! An option regulating the total data slice count during the sampling job creation procedure.
+    //! It should not be used normally and left only for manual setup in marginal cases.
+    //! If not set, it is overriden with MaxTotalSliceCount from controller agent options.
+    TNullable<i64> MaxTotalSliceCount;
+
+    //! Size of IO block to consider when calculating the lower bound for sampling job size.
+    i64 IOBlockSize;
+
+    TSamplingConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSamplingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStrategyOperationSpec
     : public TSchedulableConfig
     , public virtual NPhoenix::TDynamicTag
@@ -435,6 +457,8 @@ public:
 
     // If true, operations fails if all available nodes get banned.
     bool FailOnAllNodesBanned;
+
+    TSamplingConfigPtr Sampling;
 
     TOperationSpecBase();
 

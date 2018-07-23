@@ -1,5 +1,7 @@
 #include "job_manager.h"
 
+#include <yt/server/controller_agent/job_size_constraints.h>
+
 namespace NYT {
 namespace NChunkPools {
 
@@ -18,7 +20,9 @@ void TJobStub::AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput
     int streamIndex = dataSlice->InputStreamIndex;
     auto& stripe = GetStripe(streamIndex, isPrimary);
     stripe->DataSlices.emplace_back(dataSlice);
-    InputCookies_.emplace_back(cookie);
+    if (cookie != IChunkPoolInput::NullCookie) {
+        InputCookies_.emplace_back(cookie);
+    }
 
     if (isPrimary) {
         if (LowerPrimaryKey_ > dataSlice->LowerLimit().Key) {
@@ -27,13 +31,14 @@ void TJobStub::AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput
         if (UpperPrimaryKey_ < dataSlice->UpperLimit().Key) {
             UpperPrimaryKey_ = dataSlice->UpperLimit().Key;
         }
+
+        ++PrimarySliceCount_;
         PrimaryDataWeight_ += dataSlice->GetDataWeight();
         PrimaryRowCount_ += dataSlice->GetRowCount();
-        ++PrimarySliceCount_;
     } else {
+        ++ForeignSliceCount_;
         ForeignDataWeight_ += dataSlice->GetDataWeight();
         ForeignRowCount_ += dataSlice->GetRowCount();
-        ++ForeignSliceCount_;
     }
 }
 
@@ -174,10 +179,12 @@ const TChunkStripePtr& TJobStub::GetStripe(int streamIndex, bool isStripePrimary
 TJobManager::TJob::TJob()
 { }
 
-TJobManager::TJob::TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobBuilder, IChunkPoolOutput::TCookie cookie)
-    : DataWeight_(jobBuilder->GetDataWeight())
-    , RowCount_(jobBuilder->GetRowCount())
-    , StripeList_(std::move(jobBuilder->StripeList_))
+TJobManager::TJob::TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobStub, IChunkPoolOutput::TCookie cookie)
+    : IsBarrier_(jobStub->GetIsBarrier())
+    , DataWeight_(jobStub->GetDataWeight())
+    , RowCount_(jobStub->GetRowCount())
+    , StripeList_(std::move(jobStub->StripeList_))
+    , InputCookies_(std::move(jobStub->InputCookies_))
     , Owner_(owner)
     , CookiePoolIterator_(Owner_->CookiePool_->end())
     , Cookie_(cookie)
@@ -315,6 +322,11 @@ TJobManager::TJobManager()
 
 void TJobManager::AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
 {
+    if (jobStubs.empty()) {
+        return;
+    }
+    LOG_DEBUG("Adding jobs to job manager (JobCount: %v)",
+        jobStubs.size());
     for (auto& jobStub : jobStubs) {
         AddJob(std::move(jobStub));
     }
@@ -326,7 +338,15 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     YCHECK(jobStub);
     IChunkPoolOutput::TCookie outputCookie = Jobs_.size();
 
-    LOG_DEBUG("Sorted job finished (Index: %v, PrimaryDataWeight: %v, PrimaryRowCount: %v, "
+    if (jobStub->GetIsBarrier()) {
+        LOG_DEBUG("Adding barrier to job manager (Index: %v)", outputCookie);
+        Jobs_.emplace_back(this, std::move(jobStub), outputCookie);
+        Jobs_.back().SetState(EJobState::Completed);
+        // TODO(max42): do not assign cookie to barriers.
+        return outputCookie;
+    }
+
+    LOG_DEBUG("Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryRowCount: %v, "
         "PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignRowCount: %v, "
         "ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
         outputCookie,
@@ -357,7 +377,6 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
     Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
-
     Jobs_.back().UpdateCounters(&TProgressCounter::Increment);
     return outputCookie;
 }
@@ -376,6 +395,8 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 
     Jobs_[cookie].UpdateCounters(&TProgressCounter::Start);
     Jobs_[cookie].SetState(EJobState::Running);
+
+    YCHECK(!Jobs_[cookie].GetIsBarrier());
 
     return cookie;
 }
@@ -498,6 +519,104 @@ void TJobManager::InvalidateAllJobs()
 void TJobManager::SetLogger(TLogger logger)
 {
     Logger = logger;
+}
+
+void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
+{
+    // TODO(max42): keep the order of jobs in a singly linked list that allows us to use this
+    // procedure not only during the initial creation of jobs or right after the whole pool invalidation,
+    // but at the arbitrary moment of job manager lifetime. After that implement YT-9019.
+
+    LOG_DEBUG("Enlarging jobs (DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v)",
+        dataWeightPerJob,
+        primaryDataWeightPerJob);
+
+    std::unique_ptr<TJobStub> currentJobStub;
+    std::vector<IChunkPoolOutput::TCookie> joinedJobCookies;
+    // Join `job` into current job stub and return true if
+    // ((their joint data weight does not exceed provided limits) or (force is true)),
+    // return false and leave the current job stub as is otherwise.
+    // Force is used to initialize the job stub with a first job, sometimes it may already exceed the
+    // given limits.
+    auto tryJoinJob = [&] (int jobIndex, bool force) -> bool {
+        const auto& job = Jobs_[jobIndex];
+        i64 primaryDataWeight = currentJobStub->GetPrimaryDataWeight();
+        i64 foreignDataWeight = currentJobStub->GetForeignDataWeight();
+        for (const auto& stripe : job.StripeList()->Stripes) {
+            for (const auto& dataSlice : stripe->DataSlices) {
+                (stripe->Foreign ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
+            }
+        }
+        if ((primaryDataWeight <= primaryDataWeightPerJob && foreignDataWeight + primaryDataWeight <= dataWeightPerJob) || force) {
+            for (const auto& stripe : job.StripeList()->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->Foreign);
+                }
+            }
+            currentJobStub->InputCookies_.insert(currentJobStub->InputCookies_.end(), job.InputCookies().begin(), job.InputCookies().end());
+            joinedJobCookies.emplace_back(jobIndex);
+
+            return true;
+        }
+        LOG_DEBUG("Stopping enlargement due to data weight constraints "
+            "(NewDataWeight: %v, DataWeightPerJob: %v, NewPrimaryDataWeight: %v, PrimaryDataWeightPerJob: %v)",
+            foreignDataWeight + primaryDataWeight,
+            dataWeightPerJob,
+            primaryDataWeight,
+            primaryDataWeightPerJob);
+        return false;
+    };
+
+    std::vector<std::unique_ptr<TJobStub>> newJobs;
+    for (int startIndex = FirstValidJobIndex_, finishIndex = FirstValidJobIndex_; startIndex < Jobs_.size(); startIndex = finishIndex) {
+        if (Jobs_[startIndex].GetIsBarrier()) {
+            // NB: One may think that we should carefully bring this barrier between newly formed jobs but we
+            // currently never enlarge jobs after building them from scratch, so barriers have no use after enlarging.
+            // But when we store jobs in a singly linked list, we should deal with barriers carefully!
+            finishIndex = startIndex + 1;
+            continue;
+        }
+
+        currentJobStub = std::make_unique<TJobStub>();
+        while (true) {
+            if (finishIndex == Jobs_.size()) {
+                LOG_DEBUG("Stopping enlargement due to end of job list (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
+                break;
+            }
+
+            // TODO(max42): we can not meet invalidated job as we enlarge jobs only when we build them from scratch.
+            // In future we will iterate over a list of non-invalidated jobs, so it won't happen too.
+            YCHECK(!Jobs_[finishIndex].IsInvalidated());
+
+            if (Jobs_[finishIndex].GetIsBarrier()) {
+                LOG_DEBUG("Stopping enlargement due to barrier (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
+                break;
+            }
+
+            if (!tryJoinJob(finishIndex, finishIndex == startIndex /* force */)) {
+                // This case is logged in tryJoinJob.
+                break;
+            }
+            ++finishIndex;
+        }
+
+        if (joinedJobCookies.size() > 1) {
+            std::vector<IChunkPoolOutput::TCookie> outputCookies;
+            LOG_DEBUG("Joining together jobs (JoinedJobCookies: %v, DataWeight: %v, PrimaryDataWeight: %v)",
+                joinedJobCookies,
+                currentJobStub->GetDataWeight(),
+                currentJobStub->GetPrimaryDataWeight());
+            for (int index : joinedJobCookies) {
+                Jobs_[index].Invalidate();
+            }
+            newJobs.emplace_back(std::move(currentJobStub));
+        } else {
+            LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);
+        }
+        joinedJobCookies.clear();
+    }
+
+    AddJobs(std::move(newJobs));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -865,6 +865,8 @@ protected:
 
     NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 
+    int GetForeignInputTableCount() const;
+
 private:
     typedef TOperationControllerBase TThis;
 

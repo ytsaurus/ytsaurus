@@ -5,6 +5,7 @@
 #include "output_order.h"
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -59,6 +60,7 @@ public:
         : InputStreamDirectory_(std::move(inputStreamDirectory))
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
+        , Sampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
         , Task_(options.Task)
@@ -71,6 +73,13 @@ public:
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
+
+        LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
+            "InputSliceDataWeight: %v, InputSliceRowCount: %v)",
+            JobSizeConstraints_->GetDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            JobSizeConstraints_->GetInputSliceRowCount());
     }
 
     // IChunkPoolInput implementation.
@@ -161,6 +170,7 @@ public:
         Persist(context, MinTeleportChunkSize_);
         Persist(context, Stripes_);
         Persist(context, JobSizeConstraints_);
+        Persist(context, Sampler_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
         Persist(context, Task_);
@@ -193,6 +203,8 @@ private:
     std::vector<TSuspendableStripe> Stripes_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
+    //! Used both for job sampling and teleport chunk sampling.
+    TBernoulliSamplerPtr Sampler_;
 
     bool SupportLocality_ = false;
 
@@ -214,8 +226,10 @@ private:
     std::unique_ptr<TJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
+    int BuiltJobCount_ = 0;
 
     i64 TotalSliceCount_ = 0;
+    i64 TotalDataWeight_ = 0;
 
     void SetupSuspendedStripes()
     {
@@ -238,6 +252,17 @@ private:
 
     void BuildJobsAndFindTeleportChunks()
     {
+        if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
+            LOG_DEBUG(
+                "Building jobs with sampling "
+                "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
+                *JobSizeConstraints_->GetSamplingRate(),
+                JobSizeConstraints_->GetSamplingDataWeightPerJob(),
+                JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
+        }
+
+        int droppedTeleportChunkCount = 0;
+
         auto yielder = CreatePeriodicYielder();
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
@@ -248,10 +273,19 @@ private:
                     if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
                         inputChunk->IsLargeCompleteChunk(MinTeleportChunkSize_))
                     {
-                        EndJob();
-                        TeleportChunks_.emplace_back(inputChunk);
-                        if (OutputOrder_) {
-                            OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
+                        if (Sampler_->Sample()) {
+                            EndJob();
+
+                            // Add barrier.
+                            CurrentJob()->SetIsBarrier(true);
+                            JobManager_->AddJob(std::move(CurrentJob()));
+
+                            TeleportChunks_.emplace_back(inputChunk);
+                            if (OutputOrder_) {
+                                OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
+                            }
+                        } else {
+                            // This teleport chunk goes to /dev/null.
                         }
                         continue;
                     }
@@ -272,6 +306,19 @@ private:
             }
         }
         EndJob();
+
+        LOG_INFO("Jobs created (Count: %v, TeleportChunkCount: %v, DroppedTeleportChunkCount: %v)",
+            BuiltJobCount_,
+            TeleportChunks_.size(),
+            droppedTeleportChunkCount);
+
+        if (JobSizeConstraints_->GetSamplingRate()) {
+            JobManager_->Enlarge(
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+        }
+
+        JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
     }
 
     void SplitJob(
@@ -303,6 +350,14 @@ private:
         EndJob();
     }
 
+    i64 GetDataWeightPerJob() const
+    {
+        return
+            JobSizeConstraints_->GetSamplingRate()
+            ? JobSizeConstraints_->GetSamplingDataWeightPerJob()
+            : JobSizeConstraints_->GetDataWeightPerJob();
+    }
+
     void AddPrimaryDataSlice(
         const TInputDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
@@ -310,7 +365,7 @@ private:
     {
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() + 1 > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                CurrentJob()->GetDataWeight() >= dataSizePerJob;
+            CurrentJob()->GetDataWeight() >= dataSizePerJob;
         if (jobIsLargeEnough) {
             EndJob();
         }
@@ -323,31 +378,44 @@ private:
     void EndJob()
     {
         if (CurrentJob()->GetSliceCount() > 0) {
-            LOG_DEBUG("Ordered job created (Index: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
-                JobIndex_,
-                CurrentJob()->GetPrimaryDataWeight(),
-                CurrentJob()->GetPrimaryRowCount(),
-                CurrentJob()->GetPrimarySliceCount());
+            if (Sampler_->Sample()) {
+                LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, RowCount: %v, SliceCount: %v)",
+                    JobIndex_,
+                    BuiltJobCount_,
+                    CurrentJob()->GetPrimaryDataWeight(),
+                    CurrentJob()->GetPrimaryRowCount(),
+                    CurrentJob()->GetPrimarySliceCount());
 
-            TotalSliceCount_ += CurrentJob()->GetSliceCount();
+                TotalSliceCount_ += CurrentJob()->GetSliceCount();
+                TotalDataWeight_ += CurrentJob()->GetDataWeight();
 
-            if (TotalSliceCount_ > MaxTotalSliceCount_) {
-                THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
-                    << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
-                    << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
-                    << TErrorAttribute("current_job_count", JobIndex_);
+                ++BuiltJobCount_;
+
+                if (TotalSliceCount_ > MaxTotalSliceCount_) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
+                        << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
+                        << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
+                        << TErrorAttribute("current_job_count", JobIndex_);
+                }
+
+                CurrentJob()->Finalize(false /* sortByPosition */);
+
+                auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
+                if (OutputOrder_) {
+                    OutputOrder_->Push(cookie);
+                }
+
+                Y_ASSERT(!CurrentJob_);
+            } else {
+                LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
+                    JobIndex_,
+                    BuiltJobCount_,
+                    CurrentJob()->GetPrimaryDataWeight(),
+                    CurrentJob()->GetPrimaryRowCount(),
+                    CurrentJob()->GetPrimarySliceCount());
+                CurrentJob().reset();
             }
-
             ++JobIndex_;
-
-            CurrentJob()->Finalize(false /* sortByPosition */);
-
-            auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
-            if (OutputOrder_) {
-                OutputOrder_->Push(cookie);
-            }
-
-            Y_ASSERT(!CurrentJob_);
         }
     }
 

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "private.h"
 #include "chunk_pool.h"
 #include "input_stream.h"
+#include "private.h"
+#include "sorted_job_builder.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -13,29 +14,6 @@ namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortedJobOptions
-{
-    bool EnableKeyGuarantee;
-    int PrimaryPrefixLength;
-    int ForeignPrefixLength;
-    bool EnablePeriodicYielder = true;
-
-    std::vector<NTableClient::TKey> PivotKeys;
-
-    //! An upper bound for a total number of slices that is allowed. If this value
-    //! is exceeded, an exception is thrown.
-    i64 MaxTotalSliceCount;
-
-    // TODO(max42): It is already exposed via job size constraints, remove it from here.
-    //! An upper bound for a total data weight in a job. If this value
-    //! is exceeded, an exception is thrown.
-    i64 MaxDataWeightPerJob = std::numeric_limits<i64>::max();
-
-    bool LogDetails = false;
-
-    void Persist(const TPersistenceContext& context);
-};
-
 struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
@@ -43,9 +21,8 @@ struct TSortedChunkPoolOptions
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
+    i64 MaxBuildRetryCount = 5;
     TString Task;
-
-    void Persist(const TPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

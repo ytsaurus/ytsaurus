@@ -3,11 +3,15 @@
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <yt/server/controller_agent/progress_counter.h>
+#include <yt/server/controller_agent/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/core/misc/hash_helpers.h>
+
+#include <random>
 
 namespace NYT {
 namespace NChunkPools {
@@ -17,6 +21,10 @@ namespace NChunkPools {
 class TJobStub
 {
 public:
+    //! Barriers are special entries in job manager internal job list that designate the fact
+    //! that adjacent jobs may not be joined together.
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsBarrier, false);
+
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TKey, LowerPrimaryKey, NTableClient::MaxKey().Get());
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TKey, UpperPrimaryKey, NTableClient::MinKey().Get());
 
@@ -86,7 +94,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, RowCounter, New<NControllerAgent::TProgressCounter>());
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, JobCounter, New<NControllerAgent::TProgressCounter>());
     DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
-
 public:
     TJobManager();
 
@@ -98,7 +105,7 @@ public:
     void Completed(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason);
     void Failed(IChunkPoolOutput::TCookie cookie);
     void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason);
-    void Lost(IChunkPoolOutput::TCookie /* cookie */);
+    void Lost(IChunkPoolOutput::TCookie cookie);
 
     void Suspend(IChunkPoolInput::TCookie inputCookie);
     void Resume(IChunkPoolInput::TCookie inputCookie);
@@ -121,11 +128,15 @@ public:
 
     void SetLogger(NLogging::TLogger logger);
 
+    //! Perform a pass over all jobs in their order and join some groups of
+    //! adjacent jobs that are still smaller than `dataWeightPerJob` in total.
+    void Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob);
+
 private:
     class TStripeListComparator
     {
     public:
-        TStripeListComparator(TJobManager* owner);
+        explicit TStripeListComparator(TJobManager* owner);
 
         bool operator ()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
     private:
@@ -152,9 +163,13 @@ private:
     {
     public:
         DEFINE_BYVAL_RO_PROPERTY(EJobState, State, EJobState::Pending);
+        DEFINE_BYVAL_RO_PROPERTY(bool, IsBarrier);
         DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
         DEFINE_BYREF_RO_PROPERTY(TChunkStripeListPtr, StripeList);
+
+        //! All the input cookies that provided data that forms this job.
+        DEFINE_BYREF_RW_PROPERTY(std::vector<IChunkPoolInput::TCookie>, InputCookies);
 
     public:
         //! Used only for persistence.

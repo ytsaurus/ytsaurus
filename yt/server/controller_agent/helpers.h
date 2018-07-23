@@ -13,100 +13,10 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
-#include <yt/core/misc/phoenix.h>
-
 namespace NYT {
 namespace NControllerAgent {
 
 using namespace NScheduler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IJobSizeConstraints
-    : public virtual TRefCounted
-    , public virtual NPhoenix::IPersistent
-{
-    //! True if neither job count nor data weight per job were explicitly specified by user in spec.
-    virtual bool CanAdjustDataWeightPerJob() const = 0;
-
-    //! True if job count was explicitly specified by user in spec.
-    virtual bool IsExplicitJobCount() const = 0;
-
-    //! Job count, estimated from input statistics or provided via operation spec.
-    virtual int GetJobCount() const = 0;
-
-    //! Approximate data weight, estimated from input statistics or provided via operation spec.
-    virtual i64 GetDataWeightPerJob() const = 0;
-
-    //! Recommended upper limit on the number of chunk stripes per job.
-    //! Can be overflown if exact job count is provided.
-    virtual i64 GetMaxDataSlicesPerJob() const = 0;
-
-    //! Recommended upper limit on the data size per job.
-    //! Can be overflown if exact job count is provided.
-    virtual i64 GetMaxDataWeightPerJob() const = 0;
-
-    virtual i64 GetInputSliceDataWeight() const = 0;
-    virtual i64 GetInputSliceRowCount() const = 0;
-
-    //! Approximate primary data size. Has meaning only in context of sorted operation.
-    virtual i64 GetPrimaryDataWeightPerJob() const = 0;
-
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Fits for operations with user code.
-IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
-    const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NControllerAgent::TSimpleOperationOptionsPtr& options,
-    int outputTableCount,
-    double dataWeightRatio,
-    i64 inputChunkCount,
-    i64 primaryInputDataWeight,
-    i64 inputRowCount = std::numeric_limits<i64>::max(),
-    i64 foreignInputDataWeight = 0);
-
-//! Fits for system operations like merge or erase.
-IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
-    const NScheduler::TSimpleOperationSpecBasePtr& spec,
-    const NControllerAgent::TSimpleOperationOptionsPtr& options,
-    i64 inputChunkCount,
-    i64 inputDataWeight,
-    double dataWeightRatio,
-    double compressionRatio);
-
-IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
-    const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NControllerAgent::TSortOperationOptionsBasePtr& options,
-    i64 inputDataWeight);
-
-IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
-    const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NControllerAgent::TSortOperationOptionsBasePtr& options,
-    i64 inputDataSize,
-    i64 inputDataWeight,
-    i64 inputRowCount,
-    double compressionRatio);
-
-IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
-    const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NControllerAgent::TSortOperationOptionsBasePtr& options,
-    int outputTableCount);
-
-IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
-    bool canAdjustDataSizePerJob,
-    bool isExplicitJobCount,
-    int jobCount,
-    i64 dataWeightPerJob,
-    i64 primaryDataWeightPerJob,
-    i64 maxDataSlicesPerJob,
-    i64 maxDataWeightPerJob,
-    i64 inputSliceDataWeight,
-    i64 inputSliceRowCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
