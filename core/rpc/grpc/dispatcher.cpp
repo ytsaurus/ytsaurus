@@ -41,6 +41,7 @@ TGrpcLibraryLock::TGrpcLibraryLock()
         // Failure here indicates an attempt to re-initialize GRPC after shutdown.
         YCHECK(GrpcLibraryInitCounter.fetch_add(1) == 0);
         LOG_INFO("Initializing GRPC library");
+        grpc_init_openssl();
         grpc_init();
     }
 }
