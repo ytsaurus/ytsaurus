@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 804;
+    return 805;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -82,7 +82,8 @@ bool ValidateSnapshotVersion(int version)
         version == 801 || // savrus: Make tablet_state backward-compatible
         version == 802 || // aozeritsky: Add replica options
         version == 803 || // savrus: Add primary last mount transaction id
-        version == 804;   // shakurov: Remove TTransaction::System
+        version == 804 || // shakurov: Remove TTransaction::System
+        version == 805;   // psushin: Add cypress annotations
 }
 
 ////////////////////////////////////////////////////////////////////////////////

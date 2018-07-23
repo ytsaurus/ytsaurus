@@ -694,6 +694,8 @@ public:
     //! Known scheduler addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
 
+    NYTree::IMapNodePtr CypressAnnotations;
+
     TControllerAgentBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -703,6 +705,11 @@ public:
             .DefaultNew();
         RegisterParameter("addresses", Addresses)
             .Default();
+        RegisterParameter("cypress_annotations", CypressAnnotations)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                .EndMap()
+            ->AsMap());
     }
 };
 

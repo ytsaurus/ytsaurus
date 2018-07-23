@@ -121,6 +121,8 @@ public:
 
     int SkynetHttpPort;
 
+    NYTree::IMapNodePtr CypressAnnotations;
+
     TCellNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -155,6 +157,12 @@ public:
 
         RegisterParameter("skynet_http_port", SkynetHttpPort)
             .Default(10080);
+
+        RegisterParameter("cypress_annotations", CypressAnnotations)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                .EndMap()
+            ->AsMap());
 
         RegisterPostprocessor([&] () {
             NNodeTrackerClient::ValidateNodeTags(Tags);

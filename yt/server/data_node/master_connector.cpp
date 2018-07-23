@@ -81,6 +81,7 @@ using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NApi;
 using namespace NCellNode;
+using namespace NYTree;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -415,6 +416,8 @@ void TMasterConnector::RegisterAtPrimaryMaster()
 
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
+
+    req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
 
     LOG_INFO("Registering at primary master (%v)",
         *req->mutable_statistics());

@@ -16,6 +16,8 @@
 
 #include <yt/core/rpc/grpc/config.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NRpcProxy {
 
@@ -85,6 +87,8 @@ public:
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
+    NYTree::IMapNodePtr CypressAnnotations;
+
     TCellProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -100,6 +104,12 @@ public:
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);
+
+        RegisterParameter("cypress_annotations", CypressAnnotations)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                .EndMap()
+            ->AsMap());
 
         RegisterPostprocessor([&] {
             ClusterConnection->ThreadPoolSize = Null;

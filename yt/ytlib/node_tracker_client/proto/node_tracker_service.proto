@@ -15,6 +15,7 @@ message TReqRegisterNode
     optional NYT.NProto.TGuid lease_transaction_id = 3;
     optional int32 node_id = 4;
     repeated string tags = 5;
+    optional string cypress_annotations = 6;
 }
 
 message TRspRegisterNode

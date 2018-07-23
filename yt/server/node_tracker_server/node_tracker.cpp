@@ -73,6 +73,7 @@ using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NProfiling;
+using namespace NYson;
 
 using NYT::FromProto;
 
@@ -932,7 +933,6 @@ private:
         return cypressManager->ResolvePathToNodeProxy("//sys/nodes")->AsMap();
     }
 
-
     void HydraRegisterNode(
         const TCtxRegisterNodePtr& context,
         TReqRegisterNode* request,
@@ -1007,6 +1007,8 @@ private:
         UpdateNodeCounters(node, +1);
 
         node->SetStatistics(std::move(statistics));
+
+        node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
