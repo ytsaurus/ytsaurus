@@ -140,7 +140,7 @@ def _get_cgroup_path(cgroup_type, *args):
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
                  node_count=1, scheduler_count=1, controller_agent_count=None,
-                 has_proxy=False, proxy_port=None, has_rpc_proxy=False,
+                 has_proxy=False, proxy_port=None, has_rpc_proxy=None,
                  rpc_proxy_port=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
@@ -183,6 +183,9 @@ class YTInstance(object):
         valid_driver_backends = ("native", "rpc")
         if driver_backend not in valid_driver_backends:
             raise YtError('Unrecognized driver backend: expected one of {0}, got "{1}"'.format(valid_driver_backends, driver_backend))
+
+        if has_rpc_proxy is None:
+            has_rpc_proxy = (driver_backend == "rpc")
 
         if driver_backend == "rpc" and not has_rpc_proxy:
             raise YtError("Driver with RPC backend is requested but RPC proxies aren't enabled.")
@@ -376,6 +379,7 @@ class YTInstance(object):
         provision["enable_debug_logging"] = self._enable_debug_logging
 
         master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
+
         cluster_configuration = configs_provider.build_configs(
             self._get_ports_generator(port_range_start),
             master_dirs,
@@ -520,6 +524,12 @@ class YTInstance(object):
         if not self.has_proxy:
             raise YtError("Proxy is not started")
         return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"], "proxy", "port"))
+
+    def get_grpc_proxy_address(self):
+        if not self.has_rpc_proxy:
+            raise YtError("Rpc proxy is not started")
+        addresses = _config_safe_get(self.configs["rpc_proxy"][0], "rpc_proxy", "grpc_server/addresses")
+        return addresses[0]["address"]
 
     def kill_cgroups(self):
         if self._use_porto_for_servers or not _has_cgroups():
@@ -1041,6 +1051,7 @@ class YTInstance(object):
                         if "addresses" in config and http_proxy_url is not None:
                             del config["addresses"]
                             config["cluster_url"] = http_proxy_url
+                            config["discover_proxies_from_cypress"] = False
                     else:
                         config = driver_configs[tag]
                     write_config(config, config_path)
@@ -1169,8 +1180,14 @@ class YTInstance(object):
         def skynet_manager_ready():
             self._validate_processes_are_running("skynet_manager")
 
-            return ("skynet_manager" in native_client.list("//sys") and
-                len(native_client.list("//sys/skynet_manager/managers")) == self.skynet_manager_count)
+            http_port = self.configs["skynet_manager"][0]["port"]
+            try:
+                rsp = requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
+                rsp.raise_for_status()
+            except (requests.exceptions.RequestException, socket.error):
+                return False
+
+            return True
 
         self._wait_or_skip(lambda: self._wait_for(skynet_manager_ready, "skynet_manager", max_wait_time=20), sync)
 

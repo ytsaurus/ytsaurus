@@ -4,14 +4,15 @@ from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .driver import make_request
-from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtResponseError
+from .retries import default_chaos_monkey, run_chaos_monkey
+from .errors import YtIncorrectResponse, YtError, YtResponseError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
-                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
+                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
 from .file_commands import _get_remote_temp_files_directory
 from .parallel_reader import make_read_parallel_request
 from .ypath import TablePath, ypath_join
@@ -22,7 +23,6 @@ import yt.logger as logger
 from yt.packages.six import PY3
 from yt.packages.six.moves import map as imap, filter as ifilter, xrange
 
-import random
 from copy import deepcopy
 from datetime import datetime, timedelta
 
@@ -156,7 +156,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         raise YtError("Compressed stream is only supported for raw tabular data")
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
     table_writer = _prepare_table_writer(table_writer, client)
 
     params = {}
@@ -185,7 +185,8 @@ def write_table(table, input_stream, format=None, table_writer=None,
         format,
         raw,
         split_rows=(enable_retries or enable_parallel_writing),
-        chunk_size=get_config(client)["write_retries"]["chunk_size"])
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"])
 
     if enable_parallel_writing:
         force_create = True
@@ -367,7 +368,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return ResponseStreamWithReadRow(get_response=lambda: None,
                                          iter_content=iter(EmptyResponseStream()),
@@ -448,6 +449,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         set_response_parameters(response.response_parameters)
 
     chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+    chaos_monkey = default_chaos_monkey(chaos_monkey_enabled)
+
     multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
 
     class RetriableState(object):
@@ -557,8 +560,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.started = True
 
             for row in format_for_raw_load.load_rows(response, raw=True):
-                if chaos_monkey_enabled and random.randint(1, 5) == 1:
-                    raise YtRetriableError()
+                run_chaos_monkey(chaos_monkey)
 
                 # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
                 if is_control_row(row):

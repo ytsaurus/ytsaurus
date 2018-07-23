@@ -455,12 +455,14 @@ class ConfigsProvider_19(ConfigsProvider):
         }
 
         update_inplace(cluster_connection["primary_master"], _get_retrying_channel_config())
+        update_inplace(cluster_connection["primary_master"], _get_balancing_channel_config())
         update_inplace(cluster_connection["primary_master"], _get_rpc_config())
 
         cluster_connection["secondary_masters"] = []
         for tag in secondary_cell_tags:
             config = master_connection_configs[tag]
             update_inplace(config, _get_retrying_channel_config())
+            update_inplace(config, _get_balancing_channel_config())
             update_inplace(config, _get_rpc_config())
             cluster_connection["secondary_masters"].append(config)
 
@@ -662,9 +664,18 @@ class ConfigsProvider_19(ConfigsProvider):
         return configs, rpc_configs
 
     def _build_rpc_proxy_config(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
+        grpc_server_config = {
+            "addresses": [
+                {
+                    "address": "{}:{}".format(provision["fqdn"], next(ports_generator))
+                }
+            ]
+        }
+
         config = {
             "cluster_connection": master_connection_configs,
             "rpc_port": next(ports_generator),
+            "grpc_server": grpc_server_config,
             "monitoring_port": next(ports_generator),
             "enable_authentication": False,
             "address_resolver": {"localhost_fqdn": "localhost"},
@@ -679,20 +690,26 @@ class ConfigsProvider_19(ConfigsProvider):
             config = {
                 "port": next(ports_generator),
                 "monitoring_port": next(ports_generator),
-                "enable_skybone_mds": manager_index == 0,
+                "peer_id_file": "peer_id_" + str(manager_index),
+                "announcer": {
+                    "trackers": ["sas1-skybonecoord1.search.yandex.net:2399"],
+                    "peer_udp_port": 7001 + 2 * manager_index,
+                    "out_of_order_update_ttl": 5000,
+                },
+                "skynet_port": 7000 + 2 * manager_index,
+                "sync_iteration_interval": 1000,
+                "removed_tables_scan_interval": 1000,
             }
-            config["self_url"] = "http://localhost:{}".format(config["port"])
             config["clusters"] = [
                 {
                     "cluster_name": "local",
-                    "proxy_url": "http://" + proxy_address,
                     "root": "//sys/skynet_manager",
                     "user": "root",
                     "oauth_token_env": "",
                     "connection": {
                         "connection_type": "rpc",
-                        "addresses": rpc_proxy_addresses
-                    }
+                        "cluster_url": "http://" + proxy_address,
+                    },
                 }
             ]
             config["logging"] = init_logging(config.get("logging"), logs_dir,

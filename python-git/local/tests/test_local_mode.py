@@ -420,7 +420,7 @@ class TestLocalMode(object):
         finally:
             self.yt_local("stop", env_id, "--delete")
 
-        patch = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 100}}}}
+        patch = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 20}}}}
         try:
             with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as node_config:
                 yson.dump(patch, node_config)
@@ -441,7 +441,7 @@ class TestLocalMode(object):
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 node_address = client.list("//sys/nodes")[0]
-                assert client.get("//sys/nodes/{0}/@resource_limits/user_slots".format(node_address)) == 100
+                assert client.get("//sys/nodes/{0}/@resource_limits/user_slots".format(node_address)) == 20
                 for subpath in ["primary_masters", "scheduler/instances"]:
                     address = client.list("//sys/{0}".format(subpath))[0]
                     assert client.get("//sys/{0}/{1}/orchid/config/yt_local_test_key"

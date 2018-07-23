@@ -2,6 +2,10 @@ from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
 from yt.packages.six.moves import map as imap
 import yt.json_wrapper as json
 
+# Fix for thread unsafety of datetime module.
+# See http://bugs.python.org/issue7980 for more details.
+import _strptime
+
 from collections import Mapping
 from datetime import datetime
 from itertools import chain
@@ -12,6 +16,7 @@ import ctypes
 import errno
 import functools
 import os
+import re
 import signal
 import socket
 import sys
@@ -99,7 +104,7 @@ class YtResponseError(YtError):
 
     def is_concurrent_operations_limit_reached(self):
         """Too many concurrent operations."""
-        return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")
+        return self.contains_code(202)
 
     def is_no_such_transaction(self):
         """No such transaction."""
@@ -112,6 +117,14 @@ class YtResponseError(YtError):
     def is_shell_exited(self):
         """Shell exited."""
         return self.contains_code(1800) or self.contains_code(1801)
+
+    def is_no_such_service(self):
+        """No such service."""
+        return self.contains_code(102)
+
+    def is_tablet_in_intermediate_state(self):
+        """Tablet is in intermediate state."""
+        return self.matches_regexp("Tablet .* is in state .*")
 
     def contains_code(self, code):
         """Check if HTTP response has specified error code."""
@@ -141,6 +154,23 @@ class YtResponseError(YtError):
             return False
 
         return contains_text_recursive(self.error, text)
+
+    def matches_regexp(self, pattern):
+        """Check if HTTP response has specified status code."""
+        def matches_regexp_recursive(error, pattern):
+            message = ""
+            if "message" in error:
+                message = error["message"]
+
+            if re.match(pattern, message) is not None:
+                return True
+
+            for inner_error in error.get("inner_errors", []):
+                if matches_regexp_recursive(inner_error, pattern):
+                    return True
+            return False
+
+        return matches_regexp_recursive(self.error, pattern)
 
 class PrettyPrintableDict(dict):
     pass
@@ -395,3 +425,38 @@ def is_process_alive(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
     return True
+
+def guid_to_parts(guid):
+    id_parts = guid.split("-")
+    id_hi = int(id_parts[2], 16) << 32 | int(id_parts[3], 16)
+    id_lo = int(id_parts[0], 16) << 32 | int(id_parts[1], 16)
+    return id_hi, id_lo
+
+def parts_to_guid(id_hi, id_lo):
+    guid = id_lo << 64 | id_hi
+    mask = 0xFFFFFFFF
+
+    parts = []
+    for i in range(4):
+        parts.append((guid & mask) >> (i * 32))
+        mask <<= 32
+
+    return "-".join(reversed(["{:x}".format(part) for part in parts]))
+
+# TODO(asaitgalin): Remove copy-paste from YP.
+def underscore_case_to_camel_case(str):
+    result = []
+    first = True
+    upper = True
+    for c in str:
+        if c == "_":
+            upper = True
+        else:
+            if upper:
+                if not c in string.ascii_letters and not first:
+                    result.append("_")
+                c = c.upper()
+            result.append(c)
+            upper = False
+        first = False
+    return "".join(result)

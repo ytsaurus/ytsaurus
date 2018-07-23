@@ -5,7 +5,7 @@ from .config import get_config, get_option, get_client_state
 from .errors import YtError, YtResponseError
 from .etc_commands import execute_batch
 from .http_helpers import get_retriable_errors
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 
 import yt.yson as yson
 from yt.packages.six.moves import zip as izip
@@ -32,7 +32,7 @@ class BatchRequestRetrier(Retrier):
         super(BatchRequestRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=request_timeout,
                                                   exceptions=get_retriable_errors() + (YtBatchRequestFailedError,),
-                                                  chaos_monkey_enable=chaos_monkey_enable)
+                                                  chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
         self._tasks = tasks
         self._responses = responses
         self._max_batch_size = max_batch_size

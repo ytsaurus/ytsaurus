@@ -8,11 +8,12 @@ from .operation_commands import get_operation_state, abort_operation, complete_o
 from .file_commands import read_file, write_file, smart_upload_file
 from .transaction import PingTransaction
 from .batch_helpers import create_batch_client, batch_apply
+from .random_sample import sample_rows_from_table
 from .shuffle import shuffle_table
 from .table import TempTable
 from .transaction import Transaction
 from .transform import transform
-from .job_commands import run_job_shell, get_job_stderr, dump_job_context, list_jobs
+from .job_commands import run_job_shell, get_job_stderr, dump_job_context, list_jobs, get_job
 from .etc_commands import execute_batch
 from .ypath import TablePath
 from .http_helpers import get_user_name

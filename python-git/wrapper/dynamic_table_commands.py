@@ -1,13 +1,14 @@
 from .driver import make_request
-from .table_helpers import _prepare_format, _to_chunk_stream
+from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
+from .errors import YtNoSuchService, YtTabletIsInIntermediateState
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
 from .transaction import null_transaction_id
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -24,11 +25,14 @@ ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
     tablet_count = get(path + "/@tablet_count", client=client)
-    first_tablet_index = get_value(first_tablet_index, 0)
-    last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
 
-    is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
-                                   get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
+    if first_tablet_index is None and last_tablet_index is None:
+        first_tablet_index = get_value(first_tablet_index, 0)
+        last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
+        is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
+                                       get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
+    else:
+        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state
 
     check_interval = get_config(client)["tablets_check_interval"] / 1000.0
     timeout = get_config(client)["tablets_ready_timeout"] / 1000.0
@@ -53,11 +57,12 @@ class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, data=None, client=None):
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
+        retriable_errors = tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState])
         super(DynamicTableRequestRetrier, self).__init__(
             retry_config=retry_config,
             timeout=request_timeout,
-            exceptions=get_retriable_errors(),
-            chaos_monkey_enable=chaos_monkey_enable)
+            exceptions=retriable_errors,
+            chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
         self.request_timeout = request_timeout
         self.params = params
@@ -104,7 +109,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
     params = {
         "query": query,
         "output_format": format.to_yson_type()}
@@ -151,7 +156,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
 
     params = {}
     params["path"] = table
@@ -162,8 +167,13 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
 
-    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
-                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = retry_config["enable"] and \
@@ -196,7 +206,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
 
     params = {}
     params["path"] = table
@@ -205,8 +215,13 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
 
-    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
-                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = retry_config["enable"] and \
@@ -235,7 +250,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
         raw = get_config(client)["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
-    format = _prepare_format(format, raw, client)
+    format = _prepare_command_format(format, raw, client)
 
     params = {}
     params["path"] = table
@@ -245,8 +260,13 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "column_names", column_names)
     set_param(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
 
-    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
-                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=False,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     _check_transaction_type(client)
 

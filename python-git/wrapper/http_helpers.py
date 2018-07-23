@@ -1,7 +1,7 @@
 from .config import get_config, get_option, set_option, get_backend_type
 from .common import (require, get_value, total_seconds, generate_uuid, update,
                      remove_nones_from_dict)
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut,
                      YtRetriableError, YtNoSuchTransaction, hide_token)
@@ -211,10 +211,11 @@ class RequestRetrier(Retrier):
         headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
         self.headers = headers
 
+        chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)
         super(RequestRetrier, self).__init__(exceptions=tuple(retriable_errors),
                                              timeout=retries_timeout,
                                              retry_config=retry_config,
-                                             chaos_monkey_enable=get_option("_ENABLE_HTTP_CHAOS_MONKEY", client))
+                                             chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
     def action(self):
         url = self.url
