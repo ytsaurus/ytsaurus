@@ -75,6 +75,9 @@ public:
     TLogger& AddTag(const char* format, const TArgs&... args);
     const TString& GetContext() const;
 
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
 private:
     TLogManager* LogManager_;
     const TLoggingCategory* Category_;

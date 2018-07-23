@@ -2,17 +2,20 @@
 
 #include "helpers.h"
 
+#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/controller_agent/job_size_adjuster.h>
+#include <yt/server/controller_agent/job_size_constraints.h>
+
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
-#include <yt/server/controller_agent/job_size_adjuster.h>
-#include <yt/server/controller_agent/controller_agent.h>
-
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
+
+#include <random>
 
 namespace NYT {
 namespace NChunkPools {
@@ -78,6 +81,7 @@ public:
         : OperationId_(options.OperationId)
         , Task_(options.Task)
         , JobSizeConstraints_(options.JobSizeConstraints)
+        , Sampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
         , Mode(options.Mode)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
@@ -100,6 +104,14 @@ public:
                 options.JobSizeAdjusterConfig);
             // ToDo(psushin): add logging here.
             // ToDo(max42): Hi psushin, which logging do you want here?
+        }
+
+        if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
+            LOG_DEBUG(
+                "Building jobs with sampling "
+                "(SamplingRate: %v, SamplingDataWeightPerJob: %v)",
+                *JobSizeConstraints_->GetSamplingRate(),
+                JobSizeConstraints_->GetSamplingDataWeightPerJob());
         }
     }
 
@@ -497,6 +509,7 @@ public:
         Persist(context, InputCookieIsSuspended_);
         Persist(context, Stripes);
         Persist(context, JobSizeConstraints_);
+        Persist(context, Sampler_);
         Persist(context, JobSizeAdjuster);
         Persist(context, PendingGlobalStripes);
         Persist(context, FreePendingDataWeight);
@@ -539,6 +552,8 @@ private:
     std::vector<char> InputCookieIsSuspended_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
+    //! Used both for stripe sampling and teleport chunk sampling.
+    TBernoulliSamplerPtr Sampler_;
     std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster;
 
     //! Indexes in #Stripes.
@@ -607,11 +622,16 @@ private:
         } else {
             const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
 
-            if ((chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||
-                chunk->GetDataWeight() >= MinTeleportChunkDataWeight_) &&
+            if (chunk->IsCompleteChunk() &&
+                ((chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||
+                chunk->GetDataWeight() >= MinTeleportChunkDataWeight_)) &&
                 InputStreamDirectory_.GetDescriptor(dataSlice->GetTableIndex()).IsTeleportable())
             {
-                TeleportChunks_.emplace_back(chunk);
+                if (Sampler_->Sample()) {
+                    TeleportChunks_.emplace_back(chunk);
+                } else {
+                    // Drop this teleport chunk.
+                }
                 return;
             }
 
@@ -664,6 +684,10 @@ private:
 
     void AddStripe(const TChunkStripePtr& stripe)
     {
+        if (!Sampler_->Sample()) {
+            return;
+        }
+
         int internalCookie = Stripes.size();
 
         ++PendingStripeCount;

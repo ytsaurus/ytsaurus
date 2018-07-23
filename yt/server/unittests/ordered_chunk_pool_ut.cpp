@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
@@ -66,7 +67,8 @@ protected:
             MaxDataSlicesPerJob_,
             0 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
-            InputSliceRowCount_ /* inputSliceRowCount */);
+            InputSliceRowCount_,
+            SamplingRate_);
     }
 
     TInputChunkPtr CreateChunk(
@@ -327,6 +329,8 @@ protected:
     i64 InputSliceDataSize_;
 
     i64 InputSliceRowCount_;
+
+    TNullable<double> SamplingRate_;
 
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 

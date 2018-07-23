@@ -4,6 +4,7 @@
 
 #include "job_info.h"
 #include "task_host.h"
+#include "job_size_constraints.h"
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -85,7 +86,8 @@ TAutoMergeTask::TAutoMergeTask(
         maxChunksPerJob /* maxDataSlicesPerJob */,
         std::numeric_limits<i64>::max(),
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
-        std::numeric_limits<i64>::max() /* inputSliceRowCount */);
+        std::numeric_limits<i64>::max() /* inputSliceRowCount */,
+        Null /* samplingRate */);
 
     TUnorderedChunkPoolOptions options;
     options.Mode = EUnorderedChunkPoolMode::AutoMerge;

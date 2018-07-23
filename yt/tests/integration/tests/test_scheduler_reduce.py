@@ -1480,6 +1480,49 @@ done
                    reduce_by=["key"],
                    spec={"pivot_keys": [["05"], ["10"]]})
 
+    def test_sampling(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
+                                                           {"name": "value", "type": "string"}]})
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1",
+                    [{"key": ("%02d" % (i // 100)), "value": "x" * 10**2} for i in range(10000)],
+                    table_writer={"block_size": 1024})
+
+        reduce(in_="//tmp/t1",
+               out="//tmp/t2",
+               command="cat",
+               reduce_by=["key"],
+               spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5}})
+        assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
+        assert get("//tmp/t2/@chunk_count") == 1
+
+        reduce(in_="//tmp/t1",
+               out="//tmp/t2",
+               command="cat",
+               reduce_by=["key"],
+               spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                     "job_count": 10})
+        assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
+        assert get("//tmp/t2/@chunk_count") > 1
+
+        reduce(in_="//tmp/t1",
+               out="//tmp/t2",
+               command="cat",
+               reduce_by=["key"],
+               spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**7},
+                     "job_count": 10})
+        assert get("//tmp/t2/@row_count") in [0, 10000]
+        assert get("//tmp/t2/@chunk_count") in [0, 1]
+
+        reduce(in_="//tmp/t1",
+               out="//tmp/t2",
+               command="cat",
+               reduce_by=["key"],
+               spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 1, "max_total_slice_count": 1},
+                     "job_count": 10})
+        assert get("//tmp/t2/@row_count") in [0, 10000]
+        assert get("//tmp/t2/@chunk_count") in [0, 1]
+
 
 class TestSchedulerNewReduceCommandsOneCell(TestSchedulerReduceCommandsOneCell):
     @classmethod

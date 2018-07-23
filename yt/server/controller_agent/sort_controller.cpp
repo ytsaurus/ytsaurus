@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "job_size_constraints.h"
 #include "unordered_controller.h"
 #include "operation_controller_detail.h"
 #include "task.h"
@@ -2127,6 +2128,7 @@ protected:
         chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
             Spec,
             Options,
+            Logger,
             GetOutputTablePaths().size());
         chunkPoolOptions.Task = taskId;
         return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
@@ -2371,6 +2373,7 @@ private:
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
                 Spec,
                 Options,
+                Logger,
                 TotalEstimatedInputUncompressedDataSize,
                 TotalEstimatedInputDataWeight,
                 TotalEstimatedInputRowCount,
@@ -2394,6 +2397,7 @@ private:
         auto jobSizeConstraints = CreateSimpleSortJobSizeConstraints(
             Spec,
             Options,
+            Logger,
             TotalEstimatedInputDataWeight);
 
         std::vector<TChunkStripePtr> stripes;
@@ -3061,9 +3065,12 @@ private:
         int partitionCount = SuggestPartitionCount();
         LOG_INFO("Suggested partition count %v", partitionCount);
 
+        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+
         auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,
             Options,
+            Logger,
             TotalEstimatedInputUncompressedDataSize,
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,

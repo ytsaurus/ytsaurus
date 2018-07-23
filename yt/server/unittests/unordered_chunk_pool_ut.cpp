@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
@@ -61,7 +62,8 @@ protected:
             MaxDataSlicesPerJob_,
             Inf64 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
-            InputSliceRowCount_ /* inputSliceRowCount */);
+            InputSliceRowCount_,
+            SamplingRate_);
     }
 
     TInputChunkPtr CreateChunk(
@@ -390,6 +392,8 @@ protected:
     i64 InputSliceDataSize_;
 
     i64 InputSliceRowCount_;
+
+    TNullable<double> SamplingRate_;
 
     i64 JobCount_;
 

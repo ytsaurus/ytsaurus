@@ -177,6 +177,29 @@ TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
         .Default(false);
 }
 
+TSamplingConfig::TSamplingConfig()
+{
+    RegisterParameter("sampling_rate", SamplingRate)
+        .Default(Null);
+
+    RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
+        .Default(Null);
+
+    RegisterParameter("io_block_size", IOBlockSize)
+        .Default(16_MB);
+
+    RegisterPostprocessor([&] {
+        if (SamplingRate && (*SamplingRate < 0.0 || *SamplingRate > 1.0)) {
+            THROW_ERROR_EXCEPTION("Sampling rate should be in range [0.0, 1.0]")
+                << TErrorAttribute("sampling_rate", SamplingRate);
+        }
+        if (MaxTotalSliceCount && *MaxTotalSliceCount <= 0) {
+            THROW_ERROR_EXCEPTION("max_total_slice_count should be positive")
+                << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount);
+        }
+    });
+}
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -297,6 +320,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(false);
     RegisterParameter("fail_on_all_nodes_banned", FailOnAllNodesBanned)
         .Default(true);
+
+    RegisterParameter("sampling", Sampling)
+        .DefaultNew();
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -773,6 +799,10 @@ TSortOperationSpec::TSortOperationSpec()
 
     RegisterPostprocessor([&] {
         OutputTablePath = OutputTablePath.Normalize();
+
+        if (Sampling && Sampling->SamplingRate) {
+            THROW_ERROR_EXCEPTION("Sampling in sort operation is not supported");
+        }
     });
 }
 
@@ -896,6 +926,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         Reducer->TaskTitle = "Reducer";
         // NB(psushin): don't init input table index for reduce jobs,
         // they cannot have table index.
+
+        if (Sampling && Sampling->SamplingRate) {
+            MapSelectivityFactor *= *Sampling->SamplingRate;
+        }
     });
 }
 
@@ -935,6 +969,10 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         if (!ClusterName && !ClusterConnection) {
             THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
         }
+
+        if (Sampling && Sampling->SamplingRate) {
+            THROW_ERROR_EXCEPTION("You do not want sampling in remote copy operation :)");
+        }
     });
 }
 
@@ -952,6 +990,10 @@ TVanillaOperationSpec::TVanillaOperationSpec()
             }
 
             taskSpec->TaskTitle = taskName;
+        }
+
+        if (Sampling && Sampling->SamplingRate) {
+            THROW_ERROR_EXCEPTION("You do not want sampling in vanilla operation :)");
         }
     });
 }

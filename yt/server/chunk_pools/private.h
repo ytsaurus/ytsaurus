@@ -22,9 +22,13 @@ using TIntCookie = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(ISortedJobBuilder);
+
 DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
+
+DECLARE_REFCOUNTED_CLASS(TBernoulliSampler)
 
 struct IChunkPoolInput;
 struct IChunkPoolOutput;

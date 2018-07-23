@@ -86,6 +86,15 @@ TInputChunkPtr TInputDataSlice::GetSingleUnversionedChunkOrThrow() const
     return ChunkSlices[0]->GetInputChunk();
 }
 
+TInputDataSlice::TChunkSignature TInputDataSlice::GetChunkSignature() const
+{
+    TChunkSignature result;
+    for (const auto& chunkSlice : ChunkSlices) {
+        result.emplace_back(chunkSlice->GetInputChunk());
+    }
+    return result;
+}
+
 bool TInputDataSlice::IsTrivial() const
 {
     return Type == EDataSourceType::UnversionedTable && ChunkSlices.size() == 1;

@@ -115,14 +115,16 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t2", [{"a": 7}, {"a": 8}, {"a": 9}])
         write_table("//tmp/t3", [{"a": 1}, {"a": 2}, {"a": 3}])
 
+        raw_input()
+
         create("table", "//tmp/t_out")
         merge(mode="unordered",
               in_=["//tmp/t1", "//tmp/t2[:#2]", "//tmp/t3[#1:]"],
               out="//tmp/t_out",
               spec={"data_size_per_job": 1000})
 
-        assert get("//tmp/t_out/@chunk_count") == 2
         assert get("//tmp/t_out/@row_count") == 7
+        assert get("//tmp/t_out/@chunk_count") == 2
         assert sorted(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
 
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
@@ -1155,6 +1157,67 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert interrupted["job_split"] >= 1
         rows = read_table("//tmp/t_out", verbose=False)
         assert rows == expected
+
+    @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
+    def test_sampling(self, mode):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
+                                                           {"name": "value", "type": "string"}]})
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1",
+                    [{"key": ("%02d" % (i // 100)), "value": "x" * 10**2} for i in range(10000)],
+                    table_writer={"block_size": 1024})
+
+        merge(in_="//tmp/t1",
+              out="//tmp/t2",
+              mode=mode,
+              spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                    "combine_chunks": True,
+                    "data_weight_per_job": 10**9})
+        assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
+        assert get("//tmp/t2/@chunk_count") == 1
+
+        merge(in_="//tmp/t1",
+              out="//tmp/t2",
+              mode=mode,
+              spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                    "job_count": 10,
+                    "combine_chunks": True})
+        assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
+        assert get("//tmp/t2/@chunk_count") > 1
+
+        if mode != "unordered":
+            merge(in_="//tmp/t1",
+                  out="//tmp/t2",
+                  mode=mode,
+                  spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**7},
+                        "job_count": 10,
+                        "combine_chunks": True,
+                        "data_weight_per_job": 10**9})
+            assert get("//tmp/t2/@row_count") in [0, 10000]
+            assert get("//tmp/t2/@chunk_count") in [0, 1]
+
+            merge(in_="//tmp/t1",
+                  out="//tmp/t2",
+                  mode=mode,
+                  spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 1, "max_total_slice_count": 1},
+                        "job_count": 10,
+                        "combine_chunks": True})
+            assert get("//tmp/t2/@row_count") in [0, 10000]
+            assert get("//tmp/t2/@chunk_count") in [0, 1]
+
+    @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
+    def test_sampling_teleport(self, mode):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2")
+        for i in range(100):
+            write_table("<append=%true>//tmp/t1", [{"key": ("%02d" % i)}])
+
+        merge(in_="//tmp/t1",
+              out="//tmp/t2",
+              mode=mode,
+              spec={"sampling": {"sampling_rate": 0.1, "user_limits": {"resource_limits": {"user_slots": 0}}}})
+        assert 0 <= get("//tmp/t2/@chunk_count") <= 20
+
 
 ##################################################################
 

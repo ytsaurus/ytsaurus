@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/input_chunk_mapping.h>
 
@@ -49,6 +50,8 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.SortedJobOptions.MaxDataWeightPerJob = Inf64;
+        Options_.MaxBuildRetryCount = 1;
+        Options_.Task = "TestTask";
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
@@ -65,7 +68,10 @@ protected:
             MaxDataSlicesPerJob_,
             0 /* maxDataWeightPerJob_ */,
             InputSliceDataWeight_,
-            Inf64 /* inputSliceRowCount */);
+            Inf64 /* inputSliceRowCount */,
+            SamplingRate_,
+            SamplingDataWeightPerJob_,
+            SamplingPrimaryDataWeightPerJob_);
     }
 
     struct TMockChunkSliceFetcherBuilder
@@ -352,8 +358,12 @@ protected:
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
     {
         std::vector<TChunkStripeListPtr> stripeLists;
-        for (auto cookie : OutputCookies_) {
-            stripeLists.emplace_back(ChunkPool_->GetStripeList(cookie));
+        auto sortedExtractedCookies = ExtractedCookies_;
+        std::sort(sortedExtractedCookies.begin(), sortedExtractedCookies.end());
+        for (auto cookie : sortedExtractedCookies) {
+            if (cookie != IChunkPoolOutput::NullCookie) {
+                stripeLists.emplace_back(ChunkPool_->GetStripeList(cookie));
+            }
         }
         return stripeLists;
     }
@@ -601,6 +611,10 @@ protected:
     i32 MaxDataSlicesPerJob_;
 
     i64 InputSliceDataWeight_;
+
+    TNullable<double> SamplingRate_;
+    i64 SamplingDataWeightPerJob_ = Inf64;
+    i64 SamplingPrimaryDataWeightPerJob_ = Inf64;
 
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
@@ -1700,7 +1714,7 @@ TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
     EXPECT_GE(ChunkPool_->GetPendingJobCount(), 100 / 2);
 }
 
-TEST_F(TSortedChunkPoolTest, MaxTotalSliceCount)
+TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountExceeded)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1710,20 +1724,14 @@ TEST_F(TSortedChunkPoolTest, MaxTotalSliceCount)
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.SortedJobOptions.MaxTotalSliceCount = 6;
-    DataSizePerJob_ = 1;
+    DataSizePerJob_ = 1000;
     InitJobConstraints();
-    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({1}), BuildRow({3}), 1);
     auto chunkC1 = CreateChunk(BuildRow({1}), BuildRow({1}), 2);
     auto chunkC2 = CreateChunk(BuildRow({2}), BuildRow({2}), 2);
     auto chunkC3 = CreateChunk(BuildRow({3}), BuildRow({3}), 2);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC1);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC2);
-    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC3);
 
     CreateChunkPool();
 
@@ -1734,6 +1742,37 @@ TEST_F(TSortedChunkPoolTest, MaxTotalSliceCount)
     AddChunk(chunkC3);
 
     EXPECT_THROW(ChunkPool_->Finish(), std::exception);
+}
+
+TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountRetries)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {false, false, false} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.MaxTotalSliceCount = 6;
+    Options_.MaxBuildRetryCount = 5;
+    DataSizePerJob_ = 1000;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({1}), BuildRow({3}), 1);
+    auto chunkC1 = CreateChunk(BuildRow({1}), BuildRow({1}), 2);
+    auto chunkC2 = CreateChunk(BuildRow({2}), BuildRow({2}), 2);
+    auto chunkC3 = CreateChunk(BuildRow({3}), BuildRow({3}), 2);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC1);
+    AddChunk(chunkC2);
+    AddChunk(chunkC3);
+
+    ChunkPool_->Finish();
 }
 
 TEST_F(TSortedChunkPoolTest, TestJobInterruption)
@@ -1888,6 +1927,7 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
     ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
 
     OutputCookies_.clear();
+    ExtractedCookies_.clear();
 
     ExtractOutputCookiesWhilePossible();
     stripeLists = GetAllStripeLists();
@@ -2303,8 +2343,8 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys1)
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
 
-    auto chunkA1 = CreateChunk(BuildRow({3}), BuildRow({14}), 0);
-    auto chunkA2 = CreateChunk(BuildRow({2}), BuildRow({2}), 0);
+    auto chunkA1 = CreateChunk(BuildRow({2}), BuildRow({2}), 0);
+    auto chunkA2 = CreateChunk(BuildRow({3}), BuildRow({14}), 0);
     auto chunkB1 = CreateChunk(BuildRow({0}), BuildRow({1}), 1);
     auto chunkB2 = CreateChunk(BuildRow({8}), BuildRow({20}), 1);
 
@@ -2326,9 +2366,14 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys1)
     EXPECT_THAT(teleportChunks, IsEmpty());
     EXPECT_EQ(4, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
+    EXPECT_EQ(1, stripeLists[0]->Stripes[0]->DataSlices.size());
     EXPECT_EQ(1, stripeLists[1]->Stripes.size());
+    EXPECT_EQ(2, stripeLists[1]->Stripes[0]->DataSlices.size());
     EXPECT_EQ(1, stripeLists[2]->Stripes.size());
+    EXPECT_EQ(1, stripeLists[2]->Stripes[0]->DataSlices.size());
     EXPECT_EQ(2, stripeLists[3]->Stripes.size());
+    EXPECT_EQ(1, stripeLists[3]->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(1, stripeLists[3]->Stripes[1]->DataSlices.size());
 }
 
 TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
@@ -2614,6 +2659,109 @@ TEST_F(TSortedChunkPoolTest, TeleportChunkAndShortReadLimits)
     EXPECT_EQ(2, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(1, stripeLists[1]->Stripes.size());
+}
+
+TEST_F(TSortedChunkPoolTest, Sampling)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 1;
+    SamplingRate_ = 0.5;
+    SamplingDataWeightPerJob_ = DataSizePerJob_;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    TInputChunkPtr chunk42;
+    for (int index = 0; index < 100; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        auto cookie = AddChunk(chunk);
+        if (cookie == 42) {
+            chunk42 = chunk;
+        }
+    }
+
+    ChunkPool_->Finish();
+
+    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
+    EXPECT_LE(40, ChunkPool_->GetPendingJobCount());
+    EXPECT_GE(60, ChunkPool_->GetPendingJobCount());
+
+    ResetChunk(42, chunk42);
+
+    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
+    EXPECT_LE(40, ChunkPool_->GetPendingJobCount());
+    EXPECT_GE(60, ChunkPool_->GetPendingJobCount());
+}
+
+TEST_F(TSortedChunkPoolTest, SamplingWithEnlarging)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 10_KB;
+    SamplingRate_ = 0.5;
+    SamplingDataWeightPerJob_ = 1;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    TInputChunkPtr chunk42;
+    for (int index = 0; index < 100; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        auto cookie = AddChunk(chunk);
+        if (cookie == 42) {
+            chunk42 = chunk;
+        }
+    }
+
+    ChunkPool_->Finish();
+
+    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
+    EXPECT_LE(3, ChunkPool_->GetPendingJobCount());
+    EXPECT_GE(7, ChunkPool_->GetPendingJobCount());
+
+    ResetChunk(42, chunk42);
+
+    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
+    EXPECT_LE(3, ChunkPool_->GetPendingJobCount());
+    EXPECT_GE(7, ChunkPool_->GetPendingJobCount());
+}
+
+TEST_F(TSortedChunkPoolTest, EnlargingWithTeleportation)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    DataSizePerJob_ = 10_KB;
+    SamplingRate_ = 1.0;
+    SamplingDataWeightPerJob_ = 10_KB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(CreateChunk(BuildRow({5}), BuildRow({5}), 0));
+    AddChunk(CreateChunk(BuildRow({0}), BuildRow({1}), 1));
+    AddChunk(CreateChunk(BuildRow({8}), BuildRow({9}), 1));
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(1, ChunkPool_->GetTeleportChunks().size());
+    EXPECT_EQ(2, ChunkPool_->GetPendingJobCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

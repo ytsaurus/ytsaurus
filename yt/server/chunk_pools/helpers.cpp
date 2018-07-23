@@ -115,6 +115,29 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBernoulliSampler::TBernoulliSampler(TNullable<double> samplingRate)
+{
+    if (samplingRate) {
+        SamplingRate_ = samplingRate;
+        Distribution_ = std::bernoulli_distribution(*samplingRate);
+    }
+}
+
+bool TBernoulliSampler::Sample()
+{
+    if (!SamplingRate_) {
+        return true;
+    }
+    return Distribution_(Generator_);
+}
+
+TString ToString(const TBernoulliSampler& /* sampler */)
+{
+    return "";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkPools
 } // namespace NYT
 
