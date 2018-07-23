@@ -2,6 +2,8 @@ from yt.yson import dumps
 
 from yt_yson_bindings import SkiffSchema, load_skiff, dump_skiff, SkiffTableSwitch
 
+from yt.packages.six.moves import xrange
+
 import copy
 import pytest
 import random
@@ -337,7 +339,7 @@ class TestSkiff(object):
         result = list(load_skiff(stream, [schema], "#range_index", "#row_index", raw=True))
         assert len(result) == 10
 
-        assert raw_dumped_data == "".join(result)
+        assert raw_dumped_data == b"".join(result)
 
         for i, row in enumerate(result):
             iter = load_skiff(BytesIO(row), [schema], "#range_index", "#row_index")
