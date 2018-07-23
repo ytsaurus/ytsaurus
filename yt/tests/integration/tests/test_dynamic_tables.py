@@ -379,6 +379,20 @@ class TestDynamicTables(TestDynamicTablesBase):
         assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == acl
         assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == acl
 
+    @pytest.mark.parametrize("domain", ["snapshot_acl", "changelog_acl"])
+    def test_create_tablet_cell_with_broken_acl(self, domain):
+        create_user("u")
+        acl = [make_ace("allow", "unknown_user", "read")]
+        create_tablet_cell_bundle("b", attributes={"options": {domain: acl}})
+
+        with pytest.raises(YtError):
+            sync_create_cells(1, tablet_cell_bundle="b")
+        assert len(ls("//sys/tablet_cells")) == 0
+
+        set("//sys/tablet_cell_bundles/b/@options/{}".format(domain), [make_ace("allow", "u", "read")])
+        sync_create_cells(1, tablet_cell_bundle="b")
+        assert len(ls("//sys/tablet_cells")) == 1
+
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell_bundle("b", authenticated_user="u")
