@@ -161,6 +161,7 @@ public:
 
     NBus::TTcpBusConfigPtr BusClient;
 
+    NYTree::IMapNodePtr CypressAnnotations;
     TCellMasterConfig();
 };
 

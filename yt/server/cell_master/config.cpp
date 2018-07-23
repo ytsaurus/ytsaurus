@@ -2,10 +2,13 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NCellMaster {
 
 using namespace NObjectClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +63,11 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(true);
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
+    RegisterParameter("cypress_annotations", CypressAnnotations)
+        .Default(BuildYsonNodeFluently()
+            .BeginMap()
+            .EndMap()
+        ->AsMap());
 
     RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
