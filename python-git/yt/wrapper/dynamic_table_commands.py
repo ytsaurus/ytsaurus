@@ -25,11 +25,14 @@ ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
     tablet_count = get(path + "/@tablet_count", client=client)
-    first_tablet_index = get_value(first_tablet_index, 0)
-    last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
 
-    is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
-                                   get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
+    if first_tablet_index is None and last_tablet_index is None:
+        first_tablet_index = get_value(first_tablet_index, 0)
+        last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
+        is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
+                                       get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
+    else:
+        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state
 
     check_interval = get_config(client)["tablets_check_interval"] / 1000.0
     timeout = get_config(client)["tablets_ready_timeout"] / 1000.0
