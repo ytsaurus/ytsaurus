@@ -333,7 +333,15 @@ public:
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering tablet cell in Cypress");
+            LOG_ERROR_UNLESS(
+                IsRecovery(),
+                ex,
+                "Error registering tablet cell in Cypress (CellId: %v)",
+                cell->GetId());
+
+            objectManager->UnrefObject(cell);
+            THROW_ERROR_EXCEPTION("Error registering tablet cell in Cypress")
+                << ex;
         }
 
         return cell;
