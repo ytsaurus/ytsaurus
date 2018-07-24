@@ -14,7 +14,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Object LoadYsonFromStringBuf(const TStringBuf& string, const TNullable<TString>& encoding)
+Py::Object LoadYsonFromStringBuf(TStringBuf string, const TNullable<TString>& encoding)
 {
     TPythonObjectBuilder consumer(/* alwaysCreateAttributes */ false, encoding);
     ParseYsonStringBuffer(string, EYsonType::Node, &consumer);
@@ -52,7 +52,7 @@ void TPythonSkiffRecordBuilder::OnEndRow()
     Objects_.push(pythonObject);
 }
 
-void TPythonSkiffRecordBuilder::OnStringScalar(const TStringBuf& value, ui16 columnId)
+void TPythonSkiffRecordBuilder::OnStringScalar(TStringBuf value, ui16 columnId)
 {
     Py::Bytes bytes(value.begin(), value.size());
     // TODO(ignat): remove this copy/paste.
@@ -102,12 +102,12 @@ void TPythonSkiffRecordBuilder::OnEntity(ui16 columnId)
     CurrentRecord_->SetField(columnId, Py::None());
 }
 
-void TPythonSkiffRecordBuilder::OnYsonString(const TStringBuf& value, ui16 columnId)
+void TPythonSkiffRecordBuilder::OnYsonString(TStringBuf value, ui16 columnId)
 {
     CurrentRecord_->SetField(columnId, LoadYsonFromStringBuf(value, Encoding_));
 }
 
-void TPythonSkiffRecordBuilder::OnOtherColumns(const TStringBuf& value)
+void TPythonSkiffRecordBuilder::OnOtherColumns(TStringBuf value)
 {
     auto object = LoadYsonFromStringBuf(value, Encoding_);
     auto items = Py::Object(PyDict_Items(*object), true);

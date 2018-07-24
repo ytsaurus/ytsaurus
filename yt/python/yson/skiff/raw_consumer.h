@@ -20,23 +20,23 @@ namespace NPython {
 class TPythonSkiffRawRecordBuilder
 {
 public:
-    TPythonSkiffRawRecordBuilder(size_t schemasCount, TCallback<void()> endRowCallback);
+    TPythonSkiffRawRecordBuilder(size_t schemaCount, TCallback<void()> endRowCallback);
 
     void OnBeginRow(ui16 schemaIndex);
     void OnEndRow();
-    void OnStringScalar(const TStringBuf& value, ui16 columnId);
+    void OnStringScalar(TStringBuf value, ui16 columnId);
     void OnInt64Scalar(i64 value, ui16 columnId);
     void OnUint64Scalar(ui64 value, ui16 columnId);
     void OnDoubleScalar(double value, ui16 columnId);
     void OnBooleanScalar(bool value, ui16 columnId);
     void OnEntity(ui16 columnId);
-    void OnYsonString(const TStringBuf& value, ui16 columnId);
+    void OnYsonString(TStringBuf value, ui16 columnId);
 
-    void OnOtherColumns(const TStringBuf& value);
+    void OnOtherColumns(TStringBuf value);
 
 private:
-    size_t SchemasCount_;
-    TCallback<void()> EndRowCallback_;
+    const size_t SchemaCount_;
+    const TCallback<void()> EndRowCallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
