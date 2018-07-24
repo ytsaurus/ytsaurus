@@ -79,8 +79,16 @@ class YtResponseError(YtError):
         return self.contains_code(901)
 
     def is_concurrent_transaction_lock_conflict(self):
+        """Deprecated! Transaction lock conflict."""
+        return self.contains_code(402)
+
+    def is_cypress_transaction_lock_conflict(self):
         """Transaction lock conflict."""
         return self.contains_code(402)
+
+    def is_tablet_transaction_lock_conflict(self):
+        """Transaction lock conflict."""
+        return self.contains_code(1700)
 
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
@@ -125,6 +133,14 @@ class YtResponseError(YtError):
     def is_tablet_in_intermediate_state(self):
         """Tablet is in intermediate state."""
         return self.matches_regexp("Tablet .* is in state .*")
+
+    def is_no_such_tablet(self):
+        """No such tablet."""
+        return self.contains_code(1701)
+
+    def is_tablet_not_mounted(self):
+        """Tablet is not mounted."""
+        return self.contains_code(1702)
 
     def contains_code(self, code):
         """Check if HTTP response has specified error code."""
