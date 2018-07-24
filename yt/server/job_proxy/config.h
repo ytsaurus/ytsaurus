@@ -107,8 +107,9 @@ public:
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
 
+        // Disable throttling when this timeout is 0.
         RegisterParameter("bandwidth_throttler_rpc_timeout", BandwidthThrottlerRpcTimeout)
-            .Default(TDuration::Minutes(15));
+            .Default(TDuration::Zero());
 
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);
