@@ -85,7 +85,8 @@ public:
 
     void WaitForDuration(TDuration duration)
     {
-        Y_UNUSED(WaitFor(MakeDelayed(duration)));
+        WaitFor(MakeDelayed(duration))
+            .ThrowOnError();
     }
 
     TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)
