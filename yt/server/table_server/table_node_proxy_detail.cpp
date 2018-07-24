@@ -1154,6 +1154,8 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
+        .SetOpaque(true));
 }
 
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -1182,11 +1184,35 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
             return true;
         }
 
+        case EInternedAttributeKey::ReplicatedTableOptions: {
+            BuildYsonFluently(consumer)
+                .Value(table->GetReplicatedTableOptions());
+            return true;
+        }
+
         default:
             break;
     }
 
     return TTableNodeProxy::GetBuiltinAttribute(key, consumer);
+}
+
+bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+{
+    auto* table = GetThisImpl<TReplicatedTableNode>();
+
+    switch (key) {
+        case EInternedAttributeKey::ReplicatedTableOptions: {
+            auto options = ConvertTo<TReplicatedTableOptionsPtr>(value);
+            table->SetReplicatedTableOptions(options);
+            return true;
+        }
+
+        default:
+            break;
+    }
+
+    return TTableNodeProxy::SetBuiltinAttribute(key, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
