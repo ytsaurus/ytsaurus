@@ -16,7 +16,7 @@
 
 #include <library/json/json_reader.h>
 
-#include <util/random//normal.h>
+#include <util/random/normal.h>
 #include <util/stream/file.h>
 #include <util/string/builder.h>
 #include <util/generic/buffer.h>
