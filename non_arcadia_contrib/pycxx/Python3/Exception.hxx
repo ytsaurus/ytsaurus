@@ -140,6 +140,9 @@ namespace Py
         eclass( PyObject *exception, PyObject *reason ) \
         : bclass( exception, reason ) \
         { } \
+        eclass( PyObject *exception, Object &reason ) \
+        : bclass( exception, reason ) \
+        { } \
         eclass() : bclass() {} \
         static void throwFunc(const std::string &reason) { throw eclass(reason); } \
         static void throwFuncObj(PyObject *exception) { throw eclass(exception); } \
