@@ -648,12 +648,15 @@ def run_unit_tests(options, build_context):
 
 
 @build_step
-@disable_for_ya
 def run_javascript_tests(options, build_context):
     if not options.build_enable_nodejs or options.disable_tests:
         return
 
-    tests_path = "{0}/yt/nodejs".format(options.working_directory)
+    if options.build_system == "cmake":
+        tests_path = "{0}/yt/nodejs".format(options.working_directory)
+    else:
+        assert options.build_system == "ya"
+        tests_path = get_bin_dir(options)
 
     try:
         run(
