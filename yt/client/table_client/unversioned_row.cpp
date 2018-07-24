@@ -1445,7 +1445,7 @@ namespace {
 
 template <class TRow>
 std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
-    const TRange<TRow>& rows,
+    TRange<TRow> rows,
     TRefCountedTypeCookie tagCookie)
 {
     size_t bufferSize = 0;
@@ -1500,14 +1500,14 @@ std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
 } // namespace
 
 std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
-    const TRange<TUnversionedRow>& rows,
+    TRange<TUnversionedRow> rows,
     TRefCountedTypeCookie tagCookie)
 {
     return CaptureRowsImpl(rows, tagCookie);
 }
 
 std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
-    const TRange<TUnversionedOwningRow>& rows,
+    TRange<TUnversionedOwningRow> rows,
     TRefCountedTypeCookie tagCookie)
 {
     return CaptureRowsImpl(rows, tagCookie);

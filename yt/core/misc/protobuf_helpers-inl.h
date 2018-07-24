@@ -258,7 +258,7 @@ void ToProto(
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const TRange<TOriginal>& originalArray)
+    TRange<TOriginal> originalArray)
 {
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
@@ -266,7 +266,7 @@ void ToProto(
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TRange<TOriginal>& originalArray)
+    TRange<TOriginal> originalArray)
 {
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }

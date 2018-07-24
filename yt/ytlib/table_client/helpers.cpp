@@ -153,7 +153,7 @@ public:
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
@@ -198,7 +198,7 @@ public:
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
@@ -777,7 +777,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TValue>
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TRange<TValue> values)
 {
     for (const auto& value : values) {
         auto id = value.Id;

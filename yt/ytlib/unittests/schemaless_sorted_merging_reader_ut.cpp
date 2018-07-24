@@ -27,7 +27,7 @@ using NChunkClient::TDataSliceDescriptor;
 class TResultStorage
 {
 public:
-    void OnUnreadRows(const NYT::TRange<TUnversionedRow>& unreadRows)
+    void OnUnreadRows(TRange<TUnversionedRow> unreadRows)
     {
         UnreadRowCount_ = unreadRows.Size();
         if (!unreadRows.Empty()) {
@@ -135,7 +135,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const NYT::TRange<TUnversionedRow>& unreadRows) const
+        NYT::TRange<TUnversionedRow> unreadRows) const
     {
         ResultStorage_->OnUnreadRows(unreadRows);
         return {};

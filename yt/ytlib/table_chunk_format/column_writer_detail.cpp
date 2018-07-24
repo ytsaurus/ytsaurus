@@ -99,7 +99,7 @@ void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUn
  }
 
 void TVersionedColumnWriterBase::AddPendingValues(
-    const TRange<TVersionedRow> rows, 
+    TRange<TVersionedRow> rows,
     std::function<void (const TVersionedValue& value)> onValue)
 {
     for (auto row : rows) {

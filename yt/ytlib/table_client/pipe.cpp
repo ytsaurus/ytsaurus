@@ -168,7 +168,7 @@ public:
         return writerReadyEvent;
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         // Copy data (no lock).
         auto capturedRows = Data_->RowBuffer->Capture(rows);

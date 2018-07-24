@@ -532,15 +532,15 @@ TOwningKey RowToKey(
  *  second value.
  */
 std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
-    const TRange<TUnversionedRow>& rows,
+    TRange<TUnversionedRow> rows,
     TRefCountedTypeCookie tagCookie);
 
 std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
-    const TRange<TUnversionedOwningRow>& rows,
+    TRange<TUnversionedOwningRow> rows,
     TRefCountedTypeCookie tagCookie);
 
 template <class TTag, class TRow>
-std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(const TRange<TRow>& rows)
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(TRange<TRow> rows)
 {
     return CaptureRows(rows, GetRefCountedTypeCookie<TTag>());
 }

@@ -35,7 +35,7 @@ public:
         , UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const TRange<TRow>& rows) override
+    virtual bool Write(TRange<TRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
@@ -179,7 +179,7 @@ public:
         , UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const TRange<TVersionedRow>& rows) override
+    virtual bool Write(TRange<TVersionedRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }

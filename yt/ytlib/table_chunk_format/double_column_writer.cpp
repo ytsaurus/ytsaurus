@@ -184,7 +184,7 @@ private:
     }
 
     template <class TRow>
-    void AddPendingValues(const TRange<TRow> rows)
+    void AddPendingValues(TRange<TRow> rows)
     {
         for (auto row : rows) {
             ++RowCount_;

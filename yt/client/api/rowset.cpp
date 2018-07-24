@@ -92,7 +92,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         for (auto row : rows) {
             Rows_.push_back(RowBuffer_->Capture(row));

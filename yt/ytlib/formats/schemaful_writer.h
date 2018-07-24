@@ -28,7 +28,7 @@ public:
 
     virtual TFuture<void> Close() override;
 
-    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override;
+    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 

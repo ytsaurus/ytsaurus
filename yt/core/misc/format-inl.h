@@ -240,7 +240,7 @@ struct TValueFormatter<TFormattableRange<TRange, TFormatter>>
 template <class T>
 struct TValueFormatter<TRange<T>>
 {
-    static void Do(TStringBuilder* builder, const TRange<T>& range, TStringBuf /*format*/)
+    static void Do(TStringBuilder* builder, TRange<T> range, TStringBuf /*format*/)
     {
         FormatRange(builder, range, TDefaultFormatter());
     }

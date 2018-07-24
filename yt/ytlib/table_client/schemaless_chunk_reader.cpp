@@ -148,7 +148,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override
+        TRange<TUnversionedRow> /*unreadRows*/) const override
     {
         Y_UNREACHABLE();
     }
@@ -198,7 +198,7 @@ protected:
     }
 
     TInterruptDescriptor GetInterruptDescriptorImpl(
-        const TRange<TUnversionedRow>& unreadRows,
+        TRange<TUnversionedRow> unreadRows,
         const NChunkClient::NProto::TMiscExt& misc,
         const NProto::TBlockMetaExt& blockMeta,
         const TChunkSpec& chunkSpec,
@@ -439,7 +439,7 @@ public:
         TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TInterruptDescriptor GetInterruptDescriptor(const TRange<TUnversionedRow>& unreadRows) const override;
+    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
 
 private:
     TReadRange ReadRange_;
@@ -697,7 +697,7 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
 }
 
 TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescriptor(
-    const TRange<TUnversionedRow>& unreadRows) const
+    TRange<TUnversionedRow> unreadRows) const
 {
     if (BlockIndexes_.size() == 0) {
         return {};
@@ -1093,7 +1093,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override
+        TRange<TUnversionedRow> unreadRows) const override
     {
         return GetInterruptDescriptorImpl(
             unreadRows,
@@ -1897,7 +1897,7 @@ public:
     virtual void Interrupt() override;
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override;
+        TRange<TUnversionedRow> unreadRows) const override;
 
 private:
     const TNameTablePtr NameTable_;
@@ -2044,7 +2044,7 @@ void TSchemalessMultiChunkReader<TBase>::Interrupt()
 
 template <class TBase>
 TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
-    const TRange<TUnversionedRow>& unreadRows) const
+    TRange<TUnversionedRow> unreadRows) const
 {
     static TRange<TUnversionedRow> emptyRange;
     auto state = TBase::GetUnreadState();
@@ -2260,7 +2260,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override
+        TRange<TUnversionedRow> unreadRows) const override
     {
         std::vector<TDataSliceDescriptor> unreadDescriptors;
         std::vector<TDataSliceDescriptor> readDescriptors;

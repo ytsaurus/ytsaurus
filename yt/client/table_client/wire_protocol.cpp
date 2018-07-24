@@ -151,7 +151,7 @@ public:
     }
 
     void WriteUnversionedRowset(
-        const TRange<TUnversionedRow>& rowset,
+        TRange<TUnversionedRow> rowset,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         WriteRowCount(rowset);
@@ -161,7 +161,7 @@ public:
     }
 
     void WriteSchemafulRowset(
-        const TRange<TUnversionedRow>& rowset,
+        TRange<TUnversionedRow> rowset,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         WriteRowCount(rowset);
@@ -171,7 +171,7 @@ public:
     }
 
     void WriteVersionedRowset(
-        const TRange<TVersionedRow>& rowset)
+        TRange<TVersionedRow> rowset)
     {
         WriteRowCount(rowset);
         for (auto row : rowset) {
@@ -254,7 +254,7 @@ private:
     }
 
     template <class TRow>
-    void WriteRowCount(const TRange<TRow>& rowset)
+    void WriteRowCount(TRange<TRow> rowset)
     {
         size_t rowCount = rowset.Size();
         ValidateRowCount(rowCount);
@@ -301,7 +301,7 @@ private:
     }
 
     TRange<TUnversionedValue> RemapValues(
-        const TRange<TUnversionedValue>& values,
+        TRange<TUnversionedValue> values,
         const TNameTableToSchemaIdMapping* idMapping)
     {
         auto valueCount = values.Size();
@@ -323,7 +323,7 @@ private:
         return MakeRange(PooledValues_);
     }
 
-    void UnsafeWriteNullBitmap(const TRange<TUnversionedValue>& values)
+    void UnsafeWriteNullBitmap(TRange<TUnversionedValue> values)
     {
         auto nullBitmap = TAppendOnlyBitmap<ui64>(values.Size());
         for (int index = 0; index < values.Size(); ++index) {
@@ -505,21 +505,21 @@ void TWireProtocolWriter::WriteUnversionedValueRange(
 }
 
 void TWireProtocolWriter::WriteUnversionedRowset(
-    const TRange<TUnversionedRow>& rowset,
+    TRange<TUnversionedRow> rowset,
     const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRowset(rowset, idMapping);
 }
 
 void TWireProtocolWriter::WriteSchemafulRowset(
-    const TRange<TUnversionedRow>& rowset,
+    TRange<TUnversionedRow> rowset,
     const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteSchemafulRowset(rowset, idMapping);
 }
 
 void TWireProtocolWriter::WriteVersionedRowset(
-    const TRange<TVersionedRow>& rowset)
+    TRange<TVersionedRow> rowset)
 {
     Impl_->WriteVersionedRowset(rowset);
 }
@@ -1132,7 +1132,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         YCHECK(!Closed_);
         for (auto row : rows) {

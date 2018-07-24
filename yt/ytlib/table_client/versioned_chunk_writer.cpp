@@ -90,7 +90,7 @@ public:
         return RowCount_;
     }
 
-    virtual bool Write(const TRange<TVersionedRow>& rows) override
+    virtual bool Write(TRange<TVersionedRow> rows) override
     {
         if (rows.Empty()) {
             return EncodingChunkWriter_->IsReady();
@@ -203,7 +203,7 @@ protected:
 #endif
 
     virtual void DoClose() = 0;
-    virtual void DoWriteRows(const TRange<TVersionedRow>& rows) = 0;
+    virtual void DoWriteRows(TRange<TVersionedRow> rows) = 0;
     virtual ETableChunkFormat GetTableChunkFormat() const = 0;
 
     void FillCommonMeta(TChunkMeta* meta) const
@@ -314,7 +314,7 @@ public:
 private:
     std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
 
-    virtual void DoWriteRows(const TRange<TVersionedRow>& rows) override
+    virtual void DoWriteRows(TRange<TVersionedRow> rows) override
     {
         if (rows.Empty()) {
             return;
@@ -524,7 +524,7 @@ private:
 
     i64 DataToBlockFlush_;
 
-    virtual void DoWriteRows(const TRange<TVersionedRow>& rows) override
+    virtual void DoWriteRows(TRange<TVersionedRow> rows) override
     {
         int startRowIndex = 0;
         while (startRowIndex < rows.Size()) {
@@ -695,7 +695,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     typedef TMultiChunkWriterBase<
         IVersionedMultiChunkWriter,
         IVersionedChunkWriter,
-        const TRange<TVersionedRow>&> TVersionedMultiChunkWriter;
+        TRange<TVersionedRow>> TVersionedMultiChunkWriter;
 
     auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreateVersionedChunkWriter(

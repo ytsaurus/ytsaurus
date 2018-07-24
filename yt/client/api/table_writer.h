@@ -16,7 +16,7 @@ struct ITableWriter
 {
     //! Attempts to write a bunch of #rows. If false is returned then the rows
     //! are not accepted and the client must invoke #GetReadyEvent and wait.
-    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) = 0;
+    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) = 0;
 
     //! Returns an asynchronous flag enabling to wait until data is written.
     virtual TFuture<void> GetReadyEvent() = 0;

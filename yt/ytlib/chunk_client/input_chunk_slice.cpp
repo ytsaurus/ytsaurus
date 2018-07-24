@@ -37,7 +37,7 @@ TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
 TInputSliceLimit::TInputSliceLimit(
     const NProto::TReadLimit& other,
     const TRowBufferPtr& rowBuffer,
-    const TRange<TKey>& keySet)
+    TRange<TKey> keySet)
 {
     YCHECK(!other.has_chunk_index());
     YCHECK(!other.has_offset());
@@ -225,7 +225,7 @@ TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice,
-    const TRange<TKey>& keySet)
+    TRange<TKey> keySet)
     : TInputChunkSlice(inputChunk)
 {
     LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet));

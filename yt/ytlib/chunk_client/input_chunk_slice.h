@@ -26,7 +26,7 @@ struct TInputSliceLimit
     TInputSliceLimit(
         const NProto::TReadLimit& other,
         const NTableClient::TRowBufferPtr& rowBuffer,
-        const TRange<NTableClient::TKey>& keySet);
+        TRange<NTableClient::TKey> keySet);
 
     TNullable<i64> RowIndex;
     NTableClient::TKey Key;
@@ -99,7 +99,7 @@ public:
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
         const NProto::TChunkSlice& protoChunkSlice,
-        const TRange<NTableClient::TKey>& keySet);
+        TRange<NTableClient::TKey> keySet);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,

@@ -22,7 +22,7 @@ struct IJournalWriter
     //! Writes another portion of rows into the journal.
     //! The result is set when the rows are successfully flushed by an appropriate number
     //! of replicas.
-    virtual TFuture<void> Write(const TRange<TSharedRef>& rows) = 0;
+    virtual TFuture<void> Write(TRange<TSharedRef> rows) = 0;
 
     //! Closes the writer.
     //! No other method can be called after this one.
