@@ -42,6 +42,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -475,17 +476,27 @@ TJobResult TJobProxy::DoRun()
 
         RetrieveJobSpec();
         
-        InThrottler_ = CreateInJobBandwidthThrottler(
-            supervisorChannel,
-            GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
-            JobId_,
-            Config_->BandwidthThrottlerRpcTimeout);
+        // Disable throttling when timeout is 0.
+        if (Config_->BandwidthThrottlerRpcTimeout != TDuration::Zero()) {
+            LOG_DEBUG("Job throttling enabled");
 
-        OutThrottler_ = CreateOutJobBandwidthThrottler(
-            supervisorChannel,
-            GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
-            JobId_,
-            Config_->BandwidthThrottlerRpcTimeout);
+            InThrottler_ = CreateInJobBandwidthThrottler(
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
+                JobId_,
+                Config_->BandwidthThrottlerRpcTimeout);
+
+            OutThrottler_ = CreateOutJobBandwidthThrottler(
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_,
+                Config_->BandwidthThrottlerRpcTimeout);
+        } else {
+            LOG_DEBUG("Job throttling disabled");
+
+            InThrottler_ = GetUnlimitedThrottler();
+            OutThrottler_ = GetUnlimitedThrottler();
+        }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);
