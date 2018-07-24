@@ -103,7 +103,7 @@ struct TTableMountInfo
     bool IsReplicated() const;
 
     TTabletInfoPtr GetTabletByIndexOrThrow(int tabletIndex) const;
-    TTabletInfoPtr GetTabletForRow(const TRange<NTableClient::TUnversionedValue>& row) const;
+    TTabletInfoPtr GetTabletForRow(TRange<NTableClient::TUnversionedValue> row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TVersionedRow row) const;
     TTabletInfoPtr GetRandomMountedTablet() const;

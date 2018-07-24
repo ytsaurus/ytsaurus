@@ -47,7 +47,7 @@ public:
     { }
 
 private:
-    virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
+    virtual void DoWrite(TRange<TUnversionedRow> rows) override
     {
         auto* output = GetOutputStream();
         for (const auto& row : rows) {

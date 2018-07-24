@@ -11,14 +11,14 @@ namespace NTableChunkFormat {
 
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, TSharedRef>::type
-CompressUnsignedVector(const TRange<T> values, ui64 maxValue);
+CompressUnsignedVector(TRange<T> values, ui64 maxValue);
 
 /*!
  *  \note Memory allocated under #dst must be initialized with zeroes.
  */
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
-CompressUnsignedVector(const TRange<T> values, ui64 maxValue, ui64* dst);
+CompressUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst);
 
 ////////////////////////////////////////////////////////////////////////////////
 

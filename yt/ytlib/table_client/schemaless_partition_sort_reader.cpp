@@ -215,7 +215,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override
+        TRange<TUnversionedRow> unreadRows) const override
     {
         Y_UNREACHABLE();
     }

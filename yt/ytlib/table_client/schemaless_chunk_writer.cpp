@@ -274,7 +274,7 @@ protected:
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));
     }
 
-    void ProcessRowset(const TRange<TUnversionedRow>& rows)
+    void ProcessRowset(TRange<TUnversionedRow> rows)
     {
         if (rows.Empty()) {
             return;
@@ -379,7 +379,7 @@ private:
         meta->set_version(static_cast<int>(GetTableChunkFormat()));
     }
 
-    void EmitRandomSamples(const TRange<TUnversionedRow>& rows)
+    void EmitRandomSamples(TRange<TUnversionedRow> rows)
     {
         for (auto row : rows) {
             if (RandomGenerator_.Generate<ui64>() < SamplingThreshold_) {
@@ -392,7 +392,7 @@ private:
         }
     }
 
-    void CaptureBoundaryKeys(const TRange<TUnversionedRow>& rows)
+    void CaptureBoundaryKeys(TRange<TUnversionedRow> rows)
     {
         if (!BoundaryKeysExt_.has_min()) {
             auto firstRow = rows.Front();
@@ -460,7 +460,7 @@ public:
            (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         for (auto row : rows) {
             UpdateDataWeight(row);
@@ -567,7 +567,7 @@ public:
         YCHECK(BlockWriters_.size() > 0);
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         int startRowIndex = 0;
         while (startRowIndex < rows.Size()) {
@@ -779,7 +779,7 @@ public:
         return false;
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         // This method is never called for partition chunks.
         // Blocks are formed in the multi chunk writer.
@@ -919,7 +919,7 @@ protected:
         IdMapping_.clear();
     }
 
-    std::vector<TUnversionedRow> ReorderAndValidateRows(const TRange<TUnversionedRow>& rows)
+    std::vector<TUnversionedRow> ReorderAndValidateRows(TRange<TUnversionedRow> rows)
     {
         RowBuffer_->Clear();
 
@@ -1163,7 +1163,7 @@ public:
         };
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         YCHECK(!SwitchingSession_);
 
@@ -1392,7 +1392,7 @@ public:
         , CreateChunkWriter_(createChunkWriter)
     { }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         YCHECK(!SwitchingSession_);
 
@@ -1511,7 +1511,7 @@ public:
         }
     }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         YCHECK(UnderlyingWriter_);
         if (IsAborted()) {

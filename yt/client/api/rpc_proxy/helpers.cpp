@@ -282,7 +282,7 @@ void ValidateRowsetDescriptor(
 
 std::vector<TSharedRef> SerializeRowset(
     const NTableClient::TNameTablePtr& nameTable,
-    const TRange<NTableClient::TUnversionedRow>& rows,
+    TRange<NTableClient::TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
     descriptor->set_wire_format_version(1);
@@ -299,7 +299,7 @@ std::vector<TSharedRef> SerializeRowset(
 template <class TRow>
 std::vector<TSharedRef> SerializeRowset(
     const TTableSchema& schema,
-    const TRange<TRow>& rows,
+    TRange<TRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
     descriptor->set_wire_format_version(1);
@@ -319,11 +319,11 @@ std::vector<TSharedRef> SerializeRowset(
 // Instatiate templates.
 template std::vector<TSharedRef> SerializeRowset(
     const TTableSchema& schema,
-    const TRange<TUnversionedRow>& rows,
+    TRange<TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor);
 template std::vector<TSharedRef> SerializeRowset(
     const TTableSchema& schema,
-    const TRange<TVersionedRow>& rows,
+    TRange<TVersionedRow> rows,
     NProto::TRowsetDescriptor* descriptor);
 
 TTableSchema DeserializeRowsetSchema(

@@ -31,7 +31,7 @@ inline size_t CompressedUnsignedVectorSizeInBytes(ui64 maxValue, size_t count)
 
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
-CompressUnsignedVector(const TRange<T> values, ui64 maxValue, ui64* dst)
+CompressUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst)
 {
     ui64 width = GetWidth(maxValue);
     ui64 header = values.Size();
@@ -84,7 +84,7 @@ CompressUnsignedVector(const TRange<T> values, ui64 maxValue, ui64* dst)
 
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, TSharedRef>::type
-CompressUnsignedVector(const TRange<T> values, ui64 maxValue)
+CompressUnsignedVector(TRange<T> values, ui64 maxValue)
 {
     struct TCompressedUnsignedVectorTag {};
 
