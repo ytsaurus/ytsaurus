@@ -271,7 +271,8 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
                 CreateSchemalessWriterForWebJson(
                     std::move(webJsonFormatConfig),
                     std::move(output),
-                    TNameTable::FromSchema(schema)));
+                    // WebJson expects that columns are unique, SafeFromSchema checks this fact.
+                    TNameTable::SafeFromSchema(schema)));
         }
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",
