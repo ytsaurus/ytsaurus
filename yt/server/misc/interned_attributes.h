@@ -184,6 +184,7 @@
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
+    XX(ReplicatedTableOptions, replicated_table_options) \
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
     XX(ReplicationStatus, replication_status) \

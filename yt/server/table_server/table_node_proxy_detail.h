@@ -74,6 +74,7 @@ public:
 protected:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
 };
 

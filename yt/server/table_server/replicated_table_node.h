@@ -9,9 +9,31 @@ namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicatedTableOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableReplicatedTableManager;
+
+    // TODO(aozeritsky): add check list and other options here
+
+    TReplicatedTableOptions()
+    {
+        RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicatedTableNode
     : public TTableNode
 {
+public:
+    DEFINE_BYVAL_RW_PROPERTY(TReplicatedTableOptionsPtr, ReplicatedTableOptions);
+
 public:
     explicit TReplicatedTableNode(const NCypressServer::TVersionedNodeId& id);
 
