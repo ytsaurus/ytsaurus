@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "connection.h"
 
 #include <yt/client/tablet_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/client/job_tracker_client/public.h>
+
+#include <yt/client/election/public.h>
 
 #include <yt/core/actions/future.h>
 
