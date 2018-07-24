@@ -39,6 +39,12 @@
 
 #include <assert.h>
 
+extern "C" { // sanitizers API. Avoid dependency on util.
+#if defined(_asan_enabled_)
+void __lsan_ignore_object(const void* p);
+#endif
+}
+
 #ifdef PYCXX_DEBUG
 //
 //  Functions useful when debugging PyCXX
@@ -228,6 +234,9 @@ void ExtensionModuleBase::initialize( const char *module_doc )
     initExceptions();
 
     PyObject *module_ptr = new ExtensionModuleBasePtr( this );
+#if defined(_asan_enabled_)
+    __lsan_ignore_object(module_ptr);
+#endif
     m_module = Py_InitModule4
     (
     const_cast<char *>( m_module_name.c_str() ),    // name
