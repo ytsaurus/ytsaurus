@@ -6,6 +6,7 @@ extend google.protobuf.FieldOptions
 {
     optional string field_name = 3000;
     optional bool yson_string = 3001;
+    optional bool yson_map = 3002;
 }
 
 extend google.protobuf.EnumValueOptions
