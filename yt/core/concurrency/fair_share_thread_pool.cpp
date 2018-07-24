@@ -231,14 +231,18 @@ public:
 
         Y_ASSERT(!execution.Bucket);
 
-        auto bucket = GetStarvingBucket();
+        TBucketPtr bucket;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            bucket = GetStarvingBucket();
 
-        if (!bucket) {
-            return EBeginExecuteResult::QueueEmpty;
+            if (!bucket) {
+                return EBeginExecuteResult::QueueEmpty;
+            }
+
+            execution.Bucket = bucket;
+            execution.AccountedAt = GetCpuInstant();
         }
-
-        execution.Bucket = bucket;
-        execution.AccountedAt = GetCpuInstant();
 
         Y_ASSERT(action && action->Finished);
 
@@ -389,8 +393,6 @@ private:
 
     TBucketPtr GetStarvingBucket()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
         // For each currently evaluating buckets recalculate excess time.
         AccountCurrentlyExecutingBuckets();
 
