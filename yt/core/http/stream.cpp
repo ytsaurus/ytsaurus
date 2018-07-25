@@ -68,6 +68,22 @@ EParserState THttpParser::GetState() const
     return State_;
 }
 
+void THttpParser::Reset()
+{
+    Headers_ = New<THeaders>();
+    Trailers_.Reset();
+
+    ShouldKeepAlive_ = false;
+    State_ = EParserState::Initialized;
+
+    FirstLine_.Reset();
+    NextField_.Reset();
+    NextValue_.Reset();
+    YCHECK(FirstLine_.GetLength() == 0);
+    YCHECK(NextField_.GetLength() == 0);
+    YCHECK(NextValue_.GetLength() == 0);
+}
+
 TSharedRef THttpParser::Feed(const TSharedRef& input)
 {
     InputBuffer_ = &input;
@@ -212,7 +228,7 @@ int THttpParser::OnMessageComplete(http_parser* parser)
 
     that->State_ = EParserState::MessageFinished;
     that->ShouldKeepAlive_ = yt_http_should_keep_alive(parser);
-    
+    yt_http_parser_pause(parser, 1);    
     return 0;
 }
 
@@ -287,6 +303,21 @@ const THeadersPtr& THttpInput::GetTrailers()
 const TNetworkAddress& THttpInput::GetRemoteAddress() const
 {
     return RemoteAddress_;
+}
+
+bool THttpInput::IsSafeToReuse() const
+{
+    return SafeToReuse_;
+}
+
+void THttpInput::Reset()
+{
+    HeadersReceived_ = false;
+    Headers_.Reset();
+    Parser_.Reset();
+    RawUrl_ = {};
+    Url_ = {};
+    SafeToReuse_ = false;
 }
 
 void THttpInput::FinishHeaders()
@@ -378,6 +409,7 @@ TSharedRef THttpInput::DoRead()
 
         UnconsumedData_ = Parser_.Feed(UnconsumedData_);
         if (Parser_.GetState() == EParserState::MessageFinished) {
+            SafeToReuse_ = Parser_.ShouldKeepAlive();
             Connection_->SetReadDeadline({});
             return EmptySharedRef;
         }
@@ -446,6 +478,27 @@ void THttpOutput::AddConnectionCloseHeader()
 {
     YCHECK(MessageType_ == EMessageType::Response);
     ConnectionClose_ = true;
+}
+
+bool THttpOutput::IsSafeToReuse() const
+{
+    return MessageFinished_ && !ConnectionClose_;
+}
+
+void THttpOutput::Reset()
+{
+    ConnectionClose_ = false;
+    Headers_ = New<THeaders>();
+
+    Status_.Reset();
+    Method_.Reset();
+    HostHeader_.Reset();
+    Path_ = {};
+
+    HeadersFlushed_ = false;
+    MessageFinished_ = false;
+
+    Trailers_.Reset();
 }
 
 void THttpOutput::WriteRequest(EMethod method, const TString& path)
