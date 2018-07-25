@@ -25,6 +25,7 @@ def main():
             yp_python=os.path.join(repo_root, "yp", "python"),
             install_dir=os.path.join(repo_root, "ya-build")),
         "PATH": ya_build + ":" + os.environ["PATH"],
+        "PERL5LIB": ya_build + ":" + os.environ.get("PERL5LIB", ""),
     }
 
     args = sys.argv[1:] + [env]
