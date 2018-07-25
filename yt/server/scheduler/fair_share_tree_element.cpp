@@ -1467,6 +1467,9 @@ TJobResources TOperationElementSharedState::Disable()
         resourceUsage += pair.second.ResourceUsage;
     }
 
+    NonpreemptableResourceUsage_ = ZeroJobResources();
+    AggressivelyPreemptableResourceUsage_ = ZeroJobResources();
+    RunningJobCount_ = 0;
     PreemptableJobs_.clear();
     AggressivelyPreemptableJobs_.clear();
     NonpreemptableJobs_.clear();
