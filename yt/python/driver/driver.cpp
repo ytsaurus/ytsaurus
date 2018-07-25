@@ -171,7 +171,7 @@ public:
         if (!inputStreamObj.isNone()) {
             auto inputStreamHolder = CreateInputStreamWrapper(inputStreamObj);
             request.InputStream = CreateAsyncAdapter(inputStreamHolder.get());
-            holder->OwnInputStream(std::move(inputStreamHolder));
+            holder->HoldInputStream(std::move(inputStreamHolder));
         }
 
         auto outputStreamObj = GetAttr(pyRequest, "output_stream");
@@ -184,7 +184,7 @@ public:
             } else {
                 std::unique_ptr<IOutputStream> outputStreamHolder(CreateOutputStreamWrapper(outputStreamObj, /* addBuffering */ false));
                 request.OutputStream = CreateAsyncAdapter(outputStreamHolder.get());
-                holder->OwnOutputStream(outputStreamHolder);
+                holder->HoldOutputStream(outputStreamHolder);
             }
         }
 
