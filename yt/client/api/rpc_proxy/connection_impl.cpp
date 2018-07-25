@@ -329,11 +329,8 @@ void TConnection::OnProxyListUpdate()
             }
 
             LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
-            try {
-                TDelayedExecutor::WaitForDuration(backoff);
-            } catch (const std::exception& ex) {
-                return;
-            }
+            TDelayedExecutor::WaitForDuration(backoff);
+
             if (backoff < Config_->MaxProxyListRetryPeriod) {
                 backoff *= 1.2;
             }
