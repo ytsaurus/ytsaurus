@@ -74,6 +74,8 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NProfiling;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
@@ -232,7 +234,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetNodeStates, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetCellNodeDescriptors, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -1139,7 +1141,7 @@ private:
         }
     }
 
-    void HydraSetNodeStates(TReqSetNodeStates* request)
+    void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
@@ -1147,12 +1149,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received node states gossip message from unknown cell (CellTag: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Received cell node descriptor gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -1160,8 +1162,9 @@ private:
             if (!IsObjectAlive(node))
                 continue;
 
+            auto newDescriptor = FromProto<TCellNodeDescriptor>(entry.node_descriptor());
             UpdateNodeCounters(node, -1);
-            node->SetState(cellTag, ENodeState(entry.state()));
+            node->SetCellDescriptor(cellTag, newDescriptor);
             UpdateNodeCounters(node, +1);
         }
     }
@@ -1533,7 +1536,7 @@ private:
             return;
         }
 
-        TReqSetNodeStates request;
+        TReqSetCellNodeDescriptors request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -1548,7 +1551,8 @@ private:
 
             auto* entry = request.add_entries();
             entry->set_node_id(node->GetId());
-            entry->set_state(static_cast<int>(state));
+            auto descriptor = TCellNodeDescriptor{state, node->ComputeCellStatistics()};
+            ToProto(entry->mutable_node_descriptor(), descriptor);
             node->SetLastGossipState(state);
         }
 

@@ -16,12 +16,29 @@ message TReqDisposeNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSetNodeStates
+message TReqSetCellNodeDescriptors
 {
+    message TMediumStatistics
+    {
+        required int32 medium_index = 1;
+        required uint32 chunk_replica_count = 2;
+    }
+
+    message TStatistics
+    {
+        repeated TMediumStatistics medium_statistics = 1;
+    }
+
+    message TNodeDescriptor
+    {
+        required int32 state = 1; // ENodeState
+        required TStatistics statistics = 2;
+    }
+
     message TEntry
     {
         required int32 node_id = 1;
-        required int32 state = 2; // ENodeState
+        required TNodeDescriptor node_descriptor = 2;
     }
 
     required int32 cell_tag = 1;

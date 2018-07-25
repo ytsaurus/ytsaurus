@@ -103,6 +103,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimitsOverrides)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicaCount)
+            .SetPresent(isGood && Bootstrap_->IsPrimaryMaster()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -164,8 +166,8 @@ private:
 
             case EInternedAttributeKey::MulticellStates:
                 BuildYsonFluently(consumer)
-                    .DoMapFor(node->MulticellStates(), [] (TFluentMap fluent, const std::pair<TCellTag, ENodeState>& pair) {
-                        fluent.Item(ToString(pair.first)).Value(pair.second);
+                    .DoMapFor(node->MulticellDescriptors(), [] (TFluentMap fluent, const auto& pair) {
+                        fluent.Item(ToString(pair.first)).Value(pair.second.State);
                     });
                 return true;
 
@@ -367,6 +369,28 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimitsOverrides());
                 return true;
+
+            case EInternedAttributeKey::ChunkReplicaCount: {
+                if (!isGood) {
+                    break;
+                }
+                if (!Bootstrap_->IsPrimaryMaster()) {
+                    break;
+                }
+
+                auto statistics = node->ComputeClusterStatistics();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
+                        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                        if (IsObjectAlive(medium)) {
+                            fluent
+                                .Item(medium->GetName())
+                                .Value(statistics.ChunkReplicaCount[mediumIndex]);
+                        }
+                    });
+                return true;
+            }
 
             default:
                 break;
