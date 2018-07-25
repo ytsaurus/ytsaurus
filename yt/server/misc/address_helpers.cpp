@@ -12,7 +12,7 @@ using namespace NNet;
 
 TAddressMap GetLocalAddresses(const TNetworkAddressList& addresses, int port)
 {
-    // Аppend port number.
+    // Append port number.
     TAddressMap result;
     result.reserve(addresses.size());
     for (const auto& pair : addresses) {

@@ -6,57 +6,20 @@
 #include <util/stream/output.h>
 #include <util/stream/str.h>
 
-#include <contrib/libs/pycxx/Objects.hxx>
+#include <Objects.hxx> // pycxx
 
 namespace NYT {
 namespace NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputStreamWrap
-    : public IInputStream
-{
-public:
-    explicit TInputStreamWrap(const Py::Object& inputStream);
-    virtual ~TInputStreamWrap() noexcept;
+std::unique_ptr<IInputStream> CreateInputStreamWrapper(const Py::Object& pythonInputStream);
 
-    virtual size_t DoRead(void* buf, size_t len);
+std::unique_ptr<IOutputStream> CreateOutputStreamWrapper(const Py::Object& pythonOutputStream, bool addBuffering);
 
-private:
-    Py::Object InputStream_;
-    Py::Callable ReadFunction_;
-};
+////////////////////////////////////////////////////////////////////////////////
 
-class TOutputStreamWrap: public IOutputStream {
-public:
-    explicit TOutputStreamWrap(const Py::Object& outputStream);
-    virtual ~TOutputStreamWrap() noexcept;
-
-    virtual void DoWrite(const void* buf, size_t len);
-
-private:
-    Py::Object OutputStream_;
-    Py::Callable WriteFunction_;
-};
-
-class TOwningStringInput
-    : public IInputStream
-{
-public:
-    explicit TOwningStringInput(const TString& string)
-        : String_(string)
-        , Stream_(String_)
-    { }
-
-private:
-    virtual size_t DoRead(void* buf, size_t len) override
-    {
-        return Stream_.Read(buf, len);
-    }
-
-    TString String_;
-    TStringInput Stream_;
-};
+std::unique_ptr<IInputStream> CreateOwningStringInput(TString string);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,14 +40,18 @@ public:
 
     bool IsFinished() const;
     TSharedRef ExtractPrefix(const char* endPtr);
+    TSharedRef ExtractPrefix(size_t length);
+    TSharedRef ExtractPrefix();
 
 private:
+    TSharedRef ExtractPrefix(int lastBlockIndex, const char* endPtr);
+
     IInputStream* Stream_;
 
-    std::deque<TSharedRef> Blobs_;
+    std::deque<TSharedRef> Blocks_;
 
-    TSharedRef NextBlob_;
-    i64 NextBlobSize_ = 0;
+    TSharedRef NextBlock_;
+    i64 NextBlockSize_ = 0;
 
     const char* BeginPtr_ = nullptr;
     const char* CurrentPtr_ = nullptr;
@@ -95,8 +62,9 @@ private:
     bool Finished_ = false;
     static const size_t BlockSize_ = 1024 * 1024;
 
-    void ReadNextBlob();
+    void ReadNextBlock();
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython

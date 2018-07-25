@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
+#include <yt/ytlib/election/public.h>
+
 #include <yt/core/actions/callback.h>
 #include <yt/core/actions/signal.h>
 

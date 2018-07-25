@@ -18,7 +18,7 @@ protected:
     TFutureWrap();
 
 public:
-    ~TFutureWrap() throw();
+    ~TFutureWrap();
 
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);

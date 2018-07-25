@@ -64,7 +64,8 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
-    const TNullable<NContainers::TRootFS>& rootFS);
+    const TNullable<NContainers::TRootFS>& rootFS,
+    std::vector<TString> gpuDevices);
 
 ////////////////////////////////////////////////////////////////////////////////
 

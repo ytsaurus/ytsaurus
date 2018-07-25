@@ -2,15 +2,15 @@ package NYT.NScheduler.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/protobuf_helpers.proto";
-import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/chunk_client/data_source.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
-import "yt/ytlib/job_tracker_client/job.proto";
-import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/ytlib/query_client/functions_cache.proto";
 import "yt/ytlib/query_client/query.proto";
 import "yt/ytlib/scheduler/proto/output_result.proto";
-import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,6 +201,8 @@ message TSchedulerJobSpecExt
     optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
 
     optional bool abort_job_if_account_limit_exceeded = 20;
+
+    optional string acl = 21;
 }
 
 message TSchedulerJobResultExt

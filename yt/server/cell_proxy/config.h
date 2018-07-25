@@ -10,7 +10,9 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/config.h>
+
+#include <yt/core/rpc/grpc/config.h>
 
 namespace NYT {
 namespace NCellProxy {
@@ -23,17 +25,22 @@ class TCellProxyConfig
 {
 public:
     //! Proxy-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
     NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
     int WorkerThreadPoolSize;
 
+    //! GRPC server configuration.
+    NRpc::NGrpc::TServerConfigPtr GrpcServer;
+
     TCellProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
+        RegisterParameter("grpc_server", GrpcServer)
+            .Default();
         RegisterParameter("api_service", ApiService)
             .DefaultNew();
         RegisterParameter("discovery_service", DiscoveryService)
@@ -46,6 +53,10 @@ public:
 
         RegisterPostprocessor([&] {
             ClusterConnection->ThreadPoolSize = Null;
+
+            if (GrpcServer && GrpcServer->Addresses.size() > 1) {
+                THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
+            }
         });
     }
 };

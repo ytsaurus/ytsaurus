@@ -42,6 +42,13 @@ class TProtobufEnumType;
 static constexpr size_t TypicalFieldCount = 16;
 using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 
+static constexpr int AttributeDictionaryAttributeFieldNumber = 1;
+static constexpr int AttributeDictionaryKeyFieldNumber = 1;
+static constexpr int AttributeDictionaryValueFieldNumber = 2;
+
+static constexpr int ProtobufMapKeyFieldNumber = 1;
+static constexpr int ProtobufMapValueFieldNumber = 2;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -137,8 +144,24 @@ public:
             descriptor->message_type()) : nullptr)
         , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumType(
             descriptor->enum_type()) : nullptr)
-        , IsYsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
-    { }
+        , YsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
+        , YsonMap_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_map))
+    {
+        if (YsonMap_ && !descriptor->is_map()) {
+            THROW_ERROR_EXCEPTION("Field %v is not a map and cannot be annotated with \"yson_\" option",
+                GetFullName());
+        }
+
+        if (YsonMap_) {
+            const auto* keyField = descriptor->message_type()->FindFieldByNumber(ProtobufMapKeyFieldNumber);
+            if (keyField->type() != FieldDescriptor::TYPE_STRING &&
+                keyField->type() != FieldDescriptor::TYPE_BYTES)
+            {
+                THROW_ERROR_EXCEPTION("Map field %v has invalid key type",
+                    GetFullName());
+            }
+        }
+    }
 
     ui32 GetTag() const
     {
@@ -182,7 +205,12 @@ public:
 
     bool IsYsonString() const
     {
-        return IsYsonString_;
+        return YsonString_;
+    }
+
+    bool IsYsonMap() const
+    {
+        return YsonMap_;
     }
 
     const TProtobufMessageType* GetMessageType() const
@@ -200,7 +228,8 @@ private:
     const TStringBuf YsonName_;
     const TProtobufMessageType* MessageType_;
     const TProtobufEnumType* EnumType_;
-    const bool IsYsonString_;
+    const bool YsonString_;
+    const bool YsonMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,7 +240,7 @@ public:
     TProtobufMessageType(TProtobufTypeRegistry* registry, const Descriptor* descriptor)
         : Registry_(registry)
         , Underlying_(descriptor)
-        , IsAttributeDictionary_(descriptor->options().GetExtension(NYT::NYson::NProto::attribute_dictionary))
+        , AttributeDictionary_(descriptor->options().GetExtension(NYT::NYson::NProto::attribute_dictionary))
     { }
 
     void Build()
@@ -230,7 +259,7 @@ public:
 
     bool IsAttributeDictionary() const
     {
-        return IsAttributeDictionary_;
+        return AttributeDictionary_;
     }
 
     const TString& GetFullName() const
@@ -255,10 +284,17 @@ public:
         return it == NumberToField_.end() ? nullptr : it->second;
     }
 
+    const TProtobufField* GetFieldByNumber(int number) const
+    {
+        const auto* field = FindFieldByNumber(number);
+        YCHECK(field);
+        return field;
+    }
+
 private:
     TProtobufTypeRegistry* const Registry_;
     const Descriptor* const Underlying_;
-    const bool IsAttributeDictionary_;
+    const bool AttributeDictionary_;
 
     std::vector<int> RequiredFieldNumbers_;
     THashMap<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
@@ -354,9 +390,14 @@ const TProtobufMessageType* ReflectProtobufMessageType(const Descriptor* descrip
 class TYPathStack
 {
 public:
-    void Push(TStringBuf literal)
+    void Push(const TProtobufField* field)
     {
-        Items_.push_back(literal);
+        Items_.push_back(field);
+    }
+
+    void Push(TString key)
+    {
+        Items_.emplace_back(std::move(key));
     }
 
     void Push(int index)
@@ -369,6 +410,11 @@ public:
         Items_.pop_back();
     }
 
+    bool IsEmpty() const
+    {
+        return Items_.empty();
+    }
+
     TYPath GetPath() const
     {
         if (Items_.empty()) {
@@ -378,8 +424,11 @@ public:
         for (const auto& item : Items_) {
             builder.AppendChar('/');
             switch (item.Tag()) {
-                case TEntry::TagOf<TStringBuf>():
-                    builder.AppendString(ToYPathLiteral(item.As<TStringBuf>()));
+                case TEntry::TagOf<const TProtobufField*>():
+                    builder.AppendString(ToYPathLiteral(item.As<const TProtobufField*>()->GetYsonName()));
+                    break;
+                case TEntry::TagOf<TString>():
+                    builder.AppendString(ToYPathLiteral(item.As<TString>()));
                     break;
                 case TEntry::TagOf<int>():
                     builder.AppendFormat("%v", item.As<int>());
@@ -392,7 +441,10 @@ public:
     }
 
 private:
-    using TEntry = TVariant<TStringBuf, int>;
+    using TEntry = TVariant<
+        const TProtobufField*,
+        TString,
+        int>;
     std::vector<TEntry> Items_;
 };
 
@@ -419,7 +471,7 @@ protected:
             if (!std::binary_search(numbers.begin(), numbers.end(), number)) {
                 const auto* field = type->FindFieldByNumber(number);
                 YCHECK(field);
-                YPathStack_.Push(field->GetYsonName());
+                YPathStack_.Push(field);
                 THROW_ERROR_EXCEPTION("Missing required field %v",
                     YPathStack_.GetPath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath())
@@ -435,9 +487,8 @@ protected:
     {
         for (auto index = 0; index + 1 < numbers.size(); ++index) {
             if (numbers[index] == numbers[index + 1]) {
-                const auto* field = type->FindFieldByNumber(numbers[index]);
-                YCHECK(field);
-                YPathStack_.Push(field->GetYsonName());
+                const auto* field = type->GetFieldByNumber(numbers[index]);
+                YPathStack_.Push(field);
                 THROW_ERROR_EXCEPTION("Duplicate field %v",
                     YPathStack_.GetPath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath())
@@ -487,6 +538,7 @@ private:
         const TProtobufMessageType* Type;
         TFieldNumberList RequiredFieldNumbers;
         TFieldNumberList NonRequiredFieldNumbers;
+        int CurrentMapIndex = 0;
     };
     std::vector<TTypeEntry> TypeStack_;
 
@@ -618,12 +670,21 @@ private:
 
     virtual void OnMyEntity() override
     {
-        THROW_ERROR_EXCEPTION("Entities are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
+        ValidateNotRepeated();
+        FieldStack_.pop_back();
+        YPathStack_.Pop();
     }
 
     virtual void OnMyBeginList() override
     {
+        const auto* field = FieldStack_.back().Field;
+        if (field->IsYsonMap()) {
+            THROW_ERROR_EXCEPTION("Map %v cannot be parsed from \"list\" values",
+                YPathStack_.GetPath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("proto_field", field->GetFullName());
+        }
+
         ValidateNotRoot();
         ValidateRepeated();
     }
@@ -641,40 +702,70 @@ private:
     {
         Y_ASSERT(!TypeStack_.empty());
         FieldStack_.pop_back();
+        YPathStack_.Pop();
     }
 
     virtual void OnMyBeginMap() override
     {
         if (TypeStack_.empty()) {
             TypeStack_.emplace_back(RootType_);
+            FieldStack_.emplace_back(nullptr, 0, false);
             return;
         }
 
         const auto* field = FieldStack_.back().Field;
-        if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
-            THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("proto_field", field->GetFullName());
-        }
-
-        ValidateNotRepeated();
         TypeStack_.emplace_back(field->GetMessageType());
-        WriteTag();
-        int nestedIndex = BeginNestedMessage();
-        NestedIndexStack_.push_back(nestedIndex);
+        if (!field->IsYsonMap()) {
+            if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
+                THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
+                    YPathStack_.GetPath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath())
+                    << TErrorAttribute("proto_field", field->GetFullName());
+            }
+
+            ValidateNotRepeated();
+            WriteTag();
+            BeginNestedMessage();
+        }
     }
 
     virtual void OnMyKeyedItem(TStringBuf key) override
     {
-        Y_ASSERT(TypeStack_.size() > 0);
-        const auto* type = TypeStack_.back().Type;
-
-        if (type->IsAttributeDictionary()) {
-            OnMyKeyedItemAttributeDictionary(key);
+        const auto* field = FieldStack_.back().Field;
+        if (field && field->IsYsonMap()) {
+            OnMyKeyedItemYsonMap(key);
         } else {
-            OnMyKeyedItemRegular(key);
+            Y_ASSERT(!TypeStack_.empty());
+            const auto* type = TypeStack_.back().Type;
+            if (type->IsAttributeDictionary()) {
+                OnMyKeyedItemAttributeDictionary(key);
+            } else {
+                OnMyKeyedItemRegular(key);
+            }
         }
+    }
+
+    void OnMyKeyedItemYsonMap(TStringBuf key)
+    {
+        auto& typeEntry = TypeStack_.back();
+        if (typeEntry.CurrentMapIndex > 0) {
+            EndNestedMessage();
+        }
+        ++typeEntry.CurrentMapIndex;
+
+        WriteTag();
+        BeginNestedMessage();
+
+        BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(
+            ProtobufMapKeyFieldNumber,
+            WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        BodyCodedStream_.WriteVarint64(key.length());
+        BodyCodedStream_.WriteRaw(key.data(), static_cast<int>(key.length()));
+
+        const auto* field = FieldStack_.back().Field;
+        const auto* valueField = field->GetMessageType()->GetFieldByNumber(ProtobufMapValueFieldNumber);
+        FieldStack_.emplace_back(valueField, 0, false);
+        YPathStack_.Push(TString(key));
     }
 
     void OnMyKeyedItemRegular(TStringBuf key)
@@ -694,14 +785,15 @@ private:
         }
 
         auto number = field->GetNumber();
+        auto& typeEntry = TypeStack_.back();
+        ++typeEntry.CurrentMapIndex;
         if (field->IsRequired()) {
-            TypeStack_.back().RequiredFieldNumbers.push_back(number);
+            typeEntry.RequiredFieldNumbers.push_back(number);
         } else {
-            TypeStack_.back().NonRequiredFieldNumbers.push_back(number);
+            typeEntry.NonRequiredFieldNumbers.push_back(number);
         }
-
         FieldStack_.emplace_back(field, 0, false);
-        YPathStack_.Push(field->GetYsonName());
+        YPathStack_.Push(field);
 
         if (field->IsYsonString()) {
             YsonString_.clear();
@@ -723,7 +815,7 @@ private:
         Forward(&AttributeValueWriter_, [this] {
             AttributeValueWriter_.Flush();
 
-            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(1 /*attribute*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(AttributeDictionaryAttributeFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
             BodyCodedStream_.WriteVarint64(
                 1 +
                 CodedOutputStream::VarintSize64(AttributeKey_.length()) +
@@ -732,11 +824,11 @@ private:
                 CodedOutputStream::VarintSize64(AttributeValue_.length()) +
                 AttributeValue_.length());
 
-            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(1 /*key*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(AttributeDictionaryKeyFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
             BodyCodedStream_.WriteVarint64(AttributeKey_.length());
             BodyCodedStream_.WriteRaw(AttributeKey_.data(), AttributeKey_.length());
 
-            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(2 /*value*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(AttributeDictionaryValueFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
             BodyCodedStream_.WriteVarint64(AttributeValue_.length());
             BodyCodedStream_.WriteRaw(AttributeValue_.data(), AttributeValue_.length());
         });
@@ -745,59 +837,76 @@ private:
     virtual void OnMyEndMap() override
     {
         auto& typeEntry = TypeStack_.back();
-        auto* type = typeEntry.Type;
+        const auto* type = typeEntry.Type;
 
-        SortFields(&typeEntry.NonRequiredFieldNumbers);
-        ValidateNoFieldDuplicates(type, typeEntry.NonRequiredFieldNumbers);
+        const auto* field = FieldStack_.back().Field;
+        if (field && field->IsYsonMap()) {
+            if (typeEntry.CurrentMapIndex > 0) {
+                EndNestedMessage();
+            }
 
-        SortFields(&typeEntry.RequiredFieldNumbers);
-        ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
+            TypeStack_.pop_back();
+        } else {
+            SortFields(&typeEntry.NonRequiredFieldNumbers);
+            ValidateNoFieldDuplicates(type, typeEntry.NonRequiredFieldNumbers);
 
-        if (!Options_.SkipRequiredFields) {
-            ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
-        }
+            SortFields(&typeEntry.RequiredFieldNumbers);
+            ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
 
-        TypeStack_.pop_back();
-        if (TypeStack_.empty()) {
-            Finish();
-            return;
+            if (!Options_.SkipRequiredFields) {
+                ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
+            }
+
+            TypeStack_.pop_back();
+            if (TypeStack_.empty()) {
+                Finish();
+                return;
+            }
+
+            EndNestedMessage();
         }
 
         FieldStack_.pop_back();
         YPathStack_.Pop();
-        int nestedIndex = NestedIndexStack_.back();
-        NestedIndexStack_.pop_back();
-        EndNestedMessage(nestedIndex);
+    }
+
+    void ThrowAttributesNotSupported()
+    {
+        THROW_ERROR_EXCEPTION("Attributes are not supported")
+            << TErrorAttribute("ypath", YPathStack_.GetPath());
     }
 
     virtual void OnMyBeginAttributes() override
     {
-        THROW_ERROR_EXCEPTION("Attributes are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
+        ThrowAttributesNotSupported();
     }
 
     virtual void OnMyEndAttributes() override
     {
-        THROW_ERROR_EXCEPTION("Attributes are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
+        ThrowAttributesNotSupported();
     }
 
 
-    int BeginNestedMessage()
+    void BeginNestedMessage()
     {
         auto index =  static_cast<int>(NestedMessages_.size());
         NestedMessages_.emplace_back(BodyCodedStream_.ByteCount(), -1);
-        return index;
+        NestedIndexStack_.push_back(index);
     }
 
-    void EndNestedMessage(int index)
+    void EndNestedMessage()
     {
+        int index = NestedIndexStack_.back();
+        NestedIndexStack_.pop_back();
         Y_ASSERT(NestedMessages_[index].Hi == -1);
         NestedMessages_[index].Hi = BodyCodedStream_.ByteCount();
     }
 
     void Finish()
     {
+        YCHECK(YPathStack_.IsEmpty());
+        YCHECK(!FieldStack_.back().Field);
+
         BodyCodedStream_.Trim();
 
         int bodyLength = static_cast<int>(BodyString_.length());
@@ -899,6 +1008,12 @@ private:
             return;
         }
         const auto* field = FieldStack_.back().Field;
+        if (field->IsYsonMap()) {
+            THROW_ERROR_EXCEPTION("Map %v cannot be parsed from scalar values",
+                YPathStack_.GetPath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("protobuf_field", field->GetFullName());
+        }
         if (field->IsRepeated()) {
             THROW_ERROR_EXCEPTION("Field %v is repeated and cannot be parsed from scalar values",
                 YPathStack_.GetPath())
@@ -1067,8 +1182,6 @@ public:
     void Parse()
     {
         TypeStack_.emplace_back(RootType_);
-        RepeatedFieldNumberStack_.emplace_back();
-
         Consumer_->OnBeginMap();
 
         while (true) {
@@ -1078,15 +1191,20 @@ public:
             bool flag;
             if (type->IsAttributeDictionary()) {
                 flag = ParseAttributeDictionary();
+            } else if (IsYsonMapEntry()) {
+                flag = ParseMapEntry();
             } else {
                 flag = ParseRegular();
             }
 
             if (!flag) {
-                if (RepeatedFieldNumberStack_.back().FieldNumber != -1) {
-                    Consumer_->OnEndList();
+                if (typeEntry.RepeatedField) {
+                    if (typeEntry.RepeatedField->IsYsonMap()) {
+                        OnEndMap();
+                    } else {
+                        OnEndList();
+                    }
                 }
-                RepeatedFieldNumberStack_.pop_back();
 
                 SortFields(&typeEntry.OptionalFieldNumbers);
                 ValidateNoFieldDuplicates(type, typeEntry.OptionalFieldNumbers);
@@ -1094,23 +1212,36 @@ public:
                 SortFields(&typeEntry.RequiredFieldNumbers);
                 ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
 
-                if (!Options_.SkipRequiredFields) {
+                if (!Options_.SkipRequiredFields && !IsYsonMapEntry()) {
                     ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
                 }
 
-                Consumer_->OnEndMap();
-
-                TypeStack_.pop_back();
-                if (TypeStack_.empty()) {
+                if (TypeStack_.size() == 1) {
                     break;
                 }
 
-                YPathStack_.Pop();
+                if (IsYsonMapEntry()) {
+                    if (typeEntry.RequiredFieldNumbers.size() != 2) {
+                        THROW_ERROR_EXCEPTION("Incomplete entry in protobuf map")
+                            << TErrorAttribute("ypath", YPathStack_.GetPath());
+                    }
+                } else {
+                    OnEndMap();
+                }
+                TypeStack_.pop_back();
+
                 CodedStream_.PopLimit(LimitStack_.back());
                 LimitStack_.pop_back();
                 continue;
             }
         }
+
+        Consumer_->OnEndMap();
+        TypeStack_.pop_back();
+
+        YCHECK(TypeStack_.empty());
+        YCHECK(YPathStack_.IsEmpty());
+        YCHECK(LimitStack_.empty());
     }
 
 private:
@@ -1130,27 +1261,157 @@ private:
         const TProtobufMessageType* Type;
         TFieldNumberList RequiredFieldNumbers;
         TFieldNumberList OptionalFieldNumbers;
+        const TProtobufField* RepeatedField = nullptr;
+        int RepeatedIndex = -1;
+
+        void BeginRepeated(const TProtobufField* field)
+        {
+            Y_ASSERT(!RepeatedField);
+            Y_ASSERT(RepeatedIndex == -1);
+            RepeatedField = field;
+            RepeatedIndex = 0;
+        }
+
+        void ResetRepeated()
+        {
+            RepeatedField = nullptr;
+            RepeatedIndex = -1;
+        }
+
+        int GenerateNextListIndex()
+        {
+            Y_ASSERT(RepeatedField);
+            return ++RepeatedIndex;
+        }
     };
     std::vector<TTypeEntry> TypeStack_;
 
     std::vector<CodedInputStream::Limit> LimitStack_;
 
-    struct TRepeatedFieldEntry
-    {
-        explicit TRepeatedFieldEntry(int fieldNumber = -1, int listIndex = -1)
-            : FieldNumber(fieldNumber)
-            , ListIndex(listIndex)
-        { }
-
-        int FieldNumber = -1;
-        int ListIndex = -1;
-    };
-    std::vector<TRepeatedFieldEntry> RepeatedFieldNumberStack_;
-
     std::vector<char> PooledString_;
     std::vector<char> PooledAttributeKey_;
     std::vector<char> PooledAttributeValue_;
 
+
+    void OnBeginMap()
+    {
+        Consumer_->OnBeginMap();
+    }
+
+    void OnKeyedItem(const TProtobufField* field)
+    {
+        Consumer_->OnKeyedItem(field->GetYsonName());
+        YPathStack_.Push(field);
+    }
+
+    void OnKeyedItem(TString key)
+    {
+        Consumer_->OnKeyedItem(key);
+        YPathStack_.Push(std::move(key));
+    }
+
+    void OnEndMap()
+    {
+        Consumer_->OnEndMap();
+        YPathStack_.Pop();
+    }
+
+
+    void OnBeginList()
+    {
+        Consumer_->OnBeginList();
+    }
+
+    void OnListItem(int index)
+    {
+        Consumer_->OnListItem();
+        YPathStack_.Push(index);
+    }
+
+    void OnEndList()
+    {
+        Consumer_->OnEndList();
+        YPathStack_.Pop();
+    }
+
+
+    bool IsYsonMapEntry()
+    {
+        if (TypeStack_.size() < 2) {
+            return false;
+        }
+        auto& typeEntry = TypeStack_[TypeStack_.size() - 2];
+        if (!typeEntry.RepeatedField) {
+            return false;
+        }
+        if (!typeEntry.RepeatedField->IsYsonMap()) {
+            return false;
+        }
+        return true;
+    }
+
+    bool ParseMapEntry()
+    {
+        auto& typeEntry = TypeStack_.back();
+        const auto* type = typeEntry.Type;
+
+        auto tag = CodedStream_.ReadTag();
+        if (tag == 0) {
+            return false;
+        }
+
+        auto wireType = WireFormatLite::GetTagWireType(tag);
+        auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
+        typeEntry.RequiredFieldNumbers.push_back(fieldNumber);
+
+        switch (fieldNumber) {
+            case ProtobufMapKeyFieldNumber: {
+                if (typeEntry.RequiredFieldNumbers.size() != 1) {
+                    THROW_ERROR_EXCEPTION("Out-of-order protobuf map key")
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                if (wireType != WireFormatLite::WIRETYPE_LENGTH_DELIMITED) {
+                    THROW_ERROR_EXCEPTION("Unexpected wire type tag %x for protobuf map key",
+                        tag)
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                ui64 length;
+                if (!CodedStream_.ReadVarint64(&length)) {
+                    THROW_ERROR_EXCEPTION("Error reading \"varint\" value for protobuf map key")
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                PooledString_.resize(length);
+                if (!CodedStream_.ReadRaw(PooledString_.data(), length)) {
+                    THROW_ERROR_EXCEPTION("Error reading \"string\" value for protobuf map key")
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                OnKeyedItem(TString(PooledString_.data(), length));
+                break;
+            }
+
+            case ProtobufMapValueFieldNumber: {
+                if (typeEntry.RequiredFieldNumbers.size() != 2) {
+                    THROW_ERROR_EXCEPTION("Out-of-order protobuf map value")
+                        << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+
+                const auto* field = type->GetFieldByNumber(fieldNumber);
+                ParseFieldValue(field, tag, wireType);
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected field number %v in protobuf map",
+                    fieldNumber)
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+        }
+
+        return true;
+    }
 
     bool ParseRegular()
     {
@@ -1234,25 +1495,31 @@ private:
                 << TErrorAttribute("proto_type", type->GetFullName());
         }
 
-        if (RepeatedFieldNumberStack_.back().FieldNumber == fieldNumber) {
+        if (typeEntry.RepeatedField == field) {
             Y_ASSERT(field->IsRepeated());
-            Consumer_->OnListItem();
-            YPathStack_.Push(++RepeatedFieldNumberStack_.back().ListIndex);
+            if (!field->IsYsonMap()) {
+                OnListItem(typeEntry.GenerateNextListIndex());
+            }
         } else {
-            if (RepeatedFieldNumberStack_.back().FieldNumber != -1) {
-                Consumer_->OnEndList();
-                RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry();
+            if (typeEntry.RepeatedField) {
+                if (typeEntry.RepeatedField->IsYsonMap()) {
+                    Consumer_->OnEndMap();
+                } else {
+                    Consumer_->OnEndList();
+                }
                 YPathStack_.Pop();
             }
+            typeEntry.ResetRepeated();
 
-            Consumer_->OnKeyedItem(field->GetYsonName());
-            YPathStack_.Push(field->GetYsonName());
+            OnKeyedItem(field);
 
-            if (field->IsRepeated()) {
-                RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry(fieldNumber, 0);
-                Consumer_->OnBeginList();
-                Consumer_->OnListItem();
-                YPathStack_.Push(0);
+            if (field->IsYsonMap()) {
+                typeEntry.BeginRepeated(field);
+                OnBeginMap();
+            } else if (field->IsRepeated()) {
+                typeEntry.BeginRepeated(field);
+                OnBeginList();
+                OnListItem(0);
             }
         }
 
@@ -1262,6 +1529,16 @@ private:
             typeEntry.OptionalFieldNumbers.push_back(fieldNumber);
         }
 
+        ParseFieldValue(field, tag, wireType);
+
+        return true;
+    }
+
+    void ParseFieldValue(
+        const TProtobufField* field,
+        int tag,
+        WireFormatLite::WireType wireType)
+    {
         switch (wireType) {
             case WireFormatLite::WIRETYPE_VARINT: {
                 ui64 unsignedValue;
@@ -1435,10 +1712,11 @@ private:
                     }
 
                     case FieldDescriptor::TYPE_MESSAGE: {
-                        RepeatedFieldNumberStack_.emplace_back();
                         LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(length)));
                         TypeStack_.emplace_back(field->GetMessageType());
-                        Consumer_->OnBeginMap();
+                        if (!IsYsonMapEntry()) {
+                            OnBeginMap();
+                        }
                         break;
                     }
 
@@ -1456,8 +1734,6 @@ private:
                     tag)
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
         }
-
-        return true;
     }
 
     bool ParseAttributeDictionary()
@@ -1531,8 +1807,7 @@ private:
 
                 auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
                 switch (fieldNumber) {
-                    case 1: {
-                        // Key
+                    case AttributeDictionaryKeyFieldNumber: {
                         if (key) {
                             THROW_ERROR_EXCEPTION("Duplicate key found while parsing attribute dictionary %v",
                                 YPathStack_.GetPath())
@@ -1542,8 +1817,7 @@ private:
                         break;
                     }
 
-                    case 2: {
-                        // Value
+                    case AttributeDictionaryValueFieldNumber: {
                         if (value) {
                             THROW_ERROR_EXCEPTION("Duplicate value found while parsing attribute dictionary %v",
                                 YPathStack_.GetPath())

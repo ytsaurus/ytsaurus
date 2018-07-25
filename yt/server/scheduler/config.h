@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/ypath/public.h>
+#include <yt/client/ypath/public.h>
 
 #include <yt/ytlib/event_log/config.h>
 
@@ -144,18 +144,10 @@ public:
     //! How often min needed resources for jobs are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
 
-    //! Limit on number of running operations in cluster.
-    int MaxRunningOperationCount;
     //! Limit on number of operations in cluster.
     int MaxOperationCount;
 
     TFairShareStrategyConfig();
-
-private:
-    //! COMPAT
-    bool EnableOperationsProfiling;
-    TSchedulingTagFilter MainNodesFilter;
-    TDuration TotalResourceLimitsConsiderDelay;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
@@ -272,12 +264,8 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    TDuration NodeShardsUpdatePeriod;
-
     //! All update and completed jobs submitted to strategy with at least such frequency.
     TDuration NodeShardSubmitJobsToStrategyPeriod;
-
-    TDuration ResourceDemandSanityCheckPeriod;
 
     TDuration LockTransactionTimeout;
 
@@ -315,8 +303,10 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
+    // Scheduler does not apply this option on the fly yet.
     TDuration OrchidKeysUpdatePeriod;
 
+    // Scheduler does not apply this option on the fly yet.
     TDuration StaticOrchidCacheUpdatePeriod;
 
     // Enables job reporter to send job events/statistics etc.
@@ -375,6 +365,10 @@ public:
 
     int MinAgentCountForWaitingOperation;
 
+    TDuration JobReporterWriteFailuresCheckPeriod;
+
+    int JobReporterWriteFailuresAlertThreshold;
+
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;
 
@@ -388,7 +382,7 @@ class TSchedulerBootstrapConfig
 {
 public:
     //! Node-to-master connection.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 

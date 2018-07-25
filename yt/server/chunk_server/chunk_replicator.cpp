@@ -36,10 +36,10 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -333,12 +333,10 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
         result.Status |= EChunkStatus::Underreplicated;
     }
 
-    if (replicaCount == replicationFactor && decommissionedReplicaCount > 0) {
+    if (decommissionedReplicaCount > 0 && replicaCount + decommissionedReplicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
         result.DecommissionedRemovalReplicas.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
-    }
-
-    if (replicaCount > replicationFactor) {
+    } else if (replicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
         result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
     }
@@ -499,6 +497,9 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
         auto isDataPart = index < dataPartCount;
         auto removalAdvised = replicationFactor == 0 || (!isDataPart && dataPartsOnly);
         auto targetReplicationFactor = removalAdvised ? 0 : 1;
+        const auto missingPartFlag = isDataPart
+            ? EChunkStatus::DataMissing
+            : EChunkStatus::ParityMissing;
 
         if (replicaCount >= targetReplicationFactor && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
@@ -512,17 +513,24 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
         }
 
         if (replicaCount == 0 && decommissionedReplicaCount > 0 && !removalAdvised) {
-            result.Status |= EChunkStatus::Underreplicated;
-            result.ReplicationIndexes.push_back(index);
+            const auto& replicas = decommissionedReplicas[index];
+            // A replica may be "decommissioned" either because it's node is
+            // decommissioned or that node holds another part of the chunk (and that's
+            // not allowed by the configuration). Let's distinguish these cases.
+            auto isReplicaDecommissioned = [&] (const TNodePtrWithIndexes& replica) {
+                return IsReplicaDecommissioned(replica);
+            };
+            if (std::all_of(replicas.begin(), replicas.end(), isReplicaDecommissioned)) {
+                result.Status |= missingPartFlag;
+            } else {
+                result.Status |= EChunkStatus::Underreplicated;
+                result.ReplicationIndexes.push_back(index);
+            }
         }
 
         if (replicaCount == 0 && decommissionedReplicaCount == 0 && !removalAdvised) {
             erasedIndexes.set(index);
-            if (isDataPart) {
-                result.Status |= EChunkStatus::DataMissing;
-            } else {
-                result.Status |= EChunkStatus::ParityMissing;
-            }
+            result.Status |= missingPartFlag;
         }
     }
 
@@ -535,7 +543,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
 
     if (unsafelyPlacedReplicaIndex != -1 && None(result.Status & EChunkStatus::Overreplicated)) {
         result.Status |= EChunkStatus::UnsafelyPlaced;
-        if (None(result.Status & EChunkStatus::Overreplicated) && result.ReplicationIndexes.empty()) {
+        if (result.ReplicationIndexes.empty()) {
             result.ReplicationIndexes.push_back(unsafelyPlacedReplicaIndex);
         }
     }
@@ -1151,8 +1159,7 @@ bool TChunkReplicator::CreateRepairJob(
 
     NErasure::TPartIndexList erasedPartIndexes;
     for (int index = 0; index < totalPartCount; ++index) {
-        if (mediumStatistics.ReplicaCount[index] == 0 &&
-            mediumStatistics.DecommissionedReplicaCount[index] == 0)
+        if (mediumStatistics.ReplicaCount[index] == 0)
         {
             erasedPartIndexes.push_back(index);
         }

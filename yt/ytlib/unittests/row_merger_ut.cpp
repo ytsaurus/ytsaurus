@@ -3,23 +3,24 @@
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+
 #include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
-#include <yt/ytlib/table_client/versioned_row.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -85,9 +86,10 @@ protected:
     TVersionedRow BuildVersionedRow(
         const TString& keyYson,
         const TString& valueYson,
-        const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>())
+        const std::vector<TTimestamp>& deleteTimestamps = {},
+        const std::vector<TTimestamp>& extraWriteTimestamps = {})
     {
-        return NTableClient::YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps);
+        return NTableClient::YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
     }
 
     TUnversionedRow BuildUnversionedRow(const TString& valueYson)
@@ -1353,11 +1355,13 @@ TEST_F(TVersionedRowMergerTest, NoValueColumnFilter)
         TColumnFilter({0}));
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+    auto mergedRow = merger->BuildMergedRow();
+    ASSERT_TRUE(!!mergedRow);
 
-    // XXX(sandello): Row without deletes with empty column filter will be merged into a null row,
-    // because write timestamps set will be empty and hence we deduce that we have pruned all values.
-    // Not sure if this is intended behaviour for non-trivial column filter, but it is reasonable.
-    EXPECT_FALSE(merger->BuildMergedRow());
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0", "", {}, {100})},
+        TIdentityComparableVersionedRow{mergedRow});
 }
 
 TEST_F(TVersionedRowMergerTest, OneValueColumnFilter)
@@ -1409,6 +1413,64 @@ TEST_F(TVersionedRowMergerTest, SyncLastCommittedRetention)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0", "<id=1;ts=300000000000>3")},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, YT_7668_1)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+    config->MaxDataTtl = TimestampToDuration(1000);
+    config->MinDataVersions = 1;
+    config->MaxDataVersions = 1;
+
+    auto merger = GetTypicalMerger(
+        config,
+        10,
+        0,
+        TTableSchema{{
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("v2", EValueType::Int64),
+        }},
+        TColumnFilter({2}));
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=1> 1; <id=2;ts=1> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {2}));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=3> 3;"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "", "", {2}, {3})},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, YT_7668_2)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+    config->MaxDataTtl = TimestampToDuration(1000);
+    config->MinDataVersions = 2;
+    config->MaxDataVersions = 2;
+
+    auto merger = GetTypicalMerger(
+        config,
+        SyncLastCommittedTimestamp,
+        MaxTimestamp,
+        TTableSchema{{
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("v2", EValueType::Int64),
+        }},
+        TColumnFilter({2}));
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=1> 1; <id=2;ts=1> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {2}));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=3> 3;"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "", "<id=2;ts=1> 1", {2}, {3})},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 

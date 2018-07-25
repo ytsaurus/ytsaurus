@@ -64,6 +64,11 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::DynamicOptions)
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetMandatory(true));
+        attributes->push_back(EInternedAttributeKey::DynamicConfigVersion);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::NodeTagFilter)
             .SetWritable(true)
             .SetReplicated(true)
@@ -94,6 +99,16 @@ private:
             case EInternedAttributeKey::Options:
                 BuildYsonFluently(consumer)
                     .Value(cellBundle->GetOptions());
+                return true;
+
+            case EInternedAttributeKey::DynamicOptions:
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->GetDynamicOptions());
+                return true;
+
+            case EInternedAttributeKey::DynamicConfigVersion:
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->GetDynamicConfigVersion());
                 return true;
 
             case EInternedAttributeKey::NodeTagFilter:
@@ -159,6 +174,12 @@ private:
                         cellBundle->TabletCells().size());
                 }
                 cellBundle->SetOptions(options);
+                return true;
+            }
+
+            case EInternedAttributeKey::DynamicOptions: {
+                auto options = ConvertTo<TDynamicTabletCellOptionsPtr>(value);
+                cellBundle->SetDynamicOptions(options);
                 return true;
             }
 

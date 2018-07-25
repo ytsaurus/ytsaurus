@@ -6,9 +6,9 @@
 
 #include <yt/server/misc/interned_attributes.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 

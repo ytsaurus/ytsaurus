@@ -280,9 +280,10 @@ private:
 
         TString PeerAddressString_;
         NNet::TNetworkAddress PeerAddress_;
-        
+
         TRequestId RequestId_;
         TNullable<TString> User_;
+        TNullable<TString> UserAgent_;
         TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
         TNullable<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
         TString ServiceName_;
@@ -297,6 +298,8 @@ private:
         TGrpcMetadataArray CallMetadata_;
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
+        TNullable<ui32> RequestMessageBodySize_;
+        TProtocolVersion ProtocolVersion_ = DefaultProtocolVersion;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
         grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
@@ -336,6 +339,7 @@ private:
 
             ParseRequestId();
             ParseUser();
+            ParseUserAgent();
             ParseRpcCredentials();
             ParseSslCredentials();
             ParseTimeout();
@@ -348,14 +352,25 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
+            if (!TryParseMessageBodySize()) {
+                Unref();
+                return;
+            }
+
+            if (!TryParseProtocolVersion()) {
+                Unref();
+                return;
+            }
+
+            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
                 RequestId_,
                 ToStringBuf(CallDetails_->host),
                 ServiceName_,
                 MethodName_,
                 User_,
                 PeerAddressString_,
-                Timeout_);
+                Timeout_,
+                ProtocolVersion_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
 
@@ -418,17 +433,45 @@ private:
             User_ = TString(userString);
         }
 
+        void ParseUserAgent()
+        {
+            auto userAgentString = CallMetadata_.Find(UserAgentMetadataKey);
+            if (!userAgentString) {
+                return;
+            }
+
+            UserAgent_ = TString(userAgentString);
+        }
+
         void ParseRpcCredentials()
         {
-            auto tokenString = CallMetadata_.Find(TokenMetadataKey);
-            if (!tokenString) {
+            // COMPAT(babenko)
+            auto legacyTokenString = CallMetadata_.Find("yt-token");
+            auto tokenString = CallMetadata_.Find(AuthTokenMetadataKey);
+            auto sessionIdString = CallMetadata_.Find(AuthSessionIdMetadataKey);
+            auto sslSessionIdString = CallMetadata_.Find(AuthSslSessionIdMetadataKey);
+
+            if (!tokenString &&
+                !legacyTokenString &&
+                !sessionIdString &&
+                !sslSessionIdString)
+            {
                 return;
             }
 
             RpcCredentialsExt_.Emplace();
 
+            if (legacyTokenString) {
+                RpcCredentialsExt_->set_token(TString(legacyTokenString));
+            }
             if (tokenString) {
                 RpcCredentialsExt_->set_token(TString(tokenString));
+            }
+            if (sessionIdString) {
+                RpcCredentialsExt_->set_session_id(TString(sessionIdString));
+            }
+            if (sslSessionIdString) {
+                RpcCredentialsExt_->set_ssl_session_id(TString(sslSessionIdString));
             }
         }
 
@@ -495,6 +538,42 @@ private:
             return true;
         }
 
+        bool TryParseMessageBodySize()
+        {
+            auto messageBodySizeString = CallMetadata_.Find(MessageBodySizeMetadataKey);
+            if (!messageBodySizeString) {
+                return true;
+            }
+
+            try {
+                RequestMessageBodySize_ = FromString<ui32>(messageBodySizeString);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Failed to parse message body size from request metadata (RequestId: %v)",
+                    RequestId_);
+                return false;
+            }
+
+            return true;
+        }
+
+        bool TryParseProtocolVersion()
+        {
+            auto protocolVersionString = CallMetadata_.Find(ProtocolVersionMetadataKey);
+            if (!protocolVersionString) {
+                return true;
+            }
+
+            try {
+                ProtocolVersion_ = TProtocolVersion::FromString(protocolVersionString);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Failed to parse protocol version from string (RequestId: %v)",
+                    RequestId_);
+                return false;
+            }
+
+            return true;
+        }
+
         void OnRequestReceived(bool success)
         {
             if (!success) {
@@ -511,16 +590,30 @@ private:
                 return;
             }
 
-            auto requestBody = ByteBufferToEnvelopedMessage(RequestBodyBuffer_.Unwrap());
+            TMessageWithAttachments messageWithAttachments;
+            try {
+                messageWithAttachments = ByteBufferToMessageWithAttachments(
+                    RequestBodyBuffer_.Unwrap(),
+                    RequestMessageBodySize_);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to receive request body (RequestId: %v)",
+                    RequestId_);
+                Unref();
+                return;
+            }
 
             auto header = std::make_unique<NRpc::NProto::TRequestHeader>();
             ToProto(header->mutable_request_id(), RequestId_);
             if (User_) {
                 header->set_user(*User_);
             }
+            if (UserAgent_) {
+                header->set_user_agent(*UserAgent_);
+            }
             header->set_service(ServiceName_);
             header->set_method(MethodName_);
-            header->set_protocol_version(GenericProtocolVersion);
+            header->set_protocol_version_major(ProtocolVersion_.Major);
+            header->set_protocol_version_minor(ProtocolVersion_.Minor);
             if (Timeout_) {
                 header->set_timeout(ToProto<i64>(*Timeout_));
             }
@@ -568,7 +661,11 @@ private:
             }
 
             if (Service_) {
-                auto requestMessage = CreateRequestMessage(*header, requestBody, {});
+                auto requestMessage = CreateRequestMessage(
+                    *header,
+                    messageWithAttachments.Message,
+                    messageWithAttachments.Attachments);
+
                 Service_->HandleRequest(std::move(header), std::move(requestMessage), this);
             } else {
                 auto error = TError(
@@ -624,9 +721,19 @@ private:
                 ErrorMessageSlice_ = grpc_slice_from_static_string(ErrorMessage_.c_str());
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
-                // Attachments are not supported.
-                YCHECK(ResponseMessage_.Size() == 2);
-                ResponseBodyBuffer_ = EnvelopedMessageToByteBuffer(ResponseMessage_[1]);
+                YCHECK(ResponseMessage_.Size() >= 2);
+
+                TMessageWithAttachments messageWithAttachments;
+                messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(ResponseMessage_[1]);
+                for (int index = 2; index < ResponseMessage_.Size(); ++index) {
+                    messageWithAttachments.Attachments.push_back(ResponseMessage_[index]);
+                }
+
+                ResponseBodyBuffer_ = MessageWithAttachmentsToByteBuffer(messageWithAttachments);
+
+                if (!messageWithAttachments.Attachments.empty()) {
+                    TrailingMetadataBuilder_.Add(MessageBodySizeMetadataKey, ToString(messageWithAttachments.Message.Size()));
+                }
 
                 ops.emplace_back();
                 ops.back().op = GRPC_OP_SEND_MESSAGE;

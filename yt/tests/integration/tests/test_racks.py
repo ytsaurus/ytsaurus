@@ -238,7 +238,7 @@ class TestRacks(YTEnvSetup):
     def test_journal_move_to_safe_place(self):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
-        self.wait_until_sealed("//tmp/j")
+        wait_until_sealed("//tmp/j")
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -269,7 +269,7 @@ class TestRacks(YTEnvSetup):
 
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
-        self.wait_until_sealed("//tmp/j")
+        wait_until_sealed("//tmp/j")
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
 

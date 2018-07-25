@@ -1,13 +1,15 @@
 #include "bootstrap.h"
 
-#include "skynet_manager.h"
-#include "skynet_api.h"
-#include "share_cache.h"
-#include "cypress_sync.h"
 #include "private.h"
+#include "announcer.h"
+#include "skynet_service.h"
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/http_integration.h>
+
+#include <yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/client/api/connection.h>
 
 #include <yt/core/net/listener.h>
 #include <yt/core/net/local_address.h>
@@ -29,6 +31,8 @@
 
 #include <yt/core/ytree/virtual.h>
 
+#include <util/string/hex.h>
+
 namespace NYT {
 namespace NSkynetManager {
 
@@ -40,16 +44,29 @@ using namespace NNet;
 using namespace NHttp;
 using namespace NLogging;
 using namespace NApi;
+using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-static const NLogging::TLogger Logger("Bootstrap");
-
-void TCluster::ThrottleBackground() const
+TString GetOrGeneratePeerId(const TString& filename)
 {
-    WaitFor(BackgroundThrottler->Throttle(1))
-        .ThrowOnError();
+    try {
+        TFileInput file(filename);
+        auto peerId = file.ReadAll();
+        if (!peerId.empty()) {
+            return peerId;
+        }
+    } catch (...) { }
+
+    std::array<char, 8> entropy;
+    TUnbufferedFileInput urandom("/dev/urandom");
+    urandom.LoadOrFail(entropy.data(), entropy.size());
+    
+    auto peerId = to_lower(HexEncode(entropy.data(), entropy.size()));
+    TFileOutput file(filename);
+    file.Write(peerId);
+    file.Finish();
+    return peerId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,27 +74,16 @@ void TCluster::ThrottleBackground() const
 TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     : Config_(std::move(config))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    WarnForUnrecognizedOptions(SkynetManagerLogger, Config_);
 
     Poller_ = CreateThreadPoolPoller(Config_->IOPoolSize, "Poller");
 
-    SkynetApiActionQueue_ = New<TActionQueue>("SkynetApi");
-    if (Config_->EnableSkyboneMds) {
-        SkynetApi_ = CreateShellSkynetApi(
-            SkynetApiActionQueue_->GetInvoker(),
-            Config_->SkynetPythonInterpreterPath,
-            Config_->SkynetMdsToolPath);
-    } else {
-        SkynetApi_ = CreateNullSkynetApi();
-    }
+    ActionQueue_ = New<TActionQueue>("SkynetApi");
 
     HttpListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->Port), Poller_);
     HttpServer_ = CreateServer(Config_->HttpServer, HttpListener_, Poller_);
 
     HttpClient_ = CreateClient(Config_->HttpClient, Poller_);
-
-    Manager_ = New<TSkynetManager>(this);
-    ShareCache_ = New<TShareCache>(Manager_, Config_->TombstoneCache);
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
@@ -104,42 +110,28 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
             GetOrchidYPathHttpHandler(OrchidRoot_));
     }
 
+    auto peerId = GetOrGeneratePeerId(Config_->PeerIdFile);
+    PeerListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->SkynetPort), Poller_);
+    Announcer_ = New<TAnnouncer>(GetInvoker(), Poller_, Config_->Announcer, peerId, Config_->SkynetPort);
+
     for (const auto& clusterConfig : Config_->Clusters) {
-        auto connection = CreateConnection(clusterConfig->Connection);
+        clusterConfig->LoadToken();
+
+        auto apiConnection = CreateConnection(clusterConfig->Connection);
 
         TClientOptions options;
         options.User = clusterConfig->User;
         options.Token = clusterConfig->OAuthToken;
-        auto client = connection->CreateClient(options);
+        auto client = apiConnection->CreateClient(options);
 
-        TCluster cluster;
-        cluster.Config = clusterConfig;
-        cluster.UserRequestThrottler = CreateReconfigurableThroughputThrottler(
-            clusterConfig->UserRequestThrottler,
-            SkynetManagerLogger,
-            SkynetManagerProfiler);
-        cluster.BackgroundThrottler = CreateReconfigurableThroughputThrottler(
-            clusterConfig->BackgroundThrottler,
-            SkynetManagerLogger,
-            SkynetManagerProfiler);
-        cluster.CypressSync = New<TCypressSync>(
-            clusterConfig,
-            std::move(client),
-            Format("%s:%d", GetLocalHostName(), Config_->Port),
-            ShareCache_);
-        Clusters_.emplace_back(std::move(cluster));
-    }
-}
+        auto tables = New<TTables>(client, clusterConfig);
 
-const TCluster& TBootstrap::GetCluster(const TString& name) const
-{
-    for (const auto& cluster : Clusters_) {
-        if (cluster.Config->ClusterName == name) {
-            return cluster;
-        }
+        auto clusterConnection = New<TClusterConnection>(clusterConfig, client, HttpClient_);
+
+        Clusters_.push_back(clusterConnection);
     }
 
-    THROW_ERROR_EXCEPTION("Cluster %Qv not found", name);
+    SkynetService_ = New<TSkynetService>(this, peerId);
 }
 
 void TBootstrap::Run()
@@ -151,93 +143,17 @@ void TBootstrap::Run()
         MonitoringHttpServer_->Start();
     }
 
-    tasks.emplace_back(BIND(&TBootstrap::DoRun, MakeStrong(this))
-        .AsyncVia(SkynetApiActionQueue_->GetInvoker())
-        .Run());
+    SkynetService_->Start();
+    Announcer_->Start();
 
-    WaitFor(Combine(tasks))
-        .ThrowOnError();
-}
-
-void TBootstrap::DoRun()
-{
     while (true) {
-        auto asyncSkynetList = SkynetApi_->ListResources();
-        if (WaitFor(asyncSkynetList).IsOK()) {
-            break;
-        } else {
-            LOG_ERROR(asyncSkynetList.Get(), "Skynet daemon is not available");
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)))
-                .ThrowOnError();
-        }
+        Sleep(TDuration::Seconds(60));
     }
-
-    std::vector<TFuture<void>> syncTasks;
-    auto spawn = [&] (auto fn) {
-        auto task = BIND(fn)
-            .AsyncVia(SkynetApiActionQueue_->GetInvoker())
-            .Run();
-        syncTasks.emplace_back(task);
-    };
-
-    for (const auto& cluster : Clusters_) {
-        spawn([manager = Manager_, Logger = SkynetManagerLogger, cluster] {
-            while (true) {
-                try {
-                    cluster.CypressSync->CreateCypressNodesIfNeeded();
-                    break;
-                } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Cypress initialization failed (Cluster: %v)", cluster.Config->ClusterName);
-                    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)))
-                        .ThrowOnError();
-                }
-            }
-
-            while (true) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)))
-                    .ThrowOnError();
-
-                try {
-                    manager->RunCypressSyncIteration(cluster);
-                } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Error synchronizing state with cypress (Cluster: %v)", cluster.Config->ClusterName);
-                }
-            }
-        });
-
-        spawn([manager = Manager_, Logger = SkynetManagerLogger, cluster] {
-            while (true) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)))
-                    .ThrowOnError();
-
-                try {
-                    manager->RunTableScanIteration(cluster);
-                } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Deleted tables scan failed (Cluster: %v)", cluster.Config->ClusterName);
-                }
-            }
-        });
-    }
-
-    WaitFor(Combine(syncTasks))
-        .ThrowOnError();
-
-    THROW_ERROR_EXCEPTION("Sync tasks stopped");
-}
-
-size_t TBootstrap::GetClustersCount() const
-{
-    return Clusters_.size();
 }
 
 IInvokerPtr TBootstrap::GetInvoker() const
 {
-    return SkynetApiActionQueue_->GetInvoker();
-}
-
-const ISkynetApiPtr& TBootstrap::GetSkynetApi() const
-{
-    return SkynetApi_;
+    return ActionQueue_->GetInvoker();
 }
 
 const TSkynetManagerConfigPtr& TBootstrap::GetConfig() const
@@ -255,11 +171,20 @@ const NHttp::IClientPtr& TBootstrap::GetHttpClient() const
     return HttpClient_;
 }
 
-const TShareCachePtr& TBootstrap::GetShareCache() const
+const TAnnouncerPtr& TBootstrap::GetAnnouncer() const
 {
-    return ShareCache_;
+    return Announcer_;
 }
 
+const IListenerPtr& TBootstrap::GetPeerListener() const
+{
+    return PeerListener_;
+}
+
+const std::vector<TClusterConnectionPtr>& TBootstrap::GetClusters() const
+{
+    return Clusters_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

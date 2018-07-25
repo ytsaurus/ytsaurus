@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -23,7 +23,7 @@ public:
     TSharedRef Finish();
 
 private:
-    NTabletClient::TWireProtocolWriter WireProtocolWriter_;
+    NTableClient::TWireProtocolWriter WireProtocolWriter_;
     int Index_ = 0;
 };
 
@@ -39,7 +39,7 @@ public:
     TRange<NTableClient::TKey> GetKeys() const;
 
 private:
-    NTabletClient::TWireProtocolReader WireProtocolReader_;
+    NTableClient::TWireProtocolReader WireProtocolReader_;
     std::vector<NTableClient::TKey> Keys_;
 };
 

@@ -4,10 +4,12 @@
 #include "helpers.h"
 #include "query.h"
 #include "query_helpers.h"
-#include "query_statistics.h"
+
+#include <yt/client/query_client/query_statistics.h>
+
+#include <yt/client/table_client/schemaful_reader.h>
 
 #include <yt/ytlib/table_client/pipe.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

@@ -11,7 +11,7 @@
 #include <yt/server/table_server/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
 

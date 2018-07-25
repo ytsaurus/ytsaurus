@@ -4,7 +4,7 @@
 
 #include <yt/server/misc/job_table_schema.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -69,6 +69,7 @@ public:
         , ChunkList_(chunkList)
         , ReadWriteTimeout_(readWriteTimeout)
         , TrafficMeter_(jobHost->GetTrafficMeter())
+        , OutThrottler_(jobHost->GetOutThrottler())
         , Logger(logger)
     {
         BoundaryKeys_.set_empty(true);
@@ -142,7 +143,7 @@ public:
 
 private:
     const TJobId JobId_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     TAsyncSemaphorePtr AsyncSemaphore_;
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr IOInvoker_;
@@ -150,8 +151,9 @@ private:
     const TTableWriterOptionsPtr TableWriterOptions_;
     const TTransactionId Transaction_;
     const TChunkListId ChunkList_;
-
     const TDuration ReadWriteTimeout_;
+    const TTrafficMeterPtr TrafficMeter_;
+    const IThroughputThrottlerPtr OutThrottler_;
 
     // Promise that is set when there are no cores that are currently processed.
     TPromise<TCoreResult> CoreResultPromise_;
@@ -163,8 +165,6 @@ private:
     std::vector<TCoreInfo> CoreInfos_;
 
     int ActiveCoreCount_ = 0;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     TLogger Logger;
 
@@ -212,7 +212,8 @@ private:
                 TableWriterOptions_,
                 Transaction_,
                 ChunkList_,
-                TrafficMeter_);
+                TrafficMeter_,
+                OutThrottler_);
 
             auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), 1_MB /* blockSize */);
             auto writer = CreateZeroCopyAdapter(CreateAsyncAdapter(&blobWriter));

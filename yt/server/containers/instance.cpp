@@ -163,6 +163,23 @@ public:
         SetProperty("bind", builder.Flush());
     }
 
+    virtual void SetDevices(const std::vector<TDevice>& devices) override
+    {
+        TStringBuilder builder;
+        for (const auto& device : devices) {
+            builder.AppendString(device.DeviceName);
+            builder.AppendString(" ");
+            if (device.Enabled) {
+                builder.AppendString("rw");
+            } else {
+                builder.AppendString("-");
+            }
+            builder.AppendString(" ; ");
+        }
+
+        SetProperty("devices", builder.Flush());
+    }
+
     virtual bool HasRoot() const override
     {
         return HasRoot_;

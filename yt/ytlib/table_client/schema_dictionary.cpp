@@ -1,6 +1,6 @@
 #include "schema_dictionary.h"
 
-#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/farm_hash.h>
@@ -62,7 +62,7 @@ size_t TSchemaDictionary::THashInternal::operator()(const TTableSchemaInternal& 
     return MultiHash(
         tableSchema.strict(),
         tableSchema.unique_keys(),
-        FarmHash(tableSchema.columns().data(), tableSchema.columns().size() * sizeof(tableSchema.columns().Get(0))));
+        FarmFingerprint(tableSchema.columns().data(), tableSchema.columns().size() * sizeof(tableSchema.columns().Get(0))));
 }
 
 bool TSchemaDictionary::TEqualsInternal::operator()(

@@ -4,12 +4,16 @@
 #include "config.h"
 #include "lazy_changelog.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/journal_reader.h>
-#include <yt/ytlib/api/journal_writer.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/journal_reader.h>
+#include <yt/ytlib/api/native/journal_writer.h>
+
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/journal_reader.h>
+#include <yt/client/api/journal_writer.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -355,9 +359,9 @@ public:
         , MasterClient_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
         , ProfilerTags_(profilerTags)
-    {
-        Logger.AddTag("Path: %v", Path_);
-    }
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("Path: %v", Path_))
+    { }
 
     virtual TFuture<IChangelogStorePtr> Lock() override
     {
@@ -374,7 +378,7 @@ private:
     const TTransactionId PrerequisiteTransactionId_;
     const NProfiling::TTagIdList ProfilerTags_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
 
     IChangelogStorePtr DoLock()
@@ -397,8 +401,8 @@ private:
                 reachableVersion,
                 ProfilerTags_);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error locking remote changelog store")
-                << TErrorAttribute("changelog_path", Path_)
+            THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
+                Path_)
                 << ex;
         }
     }
@@ -469,8 +473,8 @@ private:
 
             const auto& attributes = node->Attributes();
             if (!attributes.Get<bool>("sealed")) {
-                THROW_ERROR_EXCEPTION("Changelog is not sealed")
-                    << TErrorAttribute("changelog_path", path);
+                THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
+                    path);
             }
             recordCount = attributes.Get<int>("quorum_row_count");
         }

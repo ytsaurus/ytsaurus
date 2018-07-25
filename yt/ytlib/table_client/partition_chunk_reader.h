@@ -1,8 +1,9 @@
 #pragma once
 
 #include "chunk_reader_base.h"
-#include "public.h"
 #include "schemaless_block_reader.h"
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
@@ -103,7 +104,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
@@ -112,7 +113,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const TKeyColumns& keyColumns,
     int partitionTag,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter);
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr throttler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

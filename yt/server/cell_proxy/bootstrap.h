@@ -6,9 +6,11 @@
 
 #include <yt/ytlib/auth/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/monitoring/public.h>
+
+#include <yt/client/node_tracker_client/public.h>
 
 #include <yt/core/bus/public.h>
 
@@ -19,6 +21,8 @@
 #include <yt/core/misc/public.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <yt/core/rpc/grpc/public.h>
 
 #include <yt/core/http/public.h>
 
@@ -38,8 +42,8 @@ public:
     const TCellProxyConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetWorkerInvoker() const;
-    const NApi::INativeConnectionPtr& GetNativeConnection() const;
-    const NApi::INativeClientPtr& GetNativeClient() const;
+    const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
+    const NApi::NNative::IClientPtr& GetNativeClient() const;
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
@@ -56,12 +60,15 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;
+    NRpc::IServicePtr ApiService_;
+    NRpc::IServicePtr DiscoveryService_;
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;
     ICoreDumperPtr CoreDumper_;
 
-    NApi::INativeConnectionPtr NativeConnection_;
-    NApi::INativeClientPtr NativeClient_;
+    NApi::NNative::IConnectionPtr NativeConnection_;
+    NApi::NNative::IClientPtr NativeClient_;
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schemaful_writer.h>
 
 #include <yt/core/actions/future.h>
 

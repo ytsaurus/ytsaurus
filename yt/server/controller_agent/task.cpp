@@ -322,7 +322,13 @@ void TTask::ScheduleJob(
     bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
 
     joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
-    joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
+    joblet->JobSpecProtoFuture = BIND([weakTaskHost = MakeWeak(TaskHost_), joblet] {
+        if (auto taskHost = weakTaskHost.Lock()) {
+            return taskHost->BuildJobSpecProto(joblet);
+        } else {
+            THROW_ERROR_EXCEPTION("Operation controller was destroyed");
+        }
+    })
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
     scheduleJobResult->StartDescriptor.Emplace(
@@ -626,7 +632,7 @@ void TTask::DoCheckResourceDemandSanity(
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
-                << TErrorAttribute("task", GetTitle())
+                << TErrorAttribute("task_name", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources.ToJobResources()));
     }
 }

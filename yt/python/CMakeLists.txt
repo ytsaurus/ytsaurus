@@ -57,6 +57,10 @@ function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
 
   if(${IS_NATIVE_SYSTEM_PYTHON})
     exec_program(
+      ${CMAKE_COMMAND} ARGS -E remove
+      ${CMAKE_SOURCE_DIR}/python/yt_${component}_bindings/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
+    )
+    exec_program(
       ${CMAKE_COMMAND} ARGS -E create_symlink
       ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
       ${CMAKE_SOURCE_DIR}/python/yt_${component}_bindings/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
@@ -65,7 +69,7 @@ function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
 
 endfunction()
 
-set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx)
+set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/non_arcadia_contrib/pycxx)
 set(PYCXX_SRCS
   ${PYCXX_BASE}/cxx_exceptions.cxx
   ${PYCXX_BASE}/cxx_extensions.cxx
@@ -87,7 +91,6 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       -DPYCXX_PYTHON_2TO3
       -DPYCXX_6_2_COMPATIBILITY
       -DPy_LIMITED_API=0x03040000)
-
 endforeach()
 
 add_subdirectory(common)

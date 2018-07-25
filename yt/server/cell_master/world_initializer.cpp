@@ -23,7 +23,7 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 

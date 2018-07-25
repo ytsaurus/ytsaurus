@@ -11,7 +11,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
 
-#include <contrib/libs/pycxx/Objects.hxx>
+#include <Objects.hxx> // pycxx
 
 namespace Py {
 
@@ -32,6 +32,8 @@ TString ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 std::string Repr(const Object& obj);
+
+Object CreateIterator(const Object& object);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -151,9 +151,11 @@ add_executable(protoc ${PROTO_MAIN})
 
 target_link_libraries(protoc ${NAME}-protoc deps-arcadia-util -ldl)
 
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${BASE}/python/google
-  ${CMAKE_SOURCE_DIR}/python/google
-)
+# We have switched to use system grpc.
+# But in the future we can change this decision.
+#exec_program(
+#  ${CMAKE_COMMAND} ARGS -E create_symlink
+#  ${BASE}/python/google
+#  ${CMAKE_SOURCE_DIR}/python/google
+#)
 

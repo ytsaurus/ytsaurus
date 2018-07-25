@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -30,6 +30,10 @@ DEFINE_ENUM(EMasterConnectorState,
     (Disconnected)
     (Connecting)
     (Connected)
+);
+
+DEFINE_ENUM(EWatcherType,
+    (NodeAttributes)
 );
 
 //! Mediates communication between scheduler and master.
@@ -88,7 +92,7 @@ public:
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
-    void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period);
+    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler);

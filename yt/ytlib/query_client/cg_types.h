@@ -162,10 +162,9 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
+        return StructType::get(context, {
             TypeBuilder<ui32, Cross>::get(context),
-            TypeBuilder<ui32, Cross>::get(context),
-            nullptr);
+            TypeBuilder<ui32, Cross>::get(context)});
     }
 };
 
@@ -182,9 +181,8 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
-            THeader::get(context),
-            nullptr);
+        return StructType::get(context, ArrayRef<Type*>{
+            THeader::get(context)});
     }
 };
 
@@ -201,9 +199,8 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
-            THeader::get(context),
-            nullptr);
+        return StructType::get(context, ArrayRef<Type*>{
+            THeader::get(context)});
     }
 };
 
@@ -220,11 +217,10 @@ public:
 
     static StructType* get(LLVMContext& context, size_t size)
     {
-        return StructType::get(
+        return StructType::get(context, {
             llvm::ArrayType::get(TypeBuilder<TValue, false>::get(context), size),
             TypeBuilder<void* const*, Cross>::get(context),
-            TypeBuilder<TExpressionContext*, Cross>::get(context),
-            nullptr);
+            TypeBuilder<TExpressionContext*, Cross>::get(context)});
     }
 };
 
@@ -245,15 +241,14 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
+        return StructType::get(context, {
             TypeBuilder<TComparerFunction*, Cross>::get(context),
             TypeBuilder<THasherFunction*, Cross>::get(context),
             TypeBuilder<TComparerFunction*, Cross>::get(context),
             TypeBuilder<TComparerFunction*, Cross>::get(context),
             TypeBuilder<TComparerFunction*, Cross>::get(context),
             TypeBuilder<TComparerFunction*, Cross>::get(context),
-            TypeBuilder<TTernaryComparerFunction*, Cross>::get(context),
-            nullptr);
+            TypeBuilder<TTernaryComparerFunction*, Cross>::get(context)});
     }
 };
 

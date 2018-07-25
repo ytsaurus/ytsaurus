@@ -32,6 +32,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
+    DECLARE_BYVAL_RW_PROPERTY(TDynamicTabletCellOptionsPtr, DynamicOptions);
+    DEFINE_BYVAL_RO_PROPERTY(int, DynamicConfigVersion);
     DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
     DEFINE_BYREF_RW_PROPERTY(TTabletBalancerConfigPtr, TabletBalancerConfig);
 
@@ -47,6 +49,7 @@ public:
 
 private:
     TString Name_;
+    TDynamicTabletCellOptionsPtr DynamicOptions_;
 
     void FillProfilingTag();
 };

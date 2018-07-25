@@ -21,6 +21,7 @@ from datetime import datetime
 
 import argparse
 import glob
+import functools
 import os.path
 import pprint
 import re
@@ -33,6 +34,10 @@ import resource
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
 import urlparse
+
+import urllib3
+urllib3.disable_warnings()
+import requests
 
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
@@ -58,6 +63,73 @@ def process_core_dumps(options, suite_name, suite_path):
 
     return find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive)
 
+def disable_for_ya(func):
+    @functools.wraps(func)
+    def wrapper_function(options, build_context):
+        if options.build_system == "ya":
+            teamcity_message("Step {0} is not supported for ya build system yet".format(func.__name__))
+            return
+        func(options, build_context)
+    return wrapper_function
+
+def get_bin_dir(options):
+    return os.path.join(options.working_directory, "bin")
+
+def get_output_dir(options):
+    return os.path.join(options.working_directory, "output")
+
+def get_ya_cache_dir(options):
+    ya_cache = os.environ.get("YA_CACHE_DIR", None)
+    if ya_cache is None:
+        ya_cache = os.path.join(options.working_directory, "ya_cache")
+    return ya_cache
+
+def get_git_depth(options):
+    git_depth = os.path.join(options.checkout_directory, "git-depth.py")
+    run_result = run(
+        [git_depth],
+        cwd=options.checkout_directory,
+        capture_output=True)
+    return run_result.stdout.rstrip("\n")
+
+def run_yall(options, mkdirs=False, env=None):
+    assert options.build_system == "ya"
+    yall = os.path.join(options.checkout_directory, "yall")
+
+    ya_cache = get_ya_cache_dir(options)
+
+    output_dir = get_output_dir(options)
+    bin_dir = get_bin_dir(options)
+
+    if mkdirs:
+        mkdirp(ya_cache)
+        mkdirp(output_dir)
+        mkdirp(bin_dir)
+
+    run_env = {
+        "YA_CACHE_DIR": ya_cache,
+    }
+
+    if env is not None:
+        run_env.update(env)
+
+    args = [
+        yall,
+        "-T",
+        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
+        "-DYT_VERSION_BRANCH={0}".format(options.branch),
+        "--build", options.ya_build_type,
+        "--no-src-links",
+        "--output", output_dir,
+        "--install", bin_dir,
+    ]
+    if options.use_asan:
+        args += ["--yall-asan-build"]
+
+    run(args,
+        cwd=options.checkout_directory,
+        env=run_env)
+
 @build_step
 def prepare(options, build_context):
     os.environ["LANG"] = "en_US.UTF-8"
@@ -81,6 +153,8 @@ def prepare(options, build_context):
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
 
+    options.patch_number = run_captured([os.path.join(options.checkout_directory, "git-depth.py")], cwd=options.checkout_directory)
+
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
 
@@ -96,18 +170,25 @@ def prepare(options, build_context):
     extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
     options.repositories = ["yt-" + codename] + extra_repositories
 
-    # Now determine the compiler.
-    options.cc = run_captured(["which", options.cc])
-    options.cxx = run_captured(["which", options.cxx])
+    if options.build_system != "ya":
+        # Now determine the compiler.
+        options.cc = run_captured(["which", options.cc])
+        options.cxx = run_captured(["which", options.cxx])
 
-    if not options.cc:
-        raise RuntimeError("Failed to locate C compiler")
+        if not options.cc:
+            raise RuntimeError("Failed to locate C compiler")
 
-    if not options.cxx:
-        raise RuntimeError("Failed to locate CXX compiler")
+        if not options.cxx:
+            raise RuntimeError("Failed to locate CXX compiler")
 
     # options.use_lto = (options.type != "Debug")
     options.use_lto = False
+
+    options.ya_build_type = {
+        "Debug": "debug",
+        "Release": "release",
+        "RelWithDebInfo": "release",
+    }[options.type]
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
@@ -128,7 +209,8 @@ def prepare(options, build_context):
 
     cleanup_cgroups()
 
-    clear_system_tmp()
+    if options.clear_system_tmp:
+        clear_system_tmp()
 
     yt_processes_cleanup()
 
@@ -158,7 +240,7 @@ def _configure(options, build_context, build_directory, use_asan=False, build_se
         "-DYT_BUILD_ENABLE_YP:BOOL=ON",
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
-        "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
         "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs and not use_asan)),
         "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6 and not use_asan)),
@@ -177,29 +259,64 @@ def _configure(options, build_context, build_directory, use_asan=False, build_se
 
 @build_step
 def configure(options, build_context):
-    if options.use_asan:
-        _configure(options, build_context, options.working_directory, use_asan=False, build_server=False, build_tests=False)
-        _configure(options, build_context, options.asan_build_directory, use_asan=True, build_server=True, build_tests=True)
+    if options.build_system == "cmake":
+        if options.use_asan:
+            _configure(options, build_context, options.working_directory, use_asan=False, build_server=False, build_tests=False)
+            _configure(options, build_context, options.asan_build_directory, use_asan=True, build_server=True, build_tests=True)
+        else:
+            _configure(options, build_context, options.working_directory)
     else:
-        _configure(options, build_context, options.working_directory)
+        assert options.build_system == "ya"
+        teamcity_message("ya does not require configuration")
 
 @build_step
 def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
-    run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-    if options.use_asan:
-        run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
-        run(["cp"] +
-            glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
-            glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
-            [os.path.join(options.working_directory, "bin")])
+    if options.build_system == "cmake":
+        run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
+        if options.use_asan:
+            run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
+            run(["cp"] +
+                glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
+                glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
+                [get_bin_dir(options)])
+    else:
+        assert options.build_system == "ya"
+        run_yall(options, mkdirs=True)
+
+@build_step
+def gather_build_info(options, build_context):
+    if options.build_system == "cmake":
+        run(["make", "version"], cwd=options.working_directory, silent_stdout=True)
+        ytversion_file = os.path.join(options.working_directory, "ytversion")
+    else:
+        assert options.build_system == "ya"
+        ytversion_file = os.path.join(get_bin_dir(options), "ytversion")
+
+    with open(ytversion_file) as handle:
+        version = handle.read().strip()
+    build_context["yt_version"] = version
+    build_context["build_time"] = datetime.now().isoformat()
 
 @build_step
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
-        path = "{0}/bin/{1}".format(options.working_directory, binary)
+        path = os.path.join(get_bin_dir(options), binary)
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
+
+@build_step
+def import_yt_wrapper(options, build_context):
+    sys.path.insert(0, os.path.join(options.checkout_directory, "python"))
+    if options.build_system == "ya":
+        sys.path.insert(0, get_bin_dir(options))
+
+    try:
+        import yt.wrapper
+    except ImportError as err:
+        raise RuntimeError("Failed to import yt wrapper: {0}".format(err))
+    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+    build_context["yt.wrapper"] = yt.wrapper
 
 def sky_share(resource, cwd):
     run_result = run(
@@ -215,7 +332,7 @@ def sky_share(resource, cwd):
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
 
-def share_packages(options, version):
+def share_packages(options, build_context):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
         "yandex-yt-python-skynet-driver",
@@ -236,7 +353,8 @@ def share_packages(options, version):
     ]
 
     try:
-        build_time = datetime.now().isoformat()
+        version = build_context["yt_version"]
+        build_time = build_context["build_time"]
         cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
 
         dir = os.path.join(options.working_directory, "./ARTIFACTS")
@@ -267,7 +385,7 @@ def share_packages(options, version):
                     options.btid,
                     pkg)
 
-                task_id = cli.create_task("REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
+                task_id = cli.create_task("YT_REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
                 teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
                 rows.append({
                     "package" : pkg,
@@ -278,46 +396,81 @@ def share_packages(options, version):
                     "build_time" : build_time})
 
         # Add to locke.
-        src_root = os.path.dirname(os.path.dirname(__file__))
-        sys.path.insert(0, os.path.join(src_root, "python"))
-
-        import yt.wrapper
-        yt.wrapper.config["proxy"]["url"] = "locke"
-        yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
-        yt.wrapper.insert_rows("//sys/admin/skynet/packages",  rows)
+        yt_wrapper = build_context["yt.wrapper"]
+        yt_wrapper.config["proxy"]["url"] = "locke"
+        yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
 
     except Exception as err:
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
 
 @build_step
+@disable_for_ya
 def package(options, build_context):
     if not options.package:
         return
 
     with cwd(options.working_directory):
-        run(["make", "-j", "8", "package"])
-        run(["make", "-j", "8", "python-package"])
-        run(["make", "version"])
+        if options.build_system == "cmake":
+            run(["make", "-j", "8", "package"])
+            run(["make", "-j", "8", "python-package"])
+            run(["make", "version"])
 
-        with open("ytversion") as handle:
-            version = handle.read().strip()
-        build_context["yt_version"] = version
+            teamcity_message("We have built a package")
+            teamcity_interact("setParameter", name="yt.package_built", value=1)
+            teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
+            teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(build_context["yt_version"]))
 
-        teamcity_message("We have built a package")
-        teamcity_interact("setParameter", name="yt.package_built", value=1)
-        teamcity_interact("setParameter", name="yt.package_version", value=version)
-        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
+            share_packages(options, build_context)
 
-        share_packages(options, version)
+            artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(build_context["yt_version"]))
+            if artifacts:
+                for repository in options.repositories:
+                    run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
+                    teamcity_message("We have uploaded a package to " + repository)
+                    teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
+        else:
+            os.mkdir("ARTIFACTS")
+            with cwd("ARTIFACTS"):
+                package_script = os.path.join(options.checkout_directory, "scripts", "package.py")
+                ya_version_printer = os.path.join(get_bin_dir(options), "ya_version_printer")
 
-        artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
-        if artifacts:
-            for repository in options.repositories:
-                run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
-                teamcity_message("We have uploaded a package to " + repository)
-                teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
+                patch_number = get_git_depth(options)
+                yt_version = run_captured([
+                    ya_version_printer,
+                    "--project=yt",
+                    "--branch", options.branch,
+                    "--patch-number", patch_number,
+                ])
+                yp_version = run_captured([
+                    ya_version_printer,
+                    "--project=yp",
+                    "--branch", options.branch,
+                    "--patch-number", patch_number,
+                ])
+                teamcity_message("Building packages, yt version '{0}', yp version: '{1}'".format(yt_version, yp_version))
+
+                env = os.environ.copy()
+                env["YA_CACHE_DIR"] = get_ya_cache_dir(options)
+                package_list = [
+                    "yt/packages/yandex-yt-master.json",
+                    "yt/packages/yandex-yt-scheduler.json",
+                    "yt/packages/yandex-yt-controller-agent.json",
+                    "yt/packages/yandex-yt-node.json",
+                    "yt/packages/yandex-yt-proxy.json",
+                ]
+                run([
+                    package_script,
+                    "--override-yt-version", yt_version,
+                    "--override-yp-version", yp_version,
+                    "--build", options.ya_build_type] + package_list,
+                    env=env)
+
+                teamcity_interact("setParameter", name="yt.package_built", value=1)
+                teamcity_interact("setParameter", name="yt.package_version", value=yt_version)
+                teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(yt_version))
 
 @build_step
+@disable_for_ya
 def run_prepare(options, build_context):
     nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
     nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
@@ -349,7 +502,7 @@ def run_sandbox_upload(options, build_context):
     # {working_directory}/bin contains lots of extra binaries,
     # filter daemon binaries by prefix "ytserver-"
 
-    source_binary_root = os.path.join(options.working_directory, "bin")
+    source_binary_root = get_bin_dir(options)
     processed_files = set()
     filename_prefix_whitelist = ["ytserver-", "ypserver-"]
     for filename in os.listdir(source_binary_root):
@@ -401,13 +554,14 @@ def run_sandbox_upload(options, build_context):
     sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
 
     # Nodejs package
-    nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
-    nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
-    with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
-        tar.add(nodejs_build, arcname="/node_modules", recursive=True)
+    if options.build_system == "cmake":
+        nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
+        nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
+        with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
+            tar.add(nodejs_build, arcname="/node_modules", recursive=True)
 
-    rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
-    sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
+        rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
+        sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
@@ -461,7 +615,7 @@ def run_unit_tests(options, build_context):
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, "unit_tests"]))
 
-    all_unittests = fnmatch.filter(os.listdir(os.path.join(options.working_directory, "bin")), "unittester*")
+    all_unittests = fnmatch.filter(os.listdir(get_bin_dir(options)), "unittester*")
 
     mkdirp(sandbox_current)
     try:
@@ -472,7 +626,7 @@ def run_unit_tests(options, build_context):
                 "--return-child-result",
                 "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
                 "--args",
-                os.path.join(options.working_directory, "bin", unittest_binary),
+                os.path.join(get_bin_dir(options), unittest_binary),
                 "--gtest_color=no",
                 "--gtest_death_test_style=threadsafe",
                 "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml")],
@@ -484,7 +638,7 @@ def run_unit_tests(options, build_context):
         copytree(sandbox_current, sandbox_archive)
         for unittest_binary in all_unittests:
             shutil.copy2(
-                os.path.join(options.working_directory, "bin", unittest_binary),
+                os.path.join(get_bin_dir(options), unittest_binary),
                 os.path.join(sandbox_archive, unittest_binary))
 
         raise StepFailedWithNonCriticalError(str(err))
@@ -494,6 +648,7 @@ def run_unit_tests(options, build_context):
 
 
 @build_step
+@disable_for_ya
 def run_javascript_tests(options, build_context):
     if not options.build_enable_nodejs or options.disable_tests:
         return
@@ -528,13 +683,15 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     if env is None:
         env = {}
 
-    env["PATH"] = "{0}/bin:{0}/yt/nodejs:/usr/sbin:{1}".format(options.working_directory, os.environ.get("PATH", ""))
+    env["PATH"] = "{0}:{1}/yt/nodejs:/usr/sbin:{2}".format(get_bin_dir(options), options.working_directory, os.environ.get("PATH", ""))
     env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
+    if options.build_system == "ya":
+        env["PYTHONPATH"] = get_bin_dir(options) + ":" + env["PYTHONPATH"]
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
@@ -632,6 +789,7 @@ def run_yp_integration_tests(options, build_context):
                })
 
 @build_step
+@disable_for_ya
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
@@ -651,10 +809,57 @@ def run_python_libraries_tests(options, build_context):
                 })
 
 @build_step
+@disable_for_ya
 def run_perl_tests(options, build_context):
     if not options.build_enable_perl or options.disable_tests:
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
+
+def log_sandbox_upload(options, build_context, task_id):
+    client = requests.Session()
+    client.headers.update({
+        "Authorization" : "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
+        "Accept" : "application/json; charset=utf-8",
+        "Content-type" : "application/json",
+    })
+    resp = client.get("https://sandbox.yandex-team.ru/api/v1.0/task/{0}/resources".format(task_id))
+    api_data = resp.json()
+
+    resources = {}
+    resource_rows = []
+    for resource in api_data["items"]:
+        if resource["type"] == "TASK_LOGS":
+            continue
+        resources.update({
+            resource["type"] : resource["id"],
+        })
+        resource_rows.append({
+            "id" : resource["id"],
+            "task_id" : task_id,
+            "type" : resource["type"],
+            "build_number" : int(options.build_number),
+            "version" : build_context["yt_version"],
+        })
+
+    build_log_record = {
+        "version" : build_context["yt_version"],
+        "build_number" : int(options.build_number),
+        "task_id" : task_id,
+        "git_branch" : options.git_branch,
+        "git_commit" : options.build_vcs_number,
+        "build_time" : build_context["build_time"],
+        "build_type" : options.type,
+        "build_host" : socket.getfqdn(),
+        "build_btid" : options.btid,
+        "ubuntu_codename" : options.codename,
+        "resources" : resources,
+    }
+
+    # Add to locke.
+    yt_wrapper = build_context["yt.wrapper"]
+    yt_wrapper.config["proxy"]["url"] = "locke"
+    yt_wrapper.insert_rows("//sys/admin/skynet/builds", [build_log_record])
+    yt_wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
 
 @build_step
 def wait_for_sandbox_upload(options, build_context):
@@ -669,6 +874,10 @@ def wait_for_sandbox_upload(options, build_context):
         cli.wait_for_complete(task_id)
     except sandbox_client.SandboxTaskError as err:
         teamcity_message("Failed waiting for task: {0}".format(err), status="WARNING")
+    try:
+        log_sandbox_upload(options, build_context, task_id)
+    except Exception as err:
+        teamcity_message("Failed to log sandbox upload: {0}".format(err), status="WARNING")
 
 @cleanup_step
 def clean_sandbox_upload(options, build_context):
@@ -748,6 +957,13 @@ def main():
         type=str, action="store", required=True)
     parser.add_argument(
         "--clean_sandbox_directory",
+        type=parse_bool, action="store", default=True)
+    parser.add_argument(
+        "--build_system",
+        choices=["cmake", "ya"], default="cmake")
+
+    parser.add_argument(
+        "--clear-system-tmp",
         type=parse_bool, action="store", default=True)
 
     parser.add_argument(

@@ -25,7 +25,7 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/string.h>
 
@@ -2010,7 +2010,7 @@ INodePtr TMapNodeProxy::FindChild(const TString& key) const
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
 }
 
-bool TMapNodeProxy::AddChild(const INodePtr& child, const TString& key)
+bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
 {
     Y_ASSERT(!key.empty());
 

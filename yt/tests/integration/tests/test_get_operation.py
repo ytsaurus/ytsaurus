@@ -26,7 +26,7 @@ class TestGetOperation(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):
@@ -64,6 +64,7 @@ class TestGetOperation(YTEnvSetup):
                 "authenticated_user",
                 "brief_progress",
                 "brief_spec",
+                "runtime_parameters",
                 "finish_time",
                 "type",
                 # COMPAT(levysotsky): Old name for "type"
@@ -72,13 +73,11 @@ class TestGetOperation(YTEnvSetup):
                 "start_time",
                 "state",
                 "suspended",
-                "title",
-                "weight",
                 "spec",
                 "unrecognized_spec",
                 "full_spec",
             ]
-            return {key : attrs[key] for key in PROPER_ATTRS if key in attrs}
+            return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 
         assert filter_attrs(res_get_operation) == filter_attrs(res_cypress)
 
@@ -139,9 +138,10 @@ class TestGetOperation(YTEnvSetup):
 
         clean_operations(self.Env.create_native_client())
 
-        res_get_operation_archive = get_operation(op.id, attributes=["progress", "state"])
-        assert sorted(list(res_get_operation_archive)) == ["progress", "state"]
+        res_get_operation_archive = get_operation(op.id, attributes=["progress", "state", "runtime_parameters"])
+        assert sorted(list(res_get_operation_archive)) == ["progress", "runtime_parameters", "state"]
         assert res_get_operation_archive["state"] == "completed"
+        assert res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["PYSCH"])
 

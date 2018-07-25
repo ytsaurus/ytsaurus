@@ -40,8 +40,7 @@ public:
         if (path.empty() && context->GetMethod() == "Get") {
             return TResolveResultHere{path};
         } else {
-            auto node = BuildNodeFromProducer();
-            return TResolveResultThere{std::move(node), path};
+            return TResolveResultThere{BuildNodeFromProducer(), path};
         }
     }
 
@@ -266,7 +265,7 @@ public:
     TPermissionValidatingYPathService(
         IYPathServicePtr underlyingService,
         TCallback<void(const TString&, EPermission)> validationCallback)
-        : UnderlyingService_(underlyingService)
+        : UnderlyingService_(std::move(underlyingService))
         , ValidationCallback_(std::move(validationCallback))
         , PermissionValidator_(this, EPermissionCheckScope::This)
     { }

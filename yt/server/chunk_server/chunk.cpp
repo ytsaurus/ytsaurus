@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
 

@@ -14,8 +14,8 @@
 
 #include <yt/server/object_server/object.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
 #include <yt/core/misc/nullable.h>

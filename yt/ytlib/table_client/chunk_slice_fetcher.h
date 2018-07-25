@@ -34,7 +34,7 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     NChunkClient::IFetcherChunkScraperPtr chunkScraper,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NTableClient::TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger);
 

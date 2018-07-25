@@ -3,7 +3,7 @@ from yt_commands import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_datetime
+from yt.common import date_string_to_datetime, date_string_to_timestamp
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -1167,6 +1167,129 @@ class TestSchedulerCommon(YTEnvSetup):
         op.abort()
         assert get(path) == "aborted"
 
+    def test_input_with_custom_transaction(self):
+        custom_tx = start_transaction()
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/in", out="//tmp/out")
+
+        map(command="cat", in_='<transaction_id="{}">//tmp/in'.format(custom_tx), out="//tmp/out")
+
+        assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
+
+    def test_ban_nodes_with_failed_jobs(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="exit 1",
+            spec={
+                "resource_limits": {
+                    "cpu": 1
+                },
+                "max_failed_job_count": 10,
+                "ban_nodes_with_failed_jobs": True
+            })
+        with pytest.raises(YtError):
+            op.track()
+
+        jobs = ls("//sys/operations/{}/jobs".format(op.id), attributes=["state", "address"])
+        assert all(job.attributes["state"] == "failed" for job in jobs)
+        assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
+
+##################################################################
+
+class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 10,
+                    "cpu": 10
+                }
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "banned_exec_nodes_check_period": 100
+        }
+    }
+
+    def test_ignore_job_failures_at_banned_nodes(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("BREAKPOINT ; exit 1"),
+            spec={
+                "job_count": 10,
+                "max_failed_job_count": 2,
+                "ban_nodes_with_failed_jobs": True,
+                "ignore_job_failures_at_banned_nodes": True,
+                "fail_on_all_nodes_banned": False,
+                "mapper": {
+                    "memory_limit": 100 * 1024 * 1024
+                }
+            })
+
+        jobs = wait_breakpoint(job_count=10)
+        for id in jobs:
+            release_breakpoint(job_id=id)
+
+        cypress_path = "//sys/operations/{0}".format(op.id)
+        wait(lambda: get("{0}/@progress/jobs/failed".format(cypress_path)) == 1)
+        wait(lambda: get("{0}/@progress/jobs/aborted/scheduled/node_banned".format(cypress_path)) == 9)
+
+    def test_fail_on_all_nodes_banned(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            job_count=10,
+            command=with_breakpoint("BREAKPOINT ; exit 1"),
+            spec={
+                "job_count": 10,
+                "max_failed_job_count": 2,
+                "ban_nodes_with_failed_jobs": True,
+                "ignore_job_failures_at_banned_nodes": True,
+                "fail_on_all_nodes_banned": True,
+                "mapper": {
+                    "memory_limit": 100 * 1024 * 1024
+                }
+            })
+
+        jobs = wait_breakpoint(job_count=10)
+        for id in jobs:
+            release_breakpoint(job_id=id)
+
+        with pytest.raises(YtError):
+            op.track()
+
 ##################################################################
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
@@ -1206,7 +1329,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", [{"x": "y"}])
 
         def get_slot_index(op_id):
-            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id)
+            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id)
             wait(lambda: exists(path))
             return get(path)
 
@@ -1431,173 +1554,6 @@ class TestSchedulerRevive(YTEnvSetup):
         release_breakpoint()
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
-
-    def test_new_live_preview_simple(self):
-        create_user("u")
-        data = [{"foo": i} for i in range(3)]
-
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", data)
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1})
-
-        jobs = wait_breakpoint(job_count=2)
-
-        operation_path = op.get_path()
-
-        assert exists(operation_path + "/controller_orchid")
-
-        release_breakpoint(job_id=jobs[0])
-        release_breakpoint(job_id=jobs[1])
-        wait(lambda: op.get_job_count("completed") == 2)
-
-        live_preview_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
-        assert len(live_preview_data) == 2
-
-        assert all(record in data for record in live_preview_data)
-
-    def test_new_live_preview_intermediate_data_acl(self):
-        create_user("u1")
-        create_user("u2")
-
-        data = [{"foo": i} for i in range(3)]
-
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", data)
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1,
-                  "intermediate_data_acl": [{"action": "allow", "permissions": ["read"], "subjects": ["u1"]}]})
-
-        jobs = wait_breakpoint(job_count=2)
-
-        operation_path = op.get_path()
-
-        assert exists(operation_path + "/controller_orchid")
-
-        release_breakpoint(job_id=jobs[0])
-        release_breakpoint(job_id=jobs[1])
-        wait(lambda: op.get_job_count("completed") == 2)
-
-        read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
-
-        with pytest.raises(YtError):
-            read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
-
-    def test_new_live_preview_ranges(self):
-        create("table", "//tmp/t1")
-        for i in range(3):
-            write_table("<append=%true>//tmp/t1", [{"a": i}])
-
-        create("table", "//tmp/t2")
-
-        op = map_reduce(
-            wait_for_jobs=True,
-            dont_track=True,
-            mapper_command='for ((i=0; i<3; i++)); do echo "{a=$(($YT_JOB_INDEX*3+$i))};"; done',
-            reducer_command=with_breakpoint("cat; BREAKPOINT"),
-            reduce_by="a",
-            sort_by=["a"],
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"map_job_count": 3, "partition_count": 1})
-
-        wait(lambda: op.get_job_count("completed") == 3)
-
-        operation_path = op.get_path()
-
-        assert exists(operation_path + "/controller_orchid")
-
-        live_preview_path = operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
-        live_preview_data = read_table(live_preview_path)
-
-        assert len(live_preview_data) == 9
-
-        # We try all possible combinations of chunk and row index ranges and check that everything works as expected.
-        expected_all_ranges_data = []
-        all_ranges = []
-        for lower_row_index in range(10) + [None]:
-            for upper_row_index in range(10) + [None]:
-                for lower_chunk_index in range(4) + [None]:
-                    for upper_chunk_index in range(4) + [None]:
-                        lower_limit = dict()
-                        real_lower_index = 0
-                        if not lower_row_index is None:
-                            lower_limit["row_index"] = lower_row_index
-                            real_lower_index = max(real_lower_index, lower_row_index)
-                        if not lower_chunk_index is None:
-                            lower_limit["chunk_index"] = lower_chunk_index
-                            real_lower_index = max(real_lower_index, lower_chunk_index * 3)
-
-                        upper_limit = dict()
-                        real_upper_index = 9
-                        if not upper_row_index is None:
-                            upper_limit["row_index"] = upper_row_index
-                            real_upper_index = min(real_upper_index, upper_row_index)
-                        if not upper_chunk_index is None:
-                            upper_limit["chunk_index"] = upper_chunk_index
-                            real_upper_index = min(real_upper_index, upper_chunk_index * 3)
-
-                        all_ranges.append({"lower_limit": lower_limit, "upper_limit": upper_limit})
-                        expected_all_ranges_data += [live_preview_data[real_lower_index:real_upper_index]]
-
-        all_ranges_path = "<" + yson.dumps({"ranges": all_ranges}, yson_type="map_fragment", yson_format="text") + ">" + live_preview_path
-
-        all_ranges_data = read_table(all_ranges_path, verbose=False)
-
-        position = 0
-        for i, range_ in enumerate(expected_all_ranges_data):
-            if all_ranges_data[position:position + len(range_)] != range_:
-                print >>sys.stderr, "position =", position, ", range =", all_ranges[i]
-                print >>sys.stderr, "expected:", range_
-                print >>sys.stderr, "actual:", all_ranges_data[position:position + len(range_)]
-                assert all_ranges_data[position:position + len(range_)] == range_
-            position += len(range_)
-
-        release_breakpoint()
-        wait(lambda: op.get_job_count("completed") == 4)
-
-    def test_disabled_live_preview(self):
-        create_user("u")
-
-        data = [{"foo": i} for i in range(3)]
-
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", data)
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1,
-                  "enable_legacy_live_preview": False})
-
-        jobs = wait_breakpoint(job_count=2)
-
-        operation_path = get_operation_cypress_path(op.id)
-
-        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
-        assert not exists(operation_path + "/output_0", tx=async_transaction_id)
-
 
 ################################################################################
 
@@ -2354,7 +2310,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
 
         wait(lambda: exists("//sys/operations/{0}/@brief_progress".format(op.id)))
         assert list(get("//sys/operations/{0}/@brief_progress".format(op.id))) == ["jobs"]
@@ -2430,8 +2386,8 @@ class TestSchedulerSnapshots(YTEnvSetup):
         copy(snapshot_path, snapshot_backup_path)
         assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
-        ts = get(op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time")
-        assert time.time() - datetime_str_to_ts(ts) < 60
+        ts_str = get(op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time")
+        assert time.time() - date_string_to_timestamp(ts_str) < 60
 
         release_breakpoint()
         op.track()
@@ -2549,7 +2505,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
         time.sleep(2)
 
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage/user_slots".format(op.id)) == 2
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage/user_slots".format(op.id)) == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2
 
@@ -2570,6 +2526,7 @@ class TestSchedulerGpu(YTEnvSetup):
         cls.node_counter += 1
         if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
+            config["exec_agent"]["job_controller"]["test_gpu"] = True
 
     def test_job_count(self):
         gpu_nodes = [node for node in ls("//sys/nodes") if get("//sys/nodes/{}/@resource_limits/gpu".format(node)) > 0]
@@ -3224,7 +3181,7 @@ fi
         set("//sys/operations/" + op.id + "/@resource_limits", {"user_slots": 1})
         set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
 
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits/user_slots".format(op.id)
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_limits/user_slots".format(op.id)
         wait(lambda: get(orchid_path) == 1)
 
     def test_inner_operation_nodes(self):
@@ -3292,8 +3249,26 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+        },
+    }
+
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):
@@ -3397,7 +3372,8 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
         # resulting in about 20mb of memory.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6)
+        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6 and
+                     get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 15 * 10**6)
 
         op.track()
 
@@ -3498,3 +3474,174 @@ class TestPorts(YTEnvSetup):
         assert ports[0] != ports[1]
 
         assert all(port >= 20000 and port < 20003 for port in ports)
+
+class TestNewLivePreview(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    def test_new_live_preview_simple(self):
+        create_user("u")
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1})
+
+        jobs = wait_breakpoint(job_count=2)
+
+        operation_path = op.get_path()
+
+        assert exists(operation_path + "/controller_orchid")
+
+        release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        live_preview_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
+        assert len(live_preview_data) == 2
+
+        assert all(record in data for record in live_preview_data)
+
+    def test_new_live_preview_intermediate_data_acl(self):
+        create_user("u1")
+        create_user("u2")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1,
+                  "intermediate_data_acl": [{"action": "allow", "permissions": ["read"], "subjects": ["u1"]}]})
+
+        jobs = wait_breakpoint(job_count=2)
+
+        operation_path = op.get_path()
+
+        assert exists(operation_path + "/controller_orchid")
+
+        release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
+
+        with pytest.raises(YtError):
+            read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
+
+    def test_new_live_preview_ranges(self):
+        create("table", "//tmp/t1")
+        for i in range(3):
+            write_table("<append=%true>//tmp/t1", [{"a": i}])
+
+        create("table", "//tmp/t2")
+
+        op = map_reduce(
+            wait_for_jobs=True,
+            dont_track=True,
+            mapper_command='for ((i=0; i<3; i++)); do echo "{a=$(($YT_JOB_INDEX*3+$i))};"; done',
+            reducer_command=with_breakpoint("cat; BREAKPOINT"),
+            reduce_by="a",
+            sort_by=["a"],
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"map_job_count": 3, "partition_count": 1})
+
+        wait(lambda: op.get_job_count("completed") == 3)
+
+        operation_path = op.get_path()
+
+        assert exists(operation_path + "/controller_orchid")
+
+        live_preview_path = operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
+        live_preview_data = read_table(live_preview_path)
+
+        assert len(live_preview_data) == 9
+
+        # We try all possible combinations of chunk and row index ranges and check that everything works as expected.
+        expected_all_ranges_data = []
+        all_ranges = []
+        for lower_row_index in range(10) + [None]:
+            for upper_row_index in range(10) + [None]:
+                for lower_chunk_index in range(4) + [None]:
+                    for upper_chunk_index in range(4) + [None]:
+                        lower_limit = dict()
+                        real_lower_index = 0
+                        if not lower_row_index is None:
+                            lower_limit["row_index"] = lower_row_index
+                            real_lower_index = max(real_lower_index, lower_row_index)
+                        if not lower_chunk_index is None:
+                            lower_limit["chunk_index"] = lower_chunk_index
+                            real_lower_index = max(real_lower_index, lower_chunk_index * 3)
+
+                        upper_limit = dict()
+                        real_upper_index = 9
+                        if not upper_row_index is None:
+                            upper_limit["row_index"] = upper_row_index
+                            real_upper_index = min(real_upper_index, upper_row_index)
+                        if not upper_chunk_index is None:
+                            upper_limit["chunk_index"] = upper_chunk_index
+                            real_upper_index = min(real_upper_index, upper_chunk_index * 3)
+
+                        all_ranges.append({"lower_limit": lower_limit, "upper_limit": upper_limit})
+                        expected_all_ranges_data += [live_preview_data[real_lower_index:real_upper_index]]
+
+        all_ranges_path = "<" + yson.dumps({"ranges": all_ranges}, yson_type="map_fragment", yson_format="text") + ">" + live_preview_path
+
+        all_ranges_data = read_table(all_ranges_path, verbose=False)
+
+        position = 0
+        for i, range_ in enumerate(expected_all_ranges_data):
+            if all_ranges_data[position:position + len(range_)] != range_:
+                print >>sys.stderr, "position =", position, ", range =", all_ranges[i]
+                print >>sys.stderr, "expected:", range_
+                print >>sys.stderr, "actual:", all_ranges_data[position:position + len(range_)]
+                assert all_ranges_data[position:position + len(range_)] == range_
+            position += len(range_)
+
+        release_breakpoint()
+        op.track()
+
+    def test_disabled_live_preview(self):
+        create_user("u")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1,
+                  "enable_legacy_live_preview": False})
+
+        wait_breakpoint(job_count=2)
+
+        operation_path = get_operation_cypress_path(op.id)
+
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
+        assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+

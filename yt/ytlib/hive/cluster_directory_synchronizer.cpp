@@ -3,8 +3,8 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/connection.h>
+#include <yt/client/api/client.h>
 
 #include <yt/core/rpc/dispatcher.h>
 

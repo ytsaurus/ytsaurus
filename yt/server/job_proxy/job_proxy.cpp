@@ -10,25 +10,29 @@
 #include "user_job.h"
 #include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
+#include "job_bandwidth_throttler.h"
 
 #include <yt/server/containers/public.h>
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/supervisor_service.pb.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/client/api/client.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
@@ -38,6 +42,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -73,6 +78,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobProberClient;
+using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
@@ -158,6 +164,16 @@ IServerPtr TJobProxy::GetRpcServer() const
 TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
 {
     return TrafficMeter_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetInThrottler() const
+{
+    return InThrottler_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetOutThrottler() const
+{
+    return OutThrottler_;
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)
@@ -312,7 +328,13 @@ void TJobProxy::Run()
         auto interruptDescriptor = Job_->GetInterruptDescriptor();
 
         if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-            if (!interruptDescriptor.ReadDataSliceDescriptors.empty()) {
+            auto inputStatistics = GetTotalInputDataStatistics(Job_->GetStatistics());
+            if (inputStatistics.row_count() > 0) {
+                // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
+                // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
+                // Still we would like to treat such a job as interrupted, otherwise it may lead to an infinite sequence
+                // of jobs being aborted by splitter instead of interrupts.
+
                 ToProto(
                     schedulerResultExt->mutable_unread_chunk_specs(),
                     schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
@@ -329,10 +351,6 @@ void TJobProxy::Run()
                     schedulerResultExt->ShortDebugString());
             } else {
                 if (result.error().code() == 0) {
-                    // It is tempting to check /data/input/row_count statistics to be equal to zero.
-                    // Surprisingly we could still have read some foreign rows, but since we didn't read primary rows
-                    // we made no progress. So let's chunk data slice count at least.
-
                     auto getPrimaryDataSliceCount = [&] () {
                         int result = 0;
                         for (const auto& inputTableSpec : JobSpecHelper_->GetSchedulerJobSpecExt().input_table_specs()) {
@@ -428,10 +446,15 @@ TJobResult TJobProxy::DoRun()
                 rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
             }
 
+            // Temporary workaround for nirvana - make tmp directories writable.
+            auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
+            rootFS.Binds.emplace_back(TBind {tmpPath, "/tmp", false});
+            rootFS.Binds.emplace_back(TBind {tmpPath, "/var/tmp", false});
+
             return rootFS;
         };
 
-        JobProxyEnvironment_ = CreateJobProxyEnvironment(Config_->JobEnvironment, createRootFS());
+        JobProxyEnvironment_ = CreateJobProxyEnvironment(Config_->JobEnvironment, createRootFS(), Config_->GpuDevices);
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
@@ -447,11 +470,33 @@ TJobResult TJobProxy::DoRun()
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-        auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
+        auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
         Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
         RetrieveJobSpec();
+        
+        // Disable throttling when timeout is 0.
+        if (Config_->BandwidthThrottlerRpcTimeout != TDuration::Zero()) {
+            LOG_DEBUG("Job throttling enabled");
+
+            InThrottler_ = CreateInJobBandwidthThrottler(
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
+                JobId_,
+                Config_->BandwidthThrottlerRpcTimeout);
+
+            OutThrottler_ = CreateOutJobBandwidthThrottler(
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_,
+                Config_->BandwidthThrottlerRpcTimeout);
+        } else {
+            LOG_DEBUG("Job throttling disabled");
+
+            InThrottler_ = GetUnlimitedThrottler();
+            OutThrottler_ = GetUnlimitedThrottler();
+        }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);
@@ -651,7 +696,7 @@ void TJobProxy::OnPrepared()
     req->Invoke();
 }
 
-NApi::INativeClientPtr TJobProxy::GetClient() const
+NApi::NNative::IClientPtr TJobProxy::GetClient() const
 {
     return Client_;
 }

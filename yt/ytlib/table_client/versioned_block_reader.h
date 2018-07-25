@@ -2,10 +2,11 @@
 
 #include "chunk_meta_extensions.h"
 #include "public.h"
-#include "schema.h"
 #include "schemaless_block_reader.h"
-#include "unversioned_row.h"
-#include "versioned_row.h"
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/ref.h>

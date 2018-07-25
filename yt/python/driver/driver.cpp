@@ -4,15 +4,18 @@
 #include <yt/python/common/shutdown.h>
 #include <yt/python/common/buffered_stream.h>
 #include <yt/python/common/helpers.h>
+#include <yt/python/common/error.h>
 
-#include <yt/ytlib/api/admin.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/admin.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/driver/config.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
@@ -33,6 +36,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NTabletClient;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,24 +45,14 @@ static THashMap<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYtError(const std::string& message, const NYT::TError& error = TError())
+Py::Exception CreateYtError(const TString& message, const TError& error)
 {
-    auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
-    auto ytErrorClass = Py::Callable(GetAttr(ytModule, "YtError"));
-
-    std::vector<TError> innerErrors({error});
-
-    Py::Dict options;
-    options.setItem("message", ConvertTo<Py::Object>(message));
-    options.setItem("code", ConvertTo<Py::Object>(1));
-    options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
-    auto ytError = ytErrorClass.apply(Py::Tuple(), options);
-    return Py::Exception(*ytError.type(), ytError);
+    return CreateYtError(message, ConvertTo<Py::Object>(std::vector<TError>({error})));
 }
 
-#define CATCH(message) \
-    catch (const NYT::TErrorException& error) { \
-        throw CreateYtError(message, error.Error()); \
+#define CATCH_AND_CREATE_YT_ERROR(message) \
+    catch (const NYT::TErrorException& errorEx) { \
+        throw CreateYtError(message, errorEx.Error()); \
     } catch (const std::exception& ex) { \
         if (PyErr_ExceptionMatches(PyExc_BaseException)) { \
             throw; \
@@ -68,6 +62,7 @@ Py::Exception CreateYtError(const std::string& message, const NYT::TError& error
     }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 INodePtr ConvertObjectToNode(const Py::Object& obj)
 {
@@ -123,6 +118,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Forces a remote YT process (node, scheduler or master) to exit immediately");
         PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Writes a core dump of a remote YT process (node, scheduler or master)");
+        PYCXX_ADD_KEYWORDS_METHOD(write_operation_controller_core_dump, WriteOperationControllerCoreDump, "Write a core dump of a controller agent holding the operation controller for a given operation id");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
@@ -173,9 +169,9 @@ public:
 
         auto inputStreamObj = GetAttr(pyRequest, "input_stream");
         if (!inputStreamObj.isNone()) {
-            std::unique_ptr<TInputStreamWrap> inputStream(new TInputStreamWrap(inputStreamObj));
-            request.InputStream = CreateAsyncAdapter(inputStream.get());
-            holder->OwnInputStream(inputStream);
+            auto inputStreamHolder = CreateInputStreamWrapper(inputStreamObj);
+            request.InputStream = CreateAsyncAdapter(inputStreamHolder.get());
+            holder->OwnInputStream(std::move(inputStreamHolder));
         }
 
         auto outputStreamObj = GetAttr(pyRequest, "output_stream");
@@ -186,9 +182,9 @@ public:
                 bufferedOutputStream = dynamic_cast<TBufferedStreamWrap*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
                 request.OutputStream = bufferedOutputStream->GetStream();
             } else {
-                std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
-                request.OutputStream = CreateAsyncAdapter(outputStream.get());
-                holder->OwnOutputStream(outputStream);
+                std::unique_ptr<IOutputStream> outputStreamHolder(CreateOutputStreamWrapper(outputStreamObj, /* addBuffering */ false));
+                request.OutputStream = CreateAsyncAdapter(outputStreamHolder.get());
+                holder->OwnOutputStream(outputStreamHolder);
             }
         }
 
@@ -201,7 +197,7 @@ public:
                     outputStream->Finish();
                 }));
             }
-        } CATCH("Driver command execution failed");
+        } CATCH_AND_CREATE_YT_ERROR("Driver command execution failed");
 
         LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
             request.Id,
@@ -221,7 +217,7 @@ public:
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
         try {
             descriptor.getCxxObject()->SetDescriptor(UnderlyingDriver_->GetCommandDescriptor(commandName));
-        } CATCH("Failed to get command descriptor");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to get command descriptor");
 
         return descriptor;
     }
@@ -240,7 +236,7 @@ public:
                 descriptors.setItem(~nativeDescriptor.CommandName, descriptor);
             }
             return descriptors;
-        } CATCH("Failed to get command descriptors");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to get command descriptors");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
 
@@ -251,7 +247,7 @@ public:
             WaitFor(admin->GCCollect())
                 .ThrowOnError();
             return Py::None();
-        } CATCH("Failed to perform garbage collect");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to perform garbage collect");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
 
@@ -275,7 +271,7 @@ public:
             WaitFor(admin->KillProcess(address, options))
                 .ThrowOnError();
             return Py::None();
-        } CATCH("Failed to kill process");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to kill process");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, KillProcess)
 
@@ -295,9 +291,26 @@ public:
             auto path = WaitFor(admin->WriteCoreDump(address, options))
                 .ValueOrThrow();
             return Py::String(path);
-        } CATCH("Failed to write core dump");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to write core dump");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteCoreDump)
+
+    Py::Object WriteOperationControllerCoreDump(Py::Tuple& args, Py::Dict& kwargs) {
+        if (!HasArgument(args, kwargs, "operation_id")) {
+            throw CreateYtError("Missing argument 'operation_id'");
+        }
+        auto operationId = TOperationId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "operation_id")));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
+            auto path = WaitFor(admin->WriteOperationControllerCoreDump(operationId))
+                .ValueOrThrow();
+            return Py::String(path);
+        } CATCH_AND_CREATE_YT_ERROR("Failed to write operation controller core dump");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteOperationControllerCoreDump)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
@@ -323,7 +336,7 @@ public:
             int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
             return Py::Long(snapshotId);
-        } CATCH("Failed to build snapshot");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to build snapshot");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
 
@@ -334,7 +347,7 @@ public:
         try {
             UnderlyingDriver_->ClearMetadataCaches();
             return Py::None();
-        } CATCH("Failed to clear metadata caches");
+        } CATCH_AND_CREATE_YT_ERROR("Failed to clear metadata caches");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 

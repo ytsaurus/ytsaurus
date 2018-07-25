@@ -220,6 +220,9 @@ TEST(TPhoenixTest, Ref3)
 
     EXPECT_EQ(a2->GetRefCount(), 2);
     EXPECT_EQ(a2->X, a2);
+
+    a1->X.Reset();
+    a2->X.Reset();
 }
 
 } // namespace NRef3

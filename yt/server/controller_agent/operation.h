@@ -4,7 +4,9 @@
 
 #include <yt/server/scheduler/scheduling_tag.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
+
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -28,7 +30,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<NScheduler::TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
+    DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
     DEFINE_BYVAL_RW_PROPERTY(TMemoryTag, MemoryTag);
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NApi::ITransactionPtr>, Transactions);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
@@ -42,8 +44,19 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
 
+} // namespace NControllerAgent
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
+void ToProto(
+    NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters* protoTreeFilters,
+    const NScheduler::TPoolTreeToSchedulingTagFilter& treeFilters);
+
+void FromProto(
+    NScheduler::TPoolTreeToSchedulingTagFilter* treeFilters,
+    const NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters protoTreeFilters);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

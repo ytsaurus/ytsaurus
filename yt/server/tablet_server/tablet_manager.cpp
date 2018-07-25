@@ -58,11 +58,13 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/schema.h>
+
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -331,7 +333,15 @@ public:
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering tablet cell in Cypress");
+            LOG_ERROR_UNLESS(
+                IsRecovery(),
+                ex,
+                "Error registering tablet cell in Cypress (CellId: %v)",
+                cell->GetId());
+
+            objectManager->UnrefObject(cell);
+            THROW_ERROR_EXCEPTION("Error registering tablet cell in Cypress")
+                << ex;
         }
 
         return cell;
@@ -2543,6 +2553,7 @@ private:
     bool UpdateChunkListsKind_ = false;
     bool RecomputeTabletCountByState_ = false;
     bool RecomputeTabletCellStatistics_ = false;
+    bool RecomputeTabletErrorCount_ = false;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -2623,6 +2634,8 @@ private:
         RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
         // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() <= 619);
+        // COMPAT(ifsmirnov)
+        RecomputeTabletErrorCount_ = (context.GetVersion() < 715);
     }
 
 
@@ -2740,6 +2753,24 @@ private:
                 cell->TotalStatistics() = TTabletCellStatistics();
                 for (const auto& tablet : cell->Tablets()) {
                     cell->TotalStatistics() += GetTabletStatistics(tablet);
+                }
+            }
+        }
+
+        // COMPAT(ifsmirnov)
+        if (RecomputeTabletErrorCount_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
+                    auto* table = node->As<TTableNode>();
+                    if (table->IsDynamic()) {
+                        int errorCount = 0;
+                        for (const auto* tablet : table->Tablets()) {
+                            errorCount += tablet->GetErrorCount();
+                        }
+                        table->SetTabletErrorCount(errorCount);
+                    }
                 }
             }
         }
@@ -2892,6 +2923,26 @@ private:
                 prerequisiteTransactionId);
         };
 
+        auto requestUpdateSlot = [&] (const TTabletCell* cell) {
+            if (!response)
+                return;
+
+            auto* protoInfo = response->add_tablet_slots_update();
+
+            const auto& cellId = cell->GetId();
+
+            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
+
+            const auto* cellBundle = cell->GetCellBundle();
+            protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
+            protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).GetData());
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
+                node->GetDefaultAddress(),
+                cellId,
+                cellBundle->GetDynamicConfigVersion());
+        };
+
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
             if (!response)
                 return;
@@ -2989,6 +3040,12 @@ private:
             if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(&slot);
             }
+
+            if (slotInfo.has_dynamic_config_version() &&
+                slotInfo.dynamic_config_version() != cell->GetCellBundle()->GetDynamicConfigVersion())
+            {
+                requestUpdateSlot(slot.Cell);
+            }
         }
 
         // Check for expected slots that are missing.
@@ -3012,6 +3069,7 @@ private:
                     }
                     if (actualCells.find(cell) == actualCells.end()) {
                         requestCreateSlot(cell);
+                        requestUpdateSlot(cell);
                         --availableSlots;
                     }
                 }
@@ -3063,20 +3121,7 @@ private:
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
 
-            int errorCount = 0;
-            auto errors = FromProto<std::vector<TError>>(tabletInfo.errors());
-            for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                size_t idx = static_cast<size_t>(errorKey);
-                if (idx < errors.size()) {
-                    tablet->Errors()[errorKey] = errors[idx];
-                    errorCount += !errors[idx].IsOK();
-                }
-            }
-
-            int restTabletErrorCount = table->GetTabletErrorCount() - tablet->GetErrorCount();
-            Y_ASSERT(restTabletErrorCount >= 0);
-            table->SetTabletErrorCount(restTabletErrorCount + errorCount);
-            tablet->SetErrorCount(errorCount);
+            tablet->SetErrors(FromProto<std::vector<TError>>(tabletInfo.errors()));
 
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());

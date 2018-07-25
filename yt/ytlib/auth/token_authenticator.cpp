@@ -4,7 +4,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
 
@@ -24,6 +24,7 @@ using namespace NApi;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = AuthLogger;
+static const TString LocalUserIP = "127.0.0.1";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,9 +49,9 @@ public:
         } else {
             // UserIP is not required for token authentication, but
             // blackbox requires that parameter anyway.
-            userIP = "127.0.0.1";
+            userIP = LocalUserIP;
         }
-        
+
         auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
         LOG_DEBUG("Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
             tokenMD5,

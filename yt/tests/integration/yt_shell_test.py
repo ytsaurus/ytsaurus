@@ -4,6 +4,8 @@ import subprocess
 from yt.environment import YTInstance
 from yt_env_setup import resolve_test_paths
 
+from yt.common import update_inplace
+
 import pytest
 
 
@@ -43,9 +45,21 @@ class ExecutableItem(pytest.Item):
         }
 
         kwargs = {}
+        config_patches = {}
         for key, value in self.extract_attrs(str(self.fspath)):
+            if key == "DELTA_MASTER_CONFIG":
+                config_patches['master'] = value
+                continue
+
             print 'Setting "%s" to "%s"' % (key, value)
             kwargs[params_map[key]] = value
+
+        def modify_configs(configs, abi_version):
+            if 'master' in config_patches:
+                for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
+                    for index, config in enumerate(configs["master"][tag]):
+                        configs["master"][tag][index] = update_inplace(config, config_patches['master'])
+        kwargs['modify_configs_func'] = modify_configs
 
         env = YTInstance(self.environment_path, **kwargs)
         try:

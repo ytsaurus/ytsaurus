@@ -2,15 +2,14 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/formats/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 #include <yt/core/actions/public.h>
@@ -23,7 +22,6 @@
 #include <yt/core/misc/common.h>
 
 #include <vector>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 
 namespace NYT {
 
@@ -62,13 +60,14 @@ DEFINE_REFCOUNTED_TYPE(IUserJobReadController);
 
 IUserJobReadControllerPtr CreateUserJobReadController(
         IJobSpecHelperPtr jobSpecHelper,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
         TNullable<TString> udfDirectory,
         NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter);
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

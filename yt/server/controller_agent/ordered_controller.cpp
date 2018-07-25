@@ -11,9 +11,10 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
 
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/config.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -24,7 +25,9 @@
 #include <yt/ytlib/query_client/query.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/schema.h>
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
@@ -48,6 +51,9 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NScheduler;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
@@ -291,6 +297,7 @@ protected:
                     return CreateMergeJobSizeConstraints(
                         Spec_,
                         Options_,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight,
                         DataWeightRatio,
                         InputCompressionRatio);
@@ -301,6 +308,7 @@ protected:
                         Options_,
                         OutputTables_.size(),
                         DataWeightRatio,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight);
 
                 default:
@@ -1153,13 +1161,14 @@ private:
                 THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
             }
 
-            const auto& path = Spec_->InputTablePaths[0].GetPath();
+            const auto& table = InputTables[0];
+            const auto& path = table.Path.GetPath();
 
-            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, *table.TransactionId);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
@@ -1220,10 +1229,10 @@ private:
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
     }
 
-    INativeConnectionPtr GetRemoteConnection() const
+    NNative::IConnectionPtr GetRemoteConnection() const
     {
         if (Spec_->ClusterConnection) {
-            return CreateNativeConnection(*Spec_->ClusterConnection);
+            return NApi::NNative::CreateConnection(*Spec_->ClusterConnection);
         } else if (Spec_->ClusterName) {
             auto connection = Host
                 ->GetClient()
@@ -1231,7 +1240,7 @@ private:
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName);
 
-            auto* nativeConnection = dynamic_cast<INativeConnection*>(connection.Get());
+            auto* nativeConnection = dynamic_cast<NNative::IConnection*>(connection.Get());
             if (!nativeConnection) {
                 THROW_ERROR_EXCEPTION("No native connection could be established with cluster %Qv",
                     *Spec_->ClusterName);
@@ -1243,7 +1252,7 @@ private:
         }
     }
 
-    TNativeConnectionConfigPtr GetRemoteConnectionConfig() const
+    NNative::TConnectionConfigPtr GetRemoteConnectionConfig() const
     {
         if (Spec_->ClusterConnection) {
             return *Spec_->ClusterConnection;

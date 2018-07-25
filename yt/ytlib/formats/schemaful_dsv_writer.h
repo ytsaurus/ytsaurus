@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "schemaless_writer_adapter.h"
 
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schemaful_writer.h>
 
 #include <yt/core/concurrency/async_stream.h>
 

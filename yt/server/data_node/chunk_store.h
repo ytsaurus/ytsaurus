@@ -5,7 +5,7 @@
 #include <yt/server/cell_node/public.h>
 
 #include <yt/ytlib/chunk_client/file_reader.h>
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/core/actions/signal.h>

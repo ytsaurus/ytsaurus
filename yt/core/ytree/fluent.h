@@ -5,6 +5,9 @@
 #include "tree_builder.h"
 #include "convert.h"
 
+#include <yt/core/json/config.h>
+#include <yt/core/json/json_writer.h>
+
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/producer.h>
 #include <yt/core/yson/parser.h>
@@ -613,12 +616,12 @@ static inline TFluentAny BuildYsonFluently(NYson::IYsonConsumer* consumer)
     return TFluentYsonBuilder::TAny<TFluentYsonVoid>(consumer, TFluentYsonVoid());
 }
 
-static inline TFluentList BuildYsonListFluently(NYson::IYsonConsumer* consumer)
+static inline TFluentList BuildYsonListFragmentFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentList(consumer);
 }
 
-static inline TFluentMap BuildYsonMapFluently(NYson::IYsonConsumer* consumer)
+static inline TFluentMap BuildYsonMapFragmentFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentMap(consumer);
 }

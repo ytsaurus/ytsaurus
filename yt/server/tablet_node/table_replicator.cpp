@@ -15,25 +15,26 @@
 
 #include <yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/name_table.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_transaction.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/transaction.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -69,7 +70,7 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
-        INativeConnectionPtr localConnection,
+        NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
         IInvokerPtr workerInvoker)
@@ -121,7 +122,7 @@ public:
 
 private:
     const TTabletManagerConfigPtr Config_;
-    const INativeConnectionPtr LocalConnection_;
+    const NNative::IConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
     const TSlotManagerPtr SlotManager_;
     const IInvokerPtr WorkerInvoker_;
@@ -217,7 +218,7 @@ private:
                 return;
             }
 
-            INativeTransactionPtr localTransaction;
+            NNative::ITransactionPtr localTransaction;
             ITransactionPtr foreignTransaction;
             PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
                 LOG_DEBUG("Starting replication transactions");
@@ -745,7 +746,7 @@ TTableReplicator::TTableReplicator(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     TTableReplicaInfo* replicaInfo,
-    INativeConnectionPtr localConnection,
+    NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
     IInvokerPtr workerInvoker)

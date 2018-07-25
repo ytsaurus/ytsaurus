@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/ytlib/table_client/config.h>
 
@@ -351,7 +351,6 @@ public:
     int ReplicatorThreadPoolSize;
     TDuration ReplicatorSoftBackoffTime;
     TDuration ReplicatorHardBackoffTime;
-    i64 ReplicatorDataWeightThrottlingGranularity;
 
     TTabletManagerConfig()
     {
@@ -386,8 +385,6 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("replicator_data_weight_throttling_granularity", ReplicatorDataWeightThrottlingGranularity)
-            .Default(64_KB);
     }
 };
 
@@ -673,9 +670,8 @@ public:
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
 
-        // TODO(savrus) Change to reasonable limit after using this in production.
         RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
-            .DefaultNew(std::numeric_limits<i64>::max());
+            .DefaultNew(1_GB);
 
         RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
             .DefaultNew();

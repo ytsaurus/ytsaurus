@@ -159,7 +159,7 @@ void TOperationControllerHost::AddChunkTreesToUnstageList(const std::vector<TChu
         recursive));
 }
 
-const NApi::INativeClientPtr& TOperationControllerHost::GetClient()
+const NApi::NNative::IClientPtr& TOperationControllerHost::GetClient()
 {
     return Bootstrap_->GetMasterClient();
 }

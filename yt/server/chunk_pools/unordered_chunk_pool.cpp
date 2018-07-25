@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/server/controller_agent/job_size_adjuster.h>
 #include <yt/server/controller_agent/controller_agent.h>
@@ -686,6 +686,7 @@ private:
         for (const auto& dataSlice : stripe->DataSlices) {
             YCHECK(dataSlice->Tag);
             auto inputCookie = *dataSlice->Tag;
+
             InputCookieToInternalCookies_[inputCookie].push_back(internalCookie);
             if (InputCookieIsSuspended_[inputCookie]) {
                 DoSuspend(internalCookie);

@@ -3,14 +3,15 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 #include "columnar_chunk_meta.h"
-#include "schema.h"
-#include "unversioned_row.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>

@@ -3,17 +3,20 @@
 #include "config.h"
 #include "file_chunk_writer.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -43,9 +46,10 @@ using namespace NApi;
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TTransactionId& transactionId,
     TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler,
     i64 sizeLimit)
     : Logger(FileClientLogger)
     , Config_(config)
@@ -80,7 +84,8 @@ TFileChunkOutput::TFileChunkOutput(
         New<TNodeDirectory>(),
         Client_,
         GetNullBlockCache(),
-        trafficMeter);
+        trafficMeter,
+        throttler);
 
     FileChunkWriter_ = CreateFileChunkWriter(
         Config_,

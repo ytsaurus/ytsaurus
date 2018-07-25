@@ -11,7 +11,6 @@
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer.h>
-#include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <contrib/libs/grpc/include/grpc/support/alloc.h>
@@ -24,19 +23,23 @@ using NYTree::ENodeType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr ui32 MinusOne = static_cast<ui32>(-1);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGprString MakeGprString(char* str)
 {
     return TGprString(str, gpr_free);
 }
 
-TStringBuf ToStringBuf(grpc_slice slice)
+TStringBuf ToStringBuf(const grpc_slice& slice)
 {
     return TStringBuf(
         reinterpret_cast<const char*>(GRPC_SLICE_START_PTR(slice)),
         GRPC_SLICE_LENGTH(slice));
 }
 
-TString ToString(grpc_slice slice)
+TString ToString(const grpc_slice& slice)
 {
     return TString(ToStringBuf(slice));
 }
@@ -185,24 +188,93 @@ grpc_ssl_pem_key_cert_pair* TGrpcPemKeyCertPair::Unwrap()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGrpcByteBufferStream::TGrpcByteBufferStream(grpc_byte_buffer* buffer)
+{
+    YCHECK(grpc_byte_buffer_reader_init(&Reader_, buffer) == 1);
+    RemainingBytes_ = grpc_byte_buffer_length(buffer);
+}
+
+TGrpcByteBufferStream::~TGrpcByteBufferStream()
+{
+    grpc_byte_buffer_reader_destroy(&Reader_);
+}
+
+bool TGrpcByteBufferStream::ReadNextSlice()
+{
+    // NB: Do not unref uninitialized slice.
+    if (Started_) {
+        grpc_slice_unref(Slice_);
+    }
+    Started_ = true;
+
+    if (grpc_byte_buffer_reader_next(&Reader_, &Slice_) == 0) {
+        return false;
+    }
+
+    AvailableBytes_ = GRPC_SLICE_LENGTH(Slice_);
+    return true;
+}
+
+size_t TGrpcByteBufferStream::DoRead(void* buf, size_t len)
+{
+    // NB: Theoretically empty slice can be read, skipping such
+    // slices to avoid early EOS.
+    while (AvailableBytes_ == 0) {
+        if (!ReadNextSlice()) {
+            return 0;
+        }
+    }
+
+    const auto* sliceData = GRPC_SLICE_START_PTR(Slice_);
+    auto offset = GRPC_SLICE_LENGTH(Slice_) - AvailableBytes_;
+
+    ui32 toRead = std::min(static_cast<ui32>(len), AvailableBytes_);
+    ::memcpy(buf, sliceData + offset, toRead);
+    AvailableBytes_ -= toRead;
+    RemainingBytes_ -= toRead;
+
+    return toRead;
+}
+
+bool TGrpcByteBufferStream::IsExhausted() const
+{
+    return RemainingBytes_ == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMessageTag
 { };
 
-TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer)
+TMessageWithAttachments ByteBufferToMessageWithAttachments(
+    grpc_byte_buffer* buffer,
+    TNullable<ui32> messageBodySize)
 {
+    TMessageWithAttachments result;
+
+    ui32 bufferSize = grpc_byte_buffer_length(buffer);
+
+    // NB: Message body size is not specified, assuming that
+    // the whole data is message body.
+    if (!messageBodySize) {
+        messageBodySize = bufferSize;
+    }
+
     NYT::NProto::TSerializedMessageEnvelope envelope;
     // Codec remains "none".
 
     TEnvelopeFixedHeader fixedHeader;
     fixedHeader.EnvelopeSize = envelope.ByteSize();
-    fixedHeader.MessageSize = static_cast<ui32>(grpc_byte_buffer_length(buffer));
+    fixedHeader.MessageSize = *messageBodySize;
 
-    size_t totalSize =
+    size_t totalMessageSize =
         sizeof (TEnvelopeFixedHeader) +
         fixedHeader.EnvelopeSize +
         fixedHeader.MessageSize;
 
-    auto data = TSharedMutableRef::Allocate<TMessageTag>(totalSize, false);
+    auto data = TSharedMutableRef::Allocate<TMessageTag>(
+        totalMessageSize,
+        /* initializeStorage */ false);
 
     char* targetFixedHeader = data.Begin();
     char* targetHeader = targetFixedHeader + sizeof (TEnvelopeFixedHeader);
@@ -211,31 +283,98 @@ TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer)
     memcpy(targetFixedHeader, &fixedHeader, sizeof (fixedHeader));
     YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.EnvelopeSize));
 
-    grpc_byte_buffer_reader reader;
-    YCHECK(grpc_byte_buffer_reader_init(&reader, buffer) == 1);
+    TGrpcByteBufferStream stream(buffer);
 
-    char* currentMessage = targetMessage;
-    while (true) {
-        grpc_slice slice;
-        if (grpc_byte_buffer_reader_next(&reader, &slice) == 0) {
-            break;
-        }
-        const auto* sliceData = GRPC_SLICE_START_PTR(slice);
-        auto sliceSize = GRPC_SLICE_LENGTH(slice);
-        ::memcpy(currentMessage, sliceData, sliceSize);
-        currentMessage += sliceSize;
-        grpc_slice_unref(slice);
+    if (stream.Load(targetMessage, *messageBodySize) != *messageBodySize) {
+        THROW_ERROR_EXCEPTION("Unexpected end of stream while reading message body");
     }
-    grpc_byte_buffer_reader_destroy(&reader);
 
-    return data;
+    result.Message = data;
+
+    ui32 attachmentsSize = bufferSize - *messageBodySize;
+
+    if (attachmentsSize == 0) {
+        return result;
+    }
+
+    auto attachmentsData = TSharedMutableRef::Allocate<TMessageTag>(
+        attachmentsSize,
+        /* initializeStorage */ false);
+
+    char* attachmentsBuffer = attachmentsData.Begin();
+
+    while (!stream.IsExhausted()) {
+        ui32 attachmentSize;
+
+        if (stream.Load(&attachmentSize, sizeof(attachmentSize)) != sizeof(attachmentSize)) {
+            THROW_ERROR_EXCEPTION("Unexpected end of stream while reading attachment size");
+        }
+
+        if (attachmentSize == MinusOne) {
+            result.Attachments.push_back(TSharedRef());
+        } else if (attachmentSize == 0) {
+            result.Attachments.push_back(EmptySharedRef);
+        } else {
+            if (stream.Load(attachmentsBuffer, attachmentSize) != attachmentSize) {
+                THROW_ERROR_EXCEPTION("Unexpected end of stream while reading message attachment");
+            }
+
+            result.Attachments.push_back(
+                attachmentsData.Slice(attachmentsBuffer, attachmentsBuffer + attachmentSize));
+
+            attachmentsBuffer += attachmentSize;
+        }
+    }
+
+    return result;
 }
 
-TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data)
+TGrpcByteBufferPtr MessageWithAttachmentsToByteBuffer(const TMessageWithAttachments& messageWithAttachments)
 {
-    YCHECK(data.Size() >= sizeof (TEnvelopeFixedHeader));
+    struct THolder
+    {
+        TSharedRef Data;
+    };
+
+    auto sliceFromRef = [] (TSharedRef ref) {
+        auto* holder = new THolder();
+        holder->Data = std::move(ref);
+        return grpc_slice_new_with_user_data(
+            const_cast<char*>(holder->Data.Begin()),
+            holder->Data.Size(),
+            [] (void* untypedHolder) {
+                delete static_cast<THolder*>(untypedHolder);
+            },
+            holder);
+    };
+
+    std::vector<grpc_slice> slices;
+    slices.reserve(1 + 2 * messageWithAttachments.Attachments.size());
+
+    slices.push_back(sliceFromRef(messageWithAttachments.Message));
+
+    for (const auto& attachment : messageWithAttachments.Attachments) {
+        ui32 size = attachment ? attachment.Size() : MinusOne;
+        slices.push_back(grpc_slice_from_copied_buffer(reinterpret_cast<const char*>(&size), sizeof(size)));
+        if (attachment) {
+            slices.push_back(sliceFromRef(attachment));
+        }
+    }
+
+    auto* buffer = grpc_raw_byte_buffer_create(slices.data(), slices.size());
+
+    for (const auto& slice : slices) {
+        grpc_slice_unref(slice);
+    }
+
+    return TGrpcByteBufferPtr(buffer);
+}
+
+TSharedRef ExtractMessageFromEnvelopedMessage(const TSharedRef& data)
+{
+    YCHECK(data.Size() >= sizeof(TEnvelopeFixedHeader));
     const auto* fixedHeader = reinterpret_cast<const TEnvelopeFixedHeader*>(data.Begin());
-    const char* sourceHeader = data.Begin() + sizeof (TEnvelopeFixedHeader);
+    const char* sourceHeader = data.Begin() + sizeof(TEnvelopeFixedHeader);
     const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
     NYT::NProto::TSerializedMessageEnvelope envelope;
@@ -245,29 +384,7 @@ TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data)
 
     auto codecId = NCompression::ECodec(envelope.codec());
     auto* codec = NCompression::GetCodec(codecId);
-    auto uncompressedMessage = codec->Decompress(compressedMessage);
-
-    struct THolder
-    {
-        TSharedRef Message;
-    };
-
-    auto* holder = new THolder();
-    holder->Message = uncompressedMessage;
-
-    auto slice = grpc_slice_new_with_user_data(
-        const_cast<char*>(uncompressedMessage.Begin()),
-        uncompressedMessage.Size(),
-        [] (void* untypedHolder) {
-            delete static_cast<THolder*>(untypedHolder);
-        },
-        holder);
-
-    auto* buffer = grpc_raw_byte_buffer_create(&slice, 1);
-
-    grpc_slice_unref(slice);
-
-    return TGrpcByteBufferPtr(buffer);
+    return codec->Decompress(compressedMessage);
 }
 
 TString SerializeError(const TError& error)

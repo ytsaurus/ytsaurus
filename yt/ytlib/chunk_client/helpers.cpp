@@ -5,20 +5,25 @@
 #include "replication_reader.h"
 #include "repairing_reader.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -54,7 +59,7 @@ using NNodeTrackerClient::TNodeId;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionId CreateChunk(
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
     const TTransactionId& transactionId,
@@ -111,7 +116,7 @@ TSessionId CreateChunk(
 }
 
 void ProcessFetchResponse(
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
     TCellTag fetchCellTag,
     TNodeDirectoryPtr nodeDirectory,
@@ -145,7 +150,7 @@ void ProcessFetchResponse(
 }
 
 void FetchChunkSpecs(
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     TCellTag cellTag,
     const TYPath& path,
@@ -210,7 +215,7 @@ void FetchChunkSpecs(
 }
 
 TChunkReplicaList AllocateWriteTargets(
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TSessionId& sessionId,
     int desiredTargetCount,
     int minTargetCount,
@@ -352,7 +357,7 @@ IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
     TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
@@ -429,7 +434,7 @@ IChunkReaderPtr CreateRemoteReader(
 }
 
 void LocateChunks(
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     int maxChunksPerLocateRequest,
     const std::vector<NProto::TChunkSpec*> chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
@@ -533,6 +538,18 @@ i64 CalculateDiskSpaceUsage(
     return replicationFactor > 0
         ? regularDiskSpace * replicationFactor + erasureDiskSpace
         : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void DumpCodecStatistics(
+    const TCodecStatistics& codecStatistics,
+    const NYPath::TYPath& path,
+    NJobTrackerClient::TStatistics* statistics)
+{
+    for (const auto& pair : codecStatistics.CodecToDuration()) {
+        statistics->AddSample(path + '/' + FormatEnum(pair.first), pair.second);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -304,13 +304,13 @@ class TestMedia(YTEnvSetup):
         assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         data = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
         write_journal("//tmp/j", data)
-        self.wait_until_sealed("//tmp/j")
+        wait_until_sealed("//tmp/j")
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
-        
+
     def test_file_medium(self):
         create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))

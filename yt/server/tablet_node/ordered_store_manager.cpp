@@ -10,21 +10,22 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -55,7 +56,7 @@ TOrderedStoreManager::TOrderedStoreManager(
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
     TInMemoryManagerPtr inMemoryManager,
-    INativeClientPtr client)
+    NNative::IClientPtr client)
     : TStoreManagerBase(
         std::move(config),
         tablet,

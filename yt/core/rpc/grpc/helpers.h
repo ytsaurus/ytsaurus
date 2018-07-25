@@ -10,6 +10,7 @@
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
+#include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
 
 namespace NYT {
 namespace NRpc {
@@ -20,8 +21,8 @@ namespace NGrpc {
 using TGprString = std::unique_ptr<char, void(*)(void*)>;
 TGprString MakeGprString(char* str);
 
-TStringBuf ToStringBuf(grpc_slice slice);
-TString ToString(grpc_slice slice);
+TStringBuf ToStringBuf(const grpc_slice& slice);
+TString ToString(const grpc_slice& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,6 +134,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGrpcByteBufferStream
+    : public IInputStream
+{
+public:
+    explicit TGrpcByteBufferStream(grpc_byte_buffer* buffer);
+    ~TGrpcByteBufferStream();
+
+    bool IsExhausted() const;
+
+private:
+    grpc_byte_buffer_reader Reader_;
+
+    grpc_slice Slice_;
+    bool Started_ = false;
+    ui32 AvailableBytes_ = 0;
+    ui32 RemainingBytes_;
+
+    virtual size_t DoRead(void* buf, size_t len) override;
+
+    bool ReadNextSlice();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGrpcPemKeyCertPair
 {
 public:
@@ -150,8 +175,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer);
-TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data);
+struct TMessageWithAttachments
+{
+    TSharedRef Message;
+    std::vector<TSharedRef> Attachments;
+};
+
+TMessageWithAttachments ByteBufferToMessageWithAttachments(
+    grpc_byte_buffer* buffer,
+    TNullable<ui32> messageBodySize);
+
+TGrpcByteBufferPtr MessageWithAttachmentsToByteBuffer(
+    const TMessageWithAttachments& messageWithAttachments);
+
+TSharedRef ExtractMessageFromEnvelopedMessage(const TSharedRef& data);
+
+////////////////////////////////////////////////////////////////////////////////
 
 TString SerializeError(const TError& error);
 TError DeserializeError(TStringBuf serializedError);

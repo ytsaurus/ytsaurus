@@ -5,7 +5,7 @@
 
 #include <yt/ytlib/election/public.h>
 
-#include <yt/ytlib/hydra/version.h>
+#include <yt/client/hydra/version.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

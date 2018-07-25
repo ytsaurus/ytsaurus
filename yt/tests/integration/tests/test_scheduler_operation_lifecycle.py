@@ -51,13 +51,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
-                "job_environment" : {
-                    "type" : "cgroups",
-                    "memory_watchdog_period" : 100,
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu"],
+                "job_environment": {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
                 },
             }
         }
@@ -291,7 +288,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         time.sleep(1.0)
         for index, op in enumerate(ops):
-            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fifo_index".format(op.id)) == 2 - index
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fifo_index".format(op.id)) == 2 - index
 
         for op in ops:
             op.track()
@@ -351,7 +348,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
-        assert get("//sys/operations/{0}/@brief_spec/pool".format(op.id)) == "root"
+        assert get("//sys/operations/{0}/@runtime_parameters/scheduling_options_per_pool_tree/default/pool".format(op.id)) == "root"
 
     def test_operation_events_attribute(self):
         self._prepare_tables()
@@ -441,7 +438,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op2.get_state() == "running")
 
         get_slot_index = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id))
 
         assert get_slot_index(op1.id) == 0
         assert get_slot_index(op2.id) == 1

@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NChunkPools {
@@ -168,6 +168,10 @@ private:
         bool IsInvalidated() const;
 
         void Persist(const TPersistenceContext& context);
+
+        //! A helper for accounting this job in all three progress counters of the owner simultaneously.
+        template <class... TArgs>
+        void UpdateCounters(void (NControllerAgent::TProgressCounter::*Method)(i64, TArgs...), TArgs... args);
 
     private:
         TJobManager* Owner_ = nullptr;

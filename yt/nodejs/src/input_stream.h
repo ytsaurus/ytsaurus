@@ -21,7 +21,7 @@ class TInputStreamWrap
 {
 protected:
     TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark);
-    ~TInputStreamWrap() throw();
+    ~TInputStreamWrap();
 
 public:
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;

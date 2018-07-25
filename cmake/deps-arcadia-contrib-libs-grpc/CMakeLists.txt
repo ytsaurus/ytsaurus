@@ -425,16 +425,18 @@ if (${YT_BUILD_HAVE_CYTHON})
     deps-arcadia-util
   )
 
-  exec_program(
-    ${CMAKE_COMMAND} ARGS -E create_symlink
-    ${BASE}/src/python/grpcio/grpc
-    ${CMAKE_SOURCE_DIR}/python/grpc
-  )
-  exec_program(
-    ${CMAKE_COMMAND} ARGS -E create_symlink
-    ${LIBRARY_OUTPUT_PATH}/libcygrpc.so
-    ${CMAKE_SOURCE_DIR}/python/grpc/_cython/cygrpc.so
-  )
+  # We have switched to use system grpc.
+  # But in the future we can change this decision.
+  #exec_program(
+  #  ${CMAKE_COMMAND} ARGS -E create_symlink
+  #  ${BASE}/src/python/grpcio/grpc
+  #  ${CMAKE_SOURCE_DIR}/python/grpc
+  #)
+  #exec_program(
+  #  ${CMAKE_COMMAND} ARGS -E create_symlink
+  #  ${LIBRARY_OUTPUT_PATH}/libcygrpc.so
+  #  ${CMAKE_SOURCE_DIR}/python/grpc/_cython/cygrpc.so
+  #)
 
 
   # Python protoc plugin

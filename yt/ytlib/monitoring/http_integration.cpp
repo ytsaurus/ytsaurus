@@ -68,7 +68,7 @@ public:
         auto ypathRsp = WaitFor(ExecuteVerb(Service_, ypathReq))
             .ValueOrThrow();
 
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
 
         auto syncOutput = CreateBufferedSyncAdapter(rsp);
         auto writer = CreateJsonConsumer(syncOutput.get());

@@ -65,6 +65,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const NControllerAgent::TSimpleOperationOptionsPtr& options,
     int outputTableCount,
     double dataWeightRatio,
+    i64 inputChunkCount,
     i64 primaryInputDataWeight,
     i64 inputRowCount = std::numeric_limits<i64>::max(),
     i64 foreignInputDataWeight = 0);
@@ -73,6 +74,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NControllerAgent::TSimpleOperationOptionsPtr& options,
+    i64 inputChunkCount,
     i64 inputDataWeight,
     double dataWeightRatio,
     double compressionRatio);
@@ -180,12 +182,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::INativeConnectionPtr FindRemoteConnection(
-    const NApi::INativeConnectionPtr& connection,
+NApi::NNative::IConnectionPtr FindRemoteConnection(
+    const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
 
-NApi::INativeConnectionPtr GetRemoteConnectionOrThrow(
-    const NApi::INativeConnectionPtr& connection,
+NApi::NNative::IConnectionPtr GetRemoteConnectionOrThrow(
+    const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
 
 ////////////////////////////////////////////////////////////////////////////////

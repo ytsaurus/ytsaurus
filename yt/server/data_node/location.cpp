@@ -20,7 +20,7 @@
 #include <yt/ytlib/chunk_client/format.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -552,8 +552,7 @@ void TLocation::ValidateWritable()
     NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
-    HealthChecker_->RunCheck()
-        .Get()
+    WaitFor(HealthChecker_->RunCheck())
         .ThrowOnError();
 }
 
@@ -850,35 +849,36 @@ void TStoreLocation::CheckTrashTtl()
 
 void TStoreLocation::CheckTrashWatermark()
 {
+    bool needsCleanup;
     i64 availableSpace;
-    auto beginCleanup = [&] () {
+    {
         TGuard<TSpinLock> guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
         availableSpace = GetAvailableSpace() - TrashDiskSpace_;
-        return availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
-    };
+        needsCleanup = availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
+    }
 
-    if (!beginCleanup())
+    if (!needsCleanup) {
         return;
+    }
 
     LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
         availableSpace);
 
-    while (beginCleanup()) {
-        while (true) {
-            TTrashChunkEntry entry;
-            {
-                TGuard<TSpinLock> guard(TrashMapSpinLock_);
-                if (TrashMap_.empty())
-                    break;
-                auto it = TrashMap_.begin();
-                entry = it->second;
-                TrashMap_.erase(it);
-                TrashDiskSpace_ -= entry.DiskSpace;
+    while (availableSpace < Config_->TrashCleanupWatermark) {
+        TTrashChunkEntry entry;
+        {
+            TGuard<TSpinLock> guard(TrashMapSpinLock_);
+            if (TrashMap_.empty()) {
+                break;
             }
-            RemoveTrashFiles(entry);
-            availableSpace += entry.DiskSpace;
+            auto it = TrashMap_.begin();
+            entry = it->second;
+            TrashMap_.erase(it);
+            TrashDiskSpace_ -= entry.DiskSpace;
         }
+        RemoveTrashFiles(entry);
+        availableSpace += entry.DiskSpace;
     }
 
     LOG_INFO("Finished trash cleanup (AvailableSpace: %v)",
@@ -998,15 +998,13 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& c
     if (hasData) {
         const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
         // NB: This also creates the index file, if missing.
-        auto changelog = dispatcher->OpenChangelog(this, chunkId)
-            .Get()
+        auto changelog = WaitFor(dispatcher->OpenChangelog(this, chunkId))
             .ValueOrThrow();
         TChunkDescriptor descriptor;
         descriptor.Id = chunkId;
         descriptor.DiskSpace = changelog->GetDataSize();
         descriptor.RowCount = changelog->GetRecordCount();
-        descriptor.Sealed = dispatcher->IsChangelogSealed(this, chunkId)
-            .Get()
+        descriptor.Sealed = WaitFor(dispatcher->IsChangelogSealed(this, chunkId))
             .ValueOrThrow();
         return descriptor;
 

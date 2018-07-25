@@ -26,11 +26,11 @@ public:
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager = nullptr,
         TInMemoryManagerPtr inMemoryManager = nullptr,
-        NApi::INativeClientPtr client = nullptr);
+        NApi::NNative::IClientPtr client = nullptr);
 
     // IStoreManager overrides.
     virtual bool ExecuteWrites(
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
     TSortedDynamicRowRef ModifyRow(

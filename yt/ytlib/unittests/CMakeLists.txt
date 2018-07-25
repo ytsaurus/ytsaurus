@@ -36,6 +36,6 @@ add_executable(unittester-ytlib
 
 target_link_libraries(unittester-ytlib
   yt-core-test-framework
-  yt-library-client
-  yt-library-client-auth
+  yt-library-ytlib
+  yt-library-ytlib-auth
 )

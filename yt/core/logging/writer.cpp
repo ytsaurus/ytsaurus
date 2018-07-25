@@ -3,12 +3,8 @@
 #include "log.h"
 #include "log_manager.h"
 
-#include <yt/build/build.h>
-
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-
-#include <errno.h>
 
 namespace NYT {
 namespace NLogging {
@@ -20,60 +16,9 @@ using namespace NProfiling;
 static const TLogger Logger(SystemLoggingCategoryName);
 static constexpr size_t BufferSize = 1 << 16;
 
-////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TLogEvent GetBannerEvent()
-{
-    TLogEvent event;
-    event.Instant = GetCpuInstant();
-    event.Category = Logger.GetCategory();
-    event.Level = ELogLevel::Info;
-    event.Message = Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
-        GetVersion(),
-        GetBuildHost(),
-        GetBuildTime());
-    return event;
-}
-
-} // namespace
-
-class TStreamLogWriterBase::TCachingDateFormatter
-{
-public:
-    TCachingDateFormatter()
-    {
-        Update(GetCpuInstant());
-    }
-
-    void Format(TMessageBuffer* out, TCpuInstant instant)
-    {
-        if (instant <= Liveline_ || instant >= Deadline_) {
-            Update(instant);
-        }
-        out->AppendString(Cached_.GetData());
-    }
-
-private:
-    void Update(TCpuInstant instant)
-    {
-        Cached_.Reset();
-        FormatDateTime(&Cached_,  CpuInstantToInstant(instant));
-        Cached_.AppendChar('\0');
-        auto period = DurationToCpuDuration(TDuration::MicroSeconds(500));
-        Deadline_ = instant + period;
-        Liveline_ = instant - period;
-    }
-
-    TMessageBuffer Cached_;
-    TCpuInstant Deadline_;
-    TCpuInstant Liveline_;
-};
-
-TStreamLogWriterBase::TStreamLogWriterBase()
-    : Buffer_(new TMessageBuffer())
-    , CachingDateFormatter_(new TCachingDateFormatter())
+TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter)
+    : LogFormatter(std::move(formatter))
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
@@ -84,39 +29,8 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
     if (!stream) {
         return;
     }
-
-    auto* buffer = Buffer_.get();
-    buffer->Reset();
-
-    CachingDateFormatter_->Format(buffer, event.Instant);
-    buffer->AppendChar('\t');
-
-    FormatLevel(buffer, event.Level);
-    buffer->AppendChar('\t');
-
-    buffer->AppendString(event.Category->Name);
-    buffer->AppendChar('\t');
-
-    FormatMessage(buffer, event.Message);
-    buffer->AppendChar('\t');
-
-    if (event.ThreadId != NConcurrency::InvalidThreadId) {
-        buffer->AppendNumber(event.ThreadId, 16);
-    }
-    buffer->AppendChar('\t');
-
-    if (event.FiberId != NConcurrency::InvalidFiberId) {
-        buffer->AppendNumber(event.FiberId, 16);
-    }
-    buffer->AppendChar('\t');
-
-    if (event.TraceId != NTracing::InvalidTraceId) {
-        buffer->AppendNumber(event.TraceId, 16);
-    }
-    buffer->AppendChar('\n');
-
     try {
-        stream->Write(buffer->GetData(), buffer->GetBytesWritten());
+        LogFormatter->WriteFormatted(stream, event);
     } catch (const std::exception& ex) {
         OnException(ex);
     }
@@ -169,6 +83,10 @@ IOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
     return &Cerr;
 }
 
+TStderrLogWriter::TStderrLogWriter()
+    : TStreamLogWriterBase::TStreamLogWriterBase(std::make_unique<TPlainTextLogFormatter>())
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
@@ -178,8 +96,9 @@ IOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileLogWriter::TFileLogWriter(const TString& fileName)
-    : FileName_(fileName)
+TFileLogWriter::TFileLogWriter(std::unique_ptr<ILogFormatter> formatter, TString fileName)
+    : TStreamLogWriterBase(std::move(formatter))
+    , FileName_(std::move(fileName))
 {
     Open();
 }
@@ -247,7 +166,7 @@ void TFileLogWriter::Open()
             *FileOutput_ << Endl;
         }
 
-        Write(GetBannerEvent());
+        LogFormatter->WriteLogStartEvent(GetOutputStream());
     } catch (const std::exception& ex) {
         Disabled_ = true;
         LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);

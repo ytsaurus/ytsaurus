@@ -10,8 +10,10 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-#include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/connection.h>
+
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/connection.h>
 
 #include <yt/core/yson/null_consumer.h>
 
@@ -233,6 +235,7 @@ public:
         REGISTER    (TRemoveMemberCommand,                "remove_member",                 Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER_ALL(TCheckPermissionCommand,             "check_permission",              Null,       Structured, false, false);
+        REGISTER_ALL(TCheckPermissionByAclCommand,        "check_permission_by_acl",       Null,       Structured, false, false);
 
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Structured, true,  true , ApiVersion4);
@@ -261,6 +264,8 @@ public:
         REGISTER_ALL(TGetVersionCommand,                  "get_version",                   Null,       Structured, false, false);
 
         REGISTER_ALL(TExecuteBatchCommand,                "execute_batch",                 Null,       Structured, true,  false);
+
+        REGISTER    (TDiscoverProxiesCommand,             "discover_proxies",              Null,       Structured, false, false, ApiVersion4);
 
 #undef REGISTER
 #undef REGISTER_ALL

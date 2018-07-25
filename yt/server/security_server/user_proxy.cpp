@@ -4,7 +4,7 @@
 #include "subject_proxy_detail.h"
 #include "user.h"
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/user_ypath.pb.h>
 

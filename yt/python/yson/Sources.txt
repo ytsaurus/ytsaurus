@@ -1,4 +1,6 @@
 SET(YT_SRCS
+  error.cpp
+  helpers.cpp
   lazy_dict.cpp
   lazy_dict_producer.cpp
   lazy_list_fragment_parser.cpp
@@ -9,4 +11,13 @@ SET(YT_SRCS
   serialize.cpp
   yson_lazy_map.cpp
   yson.cpp
+
+  skiff/consumer.cpp
+  skiff/parser.cpp
+  skiff/raw_consumer.cpp
+  skiff/raw_iterator.cpp
+  skiff/record.cpp
+  skiff/schema.cpp
+  skiff/serialize.cpp
+  skiff/switch.cpp
 )

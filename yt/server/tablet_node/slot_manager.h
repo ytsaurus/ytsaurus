@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -38,7 +38,10 @@ public:
     int GetAvailableTabletSlotCount() const;
 
     //! Returns the number of currently used slots.
-    int GetUsedTableSlotCount() const;
+    int GetUsedTabletSlotCount() const;
+
+    //! Returns fraction of cpu used by tablet slots (in terms of resource limits).
+    double GetUsedCpu(double cpuPerTabletSlot) const;
 
     const std::vector<TTabletSlotPtr>& Slots() const;
     TTabletSlotPtr FindSlot(const NHydra::TCellId& id);

@@ -34,6 +34,7 @@
 #include <yt/server/exec_agent/slot_manager.h>
 #include <yt/server/exec_agent/supervisor_service.h>
 
+#include <yt/server/job_agent/gpu_manager.h>
 #include <yt/server/job_agent/job_controller.h>
 #include <yt/server/job_agent/statistics_reporter.h>
 
@@ -59,8 +60,8 @@
 
 #include <yt/ytlib/program/build_attributes.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -69,22 +70,23 @@
 
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/ytlib/core_dump/core_dumper.h>
@@ -212,7 +214,7 @@ void TBootstrap::DoRun()
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
-    MasterConnection = CreateNativeConnection(Config->ClusterConnection);
+    MasterConnection = NApi::NNative::CreateConnection(Config->ClusterConnection);
 
     if (Config->TabletNode->ResourceLimits->Slots > 0) {
         // Requesting latest timestamp enables periodic background time synchronization.
@@ -264,7 +266,7 @@ void TBootstrap::DoRun()
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
-    auto createBatchingChunkService = [&] (TMasterConnectionConfigPtr config) {
+    auto createBatchingChunkService = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
             config->CellId,
             Config->BatchingChunkService,
@@ -400,10 +402,11 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
     JobProxyConfigTemplate->RpcDispatcher = Config->RpcDispatcher;
     JobProxyConfigTemplate->ChunkClientDispatcher = Config->ChunkClientDispatcher;
+    JobProxyConfigTemplate->BandwidthThrottlerRpcTimeout = Config->JobBandwidthThrottlerRpcTimeout;
 
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
-    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
+    auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
@@ -434,6 +437,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
+    GpuManager = New<TGpuManager>();
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -631,12 +635,12 @@ const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
     return TransactionTrackerQueue->GetInvoker();
 }
 
-const INativeClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetMasterClient() const
 {
     return MasterClient;
 }
 
-const INativeConnectionPtr& TBootstrap::GetMasterConnection() const
+const NNative::IConnectionPtr& TBootstrap::GetMasterConnection() const
 {
     return MasterConnection;
 }
@@ -684,6 +688,11 @@ const TVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() 
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
+}
+
+const NJobAgent::TGpuManagerPtr& TBootstrap::GetGpuManager() const
+{
+    return GpuManager;
 }
 
 const TChunkStorePtr& TBootstrap::GetChunkStore() const

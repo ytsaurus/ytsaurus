@@ -14,12 +14,17 @@ message TReqExecute
     // If |true|, the master responding to the query will make no attempt to synchronize
     // its state with the upstream servers.
     optional bool suppress_upstream_sync = 2 [default = false];
+
+    // If |true|, the master is allowed to send a partial response to this request.
+    optional bool allow_backoff = 3 [default = false];
 }
 
 message TRspExecute
 {
-    // Similar to TReqExecute:::part_counts, but denotes the number of parts
-    // in each encapsulated response.
+    // Similar to TReqExecute::part_counts, but denotes the number of parts in each
+    // encapsulated response.
+    // NB: a batched response may have less subresponses than its corresponding request
+    // does subrequests if TReqExecute::allow_backoff was |true| (because of timeouts).
     repeated int32 part_counts = 1;
 }
 

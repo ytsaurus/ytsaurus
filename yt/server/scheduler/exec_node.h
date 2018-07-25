@@ -7,7 +7,7 @@
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>

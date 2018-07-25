@@ -260,7 +260,7 @@ class TestDataCenters(YTEnvSetup):
 
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
-        self.wait_until_sealed("//tmp/j")
+        wait_until_sealed("//tmp/j")
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
 

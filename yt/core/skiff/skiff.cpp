@@ -126,6 +126,7 @@ void TUncheckedSkiffParser::Advance(ssize_t size)
     Y_ASSERT(size <= (ssize_t)RemainingBytes_);
     Position_ += size;
     RemainingBytes_ -= size;
+    ReadBytesCount_ += size;
 }
 
 bool TUncheckedSkiffParser::HasMoreData()
@@ -142,6 +143,11 @@ bool TUncheckedSkiffParser::HasMoreData()
 
 void TUncheckedSkiffParser::ValidateFinished()
 { }
+
+ui64 TUncheckedSkiffParser::GetReadBytesCount()
+{
+    return ReadBytesCount_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -225,6 +231,11 @@ void TCheckedSkiffParser::ValidateFinished()
 {
     Validator_->ValidateFinished();
     Parser_.ValidateFinished();
+}
+
+ui64 TCheckedSkiffParser::GetReadBytesCount()
+{
+    return Parser_.GetReadBytesCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

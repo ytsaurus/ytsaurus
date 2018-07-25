@@ -60,6 +60,7 @@ struct IInstance
     virtual void SetIOWeight(double weight) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
+    virtual void SetDevices(const std::vector<TDevice>& devices) = 0;
     virtual TString GetName() const = 0;
     virtual TString GetAbsoluteName() const = 0;
     virtual void SetIsolate() = 0;

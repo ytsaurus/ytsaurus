@@ -10,16 +10,16 @@
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/versioned_writer.h>
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/versioned_writer.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -188,7 +188,7 @@ public:
             LockMask_ = TSortedDynamicRow::PrimaryLockMask;
             for (int columnIndex : columnFilter.Indexes) {
                 int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
-                LockMask_ |= (1 << lockIndex);
+                LockMask_ |= (1U << lockIndex);
             }
         }
     }

@@ -1,9 +1,11 @@
 #pragma once
 
-#include "versioned_row.h"
-#include "unversioned_row.h"
+#include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/formats/format.h>
 
@@ -35,10 +37,9 @@ class TTableOutput
 {
 public:
     TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
-
     explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
 
-    ~TTableOutput() throw();
+    ~TTableOutput();
 
 private:
     void DoWrite(const void* buf, size_t len);
@@ -46,24 +47,40 @@ private:
 
     const std::unique_ptr<NFormats::IParser> Parser_;
 
-    bool IsParserValid_ = true;
+    bool ParserValid_ = true;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
+    ISchemalessChunkReaderPtr underlyingReader);
+
+NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
+    ISchemalessWriterPtr underlyingWriter);
+
+ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+    NApi::ITableWriterPtr underlyingWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPipeReaderToWriterOptions
 {
-    int BufferRowCount = 0;
+    i64 BufferRowCount = 0;
     bool ValidateValues = false;
-    NConcurrency::IThroughputThrottlerPtr Throttler = nullptr;
+    NConcurrency::IThroughputThrottlerPtr Throttler;
     // Used only for testing.
     TDuration PipeDelay;
 };
 
 void PipeReaderToWriter(
-    ISchemalessReaderPtr reader,
+    NApi::ITableReaderPtr reader,
     ISchemalessWriterPtr writer,
-    TPipeReaderToWriterOptions options);
+    const TPipeReaderToWriterOptions& options);
+
+void PipeReaderToWriter(
+    ISchemalessChunkReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    const TPipeReaderToWriterOptions& options);
 
 void PipeInputToOutput(
     IInputStream* input,
@@ -74,7 +91,6 @@ void PipeInputToOutput(
     NConcurrency::IAsyncInputStreamPtr input,
     IOutputStream* output,
     i64 bufferBlockSize);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,23 +127,6 @@ TTableUploadOptions GetTableUploadOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Mostly used in unittests and for debugging purposes.
-TUnversionedOwningRow YsonToSchemafulRow(
-    const TString& yson,
-    const TTableSchema& tableSchema,
-    bool treatMissingAsNull);
-TUnversionedOwningRow YsonToSchemalessRow(
-    const TString& yson);
-TVersionedRow YsonToVersionedRow(
-    const TRowBufferPtr& rowBuffer,
-    const TString& keyYson,
-    const TString& valueYson,
-    const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>());
-TUnversionedOwningRow YsonToKey(const TString& yson);
-TString KeyToYson(TUnversionedRow row);
-
-////////////////////////////////////////////////////////////////////////////////
-
 NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
     ISchemalessMultiChunkWriterPtr writer);
 
@@ -147,7 +146,7 @@ void ValidateDynamicTableTimestamp(
 
 std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NYPath::TRichYPath& path,
-    const NApi::INativeClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
     const NObjectClient::TTransactionId& transactionId,

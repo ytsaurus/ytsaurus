@@ -10,7 +10,7 @@
 
 #include <yt/server/transaction_server/timestamp_manager.pb.h>
 
-#include <yt/ytlib/transaction_client/timestamp_service_proxy.h>
+#include <yt/client/transaction_client/timestamp_service_proxy.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>

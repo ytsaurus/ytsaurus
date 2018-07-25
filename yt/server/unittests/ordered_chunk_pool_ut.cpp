@@ -8,7 +8,7 @@
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
 #include <yt/server/chunk_pools/output_order.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>

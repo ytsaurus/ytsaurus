@@ -1,7 +1,7 @@
 #include "transaction_listener.h"
 #include "private.h"
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 namespace NYT {
 namespace NTransactionClient {

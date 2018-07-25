@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/election/public.h>
+
 #include <yt/core/actions/future.h>
 
 namespace NYT {

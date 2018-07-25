@@ -1,0 +1,22 @@
+package NYT.NSkynetManager.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TFile
+{
+    required bytes filename = 1;
+    required int64 file_size = 2;
+    required bytes md5sum = 3;
+
+    optional bytes sha1sum = 4;
+
+    required int64 start_row = 5;
+    required int64 row_count = 6;
+};
+
+message TResource
+{
+    repeated TFile files = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

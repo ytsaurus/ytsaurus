@@ -25,7 +25,7 @@ namespace NYT {
  *
  *  TPromise<T> and TFuture<T> are lightweight refcounted handles pointing to the internal
  *  shared state. TFuture<T> acts as a weak reference while TPromise<T> acts as
- *  a strong reference. When no outstanding strong references (i.e. futures) to
+ *  a strong reference. When no outstanding strong references (i.e. promises) to
  *  the shared state remain, the state automatically becomes failed
  *  with NYT::EErrorCode::Canceled error code.
  *

@@ -5,11 +5,11 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -90,7 +90,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
     const TChunkLocatedHandler OnChunkLocated_;
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
 
     TFuture<void> LocateFuture_ = VoidFuture;
 
@@ -201,7 +201,7 @@ TChunkScraper::TChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const THashSet<TChunkId>& chunkIds,
     TChunkLocatedHandler onChunkLocated,
@@ -227,7 +227,7 @@ void TChunkScraper::Start()
 TFuture<void> TChunkScraper::Stop()
 {
     std::vector<TFuture<void>> futures;
-    for (auto& task : ScraperTasks_) {
+    for (const auto& task : ScraperTasks_) {
         futures.push_back(task->Stop());
     }
     return Combine(futures);

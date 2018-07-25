@@ -1,11 +1,12 @@
 #include "transaction_participant_provider.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_transaction_participant.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/connection.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction_participant.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
@@ -40,7 +41,7 @@ public:
         if (CellTagFromId(cellId) != CellTag_) {
             return nullptr;
         }
-        return CreateNativeTransactionParticipant(
+        return NNative::CreateTransactionParticipant(
             CellDirectory_,
             nullptr,
             TimestampProvider_,
@@ -67,7 +68,7 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 }
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
-    INativeConnectionPtr connection)
+    NNative::IConnectionPtr connection)
 {
     // Ensure cell directory sync.
     connection->GetCellDirectorySynchronizer()->Start();

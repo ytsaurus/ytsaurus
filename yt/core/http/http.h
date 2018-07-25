@@ -28,7 +28,7 @@ namespace NHttp {
   XX(100, Continue,                        Continue)                        \
   XX(101, SwitchingProtocols,              Switching Protocols)             \
   XX(102, Processing,                      Processing)                      \
-  XX(200, Ok,                              OK)                              \
+  XX(200, OK,                              OK)                              \
   XX(201, Created,                         Created)                         \
   XX(202, Accepted,                        Accepted)                        \
   XX(203, NonAuthoritativeInformation,     Non-Authoritative Information)   \

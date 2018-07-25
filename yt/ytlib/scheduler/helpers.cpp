@@ -1,13 +1,16 @@
 #include "helpers.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
@@ -38,6 +41,7 @@ using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NLogging;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,6 +137,34 @@ TYPath GetControllerAgentOrchidOperationPath(
         controllerAgentAddress +
         "/orchid/controller_agent/operations/" +
         ToYPathLiteral(ToString(operationId));
+}
+
+TNullable<TString> GetControllerAgentAddressFromCypress(
+    const TOperationId& operationId,
+    const IChannelPtr& channel)
+{
+    static const std::vector<TString> attributes = {"controller_agent_address"};
+
+    TObjectServiceProxy proxy(channel);
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    {
+        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@controller_agent_address");
+        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+        batchReq->AddRequest(req, "get_controller_agent_address");
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
+    if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        return Null;
+    }
+
+    const auto& response = responseOrError.ValueOrThrow();
+    return ConvertTo<TString>(TYsonString(response->value()));
 }
 
 TYPath GetSnapshotPath(const TOperationId& operationId)
@@ -337,19 +369,23 @@ bool IsSentinelReason(EAbortReason reason)
 
 TError GetSchedulerTransactionsAbortedError(const std::vector<TTransactionId>& transactionIds)
 {
-    return TError("Scheduler transactions %v have expired or were aborted",
+    return TError(
+        NTransactionClient::EErrorCode::NoSuchTransaction,
+        "Scheduler transactions %v have expired or were aborted",
         transactionIds);
 }
 
 TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 {
-    return TError("User transaction %v has expired or was aborted",
+    return TError(
+        NTransactionClient::EErrorCode::NoSuchTransaction,
+        "User transaction %v has expired or was aborted",
         transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
+void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
 {
     if (files.empty()) {
         return;
@@ -357,7 +393,7 @@ void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, cons
 
     auto connection = client->GetNativeConnection();
 
-    ITransactionPtr transaction;
+    NApi::ITransactionPtr transaction;
     {
         NApi::TTransactionStartOptions options;
         auto attributes = CreateEphemeralAttributes();
@@ -530,7 +566,7 @@ void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, cons
 void ValidateOperationPermission(
     const TString& user,
     const TOperationId& operationId,
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     EPermission permission,
     const TLogger& logger,
     const TString& subnodePath)
@@ -577,6 +613,25 @@ void ValidateOperationPermission(
         "User %Qv has been denied access to operation %v",
         user,
         operationId);
+}
+
+void BuildOperationAce(
+    const std::vector<TString>& owners,
+    const TString& authenticatedUser,
+    const std::vector<EPermission>& permissions,
+    TFluentList fluent)
+{
+    fluent
+        .Item().BeginMap()
+            .Item("action").Value(ESecurityAction::Allow)
+            .Item("subjects").BeginList()
+                .Item().Value(authenticatedUser)
+                .DoFor(owners, [] (TFluentList fluent, const TString& owner) {
+                    fluent.Item().Value(owner);
+                })
+            .EndList()
+            .Item("permissions").Value(permissions)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

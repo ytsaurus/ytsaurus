@@ -52,7 +52,7 @@ private:
         }));
     }
 
-    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override
     {
         auto messageType = GetMessageType(message);
         switch (messageType) {

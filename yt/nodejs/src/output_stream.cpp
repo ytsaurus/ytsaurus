@@ -30,7 +30,7 @@ TOutputStreamWrap::TOutputStreamWrap(ui64 watermark)
     THREAD_AFFINITY_IS_V8();
 }
 
-TOutputStreamWrap::~TOutputStreamWrap() throw()
+TOutputStreamWrap::~TOutputStreamWrap()
 {
     THREAD_AFFINITY_IS_V8();
 }

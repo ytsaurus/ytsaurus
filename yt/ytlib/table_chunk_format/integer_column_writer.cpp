@@ -3,7 +3,7 @@
 #include "column_writer_detail.h"
 #include "compressed_integer_vector.h"
 
-#include <yt/ytlib/table_chunk_format/column_meta.pb.h>
+#include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/bitmap.h>

@@ -472,7 +472,7 @@ TSharedRef THttpOutput::GetHeadersPart(TNullable<size_t> contentLength)
         messageHeaders << ToHttpString(*Method_) << " " << Path_ << " HTTP/1.1\r\n";
     } else {
         if (!Status_) {
-            Status_ = EStatusCode::Ok;
+            Status_ = EStatusCode::OK;
         }
 
         messageHeaders << "HTTP/1.1 " << static_cast<int>(*Status_) << " " << ToHttpString(*Status_) << "\r\n";

@@ -1,7 +1,6 @@
 bison( ${CMAKE_CURRENT_LIST_DIR}/parser.yy YT_SOURCE_FILES )
 ragel( ${CMAKE_CURRENT_LIST_DIR}/lexer.rl YT_SOURCE_FILES )
 
-protoc( ${CMAKE_CURRENT_LIST_DIR}/query_statistics.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/query.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/functions_cache.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/query_service.proto YT_SOURCE_FILES )
@@ -15,7 +14,7 @@ udf_bc_header(
     cardinality_merge
     cardinality_finalize
   FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
+    ${CMAKE_SOURCE_DIR}/yt/client/table_client/unversioned_value.cpp
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp YT_SOURCE_FILES )

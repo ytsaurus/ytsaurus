@@ -36,7 +36,7 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/string.h>
@@ -518,7 +518,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             auto valueNode = ConvertToNode(value);
             TAccessControlList newAcl;
-            Deserilize(newAcl, valueNode, securityManager);
+            Deserialize(newAcl, valueNode, securityManager);
 
             acd->ClearEntries();
             for (const auto& ace : newAcl.Entries) {

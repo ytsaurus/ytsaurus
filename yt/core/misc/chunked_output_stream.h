@@ -37,7 +37,7 @@ public:
     template <typename U> TChunkedOutputStream(ui32, U size = 0) = delete;
     template <typename U> TChunkedOutputStream(ui64, U size = 0) = delete;
 
-    ~TChunkedOutputStream() throw() = default;
+    ~TChunkedOutputStream() = default;
 
     //! Returns a sequence of written chunks.
     //! The stream is no longer usable after this call.

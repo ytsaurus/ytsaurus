@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

@@ -21,6 +21,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& serializedArgument, bool shutdownLogging);
+
 TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgument)
 {
     auto process = TSubprocess(ToolsProgramName);
@@ -56,7 +58,7 @@ TYsonString DoRunTool(const TString& toolName, const TYsonString& serializedArgu
 
 TYsonString DoRunToolInProcess(const TString& toolName, const TYsonString& serializedArgument)
 {
-    auto serializedResultOrError = ExecuteTool(toolName, serializedArgument);
+    auto serializedResultOrError = DoExecuteTool(toolName, serializedArgument, false);
 
     // Treat empty string as OK
     if (serializedResultOrError.GetData().empty()) {
@@ -66,11 +68,12 @@ TYsonString DoRunToolInProcess(const TString& toolName, const TYsonString& seria
     return serializedResultOrError;
 }
 
-TYsonString ExecuteTool(const TString& toolName, const TYsonString& serializedArgument)
+static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& serializedArgument, bool shutdownLogging)
 {
     try {
-        // No logging inside tools.
-        NLogging::TLogManager::StaticShutdown();
+        if (shutdownLogging) {
+            NLogging::TLogManager::StaticShutdown();
+        }
 
         const auto* registry = GetToolRegistry();
         YCHECK(registry != nullptr);
@@ -89,6 +92,11 @@ TYsonString ExecuteTool(const TString& toolName, const TYsonString& serializedAr
     } catch (const TErrorException& ex) {
         return ConvertToYsonString(ex.Error(), NYson::EYsonFormat::Text);
     }
+}
+
+TYsonString ExecuteTool(const TString& toolName, const TYsonString& serializedArgument)
+{
+    return DoExecuteTool(toolName, serializedArgument, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

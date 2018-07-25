@@ -5,6 +5,8 @@
 #include "new.h"
 #include "range.h"
 
+#include <type_traits>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +47,7 @@ public:
     template <class T>
     static TRef FromPod(const T& data)
     {
-        static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+        static_assert(TTypeTraits<T>::IsPod || std::is_pod<T>::value, "T must be a pod-type.");
         return TRef(&data, sizeof (data));
     }
 
@@ -110,7 +112,7 @@ public:
     template <class T>
     static TMutableRef FromPod(T& data)
     {
-        static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+        static_assert(TTypeTraits<T>::IsPod || std::is_pod<T>::value, "T must be a pod-type.");
         return TMutableRef(&data, sizeof (data));
     }
 

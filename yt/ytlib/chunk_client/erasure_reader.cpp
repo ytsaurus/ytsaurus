@@ -2,7 +2,6 @@
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
-#include "chunk_replica.h"
 #include "chunk_writer.h"
 #include "config.h"
 #include "dispatcher.h"
@@ -10,11 +9,14 @@
 #include "block.h"
 #include "replication_reader.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/api/config.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -40,7 +42,7 @@ namespace {
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas,
@@ -102,7 +104,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,

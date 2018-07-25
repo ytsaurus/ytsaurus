@@ -124,6 +124,7 @@ def safe_add_new_replica(args, freezes, tmp_objects):
         "desired_tablet_count", 
         "enable_tablet_balancer"]
     user_attributes = yt_source.get(source_replica["replica_path"] + "/@user_attribute_keys")
+    user_attributes.pop("forced_compaction_revision", None)
     for attr in builtin_attributes + user_attributes:
         if yt_source.exists(source_replica["replica_path"] + "/@" + attr):
             value = yt_source.get(source_replica["replica_path"] + "/@" + attr)

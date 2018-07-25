@@ -19,7 +19,7 @@ TFutureWrap::TFutureWrap()
     THREAD_AFFINITY_IS_V8();
 }
 
-TFutureWrap::~TFutureWrap() throw()
+TFutureWrap::~TFutureWrap()
 {
     THREAD_AFFINITY_IS_V8();
 }

@@ -9,12 +9,12 @@
 #include <yt/server/data_node/config.h>
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/misc/proc.h>
 
@@ -137,7 +137,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
         totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
         totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.Seconds();
 
-    LOG_INFO("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
+    LOG_DEBUG("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
         "TotalOutQueueSize: %v, OutQueueSizeActivationThreshold: %v, TotalRequestedBlockSize: %v, "
         "TotalRequestedBlockSizeActivationThreshold: %v, ShouldDistributeBlocks: %v)",
@@ -174,7 +174,7 @@ void TPeerBlockDistributor::DistributeBlocks()
     auto totalBlockSize = chosenBlocks.TotalSize;
 
     if (blocks.empty()) {
-        LOG_INFO("No blocks may be distributed on current iteration");
+        LOG_DEBUG("No blocks may be distributed on current iteration");
         return;
     }
 

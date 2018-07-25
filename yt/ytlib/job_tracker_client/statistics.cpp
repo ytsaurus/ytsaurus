@@ -1,6 +1,7 @@
 #include "statistics.h"
 
-#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/traffic_meter.h>
 
 #include <yt/core/misc/protobuf_helpers.h>

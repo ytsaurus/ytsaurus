@@ -13,7 +13,7 @@
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -57,6 +57,8 @@ void TChunkStore::Initialize()
 
     LOG_INFO("Initializing chunk store");
 
+    std::vector<TFuture<std::vector<TChunkDescriptor>>> asyncDescriptors;
+
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
         auto locationConfig = Config_->StoreLocations[i];
 
@@ -65,13 +67,23 @@ void TChunkStore::Initialize()
             locationConfig,
             Bootstrap_);
 
-        auto descriptors = location->Scan();
-        for (const auto& descriptor : descriptors) {
+        asyncDescriptors.push_back(
+            BIND(&TStoreLocation::Scan, location)
+                .AsyncVia(location->GetWritePoolInvoker()).Run());
+
+        Locations_.push_back(location);
+    }
+
+    auto allDescriptors = WaitFor(Combine(asyncDescriptors))
+        .ValueOrThrow();
+
+    for (int index = 0; index < Config_->StoreLocations.size(); ++index) {
+        const auto& location = Locations_[index];
+        
+        for (const auto& descriptor : allDescriptors[index]) {
             auto chunk = CreateFromDescriptor(location, descriptor);
             RegisterExistingChunk(chunk);
         }
-
-        Locations_.push_back(location);
     }
 
     for (auto location : Locations_) {

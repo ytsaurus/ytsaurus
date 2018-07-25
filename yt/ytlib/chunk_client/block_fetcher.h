@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_reader.h"
-#include "data_statistics.h"
+
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/core/actions/future.h>
 

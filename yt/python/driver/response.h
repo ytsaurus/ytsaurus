@@ -9,7 +9,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <contrib/libs/pycxx/Extensions.hxx>
+#include <Extensions.hxx> // pycxx
 
 namespace NYT {
 namespace NPython {
@@ -26,11 +26,11 @@ public:
     NYson::IYsonConsumer* GetResponseParametersConsumer();
     NYTree::TPythonObjectBuilder* GetPythonObjectBuilder();
 
-    void OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream);
-    void OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream);
+    void OwnInputStream(std::unique_ptr<IInputStream> inputStream);
+    void OwnOutputStream(std::unique_ptr<IOutputStream>& outputStream);
 private:
-    std::unique_ptr<TInputStreamWrap> InputStream_;
-    std::unique_ptr<TOutputStreamWrap> OutputStream_;
+    std::unique_ptr<IInputStream> InputStream_;
+    std::unique_ptr<IOutputStream> OutputStream_;
     std::unique_ptr<NYTree::TPythonObjectBuilder> ResponseParametersBuilder_;
     std::unique_ptr<NYTree::TGilGuardedYsonConsumer> ResponseParametersConsumer_;
 };

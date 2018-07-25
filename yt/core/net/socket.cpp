@@ -17,6 +17,18 @@ namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetReuseAddrFlag(SOCKET socket)
+{
+    int flag = 1;
+    if (setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
+        auto lastError = LastSystemError();
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransportError,
+            "Failed to configure socket address reuse")
+            << TError::FromSystem(lastError);
+    }
+}
+
 SOCKET CreateTcpServerSocket()
 {
     int type = SOCK_STREAM;
@@ -75,16 +87,11 @@ SOCKET CreateTcpServerSocket()
         }
     }
 
-    {
-        int flag = 1;
-        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
-            auto lastError = LastSystemError();
-            SafeClose(serverSocket, false);
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to configure socket address reuse")
-                << TError::FromSystem(lastError);
-        }
+    try {
+        SetReuseAddrFlag(serverSocket);
+    } catch (...) {
+        SafeClose(serverSocket, false);
+        throw;
     }
 
     return serverSocket;
@@ -217,6 +224,27 @@ SOCKET CreateUnixClientSocket()
 #endif
 
     return clientSocket;
+}
+
+SOCKET CreateUdpSocket()
+{
+    int type = SOCK_DGRAM;
+
+#ifdef _linux_
+    type |= SOCK_CLOEXEC;
+    type |= SOCK_NONBLOCK;
+#endif
+
+    SOCKET udpSocket = socket(AF_INET6, type, 0);
+    if (udpSocket == INVALID_SOCKET) {
+        auto lastError = LastSystemError();
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransportError,
+            "Failed to create a server socket")
+            << TError::FromSystem(lastError);
+    }
+
+    return udpSocket;
 }
 
 int ConnectSocket(SOCKET clientSocket, const TNetworkAddress& address)

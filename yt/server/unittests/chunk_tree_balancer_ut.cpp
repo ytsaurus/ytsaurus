@@ -5,10 +5,10 @@
 #include <yt/server/chunk_server/chunk_tree_balancer.h>
 #include <yt/server/chunk_server/helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 

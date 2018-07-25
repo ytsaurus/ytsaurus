@@ -1,6 +1,6 @@
 #include "table_client_helpers.h"
 
-#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/client/table_client/versioned_reader.h>
 
 namespace NYT {
 namespace NTableClient {

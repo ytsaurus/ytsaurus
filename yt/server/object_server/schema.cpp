@@ -7,7 +7,7 @@
 
 #include <yt/server/object_server/type_handler_detail.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/string.h>
 
@@ -75,7 +75,7 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(TObjectBase* /*object*/) throw() override
+    virtual void DestroyObject(TObjectBase* /*object*/) noexcept override
     {
         Y_UNREACHABLE();
     }

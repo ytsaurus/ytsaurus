@@ -23,14 +23,15 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -163,7 +164,7 @@ public:
             .BeginAttributes()
                 .Do(BIND(&BuildMinimalOperationAttributes, operation))
                 .Item("opaque").Value(true)
-                .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                .Item("acl").Do(std::bind(&TImpl::BuildAcl, operation, _1))
                 .Item("owners").Value(operation->GetOwners())
                 .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .EndAttributes()
@@ -196,7 +197,7 @@ public:
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
             attributes->Set("acl", BuildYsonStringFluently()
-                .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1)));
+                .Do(std::bind(&TImpl::BuildAcl, operation, _1)));
 
             for (const auto& path : secureVaultPaths) {
                 auto req = TCypressYPathProxy::Create(path);
@@ -288,7 +289,7 @@ public:
                 chunkId,
                 "input_context"
             };
-            auto client = CreateNativeClient(Bootstrap_->GetMasterClient()->GetNativeConnection(), TClientOptions(user));
+            auto client = Bootstrap_->GetMasterClient()->GetNativeConnection()->CreateNativeClient(TClientOptions(user));
             SaveJobFiles(client, operationId, { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
@@ -359,11 +360,11 @@ public:
         GlobalWatcherHandlers_.push_back(handler);
     }
 
-    void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
+        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period});
     }
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
@@ -399,6 +400,9 @@ public:
         if (AlertsExecutor_) {
             AlertsExecutor_->SetPeriod(Config_->AlertsUpdatePeriod);
         }
+        if (CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]) {
+            CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]->SetPeriod(Config_->NodesAttributesUpdatePeriod);
+        }
 
         ScheduleTestingDisconnect();
     }
@@ -425,6 +429,7 @@ private:
 
     struct TPeriodicExecutorRecord
     {
+        EWatcherType WatcherType;
         TWatcherRequester Requester;
         TWatcherHandler Handler;
         TDuration Period;
@@ -434,14 +439,14 @@ private:
     std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
     std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
-    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors_;
+    TEnumIndexedVector<TPeriodicExecutorPtr, EWatcherType> CustomGlobalWatcherExecutors_;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
 
     struct TOperationNodeUpdate
     {
-        explicit TOperationNodeUpdate(const TOperationPtr& operation)
-            : Operation(operation)
+        explicit TOperationNodeUpdate(TOperationPtr operation)
+            : Operation(std::move(operation))
         { }
 
         TOperationPtr Operation;
@@ -451,8 +456,8 @@ private:
 
     struct TWatcherList
     {
-        explicit TWatcherList(const TOperationPtr& operation)
-            : Operation(operation)
+        explicit TWatcherList(TOperationPtr operation)
+            : Operation(std::move(operation))
         { }
 
         TOperationPtr Operation;
@@ -538,7 +543,7 @@ private:
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
                 record.Period,
                 EPeriodicExecutorMode::Automatic);
-            CustomGlobalWatcherExecutors_.push_back(executor);
+            CustomGlobalWatcherExecutors_[record.WatcherType] = executor;
         }
 
         auto pipeline = New<TRegistrationPipeline>(this);
@@ -863,12 +868,15 @@ private:
                 return nullptr;
             }
 
+            auto user = attributes.Get<TString>("authenticated_user");
+
             TOperationRuntimeParametersPtr runtimeParams = nullptr;
+            // COMPAT(renadeen): there is no runtime_parameters when we revive operations after cluster update on this version
             if (attributes.Contains("runtime_parameters")) {
                 runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
             } else {
                 runtimeParams = New<TOperationRuntimeParameters>();
-                Owner_->Bootstrap_->GetScheduler()->GetStrategy()->InitOperationRuntimeParameters(runtimeParams, spec);
+                Owner_->Bootstrap_->GetScheduler()->GetStrategy()->InitOperationRuntimeParameters(runtimeParams, spec, user);
             }
 
             auto operation = New<TOperation>(
@@ -879,7 +887,7 @@ private:
                 specNode,
                 secureVault,
                 runtimeParams,
-                attributes.Get<TString>("authenticated_user"),
+                user,
                 attributes.Get<TInstant>("start_time"),
                 spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
@@ -1215,23 +1223,18 @@ private:
         StartConnecting(true);
     }
 
-    static void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
+    static void BuildAcl(const TOperationPtr& operation, TFluentAny fluent)
     {
-        auto owners = operation->GetOwners();
-        owners.push_back(operation->GetAuthenticatedUser());
-
         fluent
             .BeginList()
-                .Item().BeginMap()
-                    .Item("action").Value(ESecurityAction::Allow)
-                    .Item("subjects").Value(owners)
-                    .Item("permissions").BeginList()
-                        .Item().Value(EPermission::Write)
-                    .EndList()
-                .EndMap()
+                .Do(std::bind(
+                    &BuildOperationAce,
+                    operation->GetOwners(),
+                    operation->GetAuthenticatedUser(),
+                    std::vector<EPermission>({EPermission::Write}),
+                    _1))
             .EndList();
     }
-
 
 
     void StartPeriodicActivities()
@@ -1243,6 +1246,7 @@ private:
         AlertsExecutor_->Start();
 
         for (const auto& executor : CustomGlobalWatcherExecutors_) {
+            YCHECK(executor);
             executor->Start();
         }
     }
@@ -1264,10 +1268,12 @@ private:
             AlertsExecutor_.Reset();
         }
 
-        for (const auto& executor : CustomGlobalWatcherExecutors_) {
-            executor->Stop();
+        for (auto& executor : CustomGlobalWatcherExecutors_) {
+            if (executor) {
+                executor->Stop();
+            }
+            executor.Reset();
         }
-        CustomGlobalWatcherExecutors_.clear();
     }
 
 
@@ -1321,7 +1327,7 @@ private:
                     auto aclBatchReq = StartObjectBatchRequest();
                     auto req = TYPathProxy::Set(operationPath + "/@acl");
                     req->set_value(BuildYsonStringFluently()
-                        .Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                        .Do(std::bind(&TImpl::BuildAcl, operation, _1))
                         .GetData());
                     aclBatchReq->AddRequest(req, "set_acl");
 
@@ -1693,9 +1699,9 @@ void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
     Impl_->AddGlobalWatcherHandler(handler);
 }
 
-void TMasterConnector::AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+void TMasterConnector::AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
 {
-    Impl_->AddGlobalWatcher(std::move(requester), std::move(handler), period);
+    Impl_->AddCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
 }
 
 void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)

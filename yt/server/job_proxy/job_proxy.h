@@ -12,14 +12,14 @@
 
 #include <yt/server/job_agent/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -63,6 +63,9 @@ public:
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
+    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler() const override;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler() const override;
+
 private:
     const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
@@ -102,7 +105,7 @@ private:
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
 
-    NApi::INativeClientPtr Client_;
+    NApi::NNative::IClientPtr Client_;
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
 
@@ -119,6 +122,9 @@ private:
     std::vector<int> Ports_;
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
+
+    NConcurrency::IThroughputThrottlerPtr InThrottler_;
+    NConcurrency::IThroughputThrottlerPtr OutThrottler_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 
@@ -151,7 +157,7 @@ private:
 
     virtual void ReleaseNetwork() override;
 
-    virtual NApi::INativeClientPtr GetClient() const override;
+    virtual NApi::NNative::IClientPtr GetClient() const override;
 
     virtual void OnPrepared() override;
 

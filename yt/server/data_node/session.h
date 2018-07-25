@@ -4,12 +4,13 @@
 
 #include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/misc/workload.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/actions/signal.h>
 

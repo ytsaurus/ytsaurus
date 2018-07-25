@@ -14,12 +14,13 @@
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/native_transaction.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction.h>
+
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>
@@ -160,7 +161,7 @@ private:
             LOG_INFO("Trimming tablet stores (StoreIds: %v)",
                 MakeFormattableRange(stores, TStoreIdFormatter()));
 
-            INativeTransactionPtr transaction;
+            NNative::ITransactionPtr transaction;
             {
                 LOG_INFO("Creating tablet trim transaction");
 

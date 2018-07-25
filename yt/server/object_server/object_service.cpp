@@ -22,7 +22,6 @@
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/dispatcher.h>
-#include <yt/core/rpc/response_keeper.h>
 
 #include <yt/core/ytree/ypath_detail.h>
 
@@ -42,6 +41,7 @@ using namespace NRpc::NProto;
 using namespace NBus;
 using namespace NYTree;
 using namespace NYTree::NProto;
+using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NSecurityClient;
@@ -80,11 +80,16 @@ public:
             .SetMaxQueueSize(10000)
             .SetMaxConcurrency(10000)
             .SetCancelable(true)
-            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            .SetInvoker(GetRpcInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
     }
 
 private:
+    static IInvokerPtr GetRpcInvoker()
+    {
+        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
+    }
+
     const TObjectServiceConfigPtr Config_;
 
     class TExecuteSession;
@@ -123,7 +128,6 @@ public:
         , HydraManager_(HydraFacade_->GetHydraManager())
         , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
         , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
-        , ResponseKeeper_(HydraFacade_->GetResponseKeeper())
         , CodicilData_(Format("RequestId: %v, User: %v",
             RequestId_,
             UserName_))
@@ -151,10 +155,14 @@ public:
             return;
         }
 
+        if (IsBackoffAllowed()) {
+            ScheduleBackoffAlarm();
+        }
+
         try {
             ParseSubrequests();
         } catch (const std::exception& ex) {
-            Context_->Reply(ex);
+            Reply(ex);
             return;
         }
 
@@ -167,6 +175,8 @@ private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr Context_;
 
+    TDelayedExecutorCookie BackoffAlarmCookie_;
+
     const int SubrequestCount_;
     const TString UserName_;
     const TRequestId RequestId_;
@@ -174,7 +184,6 @@ private:
     const IHydraManagerPtr HydraManager_;
     const TObjectManagerPtr ObjectManager_;
     const TSecurityManagerPtr SecurityManager_;
-    const TResponseKeeperPtr ResponseKeeper_;
     const TString CodicilData_;
 
     struct TSubrequest
@@ -199,12 +208,23 @@ private:
     std::atomic<int> SubresponseCount_ = {0};
     int LastMutatingSubrequestIndex_ = -1;
 
+    // Has the time to backoff come?
+    std::atomic<bool> BackoffAlarmTriggered_ = {false};
+
+    // If this is locked, the automaton invoker is currently busy serving
+    // CurrentSubrequestIndex_-th subrequest (at which it may or may not succeed).
+    // NB: only TryAcquire() is called on this lock, never Acquire().
+    TSpinLock CurrentSubrequestLock_;
+
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
     void ParseSubrequests()
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
+        YCHECK(guard.WasAcquired());
 
         const auto& request = Context_->Request();
         const auto& attachments = Context_->RequestAttachments();
@@ -264,6 +284,9 @@ private:
         }
 
         NeedsUpstreamSync_ = !request.suppress_upstream_sync();
+
+        // The backoff alarm may've been triggered while we were parsing.
+        CheckBackoffAlarmTriggered();
     }
 
     template <class T>
@@ -342,7 +365,14 @@ private:
             RequestQueueSizeIncreased_ = true;
         }
 
-        while (CurrentSubrequestIndex_ < SubrequestCount_) {
+        auto yield = [&] {
+            EpochAutomatonInvoker_->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
+        };
+
+        while (CurrentSubrequestIndex_ < SubrequestCount_ &&
+            !BackoffAlarmTriggered_ &&
+            !Replied_)
+        {
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
                 ++ThrottledSubrequestIndex_;
                 auto result = SecurityManager_->ThrottleUser(user, 1);
@@ -351,53 +381,76 @@ private:
                 }
             }
 
-            auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
-            if (!subrequest.Context) {
-                ExecuteEmptySubrequest(&subrequest, user);
-                ++CurrentSubrequestIndex_;
-                continue;
-            }
-
-            NTracing::TraceEvent(
-                subrequest.TraceContext,
-                subrequest.RequestHeader.service(),
-                subrequest.RequestHeader.method(),
-                NTracing::ServerReceiveAnnotation);
-
-            if (subrequest.Mutation) {
-                ExecuteWriteSubrequest(&subrequest, user);
-                LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
-            } else {
-                // Cannot serve new read requests before previous write ones are done.
-                if (LastMutatingSubrequestIndex_ >= 0) {
-                    auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncResponseMessage;
-                    if (!lastCommitResult.IsSet()) {
-                        lastCommitResult.Subscribe(
-                            BIND(&TExecuteSession::CheckAndContinue<TSharedRefArray>, MakeStrong(this))
-                                .Via(EpochAutomatonInvoker_));
-                        return;
-                    }
+            {
+                TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
+                if (!guard.WasAcquired()) {
+                    yield();
+                    break;
                 }
-                ExecuteReadSubrequest(&subrequest, user);
-            }
 
-            // Optimize for the (typical) case of synchronous response.
-            auto& asyncResponseMessage = subrequest.AsyncResponseMessage;
-            if (asyncResponseMessage.IsSet()) {
-                OnSubresponse(&subrequest, asyncResponseMessage.Get());
-            } else {
-                asyncResponseMessage.Subscribe(
-                    BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), &subrequest));
-            }
+                if (Replied_) {
+                    break;
+                }
 
-            ++CurrentSubrequestIndex_;
+                if (!ExecuteCurrentSubrequest(user)) {
+                    break;
+                }
+            }
 
             if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
                 LOG_DEBUG("Yielding automaton thread");
-                EpochAutomatonInvoker_->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
+                yield();
                 break;
             }
         }
+    }
+
+    bool ExecuteCurrentSubrequest(TUser* user)
+    {
+        // NB: CurrentSubrequestIndex_ must be incremented before OnSubresponse() is called.
+
+        auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
+        if (!subrequest.Context) {
+            ++CurrentSubrequestIndex_;
+            ExecuteEmptySubrequest(&subrequest, user);
+            return true;
+        }
+
+        NTracing::TraceEvent(
+            subrequest.TraceContext,
+            subrequest.RequestHeader.service(),
+            subrequest.RequestHeader.method(),
+            NTracing::ServerReceiveAnnotation);
+
+        if (subrequest.Mutation) {
+            ExecuteWriteSubrequest(&subrequest, user);
+            LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
+        } else {
+            // Cannot serve new read requests before previous write ones are done.
+            if (LastMutatingSubrequestIndex_ >= 0) {
+                auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncResponseMessage;
+                if (!lastCommitResult.IsSet()) {
+                    lastCommitResult.Subscribe(
+                        BIND(&TExecuteSession::CheckAndContinue<TSharedRefArray>, MakeStrong(this))
+                        .Via(EpochAutomatonInvoker_));
+                    return false;
+                }
+            }
+            ExecuteReadSubrequest(&subrequest, user);
+        }
+
+        ++CurrentSubrequestIndex_;
+
+        // Optimize for the (typical) case of synchronous response.
+        auto& asyncResponseMessage = subrequest.AsyncResponseMessage;
+        if (asyncResponseMessage.IsSet()) {
+            OnSubresponse(&subrequest, asyncResponseMessage.Get());
+        } else {
+            asyncResponseMessage.Subscribe(
+                BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), &subrequest));
+        }
+
+        return true;
     }
 
     void ExecuteEmptySubrequest(TSubrequest* subrequest, TUser* /*user*/)
@@ -479,6 +532,8 @@ private:
 
         if (++SubresponseCount_ == SubrequestCount_) {
             Reply();
+        } else {
+            CheckBackoffAlarmTriggered();
         }
     }
 
@@ -492,8 +547,7 @@ private:
             return;
         }
 
-        NRpc::TDispatcher::Get()
-            ->GetHeavyInvoker()
+        TObjectService::GetRpcInvoker()
             ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
     }
 
@@ -501,11 +555,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+
+        if (Context_->IsCanceled()) {
+            return;
+        }
+
         if (error.IsOK()) {
             auto& response = Context_->Response();
             auto& attachments = Context_->ResponseAttachments();
-            for (const auto& subrequest : Subrequests_) {
+
+            YCHECK(SubrequestCount_ == 0 || CurrentSubrequestIndex_ != 0);
+
+            for (auto i = 0; i < CurrentSubrequestIndex_; ++i) {
+                const auto& subrequest = Subrequests_[i];
                 if (subrequest.Context) {
+                    YCHECK(subrequest.Context->IsReplied());
+
                     auto subresponseMessage = subrequest.Context->GetResponseMessage();
                     response.add_part_counts(subresponseMessage.Size());
                     attachments.insert(
@@ -517,8 +583,70 @@ private:
                 }
             }
         }
-     
+
+        YCHECK(!error.IsOK() ||
+            SubrequestCount_ == 0 ||
+            Context_->Response().part_counts_size() > 0);
+
         Context_->Reply(error);
+    }
+
+    bool IsBackoffAllowed() const
+    {
+        return Context_->Request().allow_backoff();
+    }
+
+    void ScheduleBackoffAlarm()
+    {
+        auto requestTimeout = Context_->GetTimeout();
+        if (requestTimeout &&
+            *requestTimeout > Owner_->Config_->TimeoutBackoffLeadTime)
+        {
+            auto backoffDelay = *requestTimeout - Owner_->Config_->TimeoutBackoffLeadTime;
+            BackoffAlarmCookie_ = TDelayedExecutor::Submit(
+                BIND(&TObjectService::TExecuteSession::OnBackoffAlarm, MakeStrong(this))
+                    .Via(TObjectService::GetRpcInvoker()),
+                backoffDelay);
+        }
+    }
+
+    void OnBackoffAlarm()
+    {
+        LOG_DEBUG("Backoff alarm triggered (RequestId: %v)", RequestId_);
+        BackoffAlarmTriggered_ = true;
+        CheckBackoffAlarmTriggered();
+    }
+
+    void CheckBackoffAlarmTriggered()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!BackoffAlarmTriggered_) {
+            return;
+        }
+
+        if (Replied_) {
+            return;
+        }
+
+        {
+            TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
+            if (guard.WasAcquired()) {
+                if (SubresponseCount_ > 0 &&
+                    SubresponseCount_ == CurrentSubrequestIndex_)
+                {
+                    LOG_DEBUG("Backing off (RequestId: %v, SubresponseCount: %v, SubrequestCount: %v)",
+                        RequestId_,
+                        static_cast<int>(SubresponseCount_),
+                        SubrequestCount_);
+                    Reply();
+                }
+                return;
+            }
+        }
+
+        TObjectService::GetRpcInvoker()->Invoke(
+            BIND(&TObjectService::TExecuteSession::CheckBackoffAlarmTriggered, MakeStrong(this)));
     }
 
     static void DoDecreaseRequestQueueSize(

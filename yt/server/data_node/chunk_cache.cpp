@@ -12,10 +12,10 @@
 
 #include <yt/ytlib/formats/config.h>
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -31,10 +31,10 @@
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
 #include <yt/core/concurrency/async_stream.h>
@@ -278,6 +278,9 @@ public:
 
         LOG_INFO("Initializing chunk cache");
 
+        std::vector<TFuture<std::vector<TChunkDescriptor>>> asyncDescriptors;
+        asyncDescriptors.reserve(Config_->CacheLocations.size());
+
         for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
             auto locationConfig = Config_->CacheLocations[i];
 
@@ -286,14 +289,26 @@ public:
                 locationConfig,
                 Bootstrap_);
 
-            auto descriptors = location->Scan();
-            for (const auto& descriptor : descriptors) {
+            asyncDescriptors.push_back(
+                BIND(&TCacheLocation::Scan, location)
+                    .AsyncVia(location->GetWritePoolInvoker())
+                    .Run());
+
+            Locations_.push_back(location);
+        }
+
+        auto allDescriptors = WaitFor(Combine(asyncDescriptors))
+            .ValueOrThrow();
+
+        for (int index = 0; index < Config_->CacheLocations.size(); ++index) {
+            const auto& location = Locations_[index];
+
+            for (const auto& descriptor : allDescriptors[index]) {
                 RegisterChunk(location, descriptor);
             }
 
             location->Start();
 
-            Locations_.push_back(location);
         }
 
         ValidateLocationMedia();
@@ -854,7 +869,7 @@ private:
                 PipeReaderToWriter(
                     reader,
                     writer,
-                    std::move(options));
+                    options);
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/monitoring/public.h>
 
@@ -30,7 +30,7 @@ public:
     ~TBootstrap();
 
     const TSchedulerBootstrapConfigPtr& GetConfig() const;
-    const NApi::INativeClientPtr& GetMasterClient() const;
+    const NApi::NNative::IClientPtr& GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue) const;
@@ -51,8 +51,8 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
-    NApi::INativeConnectionPtr Connection_;
-    NApi::INativeClientPtr Client_;
+    NApi::NNative::IConnectionPtr Connection_;
+    NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;

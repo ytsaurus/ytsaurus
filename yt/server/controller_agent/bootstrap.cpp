@@ -14,8 +14,8 @@
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/config.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
@@ -26,7 +26,7 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/ytlib/core_dump/core_dumper.h>
@@ -113,9 +113,9 @@ void TBootstrap::DoRun()
 
     LOG_INFO("Starting controller agent");
 
-    TNativeConnectionOptions connectionOptions;
+    NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
+    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::SchedulerUserName;
@@ -207,7 +207,7 @@ const TControllerAgentBootstrapConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-const INativeClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
 }

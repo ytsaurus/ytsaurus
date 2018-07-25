@@ -14,7 +14,7 @@
 
 #include <yt/server/object_server/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -22,7 +22,7 @@
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/rpc/service_detail.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NChunkServer {

@@ -3,7 +3,8 @@
 #include "public.h"
 #include "callbacks.h"
 #include "query.h"
-#include "query_statistics.h"
+
+#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/core/logging/log.h>
 

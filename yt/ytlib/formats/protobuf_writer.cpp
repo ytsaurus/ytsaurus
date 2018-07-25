@@ -4,7 +4,7 @@
 #include "protobuf.h"
 #include "schemaless_writer_adapter.h"
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/misc/varint.h>
 

@@ -38,7 +38,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/misc/shutdown.h>

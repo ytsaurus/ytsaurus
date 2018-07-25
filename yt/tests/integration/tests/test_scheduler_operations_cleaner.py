@@ -41,12 +41,13 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 "fetch_batch_size": 1,
                 "max_removal_sleep_delay": 100
             },
-            "static_orchid_cache_update_period": 100
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100
         }
     }
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
     def teardown(self):
         remove("//sys/operations_archive", force=True)
@@ -102,6 +103,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "finish_time" in row
             assert "start_time" in row
             assert "alerts" in row
+            assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
 
     def test_operations_archive_is_not_initialized(self):
         create("table", "//tmp/t1")
@@ -128,6 +130,14 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         # Earliest operations should be removed
         wait(lambda: len(self._get_removed_operations(ops)) == 6)
         assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:6])
+
+        def scheduler_alert_set():
+            for alert in get("//sys/scheduler/@alerts"):
+                if "archivation" in alert["message"]:
+                    return True
+            return False
+
+        wait(scheduler_alert_set)
 
     def test_start_stop(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())

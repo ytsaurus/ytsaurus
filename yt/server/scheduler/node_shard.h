@@ -5,7 +5,7 @@
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
@@ -163,6 +163,8 @@ public:
     void EndScheduleJob(
         const NProto::TScheduleJobResponse& response);
 
+    int ExtractJobReporterWriteFailuresCount();
+
 private:
     const int Id_;
     TSchedulerConfigPtr Config_;
@@ -200,6 +202,8 @@ private:
 
     NConcurrency::TReaderWriterSpinLock JobTimeStatisticsDeltaLock_;
     TJobTimeStatisticsDelta JobTimeStatisticsDelta_;
+
+    std::atomic<int> JobReporterWriteFailuresCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock JobCounterLock_;
     TJobCounter JobCounter_;

@@ -1,9 +1,9 @@
 #include "value_consumer.h"
-
 #include "helpers.h"
-#include "name_table.h"
-#include "row_buffer.h"
-#include "schemaless_writer.h"
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

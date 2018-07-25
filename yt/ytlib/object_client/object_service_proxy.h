@@ -38,16 +38,69 @@ public:
     using TRspExecuteBatchPtr = TIntrusivePtr<TRspExecuteBatch>;
     using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
-    //! A batched request to Cypress that holds a vector of individual requests that
-    //! are transferred within a single RPC envelope.
-    class TReqExecuteBatch
+private:
+    class TReqExecuteSubbatch
         : public NRpc::TClientRequest
     {
     public:
+        //! Returns the current number of individual requests in the batch.
+        int GetSize() const;
+
+    protected:
+        explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel);
+
+    private:
+        // For TReqExecuteBatch::Slice().
+        TReqExecuteSubbatch(
+            const TReqExecuteBatch& other,
+            int beginPos,
+            int retriesEndPos,
+            int endPos);
+        DECLARE_NEW_FRIEND();
+
+        virtual TSharedRef SerializeBody() const override;
+
+        // A template method that uses the virtual function below in its
+        // implementation.
+        TFuture<TRspExecuteBatchPtr> DoInvoke();
+
+        virtual TRspExecuteBatchPtr CreateResponse();
+
+        //! Patch the message and set the 'retry' flag to true.
+        static TSharedRefArray PatchForRetry(const TSharedRefArray& message);
+
+        struct TInnerRequestDescriptor
+        {
+            TSharedRefArray Message;
+            // True if the message contains a mutating request and has the
+            // 'retry' flag set to false.
+            bool NeedsPatchingForRetry = false;
+        };
+
+        std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
+        bool SuppressUpstreamSync_ = false;
+
+        friend class TReqExecuteBatch;
+    };
+
+    using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
+
+public:
+    //! A batched request to Cypress that holds a vector of individual requests.
+    //! They're sent in groups of several requests at a time. These groups are
+    //! called subbatches and are transferred within a single RPC envelope.
+    class TReqExecuteBatch
+        : public TReqExecuteSubbatch
+    {
+    public:
+        static const int MaxSingleSubbatchSize = 100;
+
         //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
         //! Overrides base method for fluent use.
+        //! NB: the timeout only affects subbatch requests. The complete batch request
+        //! time is essentially unbounded.
         TReqExecuteBatchPtr SetTimeout(TNullable<TDuration> timeout);
 
         //! Sets the upstream sync suppression option.
@@ -60,7 +113,7 @@ public:
          *  (thus avoiding complicated and error-prone index calculations).
          *
          *  The client is allowed to issue an empty (|nullptr|) request. This request is treated
-         *  like any other and it sent to the server. The server typically sends an empty (|NULL|)
+         *  like any other and is sent to the server. The server typically sends an empty (|NULL|)
          *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
          */
@@ -69,24 +122,57 @@ public:
             const TString& key = TString());
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
+        //! #needsPatchingForRetry should be true iff the message contains a mutating request with
+        //! the 'retry' flag set to false.
         TReqExecuteBatchPtr AddRequestMessage(
             TSharedRefArray innerRequestMessage,
+            bool needsPatchingForRetry,
             const TString& key = TString());
 
-        //! Returns the current number of individual requests in the batch.
-        int GetSize() const;
-
     private:
-        std::vector<TSharedRefArray> InnerRequestMessages_;
         std::multimap<TString, int> KeyToIndexes_;
 
-        bool SuppressUpstreamSync_ = false;
+        // The promise is needed right away as we need to return something to
+        // the caller of #Invoke. The full response, however, may not be
+        // required if the first subbatch response carries all subresponses. In
+        // that case, the promise will be signaled with just that subbatch
+        // response.
+        TPromise<TRspExecuteBatchPtr> FullResponsePromise_;
+        TRspExecuteBatchPtr FullResponse_;
 
+        // Indexes of the first and the last subrequests in the currently
+        // invoked subbatch.
+        int CurBatchBegin_ = 0;
+        int CurBatchEnd_ = 0;
+
+        TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurReqFuture_;
 
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
         DECLARE_NEW_FRIEND();
 
-        virtual TSharedRef SerializeBody() const override;
+        //! Returns a slice of this request.
+        /*!
+         *  The slice is a batch request that has just the [#beginPos, #endPos)
+         *  subrequests copied. The metadata is almost the same, but not
+         *  quite. Notably, the key-to-index mapping is not copied, and the ID
+         *  of the request is generated anew. Also, [#beginPos, #retriesEndPos)
+         *  requests are marked as retries.
+         */
+        TReqExecuteSubbatchPtr Slice(int beginPos, int retriesEndPos, int endPos);
+
+        virtual TRspExecuteBatchPtr CreateResponse() override;
+
+        void PushDownPrerequisites();
+
+        void InvokeNextBatch();
+        void OnSubbatchResponse(const TErrorOr<TRspExecuteBatchPtr>& rspOrErr);
+
+        int GetTotalSubrequestCount() const;
+        int GetTotalSubresponseCount() const;
+
+        TRspExecuteBatchPtr& FullResponse();
+
+        friend class TReqExecuteSubbatch;
     };
 
     //! A response to a batched request.
@@ -147,6 +233,7 @@ public:
         TSharedRefArray GetResponseMessage(int index) const;
 
     private:
+        friend class TReqExecuteSubbatch;
         friend class TReqExecuteBatch;
 
         std::multimap<TString, int> KeyToIndexes_;
@@ -156,12 +243,20 @@ public:
         TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,
             const std::multimap<TString, int>& keyToIndexes);
+
+        TRspExecuteBatch(
+            NRpc::TClientContextPtr clientContext,
+            const std::multimap<TString, int>& keyToIndexes,
+            TPromise<TRspExecuteBatchPtr> promise);
+
         DECLARE_NEW_FRIEND();
 
         void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
         virtual void DeserializeBody(const TRef& data) override;
+
+        void Append(const TRspExecuteBatchPtr& subbatchResponse);
     };
 
     //! Executes a batched Cypress request.

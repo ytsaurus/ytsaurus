@@ -1,7 +1,7 @@
 #include "yamr_writer_base.h"
 #include "yamr_writer.h"
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/misc/error.h>
 

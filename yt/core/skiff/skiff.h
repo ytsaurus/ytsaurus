@@ -45,6 +45,8 @@ public:
 
     void ValidateFinished();
 
+    ui64 GetReadBytesCount();
+
 private:
     void RefillBuffer(size_t minSize);
     void Advance(ssize_t size);
@@ -57,6 +59,7 @@ private:
 
     TBuffer Buffer_;
     size_t RemainingBytes_ = 0;
+    ui64 ReadBytesCount_ = 0;
     char* Position_ = Buffer_.Data();
     bool Exhausted_ = false;
 };
@@ -86,6 +89,8 @@ public:
     bool HasMoreData();
 
     void ValidateFinished();
+
+    ui64 GetReadBytesCount();
 
 private:
     TUncheckedSkiffParser Parser_;

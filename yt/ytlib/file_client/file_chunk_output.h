@@ -3,10 +3,12 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/core/concurrency/public.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -32,9 +34,10 @@ public:
     TFileChunkOutput(
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         const NObjectClient::TTransactionId& transactionId,
-        NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr throttler,
         i64 sizeLimit = std::numeric_limits<i64>::max());
 
     NChunkClient::TChunkId GetChunkId() const;
@@ -57,7 +60,7 @@ private:
 
     const NApi::TFileWriterConfigPtr Config_;
     const NChunkClient::TMultiChunkWriterOptionsPtr Options_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const NObjectClient::TTransactionId TransactionId_;
     const i64 SizeLimit_;
 

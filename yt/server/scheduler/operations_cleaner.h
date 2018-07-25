@@ -31,6 +31,8 @@ struct TArchiveOperationRequest
     // Archive version >= 17
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
+    // Archive version >= 22
+    NYson::TYsonString RuntimeParameters;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 
@@ -47,6 +49,14 @@ struct TRemoveOperationRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IOperationsCleanerHost
+{
+    virtual ~IOperationsCleanerHost() = default;
+    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Performs background archivation of operations.
 /*!
  *  \note Thread affinity: control unless noted otherwise
@@ -55,7 +65,10 @@ class TOperationsCleaner
     : public TRefCounted
 {
 public:
-    TOperationsCleaner(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap);
+    TOperationsCleaner(
+        TOperationsCleanerConfigPtr config,
+        IOperationsCleanerHost* host,
+        TBootstrap* bootstrap);
 
     void Start();
     void Stop();

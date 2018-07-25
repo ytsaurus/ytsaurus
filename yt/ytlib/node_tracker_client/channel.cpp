@@ -1,5 +1,7 @@
 #include "channel.h"
 
+#include <yt/client/node_tracker_client/node_directory.h>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 

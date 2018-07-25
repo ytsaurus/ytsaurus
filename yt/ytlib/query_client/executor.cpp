@@ -6,23 +6,25 @@
 #include "query.h"
 #include "query_helpers.h"
 #include "query_service_proxy.h"
-#include "query_statistics.h"
 #include "functions_cache.h"
 
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/tablet_helpers.h>
+#include <yt/client/query_client/query_statistics.h>
+
+#include <yt/ytlib/api/native/tablet_helpers.h>
+
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/client/table_client/schemaful_reader.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 
@@ -44,12 +46,10 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
+using namespace NApi;
+using namespace NApi::NNative;
 
 using NYT::ToProto;
-
-using NApi::INativeConnectionPtr;
-using NApi::ValidateTabletMountedOrFrozen;
-using NApi::GetPrimaryTabletPeerDescriptor;
 
 using NChunkClient::NProto::TDataStatistics;
 
@@ -156,7 +156,7 @@ class TQueryExecutor
 {
 public:
     TQueryExecutor(
-        INativeConnectionPtr connection,
+        NNative::IConnectionPtr connection,
         IInvokerPtr invoker,
         TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
@@ -196,7 +196,7 @@ public:
     }
 
 private:
-    const INativeConnectionPtr Connection_;
+    const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     const TEvaluatorPtr Evaluator_;
@@ -702,7 +702,7 @@ private:
 DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 
 IExecutorPtr CreateQueryExecutor(
-    INativeConnectionPtr connection,
+    NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
     TColumnEvaluatorCachePtr columnEvaluatorCache,
     TEvaluatorPtr evaluator,
