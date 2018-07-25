@@ -103,6 +103,8 @@ public:
 
     bool IsSerializationNeeded() const;
 
+    NObjectClient::TCellTag GetCellTag() const;
+
 private:
     TPromise<void> Finished_ = NewPromise<void>();
 
