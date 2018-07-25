@@ -113,6 +113,8 @@ class PerlItem(ExecutableItem):
         environment = {}
         if env.master_count > 0:
             environment["YT_DRIVER_CONFIG_PATH"] = env.config_paths["driver"]
+        if "PERL5LIB" in os.environ:
+            environment["PERL5LIB"] = os.environ["PERL5LIB"]
 
         child = subprocess.Popen(
             ["perl", "-I" + inc, str(self.fspath)],
