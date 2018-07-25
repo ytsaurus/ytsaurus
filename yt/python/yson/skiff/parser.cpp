@@ -16,16 +16,16 @@ TSkiffIterator::TSkiffIterator(Py::PythonClassInstance* self, Py::Tuple& args, P
 
 void TSkiffIterator::Initialize(
     IInputStream* inputStream,
-    std::unique_ptr<IInputStream> inputStreamOwner,
+    std::unique_ptr<IInputStream> inputStreamHolder,
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName,
     const TNullable<TString>& encoding)
 {
-    YCHECK(inputStreamOwner.get() == inputStream);
+    YCHECK(inputStreamHolder.get() == inputStream);
     InputStream_ = inputStream;
     Consumer_ = std::make_unique<TPythonSkiffRecordBuilder>(pythonSkiffschemaList, encoding);
-    InputStreamOwner_ = std::move(inputStreamOwner);
+    InputStreamHolder_ = std::move(inputStreamHolder);
 
     Parser_ = CreateSkiffMultiTableParser<TPythonSkiffRecordBuilder>(
         Consumer_.get(),

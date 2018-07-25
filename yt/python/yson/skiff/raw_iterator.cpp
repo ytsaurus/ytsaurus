@@ -14,14 +14,14 @@ TSkiffRawIterator::TSkiffRawIterator(Py::PythonClassInstance* self, Py::Tuple& a
 
 void TSkiffRawIterator::Initialize(
     IInputStream* inputStream,
-    std::unique_ptr<IInputStream> inputStreamOwner,
+    std::unique_ptr<IInputStream> inputStreamHolder,
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
 {
-    YCHECK(inputStreamOwner.get() == inputStream);
+    YCHECK(inputStreamHolder.get() == inputStream);
     InputStream_ = TStreamReader(inputStream);
-    InputStreamOwner_ = std::move(inputStreamOwner);
+    InputStreamHolder_ = std::move(inputStreamHolder);
 
     Consumer_ = std::make_unique<TPythonSkiffRawRecordBuilder>(
         pythonSkiffschemaList.size(),

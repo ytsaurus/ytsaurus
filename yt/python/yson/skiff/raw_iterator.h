@@ -32,7 +32,7 @@ public:
 
     void Initialize(
         IInputStream* inputStream,
-        std::unique_ptr<IInputStream> inputStreamOwner,
+        std::unique_ptr<IInputStream> inputStreamHolder,
         const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName);
@@ -50,7 +50,7 @@ private:
     std::unique_ptr<TPythonSkiffRawRecordBuilder> Consumer_;
     std::unique_ptr<NSkiff::TSkiffMultiTableParser<TPythonSkiffRawRecordBuilder>> Parser_;
 
-    std::unique_ptr<IInputStream> InputStreamOwner_;
+    std::unique_ptr<IInputStream> InputStreamHolder_;
     bool IsStreamFinished_ = false;
 
     std::queue<TSharedRef> Rows_;

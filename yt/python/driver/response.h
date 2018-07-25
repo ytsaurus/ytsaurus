@@ -26,8 +26,8 @@ public:
     NYson::IYsonConsumer* GetResponseParametersConsumer();
     NYTree::TPythonObjectBuilder* GetPythonObjectBuilder();
 
-    void OwnInputStream(std::unique_ptr<IInputStream> inputStream);
-    void OwnOutputStream(std::unique_ptr<IOutputStream>& outputStream);
+    void HoldInputStream(std::unique_ptr<IInputStream> inputStream);
+    void HoldOutputStream(std::unique_ptr<IOutputStream>& outputStream);
 private:
     std::unique_ptr<IInputStream> InputStream_;
     std::unique_ptr<IOutputStream> OutputStream_;
