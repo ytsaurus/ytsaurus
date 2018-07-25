@@ -258,7 +258,8 @@ class ReplaceSvnStuffStep(Step):
                 subprocess.check_call([
                     "./yall",
                     "--threads=0",
-                    "--checkout"
+                    "--checkout",
+                    "--thin",
                 ] + additional_args)
 
             #
