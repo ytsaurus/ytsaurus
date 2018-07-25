@@ -15,6 +15,9 @@ class TestChunkServer(YTEnvSetup):
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
             "safe_online_node_count": 3
+        },
+        "node_tracker": {
+            "full_node_states_gossip_period": 1000
         }
     }
 
@@ -141,6 +144,25 @@ class TestChunkServer(YTEnvSetup):
         assert new_requisition["vital"]
         assert len(new_requisition["entries"]) == 1
         assert new_requisition["entries"][0]["replication_policy"]["replication_factor"] == 4
+
+    def test_node_chunk_replica_count(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) == 3)
+
+        def check_replica_count():
+            nodes = get("#{0}/@stored_replicas".format(chunk_id))
+            for node in nodes:
+                if not (get("//sys/nodes/{0}/@chunk_replica_count/cache".format(node)) == 0 and
+                        get("//sys/nodes/{0}/@chunk_replica_count/default".format(node)) == 1):
+                    return False
+            return True
+
+        wait(check_replica_count, sleep_backoff=1.0)
 
 ##################################################################
 
