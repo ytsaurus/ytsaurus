@@ -2153,7 +2153,8 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context) co
             return false;
         }
 
-        if (context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
+        if (!parent->IsRoot() &&
+            context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
             (!parent->IsAggressiveStarvationPreemptionAllowed() || !IsAggressiveStarvationPreemptionAllowed()))
         {
             return false;
