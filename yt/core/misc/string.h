@@ -26,8 +26,8 @@ public:
         size_t committedLength = GetLength();
         size = std::max(size, MinBufferLength);
         Str_.ReserveAndResize(committedLength + size);
-        Begin_ = Current_ = &*Str_.begin() + committedLength;
-        End_ = Begin_ + size;
+        Current_ = &*Str_.begin() + committedLength;
+        End_ = Current_ + size;
         return Current_;
     }
 
@@ -79,17 +79,22 @@ public:
         Format(this, format, args...);
     }
 
+    void Reset()
+    {
+        Str_ = {};
+        Current_ = End_ = nullptr;
+    }
+
     TString Flush()
     {
         Str_.resize(GetLength());
-        Begin_ = Current_ = End_ = nullptr;
+        Current_ = End_ = nullptr;
         return std::move(Str_);
     }
 
 private:
     TString Str_;
 
-    char* Begin_ = nullptr;
     char* Current_ = nullptr;
     char* End_ = nullptr;
 

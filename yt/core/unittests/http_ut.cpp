@@ -162,6 +162,11 @@ struct TFakeConnection
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
+    virtual bool IsIdle() const override
+    {
+        return true;
+    }
+
     virtual TFuture<void> Abort() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
@@ -908,6 +913,90 @@ TEST_P(THttpServerTest, RequestHangUp)
     Sleep(TDuration::MilliSeconds(10));
 
     EXPECT_TRUE(validating->Ok);
+}
+
+TEST_P(THttpServerTest, ConnectionKeepAlive)
+{
+    if (GetParam()) {
+        // This test is not TLS-specific.
+        return;
+    }
+
+    Server->AddHandler("/echo", New<TEchoHttpHandler>());
+    Server->Start();
+
+    auto dialer = CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
+
+    // Many requests.
+    {
+        auto connection = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
+            .ValueOrThrow();
+
+        auto request = New<THttpOutput>(
+            connection,
+            EMessageType::Request,
+            New<THttpIOConfig>());
+
+        auto response = New<THttpInput>(
+            connection,
+            connection->RemoteAddress(),
+            Poller->GetInvoker(),
+            EMessageType::Response,
+            New<THttpIOConfig>());
+
+        for (int i = 0; i < 10; ++i) {
+            request->WriteRequest(EMethod::Post, "/echo");
+            WaitFor(request->Write(TSharedRef::FromString("foo")))
+                .ThrowOnError();
+            WaitFor(request->Close())
+                .ThrowOnError();
+
+            response->GetStatusCode();
+            auto body = response->ReadBody();
+
+            ASSERT_TRUE(response->IsSafeToReuse());
+            ASSERT_TRUE(request->IsSafeToReuse());
+            response->Reset();
+            request->Reset();
+        }
+    }
+
+    // Pipelining
+    {
+        auto connection = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
+            .ValueOrThrow();
+
+        auto request = New<THttpOutput>(
+            connection,
+            EMessageType::Request,
+            New<THttpIOConfig>());
+
+        auto response = New<THttpInput>(
+            connection,
+            connection->RemoteAddress(),
+            Poller->GetInvoker(),
+            EMessageType::Response,
+            New<THttpIOConfig>());
+
+        for (int i = 0; i < 10; ++i) {
+            request->WriteRequest(EMethod::Post, "/echo");
+            WaitFor(request->Write(TSharedRef::FromString("foo")))
+                .ThrowOnError();
+            WaitFor(request->Close())
+                .ThrowOnError();
+
+            ASSERT_TRUE(request->IsSafeToReuse());
+            request->Reset();
+        }
+
+        for (int i = 0; i < 10; ++i) {
+            response->GetStatusCode();
+            auto body = response->ReadBody();
+
+            ASSERT_TRUE(response->IsSafeToReuse());
+            response->Reset();
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

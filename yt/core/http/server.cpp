@@ -133,27 +133,8 @@ private:
         }
     }
 
-    void HandleClient(const IConnectionPtr& connection)
+    void HandleRequest(TGuid connectionId, const THttpInputPtr& request, THttpOutputPtr& response)
     {
-        auto finally = Finally([&] {
-            --ActiveClients_;
-        });
-
-        auto connectionId = TGuid::Create();
-
-        auto request = New<THttpInput>(
-            connection,
-            connection->RemoteAddress(),
-            Poller_->GetInvoker(),
-            EMessageType::Request,
-            Config_);
-
-        auto response = New<THttpOutput>(
-            connection,
-            EMessageType::Response,
-            Config_);
-
-        response->AddConnectionCloseHeader();
         response->SetStatus(EStatusCode::InternalServerError);
 
         bool closeResponse = true;
@@ -162,7 +143,7 @@ private:
 
             LOG_DEBUG("Received HTTP request (ConnectionId: %v, Address: %v, Method: %v, Path: %v)",
                 connectionId,
-                connection->RemoteAddress(),
+                request->GetRemoteAddress(),
                 request->GetMethod(),
                 path);
 
@@ -195,6 +176,51 @@ private:
             if (!responseResult.IsOK()) {
                 LOG_DEBUG(responseResult, "Error flushing HTTP response stream (ConnectionId: %v)",
                     connectionId);
+            }
+        }
+    }
+
+    void HandleClient(const IConnectionPtr& connection)
+    {
+        auto finally = Finally([&] {
+            --ActiveClients_;
+        });
+
+        auto connectionId = TGuid::Create();
+
+        auto request = New<THttpInput>(
+            connection,
+            connection->RemoteAddress(),
+            Poller_->GetInvoker(),
+            EMessageType::Request,
+            Config_);
+
+        auto response = New<THttpOutput>(
+            connection,
+            EMessageType::Response,
+            Config_);
+
+        while (true) {
+            HandleRequest(connectionId, request, response);
+
+            if (!Config_->EnableKeepAlive) {
+                break;
+            }
+
+            if (request->IsSafeToReuse()) {
+                request->Reset();
+            } else {
+                break;
+            }
+
+            if (response->IsSafeToReuse()) {
+                response->Reset();
+            } else {
+                break;
+            }
+
+            if (!connection->IsIdle()) {
+                break;
             }
         }
 

@@ -483,6 +483,12 @@ public:
         return AbortIO(error);
     }
 
+    bool IsIdle()
+    {
+        auto guard = Guard(Lock_);
+        return Error_.IsOK() && !WriteDirection_.Operation && !ReadDirection_.Operation && SynchronousIOCount_ == 0;
+    }
+
     TFuture<void> Abort(const TError& error)
     {
         return AbortIO(error);
@@ -662,6 +668,11 @@ private:
         {
             auto guard = Guard(Lock_);
             if (Error_.IsOK()) {
+                if (direction->Operation) {
+                    THROW_ERROR_EXCEPTION("Another IO operation is in progress")
+                        << TErrorAttribute("connection", Name_);
+                }
+            
                 YCHECK(!direction->Operation);
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
@@ -872,6 +883,11 @@ public:
     virtual TFuture<void> Close() override
     {
         return Impl_->Close();
+    }
+
+    virtual bool IsIdle() const override
+    {
+        return Impl_->IsIdle();
     }
 
     virtual TFuture<void> Abort() override
