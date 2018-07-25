@@ -1,17 +1,15 @@
 #include "schemaless_chunk_writer.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "name_table.h"
 #include "partitioner.h"
 #include "schemaless_block_writer.h"
 #include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 #include "helpers.h"
-#include "row_buffer.h"
 #include "skynet_column_evaluator.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/schemaless_column_writer.h>
@@ -26,20 +24,25 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/config.h>
+
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -846,7 +849,7 @@ public:
     TSchemalessMultiChunkWriterBase(
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
@@ -1113,7 +1116,7 @@ public:
     TPartitionMultiChunkWriter(
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
@@ -1325,7 +1328,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
@@ -1362,7 +1365,7 @@ public:
     TSchemalessMultiChunkWriter(
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
@@ -1433,7 +1436,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TTableSchema& schema,
     TOwningKey lastKey,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
@@ -1484,7 +1487,7 @@ public:
         TTableWriterConfigPtr config,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         ITransactionPtr uploadTransaction,
         ITransactionPtr transaction,
         ISchemalessMultiChunkWriterPtr underlyingWriter,
@@ -1548,7 +1551,7 @@ private:
 
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const ITransactionPtr UploadTransaction_;
     const ITransactionPtr Transaction_;
     const ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
@@ -1606,7 +1609,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -1833,7 +1836,7 @@ TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)

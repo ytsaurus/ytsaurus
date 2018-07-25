@@ -65,6 +65,8 @@
     XX(DisableWriteSessions, disable_write_sessions) \
     XX(DiskSpace, disk_space) \
     XX(Dynamic, dynamic) \
+    XX(DynamicConfigVersion, dynamic_config_version) \
+    XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
@@ -99,6 +101,7 @@
     XX(Index, index) \
     XX(InheritAcl, inherit_acl) \
     XX(IOWeights, io_weights) \
+    XX(JobId, job_id)                \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \

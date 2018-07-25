@@ -4,7 +4,7 @@
 #include "object_builder.h"
 #include "yson_lazy_map.h"
 
-#include <contrib/libs/pycxx/Objects.hxx>
+#include <Objects.hxx> // pycxx
 
 #include <Python.h>
 

@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "versioned_reader.h"
-#include "schema.h"
+
+#include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/schema.h>
 
 namespace NYT {
 namespace NTableClient {

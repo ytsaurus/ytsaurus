@@ -4,9 +4,9 @@
 #include "cg_routines.h"
 #include "llvm_folding_set.h"
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/codegen/module.h>
 #include <yt/core/codegen/public.h>

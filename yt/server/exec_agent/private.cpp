@@ -9,7 +9,7 @@ namespace NExecAgent {
 const NLogging::TLogger ExecAgentLogger("ExecAgent");
 const NProfiling::TProfiler ExecAgentProfiler("/exec_agent");
 
-const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames{"sandbox", "udf", "home", "pipes"};
+const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames{"sandbox", "udf", "home", "pipes", "tmp"};
 const int TmpfsRemoveAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////

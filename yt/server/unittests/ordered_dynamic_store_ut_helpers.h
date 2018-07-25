@@ -2,7 +2,7 @@
 
 #include "dynamic_store_ut_helpers.h"
 
-#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_reader.h>
 
 namespace NYT {
 namespace NTabletNode {

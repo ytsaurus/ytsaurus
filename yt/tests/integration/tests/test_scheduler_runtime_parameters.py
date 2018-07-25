@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, wait
-from yt.environment.helpers import assert_almost_equal
+from yt.environment.helpers import are_almost_equal
 from yt_commands import *
 
 class TestRuntimeParameters(YTEnvSetup):
@@ -27,8 +27,10 @@ class TestRuntimeParameters(YTEnvSetup):
 
         time.sleep(1.0)
 
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)
+
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
+        assert get(progress_path + "/weight") == 5.0
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "u")
         set("//sys/operations/{0}/@weight".format(op.id), 3)
@@ -37,8 +39,8 @@ class TestRuntimeParameters(YTEnvSetup):
         time.sleep(1.0)
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
+        assert get(progress_path + "/weight") == 3.0
+        assert get(progress_path + "/resource_limits")["user_slots"] == 0
 
         set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
 
@@ -78,8 +80,10 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running", iter=10)
 
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)
+
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
+        assert get(progress_path + "/weight") == 5.0
 
         update_op_parameters(op.id, parameters={"owners": ["u"]})
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
@@ -95,28 +99,23 @@ class TestRuntimeParameters(YTEnvSetup):
             }
         })
 
-        assert assert_almost_equal(
-            get("//sys/operations/" + op.id + "/@runtime_parameters/scheduling_options_per_pool_tree/default/weight"),
-            3.0)
-        assert get("//sys/operations/" + op.id + "/@runtime_parameters/scheduling_options_per_pool_tree/default/resource_limits/user_slots") == 0
+        default_tree_parameters_path = "//sys/operations/{0}/@runtime_parameters/scheduling_options_per_pool_tree/default".format(op.id)
 
-        assert assert_almost_equal(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
-            3.0)
+        assert are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0)
+        assert get(default_tree_parameters_path + "/resource_limits/user_slots") == 0
+
+        assert are_almost_equal(get(progress_path + "/weight"), 3.0)
 
         # wait() here is essential since resource limits are recomputed during fair-share update.
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0,
-             iter=5)
+        wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
         wait(lambda: op.get_state() == "running", iter=10)
 
-        assert assert_almost_equal(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
-            3.0)
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
+        assert are_almost_equal(get(progress_path + "/weight"), 3.0)
+        assert get(progress_path + "/resource_limits")["user_slots"] == 0
 
     def test_update_pool_default_pooltree(self):
         create("map_node", "//sys/pools/initial_pool")

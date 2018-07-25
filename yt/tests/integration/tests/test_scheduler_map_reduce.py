@@ -28,7 +28,9 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
         }
     }
 
-    def do_run_test(self, method):
+    @pytest.mark.parametrize("method", ["map_sort_reduce", "map_reduce", "map_reduce_1p", "reduce_combiner_dev_null",
+                                        "force_reduce_combiners", "ordered_map_reduce"])
+    def test_simple(self, method):
         text = \
 """
 So, so you think you can tell Heaven from Hell,
@@ -175,6 +177,26 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                              "reducer": {"format": "dsv"},
                              "force_reduce_combiners": True},
                        tx=tx)
+        elif method == "ordered_map_reduce":
+            map_reduce(in_="//tmp/t_in",
+                       out="//tmp/t_out",
+                       sort_by="word",
+                       mapper_command="python mapper.py",
+                       mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
+                       reduce_combiner_command="python reducer.py",
+                       reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
+                       reducer_command="python reducer.py",
+                       reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
+                       spec={"partition_count": 2,
+                             "map_job_count": 2,
+                             "mapper": {"format": "dsv"},
+                             "reduce_combiner": {"format": "dsv"},
+                             "reducer": {"format": "dsv"},
+                             "data_size_per_sort_job": 10,
+                             "ordered": True},
+                       tx=tx)
+        else:
+            assert False
 
         commit_transaction(tx)
 
@@ -192,27 +214,8 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             assert_items_equal(read_table("//tmp/t_out"), output)
 
     @unix_only
-    def test_map_sort_reduce(self):
-        self.do_run_test("map_sort_reduce")
-
-    @unix_only
-    def test_map_reduce(self):
-        self.do_run_test("map_reduce")
-
-    @unix_only
-    def test_map_reduce_1partition(self):
-        self.do_run_test("map_reduce_1p")
-
-    @unix_only
-    def test_map_reduce_reduce_combiner_dev_null(self):
-        self.do_run_test("reduce_combiner_dev_null")
-
-    @unix_only
-    def test_map_reduce_force_reduce_combiners(self):
-        self.do_run_test("force_reduce_combiners")
-
-    @unix_only
-    def test_many_output_tables(self):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_many_output_tables(self, ordered):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
@@ -221,7 +224,8 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                    out=["//tmp/t_out1", "//tmp/t_out2"],
                    sort_by="line",
                    reducer_command="cat",
-                   spec={"reducer": {"format": "dsv"}})
+                   spec={"reducer": {"format": "dsv"},
+                         "ordered": ordered})
 
     @unix_only
     def test_reduce_with_sort(self):
@@ -408,7 +412,8 @@ print "x={0}\ty={1}".format(x, y)
         return [node_id]
 
     @unix_only
-    def test_lost_jobs(self):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_lost_jobs(self, ordered):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -424,13 +429,13 @@ print "x={0}\ty={1}".format(x, y)
              reduce_by="x",
              sort_by="x",
              reducer_command=reducer_cmd,
-             spec={
-                 "partition_count": 2,
-                 "sort_locality_timeout" : 0,
-                 "sort_assignment_timeout" : 0,
-                 "enable_partitioned_data_balancing" : False,
-                 "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
-                 "resource_limits" : { "user_slots" : 1}},
+             spec={"partition_count": 2,
+                   "sort_locality_timeout" : 0,
+                   "sort_assignment_timeout" : 0,
+                   "enable_partitioned_data_balancing" : False,
+                   "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
+                   "resource_limits" : { "user_slots" : 1},
+                   "ordered": ordered},
              dont_track=True)
 
         # We wait for the first reducer to start (second is pending due to resource_limits).
@@ -447,7 +452,8 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 1
 
     @unix_only
-    def test_unavailable_intermediate_chunks(self):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_unavailable_intermediate_chunks(self, ordered):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -463,14 +469,14 @@ print "x={0}\ty={1}".format(x, y)
              reduce_by="x",
              sort_by="x",
              reducer_command=reducer_cmd,
-             spec={
-                 "enable_intermediate_output_recalculation" : False,
-                 "sort_assignment_timeout" : 0,
-                 "sort_locality_timeout" : 0,
-                 "enable_partitioned_data_balancing" : False,
-                 "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
-                 "partition_count": 2,
-                 "resource_limits" : { "user_slots" : 1}},
+             spec={"enable_intermediate_output_recalculation" : False,
+                   "sort_assignment_timeout" : 0,
+                   "sort_locality_timeout" : 0,
+                   "enable_partitioned_data_balancing" : False,
+                   "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
+                   "partition_count": 2,
+                   "resource_limits" : { "user_slots" : 1},
+                   "ordered": ordered},
              dont_track=True)
 
         # We wait for the first reducer to start (the second one is pending due to resource_limits).
@@ -500,7 +506,8 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//sys/operations/{0}/@progress/partition_reduce_jobs/aborted".format(op.id)) > 0
         assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 0
 
-    def test_progress_counter(self):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_progress_counter(self, ordered):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -516,7 +523,7 @@ print "x={0}\ty={1}".format(x, y)
                         reduce_by="x",
                         sort_by="x",
                         reducer_command=reducer_cmd,
-                        spec={"partition_count": 1},
+                        spec={"partition_count": 1, "ordered": ordered},
                         dont_track=True)
 
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
@@ -726,15 +733,15 @@ print "x={0}\ty={1}".format(x, y)
                     "optimize_for": optimize_for
                 })
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         _create_dynamic_table("//tmp/t")
 
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(6)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         map_reduce(
             in_="//tmp/t",
@@ -746,9 +753,9 @@ print "x={0}\ty={1}".format(x, y)
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
         rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         map_reduce(
             in_="//tmp/t",
@@ -773,7 +780,8 @@ print "x={0}\ty={1}".format(x, y)
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
     @pytest.mark.parametrize("sorted", [False, True])
-    def test_map_output_table(self, sorted):
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_output_table(self, sorted, ordered):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         create("table", "//tmp/t_out_map", attributes={
@@ -791,7 +799,7 @@ print "x={0}\ty={1}".format(x, y)
             reducer_command="cat",
             reduce_by=["shuffle_key"],
             sort_by=["shuffle_key"],
-            spec={"mapper_output_table_count" : 1, "max_failed_job_count": 1, "data_size_per_map_job": 1})
+            spec={"mapper_output_table_count" : 1, "max_failed_job_count": 1, "data_size_per_map_job": 1, "ordered": ordered})
         assert read_table("//tmp/t_out") == [{"shuffle_key": 23}] * 10
         assert len(read_table("//tmp/t_out_map")) == 10
 

@@ -7,8 +7,8 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/api/public.h>
-#include <yt/ytlib/api/operation_archive_schema.h>
+#include <yt/client/api/public.h>
+#include <yt/client/api/operation_archive_schema.h>
 
 #include <yt/core/misc/nullable.h>
 
@@ -39,6 +39,7 @@ public:
     void SetStderrEnabled(bool enable);
     void SetFailContextEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
+    int ExtractWriteFailuresCount();
 
 private:
     class TImpl;

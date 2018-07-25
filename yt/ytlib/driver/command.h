@@ -3,8 +3,8 @@
 #include "private.h"
 #include "driver.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/security_client/public.h>
 

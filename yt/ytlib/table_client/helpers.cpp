@@ -4,11 +4,11 @@
 #include "schemaless_chunk_reader.h"
 #include "schemaless_chunk_writer.h"
 #include "private.h"
-#include "schemaless_reader.h"
-#include "schemaless_writer.h"
-#include "name_table.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/client/api/table_reader.h>
+#include <yt/client/api/table_writer.h>
+
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -16,13 +16,18 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/formats/parser.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
+
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -33,7 +38,6 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
-
 
 namespace NYT {
 namespace NTableClient {
@@ -46,7 +50,6 @@ using namespace NFormats;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NProto;
 using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
@@ -64,22 +67,22 @@ TTableOutput::TTableOutput(std::unique_ptr<IParser> parser)
     : Parser_(std::move(parser))
 { }
 
-TTableOutput::~TTableOutput() throw() = default;
+TTableOutput::~TTableOutput() = default;
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
-    YCHECK(IsParserValid_);
+    YCHECK(ParserValid_);
     try {
         Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
     } catch (const std::exception& ex) {
-        IsParserValid_ = false;
+        ParserValid_ = false;
         throw;
     }
 }
 
 void TTableOutput::DoFinish()
 {
-    if (IsParserValid_) {
+    if (ParserValid_) {
         // Dump everything into consumer.
         Parser_->Finish();
     }
@@ -87,19 +90,164 @@ void TTableOutput::DoFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiFromSchemalessChunkReaderAdapter
+    : public NApi::ITableReader
+{
+public:
+    explicit TApiFromSchemalessChunkReaderAdapter(ISchemalessChunkReaderPtr underlyingReader)
+        : UnderlyingReader_(std::move(underlyingReader))
+    { }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        return UnderlyingReader_->GetTableRowIndex();
+    }
+
+    virtual i64 GetTotalRowCount() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    {
+        return UnderlyingReader_->Read(rows);
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingReader_->GetNameTable();
+    }
+
+    virtual NTableClient::TKeyColumns GetKeyColumns() const override
+    {
+        return UnderlyingReader_->GetKeyColumns();
+    }
+
+private:
+    const ISchemalessChunkReaderPtr UnderlyingReader_;
+};
+
+NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
+    ISchemalessChunkReaderPtr underlyingReader)
+{
+    return New<TApiFromSchemalessChunkReaderAdapter>(std::move(underlyingReader));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TApiFromSchemalessWriterAdapter
+    : public NApi::ITableWriter
+{
+public:
+    explicit TApiFromSchemalessWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
+    { }
+
+    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    {
+        return UnderlyingWriter_->Write(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+
+private:
+    const ISchemalessWriterPtr UnderlyingWriter_;
+};
+
+NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
+    ISchemalessWriterPtr underlyingWriter)
+{
+    return New<TApiFromSchemalessWriterAdapter>(std::move(underlyingWriter));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessApiFromWriterAdapter
+    : public ISchemalessWriter
+{
+public:
+    explicit TSchemalessApiFromWriterAdapter(NApi::ITableWriterPtr underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
+    { }
+
+    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override
+    {
+        return UnderlyingWriter_->Write(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+
+private:
+    const NApi::ITableWriterPtr UnderlyingWriter_;
+};
+
+ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+    NApi::ITableWriterPtr underlyingWriter)
+{
+    return New<TSchemalessApiFromWriterAdapter>(std::move(underlyingWriter));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PipeReaderToWriter(
-    ISchemalessReaderPtr reader,
+    NApi::ITableReaderPtr reader,
     ISchemalessWriterPtr writer,
-    TPipeReaderToWriterOptions options)
+    const TPipeReaderToWriterOptions& options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
-    int bufferRowCount = options.BufferRowCount;
 
     std::vector<TUnversionedRow> rows;
-    rows.reserve(bufferRowCount);
+    rows.reserve(options.BufferRowCount);
 
     while (reader->Read(&rows)) {
         yielder.TryYield();
+
         if (rows.empty()) {
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
@@ -140,6 +288,17 @@ void PipeReaderToWriter(
     YCHECK(rows.empty());
 }
 
+void PipeReaderToWriter(
+    ISchemalessChunkReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    const TPipeReaderToWriterOptions& options)
+{
+    PipeReaderToWriter(
+        CreateApiFromSchemalessChunkReaderAdapter(reader),
+        std::move(writer),
+        options);
+}
+
 void PipeInputToOutput(
     IInputStream* input,
     IOutputStream* output,
@@ -169,7 +328,7 @@ void PipeInputToOutput(
     i64 bufferBlockSize)
 {
     struct TWriteBufferTag { };
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize, false);
 
     while (true) {
         auto length = WaitFor(input->Read(buffer))
@@ -184,7 +343,6 @@ void PipeInputToOutput(
 
     output->Finish();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -462,236 +620,6 @@ TTableUploadOptions GetTableUploadOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void YTreeNodeToUnversionedValue(TUnversionedOwningRowBuilder* builder, const INodePtr& value, int id, bool aggregate)
-{
-    switch (value->GetType()) {
-        case ENodeType::Entity:
-            builder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
-            break;
-        case ENodeType::Int64:
-            builder->AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
-            break;
-        case ENodeType::Uint64:
-            builder->AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
-            break;
-        case ENodeType::Double:
-            builder->AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
-            break;
-        case ENodeType::String:
-            builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
-            break;
-        default:
-            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
-            break;
-    }
-}
-
-TUnversionedOwningRow YsonToSchemafulRow(
-    const TString& yson,
-    const TTableSchema& tableSchema,
-    bool treatMissingAsNull)
-{
-    auto nameTable = TNameTable::FromSchema(tableSchema);
-
-    auto rowParts = ConvertTo<THashMap<TString, INodePtr>>(
-        TYsonString(yson, EYsonType::MapFragment));
-
-    TUnversionedOwningRowBuilder rowBuilder;
-    auto addValue = [&] (int id, INodePtr value) {
-        if (value->GetType() == ENodeType::Entity) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(
-                value->Attributes().Get<EValueType>("type", EValueType::Null), id));
-            return;
-        }
-
-        switch (tableSchema.Columns()[id].GetPhysicalType()) {
-            case EValueType::Boolean:
-                rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
-                break;
-            case EValueType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
-                break;
-            case EValueType::Uint64:
-                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
-                break;
-            case EValueType::Double:
-                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
-                break;
-            case EValueType::String:
-                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id));
-                break;
-            case EValueType::Any:
-                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
-                break;
-            default:
-                Y_UNREACHABLE();
-        }
-    };
-
-    const auto& keyColumns = tableSchema.GetKeyColumns();
-
-    // Key
-    for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
-        auto it = rowParts.find(nameTable->GetName(id));
-        if (it == rowParts.end()) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
-        } else {
-            addValue(id, it->second);
-        }
-    }
-
-    // Fixed values
-    for (int id = static_cast<int>(keyColumns.size()); id < static_cast<int>(tableSchema.Columns().size()); ++id) {
-        auto it = rowParts.find(nameTable->GetName(id));
-        if (it != rowParts.end()) {
-            addValue(id, it->second);
-        } else if (treatMissingAsNull) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
-        }
-    }
-
-    // Variable values
-    for (const auto& pair : rowParts) {
-        int id = nameTable->GetIdOrRegisterName(pair.first);
-        if (id >= tableSchema.Columns().size()) {
-            YTreeNodeToUnversionedValue(&rowBuilder, pair.second, id, false);
-        }
-    }
-
-    return rowBuilder.FinishRow();
-}
-
-TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
-{
-    TUnversionedOwningRowBuilder builder;
-
-    auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
-    for (const auto& value : values) {
-        int id = value->Attributes().Get<int>("id");
-        bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
-        YTreeNodeToUnversionedValue(&builder, value, id, aggregate);
-    }
-
-    return builder.FinishRow();
-}
-
-TVersionedRow YsonToVersionedRow(
-    const TRowBufferPtr& rowBuffer,
-    const TString& keyYson,
-    const TString& valueYson,
-    const std::vector<TTimestamp>& deleteTimestamps)
-{
-    TVersionedRowBuilder builder(rowBuffer);
-
-    auto keys = ConvertTo<std::vector<INodePtr>>(TYsonString(keyYson, EYsonType::ListFragment));
-
-    for (auto key : keys) {
-        int id = key->Attributes().Get<int>("id");
-        switch (key->GetType()) {
-            case ENodeType::Int64:
-                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), id));
-                break;
-            case ENodeType::Uint64:
-                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), id));
-                break;
-            case ENodeType::Double:
-                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), id));
-                break;
-            case ENodeType::String:
-                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), id));
-                break;
-            default:
-                Y_UNREACHABLE();
-                break;
-        }
-    }
-
-    auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
-    for (auto value : values) {
-        int id = value->Attributes().Get<int>("id");
-        auto timestamp = value->Attributes().Get<TTimestamp>("ts");
-        bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
-        switch (value->GetType()) {
-            case ENodeType::Entity:
-                builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id, aggregate));
-                break;
-            case ENodeType::Int64:
-                builder.AddValue(MakeVersionedInt64Value(value->GetValue<i64>(), timestamp, id, aggregate));
-                break;
-            case ENodeType::Uint64:
-                builder.AddValue(MakeVersionedUint64Value(value->GetValue<ui64>(), timestamp, id, aggregate));
-                break;
-            case ENodeType::Double:
-                builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id, aggregate));
-                break;
-            case ENodeType::String:
-                builder.AddValue(MakeVersionedStringValue(value->GetValue<TString>(), timestamp, id, aggregate));
-                break;
-            default:
-                builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).GetData(), timestamp, id, aggregate));
-                break;
-        }
-    }
-
-    for (auto timestamp : deleteTimestamps) {
-        builder.AddDeleteTimestamp(timestamp);
-    }
-
-    return builder.FinishRow();
-}
-
-TUnversionedOwningRow YsonToKey(const TString& yson)
-{
-    TUnversionedOwningRowBuilder keyBuilder;
-    auto keyParts = ConvertTo<std::vector<INodePtr>>(
-        TYsonString(yson, EYsonType::ListFragment));
-
-    for (int id = 0; id < keyParts.size(); ++id) {
-        const auto& keyPart = keyParts[id];
-        switch (keyPart->GetType()) {
-            case ENodeType::Int64:
-                keyBuilder.AddValue(MakeUnversionedInt64Value(
-                    keyPart->GetValue<i64>(),
-                    id));
-                break;
-            case ENodeType::Uint64:
-                keyBuilder.AddValue(MakeUnversionedUint64Value(
-                    keyPart->GetValue<ui64>(),
-                    id));
-                break;
-            case ENodeType::Double:
-                keyBuilder.AddValue(MakeUnversionedDoubleValue(
-                    keyPart->GetValue<double>(),
-                    id));
-                break;
-            case ENodeType::String:
-                keyBuilder.AddValue(MakeUnversionedStringValue(
-                    keyPart->GetValue<TString>(),
-                    id));
-                break;
-            case ENodeType::Entity:
-                keyBuilder.AddValue(MakeUnversionedSentinelValue(
-                    keyPart->Attributes().Get<EValueType>("type", EValueType::Null),
-                    id));
-                break;
-            default:
-                keyBuilder.AddValue(MakeUnversionedAnyValue(
-                    ConvertToYsonString(keyPart).GetData(),
-                    id));
-                break;
-        }
-    }
-
-    return keyBuilder.FinishRow();
-}
-
-TString KeyToYson(TUnversionedRow row)
-{
-    return ConvertToYsonString(row, EYsonFormat::Text).GetData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer)
 {
     TOutputResult result;
@@ -711,9 +639,9 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
 
     result.set_unique_keys(writer->GetSchema().GetUniqueKeys());
 
-    auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
+    auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
-    auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
+    auto backBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     result.set_max(backBoundaryKeys.max());
 
     return result;
@@ -723,7 +651,7 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount)
 {
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+    auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkMeta.extensions());
     auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
     auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
     return std::make_pair(minKey, maxKey);
@@ -763,7 +691,7 @@ void ValidateDynamicTableTimestamp(
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
 std::vector<TInputChunkPtr> CollectTableInputChunks(
     const TRichYPath& path,
-    const INativeClientPtr& client,
+    const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
     const TTransactionId& transactionId,
@@ -849,7 +777,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TValue>
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
 {
     for (const auto& value : values) {
         auto id = value.Id;
@@ -860,12 +788,12 @@ void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, con
     }
 }
 
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
 }
 
-void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));

@@ -2,12 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer.h>
-#include <yt/ytlib/chunk_client/writer_base.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -61,7 +60,7 @@ DEFINE_REFCOUNTED_TYPE(IFileMultiChunkWriter)
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,

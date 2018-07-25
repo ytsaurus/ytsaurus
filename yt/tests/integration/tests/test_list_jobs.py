@@ -68,7 +68,7 @@ class TestListJobs(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):
@@ -250,9 +250,11 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
             assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" in job for job in res])
 
             res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
             assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" not in job for job in res])
 
             validate_address_filter(op, False, True, False)
 
@@ -333,6 +335,7 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
             assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
+            assert all([job["has_spec"] for job in res])
 
             res = list_jobs(op.id, with_stderr=True, **options)["jobs"]
             assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
@@ -342,9 +345,11 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
             assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" in job for job in res])
 
             res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
             assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" not in job for job in res])
 
             validate_address_filter(op, True, False, False)
 
@@ -436,7 +441,7 @@ class TestListJobs(YTEnvSetup):
 
         clear_metadata_caches()
 
-        self.wait_for_cells(ls("//sys/tablet_cells"))
+        wait_for_cells(ls("//sys/tablet_cells"))
 
         mount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")

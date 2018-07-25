@@ -16,6 +16,12 @@ var v8_heapdump = require("heapdump");
 
 var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 
+if (!String.prototype.startsWith) {
+    String.prototype.startsWith = function(search, pos) {
+        return this.substr(!pos || pos < 0 ? 0 : +pos, search.length) === search;
+    };
+}
+
 // Bind UE handler early to avoid core dumps.
 process.on("uncaughtException", function(err) {
     console.error("*** Uncaught Exception ***");
@@ -325,7 +331,7 @@ logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : proce
 
 application = connect()
     .use(yt.YtLogRequest())
-    .use(yt.YtAcao())
+    .use(yt.YtAcao(config.disable_cors_check))
     .use(yt.YtCheckPythonWrapperVersion())
     .use(connect.favicon())
     .use("/hosts", yt.YtApplicationHosts())
@@ -417,6 +423,9 @@ application
         next();
     })
     .use(function(req, rsp) {
+        if (req.url.startsWith("/?")) {
+            return void yt.utils.redirectTo(rsp, "/ui" + req.url);
+        }
         rsp.statusCode = 404;
         return void yt.utils.dispatchAs(
             rsp, "Invalid URI " + JSON.stringify(req.url) + ". " +

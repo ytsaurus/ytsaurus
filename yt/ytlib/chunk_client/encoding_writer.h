@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "block.h"
-#include "data_statistics.h"
+
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/core/compression/public.h>
 

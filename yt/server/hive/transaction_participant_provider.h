@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -33,7 +33,7 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     NObjectClient::TCellTag cellTag);
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
-    NApi::INativeConnectionPtr connection);
+    NApi::NNative::IConnectionPtr connection);
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     NHiveClient::TClusterDirectoryPtr clusterDirectory);

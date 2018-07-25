@@ -42,12 +42,12 @@ NYTree::TPythonObjectBuilder* TDriverResponseHolder::GetPythonObjectBuilder()
     return ResponseParametersBuilder_.get();
 }
 
-void TDriverResponseHolder::OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream)
+void TDriverResponseHolder::OwnInputStream(std::unique_ptr<IInputStream> inputStream)
 {
     InputStream_.swap(inputStream);
 }
 
-void TDriverResponseHolder::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream)
+void TDriverResponseHolder::OwnOutputStream(std::unique_ptr<IOutputStream>& outputStream)
 {
     OutputStream_.swap(outputStream);
 }

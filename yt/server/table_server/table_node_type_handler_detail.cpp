@@ -6,6 +6,8 @@
 #include "shared_table_schema.h"
 #include "private.h"
 
+#include <yt/ytlib/table_client/schema.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 
@@ -179,7 +181,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
-    branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
+    branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
 
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }

@@ -1,8 +1,10 @@
 #include "etc_commands.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/api/client.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
+
+#include <yt/client/api/rpc_proxy/public.h>
 
 #include <yt/build/build.h>
 
@@ -21,8 +23,9 @@ using namespace NYson;
 using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NConcurrency;
-using namespace NApi;
 using namespace NFormats;
+using namespace NApi;
+using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +101,37 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
             .DoIf(result.ObjectName.HasValue(), [&] (TFluentMap fluent) {
                 fluent.Item("object_name").Value(result.ObjectName);
             })
+            .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_id").Value(result.SubjectId);
+            })
+            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_name").Value(result.SubjectName);
+            })
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCheckPermissionByAclCommand::TCheckPermissionByAclCommand()
+{
+    RegisterParameter("user", User);
+    RegisterParameter("permission", Permission);
+    RegisterParameter("acl", Acl);
+}
+
+void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result =
+        WaitFor(context->GetClient()->CheckPermissionByAcl(
+            User,
+            Permission,
+            Acl,
+            Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("action").Value(result.Action)
             .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })
@@ -253,6 +287,52 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
                 fluent.Item().Value(result.ValueOrThrow());
             });
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDiscoverProxiesCommand::TDiscoverProxiesCommand()
+{
+    RegisterParameter("type", Type)
+        .Default(EProxyType::Rpc);
+    RegisterParameter("role", Role)
+        .Default(NRpcProxy::DefaultProxyRole);
+}
+
+void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
+{
+    if (Type != EProxyType::Rpc && Type != EProxyType::Grpc) {
+        THROW_ERROR_EXCEPTION("Proxy type is not supported")
+            << TErrorAttribute("proxy_type", Type);
+    }
+
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    options.Attributes = {BannedAttributeName, RoleAttributeName};
+
+    TString path = (Type == EProxyType::Rpc) ? RpcProxiesPath : GrpcProxiesPath;
+
+    auto nodesYson = WaitFor(context->GetClient()->GetNode(path, options))
+        .ValueOrThrow();
+
+    std::vector<TString> addresses;
+    for (const auto& proxy : ConvertTo<THashMap<TString, IMapNodePtr>>(nodesYson)) {
+        if (!proxy.second->FindChild(AliveNodeName)) {
+            continue;
+        }
+
+        if (proxy.second->Attributes().Get(BannedAttributeName, false)) {
+            continue;
+        }
+
+        if (Role && proxy.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole) != *Role) {
+            continue;
+        }
+
+        addresses.push_back(proxy.first);
+    }
+
+    ProduceSingleOutputValue(context, "proxies", addresses);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

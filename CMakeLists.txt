@@ -221,7 +221,7 @@ endif()
 include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/tclap # header-only library
+  ${CMAKE_SOURCE_DIR}/yt/contrib/tclap # header-only library
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src # header-only library
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2 # re2 contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
@@ -247,6 +247,7 @@ add_subdirectory(cmake/deps-arcadia-contrib-libs-libbz2)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-lz4)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-lzmasdk)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-minilzo)
+add_subdirectory(cmake/deps-arcadia-contrib-libs-msgpack)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-nanopb)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-openssl)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-protobuf)
@@ -277,7 +278,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   add_subdirectory(cmake/deps-yt-contrib-portoapi)
 endif()
 add_subdirectory(cmake/deps-yt-contrib-zstd-legacy)
-add_subdirectory(cmake/deps-contrib-benchmark)
+add_subdirectory(cmake/deps-non_arcadia_contrib-benchmark)
 add_subdirectory(python)
 add_subdirectory(yt)
 if (YT_BUILD_HAVE_CYTHON AND YT_BUILD_ENABLE_YP)
@@ -328,6 +329,36 @@ if(YT_CAN_BUILD_PACKAGE)
     COMMENT "Updating changelog..."
   )
 
+  add_custom_target(proto-changelog
+    COMMAND rm -f ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-proto/debian/changelog
+    COMMAND dch
+      --create
+      ${DCH_VENDOR_FLAG} "yandex"
+      --package "yandex-yt-python-proto"
+      --distribution "unstable"
+      --newversion "${YT_RPC_PROXY_PROTOCOL_VERSION}"
+      --urgency "low"
+      --force-distribution
+      "Proto package release."
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-proto
+    COMMENT "Creating yandex-yt-python-proto changelog..."
+  )
+
+  add_custom_target(driver-rpc-changelog
+    COMMAND rm -f ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver-rpc/debian/changelog
+    COMMAND dch
+      --create
+      ${DCH_VENDOR_FLAG} "yandex"
+      --package "yandex-yt-python-driver-rpc"
+      --distribution "unstable"
+      --newversion "${YT_RPC_PROXY_PROTOCOL_VERSION}.1"
+      --urgency "low"
+      --force-distribution
+      "Proto package release."
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver-rpc
+    COMMENT "Creating yandex-yt-python-driver-rpc changelog..."
+  )
+
   find_package(Git)
   if (NOT GIT_FOUND)
     message(FATAL_ERROR "Git is required for packaging")
@@ -365,12 +396,16 @@ if(YT_CAN_BUILD_PACKAGE)
       | sed 's/^yandex-yt/yandex-yt-python-driver/'
       > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
     COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
+    COMMAND ${CMAKE_SOURCE_DIR}/python/build_proto.sh
     COMMAND mv
       ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
+    COMMAND mv
+      ../yandex-yt-python-*
+      ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
     COMMENT "Packaging YT Python..."
-    DEPENDS changelog
+    DEPENDS changelog proto-changelog driver-rpc-changelog
   )
 
   function(HOOK_FOR_DEBIAN package component)

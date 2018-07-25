@@ -2,8 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/misc/workload.h>
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/misc/workload.h>
 
 namespace NYT {
 namespace NQueryClient {

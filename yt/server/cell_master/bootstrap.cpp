@@ -74,10 +74,10 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/remote_timestamp_provider.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 

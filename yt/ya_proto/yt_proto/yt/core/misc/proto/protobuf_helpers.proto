@@ -1,0 +1,26 @@
+package NYtPython.NProto;
+
+option java_package = "ru.yandex.yt";
+option java_multiple_files = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSerializedMessageEnvelope
+{
+    optional int32 codec = 1 [default = 0];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TExtension
+{
+    required int32 tag = 1;
+    required bytes data = 2;
+}
+
+message TExtensionSet
+{
+    repeated TExtension extensions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

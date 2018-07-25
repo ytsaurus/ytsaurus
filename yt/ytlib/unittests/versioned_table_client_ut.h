@@ -3,9 +3,9 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/versioned_reader.h>
 
 namespace NYT {
 namespace NTableClient {

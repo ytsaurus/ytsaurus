@@ -107,7 +107,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/task.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/vanilla_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/memory_tag_queue.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/proto/controller_agent_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
@@ -187,6 +186,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/commit.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/abort.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/helpers.cpp
@@ -237,6 +237,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hydra/sync_file_changelog.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_quota_helpers.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/job_agent/gpu_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job_statistics.cpp
@@ -244,6 +245,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/statistics_reporter.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/environment.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_bandwidth_throttler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
@@ -368,12 +370,15 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/http.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/rb_torrent.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/skynet_api.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/skynet_manager.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/cypress_sync.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/share_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/announcer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/peer_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/msgpack.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/tables.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/skynet_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/resource.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/shell/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shell/shell.cpp

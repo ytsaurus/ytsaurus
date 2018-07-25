@@ -62,6 +62,9 @@ set(YT_VERSION_MINOR 3)
 set(YT_VERSION_PATCH ${YT_BUILD_GIT_DEPTH})
 set(YT_ABI_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}")
 
+# Set the YT RPC protocol version
+include(${PROJECT_SOURCE_DIR}/yt/RpcProxyProtocolVersion.txt)
+
 # Clone some version attributes from YT to YP
 set(YP_BUILD_BRANCH "${YT_BUILD_BRANCH}")
 set(YP_BUILD_NUMBER "${YT_BUILD_NUMBER}")
@@ -135,13 +138,13 @@ if (NOT YT_BUILD_VCS_NUMBER)
       message(WARNING
         "Error running command `${_GIT} -C ${PROJECT_SOURCE_DIR} rev-parse HEAD` \
         for getting local build commit SHA.\nStderr:\n${GIT_ERROR}")
-      set(YT_BUILD_VCS_NUMBER "0000000")
+      set(YT_BUILD_VCS_NUMBER "0000000000")
     else()
-      string(SUBSTRING ${YT_BUILD_VCS_NUMBER} 0 7 YT_BUILD_VCS_NUMBER)
+      string(SUBSTRING ${YT_BUILD_VCS_NUMBER} 0 10 YT_BUILD_VCS_NUMBER)
       message(STATUS "Setting local build commit SHA `${YT_BUILD_VCS_NUMBER}`")
     endif()
   else()
-    set(YT_BUILD_VCS_NUMBER "0000000")
+    set(YT_BUILD_VCS_NUMBER "0000000000")
   endif()
 endif()
 

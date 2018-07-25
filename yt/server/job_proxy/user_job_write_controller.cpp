@@ -6,13 +6,13 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -57,7 +57,12 @@ void TUserJobWriteController::Init()
         Initialized_ = true;
     });
 
-    auto userJobIOFactory = CreateUserJobIOFactory(Host_->GetJobSpecHelper(), TClientBlockReadOptions(), Host_->GetTrafficMeter());
+    auto userJobIOFactory = CreateUserJobIOFactory(
+        Host_->GetJobSpecHelper(),
+        TClientBlockReadOptions(),
+        Host_->GetTrafficMeter(),
+        Host_->GetInThrottler(),
+        Host_->GetOutThrottler());
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
     auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
@@ -113,7 +118,8 @@ void TUserJobWriteController::Init()
                 options,
                 debugTransactionId,
                 FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
-                Host_->GetTrafficMeter()));
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler()));
     }
 }
 

@@ -13,8 +13,7 @@ namespace NTableClient {
 
 struct IRowSampler
 {
-    virtual ~IRowSampler()
-    { }
+    virtual ~IRowSampler() = default;
 
     virtual bool ShouldTakeRow(i64 rowIndex) = 0;
 };

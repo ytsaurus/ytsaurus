@@ -12,10 +12,10 @@ class Operation(object):
         self._cluster = cluster
 
         self.operation_id = operation_id
+        self.operation_path = "//sys/operations/{}/{}".format(operation_id[-2:], operation_id)
         self.errors = []
         self._attrs = None
         self._snapshot_size = None
-        self._orchid = None
         self._output_resource_usage = None
         self._debug_output_resource_usage = None
         self._output_chunks = None
@@ -24,7 +24,7 @@ class Operation(object):
         self._input_disk_usage = None
 
     def fetch_attrs(self):
-        attrs = self._batch_client.get("//sys/operations/{}/@".format(self.operation_id))
+        attrs = self._batch_client.get("{}/@".format(self.operation_path, self.operation_id))
         yield
 
         if attrs.is_ok():
@@ -33,7 +33,7 @@ class Operation(object):
             self.errors.append(attrs.get_error())
 
     def fetch_snapshot_size(self):
-        snapshot_size = self._batch_client.get("//sys/operations/{}/snapshot/@uncompressed_data_size".format(self.operation_id))
+        snapshot_size = self._batch_client.get("{}/snapshot/@uncompressed_data_size".format(self.operation_path))
         yield
 
         if snapshot_size.is_ok():
@@ -108,18 +108,9 @@ class Operation(object):
 
             disk_space += input_object.get_result()["resource_usage"]["disk_space"]
         self._input_disk_usage = disk_space
-
-    def fetch_orchid(self):
-        orchid = self._batch_client.get("//sys/scheduler/orchid/scheduler/operations/{}".format(self.operation_id))
-        yield
-        if orchid.is_ok():
-            self._orchid = orchid.get_result()
-        else:
-            self._orchid = None
-            self.errors.append(orchid.get_error())
-    
+  
     def fetch_controller_memory_usage(self):
-        controller_memory_usage = self._batch_client.get("//sys/scheduler/orchid/scheduler/operations/{}/controller_memory_usage".format(self.operation_id))
+        controller_memory_usage = self._batch_client.get("{}/controller_orchid/memory_usage".format(self.operation_path))
         yield
         if controller_memory_usage.is_ok():
             self._controller_memory_usage = controller_memory_usage.get_result()
@@ -131,13 +122,12 @@ class Operation(object):
 
     def get_default_attrs(self):
         if self._attrs is None:
-            return None
+            self._attrs = {}
 
         return {
-            "operation_type": self._attrs["operation_type"],
-            "authenticated_user": self._attrs["authenticated_user"],
-            "pool": self._attrs.get("pool", "<unknown>"),
-            "title": self._attrs["spec"].get("title", "")
+            "operation_type": self._attrs.get("operation_type", "<unknown>"),
+            "authenticated_user": self._attrs.get("authenticated_user", "<unknown>"),
+            "pool": self._attrs.get("spec", {}).get("pool", "<unknown>"),
         }
 
     def get_job_count(self):
@@ -199,6 +189,17 @@ class Operation(object):
     def get_url(self):
         return "https://yt.yandex-team.ru/{}/#page=operation&mode=detail&id={}".format(self._cluster, self.operation_id)
 
+    def set_controller_memory_usage(self, usage):
+    	self._controller_memory_usage = usage
+
+class ControllerAgent(object):
+    def __init__(self, controller_agent_instance, client):
+        self._client = client
+        self._controller_agent_instance = controller_agent_instance
+
+    def get_alive_operations_data(self):
+        all_operations = self._client.get("//sys/controller_agents/instances/{}/orchid/controller_agent/tagged_memory_statistics".format(self._controller_agent_instance))
+        return filter(lambda x : x["alive"], all_operations)
 
 def report_operations(operations, top_k, key_field, key_name):
     candidates = []
@@ -225,7 +226,6 @@ def report_operations(operations, top_k, key_field, key_name):
     for op in displayed:
         print fmt.format(**op)
 
-
 def fetch_batch(batch_client, operations, fetch):
     generators = []
     for op in operations:
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
 
-    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "output-disk-space", "controller-memory-usage"]
+    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "output-disk-space", "controller-memory-usage", "controller-memory-usage-fast"]
     parser.add_argument("--top-by", choices=choices, default="job-count")
 
     parser.add_argument("--in-account", help="Count resource usage only in this account")
@@ -253,9 +253,11 @@ if __name__ == "__main__":
 
     client = yt.YtClient(proxy=args.proxy)
     batch_client = client.create_batch_client()
-    operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/operations") if len(operation_id) > 2]
-
-    fetch_batch(batch_client, operations, lambda op: op.fetch_attrs())
+    
+    operations = []
+    if args.top_by != "controller-memory-usage-fast":
+        operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/scheduler/orchid/scheduler/operations")]
+        fetch_batch(batch_client, operations, lambda op: op.fetch_attrs())
 
     if args.top_by == "job-count":
         report_operations(operations, args.k, lambda op: op.get_job_count(), args.top_by)
@@ -284,6 +286,18 @@ if __name__ == "__main__":
     elif args.top_by == "controller-memory-usage":
         fetch_batch(batch_client, operations, lambda op: op.fetch_controller_memory_usage())
 
+        report_operations(operations, args.k, lambda op: op.get_controller_memory_usage(), args.top_by)
+    elif args.top_by == "controller-memory-usage-fast":
+
+        controller_agents = [ControllerAgent(controller_agent_instance, client) for controller_agent_instance in client.list("//sys/controller_agents/instances")]
+        candidates = []
+        for ca in controller_agents:
+            candidates.extend(ca.get_alive_operations_data())
+        top_operations = sorted(candidates, key=lambda x: x["usage"], reverse=True)[:args.k]
+        for op in top_operations:
+            operations.append(Operation(op["operation_id"], args.proxy, batch_client))
+            operations[-1].set_controller_memory_usage(op["usage"]);
+        fetch_batch(batch_client, operations, lambda op: op.fetch_attrs())
         report_operations(operations, args.k, lambda op: op.get_controller_memory_usage(), args.top_by)
 
     if args.show_errors:

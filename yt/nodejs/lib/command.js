@@ -9,6 +9,7 @@ var utils = require("./utils");
 var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 
 var YtError = require("./error").that;
+var YtRegistry = require("./registry").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -518,8 +519,10 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     var is_heavy = this.descriptor.is_heavy;
     var is_control = this.coordinator.getSelf().role === "control";
     var is_suppress = typeof(this.req.headers["x-yt-suppress-redirect"]) !== "undefined";
+    var is_ui = this.req.authenticated_from === "blackbox_session_cookie";
+    var config = YtRegistry.get("config") || {};
 
-    if (is_heavy && is_control && !is_suppress) {
+    if (is_heavy && is_control && !is_suppress && !(is_ui && config.disable_ui_redirects)) {
         if (this.descriptor.input_type_as_integer !== binding.EDataType_Null) {
             this.rsp.statusCode = 503;
             this.rsp.setHeader("Retry-After", "60");
@@ -535,7 +538,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
             var target_host = target.host;
             var source_host = this.req.headers.host;
             if (typeof(source_host) === "string") {
-                if (/yandex-team\.ru$/.test(source_host)) {
+                if (!config.disable_location_rewrite && /yandex-team\.ru$/.test(source_host)) {
                     target_host = target_host.replace("yandex.net", "yandex-team.ru");
                 }
             }

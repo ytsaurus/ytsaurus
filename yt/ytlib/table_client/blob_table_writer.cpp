@@ -1,15 +1,18 @@
 #include "blob_table_writer.h"
-
 #include "helpers.h"
-#include "name_table.h"
 #include "private.h"
-#include "public.h"
 #include "schemaless_chunk_writer.h"
+
+#include <yt/ytlib/chunk_client/config.h>
+
+#include <yt/ytlib/table_client/config.h>
 
 #include <yt/core/yson/lexer.h>
 
-#include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -17,6 +20,7 @@ namespace NTableClient {
 static const auto& Logger = TableClientLogger;
 
 using namespace NYson;
+using namespace NConcurrency;
 
 using NConcurrency::WaitFor;
 using NCypressClient::TTransactionId;
@@ -48,12 +52,13 @@ TTableSchema TBlobTableSchema::ToTableSchema() const
 TBlobTableWriter::TBlobTableWriter(
     const TBlobTableSchema& blobTableSchema,
     const std::vector<TYsonString>& blobIdColumnValues,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     const TTransactionId& transactionId,
     const TChunkListId& chunkListId,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
 {
     LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
@@ -92,7 +97,8 @@ TBlobTableWriter::TBlobTableWriter(
         transactionId,
         chunkListId,
         TChunkTimestamps(),
-        trafficMeter);
+        trafficMeter,
+        throttler);
 }
 
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const

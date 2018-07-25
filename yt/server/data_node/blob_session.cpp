@@ -9,14 +9,14 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/misc/fs.h>
 

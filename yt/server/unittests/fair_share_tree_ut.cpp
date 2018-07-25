@@ -501,6 +501,86 @@ TEST(FairShareTree, TestOperationCountLimits)
     EXPECT_EQ(rootElement->RunningOperationCount(), 0);
 }
 
+TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
+{
+    auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    // Total resource vector is <100, 100>.
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResources}));
+
+    // First operation with demand <5, 5>.
+    TJobResourcesWithQuota firstOperationJobResources;
+    firstOperationJobResources.SetCpu(5);
+    firstOperationJobResources.SetMemory(5);
+
+    auto firstOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, firstOperationJobResources));
+    auto firstOperationController = New<TFairShareStrategyOperationController>(firstOperation.Get());
+    auto firstOperationElement = New<TOperationElement>(
+            treeConfig,
+            New<TStrategyOperationSpec>(),
+            operationOptions,
+            firstOperationController,
+            config,
+            host.Get(),
+            firstOperation.Get(),
+            "default");
+
+    // Second operation with demand <5, 10>.
+    TJobResourcesWithQuota secondOperationJobResources;
+    secondOperationJobResources.SetCpu(5);
+    secondOperationJobResources.SetMemory(10);
+
+    auto secondOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, secondOperationJobResources));
+    auto secondOperationController = New<TFairShareStrategyOperationController>(secondOperation.Get());
+    auto secondOperationElement = New<TOperationElement>(
+            treeConfig,
+            New<TStrategyOperationSpec>(),
+            operationOptions,
+            secondOperationController,
+            config,
+            host.Get(),
+            secondOperation.Get(),
+            "default");
+
+    // Pool with total demand <10, 15>.
+    auto pool = New<TPool>(
+            host.Get(),
+            "A",
+            New<TPoolConfig>(),
+            true,
+            treeConfig,
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+            "default");
+
+    pool->AddChild(firstOperationElement, true);
+    firstOperationElement->SetParent(pool.Get());
+    pool->AddChild(secondOperationElement);
+    secondOperationElement->SetParent(pool.Get());
+
+    // Root element.
+    auto rootElement = New<TRootElement>(
+            host.Get(),
+            treeConfig,
+            // TODO(ignat): eliminate profiling from test.
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+            "default");
+
+    rootElement->AddChild(pool, true);
+    pool->SetParent(rootElement.Get());
+
+    // Сheck MaxPossibleUsageRatio computation.
+    auto dynamicAttributes = TDynamicAttributesList(4);
+    rootElement->Update(dynamicAttributes);
+    EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

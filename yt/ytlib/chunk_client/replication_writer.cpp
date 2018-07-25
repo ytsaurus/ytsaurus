@@ -3,7 +3,6 @@
 #include "traffic_meter.h"
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_replica.h"
 #include "chunk_service_proxy.h"
 #include "chunk_writer.h"
 #include "config.h"
@@ -11,16 +10,20 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/config.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -178,7 +181,7 @@ public:
         const TSessionId& sessionId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter)
@@ -190,6 +193,7 @@ public:
         , NodeDirectory_(nodeDirectory)
         , Throttler_(throttler)
         , BlockCache_(blockCache)
+        , TrafficMeter_(trafficMeter)
         , Logger(NLogging::TLogger(ChunkClientLogger)
             .AddTag("ChunkId: %v", SessionId_))
         , Networks_(client->GetNativeConnection()->GetNetworks())
@@ -197,7 +201,6 @@ public:
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
         , AllocateWriteTargetsTimestamp_(TInstant::Zero())
-        , TrafficMeter_(trafficMeter)
     {
         ClosePromise_.TrySetFrom(StateError_.ToFuture());
     }
@@ -323,10 +326,11 @@ private:
     const TRemoteWriterOptionsPtr Options_;
     const TSessionId SessionId_;
     const TChunkReplicaList InitialTargets_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     const NLogging::TLogger Logger;
     const TNetworkPreferenceList Networks_;
@@ -366,8 +370,6 @@ private:
     int AllocateWriteTargetsRetryIndex_ = 0;
 
     std::vector<TString> BannedNodes_;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     bool HasSickReplicas_ = false;
 
@@ -780,6 +782,7 @@ private:
         }
 
         if (!hasUnfinishedNode || (Config_->EnableEarlyFinish && finishedNodeCount >= MinUploadReplicationFactor_)) {
+            State_ = EReplicationWriterState::Closed;
             ClosePromise_.TrySet();
             CancelWriter();
             LOG_INFO("Writer closed");
@@ -966,8 +969,10 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         node->Descriptor.GetDefaultAddress(),
         Size_);
 
-    auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
-    YCHECK(throttleResult.IsOK());
+    if (node->Descriptor.GetDefaultAddress() != GetLocalHostName()) {
+        auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
+        YCHECK(throttleResult.IsOK());
+    }
 
     LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
         FirstBlockIndex_,
@@ -1118,7 +1123,7 @@ IChunkWriterPtr CreateReplicationWriter(
     const TSessionId& sessionId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)

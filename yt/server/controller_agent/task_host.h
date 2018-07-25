@@ -10,7 +10,7 @@
 
 #include <yt/server/scheduler/public.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -129,6 +129,8 @@ struct ITaskHost
         const NChunkClient::TInputChunkPtr& chunk) = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
+
+    virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

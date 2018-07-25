@@ -15,10 +15,13 @@ SOCKET CreateTcpServerSocket();
 SOCKET CreateUnixServerSocket();
 SOCKET CreateTcpClientSocket(int family);
 SOCKET CreateUnixClientSocket();
+SOCKET CreateUdpSocket();
 
 //! Start connect on the socket. Any errors other than EWOULDBLOCK,
 //! EAGAIN and EINPROGRESS are thrown as exceptions.
 int ConnectSocket(SOCKET clientSocket, const TNetworkAddress& address);
+
+void SetReuseAddrFlag(SOCKET socket);
 
 //! Try binding socket to address. Error is thrown as exception.
 void BindSocket(SOCKET serverSocket, const TNetworkAddress& address);

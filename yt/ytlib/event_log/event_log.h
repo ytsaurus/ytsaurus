@@ -2,7 +2,7 @@
 
 #include "config.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/core/misc/enum.h>
 
@@ -27,7 +27,6 @@ typedef TFluentLogEventImpl<NYTree::TFluentYsonVoid> TFluentLogEvent;
 class TFluentEventLogger
 {
 public:
-    TFluentEventLogger();
     ~TFluentEventLogger();
 
     TFluentLogEvent LogEventFluently(NYson::IYsonConsumer* consumer);
@@ -36,8 +35,8 @@ private:
     template <class TParent>
     friend class TFluentLogEventImpl;
 
-    NYson::IYsonConsumer* Consumer_;
-    std::atomic<int> Counter_;
+    NYson::IYsonConsumer* Consumer_ = nullptr;
+    std::atomic<int> Counter_ = {0};
 
     void Acquire();
     void Release();
@@ -81,7 +80,7 @@ class TEventLogWriter
 public:
     TEventLogWriter(
         const TEventLogConfigPtr& config,
-        const NApi::INativeClientPtr& client,
+        const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker);
 
     std::unique_ptr<NYson::IYsonConsumer> CreateConsumer();

@@ -22,10 +22,10 @@
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/functions_builder.h>
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/pipe.h>
 
@@ -2191,7 +2191,8 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "a=72",
         "a=80;s=y",
         "a=85",
-        "a=90;s=z"
+        "a=90;s=z",
+        "a=11;s=\"\"",
     };
 
     auto resultSplit = MakeSplit({
@@ -2203,7 +2204,8 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "x=y;t=160",
         "x=x;t=120",
         "t=199",
-        "x=z;t=160"
+        "x=z;t=160",
+        "x=\"\";t=11"
     }, resultSplit);
 
     Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", split, source, ResultMatcher(result));

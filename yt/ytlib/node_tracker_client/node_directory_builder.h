@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

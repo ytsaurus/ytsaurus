@@ -10,7 +10,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
@@ -968,8 +968,8 @@ private:
                 if (cmpMax != 0) {
                     return cmpMax < 0;
                 }
-                // This is possible only when both chunks contain the same only key.
-                YCHECK(lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
+                // This is possible only when both chunks contain the same only key or we comparing chunk with itself.
+                YCHECK(&lhs == &rhs || lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
                 return false;
             });
 

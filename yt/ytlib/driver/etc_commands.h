@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -85,6 +85,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCheckPermissionByAclCommand
+    : public TTypedCommand<NApi::TCheckPermissionByAclOptions>
+{
+public:
+    TCheckPermissionByAclCommand();
+
+private:
+    TNullable<TString> User;
+    NYTree::EPermission Permission;
+    NYTree::INodePtr Acl;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TExecuteBatchOptions
     : public NApi::TMutatingOptions
 {
@@ -114,6 +130,30 @@ private:
     std::vector<TRequestPtr> Requests;
 
     class TRequestExecutor;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EProxyType,
+    ((Http) (1))
+    ((Rpc)  (2))
+    ((Grpc) (3))
+);
+
+struct TDiscoverProxiesOptions
+{ };
+
+class TDiscoverProxiesCommand
+    : public TTypedCommand<TDiscoverProxiesOptions>
+{
+public:
+    TDiscoverProxiesCommand();
+
+private:
+    EProxyType Type;
+    TNullable<TString> Role;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

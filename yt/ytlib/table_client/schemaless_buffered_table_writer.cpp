@@ -1,13 +1,14 @@
 #include "schemaless_buffered_table_writer.h"
 #include "private.h"
 #include "config.h"
-#include "name_table.h"
-#include "row_buffer.h"
 #include "schemaless_chunk_writer.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -45,7 +46,7 @@ public:
     TSchemalessBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TNameTablePtr nameTable,
         const TYPath& path)
         : Config_(config)
@@ -116,7 +117,7 @@ public:
 private:
     const TBufferedTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNameTablePtr NameTable_;
     const TYPath Path_;
 
@@ -280,7 +281,7 @@ private:
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TNameTablePtr nameTable,
     const TYPath& path)
 {

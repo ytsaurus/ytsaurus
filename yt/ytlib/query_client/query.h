@@ -3,8 +3,8 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/property.h>
@@ -27,15 +27,15 @@ struct TColumnDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpressionKind,
-    (None)
-    (Literal)
-    (Reference)
-    (Function)
-    (UnaryOp)
-    (BinaryOp)
-    (In)
-    (Transform)
-    (Between)
+    ((None)       (0))
+    ((Literal)    (1))
+    ((Reference)  (2))
+    ((Function)   (3))
+    ((UnaryOp)    (4))
+    ((BinaryOp)   (5))
+    ((In)         (6))
+    ((Transform)  (7))
+    ((Between)    (8))
 );
 
 struct TExpression

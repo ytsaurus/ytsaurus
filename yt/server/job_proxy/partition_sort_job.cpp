@@ -7,11 +7,11 @@
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_partition_sort_reader.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -72,7 +72,8 @@ public:
             SchedulerJobSpecExt_.is_approximate(),
             SortJobSpecExt_.partition_tag(),
             BlockReadOptions_,
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetInThrottler());
 
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
@@ -99,7 +100,8 @@ public:
             transactionId,
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetOutThrottler());
     }
 
     virtual double GetProgress() const override

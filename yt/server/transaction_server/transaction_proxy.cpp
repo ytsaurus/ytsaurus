@@ -13,7 +13,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/ytree/convert.h>

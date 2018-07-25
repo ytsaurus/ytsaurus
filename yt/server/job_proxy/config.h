@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/cgroup/config.h>
 
-#include <yt/ytlib/file_client/config.h>
+#include <yt/client/file_client/config.h>
 
 #include <yt/ytlib/hydra/config.h>
 
@@ -36,11 +36,13 @@ public:
     TNullable<TString> TmpfsPath;
     std::vector<NExecAgent::TBindConfigPtr> Binds;
 
+    std::vector<TString> GpuDevices;
+
     //! Path for container root.
     TNullable<TString> RootPath;
 
     // Job-independent parameters.
-    NApi::TNativeConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
@@ -56,6 +58,7 @@ public:
     TNullable<TString> DataCenter;
 
     TDuration CoreForwarderTimeout;
+    TDuration BandwidthThrottlerRpcTimeout;
 
     i64 AheadMemoryReserve;
 
@@ -72,6 +75,9 @@ public:
             .Default();
 
         RegisterParameter("binds", Binds)
+            .Default();
+
+        RegisterParameter("gpu_devices", GpuDevices)
             .Default();
 
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -100,6 +106,10 @@ public:
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
+
+        // Disable throttling when this timeout is 0.
+        RegisterParameter("bandwidth_throttler_rpc_timeout", BandwidthThrottlerRpcTimeout)
+            .Default(TDuration::Zero());
 
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);

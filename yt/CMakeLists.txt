@@ -2,10 +2,17 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include # for udfs
 )
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/protocol_version.py.in
+  ${PROJECT_SOURCE_DIR}/python/yt_proto/protocol_version.py
+  @ONLY
+)
+
 add_subdirectory(build)
 add_subdirectory(core)
 add_subdirectory(core/test_framework)
 add_subdirectory(ytlib)
+add_subdirectory(client)
 add_subdirectory(run_codec)
 add_subdirectory(python)
 add_subdirectory(tools)
@@ -44,8 +51,3 @@ endif()
 if (YT_BUILD_ENABLE_CPP_TESTS)
   add_subdirectory(tests/cpp)
 endif()
-
-if(CMAKE_VERSION VERSION_GREATER "3.0")
-  file(LOCK ${CMAKE_CURRENT_LIST_DIR}/tests/integration/build_type.py GUARD FILE)
-endif()
-file(WRITE ${CMAKE_CURRENT_LIST_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")

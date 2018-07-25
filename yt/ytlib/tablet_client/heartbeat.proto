@@ -11,6 +11,7 @@ message TTabletSlotInfo
     required int32 peer_state = 1;
     optional int32 peer_id = 2;
     optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
+    optional int32 dynamic_config_version = 4;
 }
 
 message TTableReplicaStatistics
@@ -84,6 +85,13 @@ message TConfigureTabletSlotInfo
 {
     required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
     required NYT.NProto.TGuid prerequisite_transaction_id = 2;
+}
+
+message TUpdateTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 dynamic_config_version = 2;
+    optional bytes dynamic_options = 3; // NTabletClient::TDynamicTabletCellOptions
 }
 
 message TRemoveTabletSlotInfo

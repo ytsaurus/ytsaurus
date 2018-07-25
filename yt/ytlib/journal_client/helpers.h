@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/core/actions/future.h>

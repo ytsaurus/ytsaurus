@@ -5,7 +5,7 @@
 #include <yt/core/skiff/schema_match.h>
 #include <yt/core/skiff/parser.h>
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 #include <yt/ytlib/table_client/value_consumer.h>
 

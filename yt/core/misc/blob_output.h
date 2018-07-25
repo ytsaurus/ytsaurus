@@ -14,7 +14,7 @@ public:
     TBlobOutput();
     explicit TBlobOutput(size_t capacity);
 
-    ~TBlobOutput() throw();
+    ~TBlobOutput();
 
     const TBlob& Blob() const;
 

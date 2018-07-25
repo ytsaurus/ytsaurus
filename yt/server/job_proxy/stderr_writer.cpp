@@ -146,9 +146,10 @@ void TStderrWriter::SaveCurrentDataTo(IOutputStream* output) const
 void TStderrWriter::Upload(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     const NObjectClient::TTransactionId& transactionId,
-    NChunkClient::TTrafficMeterPtr trafficMeter)
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     try {
         TFileChunkOutput fileChunkOutput(
@@ -156,7 +157,8 @@ void TStderrWriter::Upload(
             options,
             client,
             transactionId,
-            trafficMeter);
+            trafficMeter,
+            throttler);
         SaveCurrentDataTo(&fileChunkOutput);
         fileChunkOutput.Finish();
         ChunkId_ = fileChunkOutput.GetChunkId();

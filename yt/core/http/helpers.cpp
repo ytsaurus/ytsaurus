@@ -30,26 +30,34 @@ void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
     auto jsonWriter = CreateJsonConsumer(&errorJsonOutput);
     Serialize(error, jsonWriter.get());
     jsonWriter->Flush();
-            
+
     rsp->GetHeaders()->Add("X-YT-Error", errorJson);
     rsp->GetHeaders()->Add("X-YT-Response-Code",
         ToString(static_cast<i64>(error.GetCode())));
     rsp->GetHeaders()->Add("X-YT-Response-Message", error.GetMessage());
 }
 
-TError ParseYTError(const IResponsePtr& rsp)
+TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers)
 {
-    TString errorJson;
     TString source;
-    auto* errorJsonPtr = rsp->GetHeaders()->Find("X-YT-Error");
-    if (errorJsonPtr == nullptr) {
+
+    const TString* errorHeader;
+    if (!fromTrailers) {
         source = "header";
-        errorJson = *errorJsonPtr;
+        errorHeader = rsp->GetHeaders()->Find("X-YT-Error");
     } else {
-        source = "body";
-        errorJson = ToString(rsp->ReadBody());
+        source = "trailer";
+        errorHeader = rsp->GetTrailers()->Find("X-YT-Error");
     }
 
+    TString errorJson;
+    if (!errorHeader) {
+        source = "body";
+        errorJson = ToString(rsp->ReadBody());
+    } else {
+        errorJson = *errorHeader;
+    }
+    
     TStringInput errorJsonInput(errorJson);
     std::unique_ptr<IBuildingYsonConsumer<TError>> buildingConsumer;
     CreateBuildingYsonConsumer(&buildingConsumer, EYsonType::Node);
@@ -115,7 +123,7 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 
             if (req->GetMethod() == EMethod::Options) {
                 rsp->GetHeaders()->Add("Access-Control-Allow-Headers", HeadersWhitelist);
-                rsp->SetStatus(EStatusCode::Ok);
+                rsp->SetStatus(EStatusCode::OK);
                 WaitFor(rsp->Close())
                     .ThrowOnError();
                 return true;
@@ -126,6 +134,30 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
     }
 
     return false;
+}
+
+THashMap<TString, TString> ParseCookies(TStringBuf cookies)
+{
+    THashMap<TString, TString> map;
+    size_t index = 0;
+    while (index < cookies.size()) {
+        auto nameStartIndex = index;
+        auto nameEndIndex = cookies.find('=', index);
+        if (nameEndIndex == TString::npos) {
+            THROW_ERROR_EXCEPTION("Malformed cookies");
+        }
+        auto name = cookies.substr(nameStartIndex, nameEndIndex - nameStartIndex);
+        auto valueStartIndex = nameEndIndex + 1;
+        const auto Delimiter = AsStringBuf("; ");
+        auto valueEndIndex = cookies.find(Delimiter, index);
+        if (valueEndIndex == TString::npos) {
+            valueEndIndex = cookies.size();
+        }
+        auto value = cookies.substr(valueStartIndex, valueEndIndex);
+        map[name] = std::move(value);
+        index = valueEndIndex + Delimiter.length();
+    }
+    return map;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

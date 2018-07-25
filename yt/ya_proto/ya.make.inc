@@ -1,0 +1,14 @@
+SET(PROTO_SRCS
+yt_proto/yt/core/misc/proto/error.proto
+yt_proto/yt/core/misc/proto/guid.proto
+yt_proto/yt/core/misc/proto/protobuf_helpers.proto
+yt_proto/yt/core/ytree/proto/attributes.proto
+yt_proto/yt/core/ytree/proto/ypath.proto
+yt_proto/yt/core/rpc/proto/rpc.proto
+yt_proto/yt/core/rpc/grpc/proto/grpc.proto
+yt_proto/yt/client/hive/proto/timestamp_map.proto
+yt_proto/yt/client/hive/proto/cluster_directory.proto
+yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto
+yt_proto/yt/client/api/rpc_proxy/proto/discovery_service.proto
+yt_proto/yt/client/node_tracker_client/proto/node.proto
+)

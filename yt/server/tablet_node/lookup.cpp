@@ -7,18 +7,20 @@
 
 #include <yt/server/tablet_node/config.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
 
-#include <yt/ytlib/tablet_client/wire_protocol.h>
-#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/versioned_reader.h>
+
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -44,7 +46,6 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NTableClient;
-using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,7 +315,7 @@ private:
 };
 
 static NTableClient::TColumnFilter DecodeColumnFilter(
-    std::unique_ptr<NTabletClient::NProto::TColumnFilter> protoColumnFilter,
+    std::unique_ptr<NTableClient::NProto::TColumnFilter> protoColumnFilter,
     int columnCount)
 {
     NTableClient::TColumnFilter columnFilter;
@@ -336,11 +337,11 @@ void LookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
-    TReqLookupRows req;
+    NTableClient::NProto::TReqLookupRows req;
     reader->ReadMessage(&req);
 
     auto columnFilter = DecodeColumnFilter(
-        std::unique_ptr<NTabletClient::NProto::TColumnFilter>(req.release_column_filter()),
+        std::unique_ptr<NTableClient::NProto::TColumnFilter>(req.release_column_filter()),
         tabletSnapshot->PhysicalSchema.GetColumnCount());
     auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
@@ -379,11 +380,11 @@ void VersionedLookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
-    TReqVersionedLookupRows req;
+    NTableClient::NProto::TReqVersionedLookupRows req;
     reader->ReadMessage(&req);
 
     auto columnFilter = DecodeColumnFilter(
-        std::unique_ptr<NTabletClient::NProto::TColumnFilter>(req.release_column_filter()),
+        std::unique_ptr<NTableClient::NProto::TColumnFilter>(req.release_column_filter()),
         tabletSnapshot->PhysicalSchema.GetColumnCount());
     auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);

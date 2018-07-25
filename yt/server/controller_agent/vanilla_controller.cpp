@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/ypath/rich.h>
+#include <yt/client/ypath/rich.h>
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -338,7 +338,7 @@ IOperationControllerPtr CreateVanillaController(
 {
     auto options = config->VanillaOperationOptions;
     auto spec = ParseOperationSpec<TVanillaOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
-    return New<TVanillaController>(spec, config, config->VanillaOperationOptions, host, operation);
+    return New<TVanillaController>(std::move(spec), std::move(config), std::move(options), std::move(host), operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -65,6 +65,15 @@ std::string Repr(const Object& obj)
     return obj.repr().as_std_string("utf-8", "replace");
 }
 
+Object CreateIterator(const Object& obj)
+{
+    PyObject* iter = PyObject_GetIter(obj.ptr());
+    if (!iter) {
+        throw Py::Exception();
+    }
+    return Object(iter, true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace Py

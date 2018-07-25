@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include "public.h"
+
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 

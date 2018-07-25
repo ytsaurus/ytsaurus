@@ -7,7 +7,7 @@
 #include <yt/server/election/public.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/version.h>
+#include <yt/client/hydra/version.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/future.h>

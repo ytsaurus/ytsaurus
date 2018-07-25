@@ -16,7 +16,7 @@ TBlobOutput::TBlobOutput(size_t capacity)
     Reserve(capacity);
 }
 
-TBlobOutput::~TBlobOutput() throw()
+TBlobOutput::~TBlobOutput()
 { }
 
 void TBlobOutput::DoWrite(const void* buffer, size_t length)

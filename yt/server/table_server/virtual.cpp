@@ -5,7 +5,7 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
@@ -199,7 +199,7 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
         return;
     }
     auto builtinAttributeKeys = GetBuiltinAttributeKeys();
-    BuildYsonMapFluently(consumer)
+    BuildYsonMapFragmentFluently(consumer)
         .DoFor(*attributeKeys, [&] (TFluentMap fluent, const TString& key) {
             auto internedKey = GetInternedAttributeKey(key);
             if (builtinAttributeKeys.has(internedKey)) {

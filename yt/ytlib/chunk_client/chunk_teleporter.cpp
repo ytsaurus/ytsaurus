@@ -2,11 +2,11 @@
 #include "config.h"
 #include "chunk_service_proxy.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -29,7 +29,7 @@ using namespace NYson;
 
 TChunkTeleporter::TChunkTeleporter(
     TChunkTeleporterConfigPtr config,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     IInvokerPtr invoker,
     const TTransactionId& transactionId,
     const NLogging::TLogger& logger)

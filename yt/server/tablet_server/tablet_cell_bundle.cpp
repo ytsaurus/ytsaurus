@@ -23,6 +23,7 @@ TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
     , TabletBalancerConfig_(New<TTabletBalancerConfig>())
+    , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }
 
 void TTabletCellBundle::Save(TSaveContext& context) const
@@ -33,6 +34,8 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, Name_);
     Save(context, Acd_);
     Save(context, *Options_);
+    Save(context, *DynamicOptions_);
+    Save(context, DynamicConfigVersion_);
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
     Save(context, *TabletBalancerConfig_);
@@ -54,9 +57,14 @@ void TTabletCellBundle::Load(TLoadContext& context)
     } else {
         auto str = NYT::Load<TYsonString>(context);
         auto node = ConvertTo<INodePtr>(str);
-        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "changelog_account");
-        node->AsMap()->AddChild(ConvertTo<INodePtr>(DefaultStoreAccountName), "snapshot_account");
+        node->AsMap()->AddChild("changelog_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
+        node->AsMap()->AddChild("snapshot_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
         Options_->Load(node);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 716) {
+        Load(context, *DynamicOptions_);
+        Load(context, DynamicConfigVersion_);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
@@ -79,7 +87,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
     } else if (context.GetVersion() >= 614) {
         bool enableTabletBalancer;
         Load(context, enableTabletBalancer);
-        TabletBalancerConfig_->EnableInMemoryBalancer = enableTabletBalancer;
+        TabletBalancerConfig_->EnableInMemoryCellBalancer = enableTabletBalancer;
         TabletBalancerConfig_->EnableTabletSizeBalancer = enableTabletBalancer;
     }
 
@@ -110,6 +118,17 @@ void TTabletCellBundle::SetName(TString name)
 TString TTabletCellBundle::GetName() const
 {
     return Name_;
+}
+
+TDynamicTabletCellOptionsPtr TTabletCellBundle::GetDynamicOptions() const
+{
+    return DynamicOptions_;
+}
+
+void TTabletCellBundle::SetDynamicOptions(TDynamicTabletCellOptionsPtr dynamicOptions)
+{
+    DynamicOptions_ = std::move(dynamicOptions);
+    ++DynamicConfigVersion_;
 }
 
 void TTabletCellBundle::FillProfilingTag()

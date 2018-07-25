@@ -103,7 +103,6 @@ set(DIGEST_BASE ${CMAKE_SOURCE_DIR}/util/digest)
 set(DIGEST_SRCS
   ${DIGEST_BASE}/city.cpp
   ${DIGEST_BASE}/fnv.cpp
-  ${DIGEST_BASE}/iterator.cpp
   ${DIGEST_BASE}/multi.cpp
   ${DIGEST_BASE}/murmur.cpp
   ${DIGEST_BASE}/numeric.cpp

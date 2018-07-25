@@ -3,13 +3,14 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 
-#include <yt/ytlib/api/config.h>
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <yt/ytlib/chunk_client/config.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -59,11 +60,9 @@ public:
     virtual TCodecStatistics GetCompressionStatistics() const override;
 
 private:
-    NLogging::TLogger Logger;
-
+    const NLogging::TLogger Logger;
     const TFileChunkWriterConfigPtr Config_;
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
-
 
     TBlob Buffer_ { TFileChunkWriterBufferTag() };
 
@@ -231,7 +230,7 @@ IFileChunkWriterPtr CreateFileChunkWriter(
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,

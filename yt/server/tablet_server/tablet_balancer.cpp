@@ -195,7 +195,7 @@ private:
             return;
         }
 
-        PROFILE_TIMING("balance_all") {
+        PROFILE_TIMING("/balance_all") {
             FillActiveTabletActions();
 
             CurrentTime_ = TruncatedNow();
@@ -207,7 +207,7 @@ private:
                 const auto* bundle = bundleAndId.second;
 
                 if (BundlesPendingCellBalancing_.has(bundleId) && !BundlesWithActiveActions_.has(bundle)) {
-                    LOG_DEBUG("Balancing for bundle (Bundle: %v)",
+                    LOG_DEBUG("Balancing cells for bundle (Bundle: %v)",
                         bundle->GetName());
                     ReassignInMemoryTablets(bundle);
                 } else if (DidBundleBalancingTimeHappen(bundle)) {
@@ -289,15 +289,19 @@ private:
     {
         const auto& config = bundle->TabletBalancerConfig();
 
-        if (!config->EnableInMemoryBalancer) {
+        if (!config->EnableInMemoryCellBalancer) {
             return;
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        if (tabletManager->TabletCells().size() < 2) {
-            return;
-        }
+        auto softThresholdViolated = [&config] (i64 min, i64 max) {
+            return max > 0 && 1.0 * (max - min) / max > config->SoftInMemoryCellBalanceThreshold;
+        };
+
+        auto hardThresholdViolated = [&config] (i64 min, i64 max) {
+            return max > 0 && 1.0 * (max - min) / max > config->HardInMemoryCellBalanceThreshold;
+        };
 
         std::vector<const TTabletCell*> cells;
 
@@ -320,6 +324,11 @@ private:
             i64 size = cell->TotalStatistics().MemorySize;
             total += size;
             memoryUsage.emplace_back(size, cell);
+        }
+
+        auto minmaxCells = std::minmax_element(memoryUsage.begin(), memoryUsage.end());
+        if (!hardThresholdViolated(minmaxCells.first->first, minmaxCells.second->first)) {
+            return;
         }
 
         std::sort(memoryUsage.begin(), memoryUsage.end());
@@ -349,7 +358,7 @@ private:
 
                 auto top = queue.top();
 
-                if (static_cast<double>(cellSize - top.first) / cellSize < config->CellBalanceFactor) {
+                if (!softThresholdViolated(top.first, cellSize)) {
                     break;
                 }
 
@@ -402,11 +411,6 @@ private:
 
     void BalanceTablets(const TTabletCellBundle* bundle)
     {
-        if (!DidBundleBalancingTimeHappen(bundle)) {
-            return;
-        }
-        BundlesPendingCellBalancing_.insert(bundle->GetId());
-
         if (!TabletIdQueue_.has(bundle->GetId())) {
             return;
         }

@@ -11,7 +11,7 @@
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -406,6 +406,11 @@ public:
         return Underlying_->GetOrchid();
     }
 
+    virtual TString WriteCoreDump() const override
+    {
+        return Underlying_->WriteCoreDump();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
@@ -440,6 +445,7 @@ bool TScheduleJobResult::IsBackoffNeeded() const
         !StartDescriptor &&
         Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
         Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleJobFailReason::NodeBanned] == 0 &&
         Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
 }
 

@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/core/ytree/convert.h>
 

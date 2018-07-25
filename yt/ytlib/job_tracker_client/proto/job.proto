@@ -1,0 +1,45 @@
+package NYT.NJobTrackerClient.NProto;
+
+import "yt/core/misc/proto/error.proto";
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a job to be run at a node.
+message TJobSpec
+{
+    required int32 type = 1;
+    optional int32 version = 2;
+
+    extensions 100 to max;
+}
+
+// Describes the outcome of the job, in particular if it has finished successfully.
+message TJobResult
+{
+    required NYT.NProto.TError error = 1;
+
+    extensions 100 to max;
+}
+
+// Describes the current job status.
+message TJobStatus
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+    optional int32 job_type = 3;
+    optional int32 state = 4;
+    optional int32 phase = 5;
+    optional double progress = 6;
+    optional TJobResult result = 7;
+    optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
+    optional string statistics = 9;
+    optional int64 prepare_duration = 10;
+    optional int64 exec_duration = 11;
+    optional int64 download_duration = 12;
+    optional int64 stderr_size = 13;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

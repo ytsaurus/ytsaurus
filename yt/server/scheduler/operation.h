@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/core/actions/future.h>
 
@@ -207,7 +207,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
 
     //! Scheduling tag filters of operation pool trees.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
+    DEFINE_BYREF_RW_PROPERTY(TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
 
     //! YSON describing suspicous jobs of this operation.
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);

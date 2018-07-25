@@ -81,6 +81,7 @@ using TIncarnationId = TGuid;
 using TAgentId = TString;
 
 class TSchedulingTagFilter;
+using TPoolTreeToSchedulingTagFilter = THashMap<TString, TSchedulingTagFilter>;
 
 class TBootstrap;
 
@@ -93,6 +94,8 @@ DEFINE_ENUM(ESchedulerAlertType,
     (UpdateArchiveVersion)
     (SyncClusterDirectory)
     (UnrecognizedConfigOptions)
+    (OperationsArchivation)
+    (JobsArchivation)
 );
 
 DEFINE_ENUM(EOperationAlertType,

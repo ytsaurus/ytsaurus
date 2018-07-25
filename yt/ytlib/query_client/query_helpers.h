@@ -3,8 +3,8 @@
 #include "public.h"
 #include "key_trie.h"
 
-#include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/range.h>
 

@@ -22,7 +22,7 @@ TNodeJSInputStack::TNodeJSInputStack(
     GetBaseStream()->AsyncRef();
 }
 
-TNodeJSInputStack::~TNodeJSInputStack() throw()
+TNodeJSInputStack::~TNodeJSInputStack()
 {
     GetBaseStream()->AsyncUnref();
 }

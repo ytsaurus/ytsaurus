@@ -14,13 +14,13 @@
 
 #include <yt/server/tablet_node/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/misc/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/public.h>
 
@@ -43,7 +43,6 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/lazy_ptr.h>
 
-
 namespace NYT {
 namespace NCellNode {
 
@@ -61,8 +60,8 @@ public:
     const IInvokerPtr& GetLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
-    const NApi::INativeClientPtr& GetMasterClient() const;
-    const NApi::INativeConnectionPtr& GetMasterConnection() const;
+    const NApi::NNative::IClientPtr& GetMasterClient() const;
+    const NApi::NNative::IConnectionPtr& GetMasterConnection() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
@@ -72,6 +71,7 @@ public:
     const NTabletNode::TInMemoryManagerPtr& GetInMemoryManager() const;
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
+    const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
     TNodeMemoryTracker* GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
@@ -127,8 +127,8 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer;
-    NApi::INativeConnectionPtr MasterConnection;
-    NApi::INativeClientPtr MasterClient;
+    NApi::NNative::IConnectionPtr MasterConnection;
+    NApi::NNative::IClientPtr MasterClient;
     NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
@@ -140,6 +140,7 @@ private:
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
+    NJobAgent::TGpuManagerPtr GpuManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate;
     NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;

@@ -349,6 +349,7 @@ describe("YtAuthentication", function() {
           "x-csrf-token": YtRegistry.get("authority").signCsrfToken(42, + new Date() - 7 * 24 * 60 * 60) },
         function(rsp) {
             rsp.statusCode.should.eql(401);
+            expect(rsp.json.code).to.eql(110);
             mock.done();
         }, done).end();
     });

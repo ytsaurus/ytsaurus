@@ -5,9 +5,9 @@
 #include "key_trie.h"
 #include "query.h"
 
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {

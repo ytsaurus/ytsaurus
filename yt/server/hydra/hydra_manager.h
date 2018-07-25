@@ -9,7 +9,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/ytlib/hydra/version.h>
+#include <yt/client/hydra/version.h>
 
 #include <yt/server/election/public.h>
 

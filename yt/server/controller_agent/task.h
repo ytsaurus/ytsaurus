@@ -154,6 +154,8 @@ public:
     //! Base implementation returns task's own mapping.
     virtual TInputChunkMappingPtr GetChunkMapping() const;
 
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet);
+
 protected:
     NLogging::TLogger Logger;
 
@@ -267,8 +269,6 @@ private:
     TInputChunkMappingPtr InputChunkMapping_;
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
-
-    TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
     void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
 };

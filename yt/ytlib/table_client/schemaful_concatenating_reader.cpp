@@ -1,5 +1,6 @@
 #include "schemaful_concatencaing_reader.h"
-#include "schemaful_reader.h"
+
+#include <yt/client/table_client/schemaful_reader.h>
 
 namespace NYT {
 namespace NTableClient {

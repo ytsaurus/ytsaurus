@@ -16,11 +16,12 @@
 
 #include <yt/server/chunk_pools/helpers.h>
 
+#include <yt/client/chunk_client/data_statistics.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
@@ -36,7 +37,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
@@ -52,12 +53,15 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -96,7 +100,6 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-//using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
@@ -193,7 +196,7 @@ TOperationControllerBase::TOperationControllerBase(
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
-    , PoolTreeSchedulingTagFilters_(operation->PoolTreeSchedulingTagFilters())
+    , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -478,6 +481,7 @@ void TOperationControllerBase::InitializeStructures()
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
         table.Path = path;
+        table.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
         InputTables.push_back(table);
     }
 
@@ -518,6 +522,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
             file.Path = path;
+            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = false;
             files.emplace_back(std::move(file));
         }
@@ -529,6 +534,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : layerPaths) {
             TUserFile file;
             file.Path = path;
+            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = true;
             // This must be the top layer, so insert in the beginning.
             files.insert(files.begin(), std::move(file));
@@ -1038,7 +1044,7 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     const TTransactionId& parentTransactionId,
     const TTransactionId& prerequisiteTransactionId)
 {
@@ -1152,7 +1158,8 @@ void TOperationControllerBase::InitInputChunkScraper()
         Logger);
 
     if (UnavailableInputChunkCount > 0) {
-        LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
+        LOG_INFO("Waiting for unavailable input chunks (Count: %v)",
+            UnavailableInputChunkCount);
         InputChunkScraper->Start();
     }
 }
@@ -1979,11 +1986,20 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
+    auto joblet = GetJoblet(jobId);
+    if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
+        LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
+            "(JobId: %v, Address: %v)",
+            jobId,
+            joblet->NodeDescriptor.Address);
+        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
+        OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
+        return;
+    }
+
     auto error = FromProto<TError>(result.error());
 
     JobCounter->Failed(1);
-
-    auto joblet = GetJoblet(jobId);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
@@ -2024,9 +2040,18 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     if (Spec_->FailOnJobRestart) {
         OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job failed; operation failed because spec option fail_on_job_restart is set")
+            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
+    }
+    
+    if (Spec_->BanNodesWithFailedJobs) {
+        if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
+            LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
+                jobId,
+                joblet->NodeDescriptor.Id,
+                joblet->NodeDescriptor.Address);
+        }
     }
 
     ReleaseJobs({jobId});
@@ -2662,34 +2687,53 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (AvailableExecNodesWereObserved_) {
-        return;
-    }
-
     if (ShouldSkipSanityCheck()) {
         return;
     }
 
-    bool success = false;
-    for (const auto& pair : GetExecNodeDescriptors()) {
-        const auto& descriptor = pair.second;
-        for (const auto& filter : PoolTreeSchedulingTagFilters_) {
+    // If no available nodes were seen then re-check all nodes on each tick.
+    // After such nodes were discovered, only re-check within BannedExecNodesCheckPeriod.
+    auto now = TInstant::Now();
+    if (AvailableExecNodesObserved_ && now < LastAvailableExecNodesCheckTime_ + Config->BannedExecNodesCheckPeriod) {
+        return;
+    }
+
+    bool foundMatching = false;
+    bool foundMatchingNotBanned = false;
+    for (const auto& nodePair : GetExecNodeDescriptors()) {
+        const auto& descriptor = nodePair.second;
+        for (const auto& treePair : PoolTreeToSchedulingTagFilter_) {
+            const auto& filter = treePair.second;
             if (descriptor.CanSchedule(filter)) {
-                success = true;
-                break;
+                foundMatching = true;
+                if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
+                    foundMatchingNotBanned = true;
+                }
             }
         }
-        if (success) {
+        // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
+        if (foundMatchingNotBanned) {
             break;
         }
     }
 
-    if (!success) {
-        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv",
-            Spec_->SchedulingTagFilter.GetFormula()));
-    } else {
-        AvailableExecNodesWereObserved_ = true;
+
+    if (!AvailableExecNodesObserved_ && !foundMatching) {
+        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv in trees %v",
+            Spec_->SchedulingTagFilter.GetFormula(),
+            GetKeys(PoolTreeToSchedulingTagFilter_)));
+        return;
     }
+
+    if (foundMatching && !foundMatchingNotBanned && Spec_->FailOnAllNodesBanned) {
+        OnOperationFailed(TError("All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
+            Spec_->SchedulingTagFilter.GetFormula(),
+            GetKeys(PoolTreeToSchedulingTagFilter_)));
+        return;
+    }
+
+    AvailableExecNodesObserved_ = true;
+    LastAvailableExecNodesCheckTime_ = now;
 }
 
 void TOperationControllerBase::AnalyzeTmpfsUsage()
@@ -3058,7 +3102,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
-                    << TErrorAttribute("task_id", task->GetTitle())
+                    << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
         }
@@ -3127,6 +3171,13 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet);
     }
+
+    schedulerJobSpecExt->set_acl(BuildYsonStringFluently()
+        .BeginList()
+            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
+        .EndList()
+        .GetData()
+    );
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -3290,14 +3341,24 @@ void TOperationControllerBase::DoScheduleJob(
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-    } else if (GetPendingJobCount() == 0) {
+        return;
+    }
+
+    if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
-    } else {
-        DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
-        if (!scheduleJobResult->StartDescriptor) {
-            DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
-        }
+        return;
+    }
+
+    if (BannedNodeIds_.find(context->GetNodeDescriptor().Id) != BannedNodeIds_.end()) {
+        LOG_TRACE("Node is banned, scheduling request ignored");
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::NodeBanned);
+        return;
+    }
+
+    DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
+    if (!scheduleJobResult->StartDescriptor) {
+        DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
     }
 }
 
@@ -3876,9 +3937,13 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     if (stderrChunkId && shouldCreateJobNode) {
         summary->ArchiveStderr = true;
+        // Job spec is necessary for ACL checks for stderr.
+        summary->ArchiveJobSpec = true;
     }
     if (failContextChunkId && shouldCreateJobNode) {
         summary->ArchiveFailContext = true;
+        // Job spec is necessary for ACL checks for fail context.
+        summary->ArchiveJobSpec = true;
     }
 
     auto inputPaths = BuildInputPathYson(joblet);
@@ -4034,23 +4099,11 @@ void TOperationControllerBase::CreateLivePreviewTables()
             IntermediateOutputCellTag,
             1,
             Spec_->IntermediateCompressionCodec,
-            Null /* account */,
+            Spec_->IntermediateDataAccount,
             "create_intermediate",
             BuildYsonStringFluently()
                 .BeginList()
-                    .Item().BeginMap()
-                        .Item("action").Value("allow")
-                        .Item("subjects").BeginList()
-                            .Item().Value(AuthenticatedUser)
-                            .DoFor(Owners, [] (TFluentList fluent, const TString& owner) {
-                                fluent.Item().Value(owner);
-                            })
-                        .EndList()
-                        .Item("permissions").BeginList()
-                            .Item().Value("read")
-                        .EndList()
-                        .Item("account").Value(Spec_->IntermediateDataAccount)
-                    .EndMap()
+                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
                     .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
@@ -4201,7 +4254,7 @@ void TOperationControllerBase::FetchInputTables()
                 // NB: we always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *table.TransactionId);
             },
             Logger,
             &chunkSpecs);
@@ -4270,7 +4323,7 @@ void TOperationControllerBase::LockInputTables()
     for (const auto& table : InputTables) {
         auto req = TTableYPathProxy::Lock(table.Path.GetPath());
         req->set_mode(static_cast<int>(ELockMode::Snapshot));
-        SetTransactionId(req, InputTransaction->GetId());
+        SetTransactionId(req, *table.TransactionId);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
@@ -4328,7 +4381,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     "unflushed_timestamp"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *table.TransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4684,7 +4737,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         // NB: we always fetch parity replicas since
                         // erasure reader can repair data on flight.
                         req->set_fetch_parity_replicas(true);
-                        SetTransactionId(req, InputTransaction->GetId());
+                        SetTransactionId(req, *file.TransactionId);
                     },
                     Logger,
                     &file.ChunkSpecs);
@@ -4703,7 +4756,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 batchReq->AddRequest(req, "fetch");
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4776,7 +4829,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
             }
         }
     }
-    
+
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
@@ -4844,7 +4897,7 @@ void TOperationControllerBase::LockUserFiles()
             auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, *file.TransactionId);
             batchReq->AddRequest(req);
         }
     }
@@ -4916,7 +4969,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             auto objectIdPath = FromObjectId(file.ObjectId);
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("file_name");
                 switch (file.Type) {
@@ -4943,7 +4996,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("file_name");
@@ -5458,7 +5511,7 @@ TString TOperationControllerBase::GetLoggingProgress() const
 
 bool TOperationControllerBase::IsJobInterruptible() const
 {
-    return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
+    return true;
 }
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
@@ -6178,12 +6231,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-		.DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
-		    fluent
+        .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
+            fluent
                 .Item("data_flow_graph").BeginMap()
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
-		})
+        })
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
@@ -6317,6 +6370,11 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     }
 
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
+}
+
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
+{
+    return joblet->Task->BuildJobSpecProto(joblet);
 }
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
@@ -6959,10 +7017,10 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     for (const auto& table : InputTables) {
         if (table.SchemaMode != OutputTables_[0].TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-                    << TErrorAttribute("input_table1_path", table.GetPath())
-                    << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
-                    << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
-                    << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
+                << TErrorAttribute("input_table1_path", table.GetPath())
+                << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
+                << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
+                << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
         }
     }
 
@@ -7103,14 +7161,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
-    // COMPAT(max42): remove it in a few weeks.
-    if (context.IsLoad()) {
-        for (auto& pair : FinishedJobs_) {
-            auto& summary = pair.second->Summary;
-            summary.StatisticsYson = TYsonString();
-            summary.Statistics.Reset();
-        }
-    }
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
     Persist(context, AutoMergeTaskGroup);
@@ -7119,21 +7169,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
-
-    // COMPAT(ignat)
-    if (context.GetVersion() <= 202001) {
-        TYsonString unrecognizedSpecYson("{}");
-        if (context.IsSave() && UnrecognizedSpec_) {
-            unrecognizedSpecYson = ConvertToYsonString(UnrecognizedSpec_);
-        }
-        Persist(context, unrecognizedSpecYson);
-        if (context.IsLoad()) {
-            UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
-        }
-    }
-
-    if (context.GetVersion() >= 300003) {
-        Persist(context, AvailableExecNodesWereObserved_);
+    Persist(context, AvailableExecNodesObserved_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 300015) {
+        Persist(context, BannedNodeIds_);
     }
 
     // NB: Keep this at the end of persist as it requires some of the previous
@@ -7313,6 +7352,14 @@ bool TOperationControllerBase::IsCompleted() const
         }
     }
     return true;
+}
+
+TString TOperationControllerBase::WriteCoreDump() const {
+    const auto& coreDumper = Host->GetCoreDumper();
+    if (!coreDumper) {
+        THROW_ERROR_EXCEPTION("Core dumper is not set up");
+    }
+    return coreDumper->WriteCoreDump(CoreNotes_).Path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

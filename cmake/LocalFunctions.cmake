@@ -203,7 +203,7 @@ function(PROTOC_PYTHON proto output prefix)
   string(REPLACE "${_source_realpath}" "" _relative_path "${_proto_dirname}")
   string(REPLACE "${_source_realpath}" "" _prefix_relative_path "${_prefix_realpath}")
 
-  # Specify custom command how to generate _pb2.py and _py2_grpc.py
+  # Specify custom command how to generate _pb2.py and _pb2_grpc.py
   add_custom_command(
     OUTPUT
       ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2.py
@@ -416,4 +416,28 @@ function (CYTHON source)
     COMPILE_FLAGS "-I${PYTHON_2_7_INCLUDE_DIR}"
     LINK_FLAGS "-lrt"
   )
+endfunction()
+
+function(PREPARE_PROTO python_root proto out_targets)
+  get_filename_component(_proto_dirname  ${proto} PATH)
+  get_filename_component(_proto_basename ${proto} NAME_WE)
+
+  set(OUTPUT_PATH "${CMAKE_CURRENT_LIST_DIR}/proto/${_proto_dirname}/${_proto_basename}")
+  set(OUTPUT "${OUTPUT_PATH}_pb2.py" "${OUTPUT_PATH}_pb2_grpc.py")
+
+  string(REPLACE "/" "_" TARGET_NAME "${_proto_dirname}/${_proto_basename}")
+
+  add_custom_target(
+    ${TARGET_NAME}
+    COMMAND
+      ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/prepare-proto.py ${CMAKE_BINARY_DIR} ${_proto_dirname}/${_proto_basename}
+    DEPENDS
+      ${CMAKE_BINARY_DIR}/${_proto_dirname}/${_proto_basename}_pb2.py
+      ${CMAKE_BINARY_DIR}/${_proto_dirname}/${_proto_basename}_pb2_grpc.py
+    WORKING_DIRECTORY
+      ${python_root}
+    COMMENT "Preparing pb2 modules for ${proto} in ${python_root}..."
+  )
+
+  set(${out_targets} ${${out_targets}} ${TARGET_NAME} PARENT_SCOPE)
 endfunction()

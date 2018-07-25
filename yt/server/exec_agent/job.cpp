@@ -16,6 +16,7 @@
 #include <yt/server/data_node/volume_manager.h>
 
 #include <yt/server/job_agent/job.h>
+#include <yt/server/job_agent/gpu_manager.h>
 #include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/scheduler/config.h>
@@ -32,7 +33,7 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -95,8 +96,9 @@ public:
         , Config_(Bootstrap_->GetConfig()->ExecAgent)
         , Invoker_(Bootstrap_->GetControlInvoker())
         , StartTime_(TInstant::Now())
+        , TrafficMeter_(New<TTrafficMeter>(
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
         , ResourceUsage_(resourceUsage)
-        , TrafficMeter_(New<TTrafficMeter>(Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -147,6 +149,12 @@ public:
                 const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
                 if (userJobSpec.has_disk_space_limit()) {
                     diskSpaceLimit = userJobSpec.disk_space_limit();
+                }
+            }
+
+            if (!Config_->JobController->TestGpu) {
+                for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
+                    GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
                 }
             }
 
@@ -603,6 +611,7 @@ private:
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TInstant StartTime_;
+    const TTrafficMeterPtr TrafficMeter_;
 
     TJobSpec JobSpec_;
 
@@ -629,6 +638,7 @@ private:
     TNullable<TInstant> ExecTime_;
     TNullable<TInstant> FinishTime_;
 
+    std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
 
     ISlotPtr Slot_;
     TNullable<TString> TmpfsPath_;
@@ -660,8 +670,6 @@ private:
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
-
-    TTrafficMeterPtr TrafficMeter_;
 
     // Helpers.
 
@@ -934,6 +942,8 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
+        GpuSlots_.clear();
+
         if (Slot_) {
             try {
                 LOG_DEBUG("Cleanup (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -1086,6 +1096,10 @@ private:
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
             proxyConfig->Binds = Config_->RootFSBinds;
+        }
+
+        for (const auto& slot : GpuSlots_) {
+            proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
         }
 
         return proxyConfig;

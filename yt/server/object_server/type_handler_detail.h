@@ -65,7 +65,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void ZombifyObject(TObjectBase* object) throw() override
+    virtual void ZombifyObject(TObjectBase* object) noexcept override
     {
         DoZombifyObject(object->As<TObject>());
     }
@@ -175,7 +175,7 @@ public:
         , Map_(map)
     { }
 
-    virtual void DestroyObject(TObjectBase* object) throw() override
+    virtual void DestroyObject(TObjectBase* object) noexcept override
     {
         this->DoDestroyObject(object->As<TObject>());
         // Remove the object from the map but keep it alive.

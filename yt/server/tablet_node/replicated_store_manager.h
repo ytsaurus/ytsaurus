@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -26,7 +26,7 @@ public:
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager = nullptr,
         TInMemoryManagerPtr inMemoryManager = nullptr,
-        NApi::INativeClientPtr client = nullptr);
+        NApi::NNative::IClientPtr client = nullptr);
 
     // IStoreManager overrides.
     virtual bool HasActiveLocks() const override;
@@ -37,7 +37,7 @@ public:
     virtual void StopEpoch() override;
 
     virtual bool ExecuteWrites(
-        NTabletClient::TWireProtocolReader* reader,
+        NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
     virtual bool IsOverflowRotationNeeded() const override;
@@ -108,7 +108,7 @@ private:
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const TInMemoryManagerPtr InMemoryManager_;
-    const NApi::INativeClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
 
     const NLogging::TLogger Logger;
     const TOrderedStoreManagerPtr LogStoreManager_;

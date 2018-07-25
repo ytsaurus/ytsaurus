@@ -360,6 +360,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
         .Default(TDuration::Seconds(5));
 
+    RegisterParameter("banned_exec_nodes_check_period", BannedExecNodesCheckPeriod)
+        .Default(TDuration::Minutes(5));
+
     RegisterParameter("operation_progress_analysis_period", OperationProgressAnalysisPeriod)
         .Default(TDuration::Seconds(10));
 

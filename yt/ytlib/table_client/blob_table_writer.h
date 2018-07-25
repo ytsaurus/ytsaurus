@@ -1,10 +1,16 @@
 #pragma once
 
-#include "unversioned_row.h"
+#include "public.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/chunked_memory_pool.h>
@@ -53,12 +59,13 @@ public:
     TBlobTableWriter(
         const TBlobTableSchema& schema,
         const std::vector<NYson::TYsonString>& blobIdColumnValues,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
         const NCypressClient::TTransactionId& transactionId,
         const NChunkClient::TChunkListId& chunkListId,
-        NChunkClient::TTrafficMeterPtr trafficMeter);
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     NScheduler::NProto::TOutputResult GetOutputResult() const;
 

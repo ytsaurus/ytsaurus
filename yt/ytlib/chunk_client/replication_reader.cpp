@@ -10,9 +10,10 @@
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -20,11 +21,11 @@
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -35,6 +36,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/net/local_address.h>
 
 #include <util/generic/ymath.h>
 
@@ -52,6 +54,7 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
+using namespace NNet;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -72,7 +75,11 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TPeer(const TString& address, TNodeDescriptor nodeDescriptor, EPeerType peerType, EAddressLocality locality)
+    TPeer(
+        const TString& address,
+        TNodeDescriptor nodeDescriptor,
+        EPeerType peerType,
+        EAddressLocality locality)
         : Address(address)
         , NodeDescriptor(nodeDescriptor)
         , Type(peerType)
@@ -113,7 +120,7 @@ public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        INativeClientPtr client,
+        NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
         const TChunkId& chunkId,
@@ -214,7 +221,7 @@ private:
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
@@ -374,7 +381,7 @@ private:
     const NLogging::TLogger Logger;
 
     const TReplicationReaderConfigPtr Config_;
-    const INativeClientPtr Client_;
+    const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TChunkId ChunkId_;
     const IInvokerPtr LocateChunksInvoker_;
@@ -1341,8 +1348,11 @@ private:
               bytesReceived,
               rsp->peer_descriptors_size());
 
-        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
-        YCHECK(throttleResult.IsOK());
+
+        if (peerAddress != GetLocalHostName()) {
+            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            YCHECK(throttleResult.IsOK());
+        }
 
         RequestBlocks();
     }
@@ -1558,9 +1568,11 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
-
-        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
-        YCHECK(throttleResult.IsOK());
+        
+        if (peerAddress != GetLocalHostName()) {
+            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            YCHECK(throttleResult.IsOK());
+        }
 
         if (blocksReceived > 0) {
             OnSessionSucceeded();
@@ -1771,7 +1783,7 @@ TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
+    NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     const TChunkId& chunkId,

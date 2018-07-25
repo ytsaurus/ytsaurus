@@ -91,24 +91,33 @@ const TString& TYPathRequest::GetUser() const
     Y_UNREACHABLE();
 }
 
+void TYPathRequest::SetUserAgent(const TString& userAgent)
+{
+    Y_UNREACHABLE();
+}
+
 bool TYPathRequest::GetRetry() const
 {
-    Y_UNREACHABLE();
+    return Header_.retry();
 }
 
-void TYPathRequest::SetRetry(bool /*value*/)
+void TYPathRequest::SetRetry(bool value)
 {
-    Y_UNREACHABLE();
+    Header_.set_retry(value);
 }
 
-NRpc::TMutationId TYPathRequest::GetMutationId() const
+TMutationId TYPathRequest::GetMutationId() const
 {
-    Y_UNREACHABLE();
+    return FromProto<TMutationId>(Header_.mutation_id());
 }
 
-void TYPathRequest::SetMutationId(const NRpc::TMutationId& /*id*/)
+void TYPathRequest::SetMutationId(const TMutationId& id)
 {
-    Y_UNREACHABLE();
+    if (id) {
+        ToProto(Header_.mutable_mutation_id(), id);
+    } else {
+        Header_.clear_mutation_id();
+    }
 }
 
 size_t TYPathRequest::GetHash() const
@@ -618,7 +627,7 @@ void SetNodeByYPath(
             if (child) {
                 currentMap->ReplaceChild(child, value);
             } else {
-                YCHECK(currentMap->AddChild(value, key));
+                YCHECK(currentMap->AddChild(key, value));
             }
             break;
         }
@@ -671,7 +680,7 @@ void ForceYPath(
                 child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
                     child = factory->CreateMap();
-                    YCHECK(currentMap->AddChild(child, key));
+                    YCHECK(currentMap->AddChild(key, child));
                 }
                 break;
             }
@@ -711,9 +720,9 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
         for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                YCHECK(resultMap->AddChild(PatchNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
+                YCHECK(resultMap->AddChild(key, PatchNode(baseMap->GetChild(key), patchMap->GetChild(key))));
             } else {
-                YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
+                YCHECK(resultMap->AddChild(key, CloneNode(patchMap->GetChild(key))));
             }
         }
         result->MutableAttributes()->MergeFrom(patch->Attributes());

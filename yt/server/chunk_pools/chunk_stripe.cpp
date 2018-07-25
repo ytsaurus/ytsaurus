@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT {
 namespace NChunkPools {

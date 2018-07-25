@@ -1,6 +1,8 @@
 #pragma once
 
-#include "unversioned_row.h"
+#include "public.h"
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <type_traits>
 
@@ -76,13 +78,12 @@ public:
 
     static StructType* get(LLVMContext& context)
     {
-        return StructType::get(
+        return StructType::get(context, {
             TId::get(context),
             TType::get(context),
             TAggregate::get(context),
             TLength::get(context),
-            TData::get(context),
-            nullptr);
+            TData::get(context)});
     }
 
     static_assert(

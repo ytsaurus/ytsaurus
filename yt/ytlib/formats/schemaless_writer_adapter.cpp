@@ -1,7 +1,7 @@
 #include "schemaless_writer_adapter.h"
 #include "config.h"
 
-#include <yt/ytlib/table_client/name_table.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/actions/future.h>
 
@@ -320,7 +320,7 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
     EControlAttribute controlAttribute,
     T value)
 {
-    BuildYsonListFluently(Consumer_.get())
+    BuildYsonListFragmentFluently(Consumer_.get())
         .Item()
         .BeginAttributes()
             .Item(FormatEnum(controlAttribute)).Value(value)

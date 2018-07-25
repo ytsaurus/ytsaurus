@@ -3,7 +3,7 @@
 #include "chunk_reader_allowing_repair.h"
 #include "io_engine.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <util/system/file.h>
 #include <util/system/mutex.h>

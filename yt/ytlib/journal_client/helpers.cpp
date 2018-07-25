@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 #include <yt/core/misc/string.h>
 

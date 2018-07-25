@@ -25,7 +25,7 @@
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/misc/singleton.h>
@@ -424,7 +424,7 @@ public:
         THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");
     }
 
-    virtual void DestroyObject(TObjectBase* object) throw();
+    virtual void DestroyObject(TObjectBase* object) noexcept;
 
 private:
     TImpl* const Owner_;
@@ -2201,7 +2201,7 @@ private:
     }
 
 
-    void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) throw()
+    void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2223,7 +2223,7 @@ private:
         }
     }
 
-    void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) throw()
+    void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(Bootstrap_->IsSecondaryMaster());
@@ -2276,7 +2276,7 @@ private:
         LockNode(trunkNode, transaction, ELockMode::Exclusive);
     }
 
-    void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) throw()
+    void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(Bootstrap_->IsSecondaryMaster());
@@ -2326,7 +2326,7 @@ private:
         factory->Commit();
     }
 
-    void HydraRemoveExpiredNodes(NProto::TReqRemoveExpiredNodes* request) throw()
+    void HydraRemoveExpiredNodes(NProto::TReqRemoveExpiredNodes* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2359,7 +2359,7 @@ private:
         }
     }
 
-    void HydraLockForeignNode(NProto::TReqLockForeignNode* request) throw()
+    void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(Bootstrap_->IsSecondaryMaster());
@@ -2441,7 +2441,7 @@ TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
     , UnderlyingHandler_(underlyingHandler)
 { }
 
-void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw()
+void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) noexcept
 {
     Owner_->DestroyNode(object->As<TCypressNodeBase>());
 }

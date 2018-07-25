@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "unversioned_row.h"
+#include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTableClient {

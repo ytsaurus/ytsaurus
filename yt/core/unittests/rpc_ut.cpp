@@ -617,7 +617,7 @@ TYPED_TEST(TRpcTest, ManyAsyncRequests)
     EXPECT_TRUE(Combine(asyncResults).Get().IsOK());
 }
 
-TYPED_TEST(TNotGrpcTest, RegularAttachments)
+TYPED_TEST(TRpcTest, RegularAttachments)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.RegularAttachments();
@@ -637,7 +637,7 @@ TYPED_TEST(TNotGrpcTest, RegularAttachments)
     EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
 }
 
-TYPED_TEST(TNotGrpcTest, NullAndEmptyAttachments)
+TYPED_TEST(TRpcTest, NullAndEmptyAttachments)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.NullAndEmptyAttachments();

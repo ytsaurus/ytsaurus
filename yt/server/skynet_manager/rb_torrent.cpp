@@ -7,7 +7,7 @@
 #include <util/stream/str.h>
 #include <util/string/iterator.h>
 
-#include <string>
+#include <util/string/hex.h>
 
 namespace NYT {
 namespace NSkynetManager {
@@ -129,20 +129,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TFileMeta::GetFullSHA1() const
-{
-    TString fullSHA1;
-    TStringOutput out(fullSHA1);
-
-    for (size_t i = 0; i < SHA1.size(); ++i) {
-        out.Write(SHA1[i].data(), SHA1[i].size());
-    }
-
-    return fullSHA1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TSkynetStructure
 {
     TString Type;
@@ -225,13 +211,13 @@ void Serialize(const TSkynetTorrent& torrent, IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 void CreateTorrentsAndDirs(
-    const TSkynetShareMeta& meta,
+    const NProto::TResource& meta,
     std::map<TString, TSkynetStructure>* structure,
     std::map<TString, TSkynetTorrent>* torrents)
 {
-    for (const auto& file : meta.Files) {
+    for (const auto& file : meta.files()) {
         TVector<TString> directories;
-        TString filename = file.first;
+        TString filename = file.filename();
 
         if (filename.find('/') != TString::npos) {
             directories = StringSplitter(filename).Split('/').ToList<TString>();
@@ -258,19 +244,19 @@ void CreateTorrentsAndDirs(
             skynetDirectory.Executable = true;
         }
 
-        auto& skynetFile = (*structure)[file.first];
+        auto& skynetFile = (*structure)[file.filename()];
         skynetFile.Type = "file";
-        skynetFile.Path = file.first;
-        skynetFile.MD5 = file.second.MD5;
-        skynetFile.Size = file.second.FileSize;
-        skynetFile.Executable = file.second.Executable;
+        skynetFile.Path = file.filename();
+        skynetFile.MD5 = MD5FromString(file.md5sum());
+        skynetFile.Size = file.file_size();
+        skynetFile.Executable = false;
 
         if (skynetFile.Size == 0) {
             continue;
         }
 
         TSkynetTorrent torrent;
-        torrent.Pieces = file.second.GetFullSHA1();
+        torrent.Pieces = file.sha1sum();
         torrent.Size = skynetFile.Size;
 
         TBencodeWriter torrentBencode;
@@ -304,36 +290,149 @@ TString ComputeRbTorrentId(const TString& headBinary)
     return TSHA1Hasher().Append(metaBencode.Finish()).GetHexDigestLower();
 }
 
-TSkynetRbTorrent GenerateResource(const TSkynetShareMeta& meta)
+TResourceDescription ConvertResource(const NProto::TResource& resource, bool needHash, bool needMeta)
 {
     std::map<TString, TSkynetStructure> structure;
     std::map<TString, TSkynetTorrent> torrents;
 
-    CreateTorrentsAndDirs(meta, &structure, &torrents);
+    CreateTorrentsAndDirs(resource, &structure, &torrents);
+    auto buildResource = [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("structure").Value(structure)
+                .Item("torrents")
+                    .DoMapFor(torrents, [&] (
+                        TFluentMap fluent,
+                        const std::pair<TString, TSkynetTorrent>& torrent)
+                    {
+                        fluent.Item(torrent.first)
+                            .BeginMap()
+                                .Item("info").Value(torrent.second)
+                            .EndMap();
+                    })
+            .EndMap();
+    };
+    
+    TResourceDescription description;
+    if (needHash) {
+        TBencodeWriter head;
+        buildResource(&head);
 
-    TBencodeWriter head;
-    BuildYsonFluently(&head)
-        .BeginMap()
-            .Item("structure").Value(structure)
-            .Item("torrents")
-                .DoMapFor(torrents, [&] (
-                    TFluentMap fluent,
-                    const std::pair<std::string, TSkynetTorrent>& torrent)
-                {
-                    fluent.Item(torrent.first)
-                        .BeginMap()
-                            .Item("info").Value(torrent.second)
-                        .EndMap();
-                })
-        .EndMap();
-    TString headBinary = head.Finish();
+        TString headBinary = head.Finish();
 
-    TSkynetRbTorrent torrent;
-    torrent.RbTorrentHash = ComputeRbTorrentId(headBinary);
-    torrent.RbTorrentId = "rbtorrent:" + torrent.RbTorrentHash;
-    torrent.BencodedTorrentMeta = headBinary;
+        description.ResourceId = ComputeRbTorrentId(headBinary);
+    }
 
-    return torrent;
+    if (needMeta) {
+        description.TorrentMeta = BuildYsonNodeFluently().Do([&] (auto value) {
+            buildResource(value.GetConsumer());
+        });
+    }
+
+    return description;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator < (const TRowRangeLocation& rhs, const TRowRangeLocation& lhs)
+{
+    return rhs.RowIndex > lhs.RowIndex;
+}
+
+TString MakeFileUrl(
+    const TString& node,
+    const NChunkClient::TChunkId& chunkId,
+    i64 lowerRowIndex,
+    i64 upperRowIndex,
+    i64 partIndex)
+{
+    return Format(
+        "http://%v/read_skynet_part?chunk_id=%v&lower_row_index=%v&upper_row_index=%v&start_part_index=%v",
+        node,
+        chunkId,
+        lowerRowIndex,
+        upperRowIndex,
+        partIndex);
+}
+
+struct TSkynetLink
+{
+    i64 Start;
+    i64 Size;
+    std::vector<TString> Urls;
+};
+
+INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRangeLocation>& locations)
+{
+    std::map<TString, std::vector<TSkynetLink>> links;
+
+    if (locations.size() == 0) {
+        THROW_ERROR_EXCEPTION("Empty locations list");
+    }
+
+    for (const auto& file : resource.files()) {
+        if (file.file_size() == 0) {
+            continue;
+        }
+
+        for (i64 partIndex = 0; partIndex < file.row_count(); ) {
+            i64 startRow = file.start_row() + partIndex;
+
+            TRowRangeLocation fake;
+            fake.RowIndex = startRow;
+            auto it = std::lower_bound(locations.rbegin(), locations.rend(), fake);
+            if (it == locations.rend()) {
+                THROW_ERROR_EXCEPTION("Inconsistent location list")
+                    << TErrorAttribute("file", file.filename())
+                    << TErrorAttribute("start_row", file.start_row())
+                    << TErrorAttribute("part_index", partIndex);
+            }
+
+            i64 endRow = std::min(
+                file.start_row() + file.row_count(),
+                it->RowIndex + it->RowCount + it->LowerLimit.Get(0));
+            if (endRow == startRow) {
+                THROW_ERROR_EXCEPTION("Inconsistent file")
+                    << TErrorAttribute("file", file.filename())
+                    << TErrorAttribute("start_row", file.start_row())
+                    << TErrorAttribute("row_count", file.row_count());
+            }
+
+            i64 fileStart = partIndex * SkynetPieceSize;
+            i64 fileEnd = std::min<i64>((endRow - file.start_row()) * SkynetPieceSize, file.file_size());
+
+            TSkynetLink link;
+            link.Start = fileStart;
+            link.Size = fileEnd - fileStart;
+
+            for (const auto& node : it->Nodes) {
+                link.Urls.push_back(MakeFileUrl(
+                    node,
+                    it->ChunkId,
+                    startRow - it->RowIndex,
+                    endRow - it->RowIndex,
+                    partIndex));
+            }
+
+            auto md5 = to_lower(HexEncode(file.md5sum()));
+            links[md5].push_back(link);
+            partIndex += (endRow - startRow);
+        }
+    }
+
+    return BuildYsonNodeFluently()
+        .DoMapFor(links, [&] (auto fluent, const auto file) {
+            fluent
+                .Item(file.first)
+                .DoListFor(file.second, [&] (auto fluent, const auto link) {
+                    fluent.Item()
+                        .BeginList()
+                            .Item().Value(link.Start)
+                            .Item().Value(link.Size)
+                            .Item().Value(link.Urls)
+                        .EndList();
+                });
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

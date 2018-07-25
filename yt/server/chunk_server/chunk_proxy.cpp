@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "job.h"
 #include "medium.h"
 #include "helpers.h"
 
@@ -22,12 +23,12 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -162,6 +163,9 @@ private:
         descriptors->push_back(EInternedAttributeKey::ScanFlags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(miscExt.has_creation_time()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::JobId)
+            .SetPresent(!isForeign && chunk->IsJobScheduled())
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -657,6 +661,17 @@ private:
                         }
                     });
                 return true;
+
+            case EInternedAttributeKey::JobId: {
+                auto job = chunk->GetJob();
+                if (isForeign || !job) {
+                    break;
+                }
+                RequireLeader();
+                BuildYsonFluently(consumer)
+                    .Value(job->GetJobId());
+                return true;
+            }
 
             default:
                 break;

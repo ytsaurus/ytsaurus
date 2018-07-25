@@ -13,11 +13,12 @@
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/query_client/query.h>
 
@@ -248,6 +249,7 @@ protected:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
                     Spec,
                     Options,
+                    TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
                     DataWeightRatio,
                     InputCompressionRatio);
@@ -259,6 +261,7 @@ protected:
                     Options,
                     GetOutputTablePaths().size(),
                     DataWeightRatio,
+                    TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
                     TotalEstimatedInputRowCount);
                 break;

@@ -21,7 +21,7 @@
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
 #include <yt/ytlib/core_dump/helpers.h>
@@ -39,16 +39,18 @@
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/public.h>
-#include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/client/query_client/query_statistics.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schemaless_writer.h>
+
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 #include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -180,7 +182,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, Host_),
             SandboxDirectoryNames[ESandboxKind::Udf],
             BlockReadOptions_,
-            Host_->GetTrafficMeter());
+            Host_->GetTrafficMeter(),
+            Host_->GetInThrottler());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
@@ -410,10 +413,8 @@ private:
     TNullable<int> UserId_;
 
     std::atomic<bool> Prepared_ = { false };
-    std::atomic<bool> IsWoodpecker_ = { false };
+    std::atomic<bool> Woodpecker_ = { false };
     std::atomic<bool> JobStarted_ = { false };
-
-    std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
@@ -642,7 +643,8 @@ private:
                 CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId,
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
 
             const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
@@ -731,7 +733,8 @@ private:
                 CreateFileOptions(),
                 Host_->GetClient(),
                 FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
         }
     }
 
@@ -952,16 +955,16 @@ private:
         }
 
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
-            codecStatistics->DumpTo(&statistics, "/codec/cpu/decode");
+            DumpCodecStatistics(*codecStatistics, "/codec/cpu/decode", &statistics);
         }
 
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
 
-        int i = 0;
-        for (const auto& writer : UserJobWriteController_->GetWriters()) {
-            statistics.AddSample("/data/output/" + ToString(i), writer->GetDataStatistics());
-            writer->GetCompressionStatistics().DumpTo(&statistics, "/codec/cpu/encode/" + ToString(i));
-            ++i;
+        auto writers = UserJobWriteController_->GetWriters();
+        for (size_t index = 0; index < writers.size(); ++index) {
+            const auto& writer = writers[index];
+            statistics.AddSample("/data/output/" + ToYPathLiteral(index), writer->GetDataStatistics());
+            DumpCodecStatistics(writer->GetCompressionStatistics(), "/codec/cpu/encode/" + ToYPathLiteral(index), &statistics);
         }
 
         // Cgroups statistics.
@@ -995,7 +998,7 @@ private:
             }
 
             statistics.AddSample("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMbSec_);
-            statistics.AddSample("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
+            statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
         statistics.AddSample("/user_job/tmpfs_size", GetTmpfsSize());
@@ -1312,13 +1315,13 @@ private:
 
         if (UserJobSpec_.has_iops_threshold() &&
             blockIOStats.IOTotal > UserJobSpec_.iops_threshold() &&
-            !IsWoodpecker_)
+            !Woodpecker_)
         {
             LOG_DEBUG("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
                 blockIOStats.IORead,
                 blockIOStats.IOTotal,
                 UserJobSpec_.iops_threshold());
-            IsWoodpecker_ = true;
+            Woodpecker_ = true;
 
             if (UserJobSpec_.has_iops_throttler_limit()) {
                 LOG_DEBUG("Set IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());

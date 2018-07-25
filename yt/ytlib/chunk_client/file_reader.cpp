@@ -6,7 +6,7 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
 
-#include <yt/ytlib/misc/workload.h>
+#include <yt/client/misc/workload.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -234,7 +234,7 @@ void TFileReader::DumpBrokenMeta(const TRef& block) const
     file.Flush();
 }
 
-NProto::TChunkMeta TFileReader::OnMetaDataBlock(    
+NProto::TChunkMeta TFileReader::OnMetaDataBlock(
     const TString& metaFileName,
     i64 metaFileLength,
     TChunkReaderStatisticsPtr chunkReaderStatistics,

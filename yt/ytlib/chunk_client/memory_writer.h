@@ -4,7 +4,7 @@
 #include "chunk_writer.h"
 #include "block.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

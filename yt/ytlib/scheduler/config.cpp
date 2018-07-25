@@ -1,5 +1,6 @@
-#include <yt/core/ytree/convert.h>
 #include "config.h"
+
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -185,9 +186,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("secure_vault", SecureVault)
         .Default();
 
-    RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
-        .Default(TDuration::Hours(1));
-
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
@@ -202,7 +200,7 @@ TOperationSpecBase::TOperationSpecBase()
         .DefaultNew();
 
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-        .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        .DefaultNew(0.5, 2.0, 1.0);
 
     RegisterParameter("fail_on_job_restart", FailOnJobRestart)
         .Default(false);
@@ -228,6 +226,13 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
         .Default(false);
+
+    RegisterParameter("ban_nodes_with_failed_jobs", BanNodesWithFailedJobs)
+        .Default(false);
+    RegisterParameter("ignore_job_failures_at_banned_nodes", IgnoreJobFailuresAtBannedNodes)
+        .Default(false);
+    RegisterParameter("fail_on_all_nodes_banned", FailOnAllNodesBanned)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -749,6 +754,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("force_reduce_combiners", ForceReduceCombiners)
         .Default(false);
 
+    RegisterParameter("ordered", Ordered)
+        .Default(false);
+
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout
     //   SimpleMergeLocalityTimeout
@@ -845,6 +853,11 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
+    RegisterPreprocessor([&] {
+        // NB: in remote copy operation chunks are never decompressed,
+        // so the data weight does not affect anything.
+        MaxDataWeightPerJob = std::numeric_limits<i64>::max();
+    });
     RegisterPostprocessor([&] {
         InputTablePaths = NYPath::Normalize(InputTablePaths);
         OutputTablePath = OutputTablePath.Normalize();
@@ -1009,7 +1022,7 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 }
 
-void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree)
+void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user)
 {
     Owners = spec->Owners;
     auto allTrees = spec->PoolTrees;
@@ -1022,11 +1035,15 @@ void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec
         auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
         if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
             treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-            treeParams->Pool = spec->Pool ? spec->Pool : specIt->second->Pool;
+            if (spec->Pool) {
+                treeParams->Pool = spec->Pool;
+            } else {
+                treeParams->Pool = specIt->second->Pool ? specIt->second->Pool : user;
+            }
             treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
         } else {
             treeParams->Weight = spec->Weight;
-            treeParams->Pool = spec->Pool;
+            treeParams->Pool = spec->Pool ? spec->Pool : user;
             treeParams->ResourceLimits = spec->ResourceLimits;
         }
         YCHECK(SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);

@@ -15,7 +15,15 @@ import tempfile
 from xml.etree import ElementTree
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-svn"))
-from git_svn_lib import (Git, Svn, init_git_svn, fetch_git_svn, pull_git_svn, get_svn_url_for_git_svn_remote)
+from git_svn_lib import (
+    Git,
+    Svn,
+    init_git_svn,
+    get_svn_url_for_git_svn_remote,
+    fetch_git_svn,
+    parse_git_svn_correspondence,
+    pull_git_svn,
+)
 
 logger = logging.getLogger("Yt.GitSvn")
 
@@ -87,7 +95,7 @@ def rmrf(path):
 class LocalGit(object):
     def __init__(self, root):
         self.root = os.path.realpath(root)
-        assert os.path.isdir(os.path.join(self.root, '.git'))
+        assert os.path.exists(os.path.join(self.root, '.git'))
         self.git = Git(root)
 
     def ls_files(self, pathspec):
@@ -324,7 +332,9 @@ def subcommand_fetch(args):
 def subcommand_pull(args):
     git = Git(PROJECT_PATH)
     svn = Svn()
-    pull_git_svn(git, svn, YP_ARCADIA_URL, YP_GIT_SVN_REMOTE_ID, YP_GIT_PATH, YP_SVN_PATH, revision=args.revision)
+    pull_git_svn(git, svn, YP_ARCADIA_URL, YP_GIT_SVN_REMOTE_ID, YP_GIT_PATH, YP_SVN_PATH,
+                 revision=args.revision,
+                 recent_push=args.recent_push)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -366,7 +376,13 @@ def main():
     pull_parser = subparsers.add_parser("pull")
     pull_parser.add_argument(
         "-r", "--revision",
-        help="revision to merge (by default most recent revision will be merged)", type=int)
+        type=int,
+        help="revision to merge (by default most recent revision will be merged)")
+    pull_parser.add_argument(
+        "--recent-push",
+        metavar="<svn-revision>:<git-commit>",
+        type=parse_git_svn_correspondence,
+        help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
     pull_parser.set_defaults(subcommand=subcommand_pull)
 
     # Logging options

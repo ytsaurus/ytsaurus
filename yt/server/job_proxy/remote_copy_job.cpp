@@ -2,9 +2,12 @@
 #include "private.h"
 #include "job_detail.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/config.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -12,7 +15,6 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -21,9 +23,9 @@
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -98,8 +100,8 @@ public:
         OutputChunkListId_ = FromProto<TChunkListId>(
             SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
 
-        auto remoteConnectionConfig = ConvertTo<TNativeConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
-        RemoteConnection_ = CreateNativeConnection(remoteConnectionConfig);
+        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
+        RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
 
         RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
@@ -233,8 +235,8 @@ private:
 
     TChunkListId OutputChunkListId_;
 
-    INativeConnectionPtr RemoteConnection_;
-    INativeClientPtr RemoteClient_;
+    NNative::IConnectionPtr RemoteConnection_;
+    NNative::IClientPtr RemoteClient_;
 
     IChannelPtr MasterChannel_;
 
@@ -295,7 +297,8 @@ private:
                 inputReplicas,
                 erasureCodec,
                 Host_->GetBlockCache(),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetInThrottler());
 
             chunkMeta = GetChunkMeta(readers.front());
 
@@ -306,7 +309,8 @@ private:
                 erasureCodec,
                 New<TNodeDirectory>(),
                 Host_->GetClient(),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
 
             YCHECK(readers.size() == writers.size());
 
@@ -372,7 +376,8 @@ private:
                 inputChunkId,
                 inputReplicas,
                 Host_->GetBlockCache(),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetInThrottler());
 
             chunkMeta = GetChunkMeta(reader);
 
@@ -384,7 +389,8 @@ private:
                 New<TNodeDirectory>(),
                 Host_->GetClient(),
                 GetNullBlockCache(),
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
 

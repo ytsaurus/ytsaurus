@@ -4,7 +4,7 @@
 
 #include <yt/server/exec_agent/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -44,7 +44,7 @@ struct IJobHost
 
     virtual void ReleaseNetwork() = 0;
 
-    virtual NApi::INativeClientPtr GetClient() const = 0;
+    virtual NApi::NNative::IClientPtr GetClient() const = 0;
 
     virtual void OnPrepared() = 0;
 
@@ -62,6 +62,9 @@ struct IJobHost
     virtual TString GetSlotPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
+
+    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler() const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler() const = 0;
 
     virtual TString AdjustPath(const TString& path) const = 0;
 };

@@ -26,9 +26,9 @@ class TestTabletTransactions(YTEnvSetup):
             })
 
     def test_sticky_tablet_transactions(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         def _keys(i, j):
             return [{"key": x} for x in range(i, j)]

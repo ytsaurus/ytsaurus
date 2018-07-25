@@ -1,6 +1,7 @@
 #include "unordered_schemaful_reader.h"
-#include "schemaful_reader.h"
-#include "unversioned_row.h"
+
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/schemaful_reader.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

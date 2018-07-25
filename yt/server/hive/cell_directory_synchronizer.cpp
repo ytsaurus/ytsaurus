@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 

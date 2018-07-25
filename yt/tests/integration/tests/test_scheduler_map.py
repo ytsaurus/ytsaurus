@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto
 from yt_commands import *
 
-from yt.environment.helpers import assert_items_equal, assert_almost_equal
+from yt.environment.helpers import assert_items_equal, are_almost_equal
 
 from flaky import flaky
 
@@ -1256,15 +1256,15 @@ class TestMapOnDynamicTables(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_on_dynamic_table(self, ordered, sort_order, optimize_for):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for)
         set("//tmp/t/@min_compaction_store_count", 5)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         map(
             in_="//tmp/t",
@@ -1275,19 +1275,19 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
         rows1 = [{"key": i, "value": str(i+1)} for i in range(3)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         rows2 = [{"key": i, "value": str(i+2)} for i in range(2, 6)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows2)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         rows3 = [{"key": i, "value": str(i+3)} for i in range(7, 8)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows3)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         assert len(get("//tmp/t/@chunk_ids")) == 4
 
@@ -1316,20 +1316,20 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_dynamic_table_as_user_file(self, optimize_for):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(5)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 8)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         write_table("//tmp/t_in", [{"a": "b"}])
 
@@ -1359,20 +1359,20 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert read_table("//tmp/t_out") == rows
 
     def test_ordered_dynamic_table_as_user_file(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t", sort_order=None)
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(5)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 8)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         write_table("//tmp/t_in", [{"a": "b"}])
 
@@ -1390,21 +1390,21 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert read_table("//tmp/t_out") == rows + rows1
 
     def test_dynamic_table_timestamp(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t")
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
 
         time.sleep(1)
         ts = generate_timestamp()
 
-        self.sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": i, "value": str(i+1)} for i in range(2)])
-        self.sync_flush_table("//tmp/t")
-        self.sync_compact_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
 
         map(
             in_="<timestamp=%s>//tmp/t" % ts,
@@ -1429,14 +1429,14 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_input_data_statistics(self, optimize_for):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         op = map(
             in_="//tmp/t",
@@ -1451,7 +1451,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
 
     def test_dynamic_table_column_filter(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t",
             attributes={
                 "schema": make_schema([

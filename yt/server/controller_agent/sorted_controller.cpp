@@ -13,7 +13,7 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -21,7 +21,9 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/schema.h>
+
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
@@ -283,6 +285,7 @@ protected:
                     return CreateMergeJobSizeConstraints(
                         Spec_,
                         Options_,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight,
                         DataWeightRatio,
                         InputCompressionRatio);
@@ -293,6 +296,7 @@ protected:
                         Options_,
                         OutputTables_.size(),
                         DataWeightRatio,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight,
                         std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
                         GetForeignInputDataWeight());

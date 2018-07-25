@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/public.h>
+#include <yt/client/api/public.h>
 
 #include <yt/ytlib/election/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/ypath/public.h>
+#include <yt/client/ypath/public.h>
 
 namespace NYT {
 namespace NHydra {

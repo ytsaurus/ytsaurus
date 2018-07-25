@@ -5,7 +5,7 @@
 #include <yt/server/cell_node/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 

@@ -16,9 +16,13 @@ include(query_client/CMakeLists.txt)
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_library(yt-library-client ${YT_SRCS_RESOLVED})
+add_library(yt-library-ytlib ${YT_SRCS_RESOLVED})
 
-target_link_libraries(yt-library-client
+# These protos are used in YT python client.
+
+SET(PROTO_TARGETS "")
+
+target_link_libraries(yt-library-ytlib
   deps-arcadia-contrib-libs-re2
   deps-arcadia-library-http
   yt-core
@@ -27,9 +31,10 @@ target_link_libraries(yt-library-client
   yt-core-crypto
   yt-core-skiff
   yt-core-erasure
+  yt-library-client
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    target_link_libraries(yt-library-client deps-yt-contrib-coredumper)
-    target_link_libraries(yt-library-client deps-yt-contrib-portoapi)
+    target_link_libraries(yt-library-ytlib deps-yt-contrib-coredumper)
+    target_link_libraries(yt-library-ytlib deps-yt-contrib-portoapi)
 endif()

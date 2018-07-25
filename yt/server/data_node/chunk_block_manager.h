@@ -7,7 +7,7 @@
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/block.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/ref.h>

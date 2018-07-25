@@ -65,7 +65,7 @@ public:
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
         bool recursive) override;
 
-    virtual const NApi::INativeClientPtr& GetClient() override;
+    virtual const NApi::NNative::IClientPtr& GetClient() override;
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override;

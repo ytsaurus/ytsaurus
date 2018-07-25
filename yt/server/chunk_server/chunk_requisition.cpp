@@ -757,16 +757,16 @@ void TChunkRequisitionRegistry::Erase(
     // accounts to hash requisitions when erasing them.
     auto requisition = it->second.Requisition;
 
+    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
+        index,
+        requisition);
+
     YCHECK(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
 
     for (const auto& entry : requisition) {
         objectManager->WeakUnrefObject(entry.Account);
     }
-
-    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
-        index,
-        requisition);
 }
 
 void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)

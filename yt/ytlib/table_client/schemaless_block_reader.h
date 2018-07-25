@@ -2,8 +2,9 @@
 
 #include "public.h"
 #include "chunk_meta_extensions.h"
-#include "unversioned_row.h"
-#include "versioned_row.h"
+
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/yson/lexer.h>
 

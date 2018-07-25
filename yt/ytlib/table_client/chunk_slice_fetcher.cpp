@@ -1,16 +1,16 @@
 #include "chunk_slice_fetcher.h"
-
-#include "row_buffer.h"
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/client/table_client/row_buffer.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -50,7 +50,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         IFetcherChunkScraperPtr chunkScraper,
-        NApi::INativeClientPtr client,
+        NApi::NNative::IClientPtr client,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& logger)
         : TFetcherBase(
@@ -239,7 +239,7 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     IFetcherChunkScraperPtr chunkScraper,
-    NApi::INativeClientPtr client,
+    NApi::NNative::IClientPtr client,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
 {

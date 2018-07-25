@@ -1,0 +1,2 @@
+def get_protocol_version():
+    return "@YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR@.@YT_RPC_PROXY_PROTOCOL_VERSION_MINOR@"

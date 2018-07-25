@@ -96,6 +96,19 @@ public:
         return UsedSlotCount_;
     }
 
+    double GetUsedCpu(double cpuPerTabletSlot) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        double result = 0;
+        for (const auto& slot : Slots_) {
+            if (slot) {
+                result += slot->GetUsedCpu(cpuPerTabletSlot);
+            }
+        }
+        return result;
+    }
+
     const std::vector<TTabletSlotPtr>& Slots() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -107,7 +120,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto slot : Slots_) {
+        for (const auto& slot : Slots_) {
             if (slot && slot->GetCellId() == id) {
                 return slot;
             }
@@ -476,9 +489,14 @@ int TSlotManager::GetAvailableTabletSlotCount() const
     return Impl_->GetAvailableTabletSlotCount();
 }
 
-int TSlotManager::GetUsedTableSlotCount() const
+int TSlotManager::GetUsedTabletSlotCount() const
 {
     return Impl_->GetUsedTabletSlotCount();
+}
+
+double TSlotManager::GetUsedCpu(double cpuPerTabletSlot) const
+{
+    return Impl_->GetUsedCpu(cpuPerTabletSlot);
 }
 
 const std::vector<TTabletSlotPtr>& TSlotManager::Slots() const

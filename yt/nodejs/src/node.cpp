@@ -265,7 +265,7 @@ TNodeWrap::TNodeWrap(INodePtr node)
     THREAD_AFFINITY_IS_V8();
 }
 
-TNodeWrap::~TNodeWrap() throw()
+TNodeWrap::~TNodeWrap()
 {
     THREAD_AFFINITY_IS_V8();
 }

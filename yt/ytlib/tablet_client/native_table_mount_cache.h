@@ -6,6 +6,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT {
 namespace NTabletClient {
 

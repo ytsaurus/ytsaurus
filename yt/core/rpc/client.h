@@ -43,6 +43,8 @@ struct IClientRequest
     virtual const TString& GetUser() const = 0;
     virtual void SetUser(const TString& user) = 0;
 
+    virtual void SetUserAgent(const TString& userAgent) = 0;
+
     virtual bool GetRetry() const = 0;
     virtual void SetRetry(bool value) = 0;
 
@@ -107,6 +109,8 @@ public:
     virtual const TString& GetUser() const override;
     virtual void SetUser(const TString& user) override;
 
+    virtual void SetUserAgent(const TString& userAgent) override;
+
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
 
@@ -132,7 +136,10 @@ protected:
         IChannelPtr channel,
         const TString& service,
         const TString& method,
-        int protocolVersion);
+        TProtocolVersion protocolVersion);
+
+    // NB: doesn't copy base class.
+    TClientRequest(const TClientRequest& other);
 
     virtual bool IsHeavy() const override;
 
@@ -161,7 +168,7 @@ public:
         IChannelPtr channel,
         const TString& path,
         const TString& method,
-        int protocolVersion);
+        TProtocolVersion protocolVersion);
 
     TFuture<typename TResponse::TResult> Invoke();
 
@@ -292,11 +299,12 @@ struct TServiceDescriptor
 {
     TString ServiceName;
     TString Namespace;
-    int ProtocolVersion = DefaultProtocolVersion;
+    TProtocolVersion ProtocolVersion = DefaultProtocolVersion;
 
     explicit TServiceDescriptor(const TString& serviceName);
 
-    TServiceDescriptor& SetProtocolVersion(int value);
+    TServiceDescriptor& SetProtocolVersion(int majorVersion);
+    TServiceDescriptor& SetProtocolVersion(TProtocolVersion version);
     TServiceDescriptor& SetNamespace(const TString& value);
 
     TString GetFullServiceName() const;

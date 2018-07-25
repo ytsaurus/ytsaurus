@@ -7,11 +7,12 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/api/native_client.h>
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/operation_archive_schema.h>
+#include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/client/api/transaction.h>
+#include <yt/client/api/operation_archive_schema.h>
+
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -61,6 +62,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     Events = ConvertToYsonString(operation->Events());
     Alerts = operation->BuildAlertsString();
     BriefSpec = operation->BriefSpec();
+    RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializationAttributes;
@@ -88,7 +90,8 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "events",
         "alerts",
         "full_spec",
-        "unrecognized_spec"
+        "unrecognized_spec",
+        "runtime_parameters",
     };
 
     return attributeKeys;
@@ -111,6 +114,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     Alerts = attributes.GetYson("alerts");
     FullSpec = attributes.FindYson("full_spec");
     UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
+    RuntimeParameters = attributes.FindYson("runtime_parameters");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,6 +220,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
         }
     }
 
+    if (version >= 22 && request.RuntimeParameters) {
+        builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.GetData(), index.RuntimeParameters));
+    }
+
     return rowBuffer->Capture(builder.GetRow());
 }
 
@@ -251,9 +259,13 @@ class TOperationsCleaner::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
+    TImpl(
+        TOperationsCleanerConfigPtr config,
+        IOperationsCleanerHost* host,
+        TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
+        , Host_(host)
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
     { }
@@ -368,6 +380,7 @@ public:
 private:
     TOperationsCleanerConfigPtr Config_;
     const TBootstrap* const Bootstrap_;
+    IOperationsCleanerHost* const Host_;
 
     TPeriodicExecutorPtr AnalysisExecutor_;
 
@@ -451,6 +464,7 @@ private:
         if (Config_->Enable && Config_->EnableArchivation && !ArchivationEnabled_) {
             ArchivationEnabled_ = true;
             TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
             LOG_INFO("Operations archivation started");
         }
@@ -464,6 +478,7 @@ private:
 
         ArchivationEnabled_ = false;
         TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
         LOG_INFO("Operations archivation stopped");
     }
@@ -704,7 +719,7 @@ private:
                 }
 
                 if (ArchivePendingCounter_.GetCurrent() > Config_->MaxOperationCountEnqueuedForArchival) {
-                    TemporaryDisableArchivation();
+                    TemporarilyDisableArchivation();
                     break;
                 } else {
                     auto sleepDelay = Config_->MinArchivationRetrySleepDelay +
@@ -874,7 +889,7 @@ private:
         TDelayedExecutor::Submit(callback, RandomDuration(Config_->MaxRemovalSleepDelay));
     }
 
-    void TemporaryDisableArchivation()
+    void TemporarilyDisableArchivation()
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -888,7 +903,13 @@ private:
             Config_->ArchivationEnableDelay);
 
         auto enableTime = TInstant::Now() + Config_->ArchivationEnableDelay;
-        LOG_INFO("Archivation is temporary disabled (EnableTime: %v)", enableTime);
+
+        Host_->SetSchedulerAlert(
+            ESchedulerAlertType::OperationsArchivation,
+            TError("Max enqueued operations limit reached; archivation is temporarily disabled")
+            << TErrorAttribute("enable_time", enableTime));
+
+        LOG_INFO("Archivation is temporarily disabled (EnableTime: %v)", enableTime);
     }
 
     void FetchFinishedOperations()
@@ -944,8 +965,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationsCleaner::TOperationsCleaner(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+TOperationsCleaner::TOperationsCleaner(
+    TOperationsCleanerConfigPtr config,
+    IOperationsCleanerHost* host,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(std::move(config), host, bootstrap))
 { }
 
 void TOperationsCleaner::Start()
@@ -1063,11 +1087,8 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
         YCHECK(batch.size() == rsps.size());
 
         for (int index = 0; index < batch.size(); ++index) {
-            const auto& id = batch[index];
-            const auto& rspOrError = rsps[index];
-
-            auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-            YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == id);
+            auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
+            YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == batch[index]);
 
             TArchiveOperationRequest req;
             req.InitializeFromAttributes(*attributes);

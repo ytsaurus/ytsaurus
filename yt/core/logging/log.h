@@ -41,9 +41,11 @@ struct TLoggingPosition
 struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
-    ELogLevel Level;
+    ELogLevel Level = ELogLevel::Minimum;
+    ELogEventFormat Format = ELogEventFormat::PlainText;
     TString Message;
-    NProfiling::TCpuInstant Instant;
+    NYson::TYsonString StructuredMessage;
+    NProfiling::TCpuInstant Instant = 0;
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId = NTracing::InvalidTraceId;

@@ -4,6 +4,7 @@
 #include "helpers.h"
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/message.h>
@@ -159,18 +160,39 @@ private:
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
             InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
 
+            TProtocolVersion protocolVersion{
+                Request_->Header().protocol_version_major(),
+                Request_->Header().protocol_version_minor()
+            };
+
+            InitialMetadataBuilder_.Add(ProtocolVersionMetadataKey, ToString(protocolVersion));
+
             if (Request_->Header().HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
                 const auto& credentialsExt = Request_->Header().GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
                 if (credentialsExt.has_token()) {
-                    InitialMetadataBuilder_.Add(TokenMetadataKey, credentialsExt.token());
+                    InitialMetadataBuilder_.Add(AuthTokenMetadataKey, credentialsExt.token());
+                }
+                if (credentialsExt.has_session_id()) {
+                    InitialMetadataBuilder_.Add(AuthSessionIdMetadataKey, credentialsExt.session_id());
+                }
+                if (credentialsExt.has_ssl_session_id()) {
+                    InitialMetadataBuilder_.Add(AuthSslSessionIdMetadataKey, credentialsExt.ssl_session_id());
                 }
             }
 
-            auto serializedMessage = Request_->Serialize();
+            RequestBody_ = Request_->Serialize();
 
-            // Attachments are not supported.
-            YCHECK(serializedMessage.Size() == 2);
-            RequestBodyBuffer_ = EnvelopedMessageToByteBuffer(serializedMessage[1]);
+            YCHECK(RequestBody_.Size() >= 2);
+            TMessageWithAttachments messageWithAttachments;
+            messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(RequestBody_[1]);
+            for (int index = 2; index < RequestBody_.Size(); ++index) {
+                messageWithAttachments.Attachments.push_back(RequestBody_[index]);
+            }
+
+            RequestBodyBuffer_ = MessageWithAttachmentsToByteBuffer(messageWithAttachments);
+            if (!messageWithAttachments.Attachments.empty()) {
+                InitialMetadataBuilder_.Add(MessageBodySizeMetadataKey, ToString(messageWithAttachments.Message.Size()));
+            }
 
             Stage_ = EClientCallStage::SendingRequest;
 
@@ -246,10 +268,11 @@ private:
         NProfiling::TWallTimer Timer_;
 
         TGrpcCallPtr Call_;
+        TSharedRefArray RequestBody_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
         TGrpcMetadataArray ResponseInitialMetadata_;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
-        TGrpcMetadataArray ResponseFinalMetdata_;
+        TGrpcMetadataArray ResponseFinalMetadata_;
         grpc_status_code ResponseStatusCode_ = GRPC_STATUS_UNKNOWN;
         grpc_slice ResponseStatusDetails_ = grpc_empty_slice();
 
@@ -340,7 +363,7 @@ private:
             ops[1].op = GRPC_OP_RECV_STATUS_ON_CLIENT;
             ops[1].flags = 0;
             ops[1].reserved = nullptr;
-            ops[1].data.recv_status_on_client.trailing_metadata = ResponseFinalMetdata_.Unwrap();
+            ops[1].data.recv_status_on_client.trailing_metadata = ResponseFinalMetadata_.Unwrap();
             ops[1].data.recv_status_on_client.status = &ResponseStatusCode_;
             ops[1].data.recv_status_on_client.status_details = &ResponseStatusDetails_;
             ops[1].data.recv_status_on_client.error_string = nullptr;
@@ -350,34 +373,18 @@ private:
 
         void OnResponseReceived(bool success)
         {
+            auto guard = Finally([this] { Unref(); });
+
             if (!success) {
                 NotifyError(
                     AsStringBuf("Failed to receive response"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to receive response"));
-                Unref();
                 return;
             }
 
-            if (ResponseStatusCode_ == GRPC_STATUS_OK) {
-                if (ResponseBodyBuffer_) {
-                    NRpc::NProto::TResponseHeader responseHeader;
-                    ToProto(responseHeader.mutable_request_id(), Request_->GetRequestId());
-
-                    auto responseBody = ByteBufferToEnvelopedMessage(ResponseBodyBuffer_.Unwrap());
-
-                    auto responseMessage = CreateResponseMessage(
-                        responseHeader,
-                        std::move(responseBody),
-                        {});
-
-                    NotifyResponse(std::move(responseMessage));
-                } else {
-                    auto error = TError(NRpc::EErrorCode::ProtocolError, "Empty response body");
-                    NotifyError(AsStringBuf("Request failed"), error);
-                }
-            } else {
+            if (ResponseStatusCode_ != GRPC_STATUS_OK) {
                 TError error;
-                auto serializedError = ResponseFinalMetdata_.Find(ErrorMetadataKey);
+                auto serializedError = ResponseFinalMetadata_.Find(ErrorMetadataKey);
                 if (serializedError) {
                     error = DeserializeError(serializedError);
                 } else {
@@ -385,9 +392,49 @@ private:
                         << TErrorAttribute("details", ToString(ResponseStatusDetails_));
                 }
                 NotifyError(AsStringBuf("Request failed"), error);
+                return;
             }
 
-            Unref();
+            if (!ResponseBodyBuffer_) {
+                auto error = TError(NRpc::EErrorCode::ProtocolError, "Empty response body");
+                NotifyError(AsStringBuf("Request failed"), error);
+                return;
+            }
+
+            TNullable<ui32> messageBodySize;
+
+            auto messageBodySizeString = ResponseFinalMetadata_.Find(MessageBodySizeMetadataKey);
+            if (messageBodySizeString) {
+                try {
+                    messageBodySize = FromString<ui32>(messageBodySizeString);
+                } catch (const std::exception& ex) {
+                    auto error = TError(NRpc::EErrorCode::TransportError, "Failed to parse response message body size")
+                        << ex;
+                    NotifyError(AsStringBuf("Failed to parse response message body size"), error);
+                    return;
+                }
+            }
+
+            TMessageWithAttachments messageWithAttachments;
+            try {
+                messageWithAttachments = ByteBufferToMessageWithAttachments(
+                    ResponseBodyBuffer_.Unwrap(),
+                    messageBodySize);
+            } catch (const std::exception& ex) {
+                auto error = TError(NRpc::EErrorCode::TransportError, "Failed to receive request body") << ex;
+                NotifyError(AsStringBuf("Failed to receive request body"), error);
+                return;
+            }
+
+            NRpc::NProto::TResponseHeader responseHeader;
+            ToProto(responseHeader.mutable_request_id(), Request_->GetRequestId());
+
+            auto responseMessage = CreateResponseMessage(
+                responseHeader,
+                messageWithAttachments.Message,
+                messageWithAttachments.Attachments);
+
+            NotifyResponse(std::move(responseMessage));
         }
 
 
