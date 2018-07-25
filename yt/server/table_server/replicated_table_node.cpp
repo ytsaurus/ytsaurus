@@ -14,6 +14,7 @@ using namespace NCellMaster;
 
 TReplicatedTableNode::TReplicatedTableNode(const TVersionedNodeId& id)
     : TTableNode(id)
+    , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
 void TReplicatedTableNode::Save(TSaveContext& context) const
