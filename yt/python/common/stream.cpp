@@ -258,9 +258,7 @@ TSharedRef TStreamReader::ExtractPrefix(int endBlockIndex, const char* endPtr)
     }
 
     PrefixStart_ = endPtr;
-
-    YCHECK(PrefixStart_ >= Blocks_[0].begin());
-    YCHECK(PrefixStart_ <= Blocks_[0].end());
+    YCHECK(Blocks_[0].begin() <= PrefixStart_ && PrefixStart_ <= Blocks_[0].end());
 
     return result;
 }
