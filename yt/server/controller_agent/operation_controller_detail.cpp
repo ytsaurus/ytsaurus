@@ -1640,6 +1640,27 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     return lhsBoundaryKeys.MaxKey < rhsBoundaryKeys.MaxKey;
                 });
 
+            if (!table->OutputChunkTreeIds.empty() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                int cmp = CompareRows(
+                    table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
+                    table->LastKey,
+                    table->TableUploadOptions.TableSchema.GetKeyColumnCount());
+
+                if (cmp < 0) {
+                    THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs overlap with original table",
+                        table->Path.GetPath())
+                        << TErrorAttribute("table_max_key", table->LastKey)
+                        << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+                }
+
+                if (cmp == 0 && table->Options->ValidateUniqueKeys) {
+                    THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
+                        table->Path.GetPath())
+                        << TErrorAttribute("table_max_key", table->LastKey)
+                        << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+                }
+            }
+
             for (auto current = table->OutputChunkTreeIds.begin(); current != table->OutputChunkTreeIds.end(); ++current) {
                 auto next = current + 1;
                 if (next != table->OutputChunkTreeIds.end()) {
@@ -4583,14 +4604,6 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 const auto& rsp = getOutAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-                if (attributes->Get<i64>("row_count") > 0 &&
-                    table->TableUploadOptions.TableSchema.IsSorted() &&
-                    table->TableUploadOptions.UpdateMode == EUpdateMode::Append)
-                {
-                    THROW_ERROR_EXCEPTION("Cannot append sorted data to non-empty output table %v",
-                        path);
-                }
-
                 if (table->TableUploadOptions.TableSchema.IsSorted()) {
                     table->Options->ValidateSorted = true;
                     table->Options->ValidateUniqueKeys = table->TableUploadOptions.TableSchema.GetUniqueKeys();
@@ -4683,6 +4696,11 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             auto objectIdPath = FromObjectId(table->ObjectId);
             {
                 auto req = TTableYPathProxy::GetUploadParams(objectIdPath);
+
+                if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                    req->set_fetch_last_key(true);
+                }
+
                 SetTransactionId(req, table->UploadTransactionId);
                 batchReq->AddRequest(req, "get_upload_params");
             }
@@ -4703,6 +4721,10 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
                 const auto& rsp = rspOrError.Value();
                 table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+
+                if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                    table->LastKey = FromProto<TOwningKey>(rsp->last_key());
+                }
 
                 LOG_INFO("Upload parameters of output table received (Path: %v, ChunkListId: %v)",
                     path,

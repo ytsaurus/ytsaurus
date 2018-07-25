@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, require_ytserver_root_privileges
 from yt_commands import *
 
 from yt.yson import *
@@ -693,6 +693,7 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
 
 ##################################################################
 
+@require_ytserver_root_privileges
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
@@ -1025,6 +1026,98 @@ class TestSchedulerCommon(YTEnvSetup):
                 out="//tmp/t2",
                 command=command,
                 spec={"job_count": 1})
+
+    def test_append_to_sorted_table_simple(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+        write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
+        op = map(
+            in_="//tmp/sorted_table",
+            out="<append=%true>//tmp/sorted_table",
+            command="echo '{key=30};{key=39}'",
+            spec={"job_count": 1})
+
+        assert read_table("//tmp/sorted_table") == [{"key": 1}, {"key": 5}, {"key": 10}, {"key": 30}, {"key": 39}]
+
+    def test_append_to_sorted_table_failed(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            });
+        write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
+        
+        with pytest.raises(YtError):
+            op = map(
+                in_="//tmp/sorted_table",
+                out="<append=%true>//tmp/sorted_table",
+                command="echo '{key=7};{key=39}'",
+                spec={"job_count": 1})
+
+    def test_append_to_sorted_table_unique_keys(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            });
+        write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
+        op = map(
+            in_="//tmp/sorted_table",
+            out="<append=%true>//tmp/sorted_table",
+            command="echo '{key=10};{key=39}'",
+            spec={"job_count": 1})
+
+        assert read_table("//tmp/sorted_table") == [{"key": 1}, {"key": 5}, {"key": 10}, {"key": 10}, {"key": 39}]
+
+    def test_append_to_sorted_table_unique_keys_failed(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=True)
+            });
+        write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
+        
+        with pytest.raises(YtError):
+            op = map(
+                in_="//tmp/sorted_table",
+                out="<append=%true>//tmp/sorted_table",
+                command="echo '{key=10};{key=39}'",
+                spec={"job_count": 1})
+
+    def test_append_to_sorted_table_empty_table(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{}])
+        op = map(
+            in_="//tmp/t1",
+            out="<append=%true>//tmp/sorted_table",
+            command="echo '{key=30};{key=39}'",
+            spec={"job_count": 1})
+
+        assert read_table("//tmp/sorted_table") == [{"key": 30}, {"key": 39}]
+
+    def test_append_to_sorted_table_empty_row_empty_table(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{}])
+        op = map(
+            in_="//tmp/t1",
+            out="<append=%true>//tmp/sorted_table",
+            command="echo '{ }'",
+            spec={"job_count": 1})
+
+        assert read_table("//tmp/sorted_table") == [{"key": YsonEntity()}]
 
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
@@ -3650,4 +3743,3 @@ class TestNewLivePreview(YTEnvSetup):
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
-
