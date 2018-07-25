@@ -695,6 +695,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     env["YT_CORE_PATH"] = options.core_path
     if options.build_system == "ya":
         env["PYTHONPATH"] = get_bin_dir(options) + ":" + env["PYTHONPATH"]
+        env["PERL5LIB"] = get_bin_dir(options)
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
@@ -812,7 +813,6 @@ def run_python_libraries_tests(options, build_context):
                 })
 
 @build_step
-@disable_for_ya
 def run_perl_tests(options, build_context):
     if not options.build_enable_perl or options.disable_tests:
         return
