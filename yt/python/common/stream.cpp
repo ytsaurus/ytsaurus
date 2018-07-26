@@ -247,11 +247,11 @@ TSharedRef TStreamReader::ExtractPrefix(int endBlockIndex, const char* endPtr)
         auto prefixLength = firstBlockSuffixLength + (endBlockIndex - 1) * BlockSize_ + lastBlockPrefixLength;
         TBlobOutput prefixOutput(prefixLength);
 
-        prefixOutput.Write(PrefixStart_, Blocks_[0].End() - PrefixStart_);
-        for (int i = 1; i + 1 < endBlockIndex; ++i) {
+        prefixOutput.Write(PrefixStart_, firstBlockSuffixLength);
+        for (int i = 1; i < endBlockIndex; ++i) {
             prefixOutput.Write(Blocks_[i].Begin(), Blocks_[i].Size());
         }
-        prefixOutput.Write(Blocks_[endBlockIndex].Begin(), endPtr - Blocks_[endBlockIndex].Begin());
+        prefixOutput.Write(Blocks_[endBlockIndex].Begin(), lastBlockPrefixLength);
 
         Blocks_.erase(Blocks_.begin(), Blocks_.begin() + endBlockIndex);
         result = prefixOutput.Flush();
