@@ -38,12 +38,6 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
-    // COMPAT(prime)
-    RegisterParameter("send_legacy_user_ip", SendLegacyUserIP)
-        .Default(true);
-    // COMPAT(prime)
-    RegisterParameter("discover_proxies_from_cypress", DiscoverProxiesFromCypress)
-        .Default(true);
 
     RegisterPostprocessor([this] {
         if (!ClusterUrl && Addresses.empty()) {
