@@ -1314,6 +1314,7 @@ private:
         }
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
+            resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||

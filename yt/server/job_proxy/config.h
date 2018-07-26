@@ -46,6 +46,7 @@ public:
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
+    NRpc::TRetryingChannelConfigPtr SupervisorChannel;
 
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
@@ -87,6 +88,9 @@ public:
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
 
+        RegisterParameter("supervisor_channel", SupervisorChannel)
+            .DefaultNew();
+
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
 
@@ -116,6 +120,7 @@ public:
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);
+
     }
 };
 
