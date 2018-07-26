@@ -2291,7 +2291,7 @@ TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareC
     const TSchedulerElement* parent = this;
     while (parent) {
         auto parentLimits =
-            parent->ResourceLimits()
+            Min(parent->ResourceLimits(), parent->ResourceDemand())
             - parent->GetResourceUsage()
             - parent->GetResourceUsagePrecommit()
             + context.DynamicAttributes(parent).ResourceUsageDiscount;
