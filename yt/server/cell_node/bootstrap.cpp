@@ -425,6 +425,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
+    JobProxyConfigTemplate->SupervisorChannel = Config->SupervisorChannel;
 
     JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 

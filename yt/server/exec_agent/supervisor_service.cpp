@@ -43,7 +43,9 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleBandwidth));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleBandwidth)
+       .SetMaxQueueSize(5000)
+       .SetMaxConcurrency(5000));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
