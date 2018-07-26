@@ -106,7 +106,7 @@ case $PACKAGE in
     yandex-yt-python-fennel|yandex-yt-fennel)
         REPOS="yt-common"
         ;;
-    yandex-yt-python-yson)
+    yandex-yt-python-yson|yandex-yt-python-driver-rpc)
         REPOS="yandex-$CODENAME yt-$CODENAME"
         ;;
     yandex-yt-python-proto)
