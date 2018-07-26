@@ -232,7 +232,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
         return;
     }
 
-    // NB(psushin): We delay updating compressed size untill passing it to underlying invoker,
+    // NB(psushin): We delay updating compressed size until passing it to underlying invoker,
     // in order not to look suspicious when writing data is much slower than compression, but not completely stalled;
     // otherwise merge jobs on loaded cluster may seem suspicious.
     CompressedSize_ += block.Size();

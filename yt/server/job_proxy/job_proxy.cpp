@@ -52,9 +52,10 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/server.h>
 #include <yt/core/rpc/bus/server.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -465,7 +466,9 @@ TJobResult TJobProxy::DoRun()
         RpcServer_->Start();
 
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-        auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
+        auto supervisorChannel = CreateRetryingChannel(
+            Config_->SupervisorChannel,
+            NRpc::NBus::CreateBusChannel(supervisorClient));
 
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
