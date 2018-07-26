@@ -309,7 +309,7 @@ TStringBuf FormatBool(bool value);
 template <class T>
 char* WriteIntToBufferBackwards(char* ptr, T value);
 
-char* WriteGuidToBuffer(char* ptr, const TGuid& value);
+char* WriteGuidToBuffer(char* ptr, TGuid value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

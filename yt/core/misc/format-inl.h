@@ -338,7 +338,7 @@ struct TValueFormatter<TEnumIndexedVector<T, E>>
 };
 
 // TGuid
-inline void FormatValue(TStringBuilder* builder, const TGuid& value, TStringBuf /*format*/)
+inline void FormatValue(TStringBuilder* builder, TGuid value, TStringBuf /*format*/)
 {
     char* begin = builder->Preallocate(8 * 4 + 3);
     char* end = WriteGuidToBuffer(begin, value);

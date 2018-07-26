@@ -26,7 +26,7 @@ size_t EstimateSize(i64)
     return EstimatedValueSize;
 }
 
-size_t EstimateSize(const TGuid& id)
+size_t EstimateSize(TGuid id)
 {
     return id.IsEmpty() ? 0 : EstimatedValueSize * 2;
 }

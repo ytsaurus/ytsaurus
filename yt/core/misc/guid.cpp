@@ -273,7 +273,7 @@ bool TGuid::FromString(TStringBuf str, TGuid* result)
     return true;
 }
 
-TString ToString(const TGuid& guid)
+TString ToString(TGuid guid)
 {
     return ToStringViaBuilder(guid);
 }

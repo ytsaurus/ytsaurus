@@ -101,7 +101,7 @@ private:
     static void RedirectCoreDumpToFile(
         TUnbufferedFileInput&& coreInput,
         TUnbufferedFileOutput&& coreOutput,
-        const TGuid& id)
+        TGuid id)
     {
         LOG_INFO("Started transferring core dump data (Id: %v)", id);
         auto size = TransferData(&coreInput, &coreOutput);

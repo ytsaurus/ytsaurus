@@ -39,7 +39,7 @@ Y_FORCE_INLINE TGuid::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void ToProto(NProto::TGuid* protoGuid, const TGuid& guid)
+Y_FORCE_INLINE void ToProto(NProto::TGuid* protoGuid, TGuid guid)
 {
     protoGuid->set_first(guid.Parts64[0]);
     protoGuid->set_second(guid.Parts64[1]);
@@ -51,7 +51,7 @@ Y_FORCE_INLINE void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
     guid->Parts64[1] = protoGuid.second();
 }
 
-Y_FORCE_INLINE void ToProto(TProtoStringType* protoGuid, const TGuid& guid)
+Y_FORCE_INLINE void ToProto(TProtoStringType* protoGuid, TGuid guid)
 {
     *protoGuid = guid ? ToString(guid) : TString();
 }
@@ -63,18 +63,18 @@ Y_FORCE_INLINE void FromProto(TGuid* guid, const TProtoStringType& protoGuid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE bool operator == (const TGuid& lhs, const TGuid& rhs)
+Y_FORCE_INLINE bool operator == (TGuid lhs, TGuid rhs)
 {
     return lhs.Parts64[0] == rhs.Parts64[0] &&
            lhs.Parts64[1] == rhs.Parts64[1];
 }
 
-Y_FORCE_INLINE bool operator != (const TGuid& lhs, const TGuid& rhs)
+Y_FORCE_INLINE bool operator != (TGuid lhs, TGuid rhs)
 {
     return !(lhs == rhs);
 }
 
-Y_FORCE_INLINE bool operator < (const TGuid& lhs, const TGuid& rhs)
+Y_FORCE_INLINE bool operator < (TGuid lhs, TGuid rhs)
 {
 #ifdef __GNUC__
     ui64 lhs0 = __builtin_bswap64(lhs.Parts64[0]);
