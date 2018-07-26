@@ -33,7 +33,10 @@ struct TConfig
     TString ApiVersion;
     TString LogLevel;
 
+    // Compression for data that is sent to YT cluster.
     EEncoding ContentEncoding;
+
+    // Compression for data that is read from YT cluster.
     EEncoding AcceptEncoding;
 
     TString GlobalTxId;
