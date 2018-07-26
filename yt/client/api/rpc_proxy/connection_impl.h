@@ -70,8 +70,6 @@ private:
     std::vector<TString> DiscoverProxiesByHttp(const NApi::TClientOptions& options);
 
     void OnProxyListUpdate();
-
-    TString GetLocalAddress();
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnection)
