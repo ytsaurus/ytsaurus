@@ -433,7 +433,7 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 struct TBaseQuery
     : public TIntrinsicRefCounted
 {
-    explicit TBaseQuery(const TGuid& id = TGuid::Create())
+    explicit TBaseQuery(TGuid id = TGuid::Create())
         : Id(id)
     { }
 
@@ -485,7 +485,7 @@ DEFINE_REFCOUNTED_TYPE(TBaseQuery)
 struct TQuery
     : public TBaseQuery
 {
-    explicit TQuery(const TGuid& id = TGuid::Create())
+    explicit TQuery(TGuid id = TGuid::Create())
         : TBaseQuery(id)
     { }
 
@@ -573,7 +573,7 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 struct TFrontQuery
     : public TBaseQuery
 {
-    explicit TFrontQuery(const TGuid& id = TGuid::Create())
+    explicit TFrontQuery(TGuid id = TGuid::Create())
         : TBaseQuery(id)
     { }
 
