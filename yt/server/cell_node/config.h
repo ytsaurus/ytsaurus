@@ -117,6 +117,8 @@ public:
     //! Timeout for RPC query in JobBandwidthThrottler.
     TDuration JobBandwidthThrottlerRpcTimeout;
 
+    NRpc::TRetryingChannelConfigPtr SupervisorChannel;
+
     i64 FootprintMemorySize;
 
     int SkynetHttpPort;
@@ -148,6 +150,8 @@ public:
             .DefaultNew();
         RegisterParameter("job_bandwidth_throttler_rpc_timeout", JobBandwidthThrottlerRpcTimeout)
             .Default(TDuration::Minutes(15));
+        RegisterParameter("supervisor_channel", SupervisorChannel)
+            .DefaultNew();
 
         RegisterParameter("footprint_memory_size", FootprintMemorySize)
             .Default(1_GB)
