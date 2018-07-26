@@ -1,0 +1,54 @@
+{
+    "meta": {
+        "name": "yandex-yt-http-proxy",
+        "maintainer": "YT Team <yt@yandex-team.ru>",
+        "description": "YT. This package provides server-side software",
+        "version": "{revision}.{branch}",
+        "pre-depends": [],
+        "depends": ["libc6 (>= 2.15)"],
+        "conflicts": ["yandex-yt"],
+        "homepage": "https://wiki.yandex-team.ru/yt/"
+    },
+    "build": {
+        "targets": [
+            "yt/nodejs/targets/bin"
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/nodejs/targets/bin/ytnode"
+            },
+            "destination": {
+                "path": "/node_modules/yt/bin/ytnode"
+            }
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/nodejs",
+                "files": [
+                    "index.js",
+                    "bin/*",
+                    "lib/*",
+                    "static/*"
+                ]
+            },
+            "destination": {
+                "path": "/node_modules/yt/"
+            }
+        },
+        {
+            "source": {
+                "type": "SANDBOX_RESOURCE",
+                "id": 164517229,
+                "path": "node_modules"
+            },
+            "destination": {
+                "path": "/node_modules/yt/"
+            }
+        }
+    ]
+}
+
