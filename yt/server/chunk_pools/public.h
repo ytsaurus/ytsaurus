@@ -18,7 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 
 // TODO(max42): add these codes to the documentation.
 DEFINE_ENUM(EErrorCode,
-    ((DataSliceLimitExceeded)(20000))
+    ((DataSliceLimitExceeded)(2000))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
