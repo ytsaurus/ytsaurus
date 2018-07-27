@@ -2833,7 +2833,6 @@ private:
     std::array<EOperationType, 4> OperationTypesWithShuffle = {
         EOperationType::Sort,
         EOperationType::MapReduce,
-        EOperationType::JoinReduce,
         EOperationType::RemoteCopy
     };
 

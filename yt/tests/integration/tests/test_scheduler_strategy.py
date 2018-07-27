@@ -2071,10 +2071,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         op1_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op1.id)
         op2_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op2.id)
 
-        assert exists(op1_pool_trees_path + "default")
-        assert exists(op1_pool_trees_path + "other")
-        assert exists(op2_pool_trees_path + "default")
-        assert not exists(op2_pool_trees_path + "other")
+        wait(lambda: exists(op1_pool_trees_path + "default"))
+        wait(lambda: exists(op1_pool_trees_path + "other"))
+        wait(lambda: exists(op2_pool_trees_path + "default"))
+        wait(lambda: not exists(op2_pool_trees_path + "other"))
 
     def test_tentative_pool_tree_banning(self):
         other_node_list = self._prepare_pool_trees()
@@ -2143,10 +2143,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     tentative_job_count += 1
 
                     if tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
-                        time.sleep(0.5)
+                        time.sleep(0.3)
                         # Tentative tree should've been banned by now.
                         wait(lambda: not exists(op_pool_trees_path + "other"))
-                        assert exists(op_pool_trees_path + "default") or operation_completed()
+                        wait(lambda: exists(op_pool_trees_path + "default") or operation_completed())
                         break
 
         while not operation_completed():
