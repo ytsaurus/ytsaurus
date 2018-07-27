@@ -17,7 +17,7 @@ from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
-from yt.environment.helpers import are_almost_equal
+from yt.test_helpers import are_almost_equal
 from yt.local import start, stop
 
 from yt.yson import YsonMap, YsonList
