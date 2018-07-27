@@ -211,6 +211,23 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert not get("//sys/operations/{0}/@suspended".format(op.id))
         assert not get("//sys/operations/{0}/@alerts".format(op.id))
 
+    def test_suspend_operation_after_materialization(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": 0}])
+
+        op = map(dont_track=True,
+                 command="cat",
+                 in_="//tmp/in",
+                 out="//tmp/out",
+                 spec={
+                     "data_size_per_job": 1,
+                     "suspend_operation_after_materialization": True
+                 })
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)))
+        op.resume()
+        op.track()
+
     def test_fail_context_saved_on_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")

@@ -476,7 +476,7 @@ public:
             .Run();
     }
 
-    TFuture<void> MaterializeOperation(const TOperationPtr& operation)
+    TFuture<TOperationControllerMaterializeResult> MaterializeOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -1492,7 +1492,7 @@ TFuture<TOperationControllerPrepareResult> TControllerAgent::PrepareOperation(co
     return Impl_->PrepareOperation(operation);
 }
 
-TFuture<void> TControllerAgent::MaterializeOperation(const TOperationPtr& operation)
+TFuture<TOperationControllerMaterializeResult> TControllerAgent::MaterializeOperation(const TOperationPtr& operation)
 {
     return Impl_->MaterializeOperation(operation);
 }

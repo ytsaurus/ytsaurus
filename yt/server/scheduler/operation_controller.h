@@ -63,6 +63,11 @@ struct TOperationControllerReviveResult
     std::vector<TJobPtr> RevivedJobs;
 };
 
+struct TOperationControllerMaterializeResult
+{
+    bool Suspend = false;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
@@ -94,7 +99,7 @@ struct IOperationController
     virtual TFuture<TOperationControllerPrepareResult> Prepare() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Materialize asynchronously.
-    virtual TFuture<void> Materialize() = 0;
+    virtual TFuture<TOperationControllerMaterializeResult> Materialize() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Revive asynchronously.
     virtual TFuture<TOperationControllerReviveResult> Revive() = 0;

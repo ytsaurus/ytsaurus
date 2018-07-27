@@ -356,6 +356,9 @@ public:
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 
+    //! Suspend operation right after the materialization phase.
+    bool SuspendOperationAfterMaterialization;
+
     //! Generic map to turn on/off different experimental options.
     NYTree::IMapNodePtr NightlyOptions;
 
