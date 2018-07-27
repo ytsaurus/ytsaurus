@@ -367,7 +367,7 @@ class TestJobStderr(YTEnvSetup):
                 else
                     exit 0;
                 fi;"""
-                    .format(lock_dir=EventsOnFs()._get_event_filename("lock_dir")))
+                    .format(lock_dir=events_on_fs()._get_event_filename("lock_dir")))
         op = map(
             dont_track=True,
             label="stderr_of_failed_jobs",
@@ -3336,7 +3336,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         for i in range(40):
             write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
-        events = EventsOnFs()
+        events = events_on_fs()
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1

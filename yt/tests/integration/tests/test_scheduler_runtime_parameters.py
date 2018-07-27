@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, wait
-from yt.environment.helpers import are_almost_equal
+from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
 class TestRuntimeParameters(YTEnvSetup):

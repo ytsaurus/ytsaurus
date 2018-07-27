@@ -1,7 +1,6 @@
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 
-import __builtin__
 import pytest
 
 class TestColumnarStatistics(YTEnvSetup):
