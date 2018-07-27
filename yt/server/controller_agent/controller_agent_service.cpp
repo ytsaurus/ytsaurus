@@ -197,8 +197,10 @@ private:
 
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            WaitFor(controllerAgent->MaterializeOperation(operation))
-                .ThrowOnError();
+            auto result = WaitFor(controllerAgent->MaterializeOperation(operation))
+                .ValueOrThrow();
+
+            response->set_suspend(result.Suspend);
 
             context->Reply();
         });

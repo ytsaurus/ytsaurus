@@ -189,6 +189,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
+    RegisterParameter("suspend_operation_after_materialization", SuspendOperationAfterMaterialization)
+        .Default(false);
+
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
 

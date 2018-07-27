@@ -65,6 +65,11 @@ struct TOperationControllerPrepareResult
     NYson::TYsonString Attributes;
 };
 
+struct TOperationControllerMaterializeResult
+{
+    bool Suspend = false;
+};
+
 struct TOperationControllerReviveResult
     : public TOperationControllerPrepareResult
 {
@@ -307,7 +312,7 @@ struct IOperationControllerSchedulerHost
     /*!
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual void Materialize() = 0;
+    virtual TOperationControllerMaterializeResult Materialize() = 0;
 
     //! Reactivates an already running operation, possibly restoring its progress.
     /*!

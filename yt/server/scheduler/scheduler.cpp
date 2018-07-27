@@ -971,6 +971,7 @@ public:
 
     void MaterializeOperation(const TOperationPtr& operation)
     {
+
         if (operation->GetState() != EOperationState::Pending) {
             // Operation can be in finishing state already.
             return;
@@ -980,21 +981,23 @@ public:
             operation->GetId(),
             operation->GetRevivedFromSnapshot());
 
-        TFuture<void> asyncResult;
+        TFuture<TOperationControllerMaterializeResult> asyncMaterializeResult;
+        TFuture<void> asyncCombineResult;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
-            asyncResult = RegisterJobsFromRevivedOperation(operation);
+            asyncCombineResult = RegisterJobsFromRevivedOperation(operation);
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
-            asyncResult = Combine(std::vector<TFuture<void>>({
-                operation->GetController()->Materialize(),
+            asyncMaterializeResult = operation->GetController()->Materialize();
+            asyncCombineResult = Combine(std::vector<TFuture<void>>({
+                asyncMaterializeResult.As<void>(),
                 ResetOperationRevival(operation)
             }));
         }
 
         auto expectedState = operation->GetState();
-        asyncResult.Subscribe(
-            BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        asyncCombineResult.Subscribe(
+            BIND([=, this_ = MakeStrong(this), asyncMaterializeResult = std::move(asyncMaterializeResult)] (const TError& error) {
                 if (!error.IsOK()) {
                     return;
                 }
@@ -1003,6 +1006,20 @@ public:
                 }
                 operation->SetStateAndEnqueueEvent(EOperationState::Running);
                 Strategy_->EnableOperation(operation.Get());
+                if (asyncMaterializeResult) {
+                    // Async materialize result is ready here as the combined future already has finished.
+                    YCHECK(asyncMaterializeResult.IsSet());
+                    auto materializeResult = asyncMaterializeResult
+                        .Get()
+                        .ValueOrThrow();
+                    if (materializeResult.Suspend) {
+                        DoSuspendOperation(
+                            operation,
+                            TError("Operation suspended due to suspend_operation_after_materialization spec option"),
+                            /* abortRunningJobs */ false,
+                            /* setAlert */ false);
+                    }
+                }
             })
             .Via(operation->GetCancelableControlInvoker()));
     }

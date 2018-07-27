@@ -740,8 +740,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     return result;
 }
 
-void TOperationControllerBase::SafeMaterialize()
+TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize()
 {
+    TOperationControllerMaterializeResult result;
+
     try {
         FetchInputTables();
         FetchUserFiles();
@@ -767,7 +769,7 @@ void TOperationControllerBase::SafeMaterialize()
             // - Anything else?
             LOG_INFO("No jobs needed");
             OnOperationCompleted(false /* interrupted */);
-            return;
+            return result;
         } else {
             YCHECK(UnavailableInputChunkCount == 0);
             for (const auto& pair : InputChunkMap) {
@@ -815,7 +817,7 @@ void TOperationControllerBase::SafeMaterialize()
         }
 
         if (State != EControllerState::Preparing) {
-            return;
+            return result;
         }
         State = EControllerState::Running;
 
@@ -824,10 +826,14 @@ void TOperationControllerBase::SafeMaterialize()
         auto wrappedError = TError("Materialization failed") << ex;
         LOG_INFO(wrappedError);
         OnOperationFailed(wrappedError);
-        return;
+        return result;
     }
 
+    result.Suspend = Spec_->SuspendOperationAfterMaterialization;
+
     LOG_INFO("Materialization finished");
+
+    return result;
 }
 
 void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
