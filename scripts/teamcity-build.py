@@ -75,6 +75,9 @@ def disable_for_ya(func):
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
 
+def get_ya(options):
+    return os.path.join(options.checkout_directory, "ya")
+
 def get_ya_cache_dir(options):
     ya_cache = os.environ.get("YA_CACHE_DIR", None)
     if ya_cache is None:
@@ -89,37 +92,24 @@ def get_git_depth(options):
         capture_output=True)
     return run_result.stdout.rstrip("\n")
 
-def ya_make_flags(options):
-    return [
-        "-T", # plain text output without colors and control characters
-        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
-        "-DYT_VERSION_BRANCH={0}".format(options.branch),
-        "--build", options.ya_build_type,
-        "--no-src-links",
-    ]
+def ya_make_env(options):
+    return {
+        "YA_CACHE_DIR": get_ya_cache_dir(options),
+    }
 
-def run_yall(options, env=None):
+def run_yall(options):
     assert options.build_system == "ya"
     yall = os.path.join(options.checkout_directory, "yall")
 
-    run_env = {
-        "YA_CACHE_DIR": get_ya_cache_dir,
-    }
-
-    if env is not None:
-        run_env.update(env)
-
     args = [
         yall,
-        "--install", get_bin_dir(options),
     ]
-    args += ya_make_flags(options)
     if options.use_asan:
         args += ["--yall-asan-build"]
 
     run(args,
         cwd=options.checkout_directory,
-        env=run_env)
+        env=ya_make_env(options))
 
 @build_step
 def prepare(options, build_context):
@@ -260,7 +250,23 @@ def configure(options, build_context):
             _configure(options, build_context, options.working_directory)
     else:
         assert options.build_system == "ya"
-        teamcity_message("ya does not require configuration")
+        ya_conf_text = (
+            """create_symlinks = false\n"""
+            """output_style = "make"\n"""
+            """install_dir = "{bin_dir}"\n"""
+            """build_type = "{build_type}"\n"""
+            """[flags]\n"""
+            """YT_VERSION_PATCH="{yt_version_patch}"\n"""
+            """YT_VERSION_BRANCH="{yt_version_branch}\"\n"""
+        ).format(
+            bin_dir=get_bin_dir(options),
+            build_type=options.ya_build_type,
+            yt_version_patch=options.patch_number,
+            yt_version_branch=options.branch,
+        )
+        ya_conf = os.path.join(get_ya_cache_dir(options), "ya.conf")
+        with open(ya_conf, "w") as outf:
+            outf.write(ya_conf_text)
 
 @build_step
 def build(options, build_context):
@@ -555,6 +561,30 @@ def run_sandbox_upload(options, build_context):
 
         rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
+    else:
+        assert options.build_system == "ya"
+        ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
+        yt_http_proxy_package = os.path.join(options.checkout_directory, "yt/packages/yandex-yt-http-proxy.json")
+
+        tmp_dir = os.path.join(options.working_directory, "tmp_package_build")
+        mkdirp(tmp_dir)
+        with cwd(tmp_dir):
+            args = [
+                get_ya(options),
+                "package",
+                yt_http_proxy_package,
+                "--custom-version", build_context["yt_version"],
+                "--tar",
+                "--no-compression",
+            ]
+            run(args, env=ya_make_env(options))
+            generated_package_list = glob.glob("*.tar")
+            assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
+            os.rename(generated_package_list[0], ya_nodejs_tar)
+        shutil.rmtree(tmp_dir)
+
+        rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
+        sandbox_ctx["upload_urls"]["ya_node_modules"] = rbtorrent
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
