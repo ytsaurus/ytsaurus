@@ -264,7 +264,7 @@ def configure(options, build_context):
             yt_version_patch=options.patch_number,
             yt_version_branch=options.branch,
         )
-        ya_conf = os.path.join(get_ya_cache_dir(options), "ya.conf")
+        ya_conf = os.path.join(options.checkout_directory, "ya.conf")
         with open(ya_conf, "w") as outf:
             outf.write(ya_conf_text)
 
