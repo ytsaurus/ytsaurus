@@ -878,7 +878,7 @@ private:
     {
         auto verboseLogging = Options_.VerboseLogging;
 
-        auto holder = MakeHolder(ranges.GetHolder(), rowBuffer);
+        auto holder = MakeIntrinsicHolder(ranges.GetHolder(), rowBuffer);
 
         TRow lowerCapBound = rowBuffer->Capture(partitions.front()->PivotKey);
         TRow upperCapBound = rowBuffer->Capture(partitions.back()->NextPivotKey);
