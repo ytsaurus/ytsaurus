@@ -29,7 +29,7 @@ export NODE_PATH="$PROXY_INSTALL_DIR/node_modules"
 
 cd $PROXY_INSTALL_DIR/node_modules/yt/tests
 
-exec $PROXY_INSTALL_DIR/node_modules/mocha/bin/mocha \
+exec $INSTALL_DIR/ytnode $PROXY_INSTALL_DIR/node_modules/mocha/bin/mocha \
   --reporter "spec" \
   --require "common.js" \
   --expose-gc \
