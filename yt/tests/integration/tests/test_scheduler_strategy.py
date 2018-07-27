@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
-from yt.environment.helpers import are_almost_equal
+from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
 from yt.common import date_string_to_timestamp
@@ -2041,7 +2041,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
 
     def test_tentative_pool_tree_not_supported(self):
-        other_node_list = self._prepare_pool_trees()
+        self._prepare_pool_trees()
         spec = self._create_spec()
         self._patch_spec_for_tentativeness(spec)
 
@@ -2049,7 +2049,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
         create("table", "//tmp/t_out")
 
-        events = EventsOnFs()
+        events = events_on_fs()
 
         op2 = map_reduce(
             mapper_command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
@@ -2086,7 +2086,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
         create("table", "//tmp/t_out")
 
-        events = EventsOnFs()
+        events = events_on_fs()
 
         op = map(
             command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
@@ -2160,7 +2160,6 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
 
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
-        release_breakpoint()
 
     def test_missing_tentative_pool_trees(self):
         self._prepare_pool_trees()

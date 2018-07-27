@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, unix_only, find_ut_file
 from yt_commands import *
 
-from yt.environment.helpers import assert_items_equal, are_almost_equal
+from yt.test_helpers import assert_items_equal, are_almost_equal
 
 import pytest
 import os

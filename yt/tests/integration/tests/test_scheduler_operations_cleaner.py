@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.environment.helpers import wait
+from yt.test_helpers import wait
 
 from yt.operations_archive.clear_operations import id_to_parts_new
 

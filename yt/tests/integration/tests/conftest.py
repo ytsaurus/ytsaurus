@@ -4,7 +4,7 @@ import os
 sys.path.insert(0, os.path.abspath('../../../python'))
 sys.path.append(os.path.abspath('.'))
 
-pytest_plugins = "yt.tests_runner.plugin"
+pytest_plugins = "yt.test_runner.plugin"
 
 def pytest_runtest_makereport(item, call, __multicall__):
     rep = __multicall__.execute()
