@@ -26,10 +26,11 @@ std::unique_ptr<IInputStream> CreateOwningStringInput(TString string);
 class TStreamReader
 {
 public:
-    TStreamReader()
-    { }
+    static const size_t DefaultBlockSize_ = 1024 * 1024;
 
-    explicit TStreamReader(IInputStream* stream);
+    TStreamReader();
+
+    explicit TStreamReader(IInputStream* stream, size_t blockSize = DefaultBlockSize_);
 
     const char* Begin() const;
     const char* Current() const;
@@ -60,7 +61,8 @@ private:
     const char* PrefixStart_ = nullptr;
 
     bool Finished_ = false;
-    static const size_t BlockSize_ = 1024 * 1024;
+
+    size_t BlockSize_ = DefaultBlockSize_;
 
     void ReadNextBlock();
 };
