@@ -58,32 +58,13 @@ init_vars() {
 }
 
 PACKAGE=$1
-if [ "$CODENAME" = "lucid" ]; then
-    PACKAGE_PATH="${PACKAGE}_lucid"
-else
-    PACKAGE_PATH="$PACKAGE"
-fi
+PACKAGE_PATH="$PACKAGE"
 
 init_vars
 
 # Copy package files to the python root
 # NB: Symbolic links doesn't work correctly with `sdist upload`
 cp -r -L $PACKAGE_PATH/debian $PACKAGE_PATH/setup.py .
-
-if [ -f "$PACKAGE_PATH/stable_versions" ]; then
-    cp $PACKAGE_PATH/stable_versions .
-fi
-
-# NB: On Lucid packages have special lucid version of debian
-# directory but changelog from original package should be used to avoid duplication.
-cp $PACKAGE/debian/changelog debian
-
-if [ -f "$PACKAGE_PATH/MANIFEST.in" ]; then
-    cp $PACKAGE_PATH/MANIFEST.in .
-fi
-if [ -f "$PACKAGE_PATH/requirements.txt" ]; then
-    cp $PACKAGE_PATH/requirements.txt .
-fi
 
 # Initial cleanup
 clean
@@ -129,11 +110,6 @@ fi
 
 # Build and upload debian package if necessary
 if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
-    # Lucid has old packaging (w/o pybuild)
-    if [ "$CODENAME" = "lucid" ]; then
-        DEB=1 python setup.py sdist --dist-dir=../
-    fi
-
     # NB: Never strip binaries and so-libraries.
     DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
@@ -154,8 +130,8 @@ if [ -z "$SKIP_WHEEL" ]; then
     # Ubuntu distributions as possible wheel should be built only on the oldest
     # distribution (since all new distributions have backward compatibility).
     # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
-    # This is why oldest distributions are chosen - precise and lucid.
-    if [ "$CODENAME" = "precise" ] || [ "$CODENAME" = "lucid" ]; then
+    # This is why oldest distributions are chosen - precise.
+    if [ "$CODENAME" = "precise" ]; then
         python setup.py bdist_wheel --universal upload -r yandex
     fi
 fi
