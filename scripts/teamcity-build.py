@@ -89,20 +89,21 @@ def get_git_depth(options):
         capture_output=True)
     return run_result.stdout.rstrip("\n")
 
-def run_yall(options, mkdirs=False, env=None):
+def ya_make_flags(options):
+    return [
+        "-T", # plain text output without colors and control characters
+        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
+        "-DYT_VERSION_BRANCH={0}".format(options.branch),
+        "--build", options.ya_build_type,
+        "--no-src-links",
+    ]
+
+def run_yall(options, env=None):
     assert options.build_system == "ya"
     yall = os.path.join(options.checkout_directory, "yall")
 
-    ya_cache = get_ya_cache_dir(options)
-
-    bin_dir = get_bin_dir(options)
-
-    if mkdirs:
-        mkdirp(ya_cache)
-        mkdirp(bin_dir)
-
     run_env = {
-        "YA_CACHE_DIR": ya_cache,
+        "YA_CACHE_DIR": get_ya_cache_dir,
     }
 
     if env is not None:
@@ -110,13 +111,9 @@ def run_yall(options, mkdirs=False, env=None):
 
     args = [
         yall,
-        "-T",
-        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
-        "-DYT_VERSION_BRANCH={0}".format(options.branch),
-        "--build", options.ya_build_type,
-        "--no-src-links",
-        "--install", bin_dir,
+        "--install", get_bin_dir(options),
     ]
+    args += ya_make_flags(options)
     if options.use_asan:
         args += ["--yall-asan-build"]
 
@@ -216,6 +213,8 @@ def prepare(options, build_context):
         resource.RLIMIT_CORE,
         (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
+    mkdirp(get_ya_cache_dir(options))
+    mkdirp(get_bin_dir(options))
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
@@ -276,7 +275,7 @@ def build(options, build_context):
                 [get_bin_dir(options)])
     else:
         assert options.build_system == "ya"
-        run_yall(options, mkdirs=True)
+        run_yall(options)
 
 @build_step
 def gather_build_info(options, build_context):
@@ -722,7 +721,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
         else:
             # Lucid case.
             ParseError = TypeError
-
 
         try:
             result = etree.parse(handle)
