@@ -75,9 +75,6 @@ def disable_for_ya(func):
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
 
-def get_output_dir(options):
-    return os.path.join(options.working_directory, "output")
-
 def get_ya_cache_dir(options):
     ya_cache = os.environ.get("YA_CACHE_DIR", None)
     if ya_cache is None:
@@ -98,12 +95,10 @@ def run_yall(options, mkdirs=False, env=None):
 
     ya_cache = get_ya_cache_dir(options)
 
-    output_dir = get_output_dir(options)
     bin_dir = get_bin_dir(options)
 
     if mkdirs:
         mkdirp(ya_cache)
-        mkdirp(output_dir)
         mkdirp(bin_dir)
 
     run_env = {
@@ -120,7 +115,6 @@ def run_yall(options, mkdirs=False, env=None):
         "-DYT_VERSION_BRANCH={0}".format(options.branch),
         "--build", options.ya_build_type,
         "--no-src-links",
-        "--output", output_dir,
         "--install", bin_dir,
     ]
     if options.use_asan:
