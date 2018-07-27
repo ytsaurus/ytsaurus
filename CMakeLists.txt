@@ -351,7 +351,7 @@ if(YT_CAN_BUILD_PACKAGE)
       ${DCH_VENDOR_FLAG} "yandex"
       --package "yandex-yt-python-driver-rpc"
       --distribution "unstable"
-      --newversion "${YT_RPC_PROXY_PROTOCOL_VERSION}.1"
+      --newversion "${YT_RPC_PYTHON_BINDINGS_VERSION}"
       --urgency "low"
       --force-distribution
       "Proto package release."
