@@ -4,7 +4,7 @@ from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JO
                       sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
 from yt.environment import YTInstance
-from yt.environment.job_events import JobEvents
+from yt.test_helpers.job_events import JobEvents
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace

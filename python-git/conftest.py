@@ -1,4 +1,4 @@
-import yt.tests_runner as tests_runner
+import yt.test_runner as test_runner
 
 try:
     import yatest.common as yatest_common
@@ -10,7 +10,7 @@ import re
 import sys
 import pytest
 
-pytest_plugins = "yt.tests_runner.plugin"
+pytest_plugins = "yt.test_runner.plugin"
 
 if yatest_common is None:
     @pytest.fixture(scope="session", autouse=True)
@@ -61,6 +61,6 @@ def pytest_configure(config):
 
             suites[suite_name].append(index)
 
-        return tests_runner.split_test_suites(suites, process_count)
+        return test_runner.split_test_suites(suites, process_count)
 
-    tests_runner.set_scheduling_func(scheduling_func)
+    test_runner.set_scheduling_func(scheduling_func)

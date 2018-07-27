@@ -1,9 +1,9 @@
 from __future__ import print_function
 
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
-from yt.packages.six.moves import map as imap, xrange
+from yt.packages.six.moves import map as imap
 
-from yt.environment.helpers import wait
+from yt.test_helpers import wait
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
@@ -15,15 +15,12 @@ try:
 except ImportError:
     yatest_common = None
 
-import pytest
-
 import collections
 import glob
 import os
 import shutil
 import sys
 import tempfile
-import time
 from contextlib import contextmanager
 from copy import deepcopy
 
