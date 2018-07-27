@@ -584,7 +584,7 @@ def run_sandbox_upload(options, build_context):
         shutil.rmtree(tmp_dir)
 
         rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
-        sandbox_ctx["upload_urls"]["ya_node_modules"] = rbtorrent
+        sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
