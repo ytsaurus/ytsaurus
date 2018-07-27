@@ -2813,12 +2813,18 @@ class TestMaxTotalSliceCount(YTEnvSetup):
         write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 6}, {"key": 7}, {"key": 8}])
 
         create("table", "//tmp/t_out")
-        with pytest.raises(YtError):
+        try:
             join_reduce(
                 in_=["//tmp/t_primary", "<foreign=true>//tmp/t_foreign"],
                 out="//tmp/t_out",
                 join_by=["key"],
                 command="cat > /dev/null")
+        except YtError as err:
+            # TODO(bidzilya): check error code here when it is possible.
+            # assert err.contains_code(20000)
+            pass
+        else:
+            assert False, "Did not throw!"
 
 ##################################################################
 
