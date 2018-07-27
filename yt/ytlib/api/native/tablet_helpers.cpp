@@ -5,6 +5,7 @@
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/core/rpc/latency_taming_channel.h>
 
@@ -238,15 +239,17 @@ TTabletInfoPtr GetOrderedTabletForRow(
 
     i64 tabletIndex = -1;
     for (const auto& value : row) {
-        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId) {
-            Y_ASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
-            if (value.Type == EValueType::Int64) {
-                tabletIndex = value.Data.Int64;
-                if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
-                    THROW_ERROR_EXCEPTION("Invalid tablet index: actual %v, expected in range [0, %v]",
-                        tabletIndex,
-                        tableInfo->Tablets.size() - 1);
-                }
+        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
+            try {
+                FromUnversionedValue(&tabletIndex, value);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
+                    << ex;
+            }
+            if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
+                THROW_ERROR_EXCEPTION("Invalid tablet index: actual %v, expected in range [0, %v]",
+                    tabletIndex,
+                    tableInfo->Tablets.size() - 1);
             }
         }
     }
