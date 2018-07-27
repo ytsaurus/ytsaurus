@@ -7,10 +7,6 @@
 
 #include <yt/core/yson/null_consumer.h>
 
-#include <contrib/libs/gmock/gmock/gmock.h>
-#include <contrib/libs/gmock/gmock/gmock-matchers.h>
-#include <contrib/libs/gmock/gmock/gmock-actions.h>
-
 namespace NYT {
 namespace NScheduler {
 namespace {
@@ -118,12 +114,18 @@ public:
         : JobResourcesList(jobResourcesList)
     { }
 
-    MOCK_METHOD3(ScheduleJob, TFuture<TScheduleJobResultPtr>(
-            const ISchedulingContextPtr& context,
-            const TJobResourcesWithQuota& jobLimits,
-            const TString& treeId));
+    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+        const ISchedulingContextPtr& context,
+        const TJobResourcesWithQuota& jobLimits,
+        const TString& /* treeId */) override
+    {
+        Y_UNREACHABLE();
+    }
 
-    MOCK_METHOD2(OnNonscheduledJobAborted, void(const TJobId&, EAbortReason));
+    virtual void OnNonscheduledJobAborted(const TJobId&, EAbortReason) override
+    {
+        Y_UNREACHABLE();
+    }
 
     virtual TJobResources GetNeededResources() const override
     {
@@ -165,7 +167,7 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
-DECLARE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
+
 
 class TOperationStrategyHostMock
     : public TRefCounted
@@ -231,103 +233,13 @@ public:
         Y_UNREACHABLE();
     }
 
-    TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
-    {
-        return *Controller_.Get();
-    }
-
 private:
     TInstant StartTime_;
     TOperationId Id_;
-    TOperationControllerStrategyHostMockPtr Controller_;
+    IOperationControllerStrategyHostPtr Controller_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationStrategyHostMock)
-
-class TFairShareTreeTest
-    : public testing::Test
-{
-protected:
-    TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
-    TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
-
-    TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
-    {
-        return New<TRootElement>(
-            host,
-            TreeConfig_,
-            // TODO(ignat): eliminate profiling from test.
-            NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
-            "default");
-    }
-
-    TPoolPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name)
-    {
-        return New<TPool>(
-            host,
-            name,
-            New<TPoolConfig>(),
-            /*defaultConfigured*/ true,
-            TreeConfig_,
-            // TODO(ignat): eliminate profiling from test.
-            NProfiling::TProfileManager::Get()->RegisterTag("pool", name),
-            "default");
-    }
-
-    TOperationElementPtr CreateTestOperationElement(
-        ISchedulerStrategyHost* host,
-        const TOperationFairShareTreeRuntimeParametersPtr& operationOptions,
-        IOperationStrategyHost* operation)
-    {
-        auto operationController = New<TFairShareStrategyOperationController>(operation);
-        return New<TOperationElement>(
-            TreeConfig_,
-            New<TStrategyOperationSpec>(),
-            operationOptions,
-            operationController,
-            SchedulerConfig_,
-            host,
-            operation,
-            "default");
-    }
-
-    TExecNodePtr CreateTestExecNode(NNodeTrackerClient::TNodeId id, const TJobResourcesWithQuota& nodeResources)
-    {
-        NNodeTrackerClient::NProto::TDiskResources diskResources;
-        diskResources.mutable_disk_reports()->Add();
-        diskResources.mutable_disk_reports(0)->set_limit(nodeResources.GetDiskQuota());
-
-        auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor());
-        execNode->SetResourceLimits(nodeResources.ToJobResources());
-        execNode->SetDiskInfo(diskResources);
-
-        return execNode;
-    }
-
-    void DoTestSchedule(
-        const TRootElementPtr& rootElement,
-        const TOperationElementPtr& operationElement,
-        const TExecNodePtr& execNode)
-    {
-        auto schedulingContext = CreateSchedulingContext(SchedulerConfig_, execNode, /*runningJobs*/ {});
-        TFairShareContext context(schedulingContext);
-        TDynamicAttributesList dynamicAttributes;
-        PrepareForTestScheduling(rootElement, &context, &dynamicAttributes);
-        operationElement->ScheduleJob(&context);
-    }
-
-private:
-    void PrepareForTestScheduling(
-        const TRootElementPtr& rootElement,
-        TFairShareContext* context,
-        TDynamicAttributesList* dynamicAttributesList)
-    {
-        rootElement->Update(*dynamicAttributesList);
-        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
-        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
-        context->PrescheduledCalled = true;
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -611,14 +523,14 @@ TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
     auto firstOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, firstOperationJobResources));
     auto firstOperationController = New<TFairShareStrategyOperationController>(firstOperation.Get());
     auto firstOperationElement = New<TOperationElement>(
-        treeConfig,
-        New<TStrategyOperationSpec>(),
-        operationOptions,
-        firstOperationController,
-        config,
-        host.Get(),
-        firstOperation.Get(),
-        "default");
+            treeConfig,
+            New<TStrategyOperationSpec>(),
+            operationOptions,
+            firstOperationController,
+            config,
+            host.Get(),
+            firstOperation.Get(),
+            "default");
 
     // Second operation with demand <5, 10>.
     TJobResourcesWithQuota secondOperationJobResources;
@@ -628,24 +540,24 @@ TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
     auto secondOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, secondOperationJobResources));
     auto secondOperationController = New<TFairShareStrategyOperationController>(secondOperation.Get());
     auto secondOperationElement = New<TOperationElement>(
-        treeConfig,
-        New<TStrategyOperationSpec>(),
-        operationOptions,
-        secondOperationController,
-        config,
-        host.Get(),
-        secondOperation.Get(),
-        "default");
+            treeConfig,
+            New<TStrategyOperationSpec>(),
+            operationOptions,
+            secondOperationController,
+            config,
+            host.Get(),
+            secondOperation.Get(),
+            "default");
 
     // Pool with total demand <10, 15>.
     auto pool = New<TPool>(
-        host.Get(),
-        "A",
-        New<TPoolConfig>(),
-        true,
-        treeConfig,
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
-        "default");
+            host.Get(),
+            "A",
+            New<TPoolConfig>(),
+            true,
+            treeConfig,
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+            "default");
 
     pool->AddChild(firstOperationElement, true);
     firstOperationElement->SetParent(pool.Get());
@@ -654,11 +566,11 @@ TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
 
     // Root element.
     auto rootElement = New<TRootElement>(
-        host.Get(),
-        treeConfig,
-        // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
-        "default");
+            host.Get(),
+            treeConfig,
+            // TODO(ignat): eliminate profiling from test.
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+            "default");
 
     rootElement->AddChild(pool, true);
     pool->SetParent(rootElement.Get());
@@ -667,75 +579,6 @@ TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
     auto dynamicAttributes = TDynamicAttributesList(4);
     rootElement->Update(dynamicAttributes);
     EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
-}
-
-TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
-{
-    // Create 3 nodes.
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(100);
-
-    std::vector<TExecNodePtr> execNodes(3);
-    for (int i = 0; i < execNodes.size(); ++i) {
-        execNodes[i] = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(i), nodeResources);
-    }
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(execNodes.size(), nodeResources));
-
-    // Create an operation with 2 jobs.
-    TJobResourcesWithQuota operationJobResources;
-    operationJobResources.SetCpu(10);
-    operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(0);
-
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-    auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
-
-    auto operationElement = CreateTestOperationElement(host.Get(), operationOptions, operation.Get());
-
-    // Root element.
-    auto rootElement = CreateTestRootElement(host.Get());
-    rootElement->AddChild(operationElement, true);
-    operationElement->SetParent(rootElement.Get());
-
-    // We run operation with 2 jobs and simulate 3 concurrent heartbeats.
-    // Two of them must succeed and call controller ScheduleJob,
-    // the third one must skip ScheduleJob call since resource usage precommit is limited by operation demand.
-
-    auto readyToGo = NewPromise<void>();
-    auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
-    std::atomic<int> heartbeatsInScheduling(0);
-    EXPECT_CALL(
-        operationControllerStrategyHost,
-        ScheduleJob(testing::_, testing::_, testing::_))
-        .Times(2)
-        .WillRepeatedly(testing::Invoke([&](auto context, auto jobLimits, auto treeId) {
-            heartbeatsInScheduling.fetch_add(1);
-            EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TScheduleJobResultPtr>(TErrorOr<TScheduleJobResultPtr>(New<TScheduleJobResult>()));
-        }));
-
-    std::vector<TFuture<void>> futures;
-    NConcurrency::TActionQueue actionQueue;
-    for (int i = 0; i < 2; ++i) {
-        auto future = BIND([&, i]() {
-            DoTestSchedule(rootElement, operationElement, execNodes[i]);
-        }).AsyncVia(actionQueue.GetInvoker()).Run();
-        futures.push_back(std::move(future));
-    }
-
-    while (heartbeatsInScheduling.load() != 2) {
-        // Actively waiting.
-    }
-    // Number of expected calls to `operationControllerStrategyHost.ScheduleJob(...)` is set to 2.
-    // In this way, the mock object library checks that this heartbeat doesn't get to actual scheduling.
-    DoTestSchedule(rootElement, operationElement, execNodes[2]);
-    readyToGo.Set();
-
-    EXPECT_TRUE(Combine(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
