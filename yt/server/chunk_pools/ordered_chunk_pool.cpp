@@ -332,7 +332,7 @@ private:
             TotalSliceCount_ += CurrentJob()->GetSliceCount();
 
             if (TotalSliceCount_ > MaxTotalSliceCount_) {
-                THROW_ERROR_EXCEPTION("Total number of data slices in ordered pool is too large")
+                THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
                     << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
                     << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
                     << TErrorAttribute("current_job_count", JobIndex_);
