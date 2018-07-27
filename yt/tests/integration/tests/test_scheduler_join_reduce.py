@@ -786,9 +786,6 @@ echo {v = 2} >&7
                 },
                 "max_failed_job_count": 1,
                 "job_count": 10,
-                "nightly_options" : {
-                    "use_new_endpoint_keys": True
-                },
                 "consider_only_primary_size": True
             })
 
