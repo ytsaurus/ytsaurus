@@ -2830,7 +2830,7 @@ private:
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
-    std::array<EOperationType, 4> OperationTypesWithShuffle = {
+    std::array<EOperationType, 3> OperationTypesWithShuffle = {
         EOperationType::Sort,
         EOperationType::MapReduce,
         EOperationType::RemoteCopy
@@ -2879,12 +2879,17 @@ private:
 
         // Data shuffling shouldn't be launched in tentative trees.
         if (FindIndex(OperationTypesWithShuffle, operation->GetType()) == NPOS) {
+            std::vector<TString> presentedTentativePoolTrees;
             for (const auto& treeId : spec->TentativePoolTrees) {
-                if (!FindTree(treeId)) {
-                    THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
+                if (FindTree(treeId)) {
+                    presentedTentativePoolTrees.push_back(treeId);
+                } else {
+                    if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
+                        THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
+                    }
                 }
             }
-            allTrees.insert(allTrees.end(), spec->TentativePoolTrees.begin(), spec->TentativePoolTrees.end());
+            allTrees.insert(allTrees.end(), presentedTentativePoolTrees.begin(), presentedTentativePoolTrees.end());
         }
 
         THashMap<TString, TString> pools;

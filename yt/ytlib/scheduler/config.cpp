@@ -114,6 +114,9 @@ TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
 
     RegisterParameter("min_job_duration", MinJobDuration)
         .Default(TDuration::Seconds(30));
+
+    RegisterParameter("ignore_missing_pool_trees", IgnoreMissingPoolTrees)
+        .Default(false);
 }
 
 TOperationSpecBase::TOperationSpecBase()
