@@ -2162,6 +2162,21 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
         release_breakpoint()
 
+    def test_missing_tentative_pool_trees(self):
+        self._prepare_pool_trees()
+        spec = self._create_spec()
+        self._patch_spec_for_tentativeness(spec)
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
+        create("table", "//tmp/t_out")
+
+        spec["tentative_pool_trees"] = ["missing"]
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
+
+        spec["tentative_tree_eligibility"]["ignore_missing_pool_trees"] = True
+        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1

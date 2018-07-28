@@ -153,6 +153,8 @@ public:
     // #MaxTentativeJobDurationRatio is not checked).
     TDuration MinJobDuration;
 
+    bool IgnoreMissingPoolTrees;
+
     TTentativeTreeEligibilityConfig();
 };
 
