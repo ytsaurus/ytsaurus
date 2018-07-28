@@ -24,7 +24,11 @@ void ToUnversionedValue(
     int id,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
-    ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id);
+    if (TEnumTraits<T>::IsBitEnum) {
+        ToUnversionedValue(unversionedValue, static_cast<ui64>(value), rowBuffer, id);
+    } else {
+        ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id);
+    }
 }
 
 template <class T>
@@ -33,9 +37,17 @@ void FromUnversionedValue(
     TUnversionedValue unversionedValue,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
-    i64 rawValue;
-    FromUnversionedValue(&rawValue, unversionedValue);
-    *value = static_cast<T>(rawValue);
+    switch (unversionedValue.Type) {
+        case EValueType::Int64:
+            *value = static_cast<T>(unversionedValue.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            *value = static_cast<T>(unversionedValue.Data.Uint64);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse enum value from %Qlv",
+                unversionedValue.Type);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
