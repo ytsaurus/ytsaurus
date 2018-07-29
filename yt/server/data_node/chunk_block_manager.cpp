@@ -17,6 +17,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -25,6 +26,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
+using namespace NConcurrency;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TBlocksExt;
@@ -61,6 +63,8 @@ public:
                 FormatEnum(EBlockType::CompressedData)))
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , ReaderThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, "ReaderThread"))
+        , ReaderInvoker_(CreatePrioritizedInvoker(ReaderThreadPool_->GetInvoker()))
     { }
 
     TCachedBlockPtr FindCachedBlock(const TBlockId& blockId)
@@ -167,9 +171,16 @@ public:
         }
     }
 
+    IPrioritizedInvokerPtr GetReaderInvoker() const
+    {
+        return ReaderInvoker_;
+    }
+
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+    TThreadPoolPtr ReaderThreadPool_;
+    IPrioritizedInvokerPtr ReaderInvoker_;
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
@@ -242,6 +253,11 @@ TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
 std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocks() const
 {
     return Impl_->GetAll();
+}
+
+IPrioritizedInvokerPtr TChunkBlockManager::GetReaderInvoker() const
+{
+    return Impl_->GetReaderInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

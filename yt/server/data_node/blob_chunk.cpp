@@ -77,6 +77,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     auto cookie = chunkMetaManager->BeginInsertCachedMeta(Id_);
     auto result = cookie.GetValue();
 
+    auto priority = options.WorkloadDescriptor.GetPriority();
     try {
         if (cookie.IsActive()) {
             auto readGuard = TChunkReadGuard::AcquireOrThrow(this);
@@ -88,9 +89,8 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
                 Passed(std::move(cookie)),
                 options);
 
-            auto priority = options.WorkloadDescriptor.GetPriority();
-            Location_
-                ->GetMetaReadInvoker()
+            Bootstrap_
+                ->GetChunkBlockManager()->GetReaderInvoker()
                 ->Invoke(callback, priority);
         }
     } catch (const std::exception& ex) {
@@ -99,7 +99,8 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
     return result.Apply(BIND([=] (TCachedChunkMetaPtr cachedMeta) {
         return FilterMeta(cachedMeta->GetMeta(), extensionTags);
-    }));
+    })
+       .AsyncVia(CreateFixedPriorityInvoker(Bootstrap_->GetChunkBlockManager()->GetReaderInvoker(), priority)));
 }
 
 TFuture<void> TBlobChunkBase::LoadBlocksExt(const TBlockReadOptions& options)
@@ -239,7 +240,9 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
             TBlobChunkBase::DoReadBlockSet(
                 session,
                 std::move(pendingIOGuard));
-        }).AsyncVia(GetCurrentInvoker()));
+        }).AsyncVia(CreateFixedPriorityInvoker(
+            Bootstrap_->GetChunkBlockManager()->GetReaderInvoker(),
+            session->Options.WorkloadDescriptor.GetPriority())));
 }
 
 void TBlobChunkBase::DoReadBlockSet(
