@@ -232,44 +232,46 @@ public:
 
     TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options)
     {
-        try {
-            {
-                auto guard = Guard(SpinLock_);
-                Error_.ThrowOnError();
-                switch (State_) {
-                    case ETransactionState::Committing:
-                        THROW_ERROR_EXCEPTION("Transaction %v is already being committed",
-                            Id_);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-                    case ETransactionState::Committed:
-                        THROW_ERROR_EXCEPTION("Transaction %v is already committed",
-                            Id_);
+        {
+            auto guard = Guard(SpinLock_);
 
-                    case ETransactionState::Aborted:
-                        THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
-                            Id_);
-
-                    case ETransactionState::Active:
-                        State_ = ETransactionState::Committing;
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
+            if (!Error_.IsOK()) {
+                return MakeFuture<TTransactionCommitResult>(Error_);
             }
 
-            switch (Atomicity_) {
-                case EAtomicity::Full:
-                    return DoCommitAtomic(options);
+            switch (State_) {
+                case ETransactionState::Committing:
+                    return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already being committed",
+                        Id_));
 
-                case EAtomicity::None:
-                    return DoCommitNonAtomic();
+                case ETransactionState::Committed:
+                    MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already committed",
+                        Id_));
+
+                case ETransactionState::Aborted:
+                    MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
+                        Id_));
+
+                case ETransactionState::Active:
+                    State_ = ETransactionState::Committing;
+                    break;
 
                 default:
                     Y_UNREACHABLE();
             }
-        } catch (const std::exception& ex) {
-            return MakeFuture<TTransactionCommitResult>(ex);
+        }
+
+        switch (Atomicity_) {
+            case EAtomicity::Full:
+                return DoCommitAtomic(options);
+
+            case EAtomicity::None:
+                return DoCommitNonAtomic();
+
+            default:
+                Y_UNREACHABLE();
         }
     }
 
@@ -292,43 +294,40 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        try {
-            if (Atomicity_ != EAtomicity::Full) {
-                THROW_ERROR_EXCEPTION("Cannot ping a transaction with %Qlv atomicity",
-                    Atomicity_);
-            }
-
-            return SendPing(true);
-        } catch (const std::exception& ex) {
-            return MakeFuture<void>(ex);
+        if (Atomicity_ != EAtomicity::Full) {
+            return MakeFuture(TError("Cannot ping a transaction with %Qlv atomicity",
+                Atomicity_));
         }
+
+        return SendPing(true);
     }
 
     void Detach()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YCHECK(Atomicity_ == EAtomicity::Full);
 
-        {
-            auto guard = Guard(SpinLock_);
-            switch (State_) {
-                case ETransactionState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction %v is already committed",
-                        Id_);
+        auto guard = Guard(SpinLock_);
 
-                case ETransactionState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
-                        Id_);
+        switch (State_) {
+            case ETransactionState::Committed:
+                THROW_ERROR_EXCEPTION("Transaction %v is already committed",
+                    Id_);
 
-                case ETransactionState::Active:
-                    State_ = ETransactionState::Detached;
-                    break;
+            case ETransactionState::Aborted:
+                THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
+                    Id_);
 
-                case ETransactionState::Detached:
-                    return;
+            case ETransactionState::Active:
+                State_ = ETransactionState::Detached;
+                break;
 
-                default:
-                    Y_UNREACHABLE();
-            }
+            case ETransactionState::Detached:
+                return;
+
+            default:
+                Y_UNREACHABLE();
         }
 
         LOG_DEBUG("Transaction detached (TransactionId: %v)",
@@ -646,11 +645,11 @@ private:
             BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    void OnMasterTransactionStarted(const TTransactionServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
+    TError OnMasterTransactionStarted(const TTransactionServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
-            THROW_ERROR rspOrError;
+            return rspOrError;
         }
 
         State_ = ETransactionState::Active;
@@ -670,6 +669,8 @@ private:
         if (Ping_) {
             RunPeriodicPings();
         }
+
+        return TError();
     }
 
     TFuture<void> StartAtomicTabletTransaction(const TTransactionStartOptions& options)
@@ -726,12 +727,12 @@ private:
         Committed_.Fire();
     }
 
-    void SetCommitted(const TTransactionCommitResult& result)
+    TError SetCommitted(const TTransactionCommitResult& result)
     {
         {
             auto guard = Guard(SpinLock_);
             if (State_ != ETransactionState::Committing) {
-                THROW_ERROR Error_;
+                return Error_;
             }
             State_ = ETransactionState::Committed;
         }
@@ -741,13 +742,18 @@ private:
         LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamps: %v)",
             Id_,
             result.CommitTimestamps);
+
+        return TError();
     }
 
     TFuture<TTransactionCommitResult> DoCommitAtomic(const TTransactionCommitOptions& options)
     {
         if (RegisteredParticipantIds_.empty()) {
             TTransactionCommitResult result;
-            SetCommitted(result);
+            auto error = SetCommitted(result);
+            if (!error.IsOK()) {
+                return MakeFuture<TTransactionCommitResult>(error);
+            }
             return MakeFuture(result);
         }
 
@@ -785,7 +791,10 @@ private:
     TFuture<TTransactionCommitResult> DoCommitNonAtomic()
     {
         TTransactionCommitResult result;
-        SetCommitted(result);
+        auto error = SetCommitted(result);
+        if (!error.IsOK()) {
+            return MakeFuture<TTransactionCommitResult>(error);
+        }
         return MakeFuture(result);
     }
 
@@ -848,9 +857,9 @@ private:
                     Owner_->DownedCellTracker_->Update(participantIds, downedParticipantIds);
 
                     if (!downedParticipantIds.empty()) {
-                        LOG_DEBUG("Participants are unable to participate (CellIds: %v)",
+                        LOG_DEBUG("Some transaction participants are known to be down (CellIds: %v)",
                             downedParticipantIds);
-                        THROW_ERROR_EXCEPTION("Participants are unable to participate")
+                        return TError("Some transaction participants are known to be down")
                             << TErrorAttribute("downed_participants", downedParticipantIds);
                     }
                 } else if (rspOrError.GetCode() == NYT::NRpc::EErrorCode::NoSuchMethod) {
@@ -860,15 +869,16 @@ private:
                 } else {
                     LOG_WARNING("Error updating downed participants (CellId: %v)",
                         CoordinatorCellId_);
-                    THROW_ERROR_EXCEPTION("Error updating downed participants at cell %v",
+                    return TError("Error updating downed participants at cell %v",
                         CoordinatorCellId_)
                         << rspOrError;
                 }
+                return TError();
             }));
     }
 
 
-    TTransactionCommitResult OnAtomicTransactionCommitted(
+    TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
         const TCellId& cellId,
         const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
     {
@@ -879,13 +889,16 @@ private:
                 << rspOrError;
             UpdateDownedParticipants();
             OnFailure(error);
-            THROW_ERROR error;
+            return error;
         }
 
         const auto& rsp = rspOrError.Value();
         TTransactionCommitResult result;
         result.CommitTimestamps = FromProto<TTimestampMap>(rsp->commit_timestamps());
-        SetCommitted(result);
+        auto error = SetCommitted(result);
+        if (!error.IsOK()) {
+            return error;
+        }
         return result;
     }
 
@@ -919,10 +932,8 @@ private:
                         LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                    } else if (
-                        rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
-                        GetState() == ETransactionState::Active)
-                    {
+                        return TError();
+                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                         // Hard error.
                         LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
@@ -932,14 +943,16 @@ private:
                             "Transaction %v has expired or was aborted at cell %v",
                             Id_,
                             cellId);
-                        OnFailure(error);
-                        THROW_ERROR error;
+                        if (GetState() == ETransactionState::Active) {
+                            OnFailure(error);
+                        }
+                        return error;
                     } else {
                         // Soft error.
                         LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                        THROW_ERROR_EXCEPTION("Failed to ping transaction %v at cell %v",
+                        return TError("Failed to ping transaction %v at cell %v",
                             Id_,
                             cellId)
                             << rspOrError;
@@ -1014,15 +1027,17 @@ private:
                         LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
                             transactionId,
                             cellId);
+                        return TError();
                     } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                         LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
                             transactionId,
                             cellId);
+                        return TError();
                     } else {
                         LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
                             transactionId,
                             cellId);
-                        THROW_ERROR_EXCEPTION("Error aborting transaction %v at cell %v",
+                        return TError("Error aborting transaction %v at cell %v",
                             transactionId,
                             cellId)
                             << rspOrError;

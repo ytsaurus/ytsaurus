@@ -23,11 +23,10 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logg
         BIND([Logger = logger, type = std::move(type)] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
                 LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
-                return result.Value();
             } else {
                 LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
-                THROW_ERROR result;
             }
+            return result;
         }));
 }
 
@@ -35,22 +34,19 @@ TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr co
 {
     return Commit().Apply(
         BIND([context = std::move(context)] (const TErrorOr<TMutationResponse>& result) {
-            if (result.IsOK()) {
-                if (!context->IsReplied()) {
+            if (!context->IsReplied()) {
+                if (result.IsOK()) {
                     const auto& response = result.Value();
                     if (response.Data) {
                         context->Reply(response.Data);
                     } else {
                         context->Reply(TError());
                     }
+                } else {
+                    context->Reply(TError(result));
                 }
-                return result.Value();
-            } else {
-                if (!context->IsReplied()) {
-                    context->Reply(result);
-                }
-                THROW_ERROR result;
             }
+            return result;
         }));
 }
 
