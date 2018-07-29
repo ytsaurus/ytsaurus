@@ -121,11 +121,6 @@ class YtChunkUnavailable(YtHttpResponseError):
        It is used in read retries"""
     pass
 
-class YtConcurrentTransactionLockConflict(YtHttpResponseError):
-    """Concurrent transaction lock conflict error
-       It is used in upload_file_to_cache retries."""
-    pass
-
 class YtCypressTransactionLockConflict(YtHttpResponseError):
     """Concurrent transaction lock conflict error.
        It is used in upload_file_to_cache retries."""
@@ -134,6 +129,9 @@ class YtCypressTransactionLockConflict(YtHttpResponseError):
 class YtTabletTransactionLockConflict(YtHttpResponseError):
     """Tablet transaction lock conflict error."""
     pass
+
+# Deprecated.
+YtConcurrentTransactionLockConflict = YtCypressTransactionLockConflict
 
 class YtNoSuchService(YtHttpResponseError):
     """No such service error"""
