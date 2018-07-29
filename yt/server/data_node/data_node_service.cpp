@@ -529,9 +529,12 @@ private:
         // NB: We throttle only heavy responses that contain a non-empty attachment
         // as we want responses containing the information about disk/net throttling
         // to be delivered immediately.
-        auto replyFuture = blocksSize > 0 ? throttler->Throttle(blocksSize) : VoidFuture;
-        context->SetComplete();
-        context->ReplyFrom(replyFuture);
+        if (blocksSize > 0) {
+            context->SetComplete();
+            context->ReplyFrom(throttler->Throttle(blocksSize));
+        } else {
+            context->Reply();
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
