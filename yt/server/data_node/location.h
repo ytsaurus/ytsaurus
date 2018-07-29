@@ -84,9 +84,6 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
-    //! Returns an invoker for reading chunk meta.
-    IPrioritizedInvokerPtr GetMetaReadInvoker();
-
     //! Returns an invoker for writing chunks.
     IInvokerPtr GetWritePoolInvoker();
 
