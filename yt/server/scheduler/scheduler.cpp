@@ -449,7 +449,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!alert.IsOK()) {
-            LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
+            LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
         }
 
         MasterConnector_->SetSchedulerAlert(alertType, alert);
