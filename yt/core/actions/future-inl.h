@@ -438,17 +438,43 @@ void Unref(TPromiseState<T>* state)
 template <class T, class S>
 struct TPromiseSetter;
 
+template <class T, class F>
+void InterceptExceptions(TPromise<T>& promise, F func)
+{
+    try {
+        func();
+    } catch (const TErrorException& ex) {
+        promise.Set(ex.Error());
+    } catch (const std::exception& ex) {
+        promise.Set(TError(ex));
+    }
+}
+
 template <class R, class T, class... TArgs>
 struct TPromiseSetter<T, R(TArgs...)>
 {
     template <class... TCallArgs>
     static void Do(TPromise<T>& promise, const TCallback<T(TArgs...)>& callback, TCallArgs&&... args)
     {
-        try {
-            promise.Set(callback.Run(std::forward<TCallArgs>(args)...));
-        } catch (const std::exception& ex) {
-            promise.Set(TError(ex));
-        }
+        InterceptExceptions(
+            promise,
+            [&] {
+                promise.Set(callback.Run(std::forward<TCallArgs>(args)...));
+            });
+    }
+};
+
+template <class R, class T, class... TArgs>
+struct TPromiseSetter<T, TErrorOr<R>(TArgs...)>
+{
+    template <class... TCallArgs>
+    static void Do(TPromise<T>& promise, const TCallback<TErrorOr<T>(TArgs...)>& callback, TCallArgs&&... args)
+    {
+        InterceptExceptions(
+            promise,
+            [&] {
+                promise.Set(callback.Run(std::forward<TCallArgs>(args)...));
+            });
     }
 };
 
@@ -458,12 +484,12 @@ struct TPromiseSetter<void, void(TArgs...)>
     template <class... TCallArgs>
     static void Do(TPromise<void>& promise, const TCallback<void(TArgs...)>& callback, TCallArgs&&... args)
     {
-        try {
-            callback.Run(std::forward<TCallArgs>(args)...);
-            promise.Set();
-        } catch (const std::exception& ex) {
-            promise.Set(TError(ex));
-        }
+        InterceptExceptions(
+            promise,
+            [&] {
+                callback.Run(std::forward<TCallArgs>(args)...);
+                promise.Set();
+            });
     }
 };
 
@@ -473,11 +499,30 @@ struct TPromiseSetter<T, TFuture<T>(TArgs...)>
     template <class... TCallArgs>
     static void Do(TPromise<T>& promise, const TCallback<TFuture<T>(TArgs...)>& callback, TCallArgs&&... args)
     {
-        try {
-            promise.SetFrom(callback.Run(std::forward<TCallArgs>(args)...));
-        } catch (const std::exception& ex) {
-            promise.Set(TError(ex));
-        }
+        InterceptExceptions(
+            promise,
+            [&] {
+                promise.SetFrom(callback.Run(std::forward<TCallArgs>(args)...));
+            });
+    }
+};
+
+template <class T, class... TArgs>
+struct TPromiseSetter<T, TErrorOr<TFuture<T>>(TArgs...)>
+{
+    template <class... TCallArgs>
+    static void Do(TPromise<T>& promise, const TCallback<TFuture<T>(TArgs...)>& callback, TCallArgs&&... args)
+    {
+        InterceptExceptions(
+            promise,
+            [&] {
+                auto result = callback.Run(std::forward<TCallArgs>(args)...);
+                if (result.IsOK()) {
+                    promise.SetFrom(std::move(result));
+                } else {
+                    promise.Set(TError(result));
+                }
+            });
     }
 };
 
@@ -733,7 +778,21 @@ TFuture<R> TFutureBase<T>::Apply(TCallback<R(const TErrorOr<T>&)> callback)
 
 template <class T>
 template <class R>
+TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<R>(const TErrorOr<T>&)> callback)
+{
+    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+}
+
+template <class T>
+template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callback)
+{
+    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+}
+
+template <class T>
+template <class R>
+TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<TFuture<R>>(const TErrorOr<T>&)> callback)
 {
     return NYT::NDetail::ApplyHelper<R>(*this, callback);
 }
