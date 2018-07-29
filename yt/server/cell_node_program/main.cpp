@@ -7,6 +7,8 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
+#include <yt/core/misc/phdr_cache.h>
+
 #include <util/system/mlock.h>
 
 namespace NYT {
@@ -36,6 +38,7 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
 
         try {
             LockAllMemory(ELockAllMemoryFlag::LockCurrentMemory | ELockAllMemoryFlag::LockFutureMemory);

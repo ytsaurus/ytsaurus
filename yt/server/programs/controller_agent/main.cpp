@@ -8,6 +8,8 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
+#include <yt/core/misc/phdr_cache.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -33,6 +35,7 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
 
         if (HandlePdeathsigOptions()) {
             return;
