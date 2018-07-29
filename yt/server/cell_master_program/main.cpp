@@ -9,6 +9,8 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
+#include <yt/core/misc/phdr_cache.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +47,7 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
 
         if (HandlePdeathsigOptions()) {
             return;
