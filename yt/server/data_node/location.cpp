@@ -179,11 +179,6 @@ i64 TLocation::GetQuota() const
     return Config_->Quota.Get(std::numeric_limits<i64>::max());
 }
 
-IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
-{
-    return MetaReadInvoker_;
-}
-
 IInvokerPtr TLocation::GetWritePoolInvoker()
 {
     return WritePoolInvoker_;
