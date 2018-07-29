@@ -110,7 +110,7 @@ public:
         result.reserve(candidates.size());
 
         for (const auto& id : candidates) {
-            if (Cells_.find(id) != Cells_.end()) {
+            if (CellIds_.find(id) != CellIds_.end()) {
                 result.push_back(id);
             }
         }
@@ -123,16 +123,16 @@ public:
         auto guard = Guard(SpinLock_);
 
         for (const auto& id : toRemove) {
-            Cells_.erase(id);
+            CellIds_.erase(id);
         }
         for (const auto& id : toAdd) {
-            Cells_.insert(id);
+            CellIds_.insert(id);
         }
     }
 
 private:
     TSpinLock SpinLock_;
-    THashSet<TCellId> Cells_;
+    THashSet<TCellId> CellIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -854,6 +854,7 @@ private:
                             << TErrorAttribute("downed_participants", downedParticipantIds);
                     }
                 } else if (rspOrError.GetCode() == NYT::NRpc::EErrorCode::NoSuchMethod) {
+                    // COMPAT(savrus)
                     LOG_DEBUG("Method GetDownedParticipants is not implemented (CellId: %v)",
                         CoordinatorCellId_);
                 } else {
