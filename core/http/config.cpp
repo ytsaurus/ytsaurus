@@ -37,6 +37,9 @@ TServerConfig::TServerConfig()
 
     RegisterParameter("bind_retry_backoff", BindRetryBackoff)
         .Default(TDuration::Seconds(1));
+
+    RegisterParameter("enable_keep_alive", EnableKeepAlive)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

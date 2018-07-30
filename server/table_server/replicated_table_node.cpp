@@ -14,6 +14,7 @@ using namespace NCellMaster;
 
 TReplicatedTableNode::TReplicatedTableNode(const TVersionedNodeId& id)
     : TTableNode(id)
+    , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
 void TReplicatedTableNode::Save(TSaveContext& context) const
@@ -22,6 +23,7 @@ void TReplicatedTableNode::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Replicas_);
+    Save(context, *ReplicatedTableOptions_);
 }
 
 void TReplicatedTableNode::Load(TLoadContext& context)
@@ -30,6 +32,9 @@ void TReplicatedTableNode::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, Replicas_);
+    if (context.GetVersion() >= 717) {
+        Load(context, *ReplicatedTableOptions_);
+    }
 }
 
 const TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas() const

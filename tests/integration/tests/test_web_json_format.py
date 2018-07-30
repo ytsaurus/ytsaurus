@@ -2,6 +2,8 @@ from yt_commands import *
 from yt_env_setup import YTEnvSetup, unix_only
 import yt.yson as yson
 
+import pytest
+
 import __builtin__
 import copy
 import json
@@ -207,6 +209,24 @@ class TestWebJsonFormat(YTEnvSetup):
         expected_output["all_column_names"] = get_expected_all_column_names(dynamic_ordered=False)
         expected_output["rows"].sort(key=lambda c: c["string32_column"]["$value"])
         assert output == expected_output
+
+        sync_unmount_table(TABLE_PATH)
+
+    @unix_only
+    def test_select_rows_from_sorted_dynamic_table_with_duplicate_columns(self):
+        sync_create_cells(1)
+        schema = get_schema(key_column_names=["string32_column"], unique_keys=True, strict=True)
+        create("table", TABLE_PATH, attributes={"schema": schema, "dynamic": True})
+        sync_mount_table(TABLE_PATH)
+
+        insert_rows(TABLE_PATH, ROWS)
+
+        column_names = get_column_names(dynamic_ordered=False) * 2
+
+        format_ = get_web_json_format(7, len(column_names))
+        query = get_dynamic_table_select_query(column_names, TABLE_PATH)
+        with pytest.raises(YtError):
+            json.loads(select_rows(query, output_format=format_))
 
         sync_unmount_table(TABLE_PATH)
 

@@ -197,7 +197,7 @@ public:
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
         }
-        return nullptr;        
+        return nullptr;
     }
 
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
@@ -207,7 +207,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::NoSuchTransaction,
                 "No such transaction %v",
-                transactionId);            
+                transactionId);
         }
         return transaction;
     }
@@ -431,9 +431,10 @@ public:
         FinishTransaction(transaction);
 
         if (transaction->IsSerializationNeeded()) {
-            YCHECK(!transaction->GetForeign());
-            SerializingTransactionHeap_.push_back(transaction);
-            AdjustHeapBack(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
+            auto& heap = SerializingTransactionHeaps_[transaction->GetCellTag()];
+            heap.push_back(transaction);
+            AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
+            UpdateMinCommitTimestamp(heap);
         } else {
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
@@ -489,9 +490,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return SerializingTransactionHeap_.empty()
-            ? GetLatestTimestamp()
-            : (*SerializingTransactionHeap_.begin())->GetCommitTimestamp();
+        return MinCommitTimestamp_.Get(GetLatestTimestamp());
     }
 
 private:
@@ -506,11 +505,12 @@ private:
     TEntityMap<TTransaction> TransientTransactionMap_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
-
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
-    std::vector<TTransaction*> SerializingTransactionHeap_;
-    TTimestamp LastSerializedCommitTimestamp_ = MinTimestamp;
+
+    THashMap<TCellTag, std::vector<TTransaction*>> SerializingTransactionHeaps_;
+    THashMap<TCellTag, TTimestamp> LastSerializedCommitTimestamps_;
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
+    TNullable<TTimestamp> MinCommitTimestamp_;
 
     IYPathServicePtr OrchidService_;
 
@@ -635,18 +635,21 @@ private:
 
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
-        SerializingTransactionHeap_.clear();
+        SerializingTransactionHeaps_.clear();
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
-                YCHECK(!transaction->GetForeign());
-                SerializingTransactionHeap_.push_back(transaction);
+                SerializingTransactionHeaps_[transaction->GetCellTag()].push_back(transaction);
             }
             if (transaction->IsPrepared()) {
                 RegisterPrepareTimestamp(transaction);
             }
         }
-        MakeHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
+        for (auto& pair : SerializingTransactionHeaps_) {
+            auto& heap = pair.second;
+            MakeHeap(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
+            UpdateMinCommitTimestamp(heap);
+        }
     }
 
     virtual void OnLeaderActive() override
@@ -741,7 +744,8 @@ private:
 
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
-        Save(context, LastSerializedCommitTimestamp_);
+        // TODO(savrus) Save whole map in 19.4.
+        Save(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -778,7 +782,7 @@ private:
 
         using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
-        Load(context, LastSerializedCommitTimestamp_);
+        Load(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
     }
 
     void LoadAsync(TLoadContext& context)
@@ -807,9 +811,10 @@ private:
 
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
-        SerializingTransactionHeap_.clear();
+        SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();
-        LastSerializedCommitTimestamp_ = MinTimestamp;
+        LastSerializedCommitTimestamps_.clear();
+        MinCommitTimestamp_.Reset();
     }
 
 
@@ -850,28 +855,36 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
-        while (!SerializingTransactionHeap_.empty()) {
-            auto* transaction = SerializingTransactionHeap_.front();
-            auto commitTimestamp = transaction->GetCommitTimestamp();
-            if (commitTimestamp > barrierTimestamp) {
-                break;
+        for (auto& pair : SerializingTransactionHeaps_) {
+            auto& heap = pair.second;
+
+            while (!heap.empty()) {
+                auto* transaction = heap.front();
+                auto commitTimestamp = transaction->GetCommitTimestamp();
+                if (commitTimestamp > barrierTimestamp) {
+                    break;
+                }
+
+                UpdateLastSerializedCommitTimestamp(transaction);
+
+                const auto& transactionId = transaction->GetId();
+                LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
+                    transaction->GetId(),
+                    commitTimestamp);
+
+                transaction->SetState(ETransactionState::Serialized);
+                TransactionSerialized_.Fire(transaction);
+
+                PersistentTransactionMap_.Remove(transactionId);
+
+                ExtractHeap(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
+                heap.pop_back();
             }
+        }
 
-            YCHECK(commitTimestamp > LastSerializedCommitTimestamp_);
-            LastSerializedCommitTimestamp_ = commitTimestamp;
-
-            const auto& transactionId = transaction->GetId();
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
-                transaction->GetId(),
-                commitTimestamp);
-
-            transaction->SetState(ETransactionState::Serialized);
-            TransactionSerialized_.Fire(transaction);
-
-            PersistentTransactionMap_.Remove(transactionId);
-
-            ExtractHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
-            SerializingTransactionHeap_.pop_back();
+        MinCommitTimestamp_.Reset();
+        for (const auto& heap : SerializingTransactionHeaps_) {
+            UpdateMinCommitTimestamp(heap.second);
         }
 
         // YT-8542: It is important to update this timestamp only _after_ all relevant transactions are serialized.
@@ -969,6 +982,29 @@ private:
         YCHECK(it != PreparedTransactions_.end());
         PreparedTransactions_.erase(it);
         CheckBarrier();
+    }
+
+    void UpdateLastSerializedCommitTimestamp(TTransaction* transaction)
+    {
+        auto commitTimestamp = transaction->GetCommitTimestamp();
+        auto cellTag = transaction->GetCellTag();
+
+        if (auto lastTimestampIt = LastSerializedCommitTimestamps_.find(cellTag)) {
+            YCHECK(commitTimestamp > lastTimestampIt->second);
+            lastTimestampIt->second = commitTimestamp;
+        } else {
+            YCHECK(LastSerializedCommitTimestamps_.insert(std::make_pair(cellTag, commitTimestamp)).second);
+        }
+    }
+
+    void UpdateMinCommitTimestamp(const std::vector<TTransaction*>& heap)
+    {
+        if (heap.empty()) {
+            return;
+        }
+
+        auto timestamp = heap.front()->GetCommitTimestamp();
+        MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.Get(timestamp));
     }
 
     static bool SerializingTransactionHeapComparer(

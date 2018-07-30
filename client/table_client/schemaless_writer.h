@@ -21,7 +21,7 @@ namespace NTableClient {
 struct ISchemalessWriter
     : public virtual NChunkClient::IWriterBase
 {
-    virtual bool Write(const TRange<TUnversionedRow>& rows) = 0;
+    virtual bool Write(TRange<TUnversionedRow> rows) = 0;
 
     virtual const TNameTablePtr& GetNameTable() const = 0;
 

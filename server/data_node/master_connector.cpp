@@ -491,7 +491,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     result->set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
-    result->set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
+    result->set_used_tablet_slots(slotManager->GetUsedTabletSlotCount());
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     auto* protoMemory = result->mutable_memory();
@@ -738,6 +738,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
                 protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
                 protoSlotInfo->set_peer_id(slot->GetPeerId());
+                protoSlotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
             } else {
                 protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
             }
@@ -870,7 +871,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             YCHECK(cellId);
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
-                LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
+                LOG_WARNING("Requested to remove a non-existing slot, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
@@ -881,12 +882,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto cellId = FromProto<TCellId>(info.cell_id());
             YCHECK(cellId);
             if (slotManager->GetAvailableTabletSlotCount() == 0) {
-                LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
+                LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
             if (slotManager->FindSlot(cellId)) {
-                LOG_WARNING("Requested to start cell %v when this cell is already being served by the node, ignored",
+                LOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
@@ -897,17 +898,34 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
             auto slot = slotManager->FindSlot(descriptor.CellId);
             if (!slot) {
-                LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
+                LOG_WARNING("Requested to configure a non-existing slot, ignored (CellId: %v)",
                     descriptor.CellId);
                 continue;
             }
             if (!slot->CanConfigure()) {
-                LOG_WARNING("Cannot configure slot %v in state %Qlv, ignored",
+                LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
                     descriptor.CellId,
                     slot->GetControlState());
                 continue;
             }
             slotManager->ConfigureSlot(slot, info);
+        }
+
+        for (const auto& info : rsp->tablet_slots_update()) {
+            auto cellId = FromProto<TCellId>(info.cell_id());
+            auto slot = slotManager->FindSlot(cellId);
+            if (!slot) {
+                LOG_WARNING("Requested to update dynamic options for a non-existing slot, ignored (CellId: %v)",
+                    cellId);
+                continue;
+            }
+            if (!slot->CanConfigure()) {
+                LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                    cellId,
+                    slot->GetControlState());
+                continue;
+            }
+            slot->UpdateDynamicConfig(info);
         }
     }
 

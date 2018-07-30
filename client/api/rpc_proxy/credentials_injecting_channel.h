@@ -15,9 +15,7 @@ NRpc::IChannelPtr CreateUserInjectingChannel(
 NRpc::IChannelPtr CreateTokenInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
     const TString& user,
-    const TString& token,
-    // COMPAT(babenko)
-    const TString& userIP);
+    const TString& token);
 
 NRpc::IChannelPtr CreateCookieInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,

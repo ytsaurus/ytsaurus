@@ -13,15 +13,18 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NHiveServer;
+using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NTableClient;
-using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,6 +192,11 @@ bool TTransaction::IsPrepared() const
 bool TTransaction::IsSerializationNeeded() const
 {
     return !DelayedLocklessWriteLog_.Empty();
+}
+
+TCellTag TTransaction::GetCellTag() const
+{
+    return CellTagFromId(GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -63,21 +63,20 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TConsumer>
-class TSkiffMultiTableStreamParserImpl
+class TSkiffMultiTableParser<TConsumer>::TImpl
 {
 public:
-    TSkiffMultiTableStreamParserImpl(
-        IInputStream* input,
+    TImpl(
         TConsumer* consumer,
         const TSkiffSchemaList& skiffSchemaList,
         const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName)
         : Consumer_(consumer)
-        , Parser_(CreateVariant16Schema(skiffSchemaList), input)
-        , TablesColumnIds(tablesColumnIds)
+        , SkiffSchemaList_(skiffSchemaList)
+        , TablesColumnIds_(tablesColumnIds)
     {
-        TableDescriptions_ = CreateTableDescriptionList(skiffSchemaList, rangeIndexColumnName, rowIndexColumnName);
+        TableDescriptions_ = CreateTableDescriptionList(SkiffSchemaList_, rangeIndexColumnName, rowIndexColumnName);
 
         YCHECK(tablesColumnIds.size() == TableDescriptions_.size());
         for (size_t index = 0; index < TableDescriptions_.size(); ++index) {
@@ -89,7 +88,7 @@ public:
     Y_FORCE_INLINE void ParseField(ui16 columnId, const TString& name, EWireType wireType, bool required = false)
     {
         if (!required) {
-            ui8 tag = Parser_.ParseVariant8Tag();
+            ui8 tag = Parser_->ParseVariant8Tag();
             if (tag == 0) {
                 Consumer_->OnEntity(columnId);
                 return;
@@ -102,52 +101,55 @@ public:
         }
         switch (wireType) {
             case EWireType::Yson32:
-                Parser_.ParseYson32(&String_);
+                Parser_->ParseYson32(&String_);
                 Consumer_->OnYsonString(String_, columnId);
                 break;
             case EWireType::Int64:
-                Consumer_->OnInt64Scalar(Parser_.ParseInt64(), columnId);
+                Consumer_->OnInt64Scalar(Parser_->ParseInt64(), columnId);
                 break;
             case EWireType::Uint64:
-                Consumer_->OnUint64Scalar(Parser_.ParseUint64(), columnId);
+                Consumer_->OnUint64Scalar(Parser_->ParseUint64(), columnId);
                 break;
             case EWireType::Double:
-                Consumer_->OnDoubleScalar(Parser_.ParseDouble(), columnId);
+                Consumer_->OnDoubleScalar(Parser_->ParseDouble(), columnId);
                 break;
             case EWireType::Boolean:
-                Consumer_->OnBooleanScalar(Parser_.ParseBoolean(), columnId);
+                Consumer_->OnBooleanScalar(Parser_->ParseBoolean(), columnId);
                 break;
             case EWireType::String32:
-                Parser_.ParseString32(&String_);
+                Parser_->ParseString32(&String_);
                 Consumer_->OnStringScalar(String_, columnId);
                 break;
             default:
-                // Other types should be filtered out when we parsed skiff schema
+                // Other types should be filtered out when we parse skiff schema.
                 Y_UNREACHABLE();
         }
     }
 
-    void Run()
+    void DoParse(TCoroStream* stream)
     {
-        while (Parser_.HasMoreData()) {
-            auto tag = Parser_.ParseVariant16Tag();
+        Parser_ = std::make_unique<TCheckedInDebugSkiffParser>(CreateVariant16Schema(SkiffSchemaList_), stream);
+        InputStream_ = stream;
+
+        while (Parser_->HasMoreData()) {
+            auto tag = Parser_->ParseVariant16Tag();
             if (tag >= TableDescriptions_.size()) {
-                THROW_ERROR_EXCEPTION("Unknown table index varint16 tag %v",
-                    tag);
+                THROW_ERROR_EXCEPTION("Unknown table index varint16 tag")
+                    << TErrorAttribute("tag", tag);
             }
 
             Consumer_->OnBeginRow(tag);
 
             for (ui16 i = 0; i < TableDescriptions_[tag].DenseFieldDescriptionList.size(); ++i) {
                 const auto& field = TableDescriptions_[tag].DenseFieldDescriptionList[i];
-                auto columnId = TablesColumnIds[tag].DenseFieldColumnIds[i];
+                auto columnId = TablesColumnIds_[tag].DenseFieldColumnIds[i];
                 ParseField(columnId, field.Name, field.DeoptionalizedSchema->GetWireType(), field.Required);
             }
 
             if (!TableDescriptions_[tag].SparseFieldDescriptionList.empty()) {
-                for (auto sparseFieldIdx = Parser_.ParseVariant16Tag();
+                for (auto sparseFieldIdx = Parser_->ParseVariant16Tag();
                     sparseFieldIdx != EndOfSequenceTag<ui16>();
-                    sparseFieldIdx = Parser_.ParseVariant16Tag())
+                    sparseFieldIdx = Parser_->ParseVariant16Tag())
                 {
                     if (sparseFieldIdx >= TableDescriptions_[tag].SparseFieldDescriptionList.size()) {
                         THROW_ERROR_EXCEPTION("Bad sparse field index %Qv, total sparse field count %Qv",
@@ -156,13 +158,13 @@ public:
                     }
 
                     const auto& field = TableDescriptions_[tag].SparseFieldDescriptionList[sparseFieldIdx];
-                    auto columnId = TablesColumnIds[tag].SparseFieldColumnIds[sparseFieldIdx];
+                    auto columnId = TablesColumnIds_[tag].SparseFieldColumnIds[sparseFieldIdx];
                     ParseField(columnId, field.Name, field.DeoptionalizedSchema->GetWireType(), true);
                 }
             }
 
             if (TableDescriptions_[tag].HasOtherColumns) {
-                Parser_.ParseYson32(&String_);
+                Parser_->ParseYson32(&String_);
                 Consumer_->OnOtherColumns(String_);
             }
 
@@ -170,11 +172,19 @@ public:
         }
     }
 
+    ui64 GetReadBytesCount()
+    {
+        return Parser_->GetReadBytesCount();
+    }
+
 private:
     TConsumer* const Consumer_;
-    TCheckedInDebugSkiffParser Parser_;
+    TSkiffSchemaList SkiffSchemaList_;
 
-    const std::vector<TSkiffTableColumnIds> TablesColumnIds;
+    std::unique_ptr<TCheckedInDebugSkiffParser> Parser_;
+    TCoroStream* InputStream_;
+
+    const std::vector<TSkiffTableColumnIds> TablesColumnIds_;
     std::vector<TSkiffTableDescription> TableDescriptions_;
 
     // String that we parse string32 into.
@@ -190,17 +200,15 @@ TSkiffMultiTableParser<TConsumer>::TSkiffMultiTableParser(
     const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
-    : ParserCoroutine_(BIND(
+    : ParserImpl_(new TImpl(consumer,
+        schemaList,
+        tablesColumnIds,
+        rangeIndexColumnName,
+        rowIndexColumnName))
+    , ParserCoroutine_(BIND(
         [=] (TParserCoroutine& self, TStringBuf data) {
             TCoroStream stream(data, &self);
-            TSkiffMultiTableStreamParserImpl<TConsumer> parser(
-                &stream,
-                consumer,
-                schemaList,
-                tablesColumnIds,
-                rangeIndexColumnName,
-                rowIndexColumnName);
-            parser.Run();
+            ParserImpl_->DoParse(&stream);
             stream.Complete();
         }))
 { }
@@ -223,6 +231,12 @@ template <class TConsumer>
 void TSkiffMultiTableParser<TConsumer>::Finish()
 {
     Read(TStringBuf());
+}
+
+template <class TConsumer>
+ui64 TSkiffMultiTableParser<TConsumer>::GetReadBytesCount()
+{
+    return ParserImpl_->GetReadBytesCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

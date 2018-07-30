@@ -99,7 +99,7 @@ public:
         return Impl_->Open();
     }
 
-    virtual TFuture<void> Write(const TRange<TSharedRef>& rows) override
+    virtual TFuture<void> Write(TRange<TSharedRef> rows) override
     {
         return Impl_->Write(rows);
     }
@@ -148,7 +148,7 @@ private:
             return OpenedPromise_;
         }
 
-        TFuture<void> Write(const TRange<TSharedRef>& rows)
+        TFuture<void> Write(TRange<TSharedRef> rows)
         {
             TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
 

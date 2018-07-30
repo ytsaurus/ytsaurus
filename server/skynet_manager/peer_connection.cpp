@@ -9,6 +9,12 @@
 #include <yt/core/net/connection.h>
 #include <yt/core/misc/ref.h>
 
+#ifdef __APPLE__
+    #include <libkern/OSByteOrder.h>
+    #define htobe32(x) OSSwapHostToBigInt32(x)
+    #define be32toh(x) OSSwapBigToHostInt32(x)
+#endif
+
 namespace NYT {
 namespace NSkynetManager {
 

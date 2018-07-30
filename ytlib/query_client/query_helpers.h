@@ -39,12 +39,12 @@ TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionP
 TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
 
 TConstExpressionPtr EliminatePredicate(
-    const TRange<TRowRange>& keyRanges,
+    TRange<TRowRange> keyRanges,
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns);
 
 TConstExpressionPtr EliminatePredicate(
-    const TRange<TRow>& lookupKeys,
+    TRange<TRow> lookupKeys,
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns);
 

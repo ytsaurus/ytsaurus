@@ -27,7 +27,7 @@ using NChunkClient::TDataSliceDescriptor;
 class TResultStorage
 {
 public:
-    void OnUnreadRows(const NYT::TRange<TUnversionedRow>& unreadRows)
+    void OnUnreadRows(TRange<TUnversionedRow> unreadRows)
     {
         UnreadRowCount_ = unreadRows.Size();
         if (!unreadRows.Empty()) {
@@ -78,12 +78,12 @@ public:
         NameTable_->RegisterName(TableIndexColumnName);
     }
 
-    virtual TFuture<void> GetReadyEvent()
+    virtual TFuture<void> GetReadyEvent() override
     {
         return VoidFuture;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         Y_UNREACHABLE();
     }
@@ -93,17 +93,17 @@ public:
         Y_UNIMPLEMENTED();
     }
 
-    virtual bool IsFetchingCompleted() const
+    virtual bool IsFetchingCompleted() const override
     {
         return true;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         Y_UNREACHABLE();
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows)
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         Rows_.clear();
         rows->clear();
@@ -119,39 +119,38 @@ public:
         return true;
     }
 
-    virtual const TNameTablePtr& GetNameTable() const
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const
+    virtual TKeyColumns GetKeyColumns() const override
     {
         return TableSchema_.GetKeyColumns();
     }
 
-    virtual i64 GetTableRowIndex() const
+    virtual i64 GetTableRowIndex() const override
     {
         return RowIndex_;
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
-        const NYT::TRange<TUnversionedRow>& unreadRows) const
+    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
     {
         ResultStorage_->OnUnreadRows(unreadRows);
         return {};
     }
 
-    virtual i64 GetSessionRowIndex() const
+    virtual i64 GetSessionRowIndex() const override
     {
         return RowIndex_;
     }
 
-    virtual i64 GetTotalRowCount() const
+    virtual i64 GetTotalRowCount() const override
     {
         return TableData_.Rows.size();
     }
 
-    virtual void Interrupt()
+    virtual void Interrupt() override
     {
         Interrupted_ = true;
     }

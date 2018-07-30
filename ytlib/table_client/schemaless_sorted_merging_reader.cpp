@@ -260,7 +260,7 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override;
+        TRange<TUnversionedRow> unreadRows) const override;
 
 private:
     TOwningKey LastKey_;
@@ -369,7 +369,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
 }
 
 TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
-    const TRange<TUnversionedRow>& unreadRows) const
+    TRange<TUnversionedRow> unreadRows) const
 {
     TInterruptDescriptor result;
 
@@ -415,7 +415,7 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        const TRange<TUnversionedRow>& unreadRows) const override;
+        TRange<TUnversionedRow> unreadRows) const override;
 
     virtual void Interrupt() override;
 
@@ -576,7 +576,7 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
 }
 
 TInterruptDescriptor TSchemalessJoiningReader::GetInterruptDescriptor(
-    const TRange<TUnversionedRow>& unreadRows) const
+    TRange<TUnversionedRow> unreadRows) const
 {
     YCHECK(unreadRows.Empty());
 

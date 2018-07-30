@@ -8,6 +8,8 @@
 
 #include <yt/server/hydra/entity_map.h>
 
+#include <yt/server/node_tracker_server/node_tracker.pb.h>
+
 #include <yt/server/tablet_server/public.h>
 
 #include <yt/server/transaction_server/public.h>
@@ -44,6 +46,25 @@ DEFINE_ENUM(ENodeState,
     ((Mixed)       (4))
 );
 
+struct TCellNodeStatistics
+{
+    NChunkServer::TPerMediumArray<i64> ChunkReplicaCount = {};
+};
+
+TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
+
+void ToProto(NProto::TReqSetCellNodeDescriptors::TStatistics* protoStatistics, const TCellNodeStatistics& statistics);
+void FromProto(TCellNodeStatistics* statistics, const NProto::TReqSetCellNodeDescriptors::TStatistics& protoStatistics);
+
+struct TCellNodeDescriptor
+{
+    ENodeState State = ENodeState::Unknown;
+    TCellNodeStatistics Statistics;
+};
+
+void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescriptor, const TCellNodeDescriptor& descriptor);
+void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor);
+
 class TNode
     : public NObjectServer::TObjectBase
     , public TRefTracked<TNode>
@@ -67,8 +88,8 @@ public:
     ui64 GetVisitMark(int mediumIndex);
     void SetVisitMark(int mediumIndex, ui64 mark);
 
-    using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
-    DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
+    using TMulticellDescriptors = THashMap<NObjectClient::TCellTag, TCellNodeDescriptor>;
+    DEFINE_BYREF_RO_PROPERTY(TMulticellDescriptors, MulticellDescriptors);
 
     //! Tags specified by user in "user_tags" attribute.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, UserTags);
@@ -197,8 +218,9 @@ public:
     //! Sets the local state by dereferencing local state pointer.
     void SetLocalState(ENodeState state);
 
-    //! Sets the state for the given cell.
-    void SetState(NObjectClient::TCellTag cellTag, ENodeState state);
+    //! Sets the state and statistics for the given cell.
+    void SetCellDescriptor(NObjectClient::TCellTag cellTag, const TCellNodeDescriptor& descriptor);
+
     //! If states are same for all cells then returns this common value.
     //! Otherwise returns "mixed" state.
     ENodeState GetAggregatedState() const;
@@ -267,6 +289,13 @@ public:
     void Reset();
 
     static ui64 GenerateVisitMark();
+
+    // Computes node statistics for the local cell.
+    TCellNodeStatistics ComputeCellStatistics() const;
+    // Computes total cluster statistics (over all cells, including the local one).
+    TCellNodeStatistics ComputeClusterStatistics() const;
+
+    void ClearCellStatistics();
 
 private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;

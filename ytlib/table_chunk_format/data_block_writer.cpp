@@ -9,7 +9,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDataBlockWriter::WriteSegment(const TRange<TSharedRef> segment)
+void TDataBlockWriter::WriteSegment(TRange<TSharedRef> segment)
 {
     Data_.insert(Data_.end(), segment.Begin(), segment.End());
     for (const auto& part : segment) {

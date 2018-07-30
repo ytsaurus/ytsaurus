@@ -95,11 +95,12 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
         if mount:
             sync_mount_table(path)
 
-    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None):
+    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None, **kwargs):
         if not replica_driver:
             replica_driver = self.replica_driver
         attributes = self._get_table_attributes(schema)
         attributes["upstream_replica_id"] = replica_id
+        attributes.update(kwargs)
         create("table", path, attributes=attributes, driver=replica_driver)
         if mount:
             sync_mount_table(path, driver=replica_driver)
@@ -513,13 +514,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-    def test_sync_replication_ordered(self):
+    @pytest.mark.parametrize("commit_ordering", ["weak", "strong"])
+    def test_sync_replication_ordered(self, commit_ordering):
         self._create_cells()
         self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED)
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
-        self._create_replica_table("//tmp/r1", replica_id1, self.SIMPLE_SCHEMA_ORDERED)
-        self._create_replica_table("//tmp/r2", replica_id2, self.SIMPLE_SCHEMA_ORDERED)
+        self._create_replica_table("//tmp/r1", replica_id1, self.SIMPLE_SCHEMA_ORDERED, commit_ordering=commit_ordering)
+        self._create_replica_table("//tmp/r2", replica_id2, self.SIMPLE_SCHEMA_ORDERED, commit_ordering=commit_ordering)
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 

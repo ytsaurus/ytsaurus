@@ -318,7 +318,7 @@ void SortRows(
 } // namespace
 
 TConstExpressionPtr EliminateInExpression(
-    const TRange<TRow>& lookupKeys,
+    TRange<TRow> lookupKeys,
     const TInExpression* inExpr,
     const TKeyColumns& keyColumns,
     size_t keyPrefixSize,
@@ -442,7 +442,7 @@ TConstExpressionPtr EliminateInExpression(
 }
 
 TConstExpressionPtr EliminatePredicate(
-    const TRange<TRowRange>& keyRanges,
+    TRange<TRowRange> keyRanges,
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns)
 {
@@ -590,7 +590,7 @@ TConstExpressionPtr EliminatePredicate(
 }
 
 TConstExpressionPtr EliminatePredicate(
-    const TRange<TRow>& lookupKeys,
+    TRange<TRow> lookupKeys,
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns)
 {

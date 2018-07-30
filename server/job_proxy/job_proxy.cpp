@@ -10,6 +10,7 @@
 #include "user_job.h"
 #include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
+#include "job_bandwidth_throttler.h"
 
 #include <yt/server/containers/public.h>
 
@@ -41,6 +42,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -50,9 +52,10 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/server.h>
 #include <yt/core/rpc/bus/server.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -76,6 +79,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobProberClient;
+using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
@@ -161,6 +165,16 @@ IServerPtr TJobProxy::GetRpcServer() const
 TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
 {
     return TrafficMeter_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetInThrottler() const
+{
+    return InThrottler_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetOutThrottler() const
+{
+    return OutThrottler_;
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)
@@ -452,7 +466,9 @@ TJobResult TJobProxy::DoRun()
         RpcServer_->Start();
 
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-        auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
+        auto supervisorChannel = CreateRetryingChannel(
+            Config_->SupervisorChannel,
+            NRpc::NBus::CreateBusChannel(supervisorClient));
 
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
@@ -462,6 +478,28 @@ TJobResult TJobProxy::DoRun()
         Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
         RetrieveJobSpec();
+        
+        // Disable throttling when timeout is 0.
+        if (Config_->BandwidthThrottlerRpcTimeout != TDuration::Zero()) {
+            LOG_DEBUG("Job throttling enabled");
+
+            InThrottler_ = CreateInJobBandwidthThrottler(
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
+                JobId_,
+                Config_->BandwidthThrottlerRpcTimeout);
+
+            OutThrottler_ = CreateOutJobBandwidthThrottler(
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_,
+                Config_->BandwidthThrottlerRpcTimeout);
+        } else {
+            LOG_DEBUG("Job throttling disabled");
+
+            InThrottler_ = GetUnlimitedThrottler();
+            OutThrottler_ = GetUnlimitedThrottler();
+        }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);

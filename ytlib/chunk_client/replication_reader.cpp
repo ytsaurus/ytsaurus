@@ -36,6 +36,8 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/net/local_address.h>
+
 #include <util/generic/ymath.h>
 
 #include <util/random/shuffle.h>
@@ -52,6 +54,7 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
+using namespace NNet;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1317,7 +1320,7 @@ private:
                 BanPeer(peerAddress, false);
                 RequestBlocks();
                 return;
-             }
+            }
 
             auto sourceDescriptor = reader->Options_->EnableP2P
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
@@ -1345,8 +1348,19 @@ private:
               bytesReceived,
               rsp->peer_descriptors_size());
 
-        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
-        YCHECK(throttleResult.IsOK());
+
+        if (peerAddress != GetLocalHostName()) {
+            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            if (!throttleResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                    "Failed to throttle bandwidth in reader")
+                    << throttleResult;
+                LOG_WARNING(error, "Chunk reader failed");
+                OnSessionFailed(true, error);
+                return;
+            }
+        }
 
         RequestBlocks();
     }
@@ -1377,6 +1391,19 @@ private:
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
+        Promise_.TrySet(error);
+    }
+
+    void OnSessionFailed(bool fatal, const TError& error)
+    {
+        auto reader = Reader_.Lock();
+        if (!reader)
+            return;
+
+        if (fatal) {
+            reader->SetFailed();
+        }
+
         Promise_.TrySet(error);
     }
 };
@@ -1562,9 +1589,19 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
-
-        auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
-        YCHECK(throttleResult.IsOK());
+        
+        if (peerAddress != GetLocalHostName()) {
+            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            if (!throttleResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                    "Failed to throttle bandwidth in reader")
+                    << throttleResult;
+                LOG_WARNING(error, "Chunk reader failed");
+                OnSessionFailed(true, error);
+                return;
+            }
+        }
 
         if (blocksReceived > 0) {
             OnSessionSucceeded();
@@ -1594,6 +1631,19 @@ private:
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
+        Promise_.TrySet(error);
+    }
+
+    void OnSessionFailed(bool fatal, const TError& error)
+    {
+        auto reader = Reader_.Lock();
+        if (!reader)
+            return;
+
+        if (fatal) {
+            reader->SetFailed();
+        }
+
         Promise_.TrySet(error);
     }
 };
@@ -1755,6 +1805,19 @@ private:
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
             reader->ChunkId_));
+        Promise_.TrySet(error);
+    }
+
+    void OnSessionFailed(bool fatal, const TError& error)
+    {
+        auto reader = Reader_.Lock();
+        if (!reader)
+            return;
+
+        if (fatal) {
+            reader->SetFailed();
+        }
+
         Promise_.TrySet(error);
     }
 };

@@ -127,7 +127,7 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
     CurrentBuffer_.Reserve(ContextBufferCapacity);
 }
 
-bool TSchemalessFormatWriterBase::Write(const TRange<TUnversionedRow> &rows)
+bool TSchemalessFormatWriterBase::Write(TRange<TUnversionedRow> rows)
 {
     if (!Error_.IsOK()) {
         return false;
@@ -295,7 +295,7 @@ void TSchemalessWriterAdapter::Init(const TFormat& format)
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
-void TSchemalessWriterAdapter::DoWrite(const TRange<TUnversionedRow>& rows)
+void TSchemalessWriterAdapter::DoWrite(TRange<TUnversionedRow> rows)
 {
     int count = static_cast<int>(rows.Size());
     for (int index = 0; index < count; ++index) {

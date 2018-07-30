@@ -119,6 +119,27 @@ TEST(TYsonToProtobufYsonTest, Success)
                     .Item().Value("foobar")
                 .EndList()
             .EndMap()
+            .Item("int32_map").BeginMap()
+                .Item("hello").Value(0)
+                .Item("world").Value(1)
+            .EndMap()
+            .Item("nested_message_map").BeginMap()
+                .Item("hello").BeginMap()
+                    .Item("int32_field").Value(123)
+                .EndMap()
+                .Item("world").BeginMap()
+                    .Item("color").Value("blue")
+                    .Item("nested_message_map").BeginMap()
+                        .Item("test").BeginMap()
+                            .Item("repeated_int32_field").BeginList()
+                                .Item().Value(1)
+                                .Item().Value(2)
+                                .Item().Value(3)
+                            .EndList()
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+            .EndMap()
         .EndMap();
 
 
@@ -174,6 +195,19 @@ TEST(TYsonToProtobufYsonTest, Success)
         .EndMap();
 
     EXPECT_EQ(ConvertToYsonString(node).GetData(), message.yson_field());
+
+    EXPECT_EQ(2, message.int32_map_size());
+    EXPECT_EQ(0, message.int32_map().at("hello"));
+    EXPECT_EQ(1, message.int32_map().at("world"));
+
+    EXPECT_EQ(2, message.nested_message_map_size());
+    EXPECT_EQ(123, message.nested_message_map().at("hello").int32_field());
+    EXPECT_EQ(NYT::NProto::Color_Blue, message.nested_message_map().at("world").color());
+    EXPECT_EQ(1, message.nested_message_map().at("world").nested_message_map_size());
+    EXPECT_EQ(3, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field_size());
+    EXPECT_EQ(1, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(0));
+    EXPECT_EQ(2, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(1));
+    EXPECT_EQ(3, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(2));
 }
 
 TEST(TYsonToProtobufTest, TypeConversions)
@@ -477,6 +511,41 @@ TEST(TYsonToProtobufTest, Failure)
             .EndMap();
     }, "/nested_message1");
 
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("nested_message_map").BeginList()
+                    .Item().Value(123)
+                .EndList()
+            .EndMap();
+    }, "/nested_message_map");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("nested_message_map").Value(123)
+            .EndMap();
+    }, "/nested_message_map");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("int32_map").BeginMap()
+                    .Item("a").Value("b")
+                .EndMap()
+            .EndMap();
+    }, "/int32_map/a");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("nested_message_map").BeginMap()
+                    .Item("a").BeginMap()
+                        .Item("nested_message_map").Value(123)
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+    }, "/nested_message_map/a/nested_message_map");
 }
 
 TEST(TYsonToProtobufTest, ErrorProto)
@@ -649,6 +718,36 @@ TEST(TProtobufToYsonTest, Success)
 
     message.set_yson_field("{a=1;b=[\"foobar\";];}");
 
+    {
+        auto& map = *message.mutable_int32_map();
+        map["hello"] = 0;
+        map["world"] = 1;
+    }
+
+    {
+        auto& map = *message.mutable_nested_message_map();
+        {
+            NYT::NProto::TNestedMessage value;
+            value.set_int32_field(123);
+            map["hello"] = value;
+        }
+        {
+            NYT::NProto::TNestedMessage value;
+            value.set_color(NYT::NProto::Color_Blue);
+            {
+                auto& submap = *value.mutable_nested_message_map();
+                {
+                    NYT::NProto::TNestedMessage subvalue;
+                    subvalue.add_repeated_int32_field(1);
+                    subvalue.add_repeated_int32_field(2);
+                    subvalue.add_repeated_int32_field(3);
+                    submap["test"] = subvalue;
+                }
+            }
+            map["world"] = value;
+        }
+    }
+
     TEST_PROLOGUE()
     message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TMessage)
@@ -706,6 +805,27 @@ TEST(TProtobufToYsonTest, Success)
                 .Item("b").BeginList()
                     .Item().Value("foobar")
                 .EndList()
+            .EndMap()
+            .Item("int32_map").BeginMap()
+                .Item("hello").Value(0)
+                .Item("world").Value(1)
+            .EndMap()
+            .Item("nested_message_map").BeginMap()
+                .Item("hello").BeginMap()
+                    .Item("int32_field").Value(123)
+                .EndMap()
+                .Item("world").BeginMap()
+                    .Item("color").Value("blue")
+                    .Item("nested_message_map").BeginMap()
+                        .Item("test").BeginMap()
+                            .Item("repeated_int32_field").BeginList()
+                                .Item().Value(1)
+                                .Item().Value(2)
+                                .Item().Value(3)
+                            .EndList()
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
             .EndMap()
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));

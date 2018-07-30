@@ -94,7 +94,7 @@ public:
                 TKeyColumns(),
                 partitionTag,
                 Host_->GetTrafficMeter(),
-                NConcurrency::GetUnlimitedThrottler());
+                Host_->GetInThrottler());
             return Reader_;
         };
 
@@ -120,7 +120,8 @@ public:
                 transactionId,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},
-                Host_->GetTrafficMeter());
+                Host_->GetTrafficMeter(),
+                Host_->GetOutThrottler());
             return Writer_;
         };
     }

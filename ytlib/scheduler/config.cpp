@@ -633,8 +633,6 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .NonEmpty();
     RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
         .Default(true);
-    RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
-        .Default(3.0);
     RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
         .Default(true);
 

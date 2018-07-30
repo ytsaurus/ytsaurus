@@ -44,14 +44,19 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserJobIOFactoryBase::TUserJobIOFactoryBase(
     const TClientBlockReadOptions& blockReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter)
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr inThrottler,
+    IThroughputThrottlerPtr outThrottler)
     : BlockReadOptions_(blockReadOptions)
     , TrafficMeter_(std::move(trafficMeter))
+    , InThrottler_(std::move(inThrottler))
+    , OutThrottler_(std::move(outThrottler))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +74,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     const TTransactionId& transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
 {
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
@@ -85,7 +91,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         transactionId,
         chunkListId,
         chunkTimestamps,
-        trafficMeter);
+        std::move(trafficMeter),
+        std::move(throttler));
 }
 
 ISchemalessMultiChunkReaderPtr CreateTableReader(
@@ -99,7 +106,8 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     const TColumnFilter& columnFilter,
     bool isParallel,
     const TClientBlockReadOptions& blockReadOptions,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
 {
     if (isParallel) {
         return CreateSchemalessParallelMultiReader(
@@ -116,7 +124,8 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             columnFilter,
             TKeyColumns(),
             /* partitionTag */ Null,
-            trafficMeter);
+            std::move(trafficMeter),
+            std::move(throttler));
     } else {
         return CreateSchemalessSequentialMultiReader(
             jobSpecHelper->GetJobIOConfig()->TableReader,
@@ -132,7 +141,8 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             columnFilter,
             TKeyColumns(),
             /* partitionTag */ Null,
-            trafficMeter);
+            std::move(trafficMeter),
+            std::move(throttler));
     }
 }
 
@@ -144,7 +154,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler)
 {
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors;
@@ -170,7 +181,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         columnFilter,
         isParallel,
         blockReadOptions,
-        trafficMeter);
+        std::move(trafficMeter),
+        std::move(throttler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,8 +195,10 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool useParallelReader,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr inThrottler,
+        IThroughputThrottlerPtr outThrottler)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler))
         , JobSpecHelper_(std::move(jobSpecHelper))
         , UseParallelReader_(useParallelReader)
     { }
@@ -204,7 +218,8 @@ public:
             std::move(nameTable),
             columnFilter,
             BlockReadOptions_,
-            TrafficMeter_);
+            TrafficMeter_,
+            InThrottler_);
     }
 
     virtual ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -225,7 +240,8 @@ public:
             transactionId,
             tableSchema,
             chunkTimestamps,
-            TrafficMeter_);
+            TrafficMeter_,
+            OutThrottler_);
     }
 
 private:
@@ -243,8 +259,10 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool interruptAtKeyEdge,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr inThrottler,
+        IThroughputThrottlerPtr outThrottler)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler))
         , JobSpecHelper_(jobSpecHelper)
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
     { }
@@ -291,7 +309,8 @@ public:
                 columnFilter,
                 keyColumns,
                 /* partitionTag */ Null,
-                TrafficMeter_);
+                TrafficMeter_,
+                InThrottler_);
 
             primaryReaders.emplace_back(reader);
         }
@@ -317,7 +336,8 @@ public:
                 columnFilter,
                 keyColumns,
                 /* partitionTag */ Null,
-                TrafficMeter_);
+                TrafficMeter_,
+                InThrottler_);
 
             foreignReaders.emplace_back(reader);
         }
@@ -347,7 +367,8 @@ public:
             transactionId,
             tableSchema,
             chunkTimestamps,
-            TrafficMeter_);
+            TrafficMeter_,
+            OutThrottler_);
     }
 
 private:
@@ -364,8 +385,10 @@ public:
     explicit TPartitionMapJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr inThrottler,
+        IThroughputThrottlerPtr outThrottler)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler))
         , JobSpecHelper_(jobSpecHelper)
     { }
 
@@ -386,7 +409,8 @@ public:
             std::move(nameTable),
             columnFilter,
             BlockReadOptions_,
-            TrafficMeter_);
+            TrafficMeter_,
+            InThrottler_);
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -425,7 +449,8 @@ public:
                 transactionId,
                 chunkListId,
                 std::move(partitioner),
-                TrafficMeter_);
+                TrafficMeter_,
+                OutThrottler_);
         } else {
             // This writer is used for mapper output tables.
             return CreateTableWriter(
@@ -437,7 +462,8 @@ public:
                 transactionId,
                 tableSchema,
                 chunkTimestamps,
-                TrafficMeter_);
+                TrafficMeter_,
+                OutThrottler_);
         }
     }
 
@@ -454,8 +480,10 @@ public:
     explicit TPartitionReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr inThrottler,
+        IThroughputThrottlerPtr outThrottler)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler))
         , JobSpecHelper_(jobSpecHelper)
     { }
 
@@ -497,7 +525,8 @@ public:
             schedulerJobSpecExt.is_approximate(),
             reduceJobSpecExt.partition_tag(),
             BlockReadOptions_,
-            TrafficMeter_);
+            TrafficMeter_,
+            InThrottler_);
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -518,7 +547,8 @@ public:
             transactionId,
             tableSchema,
             chunkTimestamps,
-            TrafficMeter_);
+            TrafficMeter_,
+            OutThrottler_);
     }
 
 private:
@@ -568,29 +598,31 @@ private:
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientBlockReadOptions& blockReadOptions,
-    TTrafficMeterPtr trafficMeter)
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr inThrottler,
+    IThroughputThrottlerPtr outThrottler)
 {
     const auto jobType = jobSpecHelper->GetJobType();
     switch (jobType) {
         case EJobType::Map:
-            return New<TMapJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter));
+            return New<TMapJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler));
 
         case EJobType::OrderedMap:
-            return New<TMapJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter));
+            return New<TMapJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler));
 
         case EJobType::SortedReduce:
-            return New<TSortedReduceJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter));
+            return New<TSortedReduceJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler));
 
         case EJobType::JoinReduce:
-            return New<TSortedReduceJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter));
+            return New<TSortedReduceJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler));
 
         case EJobType::PartitionMap:
-            return New<TPartitionMapJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter));
+            return New<TPartitionMapJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler));
 
         // ToDo(psushin): handle separately to form job result differently.
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
-            return New<TPartitionReduceJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter));
+            return New<TPartitionReduceJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inThrottler), std::move(outThrottler));
 
         case EJobType::Vanilla:
             return New<TVanillaJobIOFactory>(jobSpecHelper);

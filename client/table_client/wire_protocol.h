@@ -106,16 +106,16 @@ public:
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
 
     void WriteUnversionedRowset(
-        const TRange<NTableClient::TUnversionedRow>& rowset,
+        TRange<NTableClient::TUnversionedRow> rowset,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteSchemafulRowset(
-        const TRange<NTableClient::TUnversionedRow>& rowset,
+        TRange<NTableClient::TUnversionedRow> rowset,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteVersionedRowset(
-        const TRange<NTableClient::TVersionedRow>& rowset);
+        TRange<NTableClient::TVersionedRow> rowset);
 
     template <class TRow>
-    inline void WriteRowset(const TRange<TRow>& rowset);
+    inline void WriteRowset(TRange<TRow> rowset);
 
     std::vector<TSharedRef> Finish();
 
@@ -126,14 +126,14 @@ private:
 
 template <>
 inline void TWireProtocolWriter::WriteRowset<NTableClient::TUnversionedRow>(
-    const TRange<NTableClient::TUnversionedRow>& rowset)
+    TRange<NTableClient::TUnversionedRow> rowset)
 {
     return WriteUnversionedRowset(rowset);
 }
 
 template <>
 inline void TWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
-    const TRange<NTableClient::TVersionedRow>& rowset)
+    TRange<NTableClient::TVersionedRow> rowset)
 {
     return WriteVersionedRowset(rowset);
 }

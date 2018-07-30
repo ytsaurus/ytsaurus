@@ -770,7 +770,9 @@ private:
             }
         }
 
-        if (!hasUnfinishedNode || (Config_->EnableEarlyFinish && finishedNodeCount >= MinUploadReplicationFactor_)) {
+        if (!StateError_.IsSet() &&
+            (!hasUnfinishedNode || (Config_->EnableEarlyFinish && finishedNodeCount >= MinUploadReplicationFactor_)))
+        {
             State_ = EReplicationWriterState::Closed;
             ClosePromise_.TrySet();
             CancelWriter();
@@ -958,8 +960,19 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         node->Descriptor.GetDefaultAddress(),
         Size_);
 
-    auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
-    YCHECK(throttleResult.IsOK());
+    if (node->Descriptor.GetDefaultAddress() != GetLocalHostName()) {
+        auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
+        if (!throttleResult.IsOK() && !writer->StateError_.IsSet()) {
+            auto error = TError(
+                NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                "Failed to throttle bandwidth in writer")
+                << throttleResult;
+            LOG_WARNING(error, "Chunk writer failed");
+            writer->CancelWriter();
+            writer->StateError_.TrySet(error);
+            return;
+        }
+    }
 
     LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
         FirstBlockIndex_,

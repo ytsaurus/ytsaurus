@@ -28,6 +28,8 @@ using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NChunkClient::NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTrackerService

@@ -65,7 +65,7 @@ protected:
     void Reset();
 
     void AddPendingValues(
-        const TRange<NTableClient::TVersionedRow> rows,
+        TRange<NTableClient::TVersionedRow> rows,
         std::function<void (const NTableClient::TVersionedValue& value)> onValue);
 
     void DumpVersionedData(TSegmentInfo* segmentInfo);

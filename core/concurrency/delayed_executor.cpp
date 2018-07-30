@@ -85,8 +85,12 @@ public:
 
     void WaitForDuration(TDuration duration)
     {
-        WaitFor(MakeDelayed(duration))
-            .ThrowOnError();
+        auto error = WaitFor(MakeDelayed(duration));
+        if (error.GetCode() == NYT::EErrorCode::Canceled) {
+            throw TFiberCanceledException{};
+        }
+
+        error.ThrowOnError();
     }
 
     TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)

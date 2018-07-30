@@ -165,13 +165,13 @@ protected:
 
 // STL interop.
 template <class T>
-typename TRange<T>::const_iterator begin(const TRange<T>& ref)
+typename TRange<T>::const_iterator begin(TRange<T> ref)
 {
     return ref.Begin();
 }
 
 template <class T>
-typename TRange<T>::const_iterator end(const TRange<T>& ref)
+typename TRange<T>::const_iterator end(TRange<T> ref)
 {
     return ref.End();
 }
@@ -201,7 +201,7 @@ TRange<T> MakeRange(const SmallVectorImpl<T>& elements)
 
 //! "Copy-constructor".
 template <class T>
-TRange<T> MakeRange(const TRange<T>& range)
+TRange<T> MakeRange(TRange<T> range)
 {
     return range;
 }
@@ -242,7 +242,7 @@ TRange<const T*> MakeRange(const ::google::protobuf::RepeatedPtrField<T>& elemen
 }
 
 template <class U, class T>
-TRange<U> ReinterpretCastRange(const TRange<T>& range)
+TRange<U> ReinterpretCastRange(TRange<T> range)
 {
     static_assert(sizeof(T) == sizeof(U), "T and U must have equal sizes.");
     return TRange<U>(reinterpret_cast<const U*>(range.Begin()), range.Size());
@@ -363,13 +363,13 @@ public:
 
 // STL interop.
 template <class T>
-typename TMutableRange<T>::iterator begin(const TMutableRange<T>& ref)
+typename TMutableRange<T>::iterator begin(TMutableRange<T> ref)
 {
     return ref.Begin();
 }
 
 template <class T>
-typename TMutableRange<T>::iterator end(const TMutableRange<T>& ref)
+typename TMutableRange<T>::iterator end(TMutableRange<T> ref)
 {
     return ref.End();
 }
@@ -389,7 +389,7 @@ public:
     { }
 
     //! Constructs a TSharedRange from TRange.
-    TSharedRange(const TRange<T>& range, THolderPtr holder)
+    TSharedRange(TRange<T> range, THolderPtr holder)
         : TRange<T>(range)
         , Holder_(std::move(holder))
     { }
@@ -515,7 +515,7 @@ TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... ho
 }
 
 template <class T, class... THolders>
-TSharedRange<T> MakeSharedRange(const TRange<T>& range, THolders&&... holders)
+TSharedRange<T> MakeSharedRange(TRange<T> range, THolders&&... holders)
 {
     return TSharedRange<T>(range, MakeHolder(std::forward<THolders>(holders)...));
 }
@@ -543,7 +543,7 @@ public:
     { }
 
     //! Constructs a TSharedMutableRange from TMutableRange.
-    TSharedMutableRange(const TMutableRange<T>& range, THolderPtr holder)
+    TSharedMutableRange(TMutableRange<T> range, THolderPtr holder)
         : TMutableRange<T>(range)
         , Holder_(std::move(holder))
     { }

@@ -56,7 +56,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
     return Tablets[tabletIndex];
 }
 
-TTabletInfoPtr TTableMountInfo::GetTabletForRow(const TRange<TUnversionedValue>& row) const
+TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
     YCHECK(row.Size() >= keyColumnCount);
@@ -65,7 +65,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(const TRange<TUnversionedValue>&
         Tablets.begin(),
         Tablets.end(),
         row,
-        [&] (const TRange<TUnversionedValue>& key, const TTabletInfoPtr& rhs) {
+        [&] (TRange<TUnversionedValue> key, const TTabletInfoPtr& rhs) {
             return CompareRows(
                 key.Begin(),
                 key.Begin() + keyColumnCount,

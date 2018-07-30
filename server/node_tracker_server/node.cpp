@@ -35,6 +35,8 @@ using namespace NChunkServer;
 using namespace NTabletServer;
 using namespace NNodeTrackerClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -78,6 +80,57 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs)
+{
+    for (auto mediumIndex = 0; mediumIndex < rhs.ChunkReplicaCount.size(); ++mediumIndex) {
+        lhs.ChunkReplicaCount[mediumIndex] += rhs.ChunkReplicaCount[mediumIndex];
+    }
+    return lhs;
+}
+
+void ToProto(
+    NProto::TReqSetCellNodeDescriptors::TStatistics* protoStatistics,
+    const TCellNodeStatistics& statistics)
+{
+    for (auto mediumIndex = 0; mediumIndex < statistics.ChunkReplicaCount.size(); ++mediumIndex) {
+        auto replicaCount = statistics.ChunkReplicaCount[mediumIndex];
+        if (replicaCount != 0) {
+            auto* mediumStatistics = protoStatistics->add_medium_statistics();
+            mediumStatistics->set_medium_index(mediumIndex);
+            mediumStatistics->set_chunk_replica_count(replicaCount);
+        }
+    }
+}
+
+void FromProto(
+    TCellNodeStatistics* statistics,
+    const NProto::TReqSetCellNodeDescriptors::TStatistics& protoStatistics)
+{
+    statistics->ChunkReplicaCount.fill(0);
+
+    for (const auto& mediumStatistics : protoStatistics.medium_statistics()) {
+        auto mediumIndex = mediumStatistics.medium_index();
+        auto replicaCount = mediumStatistics.chunk_replica_count();
+        statistics->ChunkReplicaCount[mediumIndex] = replicaCount;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescriptor, const TCellNodeDescriptor& descriptor)
+{
+    protoDescriptor->set_state(static_cast<int>(descriptor.State));
+    ToProto(protoDescriptor->mutable_statistics(), descriptor.Statistics);
+}
+
+void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor)
+{
+    descriptor->State = ENodeState(protoDescriptor.state());
+    descriptor->Statistics = FromProto<TCellNodeStatistics>(protoDescriptor.statistics());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
 {
@@ -93,13 +146,14 @@ TNode::TNode(const TObjectId& objectId)
 void TNode::ComputeAggregatedState()
 {
     TNullable<ENodeState> result;
-    for (const auto& pair : MulticellStates_) {
+    for (const auto& pair : MulticellDescriptors_) {
         if (result) {
-            if (*result != pair.second) {
+            if (*result != pair.second.State) {
                 result = ENodeState::Mixed;
+                break;
             }
         } else {
-            result = pair.second;
+            result = pair.second.State;
         }
     }
     AggregatedState_ = *result;
@@ -198,8 +252,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
 {
     auto addCell = [&] (TCellTag someTag) {
-        if (MulticellStates_.find(someTag) == MulticellStates_.end()) {
-            YCHECK(MulticellStates_.emplace(someTag, ENodeState::Offline).second);
+        if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
+            YCHECK(MulticellDescriptors_.emplace(someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics{}}).second);
         }
     };
 
@@ -208,7 +262,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
         addCell(secondaryCellTag);
     }
 
-    LocalStatePtr_ = &MulticellStates_[cellTag];
+    LocalStatePtr_ = &MulticellDescriptors_[cellTag].State;
 
     ComputeAggregatedState();
 }
@@ -223,15 +277,20 @@ void TNode::SetLocalState(ENodeState state)
     if (*LocalStatePtr_ != state) {
         *LocalStatePtr_ = state;
         ComputeAggregatedState();
+
+        if (state == ENodeState::Unregistered) {
+            ClearCellStatistics();
+        }
     }
 }
 
-void TNode::SetState(TCellTag cellTag, ENodeState state)
+void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor)
 {
-    auto it = MulticellStates_.find(cellTag);
-    YCHECK(it != MulticellStates_.end());
-    if (it->second != state) {
-        it->second = state;
+    auto it = MulticellDescriptors_.find(cellTag);
+    YCHECK(it != MulticellDescriptors_.end());
+    auto mustRecomputeState = (it->second.State != descriptor.State);
+    it->second = descriptor;
+    if (mustRecomputeState) {
         ComputeAggregatedState();
     }
 }
@@ -252,7 +311,16 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, DisableSchedulerJobs_);
     Save(context, DisableTabletCells_);
     Save(context, NodeAddresses_);
-    Save(context, MulticellStates_);
+    {
+        using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
+        TMulticellStates multicellStates;
+        multicellStates.reserve(MulticellDescriptors_.size());
+        for (const auto& pair : MulticellDescriptors_) {
+            multicellStates.emplace(pair.first, pair.second.State);
+        }
+
+        Save(context, multicellStates);
+    }
     Save(context, UserTags_);
     Save(context, NodeTags_);
     Save(context, RegisterTime_);
@@ -303,7 +371,18 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         Load(context, NodeAddresses_);
     }
 
-    Load(context, MulticellStates_);
+    {
+        using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
+        TMulticellStates multicellStates;
+        Load(context, multicellStates);
+
+        MulticellDescriptors_.clear();
+        MulticellDescriptors_.reserve(multicellStates.size());
+        for (const auto& pair : multicellStates) {
+            MulticellDescriptors_.emplace(pair.first, TCellNodeDescriptor{pair.second, {}});
+        }
+    }
+
     Load(context, UserTags_);
     Load(context, NodeTags_);
     Load(context, RegisterTime_);
@@ -634,6 +713,8 @@ void TNode::Reset()
     ChunkSealQueue_.clear();
     FillFactorIterators_.fill(Null);
     LoadFactorIterators_.fill(Null);
+
+    ClearCellStatistics();
 }
 
 ui64 TNode::GenerateVisitMark()
@@ -794,6 +875,34 @@ void TNode::RebuildTags()
         if (auto* dc = Rack_->GetDataCenter()) {
             Tags_.insert(dc->GetName());
         }
+    }
+}
+
+TCellNodeStatistics TNode::ComputeCellStatistics() const
+{
+    TCellNodeStatistics result;
+    for (auto mediumIndex = 0; mediumIndex < Replicas_.size(); ++mediumIndex) {
+        auto replicaCount = Replicas_[mediumIndex].size();
+        result.ChunkReplicaCount[mediumIndex] = replicaCount;
+    }
+    return result;
+}
+
+TCellNodeStatistics TNode::ComputeClusterStatistics() const
+{
+    // Local (primary) cell statistics aren't stored in MulticellStatistics_.
+    TCellNodeStatistics result = ComputeCellStatistics();
+
+    for (const auto& pair : MulticellDescriptors_) {
+        result += pair.second.Statistics;
+    }
+    return result;
+}
+
+void TNode::ClearCellStatistics()
+{
+    for (auto& pair : MulticellDescriptors_) {
+        pair.second.Statistics = TCellNodeStatistics{};
     }
 }
 

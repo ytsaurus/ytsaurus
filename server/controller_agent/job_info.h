@@ -14,12 +14,28 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A reduced verison of TExecNodeDescriptor, which is associated with jobs.
+struct TJobNodeDescriptor
+{
+    TJobNodeDescriptor() = default;
+    TJobNodeDescriptor(const TJobNodeDescriptor& other) = default;
+    TJobNodeDescriptor(const NScheduler::TExecNodeDescriptor& other);
+
+    NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
+    TString Address;
+    double IOWeight = 0.0;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobInfoBase
 {
     NJobTrackerClient::TJobId JobId;
     NJobTrackerClient::EJobType JobType;
 
-    NScheduler::TJobNodeDescriptor NodeDescriptor;
+    TJobNodeDescriptor NodeDescriptor;
 
     TInstant StartTime;
     TInstant FinishTime;
@@ -140,7 +156,7 @@ struct TCompletedJob
     NChunkPools::TChunkStripePtr InputStripe;
     bool Restartable;
 
-    NScheduler::TJobNodeDescriptor NodeDescriptor;
+    TJobNodeDescriptor NodeDescriptor;
 
     void Persist(const TPersistenceContext& context);
 };

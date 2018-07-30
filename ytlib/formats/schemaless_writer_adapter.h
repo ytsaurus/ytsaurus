@@ -25,7 +25,7 @@ class TSchemalessFormatWriterBase
     : public ISchemalessFormatWriter
 {
 public:
-    virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override;
+    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -63,7 +63,7 @@ protected:
     void TryFlushBuffer(bool force);
     virtual void FlushWriter();
 
-    virtual void DoWrite(const TRange<NTableClient::TUnversionedRow>& rows) = 0;
+    virtual void DoWrite(TRange<NTableClient::TUnversionedRow> rows) = 0;
 
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
@@ -133,7 +133,7 @@ private:
 
     void ConsumeRow(NTableClient::TUnversionedRow row);
 
-    virtual void DoWrite(const TRange<NTableClient::TUnversionedRow>& rows) override;
+    virtual void DoWrite(TRange<NTableClient::TUnversionedRow> rows) override;
     virtual void FlushWriter() override;
 
     virtual void WriteTableIndex(i64 tableIndex) override;

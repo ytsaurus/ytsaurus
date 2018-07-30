@@ -65,6 +65,8 @@
     XX(DisableWriteSessions, disable_write_sessions) \
     XX(DiskSpace, disk_space) \
     XX(Dynamic, dynamic) \
+    XX(DynamicConfigVersion, dynamic_config_version) \
+    XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
@@ -182,6 +184,7 @@
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
+    XX(ReplicatedTableOptions, replicated_table_options) \
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
     XX(ReplicationStatus, replication_status) \

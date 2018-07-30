@@ -92,6 +92,8 @@ public:
     //! Jobs that are to be removed with a next heartbeat response.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
 
+    DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
@@ -139,7 +141,6 @@ private:
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     TJobResources ResourceLimits_;
-    double IOWeight_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNode)
@@ -187,22 +188,6 @@ struct TRefCountedExecNodeDescriptorMap
 { };
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedExecNodeDescriptorMap)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A reduced verison of TExecNodeDescriptor, which is associated with jobs.
-struct TJobNodeDescriptor
-{
-    TJobNodeDescriptor() = default;
-    TJobNodeDescriptor(const TJobNodeDescriptor& other) = default;
-    TJobNodeDescriptor(const TExecNodeDescriptor& other);
-
-    NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
-    TString Address;
-    double IOWeight = 0.0;
-
-    void Persist(const TStreamPersistenceContext& context);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

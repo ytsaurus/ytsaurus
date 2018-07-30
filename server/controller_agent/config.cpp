@@ -130,6 +130,16 @@ TSuspiciousJobsOptions::TSuspiciousJobsOptions()
         .Default(100);
 }
 
+TDataBalancerOptions::TDataBalancerOptions()
+{
+    RegisterParameter("logging_min_consecutive_violation_count", LoggingMinConsecutiveViolationCount)
+        .Default(1000);
+    RegisterParameter("logging_period", LoggingPeriod)
+        .Default(TDuration::Minutes(1));
+    RegisterParameter("tolerance", Tolerance)
+        .Default(2.0);
+}
+
 TOperationOptions::TOperationOptions()
 {
     RegisterParameter("spec_template", SpecTemplate)
@@ -236,6 +246,9 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .GreaterThanOrEqual(1);
 
     RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
+        .DefaultNew();
+
+    RegisterParameter("data_balancer", DataBalancer)
         .DefaultNew();
 }
 

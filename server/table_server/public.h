@@ -22,6 +22,7 @@ class TReplicatedTableNodeTypeHandler;
 DECLARE_REFCOUNTED_CLASS(TSharedTableSchema);
 DECLARE_REFCOUNTED_CLASS(TSharedTableSchemaRegistry);
 DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable);
+DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

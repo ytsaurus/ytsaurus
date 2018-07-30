@@ -402,6 +402,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
     JobProxyConfigTemplate->RpcDispatcher = Config->RpcDispatcher;
     JobProxyConfigTemplate->ChunkClientDispatcher = Config->ChunkClientDispatcher;
+    JobProxyConfigTemplate->BandwidthThrottlerRpcTimeout = Config->JobBandwidthThrottlerRpcTimeout;
 
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
@@ -424,6 +425,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
+    JobProxyConfigTemplate->SupervisorChannel = Config->SupervisorChannel;
 
     JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 
