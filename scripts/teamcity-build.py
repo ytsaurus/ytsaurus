@@ -815,7 +815,6 @@ def run_yp_integration_tests(options, build_context):
                })
 
 @build_step
-@disable_for_ya
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
