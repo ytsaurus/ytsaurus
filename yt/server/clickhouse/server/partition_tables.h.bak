@@ -1,0 +1,23 @@
+#pragma once
+
+#include <yt/clickhouse/libs/interop/api.h>
+
+#include <yt/ytlib/api/public.h>
+
+#include <yt/core/logging/public.h>
+
+namespace NYT {
+namespace NClickHouse {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Tables should have identical schemas (native and YQL) and types (static/dynamic)
+
+NInterop::TTablePartList PartitionTables(
+    NApi::INativeClientPtr client,
+    std::vector<TString> tables,
+    NInterop::IRangeFilterPtr rangeFilter,
+    size_t numParts = 1);
+
+} // namespace NClickHouse
+} // namespace NYT

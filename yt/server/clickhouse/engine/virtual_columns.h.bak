@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/clickhouse/libs/interop/api.h>
+
+#include <Core/NamesAndTypes.h>
+
+namespace NYT {
+namespace NClickHouse {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const DB::NamesAndTypesList& ListSystemVirtualColumns();
+
+NInterop::TSystemColumns GetSystemColumns(const DB::Names& names);
+
+} // namespace NClickHouse
+} // namespace NYT

@@ -1,0 +1,15 @@
+package NYT.NClickHouse.NProto;
+
+import "yt/ytlib/chunk_client/data_source.proto";
+import "yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt/ytlib/scheduler/proto/job.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReadJobSpec
+{
+    required NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
+    required NScheduler.NProto.TTableInputSpec table_spec = 2;
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
+    optional string yql_schema = 4;
+};

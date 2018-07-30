@@ -1,0 +1,20 @@
+#pragma once
+
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/ypath/rich.h>
+
+namespace NYT {
+namespace NClickHouse {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::ISchemafulReaderPtr CreateSchemafulTableReader(
+    const NApi::INativeClientPtr& client,
+    const NYPath::TRichYPath& path,
+    const NTableClient::TTableSchema& schema,
+    const NApi::TTableReaderOptions& options,
+    const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter());
+
+} // namespace NClickHouse
+} // namespace NYT
