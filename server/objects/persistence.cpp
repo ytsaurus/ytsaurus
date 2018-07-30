@@ -404,6 +404,8 @@ void FromDBValueImpl(
             --Depth_;
             if (Depth_ == 0) {
                 FlushElement();
+            } else {
+                GetUnderlying()->OnEndList();
             }
         }
 
