@@ -1400,6 +1400,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
         wait(lambda: get("//tmp/t2/@tablet_count") == 1)
         assert get("#{}/@state".format(action)) == "freezing"
+        wait_for_tablet_state("//tmp/t2", "mounted")
 
         # test cell balancing
         def get_cells_of_tablets(table):
