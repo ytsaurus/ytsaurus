@@ -342,7 +342,7 @@ class ReplaceSvnStuffStep(Step):
                                  "2. For each directory listed above create a git repo at\n"
                                  "  github.yandex-team.ru:yt/arcadia-snapshot-<directory>\n"
                                  "3. Add newly created directory as submodule:\n"
-                                 "  $ git submodule add github.yandex-team.ru:yt/arcadia-snapshot-<directory> <directory>\n"
+                                 "  $ git submodule add git@github.yandex-team.ru:yt/arcadia-snapshot-<directory> <directory>\n"
                                  "4. Retry update.\n"
                                  .format(
                                      unknown_submodules=unknown_submodules,
@@ -746,7 +746,7 @@ def subcommand_up(args):
         raise ArcupError(
             "Update in progress detected.\n"
             "Use `{argv0} up --reset' if you want to discard it.\n"
-            "Use `{argv0} continune' if you want to continue it.\n".format(argv0=ARGV0))
+            "Use `{argv0} continue' if you want to continue it.\n".format(argv0=ARGV0))
 
     # We always do cleaup in the beginning in order to make sure that it's sane.
     do_cleanup()
