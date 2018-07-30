@@ -313,6 +313,40 @@ protected:
             InputSliceDataWeight_);
     }
 
+    void CheckInputTableKeyColumnTypes(
+        const TKeyColumns& keyColumns,
+        std::function<bool(const TInputTable& table)> inputTableFilter = [] (const TInputTable&) { return true; })
+    {
+        YCHECK(!InputTables.empty());
+
+        for (const auto& columnName : keyColumns) {
+            const TColumnSchema* referenceColumn = nullptr;
+            const TInputTable* referenceTable;
+            for (const auto& table : InputTables) {
+                if (!inputTableFilter(table)) {
+                    continue;
+                }
+                const auto& column = table.Schema.GetColumnOrThrow(columnName);
+                if (column.LogicalType() == ELogicalValueType::Any) {
+                    continue;
+                }
+                if (referenceColumn) {
+                    if (GetPhysicalType(referenceColumn->LogicalType()) != GetPhysicalType(column.LogicalType())) {
+                        THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
+                            << TErrorAttribute("column_name", columnName)
+                            << TErrorAttribute("input_table_1", referenceTable->GetPath())
+                            << TErrorAttribute("type_1", referenceColumn->LogicalType())
+                            << TErrorAttribute("input_table_2", table.GetPath())
+                            << TErrorAttribute("type_2", column.LogicalType());
+                    }
+                } else {
+                    referenceColumn = &column;
+                    referenceTable = &table;
+                }
+            }
+        }
+    }
+
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(InputTables[dataSlice->GetTableIndex()].IsForeign());
@@ -1327,6 +1361,12 @@ public:
                     << TErrorAttribute("operation_type", OperationType);
             }
             SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
+        }
+        if (Spec_->ValidateKeyColumnTypes) {
+            CheckInputTableKeyColumnTypes(ForeignKeyColumns_);
+            CheckInputTableKeyColumnTypes(PrimaryKeyColumns_, [] (const auto& table) {
+                return table.IsPrimary();
+            });
         }
         LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
             PrimaryKeyColumns_,

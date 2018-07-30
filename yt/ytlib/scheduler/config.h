@@ -750,6 +750,8 @@ public:
 
     std::vector<NTableClient::TOwningKey> PivotKeys;
 
+    bool ValidateKeyColumnTypes;
+
     TNewReduceOperationSpec();
 
 private:
