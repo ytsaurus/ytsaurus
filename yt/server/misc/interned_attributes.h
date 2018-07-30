@@ -175,6 +175,7 @@
     XX(PivotKeys, pivot_keys) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
     XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \
+    XX(PreserveTimestamps, preserve_timestamps) \
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \

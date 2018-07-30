@@ -2690,6 +2690,12 @@ private:
         if (options.Mode) {
             req->set_mode(static_cast<int>(*options.Mode));
         }
+        if (options.PreserveTimestamps) {
+            req->set_preserve_timestamps(*options.PreserveTimestamps);
+        }
+        if (options.Atomicity) {
+            req->set_atomicity(static_cast<int>(*options.Atomicity));
+        }
         auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
         WaitFor(proxy->Execute(req))
             .ThrowOnError();

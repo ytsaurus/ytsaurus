@@ -29,6 +29,8 @@ message TTableReplicaDescriptor
     required uint64 start_replication_timestamp = 4;
     required NYT.NTabletClient.NProto.TTableReplicaStatistics statistics = 5;
     required int32 mode = 6; // ETableReplicaMode
+    optional bool preserve_timestamps = 7;
+    optional int32 atomicity = 8; // EAtomicity
 }
 
 message TReqMountTablet
@@ -163,6 +165,16 @@ message TReqSetTableReplicaMode
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
     required int32 mode = 3; // ETableReplicaMode
+}
+
+message TReqAlterTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    optional bool enabled = 3;
+    optional int32 mode = 4; // ETableReplicaMode
+    optional bool preserve_timestamps = 5;
+    optional int32 atomicity = 6; // EAtomicity
 }
 
 message TReqReplicateRows

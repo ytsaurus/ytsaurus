@@ -233,6 +233,26 @@ void TTableReplicaInfo::SetMode(ETableReplicaMode value)
     RuntimeData_->Mode = value;
 }
 
+NTransactionClient::EAtomicity TTableReplicaInfo::GetAtomicity() const
+{
+    return RuntimeData_->Atomicity;
+}
+
+void TTableReplicaInfo::SetAtomicity(NTransactionClient::EAtomicity value)
+{
+    RuntimeData_->Atomicity = value;
+}
+
+bool TTableReplicaInfo::GetPreserveTimestamps() const
+{
+    return RuntimeData_->PreserveTimestamps;
+}
+
+void TTableReplicaInfo::SetPreserveTimestamps(bool value)
+{
+    RuntimeData_->PreserveTimestamps = value;
+}
+
 i64 TTableReplicaInfo::GetCurrentReplicationRowIndex() const
 {
     return RuntimeData_->CurrentReplicationRowIndex;

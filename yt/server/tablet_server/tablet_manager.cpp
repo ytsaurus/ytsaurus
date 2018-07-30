@@ -469,6 +469,8 @@ public:
         const TString& clusterName,
         const TYPath& replicaPath,
         ETableReplicaMode mode,
+        bool preserveTimestamps,
+        NTransactionClient::EAtomicity atomicity,
         TTimestamp startReplicationTimestamp,
         const TNullable<std::vector<i64>>& startReplicationRowIndexes)
     {
@@ -495,6 +497,8 @@ public:
         replicaHolder->SetClusterName(clusterName);
         replicaHolder->SetReplicaPath(replicaPath);
         replicaHolder->SetMode(mode);
+        replicaHolder->SetPreserveTimestamps(preserveTimestamps);
+        replicaHolder->SetAtomicity(atomicity);
         replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
         replicaHolder->SetState(ETableReplicaState::Disabled);
 
@@ -565,49 +569,88 @@ public:
         }
     }
 
-    void SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
+    void AlterTableReplica(
+        TTableReplica* replica,
+        TNullable<bool> enabled,
+        TNullable<ETableReplicaMode> mode,
+        TNullable<NTransactionClient::EAtomicity> atomicity,
+        TNullable<bool> preserveTimestamps)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = replica->GetState();
         if (enabled) {
-            if (state == ETableReplicaState::Enabled) {
-                return;
+            if (*enabled) {
+                if (state == ETableReplicaState::Enabled) {
+                    enabled = Null;
+                } else if (state != ETableReplicaState::Disabled) {
+                    replica->ThrowInvalidState();
+                }
+            } else {
+                if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
+                    enabled = Null;
+                } else if (state != ETableReplicaState::Enabled) {
+                    replica->ThrowInvalidState();
+                }
             }
-            if (state != ETableReplicaState::Disabled) {
-                replica->ThrowInvalidState();
-            }
-        } else {
-            if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
-                return;
-            }
-            if (state != ETableReplicaState::Enabled) {
-                replica->ThrowInvalidState();
-            }
+        }
+
+        if (mode && replica->GetMode() == *mode) {
+            mode = Null;
+        }
+
+        if (atomicity && replica->GetAtomicity() == *atomicity) {
+            atomicity = Null;
+        }
+
+        if (preserveTimestamps && replica->GetPreserveTimestamps() == *preserveTimestamps) {
+            preserveTimestamps = Null;
         }
 
         auto* table = replica->GetTable();
 
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+            table->GetId(),
+            replica->GetId(),
+            enabled,
+            mode,
+            atomicity,
+            preserveTimestamps);
+
+        if (mode) {
+            replica->SetMode(*mode);
+        }
+
+        if (atomicity) {
+            replica->SetAtomicity(*atomicity);
+        }
+
+        if (preserveTimestamps) {
+            replica->SetPreserveTimestamps(*preserveTimestamps);
+        }
+
         if (enabled) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
-                table->GetId(),
-                replica->GetId());
+            if (*enabled) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                    table->GetId(),
+                    replica->GetId());
 
-            replica->SetState(ETableReplicaState::Enabled);
-        } else {
-            for (auto* tablet : table->Tablets()) {
-                if (tablet->GetState() == ETabletState::Unmounting) {
-                    THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
-                        tablet->GetId(),
-                        tablet->GetState());
+                replica->SetState(ETableReplicaState::Enabled);
+            } else {
+                for (auto* tablet : table->Tablets()) {
+                    if (tablet->GetState() == ETabletState::Unmounting) {
+                        THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
+                            tablet->GetId(),
+                            tablet->GetState());
+                    }
                 }
+
+                LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
+                    table->GetId(),
+                    replica->GetId());
+
+                replica->SetState(ETableReplicaState::Disabling);
             }
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
-                table->GetId(),
-                replica->GetId());
-
-            replica->SetState(ETableReplicaState::Disabling);
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -619,54 +662,36 @@ public:
             auto* replicaInfo = tablet->GetReplicaInfo(replica);
 
             if (enabled) {
-                replicaInfo->SetState(ETableReplicaState::Enabled);
-            } else {
-                replicaInfo->SetState(ETableReplicaState::Disabling);
-                YCHECK(replica->DisablingTablets().insert(tablet).second);
+                if (*enabled) {
+                    replicaInfo->SetState(ETableReplicaState::Enabled);
+                } else {
+                    replicaInfo->SetState(ETableReplicaState::Disabling);
+                    YCHECK(replica->DisablingTablets().insert(tablet).second);
+                }
             }
 
             auto* cell = tablet->GetCell();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            TReqSetTableReplicaEnabled req;
+            TReqAlterTableReplica req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_replica_id(), replica->GetId());
-            req.set_enabled(enabled);
-            hiveManager->PostMessage(mailbox, req);
-        }
-
-        CheckForReplicaDisabled(replica);
-    }
-
-    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (replica->GetMode() == mode) {
-            return;
-        }
-
-        auto* table = replica->GetTable();
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica mode updated (TableId: %v, ReplicaId: %v, Mode: %v)",
-            table->GetId(),
-            replica->GetId(),
-            mode);
-
-        replica->SetMode(mode);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* tablet : table->Tablets()) {
-            if (!tablet->IsActive()) {
-                continue;
+            if (enabled) {
+                req.set_enabled(*enabled);
             }
-
-            auto* cell = tablet->GetCell();
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            TReqSetTableReplicaMode req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            ToProto(req.mutable_replica_id(), replica->GetId());
-            req.set_mode(static_cast<int>(mode));
+            if (mode) {
+                req.set_mode(static_cast<int>(*mode));
+            }
+            if (atomicity) {
+                req.set_atomicity(static_cast<int>(*atomicity));
+            }
+            if (preserveTimestamps) {
+                req.set_preserve_timestamps(*preserveTimestamps);
+            }
             hiveManager->PostMessage(mailbox, req);
+        }
+
+        if (enabled) {
+            CheckForReplicaDisabled(replica);
         }
     }
 
@@ -5411,6 +5436,8 @@ private:
         descriptor->set_replica_path(replica->GetReplicaPath());
         descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
         descriptor->set_mode(static_cast<int>(replica->GetMode()));
+        descriptor->set_preserve_timestamps(replica->GetPreserveTimestamps());
+        descriptor->set_atomicity(static_cast<int>(replica->GetAtomicity()));
         PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
     }
 
@@ -5755,6 +5782,8 @@ TTableReplica* TTabletManager::CreateTableReplica(
     const TString& clusterName,
     const TYPath& replicaPath,
     ETableReplicaMode mode,
+    bool preserveTimestamps,
+    NTransactionClient::EAtomicity atomicity,
     TTimestamp startReplicationTimestamp,
     const  TNullable<std::vector<i64>>& startReplicationRowIndexes)
 {
@@ -5763,6 +5792,8 @@ TTableReplica* TTabletManager::CreateTableReplica(
         clusterName,
         replicaPath,
         mode,
+        preserveTimestamps,
+        atomicity,
         startReplicationTimestamp,
         startReplicationRowIndexes);
 }
@@ -5772,14 +5803,19 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
     Impl_->DestroyTableReplica(replica);
 }
 
-void TTabletManager::SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
+void TTabletManager::AlterTableReplica(
+    TTableReplica* replica,
+    TNullable<bool> enabled,
+    TNullable<ETableReplicaMode> mode,
+    TNullable<NTransactionClient::EAtomicity> atomicity,
+    TNullable<bool> preserveTimestamps)
 {
-    Impl_->SetTableReplicaEnabled(replica, enabled);
-}
-
-void TTabletManager::SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
-{
-    Impl_->SetTableReplicaMode(replica, mode);
+    Impl_->AlterTableReplica(
+        replica,
+        std::move(enabled),
+        std::move(mode),
+        std::move(atomicity),
+        std::move(preserveTimestamps));
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(

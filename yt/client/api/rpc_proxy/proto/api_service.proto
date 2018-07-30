@@ -860,6 +860,8 @@ message TReqAlterTableReplica
 
     optional bool enabled = 2;
     optional ETableReplicaMode mode = 3;
+    optional bool preserve_timestamps = 4;
+    optional EAtomicity atomicity = 5;
 }
 
 message TRspAlterTableReplica

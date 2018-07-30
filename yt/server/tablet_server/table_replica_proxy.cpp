@@ -70,6 +70,8 @@ private:
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
         attributes->push_back(EInternedAttributeKey::EnableReplicatedTableManager);
+        attributes->push_back(EInternedAttributeKey::PreserveTimestamps);
+        attributes->push_back(EInternedAttributeKey::Atomicity);
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -153,6 +155,16 @@ private:
                     .Value(replica->GetEnableReplicatedTableManager());
                 return true;
 
+            case EInternedAttributeKey::PreserveTimestamps:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetPreserveTimestamps());
+                return true;
+
+            case EInternedAttributeKey::Atomicity:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetAtomicity());
+                return true;
+
             default:
                 break;
         }
@@ -207,6 +219,8 @@ private:
 
         auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
         auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
+        auto atomicity = request->has_atomicity() ? MakeNullable(NTransactionClient::EAtomicity(request->atomicity())) : Null;
+        auto preserveTimestamps = request->has_preserve_timestamps() ? MakeNullable(request->preserve_timestamps()) : Null;
 
         context->SetRequestInfo("Enabled: %v, Mode: %v",
             enabled,
@@ -215,11 +229,13 @@ private:
         auto* replica = GetThisImpl();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (enabled) {
-            tabletManager->SetTableReplicaEnabled(replica, *enabled);
-        }
-        if (mode) {
-            tabletManager->SetTableReplicaMode(replica, *mode);
+        if (enabled || mode || atomicity || preserveTimestamps) {
+            tabletManager->AlterTableReplica(
+                replica,
+                std::move(enabled),
+                std::move(mode),
+                std::move(atomicity),
+                std::move(preserveTimestamps));
         }
 
         context->Reply();
