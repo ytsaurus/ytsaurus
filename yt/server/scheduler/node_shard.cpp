@@ -951,7 +951,17 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
         job->GetOperationId());
 
     auto status = JobStatusFromError(error);
-    OnJobAborted(job, &status, true /* byScheduler */);
+    OnJobAborted(job, &status, /* byScheduler */ true);
+}
+
+void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YCHECK(Connected_);
+
+    for (const auto& jobId : jobIds) {
+        AbortJob(jobId, error);
+    }
 }
 
 void TNodeShard::FailJob(const TJobId& jobId)
