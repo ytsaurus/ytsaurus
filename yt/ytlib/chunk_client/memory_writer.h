@@ -32,6 +32,8 @@ public:
     virtual TChunkId GetChunkId() const override;
     virtual NErasure::ECodec GetErasureCodecId() const override;
 
+    virtual bool HasSickReplicas() const override;
+
     //! Can only be called after the writer is closed.
     std::vector<TBlock>& GetBlocks();
     //! Can only be called after the writer is closed.

@@ -281,6 +281,8 @@ private:
 
         TWallTimer timer;
 
+        response->set_location_sick(location->IsSick());
+
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
             firstBlockIndex,
@@ -324,15 +326,16 @@ private:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
-            .Subscribe(BIND([=] (const TError& error) {
-                if (error.IsOK()) {
+            .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
+                if (errorOrRsp.IsOK()) {
+                    response->set_location_sick(errorOrRsp.Value()->location_sick());
                     context->Reply();
                 } else {
                     context->Reply(TError(
                         NChunkClient::EErrorCode::SendBlocksFailed,
                         "Error putting blocks to %v",
                         targetDescriptor.GetDefaultAddress())
-                        << error);
+                        << errorOrRsp);
                 }
             }));
     }
@@ -352,7 +355,10 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
+        const auto& location = session->GetStoreLocation();
         auto result = session->FlushBlocks(blockIndex);
+
+        response->set_location_sick(location->IsSick());
         context->ReplyFrom(result);
     }
 
