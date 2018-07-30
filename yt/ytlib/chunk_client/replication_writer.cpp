@@ -314,6 +314,11 @@ public:
         return NErasure::ECodec::None;
     }
 
+    virtual bool HasSickReplicas() const override
+    {
+        return HasSickReplicas_;
+    }
+
 private:
     friend class TGroup;
 
@@ -365,6 +370,8 @@ private:
     int AllocateWriteTargetsRetryIndex_ = 0;
 
     std::vector<TString> BannedNodes_;
+
+    bool HasSickReplicas_ = false;
 
     void DoOpen()
     {
@@ -642,6 +649,11 @@ private:
                 blockIndex,
                 node->Descriptor.GetDefaultAddress());
 
+            if (rspOrError.Value()->location_sick()) {
+                LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+                HasSickReplicas_ = true;
+            }
+
             if (IsCloseRequested_ && blockIndex + 1 == BlockCount_) {
                 // We flushed the last block in chunk.
 
@@ -649,7 +661,6 @@ private:
                     .Via(TDispatcher::Get()->GetWriterInvoker())
                     .Run();
             }
-
         } else {
             OnNodeFailed(node, rspOrError);
         }
@@ -981,6 +992,10 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
 
     auto rspOrError = WaitFor(req->Invoke());
     if (rspOrError.IsOK()) {
+        if (rspOrError.Value()->location_sick()) {
+            LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+            writer->HasSickReplicas_ = true;
+        }
         SentTo_[node->Index] = true;
 
         writer->AccountTraffic(Size_, node->Descriptor);
@@ -1026,6 +1041,10 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
+            if (rspOrError.Value()->location_sick()) {
+                LOG_DEBUG("Found sick replica (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
+                writer->HasSickReplicas_ = true;
+            }
             SentTo_[dstNode->Index] = true;
 
             writer->AccountTraffic(Size_, srcNode->Descriptor, dstNode->Descriptor);

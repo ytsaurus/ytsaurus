@@ -107,6 +107,11 @@ TCodecStatistics TEncodingChunkWriter::GetCompressionStatistics() const
     return TCodecStatistics().Append(EncodingWriter_->GetCompressionDuration());
 }
 
+bool TEncodingChunkWriter::HasSickReplicas() const
+{
+    return ChunkWriter_->HasSickReplicas();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
