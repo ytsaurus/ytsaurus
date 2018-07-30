@@ -1,0 +1,28 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/ytlib/api/public.h>
+
+namespace NYT {
+namespace NClickHouse {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct INativeClientCache
+    : public virtual TRefCounted
+{
+    virtual NApi::INativeClientPtr CreateNativeClient(
+        const NApi::TClientOptions& options) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(INativeClientCache);
+
+////////////////////////////////////////////////////////////////////////////////
+
+INativeClientCachePtr CreateNativeClientCache(
+    TNativeClientCacheConfigPtr config,
+    NApi::INativeConnectionPtr connection);
+
+}   // namespace NClickHouse
+}   // namespace NYT

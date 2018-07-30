@@ -1,0 +1,34 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <vector>
+
+namespace NYT {
+namespace NClickHouse {
+
+using TChunkSpecList = std::vector<NChunkClient::NProto::TChunkSpec>;
+using TDataSliceDescriptorList = std::vector<NChunkClient::TDataSliceDescriptor>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TDataSliceDescriptorList> SplitUnversionedChunks(
+    TChunkSpecList chunkSpecs,
+    size_t maxTableParts);
+
+std::vector<TDataSliceDescriptorList> SplitVersionedChunks(
+    TChunkSpecList chunkSpecs,
+    size_t maxTableParts);
+
+std::vector<TDataSliceDescriptorList> MergeUnversionedChunks(
+    TDataSliceDescriptorList dataSliceDescriptors,
+    size_t maxTableParts);
+
+std::vector<TDataSliceDescriptorList> MergeVersionedChunks(
+    TDataSliceDescriptorList dataSliceDescriptors,
+    size_t maxTableParts);
+
+}   // namespace NClickHouse
+}   // namespace NYT

@@ -1,0 +1,16 @@
+#pragma once
+
+#include <yt/clickhouse/libs/interop/api.h>
+
+#include <yt/ytlib/api/public.h>
+
+namespace NYT {
+namespace NClickHouse {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NInterop::ICoordinationServicePtr CreateCoordinationService(
+    NApi::INativeConnectionPtr connection);
+
+}   // namespace NClickHouse
+}   // namespace NYT
