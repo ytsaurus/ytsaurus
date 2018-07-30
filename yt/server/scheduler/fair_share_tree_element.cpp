@@ -2067,7 +2067,7 @@ TString TOperationElement::GetId() const
 
 bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Spec_->AllowAggressiveStarvationPreemption;
+    return Spec_->AllowAggressiveStarvationPreemption.Get(true);
 }
 
 double TOperationElement::GetWeight() const
