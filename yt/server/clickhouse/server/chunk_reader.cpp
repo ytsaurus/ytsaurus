@@ -5,6 +5,7 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -96,6 +97,7 @@ ISchemafulReaderPtr CreateChunkReader(
 
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
             return createReader(
                 config,
@@ -118,6 +120,7 @@ ISchemafulReaderPtr CreateChunkReader(
 
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
             return CreateSchemalessMergingMultiChunkReader(
                 config,
