@@ -266,7 +266,7 @@ private:
         return result;
     }
 
-    virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
+    virtual void DoWrite(TRange<TUnversionedRow> rows) override
     {
         const auto rowCount = rows.Size();
         for (size_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {

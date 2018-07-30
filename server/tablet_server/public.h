@@ -36,6 +36,8 @@ using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
+using NTabletClient::TDynamicTabletCellOptions;
+using NTabletClient::TDynamicTabletCellOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

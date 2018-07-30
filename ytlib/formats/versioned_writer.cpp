@@ -26,7 +26,7 @@ TFuture<void> TVersionedWriter::Close()
     return Result_;
 }
 
-bool TVersionedWriter::Write(const TRange<TVersionedRow>& rows)
+bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
 {
     Buffer_.Clear();
 

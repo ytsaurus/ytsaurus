@@ -23,7 +23,7 @@ public:
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override
+    virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }

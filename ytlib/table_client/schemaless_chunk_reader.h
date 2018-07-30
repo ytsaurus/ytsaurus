@@ -32,7 +32,7 @@ struct ISchemalessChunkReader
 
     //! Returns #unreadRows to reader and builds data slice descriptors for read and unread data.
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
-        const NYT::TRange<NTableClient::TUnversionedRow>& unreadRows) const = 0;
+        TRange<NTableClient::TUnversionedRow> unreadRows) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)

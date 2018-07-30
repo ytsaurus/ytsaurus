@@ -62,12 +62,15 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 // This methods allow use methods ConvertTo* with Py::Object.
 void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
+#if PY_MAJOR_VERSION >= 3
+    const TNullable<TString>& encoding = MakeNullable(TString("utf-8")),
+#else
     const TNullable<TString>& encoding = Null,
+#endif
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
     int depth = 0,
@@ -116,5 +119,3 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
 
 } // namespace NPython
 } // namespace NYT
-
-

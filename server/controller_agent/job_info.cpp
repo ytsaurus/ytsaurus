@@ -19,6 +19,23 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptor& other)
+    : Id(other.Id)
+    , Address(other.Address)
+    , IOWeight(other.IOWeight)
+{ }
+
+void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Id);
+    Persist(context, Address);
+    Persist(context, IOWeight);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobInfo::TJobInfo(const TJobInfoBase& jobInfoBase)
     : TJobInfoBase(jobInfoBase)
 { }

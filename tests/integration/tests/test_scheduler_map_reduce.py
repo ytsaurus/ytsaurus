@@ -803,6 +803,31 @@ print "x={0}\ty={1}".format(x, y)
         assert read_table("//tmp/t_out") == [{"shuffle_key": 23}] * 10
         assert len(read_table("//tmp/t_out_map")) == 10
 
+    def test_data_balancing(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        job_count = 20
+        node_count = get("//sys/nodes/@count")
+        write_table("//tmp/t1", [{"a": "x" * 10**6} for i in range(job_count)])
+        op = map_reduce(in_="//tmp/t1",
+                        out="//tmp/t2",
+                        spec={"min_locality_input_data_weight": 1,
+                              "enable_paritioned_data_balancing": True,
+                              "data_size_per_map_job": 1,
+                              "mapper": {"format": "dsv"},
+                              "reducer": {"format": "dsv"}},
+                        sort_by=["cwd"],
+                        mapper_command="echo cwd=`pwd`",
+                        reducer_command="cat")
+
+        cnt = {}
+        for row in read_table("//tmp/t2"):
+            cnt[row["cwd"]] = cnt.get(row["cwd"], 0) + 1
+        values = cnt.values()
+        print >>sys.stderr, values
+        assert max(values) <= 2 * job_count // node_count
+
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):

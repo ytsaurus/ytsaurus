@@ -42,6 +42,8 @@ public:
     int BindRetryCount;
     TDuration BindRetryBackoff;
 
+    bool EnableKeepAlive;
+
     TServerConfig();
 };
 

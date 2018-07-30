@@ -379,6 +379,20 @@ class TestDynamicTables(TestDynamicTablesBase):
         assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == acl
         assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == acl
 
+    @pytest.mark.parametrize("domain", ["snapshot_acl", "changelog_acl"])
+    def test_create_tablet_cell_with_broken_acl(self, domain):
+        create_user("u")
+        acl = [make_ace("allow", "unknown_user", "read")]
+        create_tablet_cell_bundle("b", attributes={"options": {domain: acl}})
+
+        with pytest.raises(YtError):
+            sync_create_cells(1, tablet_cell_bundle="b")
+        assert len(ls("//sys/tablet_cells")) == 0
+
+        set("//sys/tablet_cell_bundles/b/@options/{}".format(domain), [make_ace("allow", "u", "read")])
+        sync_create_cells(1, tablet_cell_bundle="b")
+        assert len(ls("//sys/tablet_cells")) == 1
+
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell_bundle("b", authenticated_user="u")
@@ -716,11 +730,24 @@ class TestDynamicTables(TestDynamicTablesBase):
         node = ls("//sys/nodes")[0]
         empty_node_cpu = get_cpu(node)
 
-        cell = sync_create_cells(1)[0]
+        create_tablet_cell_bundle("b")
+        cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
         peer = get("#{0}/@peers/0/address".format(cell))
-        assigned_node_cpu = get_cpu(peer)
 
+        assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 1
+
+        def _get_orchid(path):
+            return get("//sys/nodes/{0}/orchid/tablet_cells/{1}{2}".format(peer, cell, path))
+
+        assert _get_orchid("/dynamic_config_version") == 0
+
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/cpu_per_tablet_slot", 0.0)
+        wait(lambda: _get_orchid("/dynamic_config_version") == 1)
+        assert _get_orchid("/dynamic_options/cpu_per_tablet_slot") == 0.0
+
+        assigned_node_cpu = get_cpu(peer)
+        assert int(empty_node_cpu - assigned_node_cpu) == 0
 
     @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):

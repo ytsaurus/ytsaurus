@@ -1467,6 +1467,9 @@ TJobResources TOperationElementSharedState::Disable()
         resourceUsage += pair.second.ResourceUsage;
     }
 
+    NonpreemptableResourceUsage_ = ZeroJobResources();
+    AggressivelyPreemptableResourceUsage_ = ZeroJobResources();
+    RunningJobCount_ = 0;
     PreemptableJobs_.clear();
     AggressivelyPreemptableJobs_.clear();
     NonpreemptableJobs_.clear();
@@ -2153,7 +2156,8 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context) co
             return false;
         }
 
-        if (context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
+        if (!parent->IsRoot() &&
+            context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
             (!parent->IsAggressiveStarvationPreemptionAllowed() || !IsAggressiveStarvationPreemptionAllowed()))
         {
             return false;

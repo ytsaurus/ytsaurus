@@ -16,7 +16,7 @@ class TDataBlockWriter
     : public TNonCopyable
 {
 public:
-    void WriteSegment(const TRange<TSharedRef> segment);
+    void WriteSegment(TRange<TSharedRef> segment);
 
     void RegisterColumnWriter(IColumnWriterBase* streamWriter);
 

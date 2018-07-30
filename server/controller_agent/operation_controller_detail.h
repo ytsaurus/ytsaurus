@@ -1041,6 +1041,8 @@ private:
     void InitializeHistograms();
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
+    virtual void OnExecNodesUpdated();
+
     void GetExecNodesInformation();
     int GetExecNodeCount();
 

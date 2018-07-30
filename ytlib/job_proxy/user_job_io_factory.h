@@ -15,6 +15,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -46,11 +48,15 @@ struct TUserJobIOFactoryBase
 {
     TUserJobIOFactoryBase(
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter);
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr inThrottler,
+        NConcurrency::IThroughputThrottlerPtr outThrottler);
 
 protected:
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
+    const NConcurrency::IThroughputThrottlerPtr InThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr OutThrottler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +64,9 @@ protected:
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter);
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr inThrottler,
+    NConcurrency::IThroughputThrottlerPtr outThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

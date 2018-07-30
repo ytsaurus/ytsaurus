@@ -50,6 +50,7 @@ public:
     const THeadersPtr& GetHeaders() const;
     const THeadersPtr& GetTrailers() const;
 
+    void Reset();
     bool ShouldKeepAlive() const;
 
     EParserState GetState() const;
@@ -111,6 +112,9 @@ public:
 
     virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
 
+    bool IsSafeToReuse() const;
+    void Reset();
+
 private:
     const NNet::IConnectionPtr Connection_;
     const NNet::TNetworkAddress RemoteAddress_;
@@ -126,6 +130,8 @@ private:
     TString RawUrl_;
     TUrlRef Url_;
     THeadersPtr Headers_;
+
+    bool SafeToReuse_ = false;
 
     void FinishHeaders();
     void EnsureHeadersReceived();
@@ -170,6 +176,9 @@ public:
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) override;
 
     void AddConnectionCloseHeader();
+
+    bool IsSafeToReuse() const;
+    void Reset();
 
 private:
     const NNet::IConnectionPtr Connection_;

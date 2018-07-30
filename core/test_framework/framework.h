@@ -61,7 +61,7 @@ public:
         , Description_(description)
     { }
 
-    virtual bool MatchAndExplain(T value, ::testing::MatchResultListener* listener) const override
+    virtual bool MatchAndExplain(T value, ::testing::MatchResultListener* /*listener*/) const override
     {
         return Predicate_(value);
     }

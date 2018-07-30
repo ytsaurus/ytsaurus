@@ -24,7 +24,7 @@ struct ISchemafulWriter
     /*!
      *  Every row must contain exactly one value for each column in schema, in the same order.
      */
-    virtual bool Write(const TRange<TUnversionedRow>& rows) = 0;
+    virtual bool Write(TRange<TUnversionedRow> rows) = 0;
 
     virtual TFuture<void> GetReadyEvent() = 0;
 };

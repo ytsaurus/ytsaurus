@@ -89,7 +89,7 @@ TMutableUnversionedRow TRowBuffer::Capture(const TUnversionedValue* begin, int c
     return capturedRow;
 }
 
-std::vector<TMutableUnversionedRow> TRowBuffer::Capture(const TRange<TUnversionedRow>& rows, bool deep)
+std::vector<TMutableUnversionedRow> TRowBuffer::Capture(TRange<TUnversionedRow> rows, bool deep)
 {
     int rowCount = static_cast<int>(rows.Size());
     std::vector<TMutableUnversionedRow> capturedRows(rowCount);

@@ -70,6 +70,10 @@ struct IConnection
     virtual const TNetworkAddress& LocalAddress() const = 0;
     virtual const TNetworkAddress& RemoteAddress() const = 0;
 
+    // Returns true if connection is not is failed state and has no
+    // active IO operations.
+    virtual bool IsIdle() const = 0;
+
     virtual TFuture<void> Abort() override = 0;
 };
 

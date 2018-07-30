@@ -8,6 +8,8 @@
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/logging/log.h>
@@ -34,7 +36,8 @@ public:
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
         const NObjectClient::TTransactionId& transactionId,
-        NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        NConcurrency::IThroughputThrottlerPtr throttler,
         i64 sizeLimit = std::numeric_limits<i64>::max());
 
     NChunkClient::TChunkId GetChunkId() const;

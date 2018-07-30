@@ -16,6 +16,7 @@ message TNestedMessage
     optional EColor color = 19;
     optional TNestedMessage nested_message = 2;
     repeated int32 repeated_int32_field = 100;
+    map<string, TNestedMessage> nested_message_map = 3 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message TMessage
@@ -41,6 +42,8 @@ message TMessage
     repeated TNestedMessage repeated_nested_message2 = 21;
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 19;
     optional bytes yson_field = 20 [(NYT.NYson.NProto.yson_string) = true];
+    map<string, TNestedMessage> nested_message_map = 22 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, int32> int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message TNestedMessageWithRequriedFields

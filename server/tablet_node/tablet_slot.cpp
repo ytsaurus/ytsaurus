@@ -85,6 +85,7 @@ using namespace NElection;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 using namespace NApi;
@@ -407,6 +408,45 @@ public:
         return Initialized_ && !Finalizing_;
     }
 
+    int GetDynamicConfigVersion() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return DynamicConfigVersion_;
+    }
+
+    void UpdateDynamicConfig(const TUpdateTabletSlotInfo& updateInfo)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(CanConfigure());
+
+        try {
+            TDynamicTabletCellOptionsPtr dynamicOptions;
+
+            if (updateInfo.has_dynamic_options()) {
+                dynamicOptions = New<TDynamicTabletCellOptions>();
+                dynamicOptions->SetUnrecognizedStrategy(EUnrecognizedStrategy::Keep);
+                dynamicOptions->Load(ConvertTo<INodePtr>(TYsonString(updateInfo.dynamic_options())));
+                auto unrecognized = dynamicOptions->GetUnrecognized();
+
+                if (unrecognized->GetChildCount() > 0) {
+                    THROW_ERROR_EXCEPTION("Dynamic options contains unrecognized parameters (Unrecognized: %v)",
+                        ConvertToYsonString(unrecognized, EYsonFormat::Text).GetData());
+                }
+            }
+
+            DynamicOptions_ = std::move(dynamicOptions);
+            DynamicConfigVersion_ = updateInfo.dynamic_config_version();
+
+            LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
+                DynamicConfigVersion_);
+
+        } catch (const std::exception& ex) {
+            // TODO(savrus): Write this to tablet cell errors once we have them.
+            LOG_ERROR(ex, "Error while updating dynamic config");
+        }
+    }
+
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -630,6 +670,11 @@ public:
         return RuntimeData_;
     }
 
+    double GetUsedCpu(double cpuPerTabletSlot) const
+    {
+        return DynamicOptions_->CpuPerTabletSlot.Get(cpuPerTabletSlot);
+    }
+
 private:
     TTabletSlot* const Owner_;
     const int SlotIndex_;
@@ -652,6 +697,9 @@ private:
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
+    TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
+
+    int DynamicConfigVersion_ = -1;
 
     TTransactionId PrerequisiteTransactionId_;
     ITransactionPtr PrerequisiteTransaction_;  // only created for leaders
@@ -706,6 +754,12 @@ private:
             ->AddChild("options", IYPathService::FromMethod(
                 &TImpl::GetOptions,
                 MakeWeak(this)))
+            ->AddChild("dynamic_options", IYPathService::FromMethod(
+                &TImpl::GetDynamicOptions,
+                MakeWeak(this)))
+            ->AddChild("dynamic_config_version", IYPathService::FromMethod(
+                &TImpl::GetDynamicConfigVersion,
+                MakeWeak(this)))
             ->AddChild("memory_usage", IYPathService::FromMethod(
                 &TImpl::GetMemoryUsage,
                 MakeWeak(this)))
@@ -727,6 +781,13 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Options_;
+    }
+
+    const TDynamicTabletCellOptionsPtr& GetDynamicOptions() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return DynamicOptions_;
     }
 
     TYsonString GetMemoryUsage() const
@@ -992,6 +1053,21 @@ const NProfiling::TTagIdList& TTabletSlot::GetProfilingTagIds()
 const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
 {
     return Impl_->GetRuntimeData();
+}
+
+double TTabletSlot::GetUsedCpu(double cpuPerTabletSlot) const
+{
+    return Impl_->GetUsedCpu(cpuPerTabletSlot);
+}
+
+int TTabletSlot::GetDynamicConfigVersion() const
+{
+    return Impl_->GetDynamicConfigVersion();
+}
+
+void TTabletSlot::UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo)
+{
+    Impl_->UpdateDynamicConfig(updateInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

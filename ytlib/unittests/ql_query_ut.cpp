@@ -658,7 +658,7 @@ class TWriterMock
 {
 public:
     MOCK_METHOD0(Close, TFuture<void>());
-    MOCK_METHOD1(Write, bool(const TRange<TUnversionedRow>&));
+    MOCK_METHOD1(Write, bool(TRange<TUnversionedRow>));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 

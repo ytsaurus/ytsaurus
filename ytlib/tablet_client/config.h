@@ -35,6 +35,25 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! These options can be changed in runtime.
+
+class TDynamicTabletCellOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    TNullable<double> CpuPerTabletSlot;
+
+    TDynamicTabletCellOptions()
+    {
+        RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletCellConfig
     : public NYTree::TYsonSerializable
 {

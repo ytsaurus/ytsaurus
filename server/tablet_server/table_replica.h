@@ -30,6 +30,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async)
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, DisablingTablets)
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableReplicatedTableManager, true)
 
 public:
     explicit TTableReplica(const TTableReplicaId& id);

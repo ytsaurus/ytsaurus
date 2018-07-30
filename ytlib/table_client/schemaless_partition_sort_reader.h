@@ -30,7 +30,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     bool isApproximate,
     int partitionTag,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter);
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -58,6 +58,23 @@ typedef TIntrusivePtr<TSecurityManager> TSecurityManagerPtr;
 class TRequestTracker;
 typedef TIntrusivePtr<TRequestTracker> TRequestTrackerPtr;
 
+DEFINE_ENUM(EAccessControlEvent,
+    (UserCreated)
+    (GroupCreated)
+    (UserDestroyed)
+    (GroupDestroyed)
+    (MemberAdded)
+    (MemberRemoved)
+    (SubjectRenamed)
+    (AccessDenied)
+    (ObjectAcdUpdated)
+);
+
+DEFINE_ENUM(EAccessDeniedReason,
+    (DeniedByAce)
+    (NoAllowingAce)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

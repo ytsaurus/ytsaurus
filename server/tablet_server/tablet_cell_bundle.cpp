@@ -23,6 +23,7 @@ TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
     , TabletBalancerConfig_(New<TTabletBalancerConfig>())
+    , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }
 
 void TTabletCellBundle::Save(TSaveContext& context) const
@@ -33,6 +34,8 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, Name_);
     Save(context, Acd_);
     Save(context, *Options_);
+    Save(context, *DynamicOptions_);
+    Save(context, DynamicConfigVersion_);
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
     Save(context, *TabletBalancerConfig_);
@@ -57,6 +60,11 @@ void TTabletCellBundle::Load(TLoadContext& context)
         node->AsMap()->AddChild("changelog_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
         node->AsMap()->AddChild("snapshot_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
         Options_->Load(node);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 716) {
+        Load(context, *DynamicOptions_);
+        Load(context, DynamicConfigVersion_);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
@@ -110,6 +118,17 @@ void TTabletCellBundle::SetName(TString name)
 TString TTabletCellBundle::GetName() const
 {
     return Name_;
+}
+
+TDynamicTabletCellOptionsPtr TTabletCellBundle::GetDynamicOptions() const
+{
+    return DynamicOptions_;
+}
+
+void TTabletCellBundle::SetDynamicOptions(TDynamicTabletCellOptionsPtr dynamicOptions)
+{
+    DynamicOptions_ = std::move(dynamicOptions);
+    ++DynamicConfigVersion_;
 }
 
 void TTabletCellBundle::FillProfilingTag()

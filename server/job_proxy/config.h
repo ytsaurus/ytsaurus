@@ -46,6 +46,7 @@ public:
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
+    NRpc::TRetryingChannelConfigPtr SupervisorChannel;
 
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
@@ -58,6 +59,7 @@ public:
     TNullable<TString> DataCenter;
 
     TDuration CoreForwarderTimeout;
+    TDuration BandwidthThrottlerRpcTimeout;
 
     i64 AheadMemoryReserve;
 
@@ -86,6 +88,9 @@ public:
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
 
+        RegisterParameter("supervisor_channel", SupervisorChannel)
+            .DefaultNew();
+
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
 
@@ -106,11 +111,16 @@ public:
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
 
+        // Disable throttling when this timeout is 0.
+        RegisterParameter("bandwidth_throttler_rpc_timeout", BandwidthThrottlerRpcTimeout)
+            .Default(TDuration::Zero());
+
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);
+
     }
 };
 

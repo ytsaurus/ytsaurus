@@ -150,7 +150,7 @@ public:
         TNameTablePtr nameTable,
         TWebJsonColumnFilter columnFilter);
 
-    virtual bool Write(const TRange<TUnversionedRow>& rows) override;
+    virtual bool Write(TRange<TUnversionedRow> rows) override;
     virtual TFuture<void> GetReadyEvent() override;
     virtual const TNameTablePtr& GetNameTable() const override;
     virtual const TTableSchema& GetSchema() const override;
@@ -178,7 +178,7 @@ private:
     bool SkipSystemColumn(TStringBuf columnName) const;
 
     void DoFlush(bool force);
-    void DoWrite(const TRange<TUnversionedRow>& rows);
+    void DoWrite(TRange<TUnversionedRow> rows);
     void DoClose();
 };
 
@@ -217,7 +217,7 @@ TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
     ResponseBuilder_->OnBeginList();
 }
 
-bool TSchemalessWriterForWebJson::Write(const TRange<TUnversionedRow>& rows)
+bool TSchemalessWriterForWebJson::Write(TRange<TUnversionedRow> rows)
 {
     if (!Error_.IsOK()) {
         return false;
@@ -305,7 +305,7 @@ void TSchemalessWriterForWebJson::DoFlush(bool force)
     }
 }
 
-void TSchemalessWriterForWebJson::DoWrite(const TRange<TUnversionedRow>& rows)
+void TSchemalessWriterForWebJson::DoWrite(TRange<TUnversionedRow> rows)
 {
     for (int rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
         const auto row = rows[rowIndex];

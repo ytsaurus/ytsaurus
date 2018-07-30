@@ -7,6 +7,6 @@ SET(YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR 1)
 # 1. New messages are added without affecting older ones.
 # 2. New optional fields are added to old messages.
 # 3. To force rebuild proto package without changes.
-SET(YT_RPC_PROXY_PROTOCOL_VERSION_MINOR 0)
+SET(YT_RPC_PROXY_PROTOCOL_VERSION_MINOR 1)
 
 SET(YT_RPC_PROXY_PROTOCOL_VERSION "${YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR}.${YT_RPC_PROXY_PROTOCOL_VERSION_MINOR}")

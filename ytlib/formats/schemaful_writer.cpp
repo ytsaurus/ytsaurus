@@ -26,7 +26,7 @@ TFuture<void> TSchemafulWriter::Close()
     return Result_;
 }
 
-bool TSchemafulWriter::Write(const TRange<TUnversionedRow>& rows)
+bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
 {
     Buffer_.Clear();
 

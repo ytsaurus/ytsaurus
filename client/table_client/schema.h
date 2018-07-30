@@ -212,6 +212,8 @@ void ValidateTableSchema(
     const TTableSchema& schema,
     bool isTableDynamic = false);
 
+void ValidateColumnUniqueness(const TTableSchema& schema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: Need to place this into NProto for ADL to work properly since TKeyColumns is std::vector.

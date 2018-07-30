@@ -178,6 +178,7 @@ public:
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         auto promise = NewPromise<size_t>();
+        ++ActiveIO_;
         Invoker_->Invoke(BIND([this, this_ = MakeStrong(this), promise, buffer] () {
             ReadBuffer_ = buffer;
             ReadResult_ = promise;
@@ -198,6 +199,7 @@ public:
     virtual TFuture<void> WriteV(const TSharedRefArray& buffer) override
     {
         auto promise = NewPromise<void>();
+        ++ActiveIO_;
         Invoker_->Invoke(BIND([this, this_ = MakeStrong(this), promise, buffer] () {
             WriteBuffer_ = buffer;
             WriteResult_ = promise;
@@ -224,6 +226,7 @@ public:
 
     virtual TFuture<void> Close() override
     {
+        ++ActiveIO_;
         return BIND([this, this_ = MakeStrong(this)] () {
             CloseRequested_ = true;
 
@@ -231,6 +234,11 @@ public:
         })
             .AsyncVia(Invoker_)
             .Run();
+    }
+
+    virtual bool IsIdle() const override
+    {
+        return ActiveIO_ == 0 && !Failed_;
     }
 
     virtual TFuture<void> Abort() override
@@ -254,6 +262,10 @@ private:
     SSL* Ssl_ = nullptr;
     BIO* InputBIO_ = nullptr;
     BIO* OutputBIO_ = nullptr;
+
+    // This counter gets stuck after streams encounters an error.
+    std::atomic<int> ActiveIO_ = {0};
+    std::atomic<bool> Failed_ = {false};
 
     // FSM
     TError Error_;
@@ -282,11 +294,13 @@ private:
         }
 
         if (ReadActive_) {
+            Failed_ = true;
             ReadResult_.Set(Error_);
             ReadActive_ = false;
         }
 
         if (WriteActive_) {
+            Failed_ = true;
             WriteResult_.Set(Error_);
             WriteActive_ = false;
         }
@@ -394,6 +408,7 @@ private:
             WriteBuffer_.Reset();
             WriteResult_.Set();
             WriteResult_.Reset();
+            --ActiveIO_;
         }
 
         if (ReadActive_) {
@@ -403,6 +418,7 @@ private:
                 ReadResult_.Set(count);
                 ReadResult_.Reset();
                 ReadBuffer_.Reset();
+                --ActiveIO_;
             } else {
                 int sslError = SSL_get_error(Ssl_, count);
                 if (sslError == SSL_ERROR_WANT_READ) {

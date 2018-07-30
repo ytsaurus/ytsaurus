@@ -1,11 +1,20 @@
-#include <yt/python/yson/serialize.h>
-#include <yt/python/yson/lazy_parser.h>
-#include <yt/python/yson/lazy_yson_consumer.h>
-#include <yt/python/yson/lazy_list_fragment_parser.h>
-#include <yt/python/yson/yson_lazy_map.h>
-#include <yt/python/yson/protobuf_descriptor_pool.h>
-#include <yt/python/yson/list_fragment_parser.h>
-#include <yt/python/yson/object_builder.h>
+#include "object_builder.h"
+#include "serialize.h"
+#include "lazy_parser.h"
+#include "lazy_yson_consumer.h"
+#include "lazy_list_fragment_parser.h"
+#include "yson_lazy_map.h"
+#include "protobuf_descriptor_pool.h"
+#include "list_fragment_parser.h"
+#include "error.h"
+#include "helpers.h"
+
+#include "skiff/schema.h"
+#include "skiff/record.h"
+#include "skiff/parser.h"
+#include "skiff/serialize.h"
+#include "skiff/switch.h"
+#include "skiff/raw_iterator.h"
 
 #include <yt/python/common/shutdown.h>
 #include <yt/python/common/helpers.h>
@@ -27,114 +36,46 @@ namespace NPython {
 using namespace NYTree;
 using namespace NYson;
 
-static const int BufferSize = 1024 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-Py::Exception CreateYsonError(const TString& message, const NYT::TError& error = TError())
-{
-    auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
-    auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
-
-    std::vector<TError> innerErrors({error});
-    Py::Dict options;
-    options.setItem("message", ConvertTo<Py::Object>(message));
-    options.setItem("code", ConvertTo<Py::Object>(1));
-    options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
-    auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
-    return Py::Exception(*ysonError.type(), ysonError);
-}
-
-#define CATCH(message) \
-    catch (const NYT::TErrorException& error) { \
-        throw CreateYsonError(message, error.Error()); \
-    } catch (const std::exception& ex) { \
-        if (PyErr_ExceptionMatches(PyExc_BaseException)) { \
-            throw; \
-        } else { \
-            throw CreateYsonError(message, TError(ex)); \
-        } \
-    }
+static constexpr int BufferSize = 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonIterator
-    : public Py::PythonClass<TYsonIterator>
+    : public TRowsIteratorBase<TYsonIterator, NYTree::TPythonObjectBuilder, NYson::TYsonParser>
 {
 public:
     TYsonIterator(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
-        : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
+        : TBase::TRowsIteratorBase(self, args, kwargs, FormatName)
     { }
 
-    void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamOwner,
-              bool alwaysCreateAttributes, const TNullable<TString>& encoding)
+    void Init(
+        IInputStream* inputStream,
+        std::unique_ptr<IInputStream> inputStreamHolder,
+        bool alwaysCreateAttributes,
+        const TNullable<TString>& encoding)
     {
-        YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
+        YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
+
         InputStream_ = inputStream;
-        InputStreamOwner_ = std::move(inputStreamOwner);
-        Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes, encoding));
-        Parser_.reset(new NYson::TYsonParser(Consumer_.get(), NYson::EYsonType::ListFragment));
-        IsStreamRead_ = false;
+        InputStreamHolder_ = std::move(inputStreamHolder);
+        Consumer_.reset(new TPythonObjectBuilder(alwaysCreateAttributes, encoding));
+        Parser_.reset(new TYsonParser(Consumer_.get(), EYsonType::ListFragment));
     }
-
-    Py::Object iter()
-    {
-        return self();
-    }
-
-    PyObject* iternext()
-    {
-        try {
-            // Read unless we have whole row
-            while (!Consumer_->HasObject() && !IsStreamRead_) {
-                int length = InputStream_->Read(Buffer_, BufferSize);
-                if (length != 0) {
-                    Parser_->Read(TStringBuf(Buffer_, length));
-                }
-                if (BufferSize != length) {
-                    IsStreamRead_ = true;
-                    Parser_->Finish();
-                }
-            }
-
-            // Stop iteration if we done
-            if (!Consumer_->HasObject()) {
-                PyErr_SetNone(PyExc_StopIteration);
-                return 0;
-            }
-
-            auto result = Consumer_->ExtractObject();
-            // We should return pointer to alive object
-            result.increment_reference_count();
-            return result.ptr();
-        } CATCH("Yson load failed");
-    }
-
-    virtual ~TYsonIterator()
-    { }
 
     static void InitType()
     {
-        behaviors().name("Yson iterator");
-        behaviors().doc("Iterates over stream with YSON rows");
-        behaviors().supportGetattro();
-        behaviors().supportSetattro();
-        behaviors().supportIter();
-
-        behaviors().readyType();
+        TBase::InitType(FormatName);
     }
 
 private:
-    IInputStream* InputStream_;
-    std::unique_ptr<IInputStream> InputStreamOwner_;
+    using TBase = TRowsIteratorBase<TYsonIterator, NYTree::TPythonObjectBuilder, NYson::TYsonParser>;
 
-    bool IsStreamRead_;
+    static constexpr const char FormatName[] = "Yson";
 
-    std::unique_ptr<NYTree::TPythonObjectBuilder> Consumer_;
-    std::unique_ptr<NYson::TYsonParser> Parser_;
-
-    char Buffer_[BufferSize];
+    std::unique_ptr<IInputStream> InputStreamHolder_;
 };
+
+constexpr const char TYsonIterator::FormatName[];
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,9 +87,9 @@ public:
         : Py::PythonClass<TRawYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamOwner)
+    void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamHolder)
     {
-        InputStreamOwner_ = std::move(inputStreamOwner);
+        InputStreamHolder_ = std::move(inputStreamHolder);
         Parser_ = TListFragmentParser(inputStream);
     }
 
@@ -174,11 +115,10 @@ public:
             auto result = Py::Bytes(item.Begin(), item.Size());
             result.increment_reference_count();
             return result.ptr();
-        } CATCH("Yson load failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson load failed");
     }
 
-    virtual ~TRawYsonIterator()
-    { }
+    virtual ~TRawYsonIterator() = default;
 
     static void InitType()
     {
@@ -192,7 +132,7 @@ public:
     }
 
 private:
-    std::unique_ptr<IInputStream> InputStreamOwner_;
+    std::unique_ptr<IInputStream> InputStreamHolder_;
     TListFragmentParser Parser_;
 };
 
@@ -208,13 +148,15 @@ public:
 
     void Init(
         IInputStream* inputStream,
-        std::unique_ptr<IInputStream> inputStreamOwner,
+        std::unique_ptr<IInputStream> inputStreamHolder,
         Py::Tuple& loadsParams,
         const TNullable<TString>& encoding,
         bool alwaysCreateAttributes)
     {
-        InputStreamOwner_ = std::move(inputStreamOwner);
-        KeyCache_ = TPythonStringCache(true, encoding);
+        YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
+
+        InputStreamHolder_ = std::move(inputStreamHolder);
+        KeyCache_ = TPythonStringCache(/* enable */ true, encoding);
         Parser_.reset(new TLazyListFragmentParser(inputStream, encoding, alwaysCreateAttributes, &KeyCache_));
     }
 
@@ -232,7 +174,7 @@ public:
                 return nullptr;
             }
             return item;
-        } CATCH("Yson load failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson load failed");
     }
 
     virtual ~TLazyYsonIterator()
@@ -250,7 +192,7 @@ public:
     }
 
 private:
-    std::unique_ptr<IInputStream> InputStreamOwner_;
+    std::unique_ptr<IInputStream> InputStreamHolder_;
     std::unique_ptr<TLazyListFragmentParser> Parser_;
     TPythonStringCache KeyCache_;
 };
@@ -262,7 +204,7 @@ class TYsonModule
 {
 public:
     TYsonModule()
-        // This should match .so file name.
+        // This name should match .so file name.
         : Py::ExtensionModule<TYsonModule>("yson_lib")
     {
         PyEval_InitThreads();
@@ -273,6 +215,13 @@ public:
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
         TLazyYsonIterator::InitType();
+        TSkiffRecordPython::InitType();
+        TSkiffRecordItemsIterator::InitType();
+        TSkiffSchemaPython::InitType();
+        TSkiffTableSwitchPython::InitType();
+        TSkiffIterator::InitType();
+        TSkiffRawIterator::InitType();
+
         PyType_Ready(TLazyYsonMapBaseType);
         PyType_Ready(TLazyYsonMapType);
 
@@ -290,7 +239,18 @@ public:
         add_keyword_method("loads_proto", &TYsonModule::LoadsProto, "Loads proto message from yson string");
         add_keyword_method("dumps_proto", &TYsonModule::DumpsProto, "Dumps proto message to yson string");
 
+        add_keyword_method("load_skiff", &TYsonModule::LoadSkiff, "Loads Skiff from stream");
+        add_keyword_method("dump_skiff", &TYsonModule::DumpSkiff, "Dumps Skiff to stream");
+
         initialize("Python bindings for YSON");
+
+        Py::Dict moduleDict(moduleDictionary());
+        Py::Object skiffRecordClass(TSkiffRecordPython::type());
+        Py::Object skiffSchemaClass(TSkiffSchemaPython::type());
+        Py::Object skiffTableSwitchClass(TSkiffTableSwitchPython::type());
+        moduleDict["SkiffRecord"] = skiffRecordClass;
+        moduleDict["SkiffSchema"] = skiffSchemaClass;
+        moduleDict["SkiffTableSwitch"] = skiffTableSwitchClass;
     }
 
     Py::Object IsDebugBuild(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)
@@ -308,8 +268,9 @@ public:
         auto kwargs = kwargs_;
 
         try {
-            return LoadImpl(args, kwargs, nullptr);
-        } CATCH("Yson load failed");
+            auto streamArg = ExtractArgument(args, kwargs, "stream");
+            return LoadImpl(args, kwargs, CreateInputStreamWrapper(streamArg));
+        } CATCH_AND_CREATE_YSON_ERROR("Yson load failed");
     }
 
     Py::Object Loads(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -324,11 +285,11 @@ public:
         }
 #endif
         auto string = ConvertStringObjectToString(stringArgument);
-        std::unique_ptr<IInputStream> stringStream(new TOwningStringInput(string));
+        auto stringStream = CreateOwningStringInput(std::move(string));
 
         try {
             return LoadImpl(args, kwargs, std::move(stringStream));
-        } CATCH("Yson load failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson load failed");
     }
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -338,7 +299,7 @@ public:
 
         try {
             DumpImpl(args, kwargs, nullptr);
-        } CATCH("Yson dumps failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson dump failed");
 
         return Py::None();
     }
@@ -353,7 +314,7 @@ public:
 
         try {
             DumpImpl(args, kwargs, &stringOutput);
-        } CATCH("Yson dumps failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson dumps failed");
 
         return Py::ConvertToPythonString(result);
     }
@@ -375,7 +336,7 @@ public:
 
         try {
             return DumpsProtoImpl(protoObject, skipUnknownFields);
-        } CATCH("Yson dumps_proto failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson dumps_proto failed");
     }
 
     Py::Object LoadsProto(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -396,7 +357,21 @@ public:
 
         try {
             return LoadsProtoImpl(stringObject, protoClassObject, skipUnknownFields);
-        } CATCH("Yson loads_proto failed");
+        } CATCH_AND_CREATE_YSON_ERROR("Yson loads_proto failed");
+    }
+
+    Py::Object LoadSkiff(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+        return NPython::LoadSkiff(args, kwargs);
+    }
+
+    Py::Object DumpSkiff(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+        return NPython::DumpSkiff(args, kwargs);
     }
 
     virtual ~TYsonModule()
@@ -406,25 +381,9 @@ private:
     Py::Object LoadImpl(
         Py::Tuple& args,
         Py::Dict& kwargs,
-        std::unique_ptr<IInputStream> inputStream)
+        std::unique_ptr<IInputStream> inputStreamHolder)
     {
-        // Holds inputStreamWrap if passed non-trivial stream argument
-        IInputStream* inputStreamPtr;
-        if (!inputStream) {
-            auto streamArg = ExtractArgument(args, kwargs, "stream");
-            bool wrapStream = true;
-#if PY_MAJOR_VERSION < 3
-            if (PyFile_Check(streamArg.ptr())) {
-                FILE* file = PyFile_AsFile(streamArg.ptr());
-                inputStream.reset(new TUnbufferedFileInput(Duplicate(file)));
-                wrapStream = false;
-            }
-#endif
-            if (wrapStream) {
-                inputStream.reset(new TInputStreamWrap(streamArg));
-            }
-        }
-        inputStreamPtr = inputStream.get();
+        IInputStream* inputStream = inputStreamHolder.get();
 
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
@@ -444,21 +403,7 @@ private:
             raw = Py::Boolean(arg);
         }
 
-        TNullable<TString> encoding;
-        if (HasArgument(args, kwargs, "encoding")) {
-            auto arg = ExtractArgument(args, kwargs, "encoding");
-            if (!arg.isNone()) {
-#if PY_MAJOR_VERSION < 3
-                throw CreateYsonError("Encoding parameter is not supported for Python 2");
-#else
-                encoding = ConvertStringObjectToString(arg);
-#endif
-            }
-#if PY_MAJOR_VERSION >= 3
-        } else {
-            encoding = "utf-8";
-#endif
-        }
+        auto encoding = ParseEncodingArgument(args, kwargs);
 
         bool lazy = false;
         if (HasArgument(args, kwargs, "lazy")) {
@@ -485,11 +430,11 @@ private:
                 Py::PythonClassObject<TLazyYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
-                iter->Init(inputStreamPtr, std::move(inputStream), params, encoding, alwaysCreateAttributes);
+                iter->Init(inputStream, std::move(inputStreamHolder), params, encoding, alwaysCreateAttributes);
                 return pythonIter;
+            } else {
+                return ParseLazyYson(inputStream, encoding, alwaysCreateAttributes, ysonType);
             }
-
-            return ParseLazyYson(inputStreamPtr, encoding, alwaysCreateAttributes, ysonType);
         }
 
         if (ysonType == NYson::EYsonType::ListFragment) {
@@ -498,39 +443,30 @@ private:
                 Py::PythonClassObject<TRawYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
-                iter->Init(inputStreamPtr, std::move(inputStream));
+                iter->Init(inputStream, std::move(inputStreamHolder));
                 return pythonIter;
             } else {
                 Py::Callable classType(TYsonIterator::type());
                 Py::PythonClassObject<TYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
-                iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes, encoding);
+                iter->Init(inputStream, std::move(inputStreamHolder), alwaysCreateAttributes, encoding);
                 return pythonIter;
             }
-
         } else {
             if (raw) {
                 throw CreateYsonError("Raw mode is only supported for list fragments");
             }
             NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes, encoding);
-            NYson::TYsonParser parser(&consumer, ysonType);
 
-            TBlob buffer(TDefaultBlobTag(), BufferSize, /*initiailizeStorage*/ false);
+            auto parse = [&] {ParseYson(TYsonInput(inputStream, ysonType), &consumer);};
 
             if (ysonType == NYson::EYsonType::MapFragment) {
                 consumer.OnBeginMap();
-            }
-            while (int length = inputStreamPtr->Read(buffer.Begin(), BufferSize))
-            {
-                parser.Read(TStringBuf(buffer.Begin(), length));
-                if (BufferSize != length) {
-                    break;
-                }
-            }
-            parser.Finish();
-            if (ysonType == NYson::EYsonType::MapFragment) {
+                parse();
                 consumer.OnEndMap();
+            } else {
+                parse();
             }
 
             return consumer.ExtractObject();
@@ -541,32 +477,11 @@ private:
     {
         auto obj = ExtractArgument(args, kwargs, "object");
 
-        // Holds outputStreamWrap if passed non-trivial stream argument
-        std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
-        std::unique_ptr<TUnbufferedFileOutput> fileOutput;
-        std::unique_ptr<TBufferedOutput> bufferedOutputStream;
-
+        std::unique_ptr<IOutputStream> outputStreamHolder;
         if (!outputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
-            bool wrapStream = true;
-#if PY_MAJOR_VERSION < 3
-            if (PyFile_Check(streamArg.ptr())) {
-                FILE* file = PyFile_AsFile(streamArg.ptr());
-                fileOutput.reset(new TUnbufferedFileOutput(Duplicate(file)));
-                outputStream = fileOutput.get();
-                wrapStream = false;
-            }
-#endif
-            if (wrapStream) {
-                outputStreamWrap.reset(new TOutputStreamWrap(streamArg));
-                outputStream = outputStreamWrap.get();
-            }
-#if PY_MAJOR_VERSION < 3
-            // Python 3 has "io" module with fine-grained buffering control, no need in
-            // additional buferring here.
-            bufferedOutputStream.reset(new TBufferedOutput(outputStream, 1024 * 1024));
-            outputStream = bufferedOutputStream.get();
-#endif
+            outputStreamHolder = CreateOutputStreamWrapper(streamArg, /* addBuffering */ true);
+            outputStream = outputStreamHolder.get();
         }
 
         auto ysonFormat = NYson::EYsonFormat::Text;
@@ -631,7 +546,7 @@ private:
                 break;
 
             case NYson::EYsonType::ListFragment: {
-                auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
+                auto iterator = CreateIterator(obj);
                 size_t rowIndex = 0;
                 TContext context;
                 while (auto* item = PyIter_Next(*iterator)) {
@@ -650,10 +565,6 @@ private:
         }
 
         writer->Flush();
-
-        if (bufferedOutputStream) {
-            bufferedOutputStream->Flush();
-        }
     }
 
     void RegisterFileDescriptor(Py::Object fileDescriptor)
@@ -664,7 +575,7 @@ private:
         }
 
         auto dependencies = GetAttr(fileDescriptor, "dependencies");
-        auto iterator = Py::Object(PyObject_GetIter(dependencies.ptr()), true);
+        auto iterator = CreateIterator(dependencies);
         while (auto* item = PyIter_Next(*iterator)) {
             RegisterFileDescriptor(Py::Object(item, true));
         }

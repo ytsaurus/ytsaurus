@@ -41,7 +41,7 @@ public:
 
     //! This method is called on task object creation (both at clean creation and at revival).
     //! It may be used when calling virtual method is needed, but not allowed.
-    void Initialize();
+    virtual void Initialize();
 
     //! Title of a data flow graph vertex that appears in a web interface and coincides with the job type
     //! for builtin tasks. For example, "SortedReduce" or "PartitionMap".

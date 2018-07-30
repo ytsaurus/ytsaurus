@@ -312,15 +312,15 @@ TEST(FairShareTree, TestAttributes)
     auto dynamicAttributes = TDynamicAttributesList(4);
     rootElement->Update(dynamicAttributes);
 
-    EXPECT_EQ(rootElement->Attributes().DemandRatio, 0.1);
-    EXPECT_EQ(poolA->Attributes().DemandRatio, 0.1);
-    EXPECT_EQ(poolB->Attributes().DemandRatio, 0.0);
-    EXPECT_EQ(operationElementX->Attributes().DemandRatio, 0.1);
+    EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
+    EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
+    EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
+    EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
 
-    EXPECT_EQ(rootElement->Attributes().FairShareRatio, 1.0);
-    EXPECT_EQ(rootElement->Attributes().DemandRatio, 0.1);
-    EXPECT_EQ(poolB->Attributes().FairShareRatio, 0.0);
-    EXPECT_EQ(operationElementX->Attributes().FairShareRatio, 0.1);
+    EXPECT_EQ(1.0, rootElement->Attributes().FairShareRatio);
+    EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
+    EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
+    EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
 }
 
 TEST(FairShareTree, TestUpdatePreemptableJobsList)
@@ -375,8 +375,8 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     auto dynamicAttributes = TDynamicAttributesList(2);
     rootElement->Update(dynamicAttributes);
 
-    EXPECT_EQ(operationElementX->Attributes().DemandRatio, 1.6);
-    EXPECT_EQ(operationElementX->Attributes().FairShareRatio, 1.0);
+    EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
+    EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
 
     for (int i = 0; i < 50; ++i) {
         EXPECT_FALSE(operationElementX->IsJobPreemptable(jobIds[i], true));
@@ -440,9 +440,9 @@ TEST(FairShareTree, TestBestAllocationRatio)
     auto dynamicAttributes = TDynamicAttributesList(4);
     rootElement->Update(dynamicAttributes);
 
-    EXPECT_EQ(operationElementX->Attributes().DemandRatio, 1.125);
-    EXPECT_EQ(operationElementX->Attributes().BestAllocationRatio, 0.375);
-    EXPECT_EQ(operationElementX->Attributes().FairShareRatio, 0.375);
+    EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
+    EXPECT_EQ(0.375, operationElementX->Attributes().BestAllocationRatio);
+    EXPECT_EQ(0.375, operationElementX->Attributes().FairShareRatio);
 }
 
 TEST(FairShareTree, TestOperationCountLimits)
@@ -481,24 +481,104 @@ TEST(FairShareTree, TestOperationCountLimits)
     pools[2]->IncreaseOperationCount(1);
     pools[2]->IncreaseRunningOperationCount(1);
 
-    EXPECT_EQ(rootElement->OperationCount(), 1);
-    EXPECT_EQ(rootElement->RunningOperationCount(), 1);
+    EXPECT_EQ(1, rootElement->OperationCount());
+    EXPECT_EQ(1, rootElement->RunningOperationCount());
 
-    EXPECT_EQ(pools[1]->OperationCount(), 1);
-    EXPECT_EQ(pools[1]->RunningOperationCount(), 1);
+    EXPECT_EQ(1, pools[1]->OperationCount());
+    EXPECT_EQ(1, pools[1]->RunningOperationCount());
 
     pools[1]->IncreaseOperationCount(5);
-    EXPECT_EQ(rootElement->OperationCount(), 6);
+    EXPECT_EQ(6, rootElement->OperationCount());
     for (int i = 0; i < 5; ++i) {
         pools[1]->IncreaseOperationCount(-1);
     }
-    EXPECT_EQ(rootElement->OperationCount(), 1);
+    EXPECT_EQ(1, rootElement->OperationCount());
 
     pools[2]->IncreaseOperationCount(-1);
     pools[2]->IncreaseRunningOperationCount(-1);
 
-    EXPECT_EQ(rootElement->OperationCount(), 0);
-    EXPECT_EQ(rootElement->RunningOperationCount(), 0);
+    EXPECT_EQ(0, rootElement->OperationCount());
+    EXPECT_EQ(0, rootElement->RunningOperationCount());
+}
+
+TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
+{
+    auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    // Total resource vector is <100, 100>.
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResources}));
+
+    // First operation with demand <5, 5>.
+    TJobResourcesWithQuota firstOperationJobResources;
+    firstOperationJobResources.SetCpu(5);
+    firstOperationJobResources.SetMemory(5);
+
+    auto firstOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, firstOperationJobResources));
+    auto firstOperationController = New<TFairShareStrategyOperationController>(firstOperation.Get());
+    auto firstOperationElement = New<TOperationElement>(
+            treeConfig,
+            New<TStrategyOperationSpec>(),
+            operationOptions,
+            firstOperationController,
+            config,
+            host.Get(),
+            firstOperation.Get(),
+            "default");
+
+    // Second operation with demand <5, 10>.
+    TJobResourcesWithQuota secondOperationJobResources;
+    secondOperationJobResources.SetCpu(5);
+    secondOperationJobResources.SetMemory(10);
+
+    auto secondOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, secondOperationJobResources));
+    auto secondOperationController = New<TFairShareStrategyOperationController>(secondOperation.Get());
+    auto secondOperationElement = New<TOperationElement>(
+            treeConfig,
+            New<TStrategyOperationSpec>(),
+            operationOptions,
+            secondOperationController,
+            config,
+            host.Get(),
+            secondOperation.Get(),
+            "default");
+
+    // Pool with total demand <10, 15>.
+    auto pool = New<TPool>(
+            host.Get(),
+            "A",
+            New<TPoolConfig>(),
+            true,
+            treeConfig,
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+            "default");
+
+    pool->AddChild(firstOperationElement, true);
+    firstOperationElement->SetParent(pool.Get());
+    pool->AddChild(secondOperationElement);
+    secondOperationElement->SetParent(pool.Get());
+
+    // Root element.
+    auto rootElement = New<TRootElement>(
+            host.Get(),
+            treeConfig,
+            // TODO(ignat): eliminate profiling from test.
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+            "default");
+
+    rootElement->AddChild(pool, true);
+    pool->SetParent(rootElement.Get());
+
+    // Сheck MaxPossibleUsageRatio computation.
+    auto dynamicAttributes = TDynamicAttributesList(4);
+    rootElement->Update(dynamicAttributes);
+    EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,8 +33,6 @@ public:
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
-    bool SendLegacyUserIP;
-    bool DiscoverProxiesFromCypress;
 
     TConnectionConfig();
 };

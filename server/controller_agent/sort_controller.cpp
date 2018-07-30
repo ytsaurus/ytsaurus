@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "chunk_pool_adapters.h"
+#include "data_balancer.h"
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
@@ -271,7 +272,6 @@ protected:
         // Chunk pool output obtained from the shuffle pool.
         IChunkPoolOutput* ChunkPoolOutput;
 
-
         void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
@@ -294,7 +294,6 @@ protected:
 
             Persist(context, ChunkPoolOutput);
         }
-
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -330,7 +329,6 @@ protected:
 
     TPartitionTaskPtr PartitionTask;
 
-
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
     class TPartitionTask
         : public TTask
@@ -345,6 +343,34 @@ protected:
             : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
+
+        virtual void FinishInput() override
+        {
+            // NB: we try to use the value as close to the total data weight of all extracted stripe lists as possible.
+            // In particular, we do not use Controller->TotalEstimatedInputDataWeight here.
+            auto totalDataWeight = GetChunkPoolOutput()->GetTotalDataWeight();
+            if (Controller->Spec->EnablePartitionedDataBalancing &&
+                totalDataWeight >= Controller->Spec->MinLocalityInputDataWeight)
+            {
+                LOG_INFO("Data balancing enabled (TotalDataWeight: %v)", totalDataWeight);
+                DataBalancer_ = New<TDataBalancer>(
+                    Controller->Options->DataBalancer,
+                    totalDataWeight,
+                    Controller->GetExecNodeDescriptors());
+                DataBalancer_->SetLogger(Logger);
+            }
+
+            TTask::FinishInput();
+        }
+
+        virtual void Initialize() override
+        {
+            TTask::Initialize();
+
+            if (DataBalancer_) {
+                DataBalancer_->SetLogger(Logger);
+            }
+        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
@@ -391,13 +417,10 @@ protected:
 
             using NYT::Persist;
             Persist(context, Controller);
-            Persist(context, NodeIdToAdjustedDataWeight);
-            Persist(context, AdjustedScheduledDataWeight);
+            Persist(context, DataBalancer_);
 
-            // COMPAT(psushin).
-            if (context.IsLoad() && context.GetVersion() < 200926) {
-                i64 _;
-                Persist(context, _);
+            if (context.IsLoad() && DataBalancer_) {
+                DataBalancer_->OnExecNodesUpdated(Controller->GetExecNodeDescriptors());
             }
         }
 
@@ -406,42 +429,19 @@ protected:
             return true;
         }
 
+        void OnExecNodesUpdated()
+        {
+            if (DataBalancer_) {
+                DataBalancer_->OnExecNodesUpdated(Controller->GetExecNodeDescriptors());
+            }
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionTask, 0x63a4c761);
 
         TSortControllerBase* Controller;
 
-        //! The total data size of jobs assigned to a particular node
-        //! All data sizes are IO weight-adjusted.
-        //! No zero values are allowed.
-        THashMap<TNodeId, i64> NodeIdToAdjustedDataWeight;
-        //! The sum of all sizes appearing in #NodeIdToDataWeight.
-        //! This value is IO weight-adjusted.
-        i64 AdjustedScheduledDataWeight = 0;
-
-
-        void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta)
-        {
-            if (!Controller->Spec->EnablePartitionedDataBalancing ||
-                Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)
-            {
-                return;
-            }
-
-            auto ioWeight = descriptor.IOWeight;
-            YCHECK(ioWeight > 0);
-            auto adjustedDelta = static_cast<i64>(delta / ioWeight);
-
-            auto nodeId = descriptor.Id;
-            auto newAdjustedDataWeight = (NodeIdToAdjustedDataWeight[nodeId] += adjustedDelta);
-            YCHECK(newAdjustedDataWeight >= 0);
-
-            if (newAdjustedDataWeight == 0) {
-                YCHECK(NodeIdToAdjustedDataWeight.erase(nodeId) == 1);
-            }
-
-            YCHECK((AdjustedScheduledDataWeight += adjustedDelta) >= 0);
-        }
+        TDataBalancerPtr DataBalancer_;
 
         virtual bool CanLoseJobs() const override
         {
@@ -450,33 +450,15 @@ protected:
 
         virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
-            if (!Controller->Spec->EnablePartitionedDataBalancing ||
-                Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)
-            {
-                return Null;
-            }
+            // We don't have a job at hand here, let's make a guess.
+            auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
+            const auto& node = context->GetNodeDescriptor();
 
-            auto ioWeight = context->GetNodeDescriptor().IOWeight;
-            if (ioWeight == 0) {
+            if (DataBalancer_ && !DataBalancer_->CanScheduleJob(node, approximateStatistics.DataWeight)) {
                 return EScheduleJobFailReason::DataBalancingViolation;
             }
 
-            if (NodeIdToAdjustedDataWeight.empty()) {
-                return Null;
-            }
-
-            // We don't have a job at hand here, let's make a guess.
-            auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
-            auto adjustedJobDataWeight = approximateStatistics.DataWeight / ioWeight;
-            auto nodeId = context->GetNodeDescriptor().Id;
-            auto newAdjustedScheduledDataWeight = AdjustedScheduledDataWeight + adjustedJobDataWeight;
-            auto newAvgAdjustedScheduledDataWeight = newAdjustedScheduledDataWeight / NodeIdToAdjustedDataWeight.size();
-            auto newAdjustedNodeDataWeight = NodeIdToAdjustedDataWeight[nodeId] + adjustedJobDataWeight;
-            auto result =
-                newAdjustedNodeDataWeight <=
-                newAvgAdjustedScheduledDataWeight + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataWeight;
-
-            return MakeNullable(!result, EScheduleJobFailReason::DataBalancingViolation);
+            return Null;
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -498,7 +480,9 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
             auto dataWeight = joblet->InputStripeList->TotalDataWeight;
-            UpdateNodeDataWeight(joblet->NodeDescriptor, +dataWeight);
+            if (DataBalancer_) {
+                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, +dataWeight);
+            }
 
             TTask::OnJobStarted(joblet);
         }
@@ -538,7 +522,9 @@ protected:
         {
             TTask::OnJobLost(completedJob);
 
-            UpdateNodeDataWeight(completedJob->NodeDescriptor, -completedJob->DataWeight);
+            if (DataBalancer_) {
+                DataBalancer_->UpdateNodeDataWeight(completedJob->NodeDescriptor, -completedJob->DataWeight);
+            }
 
             if (!Controller->IsShuffleCompleted()) {
                 // Add pending hint if shuffle is in progress and some partition jobs were lost.
@@ -550,14 +536,18 @@ protected:
         {
             TTask::OnJobFailed(joblet, jobSummary);
 
-            UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
+            if (DataBalancer_) {
+                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
+            }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             TTask::OnJobAborted(joblet, jobSummary);
 
-            UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
+            if (DataBalancer_) {
+                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
+            }
         }
 
         virtual void OnTaskCompleted() override
@@ -592,23 +582,8 @@ protected:
                 }
             }
 
-            if (Controller->Spec->EnablePartitionedDataBalancing) {
-                auto nodeDescriptors = Controller->GetExecNodeDescriptors();
-                THashMap<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
-                for (const auto& pair : nodeDescriptors) {
-                    const auto& descriptor = pair.second;
-                    YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
-                }
-
-                LOG_DEBUG("Per-node partitioned data weights collected");
-                for (const auto& pair : NodeIdToAdjustedDataWeight) {
-                    auto nodeId = pair.first;
-                    auto dataWeight = pair.second;
-                    auto nodeIt = idToNodeDescriptor.find(nodeId);
-                    LOG_DEBUG("Node[%v] = %v",
-                        nodeIt == idToNodeDescriptor.end() ? ToString(nodeId) : nodeIt->second.Address,
-                        dataWeight);
-                }
+            if (DataBalancer_) {
+                DataBalancer_->LogStatistics();
             }
 
             Controller->AssignPartitions();
@@ -1832,6 +1807,12 @@ protected:
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
+    virtual void OnExecNodesUpdated()
+    {
+        if (PartitionTask) {
+            PartitionTask->OnExecNodesUpdated();
+        }
+    }
 
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {

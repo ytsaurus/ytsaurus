@@ -17,6 +17,17 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
     return nameTable;
 }
 
+TNameTablePtr TNameTable::SafeFromSchema(const TTableSchema& schema)
+{
+    ValidateColumnUniqueness(schema);
+
+    auto nameTable = New<TNameTable>();
+    for (const auto& column : schema.Columns()) {
+        nameTable->RegisterName(column.Name());
+    }
+    return nameTable;
+}
+
 TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     auto nameTable = New<TNameTable>();

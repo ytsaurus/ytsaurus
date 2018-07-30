@@ -65,7 +65,6 @@ std::vector<TString> GetRpcProxiesFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
     const TNullable<TString>& oauthToken,
-    bool useCypress,
     const TNullable<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
@@ -75,31 +74,21 @@ std::vector<TString> GetRpcProxiesFromHttp(
     }
     headers->Add("X-YT-Header-Format", "<format=text>yson");
 
-    if (useCypress) {
-        headers->Add(
-            "X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
-    } else {
-        headers->Add(
-            "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
-                .BeginMap()
-                .Item("output_format")
-                .BeginAttributes()
-                .Item("format").Value("text")
-                .EndAttributes()
-                .Value("yson")
-                .DoIf(
-                    role.HasValue(), [&](auto fluent) {
-                        fluent.Item("role").Value(*role);
-                    })
-                .EndMap().GetData());
-    }
+    headers->Add(
+        "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+            .BeginMap()
+            .Item("output_format")
+            .BeginAttributes()
+            .Item("format").Value("text")
+            .EndAttributes()
+            .Value("yson")
+            .DoIf(
+                role.HasValue(), [&](auto fluent) {
+                    fluent.Item("role").Value(*role);
+                })
+            .EndMap().GetData());
 
-    auto path = proxyUrl;
-    if (useCypress) {
-        path += "/api/v3/list";
-    } else {
-        path += "/api/v4/discover_proxies";
-    }
+    auto path = proxyUrl + "/api/v4/discover_proxies";
     auto rsp = WaitFor(client->Get(path, headers))
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::OK) {
@@ -108,23 +97,19 @@ std::vector<TString> GetRpcProxiesFromHttp(
     }
 
     auto node = ConvertTo<INodePtr>(TYsonString{ToString(rsp->ReadBody())});
-    if (!useCypress) {
-        node = node->AsMap()->FindChild("proxies");
-    }
+    node = node->AsMap()->FindChild("proxies");
     return ConvertTo<std::vector<TString>>(node);
 }
 
 IChannelPtr CreateCredentialsInjectingChannel(
     IChannelPtr underlying,
-    const TClientOptions& options,
-    const TString& localAddress)
+    const TClientOptions& options)
 {
     if (options.Token) {
         return CreateTokenInjectingChannel(
             underlying,
             options.User,
-            *options.Token,
-            localAddress);
+            *options.Token);
     } else if (options.SessionId || options.SslSessionId) {
         return CreateCookieInjectingChannel(
             underlying,
@@ -180,11 +165,6 @@ IAdminPtr TConnection::CreateAdmin(const TAdminOptions&)
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
 {
-    TString localAddress;
-    if (Config_->SendLegacyUserIP) {
-        localAddress = GetLocalAddress();
-    }
-
     if (Config_->ClusterUrl) {
         auto guard = Guard(HttpDiscoveryLock_);
         if (!HttpCredentials_) {
@@ -196,8 +176,7 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
     auto channel = CreateDynamicChannel(ChannelPool_);
     auto authenticatedChannel = CreateCredentialsInjectingChannel(
         std::move(channel),
-        options,
-        localAddress);
+        options);
 
     return New<TClient>(this, std::move(authenticatedChannel));
 }
@@ -216,33 +195,6 @@ void TConnection::Terminate()
 {
     ChannelPool_->Terminate();
     UpdateProxyListExecutor_->Stop();
-}
-
-TString TConnection::GetLocalAddress()
-{
-    // Check local hostname and initialize it.
-    if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
-        THROW_ERROR_EXCEPTION("Local hostname is not ok, more details in logs");
-    }
-
-    // TODO(sandello): Extract this to a new TAddressResolver method.
-    auto localHostname = GetLocalHostName();
-    auto localAddress = TAddressResolver::Get()->Resolve(localHostname).Get().ValueOrThrow();
-
-    auto localAddressString = ToString(localAddress);
-    YCHECK(localAddressString.StartsWith("tcp://"));
-    localAddressString = localAddressString.substr(6);
-    {
-        auto index = localAddressString.rfind(':');
-        if (index != TString::npos) {
-            localAddressString = localAddressString.substr(0, index);
-        }
-    }
-    if (localAddressString.StartsWith("[") && localAddressString.EndsWith("]")) {
-        localAddressString = localAddressString.substr(1, localAddressString.length() - 2);
-    }
-
-    return localAddressString;
 }
 
 const TConnectionConfigPtr& TConnection::GetConfig()
@@ -277,7 +229,6 @@ std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& op
             Config_->HttpClient,
             NormalizeHttpProxyUrl(*Config_->ClusterUrl),
             options.Token,
-            Config_->DiscoverProxiesFromCypress,
             Config_->ProxyRole);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
@@ -329,11 +280,8 @@ void TConnection::OnProxyListUpdate()
             }
 
             LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
-            try {
-                TDelayedExecutor::WaitForDuration(backoff);
-            } catch (const std::exception& ex) {
-                return;
-            }
+            TDelayedExecutor::WaitForDuration(backoff);
+
             if (backoff < Config_->MaxProxyListRetryPeriod) {
                 backoff *= 1.2;
             }

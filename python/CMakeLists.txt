@@ -91,7 +91,6 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       -DPYCXX_PYTHON_2TO3
       -DPYCXX_6_2_COMPATIBILITY
       -DPy_LIMITED_API=0x03040000)
-
 endforeach()
 
 add_subdirectory(common)

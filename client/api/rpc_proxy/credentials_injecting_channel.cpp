@@ -60,13 +60,9 @@ public:
     TTokenInjectingChannel(
         IChannelPtr underlyingChannel,
         const TString& user,
-        const TString& token,
-        // COMPAT(babenko)
-        const TString& userIP)
+        const TString& token)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
         , Token_(token)
-        // COMPAT(babenko)
-        , UserIP_(userIP)
     { }
 
 protected:
@@ -76,29 +72,22 @@ protected:
 
         auto* ext = request->Header().MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         ext->set_token(Token_);
-        // COMPAT(babenko)
-        ext->set_user_ip(UserIP_);
     }
 
 private:
     const TString Token_;
-    const TString UserIP_;
 };
 
 IChannelPtr CreateTokenInjectingChannel(
     IChannelPtr underlyingChannel,
     const TString& user,
-    const TString& token,
-    // COMPAT(babenko)
-    const TString& userIP)
+    const TString& token)
 {
     YCHECK(underlyingChannel);
     return New<TTokenInjectingChannel>(
         std::move(underlyingChannel),
         user,
-        token,
-        // COMPAT(babenko)
-        userIP);
+        token);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
