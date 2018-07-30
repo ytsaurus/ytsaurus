@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 717;
+    return 717; // This version is fixed in 19.3. Please do master development in branch 19.4.
 }
 
 bool ValidateSnapshotVersion(int version)
