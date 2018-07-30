@@ -1,9 +1,12 @@
 from yt.common import to_native_str, YtError, which
 
-# COMPAT
-from yt.test_helpers import (are_almost_equal, wait, unorderable_list_difference,
-                             assert_items_equal, WaitFailed, Counter)
-assert_almost_equal = are_almost_equal
+# COMPAT for tests.
+try:
+    from yt.test_helpers import (are_almost_equal, wait, unorderable_list_difference,
+                                 assert_items_equal, WaitFailed, Counter)
+    assert_almost_equal = are_almost_equal
+except ImportError:
+    pass
 
 try:
     import yt.json_wrapper as json
