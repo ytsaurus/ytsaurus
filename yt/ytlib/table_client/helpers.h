@@ -5,6 +5,8 @@
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 
+#include <yt/client/chunk_client/public.h>
+
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/client/formats/format.h>
@@ -157,6 +159,10 @@ std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
 //! Helpers for updating columnar statistics with versioned and unversioned rows.
 void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row);
 void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

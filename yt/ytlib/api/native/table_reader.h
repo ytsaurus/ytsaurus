@@ -24,6 +24,14 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
+TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
+    IClientPtr client,
+    const NYPath::TRichYPath& richPath,
+    const TTableReaderOptions& options,
+    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     ITableReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
