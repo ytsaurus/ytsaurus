@@ -79,7 +79,7 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, Tablets_);
     Load(context, ClusterStatistics_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 718) {
+    if (context.GetVersion() >= 800) {
         Load(context, MulticellStatistics_);
     }
     Load(context, PrerequisiteTransaction_);

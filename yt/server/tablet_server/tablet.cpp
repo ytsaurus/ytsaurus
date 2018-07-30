@@ -53,7 +53,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 718) {
+    if (context.GetVersion() >= 800) {
         Persist(context, TabletCount);
     }
     // COMPAT(savrus)
@@ -71,7 +71,7 @@ void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceCont
     using NYT::Persist;
 
     // COMPAT(savrus)
-    if (context.GetVersion() >= 718) {
+    if (context.GetVersion() >= 800) {
         Persist(context, Decommissioned);
     }
 }
@@ -472,7 +472,7 @@ void TTablet::Load(TLoadContext& context)
         Load(context, ErrorCount_);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 718) {
+    if (context.GetVersion() >= 800) {
         Load(context, ExpectedState_);
     }
 }

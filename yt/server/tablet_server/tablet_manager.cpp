@@ -2931,7 +2931,7 @@ private:
             TabletActionMap_.LoadValues(context);
         }
         // COMPAT(savrus)
-        if (context.GetVersion() >= 718) {
+        if (context.GetVersion() >= 800) {
             Load(context, TableStatisticsUpdates_);
         }
 
@@ -2942,11 +2942,11 @@ private:
         // COMPAT(savrus)
         RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
         // COMPAT(savrus)
-        RecomputeTabletCellStatistics_ = (context.GetVersion() < 718);
+        RecomputeTabletCellStatistics_ = (context.GetVersion() < 800);
         // COMPAT(ifsmirnov)
         RecomputeTabletErrorCount_ = (context.GetVersion() < 715);
         // COMPAT(savrus)
-        RecomputeExpectedTabletStates_ = (context.GetVersion() < 718);
+        RecomputeExpectedTabletStates_ = (context.GetVersion() < 800);
     }
 
 

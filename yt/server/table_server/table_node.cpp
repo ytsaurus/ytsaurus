@@ -98,7 +98,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, TabletErrorCount);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 718) {
+    if (context.GetVersion() >= 800) {
         Load(context, ForcedCompactionRevision);
         Load(context, Dynamic);
         Load(context, MountPath);
@@ -386,7 +386,7 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 {
     //COMPAT(savrus)
-    if (context.GetVersion() < 718) {
+    if (context.GetVersion() < 800) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 

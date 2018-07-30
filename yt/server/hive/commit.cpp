@@ -88,7 +88,7 @@ void TCommit::Load(TLoadContext& context)
         CoordinatorCommitMode_ = NApi::ETransactionCoordinatorCommitMode::Eager;
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 718) {
+    if (context.GetVersion() >= 800) {
         Load(context, User_);
     } else {
         User_ = RootUserName;
