@@ -141,8 +141,12 @@ public:
     void MakeTableDynamic(NTableServer::TTableNode* table);
     void MakeTableStatic(NTableServer::TTableNode* table);
 
-    void SetTableReplicaEnabled(TTableReplica* replica, bool enabled);
-    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode);
+    void AlterTableReplica(
+        TTableReplica* replica,
+        TNullable<bool> enabled,
+        TNullable<ETableReplicaMode> mode,
+        TNullable<NTransactionClient::EAtomicity> atomicity,
+        TNullable<bool> preserveTimestamps);
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
@@ -197,6 +201,8 @@ private:
         const TString& clusterName,
         const NYPath::TYPath& replicaPath,
         ETableReplicaMode mode,
+        bool preserveTimestamps,
+        NTransactionClient::EAtomicity atomicity,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const TNullable<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);

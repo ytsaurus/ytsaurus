@@ -95,11 +95,12 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
         if mount:
             sync_mount_table(path)
 
-    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None, **kwargs):
+    def _create_replica_table(self, path, replica_id=None, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None, **kwargs):
         if not replica_driver:
             replica_driver = self.replica_driver
         attributes = self._get_table_attributes(schema)
-        attributes["upstream_replica_id"] = replica_id
+        if replica_id:
+            attributes["upstream_replica_id"] = replica_id
         attributes.update(kwargs)
         create("table", path, attributes=attributes, driver=replica_driver)
         if mount:
@@ -568,6 +569,63 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
             wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 3)
             wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 3)
+
+            after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
+            assert after_ts1 == after_ts2
+            assert after_ts1 > before_ts1
+
+        _do()
+
+        alter_table_replica(replica_id1, mode="async")
+        alter_table_replica(replica_id1, mode="sync")
+
+        _do()
+
+    def test_replication_unversioned(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async", "preserve_timestamps": "false"})
+        self._create_replica_table("//tmp/r1", replica_id1)
+        # self._create_replica_table("//tmp/r2", replica_id2)
+        self._create_replica_table("//tmp/r2")
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 1
+
+        def _do():
+            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
+            assert before_index1 == before_index2
+
+            before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            before_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
+            assert before_ts1 == before_ts2
+
+            insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
+            wait(lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}])
+
+            insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}], update=True)
+            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}]
+            wait(lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}])
+
+            insert_rows("//tmp/t", [{"key": 1, "value2": 456}], update=True)
+            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}]
+            wait(lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}])
+
+            delete_rows("//tmp/t", [{"key": 1}])
+            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == []
+            wait(lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver) == [])
+
+            insert_rows("//tmp/r2", [{"key": 2, "value2": 457}], update=True, driver=self.replica_driver)
+            wait(lambda: select_rows("* from [//tmp/r2] where key=2", driver=self.replica_driver) == [{"key": 2, "value1": YsonEntity(), "value2": 457}])
+
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 4)
 
             after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
             after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))

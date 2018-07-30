@@ -334,6 +334,12 @@ TFuture<void> TClient::AlterTableReplica(
     if (options.Mode) {
         req->set_mode(static_cast<NProto::ETableReplicaMode>(*options.Mode));
     }
+    if (options.PreserveTimestamps) {
+        req->set_preserve_timestamps(*options.PreserveTimestamps);
+    }
+    if (options.Atomicity) {
+        req->set_atomicity(static_cast<NProto::EAtomicity>(*options.Atomicity));
+    }
 
     return req->Invoke().As<void>();
 }

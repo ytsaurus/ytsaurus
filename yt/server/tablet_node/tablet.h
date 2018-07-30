@@ -37,6 +37,8 @@ struct TRuntimeTableReplicaData
     std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
     std::atomic<i64> PreparedReplicationRowIndex = {-1};
+    std::atomic<bool> PreserveTimestamps = {true};
+    std::atomic<NTransactionClient::EAtomicity> Atomicity = {NTransactionClient::EAtomicity::Full};
     TAtomicObject<TError> Error;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -254,6 +256,12 @@ public:
 
     ETableReplicaMode GetMode() const;
     void SetMode(ETableReplicaMode value);
+
+    NTransactionClient::EAtomicity GetAtomicity() const;
+    void SetAtomicity(NTransactionClient::EAtomicity value);
+
+    bool GetPreserveTimestamps() const;
+    void SetPreserveTimestamps(bool value);
 
     i64 GetCurrentReplicationRowIndex() const;
     void SetCurrentReplicationRowIndex(i64 value);

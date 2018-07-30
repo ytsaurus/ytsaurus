@@ -6,6 +6,8 @@ message TReqAlter
 {
     optional bool enabled = 1;
     optional int32 mode = 2; // ETableReplicaMode
+    optional bool preserve_timestamps = 3;
+    optional int32 atomicity = 4; // EAtomicity
 }
 
 message TRspAlter

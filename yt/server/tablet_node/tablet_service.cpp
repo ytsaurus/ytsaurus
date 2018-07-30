@@ -126,16 +126,20 @@ private:
                 NSecurityClient::ReplicatorUserName);
         }
 
-        if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
-            THROW_ERROR_EXCEPTION("Table is not bound to any upstream replica but replica %v was given",
-                upstreamReplicaId);
-        } else if (!upstreamReplicaId && tabletSnapshot->UpstreamReplicaId) {
-            THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
-                tabletSnapshot->UpstreamReplicaId);
-        } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
-            THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
-                tabletSnapshot->UpstreamReplicaId,
-                upstreamReplicaId);
+        auto checkUpstreamReplicaId = versioned || tabletSnapshot->UpstreamReplicaId;
+
+        if (checkUpstreamReplicaId) {
+            if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
+                THROW_ERROR_EXCEPTION("Table is not bound to any upstream replica but replica %v was given",
+                    upstreamReplicaId);
+            } else if (!upstreamReplicaId && tabletSnapshot->UpstreamReplicaId) {
+                THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
+                    tabletSnapshot->UpstreamReplicaId);
+            } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
+                THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                    tabletSnapshot->UpstreamReplicaId,
+                    upstreamReplicaId);
+            }
         }
 
         securityManager->ValidateResourceLimits(

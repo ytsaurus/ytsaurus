@@ -208,6 +208,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaMode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
     }
 
     void Initialize()
@@ -1800,7 +1801,7 @@ private:
         RemoveTableReplica(tablet, replicaId);
     }
 
-
+    // COMPAT(aozeritsky)
     void HydraSetTableReplicaEnabled(TReqSetTableReplicaEnabled* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1823,6 +1824,7 @@ private:
         }
     }
 
+    // COMPAT(aozeritsky)
     void HydraSetTableReplicaMode(TReqSetTableReplicaMode* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1845,6 +1847,59 @@ private:
             mode);
 
         replicaInfo->SetMode(mode);
+    }
+
+    void HydraAlterTableReplica(TReqAlterTableReplica* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
+        auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
+        auto atomicity = request->has_atomicity()
+            ? MakeNullable(NTransactionClient::EAtomicity(request->atomicity()))
+            : Null;
+        auto preserveTimestamps = request->has_preserve_timestamps()
+            ? MakeNullable(request->preserve_timestamps())
+            : Null;
+
+
+        if (enabled) {
+            if (*enabled) {
+                EnableTableReplica(tablet, replicaInfo);
+            } else {
+                DisableTableReplica(tablet, replicaInfo);
+            }
+        }
+
+        if (mode) {
+            replicaInfo->SetMode(*mode);
+        }
+
+        if (atomicity) {
+            replicaInfo->SetAtomicity(*atomicity);
+        }
+
+        if (preserveTimestamps) {
+            replicaInfo->SetPreserveTimestamps(*preserveTimestamps);
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica updated (TabletId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+            tablet->GetId(),
+            replicaInfo->GetId(),
+            enabled,
+            mode,
+            atomicity,
+            preserveTimestamps);
     }
 
     void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
@@ -3143,6 +3198,12 @@ private:
         replicaInfo.SetStartReplicationTimestamp(descriptor.start_replication_timestamp());
         replicaInfo.SetState(ETableReplicaState::Disabled);
         replicaInfo.SetMode(ETableReplicaMode(descriptor.mode()));
+        if (descriptor.has_atomicity()) {
+            replicaInfo.SetAtomicity(NTransactionClient::EAtomicity(descriptor.atomicity()));
+        }
+        if (descriptor.has_preserve_timestamps()) {
+            replicaInfo.SetPreserveTimestamps(descriptor.preserve_timestamps());
+        }
         replicaInfo.MergeFromStatistics(descriptor.statistics());
 
         tablet->UpdateReplicaCounters();

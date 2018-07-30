@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 801;
+    return 802;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -79,7 +79,8 @@ bool ValidateSnapshotVersion(int version)
         version == 716 || // savrus: Add dynamic tablet cell options
         version == 717 || // aozeritsky: Add replicated table options
         version == 800 || // savrus: Multicell for dynamic tables
-        version == 801;   // savrus: Make tablet_state backward-compatible
+        version == 801 || // savrus: Make tablet_state backward-compatible
+        version == 802;   // aozeritsky: Add replica options
 }
 
 ////////////////////////////////////////////////////////////////////////////////

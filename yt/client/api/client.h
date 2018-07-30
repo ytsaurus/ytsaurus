@@ -195,6 +195,8 @@ struct TAlterTableReplicaOptions
 {
     TNullable<bool> Enabled;
     TNullable<NTabletClient::ETableReplicaMode> Mode;
+    TNullable<bool> PreserveTimestamps;
+    TNullable<NTransactionClient::EAtomicity> Atomicity;
 };
 
 struct TGetInSyncReplicasOptions

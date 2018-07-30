@@ -891,6 +891,10 @@ TAlterTableReplicaCommand::TAlterTableReplicaCommand()
         .Optional();
     RegisterParameter("mode", Options.Mode)
         .Optional();
+    RegisterParameter("preserve_timestamps", Options.PreserveTimestamps)
+        .Optional();
+    RegisterParameter("atomicity", Options.Atomicity)
+        .Optional();
 }
 
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
