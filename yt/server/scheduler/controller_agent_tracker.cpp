@@ -996,7 +996,8 @@ public:
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
                         auto treeId = protoEvent->tentative_tree_id();
-                        scheduler->OnOperationBannedInTentativeTree(operation, treeId);
+                        auto jobIds = FromProto<std::vector<TJobId>>(protoEvent->tentative_tree_job_ids());
+                        scheduler->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
                         break;
                     }
                     default:

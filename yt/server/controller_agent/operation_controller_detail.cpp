@@ -1929,7 +1929,10 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
     if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(joblet->TreeId);
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
     }
 
     if (JobSplitter_) {
@@ -6131,6 +6134,19 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
+}
+    
+std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
+{
+    std::vector<TJobId> jobIds;
+    for (const auto& pair : JobletMap) {
+        const auto& jobId = pair.first;
+        const auto& joblet = pair.second;
+        if (joblet->TreeId == treeId) {
+            jobIds.push_back(jobId);
+        }
+    }
+    return jobIds;
 }
 
 void TOperationControllerBase::SetProgressUpdated()

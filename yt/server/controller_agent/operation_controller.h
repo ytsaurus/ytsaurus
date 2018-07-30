@@ -232,7 +232,7 @@ struct IOperationControllerHost
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
-    virtual void OnOperationBannedInTentativeTree(const TString& treeId) = 0;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) = 0;
 
     virtual void ValidateOperationPermission(
         const TString& user,
