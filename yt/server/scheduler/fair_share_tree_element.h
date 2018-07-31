@@ -210,6 +210,10 @@ public:
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
+    virtual bool IsRoot() const;
+
+    virtual TString GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const;
+
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
@@ -276,6 +280,8 @@ public:
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
+    double ComputeLocalSatisfactionRatio() const;
+
 private:
     TSchedulerElementSharedStatePtr SharedState_;
 
@@ -290,8 +296,6 @@ protected:
 
     ISchedulerStrategyHost* GetHost() const;
 
-    double ComputeLocalSatisfactionRatio() const;
-
     ESchedulableStatus GetStatus(double defaultTolerance) const;
 
     void CheckForStarvationImpl(
@@ -304,6 +308,8 @@ protected:
         EOperationAlertType alertType,
         const TError& alert,
         TNullable<TDuration> timeout);
+
+    TString GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const;
 
 private:
     void UpdateAttributes();
@@ -368,7 +374,6 @@ public:
 
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
-    virtual bool IsRoot() const;
     virtual bool IsExplicit() const;
     virtual bool IsAggressiveStarvationEnabled() const;
 
@@ -531,6 +536,15 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EOperationPreemptionStatus,
+    (Allowed)
+    (ForbiddenSinceStarvingParent)
+    (ForbiddenSinceUnsatisfiedParent)
+    (ForbiddenSinceLowJobCount)
+);
+
+using TPreemptionStatusStatisticsVector = TEnumIndexedVector<int, EOperationPreemptionStatus>;
+
 class TOperationElementSharedState
     : public TIntrinsicRefCounted
 {
@@ -558,6 +572,9 @@ public:
 
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
+
+    void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
+    TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
     TJobResources Disable();
     void Enable();
@@ -646,12 +663,13 @@ private:
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
-    std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
-    int UpdatePreemptableJobsListLoggingPeriod_;
-    std::atomic<int> RunningJobCount_ = {0};
 
+    std::atomic<int> RunningJobCount_ = {0};
     TJobResources NonpreemptableResourceUsage_;
     TJobResources AggressivelyPreemptableResourceUsage_;
+
+    std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
+    int UpdatePreemptableJobsListLoggingPeriod_;
 
     struct TJobProperties
     {
@@ -680,6 +698,9 @@ private:
 
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
+
+    TSpinLock PreemptionStatusStatisticsLock_;
+    TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
     bool Enabled_ = false;
 
@@ -727,6 +748,8 @@ public:
 
     virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
+    virtual TString GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const override;
+
     virtual TString GetId() const override;
 
     bool IsSchedulable() const;
@@ -744,7 +767,7 @@ public:
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
-    bool IsPreemptionAllowed(const TFairShareContext& context) const;
+    bool IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const;
 
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
@@ -757,6 +780,8 @@ public:
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
+
+    TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
     int GetSlotIndex() const;
 

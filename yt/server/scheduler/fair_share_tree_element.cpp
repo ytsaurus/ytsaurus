@@ -304,6 +304,43 @@ const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
     return EmptySchedulingTagFilter;
 }
 
+bool TSchedulerElement::IsRoot() const
+{
+    return false;
+}
+
+TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const
+{
+    TDynamicAttributes dynamicAttributes;
+    auto treeIndex = GetTreeIndex();
+    if (treeIndex != UnassignedTreeIndex) {
+        dynamicAttributes = dynamicAttributesList[treeIndex];
+    }
+
+    return Format(
+        "Status: %v, DominantResource: %v, Demand: %.6lf, "
+        "Usage: %.6lf, FairShare: %.6lf, Satisfaction: %.4lg, AdjustedMinShare: %.6lf, "
+        "GuaranteedResourcesRatio: %.6lf, MaxPossibleUsage: %.6lf,  BestAllocation: %.6lf, "
+        "Starving: %v, Weight: %v",
+        GetStatus(),
+        Attributes_.DominantResource,
+        Attributes_.DemandRatio,
+        GetLocalResourceUsageRatio(),
+        Attributes_.FairShareRatio,
+        dynamicAttributes.SatisfactionRatio,
+        Attributes_.AdjustedMinShareRatio,
+        Attributes_.GuaranteedResourcesRatio,
+        Attributes_.MaxPossibleUsageRatio,
+        Attributes_.BestAllocationRatio,
+        GetStarving(),
+        GetWeight());
+}
+
+TString TSchedulerElement::GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const
+{
+    return Format("Scheduling info for tree %Qv = {%v}", GetTreeId(), GetLoggingAttributesString(dynamicAttributesList));
+}
+
 bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
 {
     return dynamicAttributesList[GetTreeIndex()].Active;
@@ -928,11 +965,6 @@ void TCompositeSchedulerElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
         currentElement->ApplyJobMetricsDeltaLocal(delta);
         currentElement = currentElement->GetParent();
     }
-}
-
-bool TCompositeSchedulerElement::IsRoot() const
-{
-    return false;
 }
 
 bool TCompositeSchedulerElement::IsExplicit() const
@@ -1764,19 +1796,33 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
 
     PreemptableJobs_.push_back(jobId);
 
-    auto it = JobPropertiesMap_.insert(std::make_pair(
+    auto it = JobPropertiesMap_.emplace(
         jobId,
         TJobProperties(
             /* preemptable */ true,
             /* aggressivelyPreemptable */ true,
             --PreemptableJobs_.end(),
-            ZeroJobResources())));
+            ZeroJobResources()));
     YCHECK(it.second);
 
     ++RunningJobCount_;
 
     IncreaseJobResourceUsage(&it.first->second, resourceUsage);
     return resourceUsage;
+}
+
+void TOperationElementSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
+{
+    auto guard = Guard(PreemptionStatusStatisticsLock_);
+
+    PreemptionStatusStatistics_[status] += 1;
+}
+
+TPreemptionStatusStatisticsVector TOperationElementSharedState::GetPreemptionStatusStatistics() const
+{
+    auto guard = Guard(PreemptionStatusStatisticsLock_);
+
+    return PreemptionStatusStatistics_;
 }
 
 void TOperationElement::Disable()
@@ -2084,6 +2130,18 @@ bool TOperationElement::HasAggressivelyStarvingNodes(TFairShareContext* context,
     return false;
 }
 
+TString TOperationElement::GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const
+{
+    return Format(
+        "Scheduling info for tree %Qv = {%v, "
+        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v}",
+        GetTreeId(),
+        GetLoggingAttributesString(dynamicAttributesList),
+        GetPreemptableJobCount(),
+        GetAggressivelyPreemptableJobCount(),
+        GetPreemptionStatusStatistics());
+}
+
 bool TOperationElement::ScheduleJob(TFairShareContext* context)
 {
     YCHECK(IsActive(context->DynamicAttributesList));
@@ -2257,25 +2315,39 @@ void TOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context) const
+bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const
 {
-    auto* parent = GetParent();
-
-    while (parent) {
-        if (parent->GetStarving()) {
-            return false;
-        }
-
-        if (!parent->IsRoot() &&
-            context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
-            (!parent->IsAggressiveStarvationPreemptionAllowed() || !IsAggressiveStarvationPreemptionAllowed()))
-        {
-            return false;
-        }
-
-        parent = parent->GetParent();
+    int jobCount = GetRunningJobCount();
+    if (jobCount <= config->MaxUnpreemptableRunningJobCount) {
+        SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
+        return false;
     }
 
+    const TSchedulerElement* element = this;
+
+    while (element && !element->IsRoot()) {
+        if (element->GetStarving()) {
+            SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParent);
+            return false;
+        }
+
+        bool aggressivePreemptionEnabled = context.SchedulingStatistics.HasAggressivelyStarvingNodes &&
+            element->IsAggressiveStarvationPreemptionAllowed() &&
+            IsAggressiveStarvationPreemptionAllowed();
+        auto threshold = aggressivePreemptionEnabled
+            ? config->AggressivePreemptionSatisfactionThreshold
+            : config->PreemptionSatisfactionThreshold;
+
+        // NB: we want to use <s>local</s> satisfaction here.
+        if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
+            SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParent);
+            return false;
+        }
+
+        element = element->GetParent();
+    }
+
+    SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::Allowed);
     return true;
 }
 
@@ -2316,6 +2388,11 @@ int TOperationElement::GetPreemptableJobCount() const
 int TOperationElement::GetAggressivelyPreemptableJobCount() const
 {
     return SharedState_->GetAggressivelyPreemptableJobCount();
+}
+
+TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatistics() const
+{
+    return SharedState_->GetPreemptionStatusStatistics();
 }
 
 int TOperationElement::GetSlotIndex() const

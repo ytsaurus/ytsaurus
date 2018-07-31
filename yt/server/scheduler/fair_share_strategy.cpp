@@ -651,39 +651,6 @@ public:
             });
     }
 
-    TString GetOperationLoggingProgress(const TOperationId& operationId)
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        const auto& element = GetOperationElement(operationId);
-        const auto& attributes = element->Attributes();
-        auto dynamicAttributes = GetGlobalDynamicAttributes(element);
-
-        return Format(
-            "Scheduling info for tree %v = {Status: %v, DominantResource: %v, Demand: %.6lf, "
-            "Usage: %.6lf, FairShare: %.6lf, Satisfaction: %.4lg, AdjustedMinShare: %.6lf, "
-            "GuaranteedResourcesRatio: %.6lf, "
-            "MaxPossibleUsage: %.6lf,  BestAllocation: %.6lf, "
-            "Starving: %v, Weight: %v, "
-            "PreemptableRunningJobs: %v, "
-            "AggressivelyPreemptableRunningJobs: %v}",
-            TreeId,
-            element->GetStatus(),
-            attributes.DominantResource,
-            attributes.DemandRatio,
-            element->GetLocalResourceUsageRatio(),
-            attributes.FairShareRatio,
-            dynamicAttributes.SatisfactionRatio,
-            attributes.AdjustedMinShareRatio,
-            attributes.GuaranteedResourcesRatio,
-            attributes.MaxPossibleUsageRatio,
-            attributes.BestAllocationRatio,
-            element->GetStarving(),
-            element->GetWeight(),
-            element->GetPreemptableJobCount(),
-            element->GetAggressivelyPreemptableJobCount());
-    }
-
     // NB: This function is public for testing purposes.
     TError OnFairShareUpdateAt(TInstant now)
     {
@@ -754,6 +721,28 @@ public:
         }
     }
 
+    void LogOperationsInfo()
+    {
+        for (const auto& pair : OperationIdToElement) {
+            const auto& operationId = pair.first;
+            const auto& element = pair.second;
+            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                element->GetLoggingString(GlobalDynamicAttributes_),
+                operationId);
+        }
+    }
+
+    void LogPoolsInfo()
+    {
+        for (const auto& pair : Pools) {
+            const auto& poolName = pair.first;
+            const auto& pool = pair.second;
+            LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
+                pool->GetLoggingString(GlobalDynamicAttributes_),
+                poolName);
+        }
+    }
+
     // NB: This function is public for testing purposes.
     void OnFairShareLoggingAt(TInstant now)
     {
@@ -765,12 +754,7 @@ public:
                 .Item("tree_id").Value(TreeId)
                 .Do(BIND(&TFairShareTree::BuildFairShareInfo, Unretained(this)));
 
-            for (const auto& pair : OperationIdToElement) {
-                const auto& operationId = pair.first;
-                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    GetOperationLoggingProgress(operationId),
-                    operationId);
-            }
+            LogOperationsInfo();
         }
     }
 
@@ -779,18 +763,13 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        PROFILE_TIMING ("/fair_share_log_time") {
+        PROFILE_AGGREGATED_TIMING(FairShareLogTimeCounter) {
             // Log pools information.
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Item("tree_id").Value(TreeId)
                 .Do(BIND(&TFairShareTree::BuildEssentialFairShareInfo, Unretained(this)));
 
-            for (const auto& pair : OperationIdToElement) {
-                const auto& operationId = pair.first;
-                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    GetOperationLoggingProgress(operationId),
-                    operationId);
-            }
+            LogOperationsInfo();
         }
     }
 
@@ -1167,11 +1146,13 @@ private:
                     continue;
                 }
 
-                if (!operationElement->IsPreemptionAllowed(*context)) {
+                if (!operationElement->IsPreemptionAllowed(*context, config)) {
                     continue;
                 }
 
-                if (IsJobPreemptable(job, operationElement, context->SchedulingStatistics.HasAggressivelyStarvingNodes, config)) {
+                bool aggressivePreemptionEnabled = context->SchedulingStatistics.HasAggressivelyStarvingNodes &&
+                    operationElement->IsAggressiveStarvationPreemptionAllowed();
+                if (operationElement->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
                     auto* parent = operationElement->GetParent();
                     while (parent) {
                         discountedPools.insert(parent);
@@ -1415,35 +1396,6 @@ private:
         }
 
         schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
-    }
-
-    bool IsJobPreemptable(
-        const TJobPtr& job,
-        const TOperationElementPtr& element,
-        bool aggressivePreemptionEnabled,
-        const TFairShareStrategyTreeConfigPtr& config) const
-    {
-        int jobCount = element->GetRunningJobCount();
-        if (jobCount <= config->MaxUnpreemptableRunningJobCount) {
-            return false;
-        }
-
-        aggressivePreemptionEnabled = aggressivePreemptionEnabled && element->IsAggressiveStarvationPreemptionAllowed();
-
-        double usageRatio = element->GetLocalResourceUsageRatio();
-        const auto& attributes = element->Attributes();
-        auto threshold = aggressivePreemptionEnabled
-            ? config->AggressivePreemptionSatisfactionThreshold
-            : config->PreemptionSatisfactionThreshold;
-        if (usageRatio < attributes.FairShareRatio * threshold) {
-            return false;
-        }
-
-        if (!element->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
-            return false;
-        }
-
-        return true;
     }
 
     void PreemptJob(
@@ -2492,23 +2444,6 @@ public:
                 operation->GetId(),
                 treeParams);
         }
-    }
-
-    virtual TString GetOperationLoggingProgress(const TOperationId& operationId) override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        std::vector<TString> progressParts;
-
-        const auto& state = GetOperationState(operationId);
-        const auto& pools = state->TreeIdToPoolIdMap();
-
-        for (const auto& pair : pools) {
-            const auto& treeId = pair.first;
-            progressParts.push_back(GetTree(treeId)->GetOperationLoggingProgress(operationId));
-        }
-
-        return JoinToString(progressParts.begin(), progressParts.end(), AsStringBuf("; "));
     }
 
     virtual void BuildOrchid(TFluentMap fluent) override
