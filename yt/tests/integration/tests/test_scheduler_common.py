@@ -3476,6 +3476,8 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6 and
                      get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 15 * 10**6)
 
+        assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 15 * 10**6
+
         op.track()
 
         time.sleep(5)

@@ -3514,6 +3514,7 @@ private:
         "finish_time",
         "result",
         "events",
+        "memory_usage",
     };
 
     template <typename TOutputIt>
@@ -3648,10 +3649,14 @@ private:
             }
         }
 
-        bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
-        bool shouldRequestBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
+        std::vector<std::pair<TString, bool>> runtimeAttributes ={
+            /* {Name, ShouldRequestFromScheduler} */
+            {"progress", true},
+            {"brief_progress", false},
+            {"memory_usage", false}
+        };
 
-        if (options.IncludeRuntime && (shouldRequestProgress || shouldRequestBriefProgress)) {
+        if (options.IncludeRuntime) {
             auto batchReq = proxy->ExecuteBatch();
 
             auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
@@ -3666,46 +3671,46 @@ private:
                 }
             };
 
-            if (shouldRequestProgress) {
-                addProgressAttributeRequest("progress", /* shouldRequestFromScheduler */ true);
+            for (const auto& attribute : runtimeAttributes) {
+                if (!options.Attributes || options.Attributes->has(attribute.first)) {
+                    addProgressAttributeRequest(attribute.first, attribute.second);
+                }
             }
-            if (shouldRequestBriefProgress) {
-                addProgressAttributeRequest("brief_progress", /* shouldRequestFromScheduler */ false);
-            }
 
-            auto batchRsp = WaitFor(batchReq->Invoke())
-                .ValueOrThrow();
+            if (batchReq->GetSize() != 0) {
+                auto batchRsp = WaitFor(batchReq->Invoke())
+                    .ValueOrThrow();
 
-            auto handleProgressAttributeRequest = [&] (const TString& attribute) {
-                INodePtr progressAttributeNode;
+                auto handleProgressAttributeRequest = [&] (const TString& attribute) {
+                    INodePtr progressAttributeNode;
 
-                auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
-                for (const auto& rsp : responses) {
-                    if (rsp.IsOK()) {
-                        auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
-                        if (!progressAttributeNode) {
-                            progressAttributeNode = node;
+                    auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
+                    for (const auto& rsp : responses) {
+                        if (rsp.IsOK()) {
+                            auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                            if (!progressAttributeNode) {
+                                progressAttributeNode = node;
+                            } else {
+                                progressAttributeNode = PatchNode(progressAttributeNode, node);
+                            }
                         } else {
-                            progressAttributeNode = PatchNode(progressAttributeNode, node);
+                            if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                                THROW_ERROR rsp;
+                            }
                         }
-                    } else {
-                        if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                            THROW_ERROR rsp;
+
+                        if (progressAttributeNode) {
+                            attrNode->RemoveChild(attribute);
+                            YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
                         }
                     }
+                };
 
-                    if (progressAttributeNode) {
-                        attrNode->RemoveChild(attribute);
-                        YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
+                for (const auto& attribute : runtimeAttributes) {
+                    if (!options.Attributes || options.Attributes->has(attribute.first)) {
+                        handleProgressAttributeRequest(attribute.first);
                     }
                 }
-            };
-
-            if (shouldRequestProgress) {
-                handleProgressAttributeRequest("progress");
-            }
-            if (shouldRequestBriefProgress) {
-                handleProgressAttributeRequest("brief_progress");
             }
         }
 
@@ -3724,6 +3729,8 @@ private:
         if (DoGetOperationsArchiveVersion() < 22) {
             fields.erase("runtime_parameters");
         }
+        // Ignoring memory_usage in archive.
+        fields.erase("memory_usage");
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
