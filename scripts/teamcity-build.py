@@ -570,7 +570,7 @@ def run_sandbox_upload(options, build_context):
             sky_get(NODEJS_RESOURCE)
             nodejs_path = os.path.realpath("node")
             if not os.path.exists(nodejs_path):
-                raise RuntimeError("nodejs resource doesn't contain resource.tar.gz file")
+                raise RuntimeError("nodejs resource does not contain 'node' directory")
         with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
             tar.add(nodejs_build, arcname="/node_modules", recursive=True)
             tar.add(nodejs_path, arcname="/node", recursive=True)
