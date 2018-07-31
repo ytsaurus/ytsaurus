@@ -666,6 +666,8 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
+    TNullable<i64> TotalControllerMemoryLimit;
+
     TControllerAgentConfig();
 
 private:
