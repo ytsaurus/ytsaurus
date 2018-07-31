@@ -181,10 +181,9 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
     if (auto typeNode = mapNode.FindPtr("type")) {
         result.Type = FromString<EOperationType>(typeNode->AsString());
     } else if (auto operationTypeNode = mapNode.FindPtr("operation_type")) {
-        Y_UNUSED(operationTypeNode);
         // COMPAT(levysotsky): "operation_type" is a deprecated synonim for "type".
         // This branch should be removed when all clusters are updated.
-        result.Type = FromString<EOperationType>(typeNode->AsString());
+        result.Type = FromString<EOperationType>(operationTypeNode->AsString());
     }
 
     if (auto stateNode = mapNode.FindPtr("state")) {
