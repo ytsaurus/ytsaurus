@@ -107,6 +107,11 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, LastMountTransactionId);
         Load(context, TabletCountByExpectedState);
     }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() < 800) {
+        Dynamic = !Tablets.empty();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
