@@ -42,8 +42,10 @@ std::vector<dl_phdr_info>* PhdrCache;
 } // namespace NYT
 
 extern "C"
+#ifndef __clang__
 [[gnu::visibility("default")]]
 [[gnu::externally_visible]]
+#endif
 int dl_iterate_phdr(int (*callback) (struct dl_phdr_info* info, size_t size, void* data), void* data)
 {
     using namespace NYT::NPhdrCache;
