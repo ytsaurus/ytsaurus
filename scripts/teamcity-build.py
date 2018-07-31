@@ -39,6 +39,8 @@ import urllib3
 urllib3.disable_warnings()
 import requests
 
+NODEJS_RESOURCE = "sbr:629132696"
+
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
     from releaselib.sandbox import client as sandbox_client
@@ -317,6 +319,12 @@ def import_yt_wrapper(options, build_context):
     yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
     build_context["yt.wrapper"] = yt.wrapper
 
+def sky_get(resource):
+    run(
+        ["sky", "get", resource],
+        timeout=100
+    )
+
 def sky_share(resource, cwd):
     run_result = run(
         ["sky", "share", resource],
@@ -552,12 +560,20 @@ def run_sandbox_upload(options, build_context):
             os.path.dirname(binary_distribution_folder))
     sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
 
+    tmp_dir = os.path.join(options.working_directory, "tmp_package_build")
+    mkdirp(tmp_dir)
     # Nodejs package
     if options.build_system == "cmake":
         nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
         nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
+        with cwd(tmp_dir):
+            sky_get(NODEJS_RESOURCE)
+            nodejs_path = os.path.realpath("node")
+            if not os.path.exists(nodejs_path):
+                raise RuntimeError("nodejs resource doesn't contain resource.tar.gz file")
         with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
             tar.add(nodejs_build, arcname="/node_modules", recursive=True)
+            tar.add(nodejs_path, arcname="/node", recursive=True)
 
         rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
@@ -566,8 +582,6 @@ def run_sandbox_upload(options, build_context):
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
         yt_http_proxy_package = os.path.join(options.checkout_directory, "yt/packages/yandex-yt-http-proxy.json")
 
-        tmp_dir = os.path.join(options.working_directory, "tmp_package_build")
-        mkdirp(tmp_dir)
         with cwd(tmp_dir):
             args = [
                 get_ya(options),
@@ -581,10 +595,10 @@ def run_sandbox_upload(options, build_context):
             generated_package_list = glob.glob("*.tar")
             assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
             os.rename(generated_package_list[0], ya_nodejs_tar)
-        shutil.rmtree(tmp_dir)
 
         rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
+    shutil.rmtree(tmp_dir)
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
