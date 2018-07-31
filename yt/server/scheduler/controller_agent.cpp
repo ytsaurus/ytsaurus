@@ -130,6 +130,20 @@ const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
     return CancelableInvoker_;
 }
 
+TNullable<TControllerAgentMemoryStatistics> TControllerAgent::GetMemoryStatistics()
+{
+    auto guard = Guard(MemoryStatisticsLock_);
+
+    return MemoryStatistics_;
+}
+
+void TControllerAgent::SetMemoryStatistics(TControllerAgentMemoryStatistics memoryStatistics)
+{
+    auto guard = Guard(MemoryStatisticsLock_);
+
+    MemoryStatistics_ = memoryStatistics;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

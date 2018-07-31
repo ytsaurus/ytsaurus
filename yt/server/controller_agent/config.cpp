@@ -564,6 +564,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("total_controller_memory_limit", TotalControllerMemoryLimit)
+        .Default();
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
