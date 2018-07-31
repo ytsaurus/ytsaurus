@@ -42,7 +42,11 @@ message TPodStatus
     required NYP.NClient.NApi.NProto.EPodCurrentState current_state = 2;
 
     // If given, contains the error occurred during pod lifecycle at agent.
-    optional NYT.NProto.TError error = 3;
+    optional NYT.NProto.TError execution_error = 3;
+
+    // List of validation errors for latest pod spec.
+    // May be non-empty even if payload field is set if the agent is maintaining an older valid version.
+    repeated NYT.NProto.TError validation_errors = 5;
 }
 
 message TPodSpec
