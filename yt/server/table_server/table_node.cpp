@@ -568,7 +568,9 @@ void TTableNode::ValidateExpectedTabletState(const TString& message, bool allowF
     const auto* trunkTable = GetTrunkNode();
     auto state = trunkTable->GetExpectedTabletState();
     if (!(state == ETabletState::Unmounted || (allowFrozen && state == ETabletState::Frozen))) {
-        THROW_ERROR_EXCEPTION("%v since not all tablets are frozen or unmounted", message)
+        THROW_ERROR_EXCEPTION("%v since not all tablets are %v",
+            message,
+            allowFrozen ? "frozen or unmounted" : "unmounted")
             << TErrorAttribute("tablet_state", trunkTable->GetTabletState())
             << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
     }
