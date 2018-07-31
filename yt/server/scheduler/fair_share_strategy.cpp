@@ -18,6 +18,8 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
+#include <util/string/split.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -35,6 +37,29 @@ using namespace NControllerAgent;
 static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TPoolName {
+    TPoolName() {}
+    explicit TPoolName(TString pool) : Pool(std::move(pool)) {}
+    TPoolName(TString pool, TString parent) : Pool(std::move(pool)), ParentPool(std::move(parent)) {}
+    TString Pool;
+    TNullable<TString> ParentPool;
+
+    static const char DELIMITER = '|';
+
+    static TPoolName Parse(const TString& raw, const TString& defaultPool) {
+        std::vector<TString> parts;
+        SplitStringTo(raw, DELIMITER, &parts);
+        switch (parts.size()) {
+            case 1:
+                return TPoolName(raw);
+            case 2:
+                return TPoolName(parts[1].empty() ? parts[0] + DELIMITER + defaultPool : raw, parts[0]);
+            default:
+                THROW_ERROR_EXCEPTION("Cannot parse pool from %Qv.", raw);
+        }
+    }
+};
 
 namespace {
 
@@ -70,7 +95,7 @@ class TFairShareStrategyOperationState
     : public TIntrinsicRefCounted
 {
 public:
-    using TTreeIdToPoolIdMap = THashMap<TString, TString>;
+    using TTreeIdToPoolIdMap = THashMap<TString, TPoolName>;
 
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
@@ -84,7 +109,7 @@ public:
         , Controller_(New<TFairShareStrategyOperationController>(host))
     { }
 
-    TString GetPoolIdByTreeId(const TString& treeId) const
+    TPoolName GetPoolIdByTreeId(const TString& treeId) const
     {
         auto it = TreeIdToPoolIdMap_.find(treeId);
         YCHECK(it != TreeIdToPoolIdMap_.end());
@@ -165,32 +190,32 @@ public:
         return New<TFairShareTreeSnapshot>(this, RootElementSnapshot, Logger);
     }
 
-    TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TString& poolId)
+    TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolPair)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         return BIND(&TFairShareTree::DoValidateOperationPoolsCanBeUsed, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
-            .Run(operation, poolId);
+            .Run(operation, poolPair);
     }
 
-    void ValidatePoolLimits(const IOperationStrategyHost* operation, const TString& poolId)
+    void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        ValidateOperationCountLimit(operation, poolId);
-        ValidateEphemeralPoolLimit(operation, poolId);
+        ValidateOperationCountLimit(operation, poolName);
+        ValidateEphemeralPoolLimit(operation, poolName);
     }
 
-    void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TString& newPoolId)
+    void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        ValidateEphemeralPoolLimit(operation, newPoolId);
-        ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolId);
+        ValidateEphemeralPoolLimit(operation, newPoolName);
+        ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolName);
     }
 
-    void ValidateAllOperationsCountsOnPoolChange(const TOperationId& operationId, const TString& newPoolId)
+    void ValidateAllOperationsCountsOnPoolChange(const TOperationId& operationId, const TPoolName& newPoolName)
     {
         auto operationElement = GetOperationElement(operationId);
         std::vector<TString> oldPools;
@@ -201,9 +226,13 @@ public:
         }
 
         std::vector<TString> newPools;
-        pool = FindPool(newPoolId).Get();
+        pool = FindPool(newPoolName.Pool).Get();
         if (!pool) {
-            pool = GetDefaultParent().Get();
+            if (newPoolName.ParentPool) {
+                pool = GetPool(newPoolName.ParentPool.Get()).Get();
+            } else {
+                pool = GetDefaultParent().Get();
+            }
         }
         while (pool) {
             newPools.push_back(pool->GetId());
@@ -262,9 +291,9 @@ public:
 
         YCHECK(OperationIdToElement.insert(std::make_pair(operationId, operationElement)).second);
 
-        auto poolId = state->GetPoolIdByTreeId(TreeId);
+        auto poolName = state->GetPoolIdByTreeId(TreeId);
 
-        if (!AttachOperation(state, operationElement, poolId)) {
+        if (!AttachOperation(state, operationElement, poolName)) {
             WaitingOperationQueue.push_back(operationId);
             return false;
         }
@@ -275,28 +304,32 @@ public:
     bool AttachOperation(
         const TFairShareStrategyOperationStatePtr& state,
         TOperationElementPtr& operationElement,
-        const TString& poolId)
+        const TPoolName& poolName)
     {
         auto operationId = state->GetHost()->GetId();
 
-        auto pool = FindPool(poolId);
+        auto pool = FindPool(poolName.Pool);
         if (!pool) {
             pool = New<TPool>(
                 Host,
-                poolId,
+                poolName.Pool,
                 New<TPoolConfig>(),
                 /* defaultConfigured */ true,
                 Config,
-                GetPoolProfilingTag(poolId),
+                GetPoolProfilingTag(poolName.Pool),
                 TreeId);
 
             const auto& userName = state->GetHost()->GetAuthenticatedUser();
             pool->SetUserName(userName);
-            UserToEphemeralPools[userName].insert(poolId);
+            UserToEphemeralPools[userName].insert(poolName.Pool);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
-            SetPoolDefaultParent(pool);
+            if (poolName.ParentPool) {
+                SetPoolParent(pool, GetPool(poolName.ParentPool.Get()));
+            } else {
+                SetPoolDefaultParent(pool);
+            }
         }
 
         pool->IncreaseOperationCount(1);
@@ -305,7 +338,7 @@ public:
         pool->IncreaseHierarchicalResourceUsage(operationElement->GetLocalResourceUsage());
         operationElement->SetParent(pool.Get());
 
-        AllocateOperationSlotIndex(state, poolId);
+        AllocateOperationSlotIndex(state, poolName.Pool);
 
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(pool.Get());
         if (!violatedPool) {
@@ -551,7 +584,7 @@ public:
     bool ChangeOperationPool(
         const TOperationId& operationId,
         const TFairShareStrategyOperationStatePtr& state,
-        const TString& poolId)
+        const TPoolName& newPool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -560,13 +593,14 @@ public:
             THROW_ERROR_EXCEPTION("Operation element for operation %Qv not found", operationId);
         }
 
-        LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v)",
+        LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v, NewPoolParent: %v)",
             operationId,
             element->GetParent()->GetId(),
-            poolId);
+            newPool.Pool,
+            newPool.ParentPool);
 
         auto wasActive = DetachOperation(state, element);
-        YCHECK(AttachOperation(state, element, poolId));
+        YCHECK(AttachOperation(state, element, newPool));
         return wasActive;
     }
 
@@ -1913,11 +1947,15 @@ private:
         }
     }
 
-    void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TString& poolId)
+    void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
     {
-        TCompositeSchedulerElementPtr pool = FindPool(poolId);
+        TCompositeSchedulerElementPtr pool = FindPool(poolName.Pool);
         if (!pool) {
-            pool = GetDefaultParent();
+            if (poolName.ParentPool) {
+                pool = GetPool(poolName.ParentPool.Get());
+            } else {
+                pool = GetDefaultParent();
+            }
         }
 
         auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(pool);
@@ -1931,9 +1969,9 @@ private:
         }
     }
 
-    void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TString& poolId)
+    void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
     {
-        auto pool = FindPool(poolId);
+        auto pool = FindPool(poolName.Pool);
         if (pool) {
             return;
         }
@@ -1953,16 +1991,23 @@ private:
         }
     }
 
-    void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TString& poolId)
+    void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolPair)
     {
-        TCompositeSchedulerElementPtr pool = FindPool(poolId);
+        TCompositeSchedulerElementPtr pool = FindPool(poolPair.Pool);
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
-            THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolId);
+            THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolPair.Pool);
         }
 
         if (!pool) {
-            pool = GetDefaultParent();
+            if (poolPair.ParentPool) {
+                pool = FindPool(poolPair.ParentPool.Get());
+                if (!pool) {
+                    THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolPair.ParentPool);
+                }
+            } else {
+                pool = GetDefaultParent();
+            }
         }
 
         Host->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
@@ -2440,7 +2485,7 @@ public:
                 auto it = pools.find(*DefaultTreeId_);
                 if (it != pools.end()) {
                     fluent
-                        .Item("pool").Value(it->second);
+                        .Item("pool").Value(it->second.Pool);
                 }
             });
     }
@@ -2468,7 +2513,7 @@ public:
             auto newPoolIt = newPools.find(treeId);
             YCHECK(newPoolIt != newPools.end());
 
-            if (oldPool != newPoolIt->second) {
+            if (oldPool.Pool != newPoolIt->second.Pool) {
                 bool wasActive = GetTree(treeId)->ChangeOperationPool(operation->GetId(), state, newPoolIt->second);
                 if (!wasActive) {
                     ActivateOperations({operation->GetId()});
@@ -2644,7 +2689,7 @@ public:
 
     virtual void ValidateMaxRunningOperationsCountOnPoolChange(
         const IOperationStrategyHost* operation,
-        TOperationRuntimeParametersPtr runtimeParameters)
+        const TOperationRuntimeParametersPtr& runtimeParameters)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2876,9 +2921,9 @@ private:
         }
     }
 
-    THashMap<TString, TString> ParseOperationPools(
+    THashMap<TString, TPoolName> ParseOperationPools(
         const IOperationStrategyHost* operation,
-        TOperationRuntimeParametersPtr runtimeParams) const
+        const TOperationRuntimeParametersPtr& runtimeParams) const
     {
         auto spec = ParseSpec(operation);
 
@@ -2922,15 +2967,15 @@ private:
             allTrees.insert(allTrees.end(), presentedTentativePoolTrees.begin(), presentedTentativePoolTrees.end());
         }
 
-        THashMap<TString, TString> pools;
+        THashMap<TString, TPoolName> pools;
 
         for (const auto& treeId : allTrees) {
-            TString pool;
+            TPoolName pool;
             auto optionsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
             if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
-                pool = optionsIt->second->Pool.Get();
+                pool = TPoolName::Parse(optionsIt->second->Pool.Get(), operation->GetAuthenticatedUser());
             } else {
-                pool = operation->GetAuthenticatedUser();
+                pool = TPoolName(operation->GetAuthenticatedUser());
             }
             pools.emplace(treeId, pool);
         }
@@ -2938,7 +2983,7 @@ private:
         return pools;
     }
 
-    void ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, TOperationRuntimeParametersPtr runtimeParameters)
+    void ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TOperationRuntimeParametersPtr& runtimeParameters)
     {
         if (IdToTree_.empty()) {
             THROW_ERROR_EXCEPTION("Scheduler strategy does not have configured fair-share trees");
@@ -3020,7 +3065,7 @@ private:
 
         fluent
             .Item("scheduling_info_per_pool_tree")
-                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TString>& value) {
+                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TPoolName>& value) {
                     const auto& treeId = value.first;
                     fluent
                         .Item(treeId).BeginMap()
