@@ -3076,49 +3076,55 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        for (auto* tablet : table->Tablets()) {
+                if (!node->IsTrunk() ||
+                    (node->GetType() != EObjectType::Table && node->GetType() != EObjectType::ReplicatedTable))
+                {
+                    continue;
+                }
+
+                auto* table = node->As<TTableNode>();
+                if (!table->IsDynamic()) {
+                    continue;
+                }
+
+                for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
+                    if (table->TabletCountByState().IsDomainValue(state)) {
+                        table->MutableTabletCountByExpectedState()[state] = 0;
+                    }
+                }
+
+                for (auto* tablet : table->Tablets()) {
+                    ++table->MutableTabletCountByExpectedState()[tablet->GetExpectedState()];
+                }
+
+                for (auto* tablet : table->Tablets()) {
+                    if (auto* action = tablet->GetAction()) {
+                        tablet->SetExpectedState(action->GetFreeze()
+                            ? ETabletState::Frozen
+                            : ETabletState::Mounted);
+                        continue;
+                    }
+
+                    switch (tablet->GetState()) {
+                        case ETabletState::Mounting:
+                        case ETabletState::Mounted:
+                        case ETabletState::Unmounting:
+                        case ETabletState::Unfreezing:
+                        case ETabletState::Freezing:
+                            tablet->SetExpectedState(ETabletState::Mounted);
+                            break;
+
+                        case ETabletState::Frozen:
+                        case ETabletState::FrozenMounting:
+                            tablet->SetExpectedState(ETabletState::Frozen);
+                            break;
+
+                        case ETabletState::Unmounted:
                             tablet->SetExpectedState(ETabletState::Unmounted);
-                        }
+                            break;
 
-                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            if (table->TabletCountByState().IsDomainValue(state)) {
-                                table->MutableTabletCountByState()[state] = 0;
-                            }
-                        }
-
-                        for (auto* tablet : table->Tablets()) {
-                            if (auto* action = tablet->GetAction()) {
-                                tablet->SetExpectedState(action->GetFreeze()
-                                    ? ETabletState::Frozen
-                                    : ETabletState::Mounted);
-                                continue;
-                            }
-
-                            switch (tablet->GetState()) {
-                                case ETabletState::Mounting:
-                                case ETabletState::Mounted:
-                                case ETabletState::Unmounting:
-                                case ETabletState::Unfreezing:
-                                case ETabletState::Freezing:
-                                    tablet->SetExpectedState(ETabletState::Mounted);
-                                    break;
-
-                                case ETabletState::Frozen:
-                                case ETabletState::FrozenMounting:
-                                    tablet->SetExpectedState(ETabletState::Frozen);
-                                    break;
-
-                                case ETabletState::Unmounted:
-                                    tablet->SetExpectedState(ETabletState::Unmounted);
-                                    break;
-
-                                default:
-                                    Y_UNREACHABLE();
-                            }
-                        }
+                        default:
+                            Y_UNREACHABLE();
                     }
                 }
             }

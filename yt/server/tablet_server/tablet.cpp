@@ -474,6 +474,9 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(savrus)
     if (context.GetVersion() >= 800) {
         Load(context, ExpectedState_);
+    } else {
+        // This will be fixed in TTabletManager::TImpl::OnAfterSnapshotLoaded.
+        ExpectedState_ = ETabletState::Unmounted;
     }
 }
 
