@@ -286,10 +286,24 @@ void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue)
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const TString& value, const TRowBufferPtr& rowBuffer, int id)
 {
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedStringValue(value, id));
+    ToUnversionedValue(unversionedValue, static_cast<TStringBuf>(value), rowBuffer, id);
 }
 
 void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue)
+{
+    TStringBuf uncapturedValue;
+    FromUnversionedValue(&uncapturedValue, unversionedValue);
+    *value = TString(uncapturedValue);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, const TRowBufferPtr& rowBuffer, int id)
+{
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedStringValue(value, id));
+}
+
+void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
 {
     if (unversionedValue.Type == EValueType::Null) {
         *value = TString();
@@ -299,7 +313,7 @@ void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue)
         THROW_ERROR_EXCEPTION("Cannot parse string value from %Qlv",
             unversionedValue.Type);
     }
-    *value = TString(unversionedValue.Data.String, unversionedValue.Length);
+    *value = TStringBuf(unversionedValue.Data.String, unversionedValue.Length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
