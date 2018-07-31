@@ -302,7 +302,7 @@ public:
         pool->IncreaseOperationCount(1);
 
         pool->AddChild(operationElement, false);
-        pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
+        pool->IncreaseHierarchicalResourceUsage(operationElement->GetLocalResourceUsage());
         operationElement->SetParent(pool.Get());
 
         AllocateOperationSlotIndex(state, poolId);
@@ -353,7 +353,7 @@ public:
 
         pool->RemoveChild(operationElement);
         pool->IncreaseOperationCount(-1);
-        pool->IncreaseResourceUsage(-operationElement->GetResourceUsage());
+        pool->IncreaseHierarchicalResourceUsage(-operationElement->GetLocalResourceUsage());
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             operationId,
@@ -384,11 +384,11 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
-        auto usage = operationElement->GetResourceUsage();
+        auto usage = operationElement->GetLocalResourceUsage();
         operationElement->Disable();
 
         auto* parent = operationElement->GetParent();
-        parent->IncreaseResourceUsage(-usage);
+        parent->IncreaseHierarchicalResourceUsage(-usage);
         parent->DisableChild(operationElement);
     }
 
@@ -671,7 +671,7 @@ public:
             element->GetStatus(),
             attributes.DominantResource,
             attributes.DemandRatio,
-            element->GetResourceUsageRatio(),
+            element->GetLocalResourceUsageRatio(),
             attributes.FairShareRatio,
             dynamicAttributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
@@ -858,7 +858,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         fluent
-            .Item("resource_usage").Value(RootElement->GetResourceUsage());
+            .Item("resource_usage").Value(RootElement->GetLocalResourceUsage());
     }
 
     void BuildFairShareInfo(TFluentMap fluent)
@@ -1258,7 +1258,7 @@ private:
 
             auto* parent = operationElement->GetParent();
             while (parent) {
-                if (!Dominates(parent->ResourceLimits(), parent->GetResourceUsage())) {
+                if (!Dominates(parent->ResourceLimits(), parent->GetLocalResourceUsage())) {
                     return parent;
                 }
                 parent = parent->GetParent();
@@ -1311,7 +1311,7 @@ private:
                 continue;
             }
 
-            if (!Dominates(operationElement->ResourceLimits(), operationElement->GetResourceUsage())) {
+            if (!Dominates(operationElement->ResourceLimits(), operationElement->GetLocalResourceUsage())) {
                 job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                     operationElement->GetId()));
                 PreemptJob(job, operationElement, context);
@@ -1430,7 +1430,7 @@ private:
 
         aggressivePreemptionEnabled = aggressivePreemptionEnabled && element->IsAggressiveStarvationPreemptionAllowed();
 
-        double usageRatio = element->GetResourceUsageRatio();
+        double usageRatio = element->GetLocalResourceUsageRatio();
         const auto& attributes = element->Attributes();
         auto threshold = aggressivePreemptionEnabled
             ? config->AggressivePreemptionSatisfactionThreshold
@@ -1711,7 +1711,7 @@ private:
 
         auto* oldParent = pool->GetParent();
         if (oldParent) {
-            oldParent->IncreaseResourceUsage(-pool->GetResourceUsage());
+            oldParent->IncreaseHierarchicalResourceUsage(-pool->GetLocalResourceUsage());
             oldParent->IncreaseOperationCount(-pool->OperationCount());
             oldParent->IncreaseRunningOperationCount(-pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
@@ -1720,7 +1720,7 @@ private:
         pool->SetParent(parent.Get());
         if (parent) {
             parent->AddChild(pool);
-            parent->IncreaseResourceUsage(pool->GetResourceUsage());
+            parent->IncreaseHierarchicalResourceUsage(pool->GetLocalResourceUsage());
             parent->IncreaseOperationCount(pool->OperationCount());
             parent->IncreaseRunningOperationCount(pool->RunningOperationCount());
 
@@ -1823,7 +1823,7 @@ private:
             .Item("adjusted_min_share_preemption_timeout").Value(attributes.AdjustedMinSharePreemptionTimeout)
             .Item("adjusted_fair_share_preemption_timeout").Value(attributes.AdjustedFairSharePreemptionTimeout)
             .Item("resource_demand").Value(element->ResourceDemand())
-            .Item("resource_usage").Value(element->GetResourceUsage())
+            .Item("resource_usage").Value(element->GetLocalResourceUsage())
             .Item("resource_limits").Value(element->ResourceLimits())
             .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
@@ -1834,7 +1834,7 @@ private:
             .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
             .Item("guaranteed_resources").Value(guaranteedResources)
             .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
-            .Item("usage_ratio").Value(element->GetResourceUsageRatio())
+            .Item("usage_ratio").Value(element->GetLocalResourceUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
@@ -1847,14 +1847,14 @@ private:
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
         fluent
-            .Item("usage_ratio").Value(element->GetResourceUsageRatio())
+            .Item("usage_ratio").Value(element->GetLocalResourceUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
             .Item("dominant_resource").Value(attributes.DominantResource)
             .DoIf(shouldPrintResourceUsage, [&] (TFluentMap fluent) {
                 fluent
-                    .Item("resource_usage").Value(element->GetResourceUsage());
+                    .Item("resource_usage").Value(element->GetLocalResourceUsage());
             });
     }
 
@@ -1988,7 +1988,7 @@ private:
             tags);
         Profiler.Enqueue(
             profilingPrefix + "/usage_ratio_x100000",
-            static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
+            static_cast<i64>(element->GetLocalResourceUsageRatio() * 1e5),
             EMetricType::Gauge,
             tags);
         Profiler.Enqueue(
@@ -2004,7 +2004,7 @@ private:
 
         ProfileResources(
             Profiler,
-            element->GetResourceUsage(),
+            element->GetLocalResourceUsage(),
             profilingPrefix + "/resource_usage",
             tags);
         ProfileResources(

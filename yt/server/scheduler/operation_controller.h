@@ -20,7 +20,7 @@ struct IOperationControllerStrategyHost
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TFuture<NControllerAgent::TScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
-        const TJobResourcesWithQuota& jobLimits,
+        const TJobResourcesWithQuota& availableResources,
         const TString& treeId) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.

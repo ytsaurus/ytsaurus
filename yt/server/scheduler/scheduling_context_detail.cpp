@@ -89,9 +89,14 @@ void TSchedulingContextBase::PreemptJob(const TJobPtr& job)
     PreemptedJobs_.push_back(job);
 }
 
-TJobResources TSchedulingContextBase::GetFreeResources()
+TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount()
 {
     return ResourceLimits_ - ResourceUsage_;
+}
+
+TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount()
+{
+    return ResourceLimits_ - ResourceUsage_ + ResourceUsageDiscount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

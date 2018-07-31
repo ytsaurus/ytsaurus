@@ -138,9 +138,17 @@ class TSchedulerElementSharedState
 public:
     TJobResources GetResourceUsage();
     TJobResources GetResourceUsagePrecommit();
+    TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
+
     void IncreaseResourceUsage(const TJobResources& delta);
     void IncreaseResourceUsagePrecommit(const TJobResources& delta);
+    bool TryIncreaseResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TJobResources& resourceLimits,
+        const TJobResources& resourceDemand,
+        const TJobResources& resourceDiscount,
+        TJobResources* availableResourceLimitsOutput);
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
     double GetResourceUsageRatio(NNodeTrackerClient::EResourceType dominantResource, double dominantResourceLimit);
@@ -235,18 +243,33 @@ public:
     virtual void SetStarving(bool starving);
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    TJobResources GetResourceUsage() const;
-    TJobResources GetResourceUsagePrecommit() const;
+    TJobResources GetLocalResourceUsage() const;
+    TJobResources GetLocalResourceUsagePrecommit() const;
+    TJobResources GetTotalLocalResourceUsageWithPrecommit() const;
     TJobMetrics GetJobMetrics() const;
-    double GetResourceUsageRatio() const;
+    double GetLocalResourceUsageRatio() const;
 
     virtual TString GetTreeId() const;
 
+    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
+    TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
+
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
+    bool TryIncreaseLocalResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TFairShareContext& context,
+        TJobResources* availableResourceLimitsOutput);
+
+    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
+    void IncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
+    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TFairShareContext& context,
+        TJobResources* availableResourceLimitsOutput);
+
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
-    virtual void IncreaseResourceUsage(const TJobResources& delta) = 0;
-    virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) = 0;
+
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) = 0;
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
@@ -343,8 +366,6 @@ public:
 
     virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
-    virtual void IncreaseResourceUsage(const TJobResources& delta) override;
-    virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     virtual bool IsRoot() const;
@@ -534,7 +555,6 @@ public:
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
-    TJobResources GetResourceUsage() const;
 
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
@@ -726,8 +746,6 @@ public:
     virtual void CheckForStarvation(TInstant now) override;
     bool IsPreemptionAllowed(const TFairShareContext& context) const;
 
-    virtual void IncreaseResourceUsage(const TJobResources& delta) override;
-    virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
@@ -766,12 +784,13 @@ private:
 
     bool IsBlocked(NProfiling::TCpuInstant now) const;
 
-    TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const;
+    TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
 
     bool TryStartScheduleJob(
         NProfiling::TCpuInstant now,
-        const TJobResources& jobLimits,
-        const TJobResources& minNeededResources);
+        const TJobResources& minNeededResources,
+        const TFairShareContext& context,
+        TJobResources* availableResourcesOutput);
 
     void FinishScheduleJob(
         bool enableBackoff,
@@ -780,8 +799,8 @@ private:
 
     NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,
-        const TJobResources& jobLimits,
-        const TJobResources& jobResourceDiscount);
+        const TJobResources& availableResources,
+        const TJobResources& minNeededResources);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;
@@ -847,6 +866,14 @@ public:
 DEFINE_REFCOUNTED_TYPE(TRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline TJobResources ComputeAvailableResources(
+    const TJobResources& resourceLimits,
+    const TJobResources& resourceUsage,
+    const TJobResources& resourceDiscount)
+{
+    return resourceLimits - resourceUsage + resourceDiscount;
+}
 
 } // namespace NScheduler
 } // namespace NYT

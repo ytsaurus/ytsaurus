@@ -45,7 +45,8 @@ public:
 
     virtual void PreemptJob(const TJobPtr& job) override;
 
-    virtual TJobResources GetFreeResources() override;
+    virtual TJobResources GetNodeFreeResourcesWithoutDiscount() override;
+    virtual TJobResources GetNodeFreeResourcesWithDiscount() override;
 
 private:
     const TSchedulerConfigPtr Config_;
