@@ -700,7 +700,7 @@ class TestTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_proxy_from_yt_source=True)
             second_cluster_client = instance.create_client()
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             yt.set("//sys/clusters", {"second_cluster": second_cluster_connection})
@@ -877,7 +877,7 @@ class TestTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
+            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True, use_proxy_from_yt_source=True)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["driver"]
             client.config["backend"] = yt.config["backend"]
