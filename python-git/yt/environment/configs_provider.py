@@ -799,7 +799,33 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
 
         return configs
 
+class ConfigsProvider_19_4(ConfigsProvider_19_3):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+        configs, connection_configs = super(ConfigsProvider_19_4, self)._build_master_configs(
+            provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
+
+        for key, cell_configs in iteritems(configs):
+            if key in ["primary_cell_tag", "secondary_cell_tags"]:
+                continue
+
+            for config in cell_configs:
+                tablet_manager_config = config["tablet_manager"]
+                if "table_statistics_gossip_period" not in tablet_manager_config:
+                    tablet_manager_config["table_statistics_gossip_period"] = 100
+                if "tablet_cell_statistics_gossip_period" not in tablet_manager_config:
+                    tablet_manager_config["tablet_cell_statistics_gossip_period"] = 100
+                if "tablet_cell_decommissioner" not in tablet_manager_config:
+                    tablet_manager_config["tablet_cell_decommissioner"] = {
+                        "decommission_check_period": 100,
+                        "orphans_check_period": 100,
+                    }
+
+        return configs, connection_configs
+
+
+
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (19, 2): ConfigsProvider_19_2,
     (19, 3): ConfigsProvider_19_3,
+    (19, 4): ConfigsProvider_19_4,
 }
