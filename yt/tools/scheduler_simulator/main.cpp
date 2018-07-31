@@ -686,7 +686,8 @@ public:
                     LOG_INFO("%v, Progress: %v, %v, (OperationId: %v)",
                         ~ToString(event.Time),
                         operation.second->GetController()->GetLoggingProgress(),
-                        SchedulingData->GetOperationLoggingProgress(operation.second->GetId()),
+                        // It is intentionally broken. We should use separate logging for each tree.
+                        // SchedulingData->GetOperationLoggingProgress(operation.second->GetId()),
                         operation.second->GetId());
                 }
             }*/
