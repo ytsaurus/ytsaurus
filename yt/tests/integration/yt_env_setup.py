@@ -348,21 +348,10 @@ class YTEnvSetup(object):
     NUM_SKYNET_MANAGERS = 0
 
     DELTA_DRIVER_CONFIG = {}
-    #DELTA_MASTER_CONFIG = {}
+    DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "tablet_cell_decommissioner": {
-                "decommission_check_period": 100,
-                "orphans_check_period": 100,
-            },
-            "tablet_cell_statistics_gossip_period": 100,
-            "table_statistics_gossip_period": 100,
-        }
-    }
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False

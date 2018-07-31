@@ -149,12 +149,6 @@ class TestDynamicTables(TestDynamicTablesBase):
         "tablet_manager": {
             "leader_reassignment_timeout" : 1000,
             "peer_revocation_timeout" : 3000,
-            "tablet_cell_decommissioner": {
-                "decommission_check_period": 100,
-                "orphans_check_period": 100,
-            },
-            "tablet_cell_statistics_gossip_period": 100,
-            "table_statistics_gossip_period": 100,
         }
     }
 
@@ -1099,12 +1093,6 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         "tablet_manager": {
             "leader_reassignment_timeout" : 1000,
             "peer_revocation_timeout" : 600000,
-            "tablet_cell_decommissioner": {
-                "decommission_check_period": 100,
-                "orphans_check_period": 100,
-            },
-            "tablet_cell_statistics_gossip_period": 100,
-            "table_statistics_gossip_period": 100,
         }
     }
 
@@ -1240,12 +1228,6 @@ class TestTabletActions(TestDynamicTablesBase):
                 "config_check_period": 100,
                 "balance_period": 100,
             },
-            "tablet_cell_decommissioner": {
-                "decommission_check_period": 100,
-                "orphans_check_period": 100,
-            },
-            "tablet_cell_statistics_gossip_period": 100,
-            "table_statistics_gossip_period": 100,
         }
     }
 
