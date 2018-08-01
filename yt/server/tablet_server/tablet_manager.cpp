@@ -315,8 +315,6 @@ public:
         auto cellMapNodeProxy = GetCellMapNode();
         auto cellNodePath = "/" + ToString(id);
 
-        // FIXME(savrus) remove this on secondaries
-
         try {
             // NB: Users typically are not allowed to create these types.
             auto* rootUser = securityManager->GetRootUser();
@@ -334,27 +332,29 @@ public:
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("inherit_acl", false);
+            if (Bootstrap_->IsPrimaryMaster()) {
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("inherit_acl", false);
 
-            // Create "snapshots" child.
-            {
-                auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
-                req->set_type(static_cast<int>(EObjectType::MapNode));
-                attributes->Set("acl", cellBundle->GetOptions()->SnapshotAcl);
-                ToProto(req->mutable_node_attributes(), *attributes);
+                // Create "snapshots" child.
+                {
+                    auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
+                    req->set_type(static_cast<int>(EObjectType::MapNode));
+                    attributes->Set("acl", cellBundle->GetOptions()->SnapshotAcl);
+                    ToProto(req->mutable_node_attributes(), *attributes);
 
-                SyncExecuteVerb(cellMapNodeProxy, req);
-            }
+                    SyncExecuteVerb(cellMapNodeProxy, req);
+                }
 
-            // Create "changelogs" child.
-            {
-                auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
-                req->set_type(static_cast<int>(EObjectType::MapNode));
-                attributes->Set("acl", cellBundle->GetOptions()->ChangelogAcl);
-                ToProto(req->mutable_node_attributes(), *attributes);
+                // Create "changelogs" child.
+                {
+                    auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
+                    req->set_type(static_cast<int>(EObjectType::MapNode));
+                    attributes->Set("acl", cellBundle->GetOptions()->ChangelogAcl);
+                    ToProto(req->mutable_node_attributes(), *attributes);
 
-                SyncExecuteVerb(cellMapNodeProxy, req);
+                    SyncExecuteVerb(cellMapNodeProxy, req);
+                }
             }
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(
