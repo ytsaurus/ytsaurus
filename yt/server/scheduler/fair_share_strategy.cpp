@@ -45,7 +45,7 @@ struct TPoolName {
 
     static const char DELIMITER = '|';
 
-    static TPoolName Parse(const TString& raw, const TString& user) {
+    static TPoolName Create(const TString& raw, const TString& user) {
         std::vector<TString> parts;
         if (raw.back() == DELIMITER) {  //renadeen: кажется, можно просто сделать опцию для этого
             return TPoolName(raw + user, raw.substr(0, raw.size() - 1));
@@ -219,14 +219,7 @@ public:
         }
 
         std::vector<TString> newPools;
-        pool = FindPool(newPoolName.Pool).Get();
-        if (!pool) {
-            if (newPoolName.ParentPool) {
-                pool = GetPool(newPoolName.ParentPool.Get()).Get();
-            } else {
-                pool = GetDefaultParent().Get();
-            }
-        }
+        pool = GetPoolOrParent(newPoolName).Get();
         while (pool) {
             newPools.push_back(pool->GetId());
             pool = pool->GetParent();
@@ -586,11 +579,10 @@ public:
             THROW_ERROR_EXCEPTION("Operation element for operation %Qv not found", operationId);
         }
 
-        LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v, NewPoolParent: %v)",
+        LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v)",
             operationId,
             element->GetParent()->GetId(),
-            newPool.Pool,
-            newPool.ParentPool);
+            newPool.Pool);
 
         auto wasActive = DetachOperation(state, element);
         YCHECK(AttachOperation(state, element, newPool));
@@ -1940,18 +1932,25 @@ private:
         }
     }
 
-    void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
+    TCompositeSchedulerElementPtr GetPoolOrParent(const TPoolName& poolName)
     {
         TCompositeSchedulerElementPtr pool = FindPool(poolName.Pool);
-        if (!pool) {
-            if (poolName.ParentPool) {
-                pool = GetPool(poolName.ParentPool.Get());
-            } else {
-                pool = GetDefaultParent();
-            }
+        if (pool) {
+            return pool;
         }
+        if (!poolName.ParentPool) {
+            return GetDefaultParent();
+        }
+        pool = FindPool(poolName.ParentPool.Get());
+        if (!pool) {
+            THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.ParentPool);
+        }
+        return pool;
+    }
 
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(pool);
+    void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
+    {
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName));
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
@@ -1993,14 +1992,7 @@ private:
         }
 
         if (!pool) {
-            if (poolPair.ParentPool) {
-                pool = FindPool(poolPair.ParentPool.Get());
-                if (!pool) {
-                    THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolPair.ParentPool);
-                }
-            } else {
-                pool = GetDefaultParent();
-            }
+            pool = GetPoolOrParent(poolPair);
         }
 
         Host->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
@@ -2968,7 +2960,7 @@ private:
             if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
                 pool = optionsIt->second->Pool.Get();
             }
-            pools.emplace(treeId, TPoolName::Parse(pool, operation->GetAuthenticatedUser()));
+            pools.emplace(treeId, TPoolName::Create(pool, operation->GetAuthenticatedUser()));
         }
 
         return pools;
