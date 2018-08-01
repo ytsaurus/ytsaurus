@@ -1,6 +1,6 @@
 #include "phdr_cache.h"
 
-#ifdef __linux__
+#ifdef __linuxx__
 
 #include <link.h>
 #include <dlfcn.h>
@@ -71,7 +71,7 @@ namespace NYT {
 
 void EnablePhdrCache()
 {
-#ifdef __linux__
+#ifdef __linuxx__
     using namespace NPhdrCache;
     // Fill out ELF header cache for access without locking.
     // This assumes no dynamic object loading/unloading after this point
