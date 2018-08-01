@@ -39,25 +39,18 @@ static const auto& Profiler = SchedulerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPoolName {
-    TPoolName() {}
-    explicit TPoolName(TString pool) : Pool(std::move(pool)) {}
-    TPoolName(TString pool, TString parent) : Pool(std::move(pool)), ParentPool(std::move(parent)) {}
+    TPoolName(TString pool, TNullable<TString> parent) : Pool(std::move(pool)), ParentPool(std::move(parent)) {}
     TString Pool;
     TNullable<TString> ParentPool;
 
     static const char DELIMITER = '|';
 
-    static TPoolName Parse(const TString& raw, const TString& defaultPool) {
+    static TPoolName Parse(const TString& raw, const TString& user) {
         std::vector<TString> parts;
-        SplitStringTo(raw, DELIMITER, &parts);
-        switch (parts.size()) {
-            case 1:
-                return TPoolName(raw);
-            case 2:
-                return TPoolName(parts[1].empty() ? parts[0] + DELIMITER + defaultPool : raw, parts[0]);
-            default:
-                THROW_ERROR_EXCEPTION("Cannot parse pool from %Qv.", raw);
+        if (raw.back() == DELIMITER) {  //renadeen: кажется, можно просто сделать опцию для этого
+            return TPoolName(raw + user, raw.substr(0, raw.size() - 1));
         }
+        return TPoolName(raw.empty() ? user : raw, Null);
     }
 };
 
@@ -2970,14 +2963,12 @@ private:
         THashMap<TString, TPoolName> pools;
 
         for (const auto& treeId : allTrees) {
-            TPoolName pool;
+            TString pool = "";
             auto optionsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
             if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
-                pool = TPoolName::Parse(optionsIt->second->Pool.Get(), operation->GetAuthenticatedUser());
-            } else {
-                pool = TPoolName(operation->GetAuthenticatedUser());
+                pool = optionsIt->second->Pool.Get();
             }
-            pools.emplace(treeId, pool);
+            pools.emplace(treeId, TPoolName::Parse(pool, operation->GetAuthenticatedUser()));
         }
 
         return pools;
