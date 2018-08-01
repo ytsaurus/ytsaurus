@@ -46,17 +46,17 @@ struct TGuid
     static bool FromString(TStringBuf str, TGuid* guid);
 };
 
-void ToProto(NProto::TGuid* protoGuid, const TGuid& guid);
+void ToProto(NProto::TGuid* protoGuid, TGuid guid);
 void FromProto(TGuid* guid, const NProto::TGuid& protoGuid);
 
-void ToProto(TProtoStringType* protoGuid, const TGuid& guid);
+void ToProto(TProtoStringType* protoGuid, TGuid guid);
 void FromProto(TGuid* guid, const TProtoStringType& protoGuid);
 
-TString ToString(const TGuid& guid);
+TString ToString(TGuid guid);
 
-bool operator == (const TGuid& lhs, const TGuid& rhs);
-bool operator != (const TGuid& lhs, const TGuid& rhs);
-bool operator <  (const TGuid& lhs, const TGuid& rhs);
+bool operator == (TGuid lhs, TGuid rhs);
+bool operator != (TGuid lhs, TGuid rhs);
+bool operator <  (TGuid lhs, TGuid rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

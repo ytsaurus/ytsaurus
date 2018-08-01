@@ -114,6 +114,9 @@ TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
 
     RegisterParameter("min_job_duration", MinJobDuration)
         .Default(TDuration::Seconds(30));
+
+    RegisterParameter("ignore_missing_pool_trees", IgnoreMissingPoolTrees)
+        .Default(false);
 }
 
 TOperationSpecBase::TOperationSpecBase()
@@ -187,6 +190,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
 
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
+        .Default(false);
+
+    RegisterParameter("suspend_operation_after_materialization", SuspendOperationAfterMaterialization)
         .Default(false);
 
     RegisterParameter("nightly_options", NightlyOptions)

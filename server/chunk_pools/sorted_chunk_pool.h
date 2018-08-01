@@ -26,6 +26,7 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
 
+    // TODO(max42): It is already exposed via job size constraints, remove it from here.
     //! An upper bound for a total data weight in a job. If this value
     //! is exceeded, an exception is thrown.
     i64 MaxDataWeightPerJob = std::numeric_limits<i64>::max();

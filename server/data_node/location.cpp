@@ -64,17 +64,6 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , IOEngine_(CreateIOEngine(
-        Config_->IOEngineType,
-        Config_->IOConfig
-            ? Config_->IOConfig
-            // TODO(aozeritsky) temporary workaround
-            : BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("threads")
-                    .Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount + Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
-                .EndMap(),
-        id))
     , ThrottledReadsCounter_("/throttled_reads", {}, config->ThrottleCounterInterval)
     , ThrottledWritesCounter_("/throttled_writes", {}, config->ThrottleCounterInterval)
     , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
@@ -86,6 +75,20 @@ TLocation::TLocation(
         profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    IOEngine_ = CreateIOEngine(
+        Config_->IOEngineType,
+        Config_->IOConfig
+            ? Config_->IOConfig
+            // TODO(aozeritsky) temporary workaround
+            : BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("threads")
+                    .Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount + Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
+                .EndMap(),
+        id,
+        Profiler_,
+        NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
     auto throttlersProfiler = Profiler_;
     throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
@@ -177,11 +180,6 @@ TString TLocation::GetPath() const
 i64 TLocation::GetQuota() const
 {
     return Config_->Quota.Get(std::numeric_limits<i64>::max());
-}
-
-IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
-{
-    return MetaReadInvoker_;
 }
 
 IInvokerPtr TLocation::GetWritePoolInvoker()
@@ -551,6 +549,11 @@ void TLocation::ValidateWritable()
     // Run first health check before to sort out read-only drives.
     WaitFor(HealthChecker_->RunCheck())
         .ThrowOnError();
+}
+
+bool TLocation::IsSick() const
+{
+    return IOEngine_->IsSick();
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)

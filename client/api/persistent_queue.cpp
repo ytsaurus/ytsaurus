@@ -7,6 +7,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/core/ytree/helpers.h>
 
@@ -600,15 +601,15 @@ private:
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
                 const auto& rowset = result.Rowset;
-                const auto& schema = rowset->Schema();
                 auto rows = rowset->GetRows();
                 if (!rows.Empty()) {
                     std::vector<i64> rowIndexes;
-                    auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
                     for (auto row : rows) {
-                        const auto& value = row[rowIndexColumnId];
-                        Y_ASSERT(value.Type == EValueType::Int64);
-                        rowIndexes.push_back(value.Data.Int64);
+                        i64 rowIndex;
+                        FromUnversionedRow(
+                            row,
+                            &rowIndex);
+                        rowIndexes.push_back(rowIndex);
                     }
                     OnStateFailed(state);
                     THROW_ERROR_EXCEPTION("Some of the offered rows were already consumed")

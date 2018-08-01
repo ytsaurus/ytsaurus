@@ -868,7 +868,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 
     if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(
-            "Maximum allowed data weight per job violated: %v > %v",
+            NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
+            "Maximum allowed data weight per job exceeded: %v > %v",
             schedulerJobSpecExt->input_data_weight(),
             TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }

@@ -51,7 +51,7 @@ public:
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
 
-    virtual TFuture<void> SendBlocks(
+    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
@@ -88,7 +88,7 @@ protected:
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) = 0;
-    virtual TFuture<void> DoSendBlocks(
+    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;

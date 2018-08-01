@@ -31,7 +31,7 @@ public:
 
     NControllerAgent::TScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
-        const TJobResources& jobLimits,
+        const TJobResources& availableResources,
         TDuration timeLimit,
         const TString& treeId);
 

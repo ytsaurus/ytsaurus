@@ -84,9 +84,6 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
-    //! Returns an invoker for reading chunk meta.
-    IPrioritizedInvokerPtr GetMetaReadInvoker();
-
     //! Returns an invoker for writing chunks.
     IInvokerPtr GetWritePoolInvoker();
 
@@ -180,6 +177,9 @@ public:
     bool IsReadThrottling();
     bool IsWriteThrottling();
 
+    //! |true| if location is sick.
+    bool IsSick() const;
+
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
@@ -219,7 +219,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    const NChunkClient::IIOEnginePtr IOEngine_;
+    NChunkClient::IIOEnginePtr IOEngine_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

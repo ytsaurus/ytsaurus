@@ -72,6 +72,11 @@ TChunkReplicaList TMemoryWriter::GetWrittenChunkReplicas() const
     Y_UNIMPLEMENTED();
 }
 
+bool TMemoryWriter::HasSickReplicas() const
+{
+    Y_UNIMPLEMENTED();
+}
+
 TChunkId TMemoryWriter::GetChunkId() const
 {
     return NullChunkId;

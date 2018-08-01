@@ -2215,6 +2215,15 @@ private:
         // Sort output MUST be sorted.
         table.Options->ExplodeOnValidationError = true;
 
+        if (table.TableUploadOptions.UpdateMode == EUpdateMode::Append &&
+            table.TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)
+        {
+            THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")
+                << TErrorAttribute("output_table_path", Spec->OutputTablePath)
+                << TErrorAttribute("output_table_key_columns", table.TableUploadOptions.TableSchema.GetKeyColumns())
+                << TErrorAttribute("sort_by", Spec->SortBy);
+        }
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {

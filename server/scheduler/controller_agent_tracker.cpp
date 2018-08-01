@@ -194,14 +194,17 @@ public:
             }));
     }
 
-    virtual TFuture<void> Materialize() override
+    virtual TFuture<TOperationControllerMaterializeResult> Materialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->MaterializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).As<void>();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
+            BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
+                return TOperationControllerMaterializeResult{rsp->suspend()};
+            }));
     }
 
     virtual TFuture<TOperationControllerReviveResult> Revive() override

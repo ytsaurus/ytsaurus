@@ -290,6 +290,11 @@ i64 TFileWriter::GetDataSize() const
     return DataSize_;
 }
 
+bool TFileWriter::HasSickReplicas() const
+{
+    Y_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

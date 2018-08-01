@@ -86,11 +86,11 @@ void TFairShareStrategyOperationController::AbortJob(const TJobId& jobId, EAbort
 
 TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
-    const TJobResources& jobLimits,
+    const TJobResources& availableResources,
     TDuration timeLimit,
     const TString& treeId)
 {
-    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, jobLimits, treeId);
+    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, treeId);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .WithTimeout(timeLimit);

@@ -19,6 +19,7 @@
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
@@ -674,8 +675,7 @@ private:
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
-                    Y_ASSERT(value.Type == EValueType::Uint64);
-                    auto flags = static_cast<EReplicationLogDataFlags>(value.Data.Uint64);
+                    auto flags = FromUnversionedValue<EReplicationLogDataFlags>(value);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         ++replicationValueCount;
                     }

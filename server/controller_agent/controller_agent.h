@@ -120,7 +120,7 @@ public:
     TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId);
     TFuture<TOperationControllerInitializationResult> InitializeOperation(const TOperationPtr& operation, const TNullable<TControllerTransactions>& transactions);
     TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation);
-    TFuture<void> MaterializeOperation(const TOperationPtr& operation);
+    TFuture<TOperationControllerMaterializeResult> MaterializeOperation(const TOperationPtr& operation);
     TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation);
     TFuture<void> CommitOperation(const TOperationPtr& operation);
     TFuture<void> CompleteOperation(const TOperationPtr& operation);

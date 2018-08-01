@@ -69,7 +69,7 @@ private:
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
 
-    virtual TFuture<void> DoSendBlocks(
+    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;

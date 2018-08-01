@@ -169,7 +169,7 @@ public:
 
     virtual bool IsCloseDemanded() const override
     {
-        return false;
+        return EncodingChunkWriter_->HasSickReplicas();
     }
 
     virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override

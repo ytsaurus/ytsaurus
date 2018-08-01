@@ -180,8 +180,12 @@ std::unique_ptr<IInputStream> CreateOwningStringInput(TString string)
 
 struct TInputStreamBlobTag { };
 
-TStreamReader::TStreamReader(IInputStream* stream)
+TStreamReader::TStreamReader()
+{ }
+
+TStreamReader::TStreamReader(IInputStream* stream, size_t blockSize)
     : Stream_(stream)
+    , BlockSize_(blockSize)
 {
     ReadNextBlock();
     if (!Finished_) {
@@ -295,10 +299,17 @@ TSharedRef TStreamReader::ExtractPrefix(size_t length)
     }
 
     length -= firstBlockSuffixLength;
-    auto blockIndex = length / BlockSize_ + 1;
-    YCHECK(blockIndex < Blocks_.size());
-    auto positionInBlock = length % BlockSize_;
-    return ExtractPrefix(blockIndex, Blocks_[blockIndex].Begin() + positionInBlock);
+    int lastBlockIndex;
+    int positionInLastBlock = length % BlockSize_;
+    if (positionInLastBlock == 0) {
+        lastBlockIndex = length / BlockSize_;
+        positionInLastBlock = BlockSize_;
+    } else {
+        lastBlockIndex = length / BlockSize_ + 1;
+    }
+
+    YCHECK(lastBlockIndex < Blocks_.size());
+    return ExtractPrefix(lastBlockIndex, Blocks_[lastBlockIndex].Begin() + positionInLastBlock);
 }
 
 void TStreamReader::ReadNextBlock()

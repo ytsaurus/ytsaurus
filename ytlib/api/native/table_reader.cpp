@@ -519,7 +519,7 @@ private:
         auto row = Rows_[Index_++];
         auto value = GetDataAndValidateRow(row);
 
-        auto holder = MakeHolder(Reader_);
+        auto holder = MakeIntrinsicHolder(Reader_);
         auto result = TSharedRef(value.Data.String, value.Length, std::move(holder));
         if (Offset_ > 0) {
             if (Offset_ > result.Size()) {

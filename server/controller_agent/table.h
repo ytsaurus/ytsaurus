@@ -68,6 +68,9 @@ struct TOutputTable
     // Chunk list for appending the output.
     NChunkClient::TChunkListId OutputChunkListId;
 
+    // Last key of the table for checking sort order.
+    NTableClient::TOwningKey LastKey;
+
     // Statistics returned by EndUpload call.
     NChunkClient::NProto::TDataStatistics DataStatistics;
 
