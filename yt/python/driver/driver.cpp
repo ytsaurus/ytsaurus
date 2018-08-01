@@ -393,19 +393,21 @@ public:
     {
         PyEval_InitThreads();
 
-        RegisterShutdown(BIND([] () {
-            LOG_INFO("Module shutdown started");
-            for (const auto& pair : ActiveDrivers) {
-                auto driver = pair.second.Lock();
-                if (!driver) {
-                    continue;
+        RegisterShutdown();
+        RegisterShutdownCallback(BIND([] () {
+                LOG_INFO("Module shutdown started");
+                for (const auto& pair : ActiveDrivers) {
+                    auto driver = pair.second.Lock();
+                    if (!driver) {
+                        continue;
+                    }
+                    LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
+                    driver->Terminate();
                 }
-                LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
-                driver->Terminate();
-            }
-            ActiveDrivers.clear();
-            LOG_INFO("Module shutdown finished");
-        }));
+                ActiveDrivers.clear();
+                LOG_INFO("Module shutdown finished");
+            }),
+            /*index*/ 0);
 
         InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
