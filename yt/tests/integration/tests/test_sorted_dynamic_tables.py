@@ -1668,7 +1668,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
         reshard_table("//tmp/t1", [[]] + [[i * 100] for i in xrange(10)])
-        wait(lambda: not exists("//tmp/t1/@last_mount_transaction_id"))
 
     def test_copy_failure(self):
         self._prepare_copy()
@@ -1677,6 +1676,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_copy_empty(self):
         self._prepare_copy()
+        wait(lambda: not exists("//tmp/t1/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
 
         root_chunk_list_id1 = get("//tmp/t1/@chunk_list_id")
@@ -1703,6 +1703,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
         unmount_func("//tmp/t1")
+        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t1/@tablet_state") == unmounted_state
         assert get("//tmp/t2/@tablet_state") == "unmounted"
@@ -1720,6 +1721,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
         unmount_func("//tmp/t1")
+        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t1/@tablet_state") == unmounted_state
         assert get("//tmp/t2/@tablet_state") == "unmounted"
@@ -1738,6 +1740,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
         sync_unmount_table("//tmp/t1")
+        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
         sync_mount_table("//tmp/t1")
         sync_mount_table("//tmp/t2")
