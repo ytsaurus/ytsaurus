@@ -1335,6 +1335,26 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
+    def test_ephemeral_pool_in_custom_pool(self):
+        create_test_tables()
+
+        create("map_node", "//sys/pools/custom_pool")
+        time.sleep(0.2)
+
+        map(
+            dont_track=True,
+            command=(with_breakpoint("cat ; BREAKPOINT")),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "custom_pool|"})
+
+        wait_breakpoint()
+
+        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool|root")
+        assert pool["parent"] == "custom_pool"
+
+        remove("//sys/pools/custom_pool")
+
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
