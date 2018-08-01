@@ -55,7 +55,9 @@ public:
         , Cluster(std::move(cluster))
         , Schema(std::move(schema))
         , Logger(logger)
-    {}
+    {
+        setColumns(DB::ColumnsDescription(ListPhysicalColumns()));
+    }
 
     // Database name
     std::string getName() const override
