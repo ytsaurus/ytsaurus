@@ -2342,6 +2342,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
@@ -2387,6 +2388,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
@@ -2431,6 +2433,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
@@ -2475,6 +2478,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
@@ -2519,6 +2523,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
@@ -2574,6 +2579,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
@@ -2611,6 +2617,7 @@ private:
 
         // For mutation context
         TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
 
         WaitFor(transaction->Commit(commitOptions))
