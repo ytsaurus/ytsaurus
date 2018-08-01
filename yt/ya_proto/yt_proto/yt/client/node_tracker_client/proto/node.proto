@@ -16,6 +16,7 @@ message TLocationStatistics
 
     optional bool throttling_reads = 9 [default = false];
     optional bool throttling_writes = 10 [default = false];
+    optional bool sick = 11 [default = false];
 }
 
 // Provides detailed information on memory consumption.
