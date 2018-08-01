@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 #include "ql_helpers.h"
-#include "udf/invalid_ir.h"
+#include "udf/short_invalid_ir.h"
+#include "udf/long_invalid_ir.h"
 
 #ifdef YT_IN_ARCADIA
 #include <library/resource/resource.h>
@@ -859,10 +860,17 @@ protected:
         ///
 
         builder.RegisterFunction(
-            "invalid_ir",
+            "short_invalid_ir",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
-            TSharedRef(invalid_ir_bc, invalid_ir_bc_len, nullptr),
+            TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr),
+            ECallingConvention::Simple);
+
+        builder.RegisterFunction(
+            "long_invalid_ir",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr),
             ECallingConvention::Simple);
 
         builder.RegisterFunction(
@@ -3679,7 +3687,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
+TEST_F(TQueryEvaluateTest, TestShortInvalidUdfImpl)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3690,7 +3698,21 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         "a=1;b=10",
     };
 
-    EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
+    EvaluateExpectingError("short_invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
+}
+
+TEST_F(TQueryEvaluateTest, TestLongInvalidUdfImpl)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=10",
+    };
+
+    EvaluateExpectingError("long_invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
