@@ -21,7 +21,7 @@ message TRspHandshake
 {
     // TODO(babenko): drop
     // Unique (and opaque) node id.
-    required string node_id = 1;
+    optional string node_id = 1;
 
     // Unique (and opaque) epoch id.
     required string epoch_id = 2;

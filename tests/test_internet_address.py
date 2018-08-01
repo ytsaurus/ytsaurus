@@ -16,7 +16,7 @@ class TestInternetAddresses(object):
     def _wait_scheduled_error(self, yp_client, pod_ids):
         def func():
             for pod_id in pod_ids:
-                if not isinstance(yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"]), YsonEntity):
+                if not isinstance(yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0], YsonEntity):
                     return True
             return False
         wait(func)

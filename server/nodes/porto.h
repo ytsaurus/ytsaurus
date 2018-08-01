@@ -18,6 +18,7 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
 
 std::vector<std::pair<TString, TString>> BuildPortoProperties(
     const NClient::NApi::NProto::TNodeSpec& nodeSpec,
+    const NClient::NApi::NProto::TResourceSpec_TCpuSpec& cpuSpec,
     const NObjects::NProto::TPodSpecOther& podSpecOther,
     const NObjects::NProto::TPodStatusOther& podStatusOther);
 

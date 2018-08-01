@@ -249,10 +249,10 @@ void TAttributeFetcher::DoPrefetch(
 
         case EAttributeFetchMethod::Evaluator:
             if (attribute->HasPreevaluator()) {
-                auto objectId = FromDBValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
+                auto objectId = FromUnversionedValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
                 auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
                     ? TObjectId()
-                    : FromDBValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
+                    : FromUnversionedValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
                 auto* object = Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
                 attribute->RunPreevaluator(Transaction_, object);
             }
@@ -310,15 +310,15 @@ void TAttributeFetcher::DoFetch(
 
         case EAttributeFetchMethod::ExpressionBuilder: {
             const auto& value = row[CurrentIndex_++];
-            DBValueToYson(value, consumer);
+            UnversionedValueToYson(value, consumer);
             break;
         }
 
         case EAttributeFetchMethod::Evaluator: {
-            auto objectId = FromDBValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
+            auto objectId = FromUnversionedValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
             auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
                 ? TObjectId()
-                : FromDBValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
+                : FromUnversionedValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
             auto* object = Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
             if (resolveResult.SuffixPath.empty()) {
                 attribute->RunEvaluator(Transaction_, object, consumer);

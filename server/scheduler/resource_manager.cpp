@@ -75,7 +75,7 @@ public:
     {
         pod->Spec().UpdateTimestamp().Touch();
 
-        UpdatePodAssignment(transaction, pod, manual);
+        UpdatePodAssignment(pod, manual);
 
         auto* oldNode = pod->Spec().Node().LoadOld();
         if (oldNode) {
@@ -128,7 +128,6 @@ private:
 
 
     void UpdatePodAssignment(
-        const TTransactionPtr& transaction,
         NObjects::TPod* pod,
         bool manual)
     {
@@ -236,7 +235,9 @@ private:
             &allocatorResponses,
             &errors))
         {
-            THROW_ERROR_EXCEPTION("Cannot satisfy resource requests for pod %Qv at node %Qv",
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::PodSchedulingFailure,
+                "Cannot satisfy resource requests for pod %Qv at node %Qv",
                 pod->GetId(),
                 node->GetId())
                 << errors;
@@ -244,7 +245,6 @@ private:
 
         UpdatePodDiskVolumeAllocations(
             pod->Status().Other()->mutable_disk_volume_allocations(),
-            nativeResources,
             allocatorRequests,
             allocatorResponses);
 

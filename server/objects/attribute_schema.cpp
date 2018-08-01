@@ -27,7 +27,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Setter_ =
         [=] (
-            const TTransactionPtr& transaction,
+            const TTransactionPtr& /*transaction*/,
             TObject* object,
             const TYPath& path,
             const INodePtr& value,
@@ -91,7 +91,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Remover_ =
         [=] (
-            const TTransactionPtr& transaction,
+            const TTransactionPtr& /*transaction*/,
             TObject* object,
             const TYPath& path)
         {
@@ -175,7 +175,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Preevaluator_ =
         [=] (
-            const TTransactionPtr& transaction,
+            const TTransactionPtr& /*transaction*/,
             TObject* object)
         {
             object->Annotations().ScheduleLoadAll();
@@ -183,7 +183,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Evaluator_ =
         [=] (
-            const TTransactionPtr& transaction,
+            const TTransactionPtr& /*transaction*/,
             TObject* object,
             IYsonConsumer* consumer)
         {

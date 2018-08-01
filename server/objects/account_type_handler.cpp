@@ -47,7 +47,7 @@ public:
 
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,
-        const TObjectId& parentId,
+        const TObjectId& /*parentId*/,
         ISession* session) override
     {
         return std::make_unique<TAccount>(id, this, session);

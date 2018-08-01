@@ -129,7 +129,7 @@ class TestResources(object):
             return totals != YsonEntity() and \
                    totals["cpu"]["capacity"] == n and \
                    totals["memory"]["capacity"] == n * 10 and \
-                   totals["disk_per_storage_class"] == [{"key": "hdd", "value": {"capacity": n * 100}}]
+                   totals["disk_per_storage_class"] == {"hdd": {"capacity": n * 100}}
 
         wait(lambda: _check("total_resources", 10))
         wait(lambda: _check("schedulable_resources", 5))

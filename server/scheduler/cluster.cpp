@@ -401,6 +401,7 @@ public:
             }
 
             InitializeNodePods();
+            InitializePodSetPods();
             InitializeAccountPodSets();
             InitializeAntiaffinityVacancies();
 
@@ -507,7 +508,7 @@ private:
         NClient::NApi::NProto::TResourceSpec spec;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> scheduledAllocations;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> actualAllocations;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &resourceId,
             &nodeId,
@@ -636,7 +637,7 @@ private:
         TYsonString labels;
         NClient::NApi::NProto::TInternetAddressSpec spec;
         NClient::NApi::NProto::TInternetAddressStatus status;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &internetAddressId,
             &labels,
@@ -672,7 +673,7 @@ private:
         TYsonString labels;
         NProto::TNodeStatusOther statusOther;
         NClient::NApi::NProto::TNodeSpec spec;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &nodeId,
             &labels,
@@ -710,7 +711,7 @@ private:
         TObjectId segmentId;
         TYsonString labels;
         NClient::NApi::NProto::TNodeSegmentSpec spec;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &segmentId,
             &labels,
@@ -757,7 +758,7 @@ private:
     {
         TObjectId accountId;
         TYsonString labels;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &accountId,
             &labels);
@@ -784,7 +785,7 @@ private:
     {
         TObjectId accountId;
         TObjectId parentId;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &accountId,
             &parentId);
@@ -831,7 +832,7 @@ private:
         NServer::NObjects::NProto::TPodSpecOther specOther;
         NServer::NObjects::NProto::TPodStatusOther statusOther;
         TYsonString labels;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &podId,
             &podSetId,
@@ -888,7 +889,7 @@ private:
         std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint> antiaffinityConstraints;
         TObjectId nodeSegmentId;
         TObjectId accountId;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &podSetId,
             &labels,
@@ -897,7 +898,7 @@ private:
             &accountId);
 
         auto* nodeSegment = FindNodeSegment(nodeSegmentId);
-        if (nodeSegmentId && !nodeSegment) {
+        if (!nodeSegment) {
             LOG_WARNING("Pod set refers to an unknown node segment (PodSetId: %v, NodeSegmentId: %v)",
                 podSetId,
                 nodeSegmentId);

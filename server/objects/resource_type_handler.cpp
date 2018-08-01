@@ -115,7 +115,7 @@ private:
     }
 
     static void ValidateSpec(
-        const TTransactionPtr& transaction,
+        const TTransactionPtr& /*transaction*/,
         TResource* resource,
         const TResource::TSpec& spec)
     {
@@ -147,7 +147,12 @@ private:
         TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
 
         auto* resource = object->As<TResource>();
-        resource->Kind() = DeriveKind(resource, resource->Spec().Load());
+        auto* spec = resource->Spec().Get();
+        auto kind = DeriveKind(resource, *spec);
+        resource->Kind() = kind;
+        if (kind == EResourceKind::Cpu && !spec->cpu().has_cpu_to_vcpu_factor()) {
+            spec->mutable_cpu()->set_cpu_to_vcpu_factor(1.0);
+        }
     }
 
     virtual void BeforeObjectRemoved(

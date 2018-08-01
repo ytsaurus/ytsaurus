@@ -88,7 +88,7 @@ private:
         return {};
     }
 
-    void ValidateSpec(const TTransactionPtr& transaction, TEndpoint* endpoint)
+    void ValidateSpec(const TTransactionPtr& /*transaction*/, TEndpoint* endpoint)
     {
         const auto& spec = endpoint->Spec().Load();
         if (spec.has_ip6_address()) {

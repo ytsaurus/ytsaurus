@@ -19,127 +19,6 @@ namespace NServer {
 namespace NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
-// TODO(babenko): move to yt
-
-template <class T>
-struct TIsScalarPersistentType
-{
-    static constexpr bool Value =
-        std::is_same<T, TGuid>::value ||
-        std::is_same<T, TString>::value ||
-        std::is_same<T, i64>::value ||
-        std::is_same<T, ui64>::value ||
-        std::is_same<T, TInstant>::value;
-};
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const TGuid& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const TString& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, bool value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NYson::TYsonString& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(NYT::NYson::TYsonString* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, i64 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, ui64 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, ui32 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, ui16 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, double value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(double* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, TInstant value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NYTree::IMapNodePtr& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(NYT::NYTree::IMapNodePtr* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NNet::TIP6Address& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDBValue(NYT::NNet::TIP6Address* value, const NYT::NTableClient::TUnversionedValue& dbValue);
-
-template <class T>
-void ToDBValue(
-    NYT::NTableClient::TUnversionedValue* dbValue,
-    T value,
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    int id = 0,
-    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
-template <class T>
-void FromDBValue(
-    T* value,
-    const NYT::NTableClient::TUnversionedValue& dbValue,
-    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
-
-template <class T>
-NYT::NTableClient::TUnversionedValue ToDBValue(const T& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-template <class T>
-T FromDBValue(const NYT::NTableClient::TUnversionedValue& dbValue);
-
-template <class T>
-void ToDBValue(
-    NYT::NTableClient::TUnversionedValue* dbValue,
-    const T& value,
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    int id = 0,
-    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
-template <class T>
-void FromDBValue(
-    T* value,
-    const NYT::NTableClient::TUnversionedValue& dbValue,
-    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
-
-template <class T>
-void ToDBValue(
-    NYT::NTableClient::TUnversionedValue* dbValue,
-    const TNullable<T>& value,
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    int id = 0);
-template <class T>
-void FromDBValue(
-    TNullable<T>* value,
-    const NYT::NTableClient::TUnversionedValue& dbValue);
-
-template <class T>
-void ToDBValue(
-    NYT::NTableClient::TUnversionedValue* dbValue,
-    const std::vector<T>& values,
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    int id = 0);
-template <class T>
-void FromDBValue(
-    std::vector<T>* values,
-    const NYT::NTableClient::TUnversionedValue& dbValue,
-    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
-template <class T>
-void FromDBValue(
-    std::vector<T>* values,
-    const NYT::NTableClient::TUnversionedValue& dbValue,
-    typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type* = nullptr);
-
-template <class... Ts>
-auto ToDBValues(
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    const Ts& ... values)
-    -> std::array<NYT::NTableClient::TUnversionedValue, sizeof...(Ts)>;
-
-template <class... Ts>
-void FromDBRow(
-    NYT::NTableClient::TUnversionedRow row,
-    Ts*... values);
-
-void DBValueToYson(const NYT::NTableClient::TUnversionedValue& dbValue, NYT::NYson::IYsonConsumer* consumer);
-NYT::NYson::TYsonString DBValueToYson(const NYT::NTableClient::TUnversionedValue& dbValue);
 
 TRange<NYT::NTableClient::TUnversionedValue> CaptureCompositeObjectKey(
     const TObject* object,
@@ -173,8 +52,8 @@ struct ILoadContext
 
     virtual void ScheduleLookup(
         const TDBTable* table,
-        const TRange<NYT::NTableClient::TUnversionedValue>& key,
-        const TRange<const TDBField*>& fields,
+        TRange<NYT::NTableClient::TUnversionedValue> key,
+        TRange<const TDBField*> fields,
         std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) = 0;
 
     virtual void ScheduleSelect(
@@ -190,13 +69,13 @@ struct IStoreContext
 
     virtual void WriteRow(
         const TDBTable* table,
-        const TRange<NYT::NTableClient::TUnversionedValue>& key,
-        const TRange<const TDBField*>& fields,
-        const TRange<NYT::NTableClient::TUnversionedValue>& values) = 0;
+        TRange<NYT::NTableClient::TUnversionedValue> key,
+        TRange<const TDBField*> fields,
+        TRange<NYT::NTableClient::TUnversionedValue> values) = 0;
 
     virtual void DeleteRow(
         const TDBTable* table,
-        const TRange<NYT::NTableClient::TUnversionedValue>& key) = 0;
+        TRange<NYT::NTableClient::TUnversionedValue> key) = 0;
 };
 
 struct IPersistentAttribute

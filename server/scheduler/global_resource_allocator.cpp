@@ -145,10 +145,6 @@ void TGlobalResourceAllocator::ReconcileState(
 TErrorOr<TNode*> TGlobalResourceAllocator::ComputeAllocation(TPod* pod)
 {
     auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
-    if (!nodeSegment) {
-        return nullptr;
-    }
-
     const auto& cache = nodeSegment->GetSchedulableNodeLabelFilterCache();
 
     const auto& allSegmentNodesOrError = cache->GetFilteredObjects(TString());

@@ -32,7 +32,7 @@ void TSubjectTypeHandlerBase::BeforeObjectCreated(
         [&] (ILoadContext* context) {
             context->ScheduleLookup(
                 &SubjectToTypeTable,
-                ToDBValues(
+                ToUnversionedValues(
                     context->GetRowBuffer(),
                     id),
                 MakeArray(&SubjectToTypeTable.Fields.Type),
@@ -51,12 +51,12 @@ void TSubjectTypeHandlerBase::BeforeObjectCreated(
         [=] (IStoreContext* context) {
             context->WriteRow(
                 &SubjectToTypeTable,
-                ToDBValues(
+                ToUnversionedValues(
                     context->GetRowBuffer(),
                     id),
                 MakeArray(
                     &SubjectToTypeTable.Fields.Type),
-                ToDBValues(
+                ToUnversionedValues(
                     context->GetRowBuffer(),
                     object->GetType()));
         });
@@ -73,7 +73,7 @@ void TSubjectTypeHandlerBase::AfterObjectRemoved(
         [=] (IStoreContext* context) {
             context->DeleteRow(
                 &SubjectToTypeTable,
-                ToDBValues(
+                ToUnversionedValues(
                     context->GetRowBuffer(),
                     object->GetId()));
         });

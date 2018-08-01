@@ -32,6 +32,7 @@ public:
 
     using TResourcesAttribute = TChildrenAttribute<TResource>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TResourcesAttribute, Resources);
+    TResource* GetCpuResourceOrThrow();
 
     class TStatus
     {

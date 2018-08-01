@@ -381,29 +381,31 @@ private:
                         const auto& podId = request.Pod->GetId();
                         auto* transactionPod = transaction->GetPod(podId);
 
-                        try {
-                            if (!CheckPodSchedulable(transactionPod)) {
+                        if (!CheckPodSchedulable(transactionPod)) {
+                            continue;
+                        }
+
+                        if (request.Assign) {
+                            try {
+                                resourceManager->AssignPodToNode(transaction, &resourceManagerContext, transactionNode, transactionPod);
+                            } catch (const TErrorException& ex) {
+                                if (ex.Error().GetCode() != NClient::NApi::EErrorCode::PodSchedulingFailure) {
+                                    throw;
+                                }
+                                auto error = TError("Error assigning pod to node %Qv",
+                                    transactionNode->GetId())
+                                    << ex;
+                                RecordSchedulingFailure(request.Pod, error);
+                            }
+                        } else {
+                            if (transactionPod->Spec().Node().Load() != transactionNode) {
+                                LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
+                                    podId,
+                                    perNodePlan.Node->GetId(),
+                                    transactionPod->Spec().Node().Load()->GetId());
                                 continue;
                             }
-
-                            if (request.Assign) {
-                                resourceManager->AssignPodToNode(transaction, &resourceManagerContext, transactionNode, transactionPod);
-                            } else {
-                                if (transactionPod->Spec().Node().Load() != transactionNode) {
-                                    LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
-                                        podId,
-                                        perNodePlan.Node->GetId(),
-                                        transactionPod->Spec().Node().Load()->GetId());
-                                    continue;
-                                }
-                                resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, transactionPod);
-                            }
-
-                        } catch (const std::exception& ex) {
-                            auto error = TError("Error assigning pod to node %Qv",
-                                transactionNode->GetId())
-                                << ex;
-                            RecordSchedulingFailure(request.Pod, error);
+                            resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, transactionPod);
                         }
                     }
 

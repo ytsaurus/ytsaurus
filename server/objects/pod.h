@@ -51,6 +51,10 @@ public:
             using TPodAgentPayload = NClient::NApi::NProto::TPodStatus_TAgent_TPodAgentPayload;
             static const TScalarAttributeSchema<TPod, TPodAgentPayload> PodAgentPayloadSchema;
             DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TPodAgentPayload>, PodAgentPayload);
+
+            using TOther = NProto::TPodAgentStatusOther;
+            static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
+            DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
         };
 
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAgent, Agent);

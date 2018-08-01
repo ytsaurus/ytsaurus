@@ -28,6 +28,8 @@
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
 
+#include <yt/client/table_client/helpers.h>
+
 #include <yt/ytlib/query_client/ast.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -44,6 +46,7 @@ using namespace NYT::NYPath;
 using namespace NYT::NYson;
 using namespace NYT::NYTree;
 using namespace NYT::NCypressClient;
+using namespace NYT::NTableClient;
 using namespace NYT::NApi;
 using namespace NYT::NConcurrency;
 using namespace NYT::NQueryClient::NAst;
@@ -246,8 +249,8 @@ private:
                         for (auto row : rowset->GetRows()) {
                             auto pair =
                                 typeHandler->GetParentType() == EObjectType::Null
-                                ? std::make_pair(FromDBValue<TObjectId>(row[0]), TObjectId())
-                                : std::make_pair(FromDBValue<TObjectId>(row[0]), FromDBValue<TObjectId>(row[1]));
+                                ? std::make_pair(FromUnversionedValue<TObjectId>(row[0]), TObjectId())
+                                : std::make_pair(FromUnversionedValue<TObjectId>(row[0]), FromUnversionedValue<TObjectId>(row[1]));
                             idPairs.push_back(pair);
                         }
                     });
@@ -278,11 +281,11 @@ private:
                     if (typeHandler->GetParentType() == EObjectType::Null) {
                         context->DeleteRow(
                             typeHandler->GetTable(),
-                            ToDBValues(context->GetRowBuffer(), pair.first));
+                            ToUnversionedValues(context->GetRowBuffer(), pair.first));
                     } else {
                         context->DeleteRow(
                             typeHandler->GetTable(),
-                            ToDBValues(context->GetRowBuffer(), pair.second, pair.first));
+                            ToUnversionedValues(context->GetRowBuffer(), pair.second, pair.first));
                     }
                 }
             });

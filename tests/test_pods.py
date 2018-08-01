@@ -665,20 +665,6 @@ class TestPods(object):
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/resource_requests"])[0] == {"vcpu_limit": 200}
         assert yp_client.select_objects("pod", selectors=["/spec"])[0][0]["resource_requests"] == {"vcpu_limit": 200}
 
-    def test_incorrect_virtual_service_tunnel(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        pod_set_id = yp_client.create_object(object_type="pod_set")
-        with pytest.raises(YpNoSuchObjectError):
-            yp_client.create_object(object_type="pod", attributes={
-                "meta": {"pod_set_id": pod_set_id},
-                "spec": {
-                    "virtual_service_tunnel": {
-                        "virtual_service_id": "incorrect_id",
-                    },
-                },
-            })
-
     def test_host_device_constraints(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -728,78 +714,6 @@ class TestPods(object):
             pod_spec = yp_client.get_object("pod", pod_id, selectors=["/spec"])[0]
             assert pod_spec["host_devices"][0]["path"] == correct_device["path"]
             assert pod_spec["host_devices"][0]["mode"] == correct_device["mode"]
-
-    def test_virtual_service_tunnel(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        virtual_service_id = yp_client.create_object(
-            object_type="virtual_service",
-            attributes={
-                "spec": {
-                    "ip4_addresses": ["100.100.100.100", "2.2.2.2"],
-                    "ip6_addresses": ["1:1:1:1", "2:2:2:2", "3:3:3:3"],
-                }
-            })
-
-        pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={
-            "meta": {"pod_set_id": pod_set_id},
-            "spec": {
-                "virtual_service_tunnel": {
-                    "virtual_service_id": virtual_service_id,
-                    "ip6_mtu": 42,
-                    "ip4_mtu": 36,
-                }
-            }
-        })
-
-        assert yp_client.get_object("pod", pod_id, selectors=["/spec/virtual_service_tunnel/virtual_service_id"])[0] == virtual_service_id
-        assert yp_client.get_object("pod", pod_id, selectors=["/spec/virtual_service_tunnel/ip6_mtu"])[0] == 42
-        assert yp_client.get_object("pod", pod_id, selectors=["/spec/virtual_service_tunnel/ip4_mtu"])[0] == 36
-
-        addresses = yp_client.get_object("pod", pod_id, selectors=["/status/virtual_service"])[0]
-        assert addresses["ip4_addresses"][0] == "100.100.100.100"
-        assert addresses["ip4_addresses"][1] == "2.2.2.2"
-        assert addresses["ip6_addresses"][0] == "1:1:1:1"
-        assert addresses["ip6_addresses"][1] == "2:2:2:2"
-        assert addresses["ip6_addresses"][2] == "3:3:3:3"
-
-    def test_update_virtual_service_tunnel(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        specs = [
-            { "ip4_addresses": ["1.2.3.4"] },
-            { "ip6_addresses": ["1:2:3:4"] },
-            { "ip4_addresses": ["1.2.3.4"], "ip6_addresses": ["1:2:3:4"] },
-            { }
-        ]
-
-        pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
-
-        for spec in specs:
-            vs_id = yp_client.create_object(object_type="virtual_service", attributes={"spec": spec})
-
-            update = {
-                "path": "/spec/virtual_service_tunnel",
-                "value": {"virtual_service_id": vs_id}
-            }
-
-            def check_vs_status():
-                addresses = yp_client.get_object("pod", pod_id, selectors=["/status/virtual_service"])[0]
-                ip4, ip6 = addresses.get("ip4_addresses", []), addresses.get("ip6_addresses", [])
-                spec_ip4, spec_ip6 = spec.get("ip4_addresses", []), spec.get("ip6_addresses", [])
-
-                assert ip4 == spec_ip4
-                assert ip6 == spec_ip6
-
-            yp_client.update_object("pod", pod_id, set_updates=[update])
-            check_vs_status()
-            yp_client.update_object("pod", pod_id, set_updates=[update])
-            check_vs_status()
-
-            yp_client.update_object("pod", pod_id, remove_updates=[{"path": "/spec/virtual_service_tunnel"}])
-            assert "virtual_service" not in yp_client.get_object("pod", pod_id, selectors=["/status"])[0]
 
     def test_host_devices(self, yp_env):
         yp_client = yp_env.yp_client

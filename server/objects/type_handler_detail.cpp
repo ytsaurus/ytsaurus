@@ -116,7 +116,7 @@ TAttributeSchema* TObjectTypeHandlerBase::GetParentIdAttributeSchema()
 }
 
 void TObjectTypeHandlerBase::BeforeObjectCreated(
-    const TTransactionPtr& transaction,
+    const TTransactionPtr& /*transaction*/,
     TObject* object)
 {
     for (auto* attribute : object->Attributes()) {
@@ -158,7 +158,7 @@ void TObjectTypeHandlerBase::BeforeObjectRemoved(
 
 void TObjectTypeHandlerBase::AfterObjectRemoved(
     const TTransactionPtr& /*transaction*/,
-    TObject* object)
+    TObject* /*object*/)
 { }
 
 TAttributeSchema* TObjectTypeHandlerBase::MakeAttributeSchema(

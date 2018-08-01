@@ -73,6 +73,21 @@ EObjectType TNode::GetType() const
     return EObjectType::Node;
 }
 
+TResource* TNode::GetCpuResourceOrThrow()
+{
+    for (auto* resource : Resources().Load()) {
+        resource->Kind().ScheduleLoad();
+    }
+    for (auto* resource : Resources().Load()) {
+        if (resource->Kind().Load() == EResourceKind::Cpu) {
+            return resource;
+        }
+    }
+    THROW_ERROR_EXCEPTION("No %Qlv resource registered for node %Qv",
+        EResourceKind::Cpu,
+        GetId());
+}
+
 void TNode::UpdateHfsmStatus(EHfsmState state, const TString& message)
 {
     auto* hfsm = Status().Other()->mutable_hfsm();

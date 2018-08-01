@@ -64,7 +64,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckObjectPermissions));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchObjects));
     }
 
 private:
@@ -131,6 +130,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GenerateTimestamp)
     {
+        Y_UNUSED(request);
         context->SetRequestInfo();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -144,6 +144,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, StartTransaction)
     {
+        Y_UNUSED(request);
         context->SetRequestInfo();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -174,6 +175,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, AbortTransaction)
     {
+        Y_UNUSED(response);
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo("TransactionId: %v", transactionId);
 
@@ -271,6 +273,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, RemoveObject)
     {
+        Y_UNUSED(response);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto objectType = static_cast<NObjects::EObjectType>(request->object_type());
         auto objectId = FromProto<TObjectId>(request->object_id());
@@ -295,6 +299,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, RemoveObjects)
     {
+        Y_UNUSED(response);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         struct TSubrequest
@@ -345,6 +351,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, UpdateObject)
     {
+        Y_UNUSED(response);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto objectType = static_cast<NObjects::EObjectType>(request->object_type());
         auto objectId = FromProto<TObjectId>(request->object_id());
@@ -379,6 +387,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, UpdateObjects)
     {
+        Y_UNUSED(response);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         struct TSubrequest
@@ -562,11 +572,6 @@ private:
         }
 
         context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, WatchObjects)
-    {
-        THROW_ERROR_EXCEPTION("Not implemented");
     }
 };
 

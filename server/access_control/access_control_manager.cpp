@@ -14,6 +14,8 @@
 
 #include <yt/client/api/rowset.h>
 
+#include <yt/client/table_client/helpers.h>
+
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/core/misc/property.h>
@@ -599,7 +601,7 @@ private:
     {
         TObjectId userId;
         NClient::NApi::NProto::TUserSpec spec;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &userId,
             &spec);
@@ -612,7 +614,7 @@ private:
     {
         TObjectId groupId;
         NClient::NApi::NProto::TGroupSpec spec;
-        FromDBRow(
+        FromUnversionedRow(
             row,
             &groupId,
             &spec);

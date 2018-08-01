@@ -50,9 +50,9 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
 {
     const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
 
-    for (size_t addressIdx = 0; addressIdx < ip6AddressRequests.size(); ++addressIdx) {
-        const auto& ip6_address_request = ip6AddressRequests[addressIdx];
-        if (!ip6_address_request.enable_internet()) {
+    for (int addressIndex = 0; addressIndex < ip6AddressRequests.size(); ++addressIndex) {
+        const auto& ip6AddressRequest = ip6AddressRequests[addressIndex];
+        if (!ip6AddressRequest.enable_internet()) {
             continue;
         }
 
@@ -67,7 +67,7 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
         auto* internetAddress = transaction->GetInternetAddress(*scheduledInternetAddressId);
         internetAddress->ValidateExists();
 
-        auto* ip6Address = pod->Status().Other()->mutable_ip6_address_allocations(addressIdx);
+        auto* ip6Address = pod->Status().Other()->mutable_ip6_address_allocations(addressIndex);
         auto* statusInternetAddress = ip6Address->mutable_internet_address();
 
         statusInternetAddress->set_id(internetAddress->GetId());

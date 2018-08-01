@@ -15,9 +15,9 @@ using namespace NObjects;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t DefaultIP4Mtu = 1450;
-static const size_t DefaultIP6Mtu = 1450;
-static const size_t DefaultInternetTunnelMtu = 1400;
+static const ui32 DefaultIP4Mtu = 1450;
+static const ui32 DefaultIP6Mtu = 1450;
+static const ui32 DefaultInternetTunnelMtu = 1400;
 static const TStringBuf DefaultDecapsulatorAnycastAddress{"2a02:6b8:0:3400::aaaa"};
 static const TStringBuf DefaultTunnelFarmAddress{"2a02:6b8:b010:a0ff::1"};
 static const TStringBuf BackboneVlanID{"backbone"};
@@ -96,31 +96,6 @@ static const THashSet<TString> SysctlWhitelist{
 
 namespace {
 
-void ValidateBackboneIPsForTunnel(const NProto::TPodStatusOther& statusOther)
-{
-    size_t backboneIPCount = 0;
-    for (const auto& ip6Address : statusOther.ip6_address_allocations()) {
-        if (ip6Address.vlan_id() == BackboneVlanID) {
-            ++backboneIPCount;
-        }
-    }
-
-    // TODO(avitella): Intelligent backbone address selection with "filter". YP-230
-    if (backboneIPCount != 1) {
-        THROW_ERROR_EXCEPTION("Expected exactly one backbone IP6 address but found %v", backboneIPCount);
-    }
-}
-
-TString GetBackboneIPForTunnel(const NProto::TPodStatusOther& statusOther)
-{
-    for (const auto& ip6Address : statusOther.ip6_address_allocations()) {
-        if (ip6Address.vlan_id() == BackboneVlanID) {
-            return ip6Address.address();
-        }
-    }
-    THROW_ERROR_EXCEPTION("There is no suitable backbone address");
-}
-
 struct TInternetTunnelProperties
 {
     TString IPIP6;
@@ -147,6 +122,90 @@ std::vector<TInternetTunnelProperties> CreateInternetTunnelsProperties(const NPr
 
         props.push_back(prop);
     }
+
+    return props;
+}
+
+struct TVirtualServicesProperties
+{
+    std::vector<TString> Net;
+    std::vector<TString> Addresses;
+    std::vector<TString> SysCtl;
+};
+
+TVirtualServicesProperties CreateVirtualServicesProperties(
+    const NProto::TPodSpecOther& podSpecOther,
+    const NProto::TPodStatusOther& podStatusOther)
+{
+    TVirtualServicesProperties props;
+
+    const auto& options = podSpecOther.virtual_service_options();
+
+    TStringBuf decapsulatorAnycastAddress = DefaultDecapsulatorAnycastAddress;
+    if (options.has_decapsulator_anycast_address()) {
+        decapsulatorAnycastAddress = options.decapsulator_anycast_address();
+    }
+
+    ui32 ip6Mtu = DefaultIP6Mtu;
+    if (options.has_ip6_mtu()) {
+        ip6Mtu = options.ip6_mtu();
+    }
+
+    ui32 ip4Mtu = DefaultIP4Mtu;
+    if (options.has_ip4_mtu()) {
+        ip4Mtu = options.ip4_mtu();
+    }
+
+    bool hasIP4VirtualServices = false;
+    bool hasIP6VirtualServices = false;
+
+    auto processIP6AddressVirtualServices = [&] (const NClient::NApi::NProto::TPodStatus_TIP6AddressAllocation& allocation) {
+        bool allocationHasIP4VirtualServices = false;
+
+        for (const auto& vs : allocation.virtual_services()) {
+            if (!vs.ip4_addresses().empty()) {
+                allocationHasIP4VirtualServices = true;
+                hasIP4VirtualServices = true;
+            }
+
+            if (!vs.ip6_addresses().empty()) {
+                hasIP6VirtualServices = true;
+            }
+
+            for (const auto& ip4Address : vs.ip4_addresses()) {
+                props.Addresses.emplace_back(Format("tun0 %v", ip4Address));
+            }
+
+            for (const auto& ip6Address : vs.ip6_addresses()) {
+                props.Addresses.emplace_back(Format("ip6tnl0 %v", ip6Address));
+            }
+        }
+
+        if (allocationHasIP4VirtualServices) {
+            props.Net.emplace_back(Format(
+                "ipip6 tun0 %v %v",
+                decapsulatorAnycastAddress,
+                allocation.address()));
+        }
+    };
+
+    for (const auto& allocation : podStatusOther.ip6_address_allocations()) {
+        processIP6AddressVirtualServices(allocation);
+    }
+
+    if (hasIP4VirtualServices) {
+        props.Net.emplace_back(Format("MTU tun0 %v", ip4Mtu));
+        props.SysCtl.emplace_back("net.ipv4.conf.all.rp_filter:0");
+        props.SysCtl.emplace_back("net.ipv4.conf.default.rp_filter:0");
+        props.SysCtl.emplace_back("net.ipv4.conf.veth.rp_filter:0");
+        props.SysCtl.emplace_back("net.ipv4.conf.ip6tnl0.rp_filter:0");
+    }
+    if (hasIP6VirtualServices) {
+        props.Net.emplace_back(Format("MTU ip6tnl0 %v", ip6Mtu));
+    }
+
+    Sort(props.Addresses);
+    props.Addresses.erase(Unique(props.Addresses.begin(), props.Addresses.end()), props.Addresses.end());
 
     return props;
 }
@@ -208,6 +267,7 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
 
 std::vector<std::pair<TString, TString>> BuildPortoProperties(
     const NClient::NApi::NProto::TNodeSpec& nodeSpec,
+    const NClient::NApi::NProto::TResourceSpec_TCpuSpec& cpuSpec,
     const NProto::TPodSpecOther& podSpecOther,
     const NProto::TPodStatusOther& podStatusOther)
 {
@@ -215,7 +275,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
 
     // Limits, guarantees
     auto vcpuToPortoCpu = [&] (ui64 vcpu) {
-        return Format("%.3fc", vcpu / nodeSpec.cpu_to_vcpu_factor() / 1000);
+        return Format("%.3fc", vcpu / cpuSpec.cpu_to_vcpu_factor() / 1000);
     };
 
     const auto& requests = podSpecOther.resource_requests();
@@ -237,35 +297,17 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     // Internet tunnels
     const auto internetTunnelsProps = CreateInternetTunnelsProperties(podStatusOther);
 
+    // VirtualService tunnels
+    const auto virtualServicesProps = CreateVirtualServicesProperties(podSpecOther, podStatusOther);
+
     // Network
     result.emplace_back("hostname", podStatusOther.dns().transient_fqdn());
-
-    const auto& vsTunnel = podSpecOther.virtual_service_tunnel();
-    const auto& vsStatus = podStatusOther.virtual_service();
 
     std::vector<TString> netTokens;
     netTokens.emplace_back("L3 veth");
 
-    TStringBuf decapsulatorAnycastAddress = DefaultDecapsulatorAnycastAddress;
-    if (vsTunnel.has_decapsulator_anycast_address()) {
-        decapsulatorAnycastAddress = vsTunnel.decapsulator_anycast_address();
-    }
-    if (!vsStatus.ip4_addresses().empty()) {
-        size_t ip4Mtu = DefaultIP4Mtu;
-        if (vsTunnel.has_ip4_mtu()) {
-            ip4Mtu = vsTunnel.ip4_mtu();
-        }
-
-        ValidateBackboneIPsForTunnel(podStatusOther);
-        netTokens.emplace_back(Format("ipip6 tun0 %v %v", decapsulatorAnycastAddress, GetBackboneIPForTunnel(podStatusOther)));
-        netTokens.emplace_back(Format("MTU tun0 %v", ip4Mtu));
-    }
-    if (!vsStatus.ip6_addresses().empty()) {
-        size_t ip6Mtu = DefaultIP6Mtu;
-        if (vsTunnel.has_ip6_mtu()) {
-            ip6Mtu = vsTunnel.ip6_mtu();
-        }
-        netTokens.emplace_back(Format("MTU ip6tnl0 %v", ip6Mtu));
+    for (const auto& net: virtualServicesProps.Net) {
+        netTokens.emplace_back(net);
     }
     for (const auto& prop : internetTunnelsProps) {
         netTokens.emplace_back(prop.IPIP6);
@@ -278,14 +320,11 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     for (const auto& ip6Address : podStatusOther.ip6_address_allocations()) {
         addresses.emplace_back(Format("veth %v", ip6Address.address()));
     }
-    for (const auto& ip6tun : vsStatus.ip6_addresses()) {
-        addresses.emplace_back(Format("ip6tnl0 %v", ip6tun));
-    }
-    for (const auto& ip4tun : vsStatus.ip4_addresses()) {
-        addresses.emplace_back(Format("tun0 %v", ip4tun));
-    }
     for (const auto& internetTunnel : internetTunnelsProps) {
         addresses.emplace_back(internetTunnel.Address);
+    }
+    for (const auto& vsTunnel : virtualServicesProps.Addresses) {
+        addresses.emplace_back(vsTunnel);
     }
     if (!addresses.empty()) {
         result.emplace_back("ip", JoinToString(addresses.begin(), addresses.end(), AsStringBuf(";")));
@@ -308,11 +347,8 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     for (const auto& property : podSpecOther.sysctl_properties()) {
         sysctlProperties.emplace_back(Format("%v:%v", property.name(), property.value()));
     }
-    if (!vsStatus.ip4_addresses().empty()) {
-        sysctlProperties.emplace_back("net.ipv4.conf.all.rp_filter:0");
-        sysctlProperties.emplace_back("net.ipv4.conf.default.rp_filter:0");
-        sysctlProperties.emplace_back("net.ipv4.conf.veth.rp_filter:0");
-        sysctlProperties.emplace_back("net.ipv4.conf.ip6tnl0.rp_filter:0");
+    for (const auto& property : virtualServicesProps.SysCtl) {
+        sysctlProperties.emplace_back(property);
     }
     if (!sysctlProperties.empty()) {
         result.emplace_back("sysctl", JoinToString(sysctlProperties.begin(), sysctlProperties.end(), AsStringBuf(";")));

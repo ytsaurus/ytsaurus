@@ -18,8 +18,7 @@ class TPodSpec_TSysctlProperty;
 using TObjectId = TString;
 using TTransactionId = NYT::TGuid;
 
-// XXX(babenko): decrease by a factor of 10
-constexpr int MaxObjectIdLength = 2560;
+constexpr int MaxObjectIdLength = 256;
 constexpr int MaxNodeShortNameLength = 250;
 constexpr int MaxPodFqdnLength = 630;
 
@@ -37,6 +36,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchTransaction)           (100010))
     ((UserBanned)                  (100011))
     ((AccountLimitExceeded)        (100012))
+    ((PodSchedulingFailure)        (100013))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

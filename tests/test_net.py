@@ -1,11 +1,48 @@
 import pytest
 
 from yt.yson import YsonEntity
-from yp.common import YtResponseError
+from yp.common import YtResponseError, YpNoSuchObjectError
 from yt.environment.helpers import wait
 
 @pytest.mark.usefixtures("yp_env")
 class TestNet(object):
+    def _create_pod_with_boilerplate(self, yp_client, spec):
+        yp_client.create_object("network_project", attributes={
+            "meta": {
+                "id": "somenet"
+            },
+            "spec": {
+                "project_id": 123
+            }
+        })
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={
+            "spec": {
+                "node_segment_id": "default"
+            }
+        })
+
+        node_id = yp_client.create_object("node", attributes={
+                "meta": {
+                    "id": "test"
+                },
+                "spec": {
+                    "ip6_subnets": [
+                        {"vlan_id": "somevlan", "subnet": "1:2:3:4::/64"}
+                    ],
+                }
+            })
+        yp_client.update_hfsm_state(node_id, "up", "Test")
+           
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": spec
+        })
+
+        return pod_id
+
     def test_invalid_pod_vlan_id(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -181,43 +218,12 @@ class TestNet(object):
     def test_assign_pod_ip6_address_scheduler(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("network_project", attributes={
-            "meta": {
-                "id": "somenet"
-            },
-            "spec": {
-                "project_id": 123
-            }
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_address_requests": [
+                {"vlan_id": "somevlan", "network_id": "somenet"},
+            ],
+            "enable_scheduling": True
         })
-
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-            "spec": {
-                "node_segment_id": "default"
-            }
-        })
-
-        node_id = yp_client.create_object("node", attributes={
-                "meta": {
-                    "id": "test"
-                },
-                "spec": {
-                    "ip6_subnets": [
-                        {"vlan_id": "somevlan", "subnet": "1:2:3:4::/64"}
-                    ],
-                }
-            })
-        yp_client.update_hfsm_state(node_id, "up", "Test")
-
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": {
-                "ip6_address_requests": [
-                    {"vlan_id": "somevlan", "network_id": "somenet"},
-                ],
-                "enable_scheduling": True
-            }})
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
 
@@ -226,3 +232,157 @@ class TestNet(object):
         assert allocations[0]["vlan_id"] == "somevlan"
         assert allocations[0]["address"].startswith("1:2:3:4:0:7b:")
         assert allocations[0]["manual"] == False
+
+    def test_update_assigned_pod_with_removed_network_project(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_address_requests": [
+                {"vlan_id": "somevlan", "network_id": "somenet"},
+            ],
+            "enable_scheduling": True
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+        yp_client.remove_object("network_project", "somenet")
+        # Must not throw
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss_payload", "value": "123"}])        
+
+    def test_virtual_service_tunnel(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        vs_id = yp_client.create_object("virtual_service", attributes={
+            "spec": {
+                "ip4_addresses": ["100.100.100.100", "2.2.2.2"],
+                "ip6_addresses": ["1:1:1:1", "2:2:2:2", "3:3:3:3"],
+            }
+        })
+
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_address_requests": [
+                {"vlan_id": "somevlan", "network_id": "somenet", "virtual_service_ids": [vs_id]},
+            ],
+            "enable_scheduling": True
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
+        assert allocations[0]["virtual_services"][0]["ip4_addresses"] == ["100.100.100.100", "2.2.2.2"]
+        assert allocations[0]["virtual_services"][0]["ip6_addresses"] == ["1:1:1:1", "2:2:2:2", "3:3:3:3"]
+
+    def test_multiple_virtual_service_tunnels(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        vs_id1 = yp_client.create_object("virtual_service", attributes={
+            "spec": {
+                "ip4_addresses": ["1.1.1.1"],
+            }
+        })
+        vs_id2 = yp_client.create_object("virtual_service", attributes={
+            "spec": {
+                "ip4_addresses": ["2.2.2.2"],
+            }
+        })
+
+        vs_ids = [
+            [vs_id1],
+            [],
+            [vs_id1, vs_id2],
+            [vs_id2],
+        ]
+
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_address_requests": [
+                {"vlan_id": "somevlan", "network_id": "somenet", "virtual_service_ids": ids} for ids in vs_ids
+            ],
+            "enable_scheduling": True
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
+        assert len(allocations) == len(vs_ids)
+
+        for i in range(len(allocations)):
+            assert len(allocations[i].get("virtual_services", [])) == len(vs_ids[i])
+            for j in range(len(vs_ids[i])):
+                vs = yp_client.get_object("virtual_service", vs_ids[i][j], selectors=["/spec"])[0]
+                pod_vs = allocations[i]["virtual_services"][j]
+                assert pod_vs.get("ip4_addresses", []) == vs.get("ip4_addresses", [])
+                assert pod_vs.get("ip6_addresses", []) == vs.get("ip6_addresses", [])
+
+    def test_virtual_service_options(self, yp_env):
+        client = yp_env.yp_client
+
+        pod_set_id = client.create_object("pod_set")
+        pod_id = client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": {
+                "virtual_service_options": {
+                    "ip4_mtu": 42,
+                    "ip6_mtu": 36,
+                    "decapsulator_anycast_address": "13:13:13:13",
+                }
+            },
+        })
+
+        options = client.get_object("pod", pod_id, selectors=["/spec/virtual_service_options"])
+        assert options[0]["ip4_mtu"] == 42
+        assert options[0]["ip6_mtu"] == 36
+        assert options[0]["decapsulator_anycast_address"] == "13:13:13:13"
+
+    def test_invalid_virtual_service_tunnel_in_pod_spec(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_address_requests": [
+                {"vlan_id": "somevlan", "network_id": "somenet", "virtual_service_ids": ["incorrect_id"]}
+            ],
+            "enable_scheduling": True,
+        })
+
+        wait(lambda: not isinstance(yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0], YsonEntity))
+
+    def test_update_virtual_service_tunnel(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        specs = [
+            { "ip4_addresses": ["1.2.3.4"] },
+            { "ip6_addresses": ["1:2:3:4"] },
+            { "ip4_addresses": ["1.2.3.4"], "ip6_addresses": ["1:2:3:4"] },
+            { },
+        ]
+
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_address_requests": [
+                {"vlan_id": "somevlan", "network_id": "somenet"},
+            ],
+            "enable_scheduling": True
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        for spec in specs:
+            vs_id = yp_client.create_object(object_type="virtual_service", attributes={"spec": spec})
+
+            update = {
+                "path": "/spec/ip6_address_requests",
+                "value": [{"vlan_id": "somevlan", "network_id": "somenet", "virtual_service_ids": [vs_id]}]
+            }
+
+            def check_vs_status():
+                addresses = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0][0]
+                ip4 = addresses["virtual_services"][0].get("ip4_addresses", [])
+                ip6 = addresses["virtual_services"][0].get("ip6_addresses", [])
+                spec_ip4, spec_ip6 = spec.get("ip4_addresses", []), spec.get("ip6_addresses", [])
+
+                assert ip4 == spec_ip4
+                assert ip6 == spec_ip6
+
+            yp_client.update_object("pod", pod_id, set_updates=[update])
+            check_vs_status()
+            yp_client.update_object("pod", pod_id, set_updates=[update])
+            check_vs_status()

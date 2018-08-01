@@ -3,6 +3,7 @@ from yp.local import YpInstance, ACTUAL_DB_VERSION
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
+from yt.wrapper.retries import run_with_retries
 from yt.environment.helpers import wait
 
 import pytest
@@ -102,18 +103,22 @@ def test_method_teardown(yp_env):
     for object_type in OBJECT_TYPES:
         if object_type == "schema":
             continue
-        object_ids = yp_client.select_objects(object_type, selectors=["/meta/id"])
-        for object_id_list in object_ids:
-            object_id = object_id_list[0]
-            if object_type == "user" and object_id == "root":
-                continue
-            if object_type == "group" and object_id == "superusers":
-                continue
-            if object_type == "account" and object_id == "tmp":
-                continue
-            if object_type == "node_segment" and object_id == "default":
-                continue
-            yp_client.remove_object(object_type, object_id)
+
+        # Occasionally we may run into conflicts with the scheduler, see YP-284
+        def do():
+            object_ids = yp_client.select_objects(object_type, selectors=["/meta/id"])
+            for object_id_list in object_ids:
+                object_id = object_id_list[0]
+                if object_type == "user" and object_id == "root":
+                    continue
+                if object_type == "group" and object_id == "superusers":
+                    continue
+                if object_type == "account" and object_id == "tmp":
+                    continue
+                if object_type == "node_segment" and object_id == "default":
+                    continue
+                yp_client.remove_object(object_type, object_id)
+        run_with_retries(do, exceptions=(YtResponseError,))
 
 
 @pytest.fixture(scope="session")

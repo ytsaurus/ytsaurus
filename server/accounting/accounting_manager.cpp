@@ -199,10 +199,6 @@ private:
                 NClient::NApi::NProto::TResourceTotals usage;
                 for (auto* podSet : account->PodSets()) {
                     auto* nodeSegment = podSet->GetNodeSegment();
-                    if (!nodeSegment) {
-                        continue;
-                    }
-
                     for (auto* pod : podSet->Pods()) {
                         usage += ResourceUsageFromPodSpec(pod->SpecOther(), nodeSegment->GetId());
                     }

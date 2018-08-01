@@ -129,6 +129,7 @@ extern const struct TPodsTable
         TDBField Status_Agent_State{"status.agent.state"};
         TDBField Status_Agent_IssPayload{"status.agent.iss_payload"};
         TDBField Status_Agent_PodAgentPayload{"status.agent.pod_agent_payload"};
+        TDBField Status_Agent_Other{"status.agent.other"};
         TDBField Status_Other{"status.other"};
         TDBField Spec_NodeId{"spec.node_id"};
         TDBField Spec_IssPayload{"spec.iss_payload"};

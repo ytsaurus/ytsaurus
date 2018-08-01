@@ -37,9 +37,8 @@ class TNodeTracker::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* bootstrap, TNodeTrackerConfigPtr config)
-        : Bootstrap_(bootstrap)
-        , Config_(std::move(config))
+    TImpl(TBootstrap* /*bootstrap*/, TNodeTrackerConfigPtr config)
+        : Config_(std::move(config))
     { }
 
     TNode* ProcessHandshake(
@@ -105,8 +104,10 @@ public:
             epochId,
             sequenceNumber);
 
+        auto now = TInstant::Now();
+
         node->Status().HeartbeatSequenceNumber() = sequenceNumber;
-        node->Status().LastSeenTime() = TInstant::Now();
+        node->Status().LastSeenTime() = now;
 
         for (auto* resource : node->Resources().Load()) {
             resource->Status().ActualAllocations().ScheduleLoad();
@@ -177,6 +178,16 @@ public:
                         pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
                     }
                 }
+
+                if (podEntry.status().execution_error().code() != NYT::EErrorCode::OK) {
+                    *pod->Status().Agent().Other()->mutable_execution_error() = podEntry.status().execution_error();
+                } else {
+                    pod->Status().Agent().Other()->clear_execution_error();
+                }
+
+                *pod->Status().Agent().Other()->mutable_validation_errors() = podEntry.status().validation_errors();
+
+                pod->Status().Agent().Other()->set_last_heartbeat_time(ToProto<ui64>(now));
 
                 pod->Status().AgentSpecTimestamp() = agentTimestamp;
             }
@@ -273,7 +284,6 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
     const TNodeTrackerConfigPtr Config_;
 
     const IChannelFactoryPtr NodeChannelFactory_ = CreateCachingChannelFactory(GetGrpcChannelFactory());
@@ -297,8 +307,14 @@ private:
         // Schedule loading some properties to be used later on.
         podSpec.Other().ScheduleLoad();
         podStatus.Other().ScheduleLoad();
+        node->Resources().ScheduleLoad();
 
-        auto properties = BuildPortoProperties(node->Spec().Load(), pod->Spec().Other().Load(), pod->Status().Other().Load());
+        auto* cpuResource = node->GetCpuResourceOrThrow();
+        auto properties = BuildPortoProperties(
+            node->Spec().Load(),
+            cpuResource->Spec().Load().cpu(),
+            pod->Spec().Other().Load(),
+            pod->Status().Other().Load());
         for (const auto& pair : properties) {
             auto* protoProperty = protoSpec->add_porto_properties();
             protoProperty->set_key(pair.first);

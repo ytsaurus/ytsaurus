@@ -11,16 +11,7 @@
 
 #include <yt/ytlib/query_client/ast.h>
 
-#include <yt/core/ytree/convert.h>
-
-#include <yt/core/net/address.h>
-
-#include <yt/core/misc/cast.h>
 #include <yt/core/misc/collection_helpers.h>
-
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
-
-#include <array>
 
 namespace NYP {
 namespace NServer {
@@ -29,623 +20,13 @@ namespace NObjects {
 using namespace NYT::NTableClient;
 using namespace NYT::NApi;
 using namespace NYT::NQueryClient::NAst;
-using namespace NYT::NYTree;
 using namespace NYT::NYson;
-using namespace NYT::NNet;
-
-using namespace google::protobuf;
-using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TDBField DummyField{"dummy"};
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, const TGuid& value, const TRowBufferPtr& rowBuffer, int id)
-{
-    auto strValue = ToString(value);
-    *dbValue = value
-        ? rowBuffer->Capture(MakeUnversionedStringValue(strValue, id))
-        : MakeUnversionedSentinelValue(EValueType::Null);
-}
-
-void FromDBValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        *value = TGuid();
-        return;
-    }
-    if (dbValue.Type != EValueType::String) {
-        THROW_ERROR_EXCEPTION("Cannot parse object id value from %Qlv",
-            dbValue.Type);
-    }
-    *value = TGuid::FromString(TStringBuf(dbValue.Data.String, dbValue.Length));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, const TString& value, const TRowBufferPtr& rowBuffer, int id)
-{
-    *dbValue = rowBuffer->Capture(MakeUnversionedStringValue(value, id));
-}
-
-void FromDBValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        *value = TString();
-        return;
-    }
-    if (dbValue.Type != EValueType::String) {
-        THROW_ERROR_EXCEPTION("Cannot parse string value from %Qlv",
-            dbValue.Type);
-    }
-    *value = TString(dbValue.Data.String, dbValue.Length);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, bool value, const TRowBufferPtr& rowBuffer, int id)
-{
-    *dbValue = rowBuffer->Capture(MakeUnversionedBooleanValue(value, id));
-}
-
-void FromDBValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        *value = false;
-        return;
-    }
-    if (dbValue.Type != EValueType::Boolean) {
-        THROW_ERROR_EXCEPTION("Cannot parse bool value from %Qlv",
-            dbValue.Type);
-    }
-    *value = dbValue.Data.Boolean;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
-{
-    Y_ASSERT(value.GetType() == EYsonType::Node);
-    *dbValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.GetData(), id));
-}
-
-void FromDBValue(TYsonString* value, const TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse YSON string value from %Qlv",
-            dbValue.Type);
-    }
-    *value = TYsonString(TString(dbValue.Data.String, dbValue.Length));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, i64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *dbValue = MakeUnversionedInt64Value(value, id);
-}
-
-void FromDBValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Int64) {
-        THROW_ERROR_EXCEPTION("Cannot parse int64 value from %Qlv",
-            dbValue.Type);
-    }
-    *value = dbValue.Data.Int64;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, ui64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *dbValue = MakeUnversionedUint64Value(value, id);
-}
-
-void FromDBValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse uint64 value from %Qlv",
-            dbValue.Type);
-    }
-    *value = dbValue.Data.Uint64;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, ui32 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *dbValue = MakeUnversionedUint64Value(value, id);
-}
-
-void FromDBValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse uint32 value from %Qlv",
-            dbValue.Type);
-    }
-    *value = CheckedIntegralCast<ui32>(dbValue.Data.Uint64);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, ui16 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *dbValue = MakeUnversionedUint64Value(value, id);
-}
-
-void FromDBValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse uint16 value from %Qlv",
-            dbValue.Type);
-    }
-    *value = CheckedIntegralCast<ui16>(dbValue.Data.Uint64);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, double value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *dbValue = MakeUnversionedDoubleValue(value, id);
-}
-
-void FromDBValue(double* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Double) {
-        THROW_ERROR_EXCEPTION("Cannot parse double value from %Qlv",
-            dbValue.Type);
-    }
-    *value = dbValue.Data.Double;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, TInstant value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *dbValue = MakeUnversionedUint64Value(value.MicroSeconds(), id);
-}
-
-void FromDBValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse instant from %Qlv",
-            dbValue.Type);
-    }
-    *value = TInstant::MicroSeconds(dbValue.Data.Uint64);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
-{
-    *dbValue = rowBuffer->Capture(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
-}
-
-void FromDBValue(IMapNodePtr* value, const TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        *value = nullptr;
-    }
-    if (dbValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse YSON map from %Qlv",
-            dbValue.Type);
-    }
-    *value = ConvertTo<IMapNodePtr>(TYsonString(dbValue.Data.String, dbValue.Length));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValue(TUnversionedValue* dbValue, const TIP6Address& value, const TRowBufferPtr& rowBuffer, int id)
-{
-    ToDBValue(dbValue, ToString(value), rowBuffer, id);
-}
-
-void FromDBValue(TIP6Address* value, const TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        *value = TIP6Address();
-    }
-    auto strValue = FromDBValue<TString>(dbValue);
-    *value = TIP6Address::FromString(strValue);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValueImpl(
-    TUnversionedValue* dbValue,
-    const Message& value,
-    const TProtobufMessageType* type,
-    const TRowBufferPtr& rowBuffer,
-    int id)
-{
-    auto byteSize = value.ByteSize();
-    auto* pool = rowBuffer->GetPool();
-    auto* wireBuffer = pool->AllocateUnaligned(byteSize);
-    YCHECK(value.SerializePartialToArray(wireBuffer, byteSize));
-    ArrayInputStream inputStream(wireBuffer, byteSize);
-    TString ysonBytes;
-    TStringOutput outputStream(ysonBytes);
-    TYsonWriter ysonWriter(&outputStream);
-    ParseProtobuf(&ysonWriter, &inputStream, type);
-    *dbValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
-}
-
-void FromDBValueImpl(
-    Message* value,
-    const TProtobufMessageType* type,
-    const TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        value->Clear();
-        return;
-    }
-    if (dbValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse a protobuf message from %Qlv",
-            dbValue.Type);
-    }
-    TString wireBytes;
-    StringOutputStream outputStream(&wireBytes);
-    auto protobufWriter = CreateProtobufWriter(&outputStream, type);
-    ParseYsonStringBuffer(
-        TStringBuf(dbValue.Data.String, dbValue.Length),
-        EYsonType::Node,
-        protobufWriter.get());
-    if (!value->ParseFromArray(wireBytes.data(), wireBytes.size())) {
-        THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
-            value->GetTypeName());
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToDBValueImpl(
-    TUnversionedValue* dbValue,
-    const std::function<bool(TUnversionedValue*)> producer,
-    const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-    int id)
-{
-    TString ysonBytes;
-    TStringOutput outputStream(ysonBytes);
-    NYT::NYson::TYsonWriter writer(&outputStream);
-    writer.OnBeginList();
-
-    int count = 0;
-    while (true) {
-        writer.OnListItem();
-        TUnversionedValue itemValue;
-        if (!producer(&itemValue)) {
-            break;
-        }
-        DBValueToYson(itemValue, &writer);
-        ++count;
-    }
-    writer.OnEndList();
-
-    *dbValue = rowBuffer->Capture(NYT::NTableClient::MakeUnversionedAnyValue(ysonBytes, id));
-}
-
-void FromDBValueImpl(
-    std::function<google::protobuf::Message*()> appender,
-    const TProtobufMessageType* type,
-    const TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        return;
-    }
-
-    if (dbValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse vector from %Qlv",
-            dbValue.Type);
-    }
-
-    class TConsumer
-        : public IYsonConsumer
-    {
-    public:
-        TConsumer(
-            std::function<google::protobuf::Message*()> appender,
-            const TProtobufMessageType* type)
-            : Appender_(std::move(appender))
-            , Type_(type)
-            , OutputStream_(&WireBytes_)
-        { }
-
-        virtual void OnStringScalar(TStringBuf value) override
-        {
-            GetUnderlying()->OnStringScalar(value);
-        }
-
-        virtual void OnInt64Scalar(i64 value) override
-        {
-            GetUnderlying()->OnInt64Scalar(value);
-        }
-
-        virtual void OnUint64Scalar(ui64 value) override
-        {
-            GetUnderlying()->OnUint64Scalar(value);
-        }
-
-        virtual void OnDoubleScalar(double value) override
-        {
-            GetUnderlying()->OnDoubleScalar(value);
-        }
-
-        virtual void OnBooleanScalar(bool value) override
-        {
-            GetUnderlying()->OnBooleanScalar(value);
-        }
-
-        virtual void OnEntity() override
-        {
-            GetUnderlying()->OnEntity();
-        }
-
-        virtual void OnBeginList() override
-        {
-            if (Depth_ > 0) {
-                GetUnderlying()->OnBeginList();
-            }
-            ++Depth_;
-        }
-
-        virtual void OnListItem() override
-        {
-            if (Depth_ == 1) {
-                NextElement();
-            } else {
-                GetUnderlying()->OnListItem();
-            }
-        }
-
-        virtual void OnEndList() override
-        {
-            --Depth_;
-            if (Depth_ == 0) {
-                FlushElement();
-            } else {
-                GetUnderlying()->OnEndList();
-            }
-        }
-
-        virtual void OnBeginMap() override
-        {
-            ++Depth_;
-            GetUnderlying()->OnBeginMap();
-        }
-
-        virtual void OnKeyedItem(TStringBuf key) override
-        {
-            GetUnderlying()->OnKeyedItem(key);
-        }
-
-        virtual void OnEndMap() override
-        {
-            --Depth_;
-            GetUnderlying()->OnEndMap();
-        }
-
-        virtual void OnBeginAttributes() override
-        {
-            GetUnderlying()->OnBeginAttributes();
-        }
-
-        virtual void OnEndAttributes() override
-        {
-            GetUnderlying()->OnEndAttributes();
-        }
-
-        virtual void OnRaw(TStringBuf yson, EYsonType type) override
-        {
-            GetUnderlying()->OnRaw(yson, type);
-        }
-
-    private:
-        const std::function<google::protobuf::Message*()> Appender_;
-        const TProtobufMessageType* const Type_;
-
-        std::unique_ptr<IYsonConsumer> Underlying_;
-        int Depth_ = 0;
-
-        TString WireBytes_;
-        StringOutputStream OutputStream_;
-
-
-        IYsonConsumer* GetUnderlying()
-        {
-            if (!Underlying_) {
-                THROW_ERROR_EXCEPTION("YSON value must be a list without attributes");
-            }
-            return Underlying_.get();
-        }
-
-        void NextElement()
-        {
-            FlushElement();
-            WireBytes_.clear();
-            Underlying_ = CreateProtobufWriter(&OutputStream_, Type_);
-        }
-
-        void FlushElement()
-        {
-            if (!Underlying_) {
-                return;
-            }
-            auto* value = Appender_();
-            if (!value->ParseFromArray(WireBytes_.data(), WireBytes_.size())) {
-                THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
-                    value->GetTypeName());
-            }
-            Underlying_.reset();
-        }
-    } consumer(std::move(appender), type);
-
-    ParseYsonStringBuffer(
-        TStringBuf(dbValue.Data.String, dbValue.Length),
-        EYsonType::Node,
-        &consumer);
-}
-
-void FromDBValueImpl(
-    std::function<void(const TUnversionedValue&)> appender,
-    const NYT::NTableClient::TUnversionedValue& dbValue)
-{
-    if (dbValue.Type == EValueType::Null) {
-        return;
-    }
-
-    if (dbValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse a vector from %Qlv",
-            dbValue.Type);
-    }
-
-    class TConsumer
-        : public TYsonConsumerBase
-    {
-    public:
-        explicit TConsumer(std::function<void(const TUnversionedValue&)> appender)
-            : Appender_(std::move(appender))
-        { }
-
-        virtual void OnStringScalar(TStringBuf value) override
-        {
-            EnsureInList();
-            Appender_(MakeUnversionedStringValue(value));
-        }
-
-        virtual void OnInt64Scalar(i64 value) override
-        {
-            EnsureInList();
-            Appender_(MakeUnversionedInt64Value(value));
-        }
-
-        virtual void OnUint64Scalar(ui64 value) override
-        {
-            EnsureInList();
-            Appender_(MakeUnversionedUint64Value(value));
-        }
-
-        virtual void OnDoubleScalar(double value) override
-        {
-            EnsureInList();
-            Appender_(MakeUnversionedDoubleValue(value));
-        }
-
-        virtual void OnBooleanScalar(bool value) override
-        {
-            EnsureInList();
-            Appender_(MakeUnversionedBooleanValue(value));
-        }
-
-        virtual void OnEntity() override
-        {
-            THROW_ERROR_EXCEPTION("YSON entities are not supported");
-        }
-
-        virtual void OnBeginList() override
-        {
-            EnsureNotInList();
-            InList_ = true;
-        }
-
-        virtual void OnListItem() override
-        { }
-
-        virtual void OnEndList() override
-        { }
-
-        virtual void OnBeginMap() override
-        {
-            THROW_ERROR_EXCEPTION("YSON maps are not supported");
-        }
-
-        virtual void OnKeyedItem(TStringBuf /*key*/) override
-        {
-            Y_UNREACHABLE();
-        }
-
-        virtual void OnEndMap() override
-        {
-            Y_UNREACHABLE();
-        }
-
-        virtual void OnBeginAttributes() override
-        {
-            THROW_ERROR_EXCEPTION("YSON attributes are not supported");
-        }
-
-        virtual void OnEndAttributes() override
-        {
-            Y_UNREACHABLE();
-        }
-
-    private:
-        const std::function<void(const TUnversionedValue&)> Appender_;
-
-        bool InList_ = false;
-
-        void EnsureInList()
-        {
-            if (!InList_) {
-                THROW_ERROR_EXCEPTION("YSON list expected");
-            }
-        }
-
-        void EnsureNotInList()
-        {
-            if (InList_) {
-                THROW_ERROR_EXCEPTION("YSON list is unexpected");
-            }
-        }
-    } consumer(std::move(appender));
-
-    ParseYsonStringBuffer(
-        TStringBuf(dbValue.Data.String, dbValue.Length),
-        EYsonType::Node,
-        &consumer);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void DBValueToYson(const TUnversionedValue& dbValue, IYsonConsumer* consumer)
-{
-    switch (dbValue.Type) {
-        case EValueType::Int64:
-            consumer->OnInt64Scalar(dbValue.Data.Int64);
-            break;
-        case EValueType::Uint64:
-            consumer->OnUint64Scalar(dbValue.Data.Uint64);
-            break;
-        case EValueType::Double:
-            consumer->OnDoubleScalar(dbValue.Data.Double);
-            break;
-        case EValueType::String:
-            consumer->OnStringScalar(TStringBuf(dbValue.Data.String, dbValue.Length));
-            break;
-        case EValueType::Any:
-            consumer->OnRaw(TStringBuf(dbValue.Data.String, dbValue.Length), EYsonType::Node);
-            break;
-        case EValueType::Boolean:
-            consumer->OnBooleanScalar(dbValue.Data.Boolean);
-            break;
-        case EValueType::Null:
-            consumer->OnEntity();
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-TYsonString DBValueToYson(const TUnversionedValue& dbValue)
-{
-    TString data;
-    data.reserve(GetYsonSize(dbValue));
-    TStringOutput output(data);
-    TYsonWriter writer(&output, EYsonFormat::Binary);
-    DBValueToYson(dbValue, &writer);
-    return TYsonString(std::move(data));
-}
 
 TRange<TUnversionedValue> CaptureCompositeObjectKey(
     const TObject* object,
@@ -660,12 +41,12 @@ TRange<TUnversionedValue> CaptureCompositeObjectKey(
     };
     if (parentType == EObjectType::Null) {
         return capture(
-            ToDBValues(
+            ToUnversionedValues(
                 rowBuffer,
                 object->GetId()));
     } else {
         return capture(
-            ToDBValues(
+            ToUnversionedValues(
                 rowBuffer,
                 object->GetParentId(),
                 object->GetId()));
@@ -726,7 +107,7 @@ void TObjectExistenceChecker::LoadFromDB(ILoadContext* context)
         const auto* table = typeHandler->GetTable();
         context->ScheduleLookup(
             table,
-            ToDBValues(
+            ToUnversionedValues(
                 context->GetRowBuffer(),
                 Object_->GetId()),
             MakeArray(
@@ -737,7 +118,7 @@ void TObjectExistenceChecker::LoadFromDB(ILoadContext* context)
     } else {
         context->ScheduleLookup(
             &ParentsTable,
-            ToDBValues(
+            ToUnversionedValues(
                 context->GetRowBuffer(),
                 Object_->GetId(),
                 Object_->GetType()),
@@ -793,10 +174,10 @@ void TAttributeBase::DoScheduleStore() const
         });
 }
 
-void TAttributeBase::LoadFromDB(ILoadContext* context)
+void TAttributeBase::LoadFromDB(ILoadContext* /*context*/)
 { }
 
-void TAttributeBase::StoreToDB(IStoreContext* context)
+void TAttributeBase::StoreToDB(IStoreContext* /*context*/)
 { }
 
 void TAttributeBase::OnObjectCreated()
@@ -846,7 +227,7 @@ void TParentIdAttribute::LoadFromDB(ILoadContext* context)
 
     context->ScheduleLookup(
         &ParentsTable,
-        ToDBValues(
+        ToUnversionedValues(
             context->GetRowBuffer(),
             Owner_->GetId(),
             Owner_->GetType()),
@@ -855,7 +236,7 @@ void TParentIdAttribute::LoadFromDB(ILoadContext* context)
             if (maybeValues) {
                 Y_ASSERT(maybeValues->Size() == 1);
                 try {
-                    FromDBValue(&ParentId_, (*maybeValues)[0]);
+                    FromUnversionedValue(&ParentId_, (*maybeValues)[0]);
                     LOG_DEBUG("Object parent resolved (ObjectId: %v, ObjectType: %v, ParentId: %v)",
                         Owner_->GetId(),
                         Owner_->GetType(),
@@ -932,7 +313,7 @@ void TChildrenAttributeBase::LoadFromDB(ILoadContext* context)
             Children_->reserve(rows.Size());
             for (auto row : rows) {
                 Y_ASSERT(row.GetCount() == 1);
-                auto childId = FromDBValue<TObjectId>(row[0]);
+                auto childId = FromUnversionedValue<TObjectId>(row[0]);
                 auto* child = Owner_->GetSession()->GetObject(GetChildrenType(), childId);
                 Children_->insert(child);
             }
@@ -1173,7 +554,7 @@ void TOneToManyAttributeBase::LoadFromDB(ILoadContext* context)
             ForeignObjects_->reserve(rows.Size());
             for (auto row : rows) {
                 Y_ASSERT(row.GetCount() == 1);
-                auto foreignId = FromDBValue<TObjectId>(row[0]);
+                auto foreignId = FromUnversionedValue<TObjectId>(row[0]);
                 auto* foreignObject = Owner_->GetSession()->GetObject(GetForeignObjectType(), foreignId);
                 ForeignObjects_->insert(foreignObject);
             }
@@ -1193,7 +574,7 @@ void TOneToManyAttributeBase::StoreToDB(IStoreContext* context)
     for (auto* object : AddedForeignObjects_) {
         context->WriteRow(
             Schema_->Table,
-            ToDBValues(
+            ToUnversionedValues(
                 rowBuffer,
                 Owner_->GetId(),
                 object->GetId()),
@@ -1204,7 +585,7 @@ void TOneToManyAttributeBase::StoreToDB(IStoreContext* context)
     for (auto* object : RemovedForeignObjects_) {
         context->DeleteRow(
             Schema_->Table,
-            ToDBValues(
+            ToUnversionedValues(
                 rowBuffer,
                 Owner_->GetId(),
                 object->GetId()));
@@ -1279,7 +660,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
 
     auto ownerState = Owner_->GetState();
     if (ownerState == EObjectState::Removed || ownerState == EObjectState::Removing) {
-        auto primaryKey = ToDBValue(Owner_->GetId(), rowBuffer);
+        auto primaryKey = ToUnversionedValue(Owner_->GetId(), rowBuffer);
         Y_ASSERT(primaryKey.Type == EValueType::String);
         TString primaryKeyString(primaryKey.Data.String, primaryKey.Length);
 
@@ -1302,7 +683,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
 
                 for (auto row : rows) {
                     Y_ASSERT(row.GetCount() == 1);
-                    auto key = FromDBValue<TString>(row[0]);
+                    auto key = FromUnversionedValue<TString>(row[0]);
                     YCHECK(KeyToValue_.emplace(key, Null).second);
                     YCHECK(ScheduledStoreKeys_.emplace(key).second);
                 }
@@ -1311,7 +692,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
         for (const auto& attributeKey : ScheduledLoadKeys_) {
             context->ScheduleLookup(
                 &AnnotationsTable,
-                ToDBValues(
+                ToUnversionedValues(
                     rowBuffer,
                     Owner_->GetId(),
                     Owner_->GetType(),
@@ -1321,7 +702,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                     if (maybeValues) {
                         Y_ASSERT(maybeValues->Size() == 1);
                         const auto& value = (*maybeValues)[0];
-                        KeyToValue_[attributeKey] = FromDBValue<TYsonString>(value);
+                        KeyToValue_[attributeKey] = FromUnversionedValue<TYsonString>(value);
                     } else {
                         KeyToValue_[attributeKey] = Null;
                     }
@@ -1330,7 +711,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
         }
 
         if (ScheduledLoadAll_) {
-            auto primaryKey = ToDBValue(Owner_->GetId(), rowBuffer);
+            auto primaryKey = ToUnversionedValue(Owner_->GetId(), rowBuffer);
             Y_ASSERT(primaryKey.Type == EValueType::String);
             TString primaryKeyString(primaryKey.Data.String, primaryKey.Length);
 
@@ -1347,8 +728,8 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                     auto rows = rowset->GetRows();
                     for (auto row : rows) {
                         Y_ASSERT(row.GetCount() == 2);
-                        auto key = FromDBValue<TString>(row[0]);
-                        auto value = FromDBValue<TYsonString>(row[1]);
+                        auto key = FromUnversionedValue<TString>(row[0]);
+                        auto value = FromUnversionedValue<TYsonString>(row[1]);
                         KeyToValue_.emplace(std::move(key), std::move(value));
                     }
                 });
@@ -1363,7 +744,7 @@ void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
         Y_ASSERT(it != KeyToValue_.end());
         const auto& maybeAttributeValue = it->second;
 
-        auto keyValues = ToDBValues(
+        auto keyValues = ToUnversionedValues(
             context->GetRowBuffer(),
             Owner_->GetId(),
             Owner_->GetType(),
@@ -1374,7 +755,7 @@ void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
                 &AnnotationsTable,
                 keyValues,
                 MakeArray(&AnnotationsTable.Fields.Value),
-                ToDBValues(
+                ToUnversionedValues(
                     context->GetRowBuffer(),
                     *maybeAttributeValue));
         } else {

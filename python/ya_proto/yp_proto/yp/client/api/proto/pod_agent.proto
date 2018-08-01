@@ -64,6 +64,20 @@ message TPodAgentStatus {
     repeated TWorkloadStatus Workloads = 6;
 
     repeated TBoxStatus Boxes = 7;
+    // Если хотя бы один из Ready вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
+    // обращается в EConditionStatus_UNKNOWN.
+    // Иначе, если хотя бы один из них имеет Status == EConditionStatus_FALSE,
+    // обращается в EConditionStatus_FALSE.
+    // Иначе обращается в EConditionStatus_TRUE.
+    // LastTransitionTime -- максимальное значение Ready.LastTransitionTime среди всех вложеных T*Status
+    TCondition Ready = 8;
+    // Если хотя бы один из InProgress вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
+    // обращается в EConditionStatus_UNKNOWN.
+    // Иначе, если хотя бы один из них имеет Status == EConditionStatus_TRUE,
+    // обращается в EConditionStatus_TRUE.
+    // Иначе обращается в EConditionStatus_FALSe.
+    // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
+    TCondition InProgress = 9;
 }
 
 // Спека для получения расширенного debug состояния pod_agent
@@ -74,7 +88,7 @@ message TPodAgentDebugSpec {
 // Расширенный debug status возвращаемый Pod-agent
 message TPodAgentDebugStatus {
     // Состояние behavior tree для workloads в dot формате
-    map<string, string> WorkloadTreeDots = 1;
+    map<string, string> WorkloadTreeDots = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 //============================== SPEC ==========================
@@ -90,7 +104,7 @@ message TComputeResources {
 
     // Свойства porto-контейнеров, задаваемые непосредственно.
     // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 1;
+    map<string, string> Properties = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 // Проверки целостности ресурса
@@ -117,7 +131,7 @@ message TResourceMeta {
 }
 
 message TResource {
-    string Id = 1; // Уникальное имя ресурса (в рамках pod'а)
+    string Id = 1; // Уникальное имя ресурса (в рамках pod'а). Должно состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
 
     //не нужно для Pod-agent
     TResourceMeta Meta = 2; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
@@ -174,7 +188,7 @@ message TFileStorage {
 message TGenericVolume {
     // Свойства porto volumes, задаваемые непосредственно.
     // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 3;
+    map<string, string> Properties = 3 [(NYT.NYson.NProto.yson_map) = true];
 
     // Слои, из которых собирается volume
     //NOTE: Валидация ids в списке должны быть уникальные
@@ -182,7 +196,7 @@ message TGenericVolume {
 }
 
 message TVolume {
-    string Id = 1;
+    string Id = 1; // Уникальный в рамках pod идентификатор Volume. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
 
     oneof Volume {
         TFileStorage Storage = 3;
@@ -230,7 +244,7 @@ message TEnvVar {
 
 //pid-ns как изолируется относительно соседей
 message TWorkload {
-    // уникальный в рамках pod идентификатор Workload
+    // уникальный в рамках pod идентификатор Workload. Должeн состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
 
     //атрибуты контейнера (по сути это сквозной проброс опций Porto)
@@ -263,6 +277,8 @@ message TWorkload {
 
     //Указатель на Box, в котором надо запускаться
     string BoxRef = 8;
+
+    TLivenessCheck LivenessCheck = 9;
 }
 
 message TStopPolicy {
@@ -273,7 +289,7 @@ message TStopPolicy {
 }
 
 message TBox {
-    // уникальный в рамках pod идентификатор Box
+    // уникальный в рамках pod идентификатор Box. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
 
     TRootfsVolume Rootfs = 2;
@@ -308,6 +324,14 @@ message TReadinessCheck {
         TUtilityContainer Container = 2;
         TTcpCheck TcpCheck = 3;
         THTTPGet HttpCheck = 4;
+    }
+}
+
+message TLivenessCheck {
+    oneof Check {
+        TUtilityContainer Container = 1;
+        TTcpCheck TcpCheck = 2;
+        THTTPGet HttpCheck = 3;
     }
 }
 
@@ -354,6 +378,8 @@ message TBoxStatus {
     TCondition Ready = 6;
 
     TCondition InProgress = 7;
+
+    repeated string RootfsLayerRefs = 8;
 }
 
 enum EBoxState {
@@ -417,6 +443,9 @@ enum EWorkloadState {
 
     // Workload находится в не валидном состоянии и значит будет полнотью пересобран
     EWorkloadState_INVALID = 8 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+
+    // Workload deactivated by liveness
+    EWorkloadState_DEACTIVATED_BY_LIVENESS = 9 [(NYT.NYson.NProto.enum_value_name) = "deactivated_by_liveness"];
 }
 
 // Описание результата выполнения хука
@@ -498,6 +527,8 @@ message TWorkloadStatus {
 
     TReadinessStatus ReadinessStatus = 6;
 
+    TLivenessStatus LivenessStatus = 10;
+
     TCondition Ready = 7;
 
     TCondition InProgress = 8;
@@ -520,6 +551,14 @@ message THttpCheckStatus {
 }
 
 message TReadinessStatus {
+    oneof Status {
+        TContainerStatus ContainerStatus = 1;
+        TTcpCheckStatus TcpCheckStatus = 2;
+        THttpCheckStatus HttpCheckStatus = 3;
+    }
+}
+
+message TLivenessStatus {
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         TTcpCheckStatus TcpCheckStatus = 2;

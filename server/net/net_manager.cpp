@@ -47,9 +47,8 @@ class TNetManager::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* bootstrap, TNetManagerConfigPtr config)
-        : Bootstrap_(bootstrap)
-        , Config_(std::move(config))
+    TImpl(TBootstrap* /*bootstrap*/, TNetManagerConfigPtr config)
+        : Config_(std::move(config))
     { }
 
     TString BuildPersistentPodFqdn(TPod* pod)
@@ -83,15 +82,19 @@ public:
             AcquirePodAddresss(transaction, pod);
         }
 
-        UpdateFqdns(pod);
-
-        UpdateVirtualServiceTunnel(transaction, pod);
+        if (ShouldUpdateAddressAllocations(pod)) {
+            UpdateFqdns(pod);
+            UpdateVirtualServiceTunnel(transaction, pod);
+        }
     }
 
 private:
-    TBootstrap* const Bootstrap_;
     const TNetManagerConfigPtr Config_;
 
+    bool ShouldUpdateAddressAllocations(TPod* pod)
+    {
+        return !pod->IsRemoving() && pod->Spec().Node().Load();
+    }
 
     bool IsValidPodIP6Address(const TNode* node, const TIP6Address& podAddress)
     {
@@ -146,7 +149,7 @@ private:
             return true;
         }
 
-        for (size_t index = 0; index < ip6AddressRequests.size(); ++index) {
+        for (int index = 0; index < ip6AddressRequests.size(); ++index) {
             const auto& request = ip6AddressRequests[index];
             const auto& allocation = ip6AddressAllocations[index];
             auto podAddress = TIP6Address::FromString(allocation.address());
@@ -161,9 +164,18 @@ private:
                     return true;
                 }
             } else {
-                auto* networkProject = transaction->GetNetworkProject(request.network_id());
-                if (networkProject->Spec().ProjectId().Load() != ProjectIdFromMtnAddress(podAddress)) {
-                    return true;
+                const auto& networkProjectId = request.network_id();
+                auto* networkProject = transaction->GetNetworkProject(networkProjectId);
+                // TODO(babenko): ugly hack for YP-322
+                if (networkProject->DoesExist()) {
+                    if (networkProject->Spec().ProjectId().Load() != ProjectIdFromMtnAddress(podAddress)) {
+                        return true;
+                    }
+                } else {
+                    LOG_DEBUG("Pod refers to non-existing network project; silently skipping update since pod's node did not change"
+                        " (PodId: %v, NetworkProjectId: %v)",
+                        pod->GetId(),
+                        networkProjectId);
                 }
                 if (!IsValidPodIP6Address(oldNode, podAddress)) {
                     return true;
@@ -180,7 +192,7 @@ private:
             return true;
         }
 
-        for (size_t index = 0; index < ip6SubnetRequests.size(); ++index) {
+        for (int index = 0; index < ip6SubnetRequests.size(); ++index) {
             const auto& request = ip6SubnetRequests[index];
             const auto& allocation = ip6SubnetAllocations[index];
             if (request.vlan_id() != allocation.vlan_id()) {
@@ -209,13 +221,13 @@ private:
             [=] (IStoreContext* context) {
                 context->WriteRow(
                     &IP6NoncesTable,
-                    ToDBValues(
+                    ToUnversionedValues(
                         context->GetRowBuffer(),
                         node->GetId(),
                         nonce),
                     MakeArray(
                         &IP6NoncesTable.Fields.PodId),
-                    ToDBValues(
+                    ToUnversionedValues(
                         context->GetRowBuffer(),
                         pod->GetId()));
             });
@@ -231,7 +243,7 @@ private:
             [=] (IStoreContext* context) {
                 context->DeleteRow(
                     &IP6NoncesTable,
-                    ToDBValues(
+                    ToUnversionedValues(
                         context->GetRowBuffer(),
                         node->GetId(),
                         nonce));
@@ -356,8 +368,17 @@ private:
                 if (!networkId) {
                     THROW_ERROR_EXCEPTION("Neither \"manual_address\" nor \"network_id\" is given");
                 }
+
+                auto* networkProject = transaction->GetNetworkProject(networkId);
+                if (!networkProject->DoesExist()) {
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::PodSchedulingFailure,
+                        "Pod %Qv refers to non-existing network project %Qv",
+                        pod->GetId(),
+                        networkId);
+                }
+
                 auto hostSubnet = getHostSubnetForVlan(vlanId);
-                auto* networkProject = transaction->GetNetworkProject(request.network_id());
                 auto projectId = networkProject->Spec().ProjectId().Load();
                 auto nonce = generateNonce();
                 auto address = MakeMtnAddress(
@@ -405,47 +426,25 @@ private:
 
     void UpdateVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
     {
-        if (pod->IsRemoving()) {
-            return;
-        }
+        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
+        auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
+        Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
 
-        auto& podStatusOther = pod->Status().Other();
-        podStatusOther->clear_virtual_service();
-
-        const auto& podSpecOther = pod->Spec().Other().Load();
-        if (!podSpecOther.has_virtual_service_tunnel()) {
-            return;
-        }
-
-        const auto& tunnel = podSpecOther.virtual_service_tunnel();
-        const auto* virtualService = transaction->GetVirtualService(tunnel.virtual_service_id());
-        virtualService->ValidateExists();
-
-        auto* vsStatus = podStatusOther->mutable_virtual_service();
-
-        for (const auto& ip6Address : virtualService->Spec().Load().ip6_addresses()) {
-            vsStatus->add_ip6_addresses(ip6Address);
-        }
-
-        for (const auto& ip4Address : virtualService->Spec().Load().ip4_addresses()) {
-            vsStatus->add_ip4_addresses(ip4Address);
+        for (int index = 0; index < ip6AddressRequests.size(); ++index) {
+            UpdateIP6AddressVirtualServiceTunnel(
+                transaction,
+                pod,
+                ip6AddressRequests[index],
+                &(*ip6AddressAllocations)[index]);
         }
     }
 
     void UpdateFqdns(TPod* pod)
     {
-        if (pod->IsRemoving()) {
-            return;
-        }
-
-        if (!pod->Spec().Node().Load()) {
-            return;
-        }
-
         const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
         auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
         Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
-        for (size_t index = 0; index < ip6AddressRequests.size(); ++index) {
+        for (int index = 0; index < ip6AddressRequests.size(); ++index) {
             UpdateIP6AddressFqdns(pod, ip6AddressRequests[index], &(*ip6AddressAllocations)[index]);
         }
     }
@@ -461,6 +460,43 @@ private:
         } else {
             allocation->clear_persistent_fqdn();
             allocation->clear_transient_fqdn();
+        }
+    }
+
+    void UpdateIP6AddressVirtualServiceTunnel(
+        const TTransactionPtr& transaction,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodSpec_TIP6AddressRequest& request,
+        NClient::NApi::NProto::TPodStatus_TIP6AddressAllocation* allocation)
+    {
+        allocation->clear_virtual_services();
+
+        for (const auto& virtualServiceId : request.virtual_service_ids()) {
+            const auto* virtualService = transaction->GetVirtualService(virtualServiceId);
+            if (!virtualService->DoesExist()) {
+                // TODO(babenko): similar to YP-322
+                if (!pod->Spec().Node().IsChanged()) {
+                    LOG_DEBUG("Pod refers to non-existing virtual service; sliently skipping update since pod's node did not change"
+                        " (PodId: %v, VirtualServiceId: %v)",
+                        pod->GetId(),
+                        virtualServiceId);
+                    return;
+                }
+
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
+                    "Pod %Qv refers to non-existing virtual service %Qv",
+                    pod->GetId(),
+                    virtualServiceId);
+            }
+
+            auto* vsStatus = allocation->add_virtual_services();
+            for (const auto& ip6Address : virtualService->Spec().Load().ip6_addresses()) {
+                vsStatus->add_ip6_addresses(ip6Address);
+            }
+            for (const auto& ip4Address : virtualService->Spec().Load().ip4_addresses()) {
+                vsStatus->add_ip4_addresses(ip4Address);
+            }
         }
     }
 
@@ -502,6 +538,7 @@ private:
         while (nonceSet.size() < count) {
             if (attempt++ > Config_->MaxNoncesGenerationAttempts) {
                 THROW_ERROR_EXCEPTION("Could not generate %v IP6 nonces for node %Qv after %v attempts",
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
                     count,
                     node->GetId(),
                     Config_->MaxNoncesGenerationAttempts);
@@ -522,7 +559,7 @@ private:
                     for (auto candidate : candidates) {
                         context->ScheduleLookup(
                             &IP6NoncesTable,
-                            ToDBValues(
+                            ToUnversionedValues(
                                 context->GetRowBuffer(),
                                 node->GetId(),
                                 candidate),

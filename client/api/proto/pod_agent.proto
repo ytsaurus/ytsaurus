@@ -88,7 +88,7 @@ message TPodAgentDebugSpec {
 // Расширенный debug status возвращаемый Pod-agent
 message TPodAgentDebugStatus {
     // Состояние behavior tree для workloads в dot формате
-    map<string, string> WorkloadTreeDots = 1;
+    map<string, string> WorkloadTreeDots = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 //============================== SPEC ==========================
@@ -104,7 +104,7 @@ message TComputeResources {
 
     // Свойства porto-контейнеров, задаваемые непосредственно.
     // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 1;
+    map<string, string> Properties = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 // Проверки целостности ресурса
@@ -188,7 +188,7 @@ message TFileStorage {
 message TGenericVolume {
     // Свойства porto volumes, задаваемые непосредственно.
     // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 3;
+    map<string, string> Properties = 3 [(NYT.NYson.NProto.yson_map) = true];
 
     // Слои, из которых собирается volume
     //NOTE: Валидация ids в списке должны быть уникальные

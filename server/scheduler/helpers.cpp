@@ -54,17 +54,17 @@ bool IsHomogeneous(EResourceKind kind)
 
 TResourceCapacities MakeCpuCapacities(ui64 capacity)
 {
-    return {capacity, 0};
+    return {{capacity, 0}};
 }
 
 TResourceCapacities MakeMemoryCapacities(ui64 capacity)
 {
-    return {capacity, 0};
+    return {{capacity, 0}};
 }
 
 TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots)
 {
-    return {capacity, volumeSlots};
+    return {{capacity, volumeSlots}};
 }
 
 ui64 GetHomogeneousCapacity(const TResourceCapacities& capacities)
@@ -264,94 +264,98 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
     const NObjects::NProto::TPodStatusOther& status,
     const std::vector<TLocalResourceAllocator::TResource>& resources)
 {
-    std::vector<TLocalResourceAllocator::TRequest> requests;
+    try {
+        std::vector<TLocalResourceAllocator::TRequest> requests;
 
-    const TLocalResourceAllocator::TResource* cpuResource = nullptr;
-    const TLocalResourceAllocator::TResource* memoryResource = nullptr;
-    for (auto& resource : resources) {
-        switch (resource.Kind) {
-            case EResourceKind::Cpu:
-                cpuResource = &resource;
-                break;
+        const TLocalResourceAllocator::TResource* cpuResource = nullptr;
+        const TLocalResourceAllocator::TResource* memoryResource = nullptr;
+        for (auto& resource : resources) {
+            switch (resource.Kind) {
+                case EResourceKind::Cpu:
+                    cpuResource = &resource;
+                    break;
 
-            case EResourceKind::Memory:
-                memoryResource = &resource;
-                break;
+                case EResourceKind::Memory:
+                    memoryResource = &resource;
+                    break;
 
-            default:
-                break;
-        }
-    }
-
-    // Cpu
-    const auto& resourceRequests = spec.resource_requests();
-    if (resourceRequests.vcpu_guarantee() > 0) {
-        TLocalResourceAllocator::TRequest request;
-        request.Kind = EResourceKind::Cpu;
-        request.Capacities = MakeCpuCapacities(resourceRequests.vcpu_guarantee());
-        if (cpuResource) {
-            request.MatchingResources.push_back(cpuResource);
-        }
-        requests.push_back(request);
-    }
-
-    // Memory
-    if (resourceRequests.memory_limit() > 0) {
-        TLocalResourceAllocator::TRequest request;
-        request.Kind = EResourceKind::Memory;
-        request.Capacities = MakeCpuCapacities(resourceRequests.memory_limit());
-        if (memoryResource) {
-            request.MatchingResources.push_back(memoryResource);
-        }
-        requests.push_back(request);
-    }
-
-    // Disk
-    THashMap<TString, const NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation*> idToDiskAllocation;
-    for (const auto& allocation : status.disk_volume_allocations()) {
-        if (!idToDiskAllocation.emplace(allocation.id(), &allocation).second) {
-            THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
-                allocation.id());
-        }
-    }
-    for (int index = 0; index < spec.disk_volume_requests_size(); ++index) {
-        const auto& volumeRequest = spec.disk_volume_requests(index);
-        auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
-        TLocalResourceAllocator::TRequest request;
-        request.ProtoVolumeRequest = &volumeRequest;
-        request.Kind = EResourceKind::Disk;
-        request.Id = volumeRequest.id();
-        request.Capacities = GetDiskVolumeRequestCapacities(volumeRequest);
-        request.Exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
-        auto it = idToDiskAllocation.find(request.Id);
-        if (it == idToDiskAllocation.end()) {
-            request.AllocationId = ToString(TGuid::Create());
-        } else {
-            const auto* allocation = it->second;
-            request.AllocationId = allocation->volume_id();
-        }
-        for (const auto& resource : resources) {
-            if (resource.Kind != EResourceKind::Disk) {
-                continue;
+                default:
+                    break;
             }
-            if (resource.ProtoDiskSpec->storage_class() != volumeRequest.storage_class()) {
-                continue;
-            }
-            const auto& supportedPolicies = resource.ProtoDiskSpec->supported_policies();
-            if (std::find(supportedPolicies.begin(), supportedPolicies.end(), policy) == supportedPolicies.end()) {
-                continue;
-            }
-            request.MatchingResources.push_back(&resource);
         }
-        requests.push_back(request);
-    }
 
-    return requests;
+        // Cpu
+        const auto& resourceRequests = spec.resource_requests();
+        if (resourceRequests.vcpu_guarantee() > 0) {
+            TLocalResourceAllocator::TRequest request;
+            request.Kind = EResourceKind::Cpu;
+            request.Capacities = MakeCpuCapacities(resourceRequests.vcpu_guarantee());
+            if (cpuResource) {
+                request.MatchingResources.push_back(cpuResource);
+            }
+            requests.push_back(request);
+        }
+
+        // Memory
+        if (resourceRequests.memory_limit() > 0) {
+            TLocalResourceAllocator::TRequest request;
+            request.Kind = EResourceKind::Memory;
+            request.Capacities = MakeCpuCapacities(resourceRequests.memory_limit());
+            if (memoryResource) {
+                request.MatchingResources.push_back(memoryResource);
+            }
+            requests.push_back(request);
+        }
+
+        // Disk
+        THashMap<TString, const NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation*> idToDiskAllocation;
+        for (const auto& allocation : status.disk_volume_allocations()) {
+            if (!idToDiskAllocation.emplace(allocation.id(), &allocation).second) {
+                THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
+                    allocation.id());
+            }
+        }
+        for (int index = 0; index < spec.disk_volume_requests_size(); ++index) {
+            const auto& volumeRequest = spec.disk_volume_requests(index);
+            auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
+            TLocalResourceAllocator::TRequest request;
+            request.ProtoVolumeRequest = &volumeRequest;
+            request.Kind = EResourceKind::Disk;
+            request.Id = volumeRequest.id();
+            request.Capacities = GetDiskVolumeRequestCapacities(volumeRequest);
+            request.Exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
+            auto it = idToDiskAllocation.find(request.Id);
+            if (it == idToDiskAllocation.end()) {
+                request.AllocationId = ToString(TGuid::Create());
+            } else {
+                const auto* allocation = it->second;
+                request.AllocationId = allocation->volume_id();
+            }
+            for (const auto& resource : resources) {
+                if (resource.Kind != EResourceKind::Disk) {
+                    continue;
+                }
+                if (resource.ProtoDiskSpec->storage_class() != volumeRequest.storage_class()) {
+                    continue;
+                }
+                const auto& supportedPolicies = resource.ProtoDiskSpec->supported_policies();
+                if (std::find(supportedPolicies.begin(), supportedPolicies.end(), policy) == supportedPolicies.end()) {
+                    continue;
+                }
+                request.MatchingResources.push_back(&resource);
+            }
+            requests.push_back(request);
+        }
+
+        return requests;
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error building allocator resource requests for pod %Qv",
+            podId);
+    }
 }
 
 void UpdatePodDiskVolumeAllocations(
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations,
-    const std::vector<NObjects::TResource*>& nativeResources,
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses)
 {

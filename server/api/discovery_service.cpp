@@ -39,6 +39,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetMasters)
     {
+        Y_UNUSED(request);
+
         context->SetRequestInfo("Interface: %v",
             Interface_);
 

@@ -758,7 +758,7 @@ private:
             : Transaction_(transaction)
         { }
 
-        TKey CaptureKey(const TRange<TUnversionedValue>& key)
+        TKey CaptureKey(TRange<TUnversionedValue> key)
         {
             auto capturedKey = RowBuffer_->Capture(key.Begin(), key.Size());
             for (size_t index = 0; index < key.Size(); ++index) {
@@ -790,8 +790,8 @@ private:
 
         virtual void ScheduleLookup(
             const TDBTable* table,
-            const TRange<TUnversionedValue>& key,
-            const TRange<const TDBField*>& fields,
+            TRange<TUnversionedValue> key,
+            TRange<const TDBField*> fields,
             std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) override
         {
             LookupRequests_[std::make_pair(table, CaptureKey(key))].Subrequests.push_back(TLookupSubrequest{
@@ -1065,9 +1065,9 @@ private:
 
         virtual void WriteRow(
             const TDBTable* table,
-            const TRange<TUnversionedValue>& key,
-            const TRange<const TDBField*>& fields,
-            const TRange<TUnversionedValue>& values) override
+            TRange<TUnversionedValue> key,
+            TRange<const TDBField*> fields,
+            TRange<TUnversionedValue> values) override
         {
             Y_ASSERT(key.Size() == table->Key.size());
             Y_ASSERT(fields.Size() == values.Size());
@@ -1080,7 +1080,7 @@ private:
 
         virtual void DeleteRow(
             const TDBTable* table,
-            const TRange<TUnversionedValue>& key) override
+            TRange<TUnversionedValue> key) override
         {
             Y_ASSERT(key.Size() == table->Key.size());
             DeleteRequests_[table].push_back(TDeleteRequest{
@@ -1533,12 +1533,12 @@ private:
 
                     context.WriteRow(
                         &ParentsTable,
-                        ToDBValues(
+                        ToUnversionedValues(
                             context.GetRowBuffer(),
                             object->GetId(),
                             object->GetType()),
                         MakeArray(&ParentsTable.Fields.ParentId),
-                        ToDBValues(
+                        ToUnversionedValues(
                             context.GetRowBuffer(),
                             parentId));
                 }
@@ -1571,13 +1571,13 @@ private:
                         table,
                         CaptureCompositeObjectKey(object, context.GetRowBuffer()),
                         MakeArray(&ObjectsTable.Fields.Meta_RemovalTime),
-                        ToDBValues(
+                        ToUnversionedValues(
                             context.GetRowBuffer(),
                             now));
                     if (parentType != EObjectType::Null) {
                         context.DeleteRow(
                             &ParentsTable,
-                            ToDBValues(
+                            ToUnversionedValues(
                                 context.GetRowBuffer(),
                                 object->GetId(),
                                 type));

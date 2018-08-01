@@ -141,12 +141,12 @@ message TPerSegmentResourceTotals
 
     optional TMemoryTotals memory = 1;
     optional TMemoryTotals cpu = 2;
-    map<string, TDiskTotals> disk_per_storage_class = 3;
+    map<string, TDiskTotals> disk_per_storage_class = 3 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message TResourceTotals
 {
-    map<string, TPerSegmentResourceTotals> per_segment = 1;
+    map<string, TPerSegmentResourceTotals> per_segment = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +219,7 @@ message TResourceSpec
         required uint64 total_capacity = 1;
         // Calibrated compute power of a single "physical" CPU core.
         // Typically "physical" CPU cores are, in fact, HT threads.
-        optional double cpu_to_vcpu_factor = 2;
+        optional double cpu_to_vcpu_factor = 2 [default = 1.0];
     }
 
     message TMemorySpec
@@ -520,7 +520,7 @@ message TPodSpec
         // <scheme>:<hex value>. Supported schemes are "MD5" and "EMPTY".
         optional string checksum = 2;
         // Arguments to be passed to pod agent via command line.
-        map<string, string> configuration = 3;
+        map<string, string> configuration = 3 [(NYT.NYson.NProto.yson_map) = true];
     }
 
     message TPodAgentPayload
@@ -574,6 +574,9 @@ message TPodSpec
 
         // If true, internet tunnels is configured (InternetAddress is allocated and assigned to pod).
         optional bool enable_internet = 7;
+
+        // If given, virtual service tunnels are configured.
+        repeated string virtual_service_ids = 8;
     }
     // IP6 addresses to allocate for this pod upon assignment.
     repeated TIP6AddressRequest ip6_address_requests = 5;
@@ -649,15 +652,14 @@ message TPodSpec
     // Sysctl properties to configure.
     repeated TSysctlProperty sysctl_properties = 11;
 
-    message TVirtualServiceTunnel
+    message TVirtualServiceOptions
     {
-        required string virtual_service_id = 1;
         optional uint32 ip4_mtu = 2;
         optional uint32 ip6_mtu = 3;
         optional string decapsulator_anycast_address = 4;
     }
 
-    optional TVirtualServiceTunnel virtual_service_tunnel = 12;
+    optional TVirtualServiceOptions virtual_service_options = 12;
 }
 
 enum EEvictionState
@@ -725,6 +727,15 @@ message TPodStatus
         // Pod agent status.
         // COMPAT(babenko): Either this or iss_payload/iss should be present.
         optional TPodAgentPayload pod_agent_payload = 5;
+
+        // Error in pod execution passed from agent via heartbeat.
+        optional NYT.NProto.TError execution_error = 6;
+
+        // Errors in pod spec validation passed from agent via heartbeat.
+        repeated NYT.NProto.TError validation_errors = 8;
+
+        // The instant the last heartbeat from agent containing the status of this pod was received.
+        optional uint64 last_heartbeat_time = 7;
     }
     optional TAgent agent = 2;
 
@@ -766,6 +777,17 @@ message TPodStatus
 
         // Internet address assigned to this allocation.
         optional TInternetAddress internet_address = 7;
+
+        message TVirtualService
+        {
+            // IP6 address, in textual form.
+            repeated string ip6_addresses = 1;
+            // IP4 address, in textual form.
+            repeated string ip4_addresses = 2;
+        }
+
+        // Virtual services assigned to this allocation.
+        repeated TVirtualService virtual_services = 8;
     }
     repeated TIP6AddressAllocation ip6_address_allocations = 5;
 
@@ -847,16 +869,6 @@ message TPodStatus
 
     // Timestamp of the spec as reported by agent.
     optional uint64 agent_spec_timestamp = 12;
-
-    message TVirtualService
-    {
-        // IP6 address, in textual form.
-        repeated string ip6_addresses = 1;
-        // IP4 address, in textual form.
-        repeated string ip4_addresses = 2;
-    }
-
-    optional TVirtualService virtual_service = 13;
 }
 
 message TPodControl
@@ -1050,7 +1062,7 @@ message TNodeSegmentStatus
 {
     // Aggregates for all nodes belonging to this segment, regardless of their HFSM state.
     optional TPerSegmentResourceTotals total_resources = 1;
-    // Aggreates for all nodes belonging to this segment and having "up" HFSM state.
+    // Aggregates for all nodes belonging to this segment and having "up" HFSM state.
     optional TPerSegmentResourceTotals schedulable_resources = 2;
 }
 

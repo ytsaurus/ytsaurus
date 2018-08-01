@@ -92,7 +92,7 @@ private:
         tmpAccount->PodSets().Add(podSet);
     }
 
-    void ValidateAccount(const TTransactionPtr& transaction, TPodSet* podSet)
+    void ValidateAccount(const TTransactionPtr& /*transaction*/, TPodSet* podSet)
     {
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         auto* account = podSet->Spec().Account().Load();

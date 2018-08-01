@@ -55,7 +55,6 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
 
 void UpdatePodDiskVolumeAllocations(
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations,
-    const std::vector<NObjects::TResource*>& nativeResources,
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses);
 

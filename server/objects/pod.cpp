@@ -29,10 +29,16 @@ const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TPodAgentPayload> TPod
     [] (TPod* pod) { return &pod->Status().Agent().PodAgentPayload(); }
 };
 
+const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TOther> TPod::TStatus::TAgent::OtherSchema{
+    &PodsTable.Fields.Status_Agent_Other,
+    [] (TPod* pod) { return &pod->Status().Agent().Other(); }
+};
+
 TPod::TStatus::TStatus::TAgent::TAgent(TPod* pod)
     : State_(pod, &StateSchema)
     , IssPayload_(pod, &IssPayloadSchema)
     , PodAgentPayload_(pod, &PodAgentPayloadSchema)
+    , Other_(pod, &OtherSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
