@@ -79,7 +79,7 @@ bool TProxyCoordinator::IsOperable(const IServiceContextPtr& context) const
     }
     if (GetBannedState()) {
         context->Reply(TError(
-            NRpcProxy::EErrorCode::ProxyBanned,
+            NApi::NRpcProxy::EErrorCode::ProxyBanned,
             "Proxy has been banned")
             << TErrorAttribute("message", GetBanMessage()));
         return false;

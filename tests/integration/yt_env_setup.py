@@ -3,7 +3,7 @@ import yt_commands
 from yt.environment import YTInstance, init_operation_archive
 from yt.common import makedirp, YtError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
-from yt.environment.helpers import wait
+from yt.test_helpers import wait
 
 from yt.common import update_inplace
 
@@ -21,7 +21,6 @@ import inspect
 import stat
 import subprocess
 import uuid
-import __builtin__
 from distutils.spawn import find_executable
 from time import sleep, time
 from threading import Thread

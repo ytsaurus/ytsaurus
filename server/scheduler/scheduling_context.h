@@ -41,7 +41,8 @@ struct ISchedulingContext
     virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const = 0;
     //! Used during preemption to allow second-chance scheduling.
     virtual TJobResources& ResourceUsageDiscount() = 0;
-    virtual TJobResources GetFreeResources() = 0;
+    virtual TJobResources GetNodeFreeResourcesWithoutDiscount() = 0;
+    virtual TJobResources GetNodeFreeResourcesWithDiscount() = 0;
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
     virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;

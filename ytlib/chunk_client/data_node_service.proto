@@ -66,7 +66,9 @@ message TReqPutBlocks
 }
 
 message TRspPutBlocks
-{ }
+{
+    optional bool location_sick = 1 [default = false];
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +82,9 @@ message TReqSendBlocks
 }
 
 message TRspSendBlocks
-{ }
+{
+    optional bool location_sick = 1 [default = false];
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +95,9 @@ message TReqFlushBlocks
 }
 
 message TRspFlushBlocks
-{ }
+{
+        optional bool location_sick = 1 [default = false];
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

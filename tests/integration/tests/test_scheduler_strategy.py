@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
-from yt.environment.helpers import are_almost_equal
+from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
 from yt.common import date_string_to_timestamp
@@ -1084,7 +1084,8 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
-        set("//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold", 0.2)
+        set("//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold", 0.35)
+        set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.75)
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
@@ -1147,7 +1148,8 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
             for key, value in special_op.get_running_jobs().iteritems()]
 
         special_op_jobs.sort(key=lambda x: x["start_time"])
-        preemtable_job_id = special_op_jobs[-1]["id"]
+        # There is no correct method to determine last started job by the opinion of scheduler.
+        #preemtable_job_id = special_op_jobs[-1]["id"]
 
         op = map(
             command="sleep 1000; cat",
@@ -1165,8 +1167,8 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
         special_op_running_job_count = len(special_op.get_running_jobs())
         assert special_op_running_job_count >= 2
-        if special_op_running_job_count == 2:
-            assert preemtable_job_id not in special_op.get_running_jobs()
+        #if special_op_running_job_count == 2:
+        #    assert preemtable_job_id not in special_op.get_running_jobs()
 
 ##################################################################
 
@@ -2041,7 +2043,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
 
     def test_tentative_pool_tree_not_supported(self):
-        other_node_list = self._prepare_pool_trees()
+        self._prepare_pool_trees()
         spec = self._create_spec()
         self._patch_spec_for_tentativeness(spec)
 
@@ -2049,7 +2051,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
         create("table", "//tmp/t_out")
 
-        events = EventsOnFs()
+        events = events_on_fs()
 
         op2 = map_reduce(
             mapper_command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
@@ -2071,10 +2073,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         op1_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op1.id)
         op2_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op2.id)
 
-        assert exists(op1_pool_trees_path + "default")
-        assert exists(op1_pool_trees_path + "other")
-        assert exists(op2_pool_trees_path + "default")
-        assert not exists(op2_pool_trees_path + "other")
+        wait(lambda: exists(op1_pool_trees_path + "default"))
+        wait(lambda: exists(op1_pool_trees_path + "other"))
+        wait(lambda: exists(op2_pool_trees_path + "default"))
+        wait(lambda: not exists(op2_pool_trees_path + "other"))
 
     def test_tentative_pool_tree_banning(self):
         other_node_list = self._prepare_pool_trees()
@@ -2086,7 +2088,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
         create("table", "//tmp/t_out")
 
-        events = EventsOnFs()
+        events = events_on_fs()
 
         op = map(
             command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
@@ -2143,10 +2145,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     tentative_job_count += 1
 
                     if tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
-                        time.sleep(0.5)
+                        time.sleep(0.3)
                         # Tentative tree should've been banned by now.
                         wait(lambda: not exists(op_pool_trees_path + "other"))
-                        assert exists(op_pool_trees_path + "default") or operation_completed()
+                        wait(lambda: exists(op_pool_trees_path + "default") or operation_completed())
                         break
 
         while not operation_completed():
@@ -2160,8 +2162,22 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
 
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
-        release_breakpoint()
 
+    def test_missing_tentative_pool_trees(self):
+        self._prepare_pool_trees()
+        spec = self._create_spec()
+        self._patch_spec_for_tentativeness(spec)
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
+        create("table", "//tmp/t_out")
+
+        spec["tentative_pool_trees"] = ["missing"]
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
+
+        spec["tentative_tree_eligibility"]["ignore_missing_pool_trees"] = True
+        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1

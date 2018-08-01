@@ -43,6 +43,8 @@ public:
 
     virtual NErasure::ECodec GetErasureCodecId() const override;
 
+    virtual bool HasSickReplicas() const override;
+
     //! Returns the chunk meta.
     /*!
      *  The writer must be already closed.

@@ -16,6 +16,12 @@ DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 
+// TODO(max42): add these codes to the documentation.
+DEFINE_ENUM(EErrorCode,
+    ((DataSliceLimitExceeded)(2000))
+    ((MaxDataWeightPerJobExceeded)(2001))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkPools

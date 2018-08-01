@@ -25,7 +25,7 @@ TEST(TGuidTest, RandomGuids)
     EXPECT_FALSE(guid == otherGuid);
 }
 
-TString CanonicalToString(const TGuid& value)
+TString CanonicalToString(TGuid value)
 {
    return Sprintf("%x-%x-%x-%x",
         value.Parts32[3],

@@ -112,7 +112,10 @@ message TReqMaterializeOperation
 }
 
 message TRspMaterializeOperation
-{ }
+{
+    // Set to true if suspend_operation_after_materialization is set.
+    optional bool suspend = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

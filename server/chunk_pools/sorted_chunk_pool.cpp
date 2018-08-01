@@ -209,7 +209,7 @@ public:
 
             if (job->GetDataWeight() > Options_.MaxDataWeightPerJob) {
                 THROW_ERROR_EXCEPTION(
-                    "Maximum allowed data weight violated for a sorted job: %v > %v",
+                    EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight exceeded for a sorted job: %v > %v",
                     job->GetDataWeight(),
                     Options_.MaxDataWeightPerJob)
                     << TErrorAttribute("lower_key", job->LowerPrimaryKey())
@@ -496,7 +496,7 @@ private:
     void CheckTotalSliceCountLimit() const
     {
         if (TotalSliceCount_ > Options_.MaxTotalSliceCount) {
-            THROW_ERROR_EXCEPTION("Total number of data slices in sorted pool is too large.")
+            THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large.")
                 << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
                 << TErrorAttribute("max_total_slice_count", Options_.MaxTotalSliceCount)
                 << TErrorAttribute("current_job_count", Jobs_.size());

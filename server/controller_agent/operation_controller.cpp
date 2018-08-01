@@ -203,9 +203,9 @@ public:
         return Underlying_->Prepare();
     }
 
-    virtual void Materialize() override
+    virtual TOperationControllerMaterializeResult Materialize() override
     {
-        Underlying_->Materialize();
+        return Underlying_->Materialize();
     }
 
     virtual void Commit() override

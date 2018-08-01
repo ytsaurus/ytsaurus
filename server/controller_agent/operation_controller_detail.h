@@ -136,7 +136,7 @@ private: \
     returnType Safe ## method signature;
 
     IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), false)
-    IMPLEMENT_SAFE_METHOD(void, Materialize, (), (), false)
+    IMPLEMENT_SAFE_METHOD(TOperationControllerMaterializeResult, Materialize, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(void, OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)

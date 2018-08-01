@@ -6,7 +6,6 @@ from test_dynamic_tables import TestDynamicTablesBase
 from yt_env_setup import wait, skip_if_rpc_driver_backend
 from yt_commands import *
 from yt.yson import YsonEntity, loads
-from yt.environment.helpers import wait
 
 from time import sleep
 

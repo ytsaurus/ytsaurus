@@ -1367,6 +1367,109 @@ class TestTabletActions(TestDynamicTablesBase):
             count = [cells.count(cell) for cell in pair[1]]
             assert all(c == count[0] for c in count)
 
+    def test_ext_memory_cells_balance(self):
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", False)
+        cells = sync_create_cells(5)
+
+        def reshard(table, tablet_count):
+            reshard_table(table, [[]] + list([i] for i in range(1, tablet_count)))
+
+        def tablets_distribution(table):
+            cnt = dict((i, 0) for i in range(len(cells)))
+            tablets = get("{}/@tablets".format(table))
+            for cell_id in [tablet["cell_id"] for tablet in tablets]:
+                cnt[cells.index(cell_id)] += 1
+            return list(cnt.values())
+
+        self._create_sorted_table("//tmp/t1")
+        reshard("//tmp/t1", 13)
+        sync_mount_table("//tmp/t1", cell_id=cells[0])
+
+        for i in range(7):
+            self._create_sorted_table("//tmp/t2.{}".format(i))
+            sync_mount_table("//tmp/t2.{}".format(i), cell_id=cells[1])
+
+        assert tablets_distribution("//tmp/t1") == [13, 0, 0, 0, 0]
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
+
+        wait(lambda: sorted(tablets_distribution("//tmp/t1")) == [2, 2, 3, 3, 3])
+        for i in range(7):
+            assert tablets_distribution("//tmp/t2.{}".format(i)) == [0, 1, 0, 0, 0]
+        assert tablets_distribution("//tmp/t1")[1] == 2
+
+        for i in range(3, 15):
+            name = "//tmp/t{}".format(i)
+            self._create_sorted_table(name)
+            reshard(name, 3)
+            sync_mount_table(name, cell_id=cells[2])
+
+        sleep(1)
+        wait(lambda: all(
+            max(tablets_distribution("//tmp/t{}".format(i))) == 1
+            for i
+            in range(3, 15)
+        ))
+
+        cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
+        without_large = cell_fullness[:2] + cell_fullness[3:]
+        assert max(without_large) - min(without_large) <= 1
+        assert cell_fullness[2] <= 3 + (15 - 3)
+
+    def test_balancer_new_cell_added(self):
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [1], [2], [3], [4], [5]])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        wait(lambda: get("//sys/tablet_cells/{}/@tablet_count".format(cells[0])) == 3)
+
+        new_cell = sync_create_cells(1)[0]
+        wait(lambda: get("//sys/tablet_cells/{}/@tablet_count".format(new_cell)) == 2)
+
+    def test_balancer_in_memory_types(self):
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
+        cells = sync_create_cells(2)
+
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+
+        self._create_sorted_table("//tmp/in")
+        set("//tmp/in/@in_memory_mode", "uncompressed")
+        self._create_sorted_table("//tmp/ext")
+
+        for table in "//tmp/in", "//tmp/ext":
+            reshard_table(table, [[], [1], [2], [3]])
+            sync_mount_table(table, cell_id=cells[0])
+            insert_rows(table, [dict(key=0,value="a"*510)])
+            insert_rows(table, [dict(key=1,value="a"*100)])
+            insert_rows(table, [dict(key=2,value="a"*100)])
+            insert_rows(table, [dict(key=3,value="a"*100)])
+            sync_flush_table(table)
+
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True)
+
+        def wait_func():
+            expected = {
+                "//tmp/in": [1, 3],
+                "//tmp/ext": [2, 2]}
+            for table in "//tmp/in", "//tmp/ext":
+                cell_cnt = dict((cell, 0) for cell in cells)
+                for tablet in get("{}/@tablets".format(table)):
+                    cell_cnt[tablet["cell_id"]] += 1
+                distribution = sorted(cell_cnt.values())
+                if expected[table] != distribution:
+                    return False
+            return True
+
+        wait(wait_func)
+
     def test_tablet_balancer_with_active_action(self):
         node = ls("//sys/nodes")[0]
         set("//sys/nodes/{0}/@user_tags".format(node), ["custom"])
@@ -1399,6 +1502,7 @@ class TestTabletActions(TestDynamicTablesBase):
         sync_mount_table("//tmp/t2")
 
         wait(lambda: get("//tmp/t2/@tablet_count") == 1)
+        wait_for_tablet_state("//tmp/t2", "mounted")
         assert get("#{}/@state".format(action)) == "freezing"
 
         # test cell balancing

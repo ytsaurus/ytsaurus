@@ -192,9 +192,6 @@ struct ISchedulerStrategy
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
-    //! Provides a string describing operation status and statistics.
-    virtual TString GetOperationLoggingProgress(const TOperationId& operationId) = 0;
-
     virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) = 0;
 };
 

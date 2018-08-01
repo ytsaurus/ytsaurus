@@ -196,6 +196,59 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="<append=true>//tmp/t_out",
              sort_by="foo")
 
+    def test_append_simple(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+
+        write_table("//tmp/t_in", {"key": 2})
+        write_table("//tmp/t_out", {"key": 1})
+
+        sort(in_="//tmp/t_in",
+             out="<append=true>//tmp/t_out",
+             sort_by="key")
+
+        assert read_table("//tmp/t_out") == [{"key": 1}, {"key": 2}]
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["key"]
+
+    def test_append_different_key_columns(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "subkey", "type": "int64"}],
+                unique_keys=False)
+            })
+
+        write_table("//tmp/t_in", {"key": 2, "subkey": 2})
+        write_table("//tmp/t_out", {"key": 1, "subkey": 1})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="<append=true>//tmp/t_out",
+                 sort_by=["key", "subkey"])
+
+    def test_append_different_key_columns_2(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "subkey", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+
+        write_table("//tmp/t_in", {"key": 2, "subkey": 2})
+        write_table("//tmp/t_out", {"key": 1, "subkey": 1})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="<append=true>//tmp/t_out",
+                 sort_by="key")
+
     def test_maniac(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
