@@ -46,8 +46,7 @@ struct TPoolName {
     static const char DELIMITER = '|';
 
     static TPoolName Create(const TString& raw, const TString& user) {
-        std::vector<TString> parts;
-        if (raw.back() == DELIMITER) {  //renadeen: кажется, можно просто сделать опцию для этого
+        if (raw.back() == DELIMITER) {
             return TPoolName(raw + user, raw.substr(0, raw.size() - 1));
         }
         return TPoolName(raw.empty() ? user : raw, Null);
