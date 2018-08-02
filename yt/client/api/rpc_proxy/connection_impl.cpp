@@ -77,9 +77,9 @@ std::vector<TString> GetRpcProxiesFromHttp(
     headers->Add(
         "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
             .BeginMap()
-            .Item("output_format")
+                .Item("output_format")
             .BeginAttributes()
-            .Item("format").Value("text")
+                .Item("format").Value("text")
             .EndAttributes()
             .Value("yson")
             .DoIf(
