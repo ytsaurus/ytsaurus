@@ -190,9 +190,17 @@ public:
     template <class R>
     TFuture<R> Apply(TCallback<R(const TErrorOr<T>&)> callback);
 
+    //! Chains the asynchronous computation with another synchronous function.
+    template <class R>
+    TFuture<R> Apply(TCallback<TErrorOr<R>(const TErrorOr<T>&)> callback);
+
     //! Chains the asynchronous computation with another asynchronous function.
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callback);
+
+    //! Chains the asynchronous computation with another asynchronous function.
+    template <class R>
+    TFuture<R> Apply(TCallback<TErrorOr<TFuture<R>>(const TErrorOr<T>&)> callback);
 
     //! Converts (successful) result to |U|; propagates errors as is.
     template <class U>

@@ -1,13 +1,12 @@
 #include <yt/server/scheduler/bootstrap.h>
 #include <yt/server/scheduler/config.h>
 
-// XXX(babenko): finish separation
-#include <yt/server/controller_agent/bootstrap.h>
-
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
+
+#include <yt/core/misc/phdr_cache.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -34,6 +33,7 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
 
         if (HandlePdeathsigOptions()) {
             return;

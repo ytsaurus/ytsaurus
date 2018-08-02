@@ -160,6 +160,15 @@ public:
         return Options_->ErasureCodec;
     }
 
+    virtual bool HasSickReplicas() const override
+    {
+        if (UnderlyingWriter_) {
+            return UnderlyingWriter_->HasSickReplicas();
+        } else {
+            return false;
+        }
+    }
+
 private:
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;

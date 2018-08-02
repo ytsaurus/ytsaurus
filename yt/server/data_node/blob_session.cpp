@@ -234,7 +234,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         diskThrottler->Throttle(totalSize) }));
 }
 
-TFuture<void> TBlobSession::DoSendBlocks(
+TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     const TNodeDescriptor& targetDescriptor)
@@ -265,7 +265,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
 
     auto throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
-        return req->Invoke().As<void>();
+        return req->Invoke();
     }));
 }
 

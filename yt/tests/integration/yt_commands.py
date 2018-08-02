@@ -9,6 +9,7 @@ from yt.test_helpers.job_events import JobEvents, TimeoutError
 import __builtin__
 import copy as pycopy
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -1088,6 +1089,16 @@ def get_statistics(statistics, complex_key):
 
 ##################################################################
 
+_ASAN_WARNING_PATTERN = re.compile(
+    r"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " +
+    r"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" +
+    r"False positive error reports may follow\n" +
+    r"For details see https://github.com/google/sanitizers/issues/189\n")
+
+def remove_asan_warning(string):
+    """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
+    return re.sub(_ASAN_WARNING_PATTERN, '', string)
+
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
     jobs_path = "//sys/operations/{0}/jobs".format(op.id)
     assert get(jobs_path + "/@count") == expected_count
@@ -1097,10 +1108,11 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
             assert get(stderr_path + "/@external")
         actual_content = read_file(stderr_path)
         assert get(stderr_path + "/@uncompressed_data_size") == len(actual_content)
+        content_without_warning = remove_asan_warning(actual_content)
         if substring:
-            assert expected_content in actual_content
+            assert expected_content in content_without_warning
         else:
-            assert actual_content == expected_content
+            assert content_without_warning == expected_content
 
 ##################################################################
 

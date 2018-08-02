@@ -220,7 +220,7 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     session->Blocks.resize(totalBlockCount);
 
     const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
-    TFuture<void> throttleFuture = VoidFuture;
+    auto throttleFuture = VoidFuture;
     if (!outThrottler->TryAcquire(pendingDataSize)) {
         LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
             pendingDataSize, 
@@ -413,7 +413,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     }
 
     auto asyncResult = Combine(asyncResults);
-    return asyncResult.Apply(BIND([session] () { return std::move(session->Blocks); }));
+    return asyncResult.Apply(BIND([session = std::move(session)] () {
+        return std::move(session->Blocks);
+    }));
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(

@@ -73,6 +73,7 @@ public:
             .SetCancelable(true)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
+            .SetCancelable(true)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));

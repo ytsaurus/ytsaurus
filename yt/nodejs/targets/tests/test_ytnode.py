@@ -15,7 +15,7 @@ class TestYtNode(object):
         with tarfile.open(os.path.join(sandbox_resource_dir, 'resource.tar.gz')) as tar:
             tar.extractall(path=sandbox_resource_dir)
         cls.node_modules = os.path.join(sandbox_resource_dir, 'node_modules')
-        cls.mocha_path = os.path.join(cls.node_modules, '.bin/mocha')
+        cls.mocha_path = os.path.join(cls.node_modules, 'mocha/bin/mocha')
 
     def prepare_cmd_line(self):
         tests = [

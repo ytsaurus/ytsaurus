@@ -141,10 +141,10 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             })
 
         table_stderrs = read_table("//tmp/stderr")
-        table_stderrs_per_task = Counter(row["data"] for row in table_stderrs)
+        table_stderrs_per_task = Counter(remove_asan_warning(row["data"]) for row in table_stderrs)
 
         job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
-        cypress_stderrs_per_task = Counter(read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_id)) for job_id in job_ids)
+        cypress_stderrs_per_task = Counter(remove_asan_warning(read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_id))) for job_id in job_ids)
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}

@@ -253,7 +253,7 @@ char* WriteIntToBufferBackwards(char* ptr, ui64 value)
     return WriteUnsignedIntToBufferBackwardsImpl(ptr, value);
 }
 
-char* WriteGuidToBuffer(char* ptr, const TGuid& value)
+char* WriteGuidToBuffer(char* ptr, TGuid value)
 {
     auto writeHex1 = [&] (ui8 x) {
         *ptr = HexDigits1[x];

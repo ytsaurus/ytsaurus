@@ -235,6 +235,7 @@ private:
                                     .Item("enabled").Value(locationStatistics.enabled())
                                     .Item("throttling_reads").Value(locationStatistics.throttling_reads())
                                     .Item("throttling_writes").Value(locationStatistics.throttling_writes())
+                                    .Item("sick").Value(locationStatistics.sick())
                                 .EndMap();
                         })
                         .Item("media").DoMapFor(statistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {

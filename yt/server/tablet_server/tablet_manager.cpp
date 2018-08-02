@@ -5149,9 +5149,10 @@ private:
     {
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : TabletCellMap_) {
-                const auto& cellId = pair.first;
-                auto* cell = pair.second;
+            auto cellIds = GetKeys(TabletCellMap_);
+
+            for (const auto cellId : cellIds) {
+                auto* cell = FindTabletCell(cellId);
                 if (!IsObjectAlive(cell)) {
                     continue;
                 }

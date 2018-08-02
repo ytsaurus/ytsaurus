@@ -20,6 +20,7 @@ class TTabletBalancerConfig
 {
 public:
     bool EnableInMemoryCellBalancer;
+    bool EnableCellBalancer;
     bool EnableTabletSizeBalancer;
 
     double HardInMemoryCellBalanceThreshold;
@@ -42,6 +43,9 @@ public:
         RegisterParameter("enable_in_memory_cell_balancer", EnableInMemoryCellBalancer)
             .Default(true)
             .Alias("enable_in_memory_balancer");
+
+        RegisterParameter("enable_cell_balancer", EnableCellBalancer)
+            .Default(false);
 
         RegisterParameter("enable_tablet_size_balancer", EnableTabletSizeBalancer)
             .Default(true);

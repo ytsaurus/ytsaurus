@@ -214,7 +214,7 @@ private:
     void FireCommitted();
     void FireAborted();
 
-    void SetCommitted(const NApi::TTransactionCommitResult& result);
+    TError SetCommitted(const NApi::TTransactionCommitResult& result);
     void SetAborted(const TError& error);
     void OnFailure(const TError& error);
 
