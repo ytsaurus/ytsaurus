@@ -7,7 +7,7 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
-#include <yt/core/misc/phdr_cache.h>
+#include <yt/core/phdr_cache/phdr_cache.h>
 
 #include <util/system/mlock.h>
 
