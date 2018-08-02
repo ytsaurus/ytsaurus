@@ -17,6 +17,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NConcurrency;
+using namespace NSecurityClient;
 using namespace NTabletServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +168,7 @@ private:
                         auto message = req->Serialize();
                         auto context = NYTree::CreateYPathContext(message);
                         const auto& objectManager = Bootstrap_->GetObjectManager();
-                        auto mutation = objectManager->CreateExecuteMutation("root", context);
+                        auto mutation = objectManager->CreateExecuteMutation(RootUserName, context);
                         mutation->CommitAndLog(Logger);
                     }
                 }
