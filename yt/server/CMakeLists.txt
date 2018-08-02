@@ -26,6 +26,7 @@ add_executable(ytserver-master
 )
 
 target_link_libraries(ytserver-master
+  yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
@@ -40,6 +41,7 @@ add_executable(ytserver-node
 )
 
 target_link_libraries(ytserver-node
+  yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
@@ -54,6 +56,7 @@ add_executable(ytserver-scheduler
 )
 
 target_link_libraries(ytserver-scheduler
+  yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
@@ -68,6 +71,7 @@ add_executable(ytserver-controller-agent
 )
 
 target_link_libraries(ytserver-controller-agent
+  yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
@@ -82,6 +86,7 @@ add_executable(ytserver-proxy
 )
 
 target_link_libraries(ytserver-proxy
+  yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
@@ -152,6 +157,7 @@ add_executable(ytserver-skynet-manager
 )
 
 target_link_libraries(ytserver-skynet-manager
+  yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
