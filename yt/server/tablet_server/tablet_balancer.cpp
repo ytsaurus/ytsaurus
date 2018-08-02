@@ -136,6 +136,91 @@ private:
         i64 DesiredTabletSize;
     };
 
+    class TTabletCellOrderedSet {
+    public:
+        using TComparator = std::function<bool(const TTabletCell*, const TTabletCell*)>;
+        using TCellSet = std::set<const TTabletCell*, TComparator>;
+
+        TTabletCellOrderedSet()
+            : Cells_(
+                [this] (const TTabletCell* lhs, const TTabletCell* rhs) {
+                    return Compare(lhs, rhs);
+                })
+        {  }
+
+        TTabletCellOrderedSet(const TTabletCellOrderedSet&) = delete;
+        TTabletCellOrderedSet& operator=(const TTabletCellOrderedSet&) = delete;
+
+        const TCellSet& CellsOrderedByTabletCount() const
+        {
+            return Cells_;
+        }
+
+        void AlterTabletCount(const TTabletCell* cell, int delta)
+        {
+            Cells_.erase(cell);
+            TabletCount_[cell] += delta;
+            Cells_.insert(cell);
+        }
+
+        void Insert(const TTabletCell* cell, int tabletCount)
+        {
+            TabletCount_[cell] = tabletCount;
+            Cells_.insert(cell);
+        }
+
+        int GetTabletCount(const TTabletCell* cell) const
+        {
+            return TabletCount_.at(cell);
+        }
+
+        int Size() const
+        {
+            return Cells_.size();
+        }
+
+    private:
+        TCellSet Cells_;
+        THashMap<const TTabletCell*, int> TabletCount_;
+
+        bool Compare(const TTabletCell* lhs, const TTabletCell* rhs) const
+        {
+            int lhsTabletCount = TabletCount_.at(lhs);
+            int rhsTabletCount = TabletCount_.at(rhs);
+            return std::tie(lhsTabletCount, lhs) < std::tie(rhsTabletCount, rhs);
+        }
+    };
+
+    struct TCellTabletCounters {
+        const TTabletCell* Cell;
+        int TableTabletCount = 0;
+        int TabletCount = 0;
+
+        TCellTabletCounters() {}
+        TCellTabletCounters(const TTabletCell* cell, int tableTabletCount, int tabletCount)
+            : Cell(cell)
+            , TableTabletCount(tableTabletCount)
+            , TabletCount(tabletCount)
+        {  }
+
+        bool operator<(const TCellTabletCounters& other) const
+        {
+            return std::tie(TableTabletCount, TabletCount) < std::tie(other.TableTabletCount, other.TabletCount);
+        }
+
+        bool operator>(const TCellTabletCounters& other) const
+        {
+            return other < *this;
+        }
+
+        void AlterTabletCount(int delta)
+        {
+            TableTabletCount += delta;
+            TabletCount += delta;
+
+        }
+    };
+
     const TTabletBalancerMasterConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
@@ -195,47 +280,69 @@ private:
             return;
         }
 
-        PROFILE_TIMING("/balance_all") {
-            FillActiveTabletActions();
+        std::vector<const TTabletCellBundle*> forReshard;
+        std::vector<const TTabletCellBundle*> forMove;
 
-            CurrentTime_ = TruncatedNow();
+        FillActiveTabletActions();
 
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            THashSet<TTabletCellBundleId> bundlesForCellBalancingOnNextIteration;
-            for (const auto& bundleAndId : tabletManager->TabletCellBundles()) {
-                const auto& bundleId = bundleAndId.first;
-                const auto* bundle = bundleAndId.second;
+        CurrentTime_ = TruncatedNow();
 
-                if (BundlesPendingCellBalancing_.has(bundleId) && !BundlesWithActiveActions_.has(bundle)) {
-                    LOG_DEBUG("Balancing cells for bundle (Bundle: %v)",
-                        bundle->GetName());
-                    ReassignInMemoryTablets(bundle);
-                } else if (DidBundleBalancingTimeHappen(bundle)) {
-                    LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
-                        bundle->GetName());
-                    BalanceTablets(bundle);
-                    bundlesForCellBalancingOnNextIteration.insert(bundleId);
-                }
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        THashSet<TTabletCellBundleId> bundlesForCellBalancingOnNextIteration;
+        for (const auto& bundleAndId : tabletManager->TabletCellBundles()) {
+            const auto& bundleId = bundleAndId.first;
+            const auto* bundle = bundleAndId.second;
 
-                if (BundlesPendingCellBalancing_.has(bundleId) && BundlesWithActiveActions_.has(bundle)) {
-                    LOG_DEBUG(
-                        "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
-                        bundle->GetName());
-                    bundlesForCellBalancingOnNextIteration.insert(bundleId);
-                }
+            // If it is necessary and possible to balance cells, do it...
+            if (BundlesPendingCellBalancing_.has(bundleId) && !BundlesWithActiveActions_.has(bundle)) {
+                LOG_DEBUG("Balancing cells for bundle (Bundle: %v)",
+                    bundle->GetName());
+                forMove.push_back(bundle);
+            // ... else if time has come for reshard, do it.
+            } else if (DidBundleBalancingTimeHappen(bundle)) {
+                LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
+                    bundle->GetName());
+                forReshard.push_back(bundle);
+                bundlesForCellBalancingOnNextIteration.insert(bundleId);
             }
 
-            BundlesPendingCellBalancing_ = std::move(bundlesForCellBalancingOnNextIteration);
-            TouchedTablets_.clear();
-            PurgeDeletedBundles();
-
-            size_t totalSize = 0;
-            for (const auto& bundleQueue : TabletIdQueue_) {
-                totalSize += bundleQueue.second.size();
+            // If it was nesessary but not possible to balance cells, postpone balancing to the next iteration and log it.
+            if (BundlesPendingCellBalancing_.has(bundleId) && BundlesWithActiveActions_.has(bundle)) {
+                LOG_DEBUG(
+                    "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
+                    bundle->GetName());
+                bundlesForCellBalancingOnNextIteration.insert(bundleId);
             }
-            Profiler.Update(QueueSizeCounter_, totalSize);
+        }
 
-            LastBalancingTime_ = CurrentTime_;
+        BundlesPendingCellBalancing_ = std::move(bundlesForCellBalancingOnNextIteration);
+        TouchedTablets_.clear();
+        PurgeDeletedBundles();
+
+        size_t totalSize = 0;
+        for (const auto& bundleQueue : TabletIdQueue_) {
+            totalSize += bundleQueue.second.size();
+        }
+        Profiler.Update(QueueSizeCounter_, totalSize);
+
+        LastBalancingTime_ = CurrentTime_;
+
+        PROFILE_TIMING("/balance_tablets") {
+            for (auto* bundle : forReshard) {
+                BalanceTablets(bundle);
+            }
+        }
+
+        PROFILE_TIMING("/balance_cells_in_memory") {
+            for (auto* bundle : forMove) {
+                ReassignInMemoryTablets(bundle);
+            }
+        }
+
+        PROFILE_TIMING("/balance_cells_ext_memory") {
+            for (auto* bundle : forMove) {
+                ReassignExtMemoryTablets(bundle);
+            }
         }
     }
 
@@ -285,6 +392,41 @@ private:
         }
     }
 
+    std::vector<const TTabletCell*> GetAliveCells(const TTabletCellBundle* bundle)
+    {
+        std::vector<const TTabletCell*> cells;
+        for (const auto* cell : bundle->TabletCells()) {
+            if (IsObjectAlive(cell) && !cell->GetDecommissioned() && cell->GetCellBundle() == bundle) {
+                cells.push_back(cell);
+            }
+        }
+        return cells;
+    }
+
+    void CreateMoveAction(const TTablet* tablet, TTabletCellId targetCellId)
+    {
+        auto* table = tablet->GetTable();
+        auto* srcCell = tablet->GetCell();
+
+        LOG_DEBUG("Tablet balancer would like to move tablet "
+            "(TableId: %v, InMemoryMode: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, Bundle: %v)",
+            table->GetId(),
+            table->GetInMemoryMode(),
+            tablet->GetId(),
+            srcCell->GetId(),
+            targetCellId,
+            table->GetTabletCellBundle()->GetName());
+
+        TReqCreateTabletAction request;
+        request.set_kind(static_cast<int>(ETabletActionKind::Move));
+        ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
+        ToProto(request.mutable_cell_ids(), std::vector<TTabletCellId>{targetCellId});
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger);
+    }
+
     void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
         const auto& config = bundle->TabletBalancerConfig();
@@ -303,14 +445,7 @@ private:
             return max > 0 && 1.0 * (max - min) / max > config->HardInMemoryCellBalanceThreshold;
         };
 
-        std::vector<const TTabletCell*> cells;
-
-        for (const auto& pair : tabletManager->TabletCells()) {
-            auto* cell = pair.second;
-            if (IsObjectAlive(cell) && !cell->GetDecommissioned() && cell->GetCellBundle() == bundle) {
-                cells.push_back(cell);
-            }
-        }
+        auto cells = GetAliveCells(bundle);
 
         if (cells.empty()) {
             return;
@@ -370,17 +505,6 @@ private:
                 }
 
                 if (tabletSize < cellSize - top.first) {
-                    LOG_DEBUG("Tablet balancer would like to move tablet (TableId: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
-                        "TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, Bundle: %v)",
-                        tablet->GetTable()->GetId(),
-                        tablet->GetId(),
-                        cell->GetId(),
-                        top.second->GetId(),
-                        tabletSize,
-                        cellSize,
-                        top.first,
-                        bundle->GetName());
-
                     queue.pop();
                     top.first += tabletSize;
                     cellSize -= tabletSize;
@@ -388,14 +512,7 @@ private:
                         queue.push(top);
                     }
 
-                    TReqCreateTabletAction request;
-                    request.set_kind(static_cast<int>(ETabletActionKind::Move));
-                    ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
-                    ToProto(request.mutable_cell_ids(), std::vector<TTabletCellId>{top.second->GetId()});
-
-                    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-                    CreateMutation(hydraManager, request)
-                        ->CommitAndLog(Logger);
+                    CreateMoveAction(tablet, top.second->GetId());
 
                     ++actionCount;
                 }
@@ -404,6 +521,121 @@ private:
 
         Profiler.Enqueue(
             "/in_memory_moves",
+            actionCount,
+            NProfiling::EMetricType::Gauge,
+            {bundle->GetProfilingTag()});
+    }
+
+    int ReassignExtMemoryTabletsOfTable(
+        const std::vector<const TTablet*>& tablets,
+        TTabletCellOrderedSet* bundleCells)
+    {
+        // For each table we want to distribute its tablets as evenly as possible.
+        // We iteratively take the largest cell (with respect to the number of tablets
+        // of current table) and move tablets from it to the emptier cells.
+        // In case of tie the cell with least overall number of tablets is selected.
+
+        THashMap<const TTabletCell*, std::vector<const TTablet*>> tabletsByCell;
+        for (auto* tablet : tablets) {
+            tabletsByCell[tablet->GetCell()].push_back(tablet);
+        }
+
+        std::vector<TCellTabletCounters> tableCells;
+        tableCells.reserve(tabletsByCell.size());
+        for (const auto& pair : tabletsByCell) {
+            tableCells.emplace_back(pair.first, pair.second.size(), bundleCells->GetTabletCount(pair.first));
+        }
+
+        // Avoid balancing if current distribution is good enough.
+        int maxCount = std::max_element(tableCells.begin(), tableCells.end())->TableTabletCount;
+        int minCount = tableCells.size() < bundleCells->Size()
+            ? 0
+            : std::min_element(tableCells.begin(), tableCells.end())->TableTabletCount;
+        if (maxCount - minCount <= 2) {
+            return 0;
+        }
+
+        std::priority_queue<TCellTabletCounters, std::vector<TCellTabletCounters>, std::greater<TCellTabletCounters>> queue(
+            tableCells.begin(),
+            tableCells.end());
+
+        // tableCells contains only cells with non-zero tablets from the current table.
+        // Here we consider new cells which were not yet used by the table but which we'll move tablets to.
+        int newCellsNeeded = std::min<int>(tablets.size(), bundleCells->Size()) - tableCells.size();
+        for (auto* cell : bundleCells->CellsOrderedByTabletCount()) {
+            if (!tabletsByCell.has(cell)) {
+                queue.emplace(cell, 0 /* TableTabletCount */, bundleCells->GetTabletCount(cell));
+                if (--newCellsNeeded == 0) {
+                    break;
+                }
+            }
+        }
+        YCHECK(newCellsNeeded == 0);
+
+        std::sort(tableCells.rbegin(), tableCells.rend());
+
+        int tabletsLeft = tablets.size();
+        int cellsLeft = queue.size();
+        int actionCount = 0;
+        for (auto& sourceCell : tableCells) {
+            int expectedTabletCount = (tabletsLeft - 1) / cellsLeft + 1;
+            tabletsLeft -= expectedTabletCount;
+            --cellsLeft;
+            YCHECK(sourceCell.TableTabletCount >= expectedTabletCount);
+            if (sourceCell.TableTabletCount <= expectedTabletCount) {
+                break;
+            }
+
+            while (sourceCell.TableTabletCount > expectedTabletCount) {
+                auto& sourceCellTablets = tabletsByCell[sourceCell.Cell];
+                auto targetCell = queue.top();
+                queue.pop();
+                auto* tablet = sourceCellTablets.back();
+                sourceCellTablets.pop_back();
+
+                CreateMoveAction(tablet, targetCell.Cell->GetId());
+                ++actionCount;
+
+                targetCell.AlterTabletCount(1);
+                bundleCells->AlterTabletCount(targetCell.Cell, 1);
+                queue.push(targetCell);
+                sourceCell.AlterTabletCount(-1);
+                bundleCells->AlterTabletCount(sourceCell.Cell, -1);
+            }
+        }
+
+        return actionCount;
+    }
+
+    void ReassignExtMemoryTablets(const TTabletCellBundle* bundle)
+    {
+        const auto& config = bundle->TabletBalancerConfig();
+        if (!config->EnableCellBalancer) {
+            return;
+        }
+
+        TTabletCellOrderedSet cells;
+        for (auto* cell : GetAliveCells(bundle)) {
+            cells.Insert(cell, cell->Tablets().size());
+        }
+
+        THashMap<const TTableNode*, std::vector<const TTablet*>> tabletsByTable;
+        for (auto* cell : cells.CellsOrderedByTabletCount()) {
+            for (auto* tablet : cell->Tablets()) {
+                auto* table = tablet->GetTable();
+                if (table->GetInMemoryMode() == EInMemoryMode::None) {
+                    tabletsByTable[table].push_back(tablet);
+                }
+            }
+        }
+
+        int actionCount = 0;
+        for (const auto& pair : tabletsByTable) {
+            actionCount += ReassignExtMemoryTabletsOfTable(pair.second, &cells);
+        }
+
+        Profiler.Enqueue(
+            "/ext_memory_moves",
             actionCount,
             NProfiling::EMetricType::Gauge,
             {bundle->GetProfilingTag()});

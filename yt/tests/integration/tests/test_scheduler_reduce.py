@@ -204,9 +204,8 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                     },
                 "job_count" : 1})
 
-        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
-        assert len(job_ids) == 1
-        assert read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])) == \
+
+        expected_stderr = \
 """<"table_index"=1;>#;
 <"row_index"=0;>#;
 {"key"=1;"value"=6;};
@@ -214,6 +213,7 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
 <"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
+        check_all_stderrs(op, [expected_stderr], 1)
 
         # Test only one row index with only one input table.
         op = reduce(
@@ -228,12 +228,11 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                 },
                 "job_count" : 1})
 
-        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
-        assert len(job_ids) == 1
-        assert read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])) == \
+        expected_stderr = \
 """<"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
+        check_all_stderrs(op, [expected_stderr], 1)
 
     @unix_only
     def test_cat_teleport(self):
@@ -512,7 +511,7 @@ echo {v = 2} >&7
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
-        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+        stderr_bytes = remove_asan_warning(read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0])))
 
         assert stderr_bytes.encode("hex") == \
             "010000006100000000" \

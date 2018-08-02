@@ -203,7 +203,7 @@ public:
         SlownessChecker_ = slownessChecker;
     }
 
-    TError CheckReaderIsSlow(TInstant startTimestamp, i64 bytesReceived)
+    TError RunSlownessChecker(i64 bytesReceived, TInstant startTimestamp)
     {
         if (!SlownessChecker_) {
             return TError();
@@ -462,9 +462,11 @@ protected:
     //! Reference to the owning reader.
     const TWeakPtr<TReplicationReader> Reader_;
 
-    const TReplicationReaderConfigPtr Config_;
+    const TReplicationReaderConfigPtr ReaderConfig_;
+    const TRemoteReaderOptionsPtr ReaderOptions_;
+    const TChunkId ChunkId_;
 
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientBlockReadOptions SessionOptions_;
 
     //! The workload descriptor from the config with instant field updated
     //! properly.
@@ -478,10 +480,10 @@ protected:
 
     NLogging::TLogger Logger;
 
-    //! Zero based retry index (less than |Reader->Config->RetryCount|).
+    //! Zero based retry index (less than |ReaderConfig_->RetryCount|).
     int RetryIndex_ = 0;
 
-    //! Zero based pass index (less than |Reader->Config->PassCount|).
+    //! Zero based pass index (less than |ReaderConfig_->PassCount|).
     int PassIndex_ = 0;
 
     //! Seed replicas for the current retry.
@@ -510,9 +512,11 @@ protected:
         TReplicationReader* reader,
         const TClientBlockReadOptions& options)
         : Reader_(reader)
-        , Config_(reader->Config_)
-        , BlockReadOptions_(options)
-        , WorkloadDescriptor_(Config_->EnableWorkloadFifoScheduling ? options.WorkloadDescriptor.SetCurrentInstant() : options.WorkloadDescriptor)
+        , ReaderConfig_(reader->Config_)
+        , ReaderOptions_(reader->Options_)
+        , ChunkId_(reader->ChunkId_)
+        , SessionOptions_(options)
+        , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling ? options.WorkloadDescriptor.SetCurrentInstant() : options.WorkloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
         , Logger(NLogging::TLogger(ChunkClientLogger)
@@ -696,7 +700,11 @@ protected:
     void NextRetry()
     {
         auto reader = Reader_.Lock();
-        if (!reader || IsCanceled()) {
+        if (!reader) {
+            return;
+        }
+
+        if (IsCanceled()) {
             return;
         }
 
@@ -708,7 +716,7 @@ protected:
 
         LOG_DEBUG("Retry started: %v of %v",
             RetryIndex_ + 1,
-            reader->Config_->RetryCount);
+            ReaderConfig_->RetryCount);
 
         PassIndex_ = 0;
         BannedPeers_.clear();
@@ -722,18 +730,12 @@ protected:
 
     void OnRetryFailed()
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
-        int retryCount = reader->Config_->RetryCount;
+        DiscardSeeds();
+        
+        int retryCount = ReaderConfig_->RetryCount;
         LOG_DEBUG("Retry failed: %v of %v",
             RetryIndex_ + 1,
             retryCount);
-
-        YCHECK(SeedsFuture_);
-        reader->DiscardSeeds(SeedsFuture_);
-        SeedsFuture_.Reset();
 
         ++RetryIndex_;
         if (RetryIndex_ >= retryCount) {
@@ -746,16 +748,38 @@ protected:
                 .Via(SessionInvoker_),
             GetBackoffDuration(RetryIndex_));
     }
+    
+    void DiscardSeeds()
+    {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return;
+        }
+
+        YCHECK(SeedsFuture_);
+        reader->DiscardSeeds(SeedsFuture_);
+        SeedsFuture_.Reset();
+    }
+
+    void SetReaderFailed()
+    {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return;
+        }
+        
+        reader->SetFailed();
+    }
 
     bool PrepareNextPass()
     {
-        auto reader = Reader_.Lock();
-        if (!reader || IsCanceled())
+        if (IsCanceled()) {
             return false;
+        }
 
         LOG_DEBUG("Pass started: %v of %v",
             PassIndex_ + 1,
-            reader->Config_->PassCount);
+            ReaderConfig_->PassCount);
 
         ResetPeerQueue();
         Peers_.clear();
@@ -786,7 +810,7 @@ protected:
 
         if (PeerQueue_.empty()) {
             RegisterError(TError("No feasible seeds to start a pass"));
-            if (reader->Options_->AllowFetchingSeedsFromMaster) {
+            if (ReaderOptions_->AllowFetchingSeedsFromMaster) {
                 OnRetryFailed();
             } else {
                 OnSessionFailed(/* fatal */ true);
@@ -799,15 +823,11 @@ protected:
 
     void OnPassCompleted()
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
         if (ShouldStop()) {
             return;
         }
 
-        int passCount = reader->Config_->PassCount;
+        int passCount = ReaderConfig_->PassCount;
         LOG_DEBUG("Pass completed: %v of %v",
             PassIndex_ + 1,
             passCount);
@@ -859,15 +879,15 @@ private:
     int ComparePeerLocality(const TPeer& lhs, const TPeer& rhs) const
     {
         if (lhs.Locality > rhs.Locality) {
-            if (Config_->PreferLocalHost && rhs.Locality < EAddressLocality::SameHost) {
+            if (ReaderConfig_->PreferLocalHost && rhs.Locality < EAddressLocality::SameHost) {
                 return 1;
             }
 
-            if (Config_->PreferLocalRack && rhs.Locality < EAddressLocality::SameRack) {
+            if (ReaderConfig_->PreferLocalRack && rhs.Locality < EAddressLocality::SameRack) {
                 return 1;
             }
 
-            if (Config_->PreferLocalDataCenter && rhs.Locality < EAddressLocality::SameDataCenter) {
+            if (ReaderConfig_->PreferLocalDataCenter && rhs.Locality < EAddressLocality::SameDataCenter) {
                 return 1;
             }
         } else if (lhs.Locality < rhs.Locality) {
@@ -909,11 +929,11 @@ private:
     TDuration GetBackoffDuration(int index) const
     {
         auto backoffMultiplier = std::min(
-            std::pow(Config_->BackoffTimeMultiplier, index - 1),
+            std::pow(ReaderConfig_->BackoffTimeMultiplier, index - 1),
             MaxBackoffMultiplier);
 
-        auto backoffDuration = Config_->MinBackoffTime * backoffMultiplier;
-        backoffDuration = std::min(backoffDuration, Config_->MaxBackoffTime);
+        auto backoffDuration = ReaderConfig_->MinBackoffTime * backoffMultiplier;
+        backoffDuration = std::min(backoffDuration, ReaderConfig_->MaxBackoffTime);
         return backoffDuration;
     }
 
@@ -927,6 +947,7 @@ private:
     void OnGotSeeds(const TErrorOr<TChunkReplicaList>& result)
     {
         if (!result.IsOK()) {
+            DiscardSeeds();
             RegisterError(TError(
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Error requesting seeds from master")
@@ -952,16 +973,16 @@ private:
             return true;
         }
 
-        auto error = reader->CheckReaderIsSlow(StartTimestamp_, TotalBytesReceived_);
-        if (error.IsOK()) {
-            return false;
+        auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTimestamp_);
+        if (!error.IsOK()) {
+            RegisterError(TError("Read session of chunk %v is slow; may attempting repair",
+                reader->GetChunkId())
+                << error);
+            OnSessionFailed(/* fatal */ false);
+            return true;
         }
 
-        RegisterError(TError("Read session of chunk %v is stopped since it is slow and we can continue with repair", reader->GetChunkId())
-            << error);
-        OnSessionFailed(/* fatal */ false);
-
-        return true;
+        return false;
     }
 };
 
@@ -1090,7 +1111,7 @@ private:
             }
 
             TDataNodeServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Config_->ProbeRpcTimeout);
+            proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
             auto req = proxy.GetBlockSet();
             req->set_fetch_from_cache(false);
@@ -1114,8 +1135,8 @@ private:
         TNullable<TPeer> bestPeer;
 
         auto getLoad = [&] (const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp) {
-            return Config_->NetQueueSizeFactor * rsp->net_queue_size() +
-                Config_->DiskQueueSizeFactor * rsp->disk_queue_size();
+            return ReaderConfig_->NetQueueSizeFactor * rsp->net_queue_size() +
+                ReaderConfig_->DiskQueueSizeFactor * rsp->disk_queue_size();
         };
 
         bool receivedNewPeers = false;
@@ -1185,7 +1206,7 @@ private:
         const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp,
         const TReplicationReaderPtr& reader)
     {
-        if (!Config_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
+        if (!ReaderConfig_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
             LOG_DEBUG("Peer suggestions received but ignored");
             return false;
         }
@@ -1233,7 +1254,7 @@ private:
         TNullable<TPeer> maybePeer;
         while (!maybePeer) {
             auto candidates = PickPeerCandidates(
-                Config_->ProbePeerCount,
+                ReaderConfig_->ProbePeerCount,
                 [&] (const TString& address) {
                     return HasUnfetchedBlocks(address, blockIndexes);
                 },
@@ -1254,16 +1275,16 @@ private:
         }
 
         TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
+        proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
-        req->set_populate_cache(reader->Config_->PopulateCache);
+        req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
-        if (reader->Options_->EnableP2P) {
-            auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;
+        if (ReaderOptions_->EnableP2P) {
+            auto expirationTime = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
             ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_);
             req->set_peer_expiration_time(expirationTime.GetValue());
         }
@@ -1293,7 +1314,7 @@ private:
         }
 
         if (rsp->has_chunk_reader_statistics()) {
-            UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
 
         i64 bytesReceived = 0;
@@ -1322,7 +1343,7 @@ private:
                 return;
             }
 
-            auto sourceDescriptor = reader->Options_->EnableP2P
+            auto sourceDescriptor = ReaderOptions_->EnableP2P
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
                 : TNullable<TNodeDescriptor>(Null);
 
@@ -1381,27 +1402,16 @@ private:
 
     virtual void OnSessionFailed(bool fatal) override
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
-        if (fatal) {
-            reader->SetFailed();
-        }
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
-            reader->ChunkId_));
-        Promise_.TrySet(error);
+            ChunkId_));
+        OnSessionFailed(fatal, error);
     }
 
     void OnSessionFailed(bool fatal, const TError& error)
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
         if (fatal) {
-            reader->SetFailed();
+            SetReaderFailed();
         }
 
         Promise_.TrySet(error);
@@ -1516,7 +1526,7 @@ private:
             FirstBlockIndex_ + BlockCount_ - 1);
 
         TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
+        proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockRange();
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
@@ -1540,7 +1550,7 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (rsp->has_chunk_reader_statistics()) {
-            UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
 
         auto blocks = GetRpcAttachedBlocks(rsp);
@@ -1548,9 +1558,10 @@ private:
         int blocksReceived = 0;
         i64 bytesReceived = 0;
 
-        for (auto& block : blocks) {
-            if (!block)
+        for (const auto& block : blocks) {
+            if (!block) {
                 break;
+            }
 
             blocksReceived += 1;
             bytesReceived += block.Size();
@@ -1621,27 +1632,16 @@ private:
 
     virtual void OnSessionFailed(bool fatal) override
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
-        if (fatal) {
-            reader->SetFailed();
-        }
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
-            reader->ChunkId_));
-        Promise_.TrySet(error);
+            ChunkId_));
+        OnSessionFailed(fatal, error);
     }
 
     void OnSessionFailed(bool fatal, const TError& error)
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
         if (fatal) {
-            reader->SetFailed();
+            SetReaderFailed();
         }
 
         Promise_.TrySet(error);
@@ -1744,7 +1744,7 @@ private:
         LOG_DEBUG("Requesting chunk meta (Address: %v)", peerAddress);
 
         TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config_->MetaRpcTimeout);
+        proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
 
         auto req = proxy.GetChunkMeta();
         // TODO(babenko): consider using light band instead when all metas become thin
@@ -1779,7 +1779,7 @@ private:
             RequestMeta();
         } else {
             if (rsp->has_chunk_reader_statistics()) {
-                UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+                UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
             }
 
             TotalBytesReceived_ += rsp->ByteSize();
@@ -1795,27 +1795,16 @@ private:
 
     virtual void OnSessionFailed(bool fatal) override
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
-        if (fatal) {
-            reader->SetFailed();
-        }
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
-            reader->ChunkId_));
-        Promise_.TrySet(error);
+            ChunkId_));
+        OnSessionFailed(fatal, error);
     }
-
+    
     void OnSessionFailed(bool fatal, const TError& error)
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
         if (fatal) {
-            reader->SetFailed();
+            SetReaderFailed();
         }
 
         Promise_.TrySet(error);

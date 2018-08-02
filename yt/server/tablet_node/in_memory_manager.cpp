@@ -311,6 +311,7 @@ private:
             finalizer.Release();
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)

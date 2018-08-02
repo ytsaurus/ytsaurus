@@ -89,7 +89,7 @@ void Serialize(TDuration value, NYson::IYsonConsumer* consumer);
 void Serialize(TInstant value, NYson::IYsonConsumer* consumer);
 
 // TGuid
-void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer);
+void Serialize(TGuid value, NYson::IYsonConsumer* consumer);
 
 // IInputStream
 void Serialize(IInputStream& input, NYson::IYsonConsumer* consumer);

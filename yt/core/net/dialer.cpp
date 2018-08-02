@@ -165,7 +165,7 @@ private:
         : public NConcurrency::IPollable
     {
     public:
-        TPollable(TAsyncDialerSession* owner, const TGuid& id, int socket)
+        TPollable(TAsyncDialerSession* owner, TGuid id, int socket)
             : Owner_(MakeWeak(owner))
             , LoggingId_(Format("AsyncDialerSession{%v:%v}", id, socket))
         { }

@@ -113,7 +113,7 @@ void Serialize(TInstant value, IYsonConsumer* consumer)
 }
 
 // TGuid
-void Serialize(const TGuid& value, IYsonConsumer* consumer)
+void Serialize(TGuid value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(ToString(value));
 }

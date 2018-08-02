@@ -122,7 +122,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
     return VoidFuture;
 }
 
-TFuture<void> TJournalSession::DoSendBlocks(
+TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     int /*startBlockIndex*/,
     int /*blockCount*/,
     const TNodeDescriptor& /*target*/)

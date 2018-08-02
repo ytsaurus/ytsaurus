@@ -176,21 +176,23 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         Id_);
 
     decltype(AsyncResults_) asyncResults;
-    try {
+    {
         auto guard = Guard(SpinLock_);
-        Error_.ThrowOnError();
+        if (!Error_.IsOK()) {
+            return MakeFuture<TTransactionCommitResult>(Error_);
+        }
         switch (State_) {
             case ETransactionState::Committing:
-                THROW_ERROR_EXCEPTION("Transaction %v is already being committed",
-                    Id_);
+                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already being committed",
+                    Id_));
 
             case ETransactionState::Committed:
-                THROW_ERROR_EXCEPTION("Transaction %v is already committed",
-                    Id_);
+                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already committed",
+                    Id_));
 
             case ETransactionState::Aborted:
-                THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
-                    Id_);
+                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
+                    Id_));
 
             case ETransactionState::Active:
                 State_ = ETransactionState::Committing;
@@ -200,8 +202,6 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
             default:
                 Y_UNREACHABLE();
         }
-    } catch (const std::exception& ex) {
-        return MakeFuture<TTransactionCommitResult>(ex);
     }
 
     return Combine(asyncResults).Apply(
@@ -217,20 +217,23 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
             req->set_sticky(Sticky_);
 
             return req->Invoke().Apply(
-                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) {
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TErrorOr<TTransactionCommitResult> {
                     if (rspOrError.IsOK()) {
                         const auto& rsp = rspOrError.Value();
                         TTransactionCommitResult result{
                             FromProto<NHiveClient::TTimestampMap>(rsp->commit_timestamps())
                         };
-                        SetCommitted(result);
+                        auto error = SetCommitted(result);
+                        if (!error.IsOK()) {
+                            return error;
+                        }
                         return result;
                     } else {
                         auto error = TError("Error committing transaction %v ",
                             Id_)
                             << rspOrError;
                         OnFailure(error);
-                        THROW_ERROR error;
+                        return error;
                     }
                 }));
         }));
@@ -593,12 +596,12 @@ void TTransaction::FireAborted()
     Aborted_.Fire();
 }
 
-void TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
+TError TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
 {
     {
         auto guard = Guard(SpinLock_);
         if (State_ != ETransactionState::Committing) {
-            THROW_ERROR Error_;
+            return Error_;
         }
         State_ = ETransactionState::Committed;
     }
@@ -608,6 +611,8 @@ void TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
         result.CommitTimestamps);
 
     FireCommitted();
+
+    return TError();
 }
 
 void TTransaction::SetAborted(const TError& error)
@@ -653,13 +658,15 @@ TFuture<void> TTransaction::SendAbort()
             if (rspOrError.IsOK()) {
                 LOG_DEBUG("Transaction aborted (TransactionId: %v)",
                     id);
+                return TError();
             } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v)",
                     id);
+                return TError();
             } else {
                 LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v)",
                     id);
-                THROW_ERROR_EXCEPTION("Error aborting transaction %v",
+                return TError("Error aborting transaction %v",
                     id)
                     << rspOrError;
             }
@@ -686,10 +693,8 @@ TFuture<void> TTransaction::SendPing()
             if (rspOrError.IsOK()) {
                 LOG_DEBUG("Transaction pinged (TransactionId: %v)",
                     Id_);
-            } else if (
-                rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
-                GetState() == ETransactionState::Active)
-            {
+                return TError();
+            } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 // Hard error.
                 LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v)",
                     Id_);
@@ -697,13 +702,15 @@ TFuture<void> TTransaction::SendPing()
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v has expired or was aborted",
                     Id_);
-                OnFailure(error);
-                THROW_ERROR error;
+                if (GetState() != ETransactionState::Active) {
+                    OnFailure(error);
+                }
+                return error;
             } else {
                 // Soft error.
                 LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v)",
                     Id_);
-                THROW_ERROR_EXCEPTION("Failed to ping transaction %v",
+                return TError("Failed to ping transaction %v",
                     Id_)
                     << rspOrError;
             }

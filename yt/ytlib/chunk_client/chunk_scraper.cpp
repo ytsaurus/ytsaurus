@@ -121,13 +121,13 @@ private:
 
     void DoLocateChunks(const TError& error)
     {
-        auto finallyGuard = Finally([&] () {
-            LocateChunks();
-        });
-
         if (!Started_) {
             return;
         }
+
+        auto finallyGuard = Finally([&] () {
+            LocateChunks();
+        });
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");

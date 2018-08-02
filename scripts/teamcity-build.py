@@ -39,6 +39,8 @@ import urllib3
 urllib3.disable_warnings()
 import requests
 
+NODEJS_RESOURCE = "sbr:629132696"
+
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
     from releaselib.sandbox import client as sandbox_client
@@ -126,6 +128,8 @@ def prepare(options, build_context):
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
+    assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
+
     options.use_tsan = parse_yes_no_bool(os.environ.get("USE_TSAN", "NO"))
     options.use_msan = parse_yes_no_bool(os.environ.get("USE_MSAN", "NO"))
     options.use_asan = options.use_asan or parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))  # compat
@@ -273,12 +277,6 @@ def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     if options.build_system == "cmake":
         run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-        if options.use_asan:
-            run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
-            run(["cp"] +
-                glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
-                glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
-                [get_bin_dir(options)])
     else:
         assert options.build_system == "ya"
         run_yall(options)
@@ -316,6 +314,12 @@ def import_yt_wrapper(options, build_context):
         raise RuntimeError("Failed to import yt wrapper: {0}".format(err))
     yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
     build_context["yt.wrapper"] = yt.wrapper
+
+def sky_get(resource):
+    run(
+        ["sky", "get", resource],
+        timeout=100
+    )
 
 def sky_share(resource, cwd):
     run_result = run(
@@ -552,12 +556,20 @@ def run_sandbox_upload(options, build_context):
             os.path.dirname(binary_distribution_folder))
     sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
 
+    tmp_dir = os.path.join(options.working_directory, "tmp_package_build")
+    mkdirp(tmp_dir)
     # Nodejs package
     if options.build_system == "cmake":
         nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
         nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
+        with cwd(tmp_dir):
+            sky_get(NODEJS_RESOURCE)
+            nodejs_path = os.path.realpath("node")
+            if not os.path.exists(nodejs_path):
+                raise RuntimeError("nodejs resource does not contain 'node' directory")
         with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
             tar.add(nodejs_build, arcname="/node_modules", recursive=True)
+            tar.add(nodejs_path, arcname="/node", recursive=True)
 
         rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
@@ -566,8 +578,6 @@ def run_sandbox_upload(options, build_context):
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
         yt_http_proxy_package = os.path.join(options.checkout_directory, "yt/packages/yandex-yt-http-proxy.json")
 
-        tmp_dir = os.path.join(options.working_directory, "tmp_package_build")
-        mkdirp(tmp_dir)
         with cwd(tmp_dir):
             args = [
                 get_ya(options),
@@ -581,10 +591,10 @@ def run_sandbox_upload(options, build_context):
             generated_package_list = glob.glob("*.tar")
             assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
             os.rename(generated_package_list[0], ya_nodejs_tar)
-        shutil.rmtree(tmp_dir)
 
         rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
+    shutil.rmtree(tmp_dir)
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
@@ -643,18 +653,21 @@ def run_unit_tests(options, build_context):
     mkdirp(sandbox_current)
     try:
         for unittest_binary in all_unittests:
-            run([
-                "gdb",
-                "--batch",
-                "--return-child-result",
-                "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
-                "--args",
+            args = [
                 os.path.join(get_bin_dir(options), unittest_binary),
                 "--gtest_color=no",
                 "--gtest_death_test_style=threadsafe",
-                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml")],
-                cwd=sandbox_current,
-                timeout=20 * 60)
+                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml"),
+            ]
+            if not options.use_asan:
+                args = [
+                    "gdb",
+                    "--batch",
+                    "--return-child-result",
+                    "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
+                    "--args",
+                ] + args
+            run(args, cwd=sandbox_current, timeout=20 * 60)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
             sandbox_current, sandbox_archive), status="WARNING")
@@ -815,7 +828,6 @@ def run_yp_integration_tests(options, build_context):
                })
 
 @build_step
-@disable_for_ya
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")

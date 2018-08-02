@@ -478,7 +478,7 @@ TJobResult TJobProxy::DoRun()
         Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
         RetrieveJobSpec();
-        
+
         // Disable throttling when timeout is 0.
         if (Config_->BandwidthThrottlerRpcTimeout != TDuration::Zero()) {
             LOG_DEBUG("Job throttling enabled");
@@ -574,7 +574,7 @@ void TJobProxy::ReportResult(
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
     if (GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
-        req->set_stderr(GetStderr());
+        req->set_job_stderr(GetStderr());
         auto failContext = Job_->GetFailContext();
         if (failContext) {
             req->set_fail_context(*failContext);

@@ -26,7 +26,7 @@ using namespace NYson;
 
 TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, TNullable<TDuration> keysUpdatePeriod)
     : Services_(std::move(services))
-    , KeyMapping_(TError(EErrorCode::ResolveError, "Service combiner is not ready yet"))
+    , KeyMapping_(TError(NRpc::EErrorCode::Unavailable, "Service combiner is not ready yet"))
 {
     auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
     auto keysUpdateCallback = BIND(&TServiceCombiner::UpdateKeys, MakeWeak(this));

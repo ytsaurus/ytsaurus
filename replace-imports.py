@@ -8,6 +8,7 @@ def main():
         "NYT.NYson.NProto.attribute_dictionary",
         "NYT.NYson.NProto.enum_value_name",
         "NYT.NYson.NProto.yson_string",
+        "NYT.NYson.NProto.yson_map",
         "NYT.NYson.NProto.derive_underscore_case_names",
     )
     for line in sys.stdin:

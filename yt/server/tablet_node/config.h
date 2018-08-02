@@ -671,7 +671,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
-            .DefaultNew(1_GB);
+            .DefaultNew(10_GB);
 
         RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
             .DefaultNew();
