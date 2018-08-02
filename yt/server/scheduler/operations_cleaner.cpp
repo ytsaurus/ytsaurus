@@ -567,7 +567,7 @@ private:
         THashMap<TString, int> operationCountPerUser;
 
         auto canArchive = [&] (const auto& request) {
-            if (retainedCount > Config_->HardRetainedOperationCount) {
+            if (retainedCount >= Config_->HardRetainedOperationCount) {
                 return true;
             }
 
@@ -581,12 +581,12 @@ private:
                 return true;
             }
 
-            if (operationCountPerUser[request.AuthenticatedUser] > Config_->MaxOperationCountPerUser) {
+            if (operationCountPerUser[request.AuthenticatedUser] >= Config_->MaxOperationCountPerUser) {
                 return true;
             }
 
             // TODO(asaitgalin): Consider only operations without stderrs?
-            if (retainedCount > Config_->SoftRetainedOperationCount &&
+            if (retainedCount >= Config_->SoftRetainedOperationCount &&
                 request.State != EOperationState::Failed)
             {
                 return true;
