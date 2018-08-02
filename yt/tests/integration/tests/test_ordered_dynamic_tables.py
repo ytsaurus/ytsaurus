@@ -142,7 +142,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     def test_insert_with_explicit_tablet_index(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", 10)
+        sync_reshard_table("//tmp/t", 10)
         sync_mount_table("//tmp/t")
 
         for i in xrange(10):
@@ -163,7 +163,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         if not dynamic:
             sync_unmount_table("//tmp/t")
-            wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
             assert get("//tmp/t/@chunk_count") == 1
             sync_mount_table("//tmp/t")
 
@@ -178,7 +177,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     def test_select_from_dynamic_multi_tablet(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", 10)
+        sync_reshard_table("//tmp/t", 10)
         sync_mount_table("//tmp/t")
         assert get("//tmp/t/@tablet_count") == 10
 
@@ -198,7 +197,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             insert_rows("//tmp/t", write_rows)
             if k < 4:
                 sync_unmount_table("//tmp/t")
-                wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
                 assert get("//tmp/t/@chunk_count") == k + 1
                 sync_mount_table("//tmp/t")
 
@@ -419,13 +417,13 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     def test_reshard_adds_tablets(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", 5)
+        sync_reshard_table("//tmp/t", 5)
         sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
             trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
-        reshard_table("//tmp/t", 5, first_tablet_index=1, last_tablet_index=3)
+        sync_reshard_table("//tmp/t", 5, first_tablet_index=1, last_tablet_index=3)
         sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 7
@@ -447,14 +445,14 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     def test_reshard_joins_tablets(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", 5)
+        sync_reshard_table("//tmp/t", 5)
         sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
             if i < 2 or i > 3:
                 trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
-        reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=3)
+        sync_reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=3)
         sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 4
@@ -477,7 +475,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     def test_reshard_join_fails_on_trimmed_rows(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", 2)
+        sync_reshard_table("//tmp/t", 2)
         sync_mount_table("//tmp/t")
         for i in xrange(2):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
@@ -500,7 +498,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             assert tablet["trimmed_row_count"] == expected_trimmed
 
         _verify(1, 1)
-        reshard_table("//tmp/t", 1)
+        sync_reshard_table("//tmp/t", 1)
         _verify(1, 1)
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
@@ -660,16 +658,14 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
         sync_unmount_table("//tmp/t")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         assert get("//tmp/t/@chunk_count") == 10
         sync_mount_table("//tmp/t")
         for i in xrange(5):
             trim_rows("//tmp/t", i, 1)
         wait(lambda: get("//tmp/t/@chunk_count") == 5)
         sync_unmount_table("//tmp/t")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t", "//tmp/t2")
-        reshard_table("//tmp/t", 1)
+        sync_reshard_table("//tmp/t", 1)
 
     def test_copy_trimmed_yt_7422(self):
         sync_create_cells(1)
@@ -679,7 +675,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sync_flush_table("//tmp/t")
         trim_rows("//tmp/t", 0, 1)
         sync_freeze_table("//tmp/t")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t", "//tmp/t2")
         sync_unfreeze_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])

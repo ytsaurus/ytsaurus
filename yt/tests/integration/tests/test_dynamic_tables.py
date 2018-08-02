@@ -206,7 +206,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         sync_mount_table("//tmp/t3")
         sync_unmount_table("//tmp/t3")
 
-        reshard_table("//tmp/t3", [[], [100], [200], [300], [400]])
+        sync_reshard_table("//tmp/t3", [[], [100], [200], [300], [400]])
 
         sync_mount_table("//tmp/t3")
         sync_unmount_table("//tmp/t3")
@@ -263,7 +263,7 @@ class TestDynamicTables(TestDynamicTablesBase):
     def test_tablet_assignment(self):
         sync_create_cells(3)
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
         assert get("//tmp/t/@tablet_count") == 12
 
         sync_mount_table("//tmp/t")
@@ -421,7 +421,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         sync_mount_table("//tmp/t", authenticated_user="u")
         sync_unmount_table("//tmp/t", authenticated_user="u")
         remount_table("//tmp/t", authenticated_user="u")
-        reshard_table("//tmp/t", [[]], authenticated_user="u")
+        sync_reshard_table("//tmp/t", [[]], authenticated_user="u")
 
     def test_default_cell_bundle(self):
         assert ls("//sys/tablet_cell_bundles") == ["default"]
@@ -483,7 +483,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         sync_create_cells(cell_count)
         cell_ids = ls("//sys/tablet_cells")
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
+        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
         for i in xrange(len(cell_ids)):
             mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i, cell_id=cell_ids[i])
         wait_for_tablet_state("//tmp/t", "mounted")
@@ -594,7 +594,7 @@ class TestDynamicTables(TestDynamicTablesBase):
                     assert count == 0
 
         _verify(1, 0, 0)
-        reshard_table("//tmp/t", [[], [0], [1]])
+        sync_reshard_table("//tmp/t", [[], [0], [1]])
         _verify(3, 0, 0)
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True)
         _verify(2, 1, 0)
@@ -674,7 +674,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         assert get("//tmp/t/@tablet_error_count") == 1
 
         sync_unmount_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
         # After reshard all errors should be gone.
@@ -911,8 +911,8 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
             reshard_table("//tmp/t2", 2)
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
-        reshard_table("//tmp/t1", [[], [1]])
-        reshard_table("//tmp/t2", 2)
+        sync_reshard_table("//tmp/t1", [[], [1]])
+        sync_reshard_table("//tmp/t2", 2)
         self._verify_resource_usage("test_account", "tablet_count", 4)
 
     def test_tablet_count_limit_copy(self):
@@ -1394,7 +1394,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t1", tablet_cell_bundle="broken")
         self._create_sorted_table("//tmp/t2", tablet_cell_bundle="default")
 
-        reshard_table("//tmp/t2", [[], [1]])
+        sync_reshard_table("//tmp/t2", [[], [1]])
         assert get("//tmp/t2/@tablet_count") == 2
 
         sync_mount_table("//tmp/t1", cell_id=cells_on_broken[0])
@@ -1425,7 +1425,7 @@ class TestTabletActions(TestDynamicTablesBase):
         sync_unmount_table("//tmp/t2")
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         set("//tmp/t2/@in_memory_mode", "uncompressed")
-        reshard_table("//tmp/t2", [[], [1]])
+        sync_reshard_table("//tmp/t2", [[], [1]])
 
         sync_mount_table("//tmp/t2", cell_id=cells_on_default[0])
         insert_rows("//tmp/t2", [{"key": i, "value": "A"*128} for i in xrange(2)])
@@ -1448,7 +1448,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._configure_bundle("default")
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         if enable:
             wait(lambda: get("//tmp/t/@tablet_count") == 1)
@@ -1463,7 +1463,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
 
         def check_balancer_is_active(should_be_active):
-            reshard_table("//tmp/t", [[], [1]])
+            sync_reshard_table("//tmp/t", [[], [1]])
             sync_mount_table("//tmp/t")
             if should_be_active:
                 wait(lambda: get("//tmp/t/@tablet_count") == 1)
@@ -1508,7 +1508,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._configure_bundle("default")
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         sleep(1)
         wait_for_tablet_state("//tmp/t", "mounted")
@@ -1521,7 +1521,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
 
         # Create two chunks excelled from eden
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
         sync_flush_table("//tmp/t")
@@ -1532,7 +1532,7 @@ class TestTabletActions(TestDynamicTablesBase):
             assert not get("#{0}/@eden".format(chunk))
 
         sync_unmount_table("//tmp/t")
-        reshard_table("//tmp/t", [[]])
+        sync_reshard_table("//tmp/t", [[]])
         sync_mount_table("//tmp/t")
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True, recursive=True)
@@ -1565,7 +1565,7 @@ class TestTabletActions(TestDynamicTablesBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@enable_tablet_balancer", False)
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
@@ -1618,7 +1618,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._configure_bundle("default")
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet1 = get("//tmp/t/@tablets/0/tablet_id")
         tablet2 = get("//tmp/t/@tablets/1/tablet_id")

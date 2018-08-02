@@ -1218,14 +1218,20 @@ def sync_mount_table(path, freeze=False, **kwargs):
 def sync_unmount_table(path, **kwargs):
     unmount_table(path, **kwargs)
     wait_for_tablet_state(path, "unmounted", **kwargs)
+    wait(lambda: not exists(path + "/@last_mount_transaction_id"))
 
 def sync_freeze_table(path, **kwargs):
     freeze_table(path, **kwargs)
     wait_for_tablet_state(path, "frozen", **kwargs)
+    wait(lambda: not exists(path + "/@last_mount_transaction_id"))
 
 def sync_unfreeze_table(path, **kwargs):
     unfreeze_table(path, **kwargs)
     wait_for_tablet_state(path, "mounted", **kwargs)
+
+def sync_reshard_table(path, *args, **kwargs):
+    reshard_table(path, *args, **kwargs)
+    wait(lambda: not exists(path + "/@last_mount_transaction_id"))
 
 def sync_flush_table(path, driver=None):
     sync_freeze_table(path, driver=driver)

@@ -81,7 +81,7 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
         for i in xrange(4):
             try:
                 sync_unmount_table(path)
-                reshard_table(path, pivots)
+                sync_reshard_table(path, pivots)
                 resharded = True
             except:
                 pass
@@ -237,16 +237,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 {"name": "value", "type": "int64"}
             ]})
 
-        reshard_table("//tmp/t", [[]])
+        sync_reshard_table("//tmp/t", [[]])
         assert self._get_pivot_keys("//tmp/t") == [[]]
 
-        reshard_table("//tmp/t", [[], [100]])
+        sync_reshard_table("//tmp/t", [[], [100]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
         with pytest.raises(YtError): reshard_table("//tmp/t", [[], []])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
-        reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
+        sync_reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
         with pytest.raises(YtError): reshard_table("//tmp/t", [[101]], first_tablet_index=1, last_tablet_index=1)
@@ -258,7 +258,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        reshard_table("//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
+        sync_reshard_table("//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
         with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1)
@@ -270,17 +270,17 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_reshard_partly_unmounted(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [100], [200], [300]])
+        sync_reshard_table("//tmp/t", [[], [100], [200], [300]])
         sync_mount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
         sync_unmount_table("//tmp/t", first_tablet_index=1, last_tablet_index=3)
-        reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
+        sync_reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [250], [300]]
 
     def test_reshard_tablet_count(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1]])
+        sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
         sync_flush_table("//tmp/t")
@@ -288,9 +288,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         chunks = get("//tmp/t/@chunk_ids")
         assert len(chunks) == 2
-        reshard_table("//tmp/t", [[]])
+        sync_reshard_table("//tmp/t", [[]])
         assert self._get_pivot_keys("//tmp/t") == [[]]
-        reshard_table("//tmp/t", 2)
+        sync_reshard_table("//tmp/t", 2)
         assert self._get_pivot_keys("//tmp/t") == [[], [1]]
 
     def test_force_unmount_on_remove(self):
@@ -413,7 +413,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows1)
         sync_freeze_table("//tmp/t")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
 
         assert read_table("//tmp/t") == rows1
         assert get("//tmp/t/@chunk_count") == 1
@@ -424,7 +423,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
         insert_rows("//tmp/t", rows2)
         sync_unmount_table("//tmp/t")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
 
         assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
         assert get("//tmp/t/@chunk_count") == 2
@@ -494,8 +492,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         _multicell_lock("//tmp/t", mode="snapshot", tx=tx)
         verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        reshard_table("//tmp/t", [[], [5]])
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"));
+        sync_reshard_table("//tmp/t", [[], [5]])
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
         abort_transaction(tx)
@@ -601,7 +598,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             for i in xrange(1, 6, 2):
                 assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
         do_test()
-        reshard_table("//tmp/t", [[], [2], [4]])
+        sync_reshard_table("//tmp/t", [[], [2], [4]])
         do_test()
 
     @skip_if_rpc_driver_backend
@@ -925,7 +922,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def reshard(pivots):
             sync_unmount_table("//tmp/t")
-            reshard_table("//tmp/t", pivots)
+            sync_reshard_table("//tmp/t", pivots)
             sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
@@ -1037,7 +1034,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
         pivots = [[]] + [[x] for x in range(100, 1000, 100)]
-        reshard_table("//tmp/t", pivots)
+        sync_reshard_table("//tmp/t", pivots)
         assert self._get_pivot_keys("//tmp/t") == pivots
 
         sync_mount_table("//tmp/t")
@@ -1667,7 +1664,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def _prepare_copy(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
-        reshard_table("//tmp/t1", [[]] + [[i * 100] for i in xrange(10)])
+        sync_reshard_table("//tmp/t1", [[]] + [[i * 100] for i in xrange(10)])
 
     def test_copy_failure(self):
         self._prepare_copy()
@@ -1676,7 +1673,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_copy_empty(self):
         self._prepare_copy()
-        wait(lambda: not exists("//tmp/t1/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
 
         root_chunk_list_id1 = get("//tmp/t1/@chunk_list_id")
@@ -1703,7 +1699,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
         unmount_func("//tmp/t1")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t1/@tablet_state") == unmounted_state
         assert get("//tmp/t2/@tablet_state") == "unmounted"
@@ -1721,7 +1716,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
         unmount_func("//tmp/t1")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t1/@tablet_state") == unmounted_state
         assert get("//tmp/t2/@tablet_state") == "unmounted"
@@ -1740,7 +1734,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
         sync_unmount_table("//tmp/t1")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t1", "//tmp/t2")
         sync_mount_table("//tmp/t1")
         sync_mount_table("//tmp/t2")
@@ -1832,7 +1825,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(actual, expected)
 
         sync_unmount_table("//tmp/t")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
 
         alter_table("//tmp/t", schema=[
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -2035,7 +2027,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
 
         chunk_id = get("//tmp/t/@chunk_ids")[0]
-        reshard_table("//tmp/t", [[], [1], [2]])
+        sync_reshard_table("//tmp/t", [[], [1], [2]])
         root_chunk_list = get("//tmp/t/@chunk_list_id")
         tablet_chunk_lists = get("#{0}/@child_ids".format(root_chunk_list))
 
