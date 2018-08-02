@@ -834,6 +834,16 @@ public:
         auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
         Deserialize(userRuntimeParams, parameters);
 
+        // TODO(renadeen): remove this quick and dirty fix
+        if (userRuntimeParams->Pool) {
+            THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+        }
+        for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
+            if (pair.second->Pool) {
+                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+            }
+        }
+
         auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
 
         auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
