@@ -20,7 +20,6 @@ class TStorageSystemCluster
 {
 private:
     const std::string TableName;
-    NamesAndTypesList Columns;
     IClusterNodeTrackerPtr ClusterNodeTracker;
 
 public:
@@ -56,9 +55,10 @@ TStorageSystemCluster::TStorageSystemCluster(
     IClusterNodeTrackerPtr clusterNodeTracker,
     std::string tableName)
     : TableName(std::move(tableName))
-    , Columns(CreateColumnList())
     , ClusterNodeTracker(std::move(clusterNodeTracker))
-{}
+{
+    setColumns(ColumnsDescription(CreateColumnList()));
+}
 
 NamesAndTypesList TStorageSystemCluster::CreateColumnList()
 {
