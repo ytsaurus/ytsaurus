@@ -164,8 +164,10 @@ public final class DataCenter {
     }
 
     public void close() {
-        for (BalancingDestination client : backends) {
-            client.close();
+        synchronized (backends) {
+            for (BalancingDestination client : backends) {
+                client.close();
+            }
         }
     }
 
