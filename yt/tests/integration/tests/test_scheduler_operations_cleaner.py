@@ -90,7 +90,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 command="cat")
             ops.append(op.id)
 
-        wait(lambda: len(self._get_removed_operations(ops)) == 3)
+        wait(lambda: len(self._get_removed_operations(ops)) == 4)
         archived_operations = self._get_removed_operations(ops)
         for op in archived_operations:
             row = self._lookup_ordered_by_id_row(op)
@@ -119,7 +119,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 command="cat")
             ops.append(op.id)
 
-        wait(lambda: get(CLEANER_ORCHID + "/archive_pending") == 3)
+        wait(lambda: get(CLEANER_ORCHID + "/archive_pending") == 4)
 
         for _ in xrange(3):
             map(
@@ -128,8 +128,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 command="cat")
 
         # Earliest operations should be removed
-        wait(lambda: len(self._get_removed_operations(ops)) == 6)
-        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:6])
+        wait(lambda: len(self._get_removed_operations(ops)) == 7)
+        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:7])
 
         def scheduler_alert_set():
             for alert in get("//sys/scheduler/@alerts"):
@@ -210,4 +210,4 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             except YtError:
                 pass
 
-        wait(lambda: len(self._get_removed_operations(ops)) == 1)
+        wait(lambda: len(self._get_removed_operations(ops)) == 2)
