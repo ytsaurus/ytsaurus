@@ -56,10 +56,12 @@ const NLogging::TLogger BootstrapLogger("Bootstrap");
 
 TBootstrap::TBootstrap(TConfigPtr config,
                        INodePtr configNode,
-                       TString xmlConfig)
+                       TString xmlConfig,
+                       TString cliqueId)
     : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , XmlConfig(std::move(xmlConfig))
+    , CliqueId_(std::move(cliqueId))
 {}
 
 TBootstrap::~TBootstrap()
@@ -159,7 +161,16 @@ void TBootstrap::DoInitialize()
 
     Storage = CreateStorage(Connection, NativeClientCache, ScanThrottler);
 
-    CoordinationService = CreateCoordinationService(Connection);
+    if (CliqueId_.empty()) {
+        if (const auto* operationId = getenv("YT_OPERATION_ID")) {
+            CliqueId_ = operationId;
+        } else {
+            THROW_ERROR_EXCEPTION("Clique id should be set either via --clique-id command-line option or "
+                "via $YT_OPERATION_ID environment variable");
+        }
+    }
+
+    CoordinationService = CreateCoordinationService(Connection, CliqueId_);
 
     Server = CreateServer(
         logger,

@@ -28,6 +28,7 @@ private:
     const TConfigPtr Config;
     const NYTree::INodePtr ConfigNode;
     const TString XmlConfig;
+    TString CliqueId_;
 
     NConcurrency::TActionQueuePtr ControlQueue;
 
@@ -49,7 +50,8 @@ private:
 public:
     TBootstrap(TConfigPtr config,
                NYTree::INodePtr configNode,
-               TString xmlConfig);
+               TString xmlConfig,
+               TString cliqueId);
     ~TBootstrap();
 
     void Initialize();

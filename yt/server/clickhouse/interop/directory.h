@@ -119,6 +119,7 @@ public:
 
     virtual IAuthorizationTokenService* AuthTokenService() = 0;
 
+    // Opens or creates a directory inside `path` associated with a current clique.
     virtual IDirectoryPtr OpenOrCreateDirectory(
         const IAuthorizationToken& authToken,
         const TString& path) = 0;

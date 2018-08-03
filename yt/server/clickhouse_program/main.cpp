@@ -21,6 +21,7 @@ class TProgram
 {
 private:
     TString XmlConfig;
+    TString CliqueId_;
 
 public:
     TProgram();
@@ -40,6 +41,9 @@ TProgram::TProgram()
         .RequiredArgument()
         .DefaultValue("config.xml")
         .StoreResult(&XmlConfig);
+    Opts_.AddLongOption("clique-id", "ClickHouse clique id (if not set, $YT_OPERATION_ID is used)")
+        .DefaultValue("")
+        .StoreResult(&CliqueId_);
 }
 
 void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
@@ -66,6 +70,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
         std::move(config),
         std::move(configNode),
         XmlConfig,
+        CliqueId_,
     };
 
     bootstrap.Initialize();

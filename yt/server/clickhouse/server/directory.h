@@ -10,7 +10,8 @@ namespace NClickHouse {
 ////////////////////////////////////////////////////////////////////////////////
 
 NInterop::ICoordinationServicePtr CreateCoordinationService(
-    NApi::NNative::IConnectionPtr connection);
+    NApi::NNative::IConnectionPtr connection,
+    TString cliqueId);
 
 }   // namespace NClickHouse
 }   // namespace NYT
