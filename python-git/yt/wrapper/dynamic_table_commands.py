@@ -139,7 +139,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         return format.load_rows(response)
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
-                format=None, raw=None, require_sync_replica=None, client=None):
+                require_sync_replica=None, format=None, raw=None, client=None):
     """Inserts rows from input_stream to dynamic table.
 
     :param table: output table path.
