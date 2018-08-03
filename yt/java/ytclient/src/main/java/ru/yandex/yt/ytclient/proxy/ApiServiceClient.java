@@ -360,7 +360,7 @@ public class ApiServiceClient {
     }
 
     /* */
-    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
+    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
         RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
                 service.lookupRows();
         builder.body().setPath(request.getPath());
@@ -368,8 +368,8 @@ public class ApiServiceClient {
         if (request.getKeepMissingRows().isPresent()) {
             builder.body().setKeepMissingRows(request.getKeepMissingRows().get());
         }
-        if (timestamp != null) {
-            builder.body().setTimestamp(timestamp.getValue());
+        if (request.getTimestamp().isPresent()) {
+            builder.body().setTimestamp(request.getTimestamp().get().getValue());
         }
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
         request.serializeRowsetTo(builder.attachments());
@@ -380,11 +380,12 @@ public class ApiServiceClient {
         });
     }
 
-    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
-        return lookupRows(request, null);
+    @Deprecated
+    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
+        return lookupRows(request.setTimestamp(timestamp));
     }
 
-    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
+    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
         RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, RpcClientResponse<TRspVersionedLookupRows>> builder =
                 service.versionedLookupRows();
         builder.body().setPath(request.getPath());
@@ -392,8 +393,8 @@ public class ApiServiceClient {
         if (request.getKeepMissingRows().isPresent()) {
             builder.body().setKeepMissingRows(request.getKeepMissingRows().get());
         }
-        if (timestamp != null) {
-            builder.body().setTimestamp(timestamp.getValue());
+        if (request.getTimestamp().isPresent()) {
+            builder.body().setTimestamp(request.getTimestamp().get().getValue());
         }
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
         request.serializeRowsetTo(builder.attachments());
@@ -404,8 +405,9 @@ public class ApiServiceClient {
         });
     }
 
-    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
-        return versionedLookupRows(request, null);
+    @Deprecated
+    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
+        return versionedLookupRows(request.setTimestamp(timestamp));
     }
 
     public CompletableFuture<UnversionedRowset> selectRows(String query) {
