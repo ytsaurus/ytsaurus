@@ -784,14 +784,6 @@ private:
         smooth(candidates, floor, [&] (const auto* node) {
             return node->GetCellCount(bundle) < floor;
         });
-
-
-        aboveCeil = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
-            return node->GetCellCount(bundle) > ceil;
-        });
-         belowFloor = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
-            return node->GetCellCount(bundle) < floor;
-        });
     }
 };
 
