@@ -188,7 +188,7 @@ class TestGrpcProxy(YTEnvSetup):
         self._create_node(type=401, path=table_path, attributes={"dynamic": True, "schema": schema})
         self._sync_mount_table(table_path)
         # 1 = "tablet", see ETransactionType in proto
-        tx = self._start_transaction(type=1, timeout=10000, sticky=True)
+        tx = self._start_transaction(type=1, timeout=10000000, sticky=True)
         print >>sys.stderr, tx
 
         rows = [
