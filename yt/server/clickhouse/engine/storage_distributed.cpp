@@ -5,6 +5,7 @@
 #include "type_helpers.h"
 
 #include <Common/Exception.h>
+#include <DataStreams/materializeBlock.h>
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
@@ -203,10 +204,12 @@ BlockInputStreamPtr TStorageDistributed::CreateRemoteStream(
 {
     std::string query = queryToString(queryAst);
 
+    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, {}, processedStage).getSampleBlock());
+
     auto stream = std::make_shared<RemoteBlockInputStream>(
         remoteNode->GetConnection(),
         query,
-        Block{}, // empty block?
+        header,
         context,
         nullptr,    // will use settings from context
         throttler,
