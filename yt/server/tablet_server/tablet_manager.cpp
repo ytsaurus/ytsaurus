@@ -3922,36 +3922,37 @@ private:
             return;
         }
 
-        if (table->TabletCountByExpectedState()[ETabletState::Mounted] > 0 ||
-            table->TabletCountByExpectedState()[ETabletState::Mounting] > 0 ||
-            table->TabletCountByExpectedState()[ETabletState::Unfreezing] > 0)
-        {
-            table->SetLastMountTransactionId(TTransactionId());
-            return;
-        }
-
         if (table->TabletCountByExpectedState()[ETabletState::Unmounting] > 0 ||
             table->TabletCountByExpectedState()[ETabletState::Freezing] > 0)
         {
             return;
         }
 
-        auto tabletCount =
-            table->TabletCountByExpectedState()[ETabletState::Unmounted] +
-            table->TabletCountByExpectedState()[ETabletState::FrozenMounting] +
-            table->TabletCountByExpectedState()[ETabletState::Frozen];
-        YCHECK(tabletCount == table->Tablets().size());
+        ETabletState expectedState;
 
-        auto state = table->TabletCountByExpectedState()[ETabletState::Unmounted] == tabletCount
-            ? ETabletState::Unmounted
-            : ETabletState::Frozen;
+        if (table->TabletCountByExpectedState()[ETabletState::Mounted] > 0 ||
+            table->TabletCountByExpectedState()[ETabletState::Mounting] > 0 ||
+            table->TabletCountByExpectedState()[ETabletState::Unfreezing] > 0)
+        {
+            expectedState = ETabletState::Mounted;
+        } else {
+            auto tabletCount =
+                table->TabletCountByExpectedState()[ETabletState::Unmounted] +
+                table->TabletCountByExpectedState()[ETabletState::FrozenMounting] +
+                table->TabletCountByExpectedState()[ETabletState::Frozen];
+            YCHECK(tabletCount == table->Tablets().size());
+
+            expectedState = table->TabletCountByExpectedState()[ETabletState::Unmounted] == tabletCount
+                ? ETabletState::Unmounted
+                : ETabletState::Frozen;
+        }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Expected tablet state updated (TableId: %v, ExpectedTabletState: %v, LastMountTransactionId: %v)",
             table->GetId(),
-            state,
+            expectedState,
             table->GetLastMountTransactionId());
 
-        table->SetExpectedTabletState(state);
+        table->SetExpectedTabletState(expectedState);
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             // Statistics should be correct before setting the tablet state.
@@ -3960,7 +3961,7 @@ private:
             TReqUpdateExpectedTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
             ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
-            request.set_expected_tablet_state(static_cast<i32>(state));
+            request.set_expected_tablet_state(static_cast<i32>(expectedState));
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, PrimaryMasterCellTag);
