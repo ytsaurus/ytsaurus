@@ -10,20 +10,19 @@ import pytest
 
 from time import sleep
 
+
 def pytest_generate_tests(metafunc):
     if "read_from" in metafunc.fixturenames:
         metafunc.parametrize("read_from", metafunc.cls.read_from_values)
 
-class _TestListOperationsBase(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
 
+class ListOperationsSetup(YTEnvSetup):
     _input_path = "//testing/input"
     _output_path = "//testing/output"
+    _archive_version = None # Latest
 
-    def _create_operation(self, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, **kwargs):
+    @classmethod
+    def _create_operation(cls, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, **kwargs):
         if title:
             set_branch(kwargs, ["spec", "title"], title)
 
@@ -31,8 +30,8 @@ class _TestListOperationsBase(YTEnvSetup):
 
         op = start_op(
             op_type,
-            in_=self._input_path,
-            out=self._output_path,
+            in_=cls._input_path,
+            out=cls._output_path,
             dont_track=True,
             authenticated_user=user,
             **kwargs)
@@ -50,10 +49,11 @@ class _TestListOperationsBase(YTEnvSetup):
         op.finish_time = get(op.get_path() + "/@finish_time")
         return op
 
-    def _create_operations(self):
-        self.op1 = self._create_operation("map", command="exit 0", user="user1")
-        self.op2 = self._create_operation("map", command="exit 0", user="user2")
-        self.op3 = self._create_operation(
+    @classmethod
+    def _create_operations(cls):
+        cls.op1 = cls._create_operation("map", command="exit 0", user="user1")
+        cls.op2 = cls._create_operation("map", command="exit 0", user="user2")
+        cls.op3 = cls._create_operation(
             "map_reduce",
             mapper_command="exit 1",
             reducer_command="exit 0",
@@ -69,17 +69,24 @@ class _TestListOperationsBase(YTEnvSetup):
                 "other": {"pool": "some_pool"}
             }
         }
-        self.op4 = self._create_operation("reduce", command="sleep 10", user="user3", reduce_by="key", abort=True, spec=op4_spec)
+        cls.op4 = cls._create_operation("reduce", command="sleep 1000", user="user3", reduce_by="key", abort=True, spec=op4_spec)
 
-        self.op5 = self._create_operation("sort", user="user4", sort_by="key")
+        cls.op5 = cls._create_operation("sort", user="user4", sort_by="key")
 
+    @classmethod
+    def setup_class(cls):
+        super(ListOperationsSetup, cls).setup_class()
 
-    def setup(self):
+        # Init operations archive.
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
-        create("table", self._input_path, recursive=True, ignore_existing=True)
-        write_table(self._input_path, {"key": 1, "value": 2})
-        create("table", self._output_path, recursive=True, ignore_existing=True)
+        if cls._archive_version is None:
+            init_operation_archive.create_tables_latest_version(cls.Env.create_native_client())
+        else:
+            init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version)
+
+        create("table", cls._input_path, recursive=True, ignore_existing=True)
+        write_table(cls._input_path, {"key": 1, "value": 2})
+        create("table", cls._output_path, recursive=True, ignore_existing=True)
 
         # Create a new pool tree.
         tag = "other"
@@ -87,7 +94,6 @@ class _TestListOperationsBase(YTEnvSetup):
         create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
         set("//sys/pool_trees/other/@nodes_filter", tag)
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
-
         node = ls("//sys/nodes")[0]
         set("//sys/nodes/" + node + "/@user_tags/end", tag)
 
@@ -98,8 +104,14 @@ class _TestListOperationsBase(YTEnvSetup):
             create_user("user{0}".format(i))
         set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
-        self._create_operations()
+        cls._create_operations()
 
+
+class _TestListOperationsBase(ListOperationsSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    SINGLE_SETUP_TEARDOWN = True
 
     # This following tests expect five operations to be present
     # in Cypress (and/or in the archive if |self.include_archive| is |True|):
@@ -299,6 +311,8 @@ class _TestListOperationsBase(YTEnvSetup):
         assert all(sorted(op.keys()) == sorted(attributes) for op in res["operations"])
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):
+    USE_DYNAMIC_TABLES = False
+
     include_archive = False
     read_from_values = ["cache", "follower"]
     check_failed_jobs_count = True
@@ -314,6 +328,8 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
 
 
 class TestListOperationsCypressArchive(_TestListOperationsBase):
+    USE_DYNAMIC_TABLES = True
+
     include_archive = True
     read_from_values=["follower"]
     check_failed_jobs_count = False
@@ -324,20 +340,10 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
         with pytest.raises(YtError):
             list_operations(include_archive=True, from_time=self.op1.before_start_time)
 
-    def test_version_23(self):
-        remove("//sys/operations_archive", recursive=True)
-        init_operation_archive.create_tables(self.Env.create_native_client(), 23)
 
-        res = list_operations(include_archive=True, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.finish_time, cursor_direction="past")
-        # Everything except pool counters should be OK.
-        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
-        assert res["state_counts"] == {"completed": 2, "failed": 1}
-        assert res["type_counts"] == {"map": 2, "map_reduce": 1}
-        if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 1
+class TestListOperationsArchiveOnly(_TestListOperationsBase):
+    USE_DYNAMIC_TABLES = True
 
-# TODO(levysotsky): Enable this test when operations cleaning is fixed.
-class DISABLED_TestListOperationsArchiveOnly(_TestListOperationsBase):
     include_archive = True
     read_from_values=["follower"]
     check_failed_jobs_count = False
@@ -350,7 +356,6 @@ class DISABLED_TestListOperationsArchiveOnly(_TestListOperationsBase):
                 "analysis_period": 100,
                 # Cleanup all operations
                 "hard_retained_operation_count": 0,
-                "soft_retained_operation_count": 0,
                 "clean_delay": 0,
             },
             "static_orchid_cache_update_period": 100,
@@ -358,8 +363,9 @@ class DISABLED_TestListOperationsArchiveOnly(_TestListOperationsBase):
         }
     }
 
-    def setup(self):
-        super(TestListOperationsArchiveOnly, self).setup()
+    @classmethod
+    def setup_class(cls):
+        super(TestListOperationsArchiveOnly, cls).setup_class()
 
         def has_operations():
             for entry in ls("//sys/operations"):
@@ -371,10 +377,20 @@ class DISABLED_TestListOperationsArchiveOnly(_TestListOperationsBase):
 
         wait(lambda: not has_operations())
 
-    def test_version_23(self):
-        remove("//sys/operations_archive", recursive=True)
-        init_operation_archive.create_tables(self.Env.create_native_client(), 23)
 
+class TestArchiveVersion23(ListOperationsSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+    SINGLE_SETUP_TEARDOWN = True
+
+    include_archive = True
+    read_from_values = ["follower"]
+    check_failed_jobs_count = False
+    _archive_version = 23
+
+    def test_version_23(self):
         res = list_operations(include_archive=True, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.finish_time, cursor_direction="past")
         # Everything except pool counters should be OK.
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
