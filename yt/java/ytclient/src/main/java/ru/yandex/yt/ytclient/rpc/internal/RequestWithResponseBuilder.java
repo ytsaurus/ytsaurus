@@ -40,13 +40,13 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
                     if (attachments.size() < 1 || attachments.get(0) == null) {
                         throw new IllegalStateException("Received response without a body");
                     }
-                    result.complete(new LazyResponse<ResponseType>(parser, attachments.get(0),
+                    result.complete(new LazyResponse<>(parser, attachments.get(0),
                             new ArrayList<>(attachments.subList(1, attachments.size())), sender));
                 }
             }
 
             @Override
-            public void onError(RpcClient sender, Throwable error) {
+            public void onError(Throwable error) {
                 result.completeExceptionally(error);
             }
         };

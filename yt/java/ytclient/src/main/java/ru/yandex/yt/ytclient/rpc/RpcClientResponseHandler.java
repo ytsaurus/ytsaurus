@@ -23,5 +23,5 @@ public interface RpcClientResponseHandler {
     /**
      * Вызывается в случае ошибок
      */
-    void onError(RpcClient sender, Throwable error);
+    void onError(Throwable error);
 }

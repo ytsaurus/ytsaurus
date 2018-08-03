@@ -76,7 +76,7 @@ public class RpcServiceClientTest {
         @Override
         public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
             request.serialize();
-            handler.onError(this, error);
+            handler.onError(error);
             return () -> false;
         }
 

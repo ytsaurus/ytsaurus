@@ -221,7 +221,7 @@ public class BalancingRpcClient implements RpcClient {
             if (error == null) {
                 handler.onResponse(result.get1(), result.get2());
             } else {
-                handler.onError(result.get1(), error);
+                handler.onError(error);
             }
         });
 
