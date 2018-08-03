@@ -453,8 +453,9 @@ void TServer::SetupHandlers()
 
 void TServer::EnterExecutionCluster()
 {
+    // TODO(max42): consider specifying two adresses, interconnect and external.
     ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
-        /*host=*/ FQDNHostName(),
+        /*host=*/ Config->getString("interconnect_hostname", GetFQDNHostName()),
         /*port=*/ Config->getInt("tcp_port"));
 
     ExecutionClusterNodeTracker->StartTrack(*Context);
