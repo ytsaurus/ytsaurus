@@ -236,11 +236,11 @@ public class ApiServiceTransaction implements AutoCloseable {
     }
 
     public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
-        return client.lookupRows(request, startTimestamp);
+        return client.lookupRows(request.setTimestamp(startTimestamp));
     }
 
     public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
-        return client.versionedLookupRows(request, startTimestamp);
+        return client.versionedLookupRows(request.setTimestamp(startTimestamp));
     }
 
     public CompletableFuture<UnversionedRowset> selectRows(String query) {

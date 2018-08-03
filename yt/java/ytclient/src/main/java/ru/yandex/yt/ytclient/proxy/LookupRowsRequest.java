@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
@@ -17,6 +18,7 @@ public class LookupRowsRequest {
     private final TableSchema schema;
     private final List<String> lookupColumns = new ArrayList<>();
     private final List<UnversionedRow> filters = new ArrayList<>();
+    private YtTimestamp timestamp;
     private Boolean keepMissingRows = null;
 
     public LookupRowsRequest(String path, TableSchema schema) {
@@ -38,6 +40,15 @@ public class LookupRowsRequest {
     public LookupRowsRequest setKeepMissingRows(boolean keepMissingRows) {
         this.keepMissingRows = keepMissingRows;
         return this;
+    }
+
+    public LookupRowsRequest setTimestamp(YtTimestamp timestamp) {
+        this.timestamp = timestamp;
+        return this;
+    }
+
+    public Optional<YtTimestamp> getTimestamp() {
+        return Optional.ofNullable(timestamp);
     }
 
     public TableSchema getSchema() {
