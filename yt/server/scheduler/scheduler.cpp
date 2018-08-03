@@ -2528,8 +2528,8 @@ private:
                 WaitFor(controller->Abort())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to abort controller")
-                    << TErrorAttribute("operation_id", operation->GetId())
+                auto error = TError("Failed to abort controller of operation %v",
+                    operation->GetId())
                     << ex;
                 MasterConnector_->Disconnect(error);
                 return;

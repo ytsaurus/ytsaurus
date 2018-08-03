@@ -69,6 +69,7 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
+        attributes->push_back(EInternedAttributeKey::EnableReplicatedTableManager);
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -147,6 +148,11 @@ private:
                     .Value(replica->ComputeReplicationLagTime(timestampProvider->GetLatestTimestamp()));
                 return true;
 
+            case EInternedAttributeKey::EnableReplicatedTableManager:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetEnableReplicatedTableManager());
+                return true;
+
             default:
                 break;
         }
@@ -169,6 +175,22 @@ private:
         }
 
         return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    {
+        auto* replica = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::EnableReplicatedTableManager: {
+                ValidateNoTransaction();
+
+                replica->SetEnableReplicatedTableManager(ConvertTo<bool>(value));
+                return true;
+            }
+        }
+
+        return TBase::SetBuiltinAttribute(key, value);
     }
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
