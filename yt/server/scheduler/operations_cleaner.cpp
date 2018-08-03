@@ -954,7 +954,7 @@ private:
             DoFetchFinishedOperations();
         } catch (const std::exception& ex) {
             // NOTE(asaitgalin): Maybe disconnect? What can we do here?
-            LOG_WARNING(ex, "Failed to fetch finished operation from Cypress");
+            LOG_WARNING(ex, "Failed to fetch finished operations from Cypress");
         }
     }
 
