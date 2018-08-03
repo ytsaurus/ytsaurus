@@ -286,6 +286,49 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicatedTableManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableReplicatedTableManager;
+    TDuration CheckPeriod;
+    TDuration UpdatePeriod;
+    int ThreadCount;
+
+    TReplicatedTableManagerConfig()
+    {
+        RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
+            .Default(true);
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("thread_count", ThreadCount)
+            .Default(1);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicReplicatedTableManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableReplicatedTableManager;
+
+    TDynamicReplicatedTableManagerConfig()
+    {
+        RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -296,6 +339,8 @@ public:
 
     TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
 
+    TDynamicReplicatedTableManagerConfigPtr ReplicatedTableManager;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
@@ -303,6 +348,8 @@ public:
         RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
         RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
+        RegisterParameter("replicated_table_manager", ReplicatedTableManager)
             .DefaultNew();
     }
 };

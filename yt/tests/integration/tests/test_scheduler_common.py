@@ -16,6 +16,7 @@ import random
 import sys
 import time
 import __builtin__
+from collections import defaultdict
 
 ##################################################################
 
@@ -1049,7 +1050,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 unique_keys=False)
             });
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
-        
+
         with pytest.raises(YtError):
             op = map(
                 in_="//tmp/sorted_table",
@@ -1079,7 +1080,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 unique_keys=True)
             });
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
-        
+
         with pytest.raises(YtError):
             op = map(
                 in_="//tmp/sorted_table",
@@ -3485,6 +3486,63 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
+class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "agent_pick_strategy": "memory_scoring",
+                "min_agent_available_memory": 0,
+            }
+        }
+    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 10,
+                    "cpu": 10
+                }
+            }
+        }
+    }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        if not hasattr(cls, "controller_agent_counter"):
+            cls.controller_agent_counter = 0
+        cls.controller_agent_counter += 1
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 10 * 1024 ** 3
+
+    def test_strategy(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        ops = []
+        for i in xrange(6):
+            out = "//tmp/t_out" + str(i)
+            create("table", out, attributes={"replication_factor": 1})
+            ops.append(map(
+                command="sleep 100",
+                in_="//tmp/t_in",
+                out=out,
+                dont_track=True))
+            time.sleep(1)
+
+        address_to_operation = defaultdict(list)
+        for op in ops:
+            wait(lambda: op.get_state() == "running")
+            address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
+
+        assert [2, 4] == sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
 
 class TestPorts(YTEnvSetup):
     NUM_SCHEDULERS = 1

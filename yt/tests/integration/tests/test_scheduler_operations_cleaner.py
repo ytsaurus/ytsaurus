@@ -162,7 +162,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         assert get(CLEANER_ORCHID + "/archive_pending") == 0
         set("//sys/scheduler/config/operations_cleaner/enable", True)
 
-        wait(lambda: len(self._get_removed_operations(ops)) == 3)
+        wait(lambda: len(self._get_removed_operations(ops)) == 4)
 
     def test_revive(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
@@ -180,12 +180,12 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 command="cat")
             ops.append(op.id)
 
-        wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 4)
+        wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 4)
+        wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 
     def test_max_operation_count_per_user(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())

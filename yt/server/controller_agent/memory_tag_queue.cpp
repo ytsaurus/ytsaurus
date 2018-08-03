@@ -70,11 +70,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
 
 void TMemoryTagQueue::BuildTaggedMemoryStatistics(TFluentList fluent)
 {
-    auto now = NProfiling::GetInstant();
-
-    if (CachedTaggedMemoryStatisticsLastUpdateTime_ + Config_->TaggedMemoryStatisticsUpdatePeriod < now) {
-        UpdateStatistics();
-    }
+    UpdateStatisticsIfNeeded();
 
     fluent.GetConsumer()->OnRaw(CachedTaggedMemoryStatistics_);
 }
@@ -93,6 +89,17 @@ void TMemoryTagQueue::AllocateNewTags()
     }
 
     AllocatedTagCount_ *= 2;
+}
+
+void TMemoryTagQueue::UpdateStatisticsIfNeeded()
+{
+    TGuard<TSpinLock> guard(Lock_);
+
+    auto now = NProfiling::GetInstant();
+    if (CachedTaggedMemoryStatisticsLastUpdateTime_ + Config_->TaggedMemoryStatisticsUpdatePeriod < now) {
+        guard.Release();
+        UpdateStatistics();
+    }
 }
 
 void TMemoryTagQueue::UpdateStatistics()
@@ -114,6 +121,7 @@ void TMemoryTagQueue::UpdateStatistics()
 
     {
         TGuard<TSpinLock> guard(Lock_);
+        CachedTotalUsage_ = 0;
         for (int index = 0; index < tags.size(); ++index) {
             auto tag = tags[index];
             auto usage = usages[index];
@@ -125,10 +133,24 @@ void TMemoryTagQueue::UpdateStatistics()
                     .Item("operation_id").Value(operationId)
                     .Item("alive").Value(alive)
                 .EndMap();
+
+            CachedTotalUsage_ += usage;
         }
+
+        CachedTaggedMemoryStatistics_ = fluent.Finish();
+        CachedTaggedMemoryStatisticsLastUpdateTime_ = NProfiling::GetInstant();
     }
-    CachedTaggedMemoryStatistics_ = fluent.Finish();
-    CachedTaggedMemoryStatisticsLastUpdateTime_ = NProfiling::GetInstant();
+}
+
+i64 TMemoryTagQueue::GetTotalUsage()
+{
+    UpdateStatisticsIfNeeded();
+
+    {
+        TGuard<TSpinLock> guard(Lock_);
+
+        return CachedTotalUsage_;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

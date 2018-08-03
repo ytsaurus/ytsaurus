@@ -581,6 +581,22 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
+    def test_sync_replication_switch(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA, {"replicated_table_options": {"enable_replicated_table_manager": "true"}})
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        remove("//tmp/r1", driver=self.replica_driver)
+
+        wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
+
+
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")

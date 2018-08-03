@@ -814,8 +814,7 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
-    //TODO(renadeen): remove
-    TNullable<TString> Pool;
+    TNullable<std::vector<TString>> Pools;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;

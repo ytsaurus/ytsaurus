@@ -213,7 +213,7 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
 <"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
-        check_all_stderrs(op, [expected_stderr], 1)
+        check_all_stderrs(op, expected_stderr, 1)
 
         # Test only one row index with only one input table.
         op = reduce(
@@ -232,7 +232,7 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
 """<"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
-        check_all_stderrs(op, [expected_stderr], 1)
+        check_all_stderrs(op, expected_stderr, 1)
 
     @unix_only
     def test_cat_teleport(self):

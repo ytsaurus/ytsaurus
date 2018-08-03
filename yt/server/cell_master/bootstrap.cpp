@@ -51,6 +51,7 @@
 #include <yt/server/tablet_server/cypress_integration.h>
 #include <yt/server/tablet_server/tablet_manager.h>
 #include <yt/server/tablet_server/tablet_cell_map_type_handler.h>
+#include <yt/server/tablet_server/replicated_table_manager.h>
 
 #include <yt/server/transaction_server/cypress_integration.h>
 #include <yt/server/transaction_server/timestamp_manager.h>
@@ -512,6 +513,8 @@ void TBootstrap::DoInitialize()
     JournalManager_ = New<NJournalServer::TJournalManager>(Config_->JournalManager, this);
 
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
+
+    ReplicatedTableManager_ = New<TReplicatedTableManager>(Config_->ReplicatedTableManager, this);
 
     auto timestampManager = New<TTimestampManager>(
         Config_->TimestampManager,

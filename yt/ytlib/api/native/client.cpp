@@ -71,6 +71,7 @@
 #include <yt/client/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
@@ -4649,6 +4650,23 @@ private:
         return to_lower(JoinToString(textFactors, AsStringBuf(" ")));
     }
 
+    std::vector<TString> GetPoolsFromRuntimeParameters(const TYsonString& runtimeParameters)
+    {
+        YCHECK(runtimeParameters);
+
+        std::vector<TString> result;
+        auto runtimeParametersNode = ConvertToNode(runtimeParameters)->AsMap();
+        if (auto schedulingOptionsNode = runtimeParametersNode->FindChild("scheduling_options_per_pool_tree")) {
+            for (const auto& entry : schedulingOptionsNode->AsMap()->GetChildren()) {
+                if (auto poolNode = entry.second->AsMap()->FindChild("pool")) {
+                    result.push_back(poolNode->GetValue<TString>());
+                }
+            }
+        }
+        return result;
+    }
+
+
     TListOperationsResult DoListOperations(
         const TListOperationsOptions& options)
     {
@@ -4714,17 +4732,13 @@ private:
             }
             operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
             operation.BriefSpec = attributes.FindYson("brief_spec");
-
-            if (operation.BriefSpec) {
-                auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-                auto poolNode = briefSpecMapNode->FindChild("pool");
-                if (poolNode) {
-                    operation.Pool = poolNode->AsString()->GetValue();
-                }
-            }
-
             operation.BriefProgress = attributes.FindYson("brief_progress");
             operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
+
+            if (operation.RuntimeParameters) {
+                operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+            }
+
             operation.Suspended = attributes.Get<bool>("suspended");
             return operation;
         };
@@ -4802,12 +4816,14 @@ private:
         }
 
         auto filterAndCount =
-            [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
-                if (pool) {
-                    poolCounts[*pool] += count;
+            [&] (const TNullable<std::vector<TString>>& pools, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+                if (pools) {
+                    for (const auto& pool : *pools) {
+                        poolCounts[pool] += count;
+                    }
                 }
 
-                if (options.Pool && (!pool || *options.Pool != *pool)) {
+                if (options.Pool && (!pools || std::find(pools->begin(), pools->end(), *options.Pool) == pools->end())) {
                     return false;
                 }
 
@@ -4853,7 +4869,7 @@ private:
                 continue;
             }
 
-            if (!filterAndCount(operation.Pool, user, state, type, 1)) {
+            if (!filterAndCount(operation.Pools, user, state, type, 1)) {
                 continue;
             }
 
@@ -4911,7 +4927,7 @@ private:
             }
 
             if (options.Pool) {
-                itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
+                itemsConditions.push_back(Format("list_contains(pools, %Qv)", *options.Pool));
             }
 
             if (options.StateFilter) {
@@ -4933,14 +4949,14 @@ private:
                 itemsSortDirection,
                 1 + options.Limit);
 
-            static const TString NullPoolName = "unknown";
-            auto poolColumnName = "pool";
-
+            const auto archiveHasPools = (DoGetOperationsArchiveVersion() >= 24);
+            const auto poolQueryExpression = archiveHasPools ? "any_to_yson_string(pools)" : "pool";
             auto queryForCounts = Format(
-                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
+                "pool_or_pools, user, state, type, sum(1) AS count FROM [%v] WHERE %v "
+                "GROUP BY %v AS pool_or_pools, authenticated_user AS user, state AS state, operation_type AS type",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", countsConditions),
-                poolColumnName);
+                poolQueryExpression);
 
             TSelectRowsOptions selectRowsOptions;
             selectRowsOptions.Timeout = deadline - Now();
@@ -4954,13 +4970,18 @@ private:
             const auto& rowsCounts = resultCounts.Rowset->GetRows();
 
             for (auto row : rowsCounts) {
-                auto pool = row[0].Type == EValueType::Null ? NullPoolName : TString(row[0].Data.String, row[0].Length);
+                TNullable<std::vector<TString>> pools;
+                if (row[0].Type != EValueType::Null) {
+                    pools = archiveHasPools
+                        ? ConvertTo<std::vector<TString>>(TYsonString(row[0].Data.String, row[0].Length))
+                        : std::vector<TString>{FromUnversionedValue<TString>(row[0])};
+                }
                 auto user = TString(row[1].Data.String, row[1].Length);
                 auto state = ParseEnum<EOperationState>(TString(row[2].Data.String, row[2].Length));
                 auto type = ParseEnum<EOperationType>(TString(row[3].Data.String, row[3].Length));
                 i64 count = row[4].Data.Int64;
 
-                filterAndCount(pool, user, state, type, count);
+                filterAndCount(pools, user, state, type, count);
             }
 
             auto nameTable = New<TNameTable>();
@@ -5074,7 +5095,12 @@ private:
 
                 if (DoGetOperationsArchiveVersion() >= 22) {
                     operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+
+                    if (operation.RuntimeParameters) {
+                        operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+                    }
                 }
+
                 archiveData.push_back(operation);
             }
         }
@@ -5105,7 +5131,7 @@ private:
                 if (it1->OperationId == it2->OperationId) {
                     merged.push_back(*it1);
 
-                    filterAndCount(it1->Pool, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
+                    filterAndCount(it1->Pools, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
 
                     ++it1;
                     ++it2;
