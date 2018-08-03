@@ -47,7 +47,8 @@ using IExecutionClusterPtr = IClusterNodeTrackerPtr;
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
     NInterop::ICoordinationServicePtr coordinationService,
     NInterop::IAuthorizationTokenPtr authToken,
-    const std::string directoryPath);
+    const std::string directoryPath,
+    uint64_t clickhousePort);
 
 } // namespace NClickHouse
 } // namespace NYT

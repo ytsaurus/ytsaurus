@@ -235,7 +235,8 @@ void TServer::SetupExecutionClusterNodeTracker()
     ExecutionClusterNodeTracker = CreateClusterNodeTracker(
         CoordinationService,
         ServerAuthToken,
-        Config->getString("cluster_discovery.directory_path"));
+        Config->getString("cluster_discovery.directory_path"),
+        Config->getInt("tcp_port"));
 }
 
 void TServer::SetupContext()

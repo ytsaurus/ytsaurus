@@ -100,12 +100,14 @@ private:
     TRWMutex RWMutex;
 
     Settings Settings_;
+    uint64_t ClickhousePort_;
 
     Poco::Logger* Logger;
 
 public:
     TClusterNodeTracker(
-        NInterop::IDirectoryPtr directory);
+        NInterop::IDirectoryPtr directory,
+        uint64_t clickhousePort);
 
     void StartTrack(const Context& context) override;
     void StopTrack() override;
@@ -130,8 +132,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterNodeTracker::TClusterNodeTracker(
-    NInterop::IDirectoryPtr directory)
+    NInterop::IDirectoryPtr directory,
+    uint64_t clickhousePort)
     : Directory(std::move(directory))
+    , ClickhousePort_(clickhousePort)
     , Logger(&Poco::Logger::get("ClusterNodeTracker"))
 {
 }
@@ -261,7 +265,7 @@ void TClusterNodeTracker::UpdateClusterNodes(const TClusterNodeNames& newNodeNam
         } else {
             IClusterNodePtr newNode;
             try {
-                newNode = CreateClusterNode(nodeName, Settings_);
+                newNode = CreateClusterNode(nodeName, Settings_, ClickhousePort_);
             } catch (...) {
                 LOG_WARNING(Logger, "Failed to create cluster node " << nodeName.ToString());
                 // TODO: reschedule
@@ -312,14 +316,16 @@ void TClusterDirectoryEventHandler::Detach()
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
     NInterop::ICoordinationServicePtr coordinationService,
     NInterop::IAuthorizationTokenPtr authToken,
-    const std::string directoryPath)
+    const std::string directoryPath,
+    uint64_t clickhousePort)
 {
     auto directory = coordinationService->OpenOrCreateDirectory(
         *authToken,
         ToString(directoryPath));
 
     return std::make_shared<TClusterNodeTracker>(
-        std::move(directory));
+        std::move(directory),
+        clickhousePort);
 }
 
 } // namespace NClickHouse
