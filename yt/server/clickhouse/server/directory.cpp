@@ -314,11 +314,13 @@ class TCoordinationService
 private:
     NNative::IConnectionPtr Connection;
     ISubscriptionManagerPtr SubscriptionManager;
+    TString CliqueId_;
 
 public:
     TCoordinationService(
         NNative::IConnectionPtr client,
-        ISubscriptionManagerPtr subscriptionManager);
+        ISubscriptionManagerPtr subscriptionManager,
+        TString cliqueId);
 
     NInterop::IAuthorizationTokenService* AuthTokenService() override
     {
@@ -334,9 +336,11 @@ public:
 
 TCoordinationService::TCoordinationService(
     NNative::IConnectionPtr connection,
-    ISubscriptionManagerPtr subscriptionManager)
+    ISubscriptionManagerPtr subscriptionManager,
+    TString cliqueId)
     : Connection(std::move(connection))
     , SubscriptionManager(std::move(subscriptionManager))
+    , CliqueId_(cliqueId)
 {}
 
 NInterop::IDirectoryPtr TCoordinationService::OpenOrCreateDirectory(
@@ -344,7 +348,7 @@ NInterop::IDirectoryPtr TCoordinationService::OpenOrCreateDirectory(
     const TString& path)
 {
     auto client = Connection->CreateNativeClient(UnwrapAuthToken(authToken));
-    auto directory = New<TDirectory>(std::move(client), path, SubscriptionManager);
+    auto directory = New<TDirectory>(std::move(client), path + "/" + CliqueId_, SubscriptionManager);
 
     WaitFor(directory->CreateIfNotExists())
        .ThrowOnError();
@@ -357,13 +361,15 @@ NInterop::IDirectoryPtr TCoordinationService::OpenOrCreateDirectory(
 ////////////////////////////////////////////////////////////////////////////////
 
 NInterop::ICoordinationServicePtr CreateCoordinationService(
-    NApi::NNative::IConnectionPtr connection)
+    NApi::NNative::IConnectionPtr connection,
+    TString cliqueId)
 {
     auto subscriptionManager = CreateSubscriptionManager();
 
     return std::make_shared<TCoordinationService>(
         std::move(connection),
-        std::move(subscriptionManager));
+        std::move(subscriptionManager),
+        std::move(cliqueId));
 }
 
 }   // namespace NClickHouse
