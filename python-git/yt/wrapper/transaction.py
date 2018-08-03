@@ -71,14 +71,14 @@ class Transaction(object):
     """
 
     def __init__(self, timeout=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
-                 ping_ancestor_transactions=None, type="master", sticky=False,
+                 ping_ancestor_transactions=None, type="master",
                  client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
             ping = False
 
         self.transaction_id = transaction_id
-        self.sticky = sticky
+        self.sticky = True if type == "tablet" else False
         self._client = client
         self._ping_ancestor_transactions = \
             get_value(ping_ancestor_transactions, get_command_param("ping_ancestor_transactions", self._client))
@@ -95,7 +95,7 @@ class Transaction(object):
             self.transaction_id = start_transaction(timeout=timeout,
                                                     attributes=attributes,
                                                     type=type,
-                                                    sticky=sticky,
+                                                    sticky=self.sticky,
                                                     client=self._client)
             self._started = True
             if self._ping is None:

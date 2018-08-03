@@ -325,7 +325,7 @@ class TestTableCommands(object):
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []
 
-            with yt.Transaction(type="tablet", sticky=True):
+            with yt.Transaction(type="tablet"):
                 yt.insert_rows(table, [{"x": "a", "y": "a"}], raw=False)
                 assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
                 assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []
@@ -337,7 +337,7 @@ class TestTableCommands(object):
                 pass
 
             with pytest.raises(FakeError):
-                with yt.Transaction(type="tablet", sticky=True):
+                with yt.Transaction(type="tablet"):
                     yt.insert_rows(table, [{"x": "b", "y": "b"}], raw=False)
                     raise FakeError()
 
