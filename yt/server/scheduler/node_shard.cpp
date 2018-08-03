@@ -372,6 +372,18 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     auto node = GetOrRegisterNode(nodeId, descriptor);
 
+    if (request->has_job_reporter_queue_is_too_large()) {
+        auto oldValue = node->GetJobReporterQueueIsTooLarge();
+        auto newValue = request->job_reporter_queue_is_too_large();
+        if (oldValue && !newValue) {
+            --JobReporterQueueIsTooLargeNodeCount_;
+        }
+        if (!oldValue && newValue) {
+            ++JobReporterQueueIsTooLargeNodeCount_;
+        }
+        node->SetJobReporterQueueIsTooLarge(newValue);
+    }
+
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
     UpdateNodeResources(node,
@@ -1195,6 +1207,11 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 int TNodeShard::ExtractJobReporterWriteFailuresCount()
 {
     return JobReporterWriteFailuresCount_.exchange(0);
+}
+
+int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
+{
+    return JobReporterQueueIsTooLargeNodeCount_.load();
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)

@@ -727,6 +727,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     *request->mutable_disk_info() = GetDiskInfo();
 
     request->set_job_reporter_write_failures_count(Bootstrap_->GetStatisticsReporter()->ExtractWriteFailuresCount());
+    request->set_job_reporter_queue_is_too_large(Bootstrap_->GetStatisticsReporter()->GetQueueIsTooLarge());
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.

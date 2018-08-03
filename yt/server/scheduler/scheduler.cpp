@@ -302,8 +302,8 @@ public:
 
         JobReporterWriteFailuresChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::CheckJobReporterWriteFailures, MakeWeak(this)),
-            Config_->JobReporterWriteFailuresCheckPeriod);
+            BIND(&TImpl::CheckJobReporterIssues, MakeWeak(this)),
+            Config_->JobReporterIssuesCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
     }
 
@@ -1785,7 +1785,7 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
-            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterWriteFailuresCheckPeriod);
+            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -1856,22 +1856,37 @@ private:
         }
     }
 
-    void CheckJobReporterWriteFailures()
+    void CheckJobReporterIssues()
     {
         int writeFailures = 0;
+        int queueIsTooLargeNodeCount = 0;
         for (const auto& shard : NodeShards_) {
             writeFailures += shard->ExtractJobReporterWriteFailuresCount();
+            queueIsTooLargeNodeCount += shard->GetJobReporterQueueIsTooLargeNodeCount();
         }
 
-        TError error;
+        std::vector<TError> errors;
         if (writeFailures > Config_->JobReporterWriteFailuresAlertThreshold) {
-            error = TError("Too many job archive writes failed")
-                << TErrorAttribute("aggregation_period", Config_->JobReporterWriteFailuresCheckPeriod)
+            auto error = TError("Too many job archive writes failed")
+                << TErrorAttribute("aggregation_period", Config_->JobReporterIssuesCheckPeriod)
                 << TErrorAttribute("threshold", Config_->JobReporterWriteFailuresAlertThreshold)
                 << TErrorAttribute("write_failures", writeFailures);
+            errors.push_back(error);
+        }
+        if (queueIsTooLargeNodeCount > Config_->JobReporterQueueIsTooLargeAlertThreshold) {
+            auto error = TError("Too many nodes has large job archivation queues")
+                << TErrorAttribute("threshold", Config_->JobReporterQueueIsTooLargeAlertThreshold)
+                << TErrorAttribute("queue_is_too_large_node_count", queueIsTooLargeNodeCount);
+            errors.push_back(error);
         }
 
-        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, error);
+        TError resultError;
+        if (!errors.empty()) {
+            resultError = TError("Job archivation issues detected")
+                << errors;
+        }
+
+        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
     }
 
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override

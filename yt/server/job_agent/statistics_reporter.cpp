@@ -46,6 +46,8 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int QueueIsTooLargeMultiplier = 2;
+
 struct TJobTag
 { };
 
@@ -103,6 +105,16 @@ public:
     void Reset()
     {
         Value_.store(0, std::memory_order_relaxed);
+    }
+
+    ui64 GetValue() const
+    {
+        return Value_.load();
+    }
+
+    ui64 GetMaxValue()
+    {
+        return MaxValue_;
     }
 
 private:
@@ -172,6 +184,10 @@ public:
             Batcher_.Enqueue(std::move(statistics));
             Profiler_.Increment(PendingCounter_);
             Profiler_.Increment(EnqueuedCounter_);
+            Profiler_.Update(QueueIsTooLargeCounter_,
+                QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue()
+                ? 1
+                : 0);
         } else {
             DroppedCount_.fetch_add(1, std::memory_order_relaxed);
             Profiler_.Increment(DroppedCounter_);
@@ -196,6 +212,11 @@ public:
         return WriteFailuresCount_.exchange(0);
     }
 
+    bool QueueIsTooLarge()
+    {
+        return QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue();
+    }
+
 protected:
     TLogger Logger = ReporterLogger;
 
@@ -205,6 +226,7 @@ private:
     TMonotonicCounter DroppedCounter_ = {"/dropped"};
     TMonotonicCounter WriteFailuresCounter_ = {"/write_failures"};
     TSimpleGauge PendingCounter_ = {"/pending"};
+    TSimpleGauge QueueIsTooLargeCounter_ = {"/queue_is_too_large"};
     TMonotonicCounter CommittedCounter_ = {"/committed"};
     TMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
@@ -320,6 +342,7 @@ private:
         Limiter_.Reset();
         DroppedCount_.store(0, std::memory_order_relaxed);
         Profiler_.Update(PendingCounter_, 0);
+        Profiler_.Update(QueueIsTooLargeCounter_, 0);
         LOG_INFO("Job statistics reporter disabled");
     }
 
@@ -688,6 +711,15 @@ public:
             JobFailContextHandler_->ExtractWriteFailuresCount();
     }
 
+    bool GetQueueIsTooLarge()
+    {
+        return
+            JobHandler_->QueueIsTooLarge() ||
+            JobSpecHandler_->QueueIsTooLarge() +
+            JobStderrHandler_->QueueIsTooLarge() +
+            JobFailContextHandler_->QueueIsTooLarge();
+    }
+
 private:
     const NNative::IClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
@@ -757,6 +789,14 @@ int TStatisticsReporter::ExtractWriteFailuresCount()
         return Impl_->ExtractWriteFailuresCount();
     }
     return 0;
+}
+
+bool TStatisticsReporter::GetQueueIsTooLarge()
+{
+    if (Impl_) {
+        return Impl_->GetQueueIsTooLarge();
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
