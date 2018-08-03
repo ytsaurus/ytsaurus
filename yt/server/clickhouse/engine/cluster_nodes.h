@@ -74,7 +74,8 @@ using TClusterNodes = std::vector<IClusterNodePtr>;
 
 IClusterNodePtr CreateClusterNode(
     const TClusterNodeName& name,
-    const DB::Settings& settings);
+    const DB::Settings& settings,
+    uint64_t clickhouse_port);
 
 } // namespace NClickHouse
 } // namespace NYT
