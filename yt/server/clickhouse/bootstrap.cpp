@@ -80,11 +80,7 @@ void TBootstrap::Initialize()
 void TBootstrap::Run()
 {
     Y_VERIFY(ControlQueue);
-    BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+    GetControlInvoker()->Invoke(BIND(&TBootstrap::DoRun, this));
 }
 
 void TBootstrap::DoInitialize()

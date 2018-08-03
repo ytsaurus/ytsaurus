@@ -66,17 +66,11 @@ int TProgram::Run(int argc, const char** argv)
 
     srand(time(nullptr));
 
-    try {
-        Argv0_ = TString(argv[0]);
-        TOptsParseResult result(this, argc, argv);
+    Argv0_ = TString(argv[0]);
+    TOptsParseResult result(this, argc, argv);
 
-
-        DoRun(result);
-        return Exit(EProgramExitCode::OK);
-    } catch (...) {
-        OnError(CurrentExceptionMessage());
-        return Exit(EProgramExitCode::ProgramError);
-    }
+    DoRun(result);
+    return Exit(EProgramExitCode::OK);
 }
 
 int TProgram::Exit(EProgramExitCode code) const noexcept
