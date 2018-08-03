@@ -24,8 +24,8 @@ def count_names_reducer(key, input_row_iterator):
 if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
-    sorted_tmp_table = "//tmp/" + os.getlogin() + "-tutorial-tmp"
-    output_table = "//tmp/" + os.getlogin() + "-tutorial-name-stat"
+    sorted_tmp_table = "//tmp/" + os.getlogin() + "-pytutorial-tmp"
+    output_table = "//tmp/" + os.getlogin() + "-pytutorial-name-stat"
 
     yt.wrapper.run_sort(
         source_table="//home/ermolovd/yt-tutorial/staff_unsorted",

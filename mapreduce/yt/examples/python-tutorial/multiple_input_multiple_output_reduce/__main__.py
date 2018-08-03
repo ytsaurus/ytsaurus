@@ -32,8 +32,8 @@ if __name__ == "__main__":
 
     sorted_staff_table = "//tmp/" + os.getlogin() + "-pytutorial-staff-sorted"
     sorted_is_robot_table = "//tmp/" + os.getlogin() + "-pytutorial-is_robot-sorted"
-    human_table = "//tmp/" + os.getlogin() + "-tutorial-humans"
-    robot_table = "//tmp/" + os.getlogin() + "-tutorial-robots"
+    human_table = "//tmp/" + os.getlogin() + "-pytutorial-humans"
+    robot_table = "//tmp/" + os.getlogin() + "-pytutorial-robots"
 
     yt.wrapper.run_sort(
         source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
