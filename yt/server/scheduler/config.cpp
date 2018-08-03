@@ -223,6 +223,29 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
+{
+    RegisterParameter("light_rpc_timeout", LightRpcTimeout)
+        .Default(TDuration::Seconds(30));
+
+    RegisterParameter("heavy_rpc_timeout", HeavyRpcTimeout)
+        .Default(TDuration::Minutes(30));
+
+    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+        .Default(TDuration::Seconds(15));
+
+    RegisterParameter("agent_pick_strategy", AgentPickStrategy)
+        .Default(EControllerAgentPickStrategy::Random);
+
+    RegisterParameter("min_agent_count", MinAgentCount)
+        .Default(1);
+
+    RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
+        .Default(10_GB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -312,15 +335,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("controller_agent_light_rpc_timeout", ControllerAgentLightRpcTimeout)
-        .Default(TDuration::Seconds(30));
-
-    RegisterParameter("controller_agent_heavy_rpc_timeout", ControllerAgentHeavyRpcTimeout)
-        .Default(TDuration::Minutes(30));
-
-    RegisterParameter("controller_agent_heartbeat_timeout", ControllerAgentHeartbeatTimeout)
-        .Default(TDuration::Seconds(15));
-
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
 
@@ -345,8 +359,8 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("spec_template", SpecTemplate)
         .Default();
 
-    RegisterParameter("min_agent_count_for_waiting_operation", MinAgentCountForWaitingOperation)
-        .Default(1);
+    RegisterParameter("controller_agent_tracker", ControllerAgentTracker)
+        .DefaultNew();
 
     RegisterParameter("job_reporter_write_failures_check_period", JobReporterWriteFailuresCheckPeriod)
         .Default(TDuration::Minutes(1));

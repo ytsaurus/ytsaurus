@@ -50,6 +50,7 @@ DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TOperationsCleanerConfig)
+DECLARE_REFCOUNTED_CLASS(TControllerAgentTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 
@@ -153,6 +154,11 @@ DEFINE_ENUM(EControlQueue,
     (AgentTracker)
     (NodeTracker)
     (OperationsCleaner)
+);
+
+DEFINE_ENUM(EControllerAgentPickStrategy,
+    (Random)
+    (MemoryScoring)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

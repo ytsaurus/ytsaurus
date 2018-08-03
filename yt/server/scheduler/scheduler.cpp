@@ -2436,7 +2436,7 @@ private:
 
         NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
         auto req = proxy.GetOperationInfo();
-        req->SetTimeout(Config_->ControllerAgentLightRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
         ToProto(req->mutable_operation_id(), operation->GetId());
 
         return req->Invoke();
@@ -2778,7 +2778,7 @@ private:
     bool HandleWaitingForAgentOperation(const TOperationPtr& operation)
     {
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agent = agentTracker->PickAgentForOperation(operation, Config_->MinAgentCountForWaitingOperation);
+        auto agent = agentTracker->PickAgentForOperation(operation);
         if (!agent) {
             LOG_DEBUG("Failed to assign operation to agent; backing off");
             OperationToAgentAssignmentFailureTime_ = TInstant::Now();
@@ -3012,7 +3012,7 @@ private:
 
             NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
             auto req = proxy.GetJobInfo();
-            req->SetTimeout(Scheduler_->Config_->ControllerAgentLightRpcTimeout);
+            req->SetTimeout(Scheduler_->Config_->ControllerAgentTracker->LightRpcTimeout);
             ToProto(req->mutable_operation_id(), operationId);
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())

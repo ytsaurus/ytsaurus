@@ -206,9 +206,6 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("suspended").Value(operation.Suspended);
                             })
-                            .DoIf(operation.Pool.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("pool").Value(operation.Pool);
-                            })
                         .EndMap();
                 })
             .EndList()

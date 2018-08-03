@@ -585,7 +585,8 @@ public:
     TImpl(
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
-        : Config_(std::move(config))
+        : SchedulerConfig_(std::move(config))
+        , Config_(SchedulerConfig_->ControllerAgentTracker)
         , Bootstrap_(bootstrap)
     { }
 
@@ -616,22 +617,62 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return New<TOperationController>(Bootstrap_, Config_, operation);
+        return New<TOperationController>(Bootstrap_, SchedulerConfig_, operation);
     }
 
-    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& /* operation */, int minAgentCount)
+    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& /* operation */)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TControllerAgentPtr> agents;
-        agents.reserve(IdToAgent_.size());
+        std::vector<TControllerAgentPtr> registeredAgents;
         for (const auto& pair : IdToAgent_) {
             const auto& agent = pair.second;
-            if (agent->GetState() == EControllerAgentState::Registered) {
+            if (agent->GetState() != EControllerAgentState::Registered) {
+                continue;
+            }
+            registeredAgents.push_back(agent);
+        }
+
+        if (registeredAgents.size() < Config_->MinAgentCount) {
+            return nullptr;
+        }
+
+        if (Config_->AgentPickStrategy == EControllerAgentPickStrategy::Random) {
+            std::vector<TControllerAgentPtr> agents;
+            for (const auto& agent : registeredAgents) {
+                auto memoryStatistics = agent->GetMemoryStatistics();
+                if (memoryStatistics && memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+                    continue;
+                }
                 agents.push_back(agent);
             }
+
+            return agents.empty() ? nullptr : agents[RandomNumber(agents.size())];
+        } else { // EPickAgentStrategy::MemoryScoring
+            TControllerAgentPtr bestAgent;
+            double bestScore = 0.0;
+            for (const auto& agent : registeredAgents) {
+                auto memoryStatistics = agent->GetMemoryStatistics();
+                if (!memoryStatistics) {
+                    LOG_WARNING("Controller agent skipped since it does not report memory information and memory scoring agent pick strategy used "
+                        "(AgentId: %v)",
+                        agent->GetId());
+                    continue;
+                }
+                if (memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+                    continue;
+                }
+
+                i64 freeMemory = std::max(static_cast<i64>(0), memoryStatistics->Limit - memoryStatistics->Usage);
+                double score = static_cast<double>(freeMemory) / memoryStatistics->Limit;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestAgent = agent;
+                }
+            }
+            return bestAgent;
         }
-        return agents.size() < minAgentCount ? nullptr : agents[RandomNumber(agents.size())];
     }
 
     void AssignOperationToAgent(
@@ -660,7 +701,7 @@ public:
 
         TControllerAgentServiceProxy proxy(agent->GetChannel());
         auto req = proxy.RegisterOperation();
-        req->SetTimeout(Config_->ControllerAgentHeavyRpcTimeout);
+        req->SetTimeout(Config_->HeavyRpcTimeout);
 
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());
@@ -797,7 +838,7 @@ public:
                 agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
 
                 agent->SetLease(TLeaseManager::CreateLease(
-                    Config_->ControllerAgentHeartbeatTimeout,
+                    Config_->HeartbeatTimeout,
                     BIND(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), MakeWeak(agent))
                         .Via(GetCancelableControlInvoker())));
 
@@ -812,7 +853,7 @@ public:
                 context->SetResponseInfo("IncarnationId: %v",
                     agent->GetIncarnationId());
                 ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
-                response->set_config(ConvertToYsonString(Config_).GetData());
+                response->set_config(ConvertToYsonString(SchedulerConfig_).GetData());
                 context->Reply();
             })
             .Via(GetCancelableControlInvoker()));
@@ -1009,6 +1050,10 @@ public:
         agent->GetOperationEventsInbox()->ReportStatus(
             response->mutable_agent_to_scheduler_operation_events());
 
+        if (request->has_controller_memory_limit()) {
+            agent->SetMemoryStatistics(TControllerAgentMemoryStatistics{request->controller_memory_limit(), request->controller_memory_usage()});
+        }
+
         if (request->exec_nodes_requested()) {
             for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
                 ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
@@ -1059,7 +1104,8 @@ public:
     }
 
 private:
-    const TSchedulerConfigPtr Config_;
+    const TSchedulerConfigPtr SchedulerConfig_;
+    const TControllerAgentTrackerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     const TActionQueuePtr MessageOffloadQueue_ = New<TActionQueue>("MessageOffload");
@@ -1227,9 +1273,9 @@ IOperationControllerPtr TControllerAgentTracker::CreateController(const TOperati
     return Impl_->CreateController(operation);
 }
 
-TControllerAgentPtr TControllerAgentTracker::PickAgentForOperation(const TOperationPtr& operation, int minAgentCount)
+TControllerAgentPtr TControllerAgentTracker::PickAgentForOperation(const TOperationPtr& operation)
 {
-    return Impl_->PickAgentForOperation(operation, minAgentCount);
+    return Impl_->PickAgentForOperation(operation);
 }
 
 void TControllerAgentTracker::AssignOperationToAgent(

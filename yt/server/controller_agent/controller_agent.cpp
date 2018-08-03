@@ -1015,6 +1015,11 @@ private:
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
 
+        if (Config_->TotalControllerMemoryLimit) {
+            request->set_controller_memory_limit(*Config_->TotalControllerMemoryLimit);
+            request->set_controller_memory_usage(MemoryTagQueue_.GetTotalUsage());
+        }
+
         return preparedRequest;
     }
 
