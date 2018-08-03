@@ -165,6 +165,7 @@ public:
         const NProto::TScheduleJobResponse& response);
 
     int ExtractJobReporterWriteFailuresCount();
+    int GetJobReporterQueueIsTooLargeNodeCount();
 
 private:
     const int Id_;
@@ -205,6 +206,7 @@ private:
     TJobTimeStatisticsDelta JobTimeStatisticsDelta_;
 
     std::atomic<int> JobReporterWriteFailuresCount_ = {0};
+    std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock JobCounterLock_;
     TJobCounter JobCounter_;

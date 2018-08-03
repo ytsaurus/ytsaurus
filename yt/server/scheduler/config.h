@@ -385,9 +385,10 @@ public:
 
     TControllerAgentTrackerConfigPtr ControllerAgentTracker;
 
-    TDuration JobReporterWriteFailuresCheckPeriod;
+    TDuration JobReporterIssuesCheckPeriod;
 
     int JobReporterWriteFailuresAlertThreshold;
+    int JobReporterQueueIsTooLargeAlertThreshold;
 
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;

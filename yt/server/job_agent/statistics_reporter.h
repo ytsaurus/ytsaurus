@@ -40,6 +40,7 @@ public:
     void SetFailContextEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
     int ExtractWriteFailuresCount();
+    bool GetQueueIsTooLarge();
 
 private:
     class TImpl;
