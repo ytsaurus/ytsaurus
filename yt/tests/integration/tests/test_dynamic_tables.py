@@ -545,7 +545,6 @@ class TestDynamicTables(TestDynamicTablesBase):
 
     #@flaky(max_runs=5) # TODO(savrus) Disable flacky for testing new code
     def test_cell_bundle_distribution(self):
-        #set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
         node_count = len(nodes)
