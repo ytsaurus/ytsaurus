@@ -1509,6 +1509,8 @@ public:
             serializedWriterConfig,
             serializedWriterOptions,
             mountTimestamp);
+
+        UpdateExpectedTabletState(table);
     }
 
     void DoMountTablet(
@@ -1718,6 +1720,7 @@ public:
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
 
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
+        UpdateExpectedTabletState(table);
     }
 
     void ValidateRemountTable(
@@ -1867,6 +1870,8 @@ public:
             auto* tablet = table->Tablets()[index];
             DoFreezeTablet(tablet);
         }
+
+        UpdateExpectedTabletState(table);
     }
 
     void DoFreezeTablet(TTablet* tablet)
@@ -4000,7 +4005,6 @@ private:
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
         OnTabletActionStateChanged(tablet->GetAction());
-        UpdateExpectedTabletState(table);
     }
 
     void HydraOnTabletUnmounted(TRspUnmountTablet* response)
