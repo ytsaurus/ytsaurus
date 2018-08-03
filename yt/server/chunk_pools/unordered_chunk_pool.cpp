@@ -793,7 +793,7 @@ private:
         suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
         AddStripeToList(
             suspendableStripe.GetStripe(),
-            stat.DataWeight,
+            std::min(stat.DataWeight, JobSizeConstraints_->GetMaxDataWeightPerJob() - 1),
             stat.RowCount,
             extractedStripeList->StripeList);
 
