@@ -119,11 +119,11 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
                 if (error == null) {
                     handler.onResponse(result.get1(), result.get2());
                 } else {
-                    handler.onError(result == null ? null : result.get1(), error);
+                    handler.onError(error);
                 }
             });
         } catch (Throwable e) {
-            handler.onError(null, e);
+            handler.onError(e);
         }
 
         return () -> f.cancel(true);

@@ -147,7 +147,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     }
 
     @Override
-    public void onError(RpcClient sender, Throwable error) {
+    public void onError(Throwable error) {
         synchronized (f) {
             if (!f.isDone()) {
                 // maybe use other proxy here?

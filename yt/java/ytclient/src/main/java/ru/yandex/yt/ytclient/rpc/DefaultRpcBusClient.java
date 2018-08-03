@@ -332,7 +332,7 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             try {
                 // Вызываем обработчик onError, сигнализируя завершение обработки
-                handler.onError(sender, new CancellationException());
+                handler.onError(new CancellationException());
             } finally {
                 if (session.unregister(this)) {
                     // Отправляем сообщение на сервер, но только если пользователь ещё не успел
@@ -380,7 +380,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                handler.onError(sender, cause);
+                handler.onError(cause);
             } finally {
                 session.unregister(this);
             }
@@ -414,7 +414,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 try {
                     handler.onResponse(sender, attachments);
                 } catch (Throwable e) {
-                    handler.onError(sender, e);
+                    handler.onError(e);
                 }
             } finally {
                 session.unregister(this);
