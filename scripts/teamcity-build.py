@@ -318,7 +318,7 @@ def import_yt_wrapper(options, build_context):
 def sky_get(resource):
     run(
         ["sky", "get", resource],
-        timeout=100
+        timeout=300
     )
 
 def sky_share(resource, cwd):
