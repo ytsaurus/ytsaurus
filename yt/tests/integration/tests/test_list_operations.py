@@ -42,8 +42,8 @@ class ListOperationsSetup(YTEnvSetup):
             try:
                 op.track()
             except YtError as err:
-                assert can_fail
-                assert "Failed jobs limit exceeded" in err.message
+                if not can_fail or "Failed jobs limit exceeded" not in err.message:
+                    raise
 
         op.before_start_time = before_start_time
         op.finish_time = get(op.get_path() + "/@finish_time")
