@@ -8,7 +8,11 @@ from yt.environment.helpers import assert_items_equal
 from flaky import flaky
 
 from time import sleep
+
+from collections import Counter
+
 import itertools
+
 import __builtin__
 
 ##################################################################
@@ -530,7 +534,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    @flaky(max_runs=5)
+    #@flaky(max_runs=5) # TODO(savrus) Disable flacky for testing new code
     def test_cell_bundle_distribution(self):
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
@@ -544,15 +548,39 @@ class TestDynamicTables(TestDynamicTablesBase):
                 cell_ids[cell_id] = bundle
         wait_for_cells(cell_ids.keys())
 
-        for node in nodes:
-            slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
-            count = {}
-            for slot in slots:
-                if slot["state"] == "none":
-                    continue
-                bundle = cell_ids[slot["cell_id"]]
-                count[bundle] = count.get(bundle, 0) + 1
-            assert count == {bundle: 1 for bundle in bundles}
+        def _check(nodes, floor, ceil):
+            for node in nodes:
+                slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
+                count = Counter([cell_ids[slot["cell_id"]] for slot in slots if slot["state"] != "none"])
+                for bundle in bundles:
+                    assert floor <= count[bundle] <= ceil
+        _check(nodes, 1, 1)
+
+        nodes = list(get("//sys/nodes").keys())
+
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), True)
+        sleep(0.2)
+        wait_for_cells(cell_ids.keys())
+        slots = get("//sys/nodes/{0}/@tablet_slots".format(nodes[0]))
+        assert len([slot for slot in slots if slot["state"] != "none"]) == 0
+        _check(nodes[1:], 1, 2)
+
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
+        sleep(0.2)
+        wait_for_cells(cell_ids.keys())
+        _check(nodes, 1, 1)
+
+        for node in nodes[:len(nodes)/2]:
+            set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
+        sleep(0.2)
+        wait_for_cells(cell_ids.keys())
+        _check(nodes[len(nodes)/2:], 2, 2)
+
+        for node in nodes[:len(nodes)/2]:
+            set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
+        sleep(0.2)
+        wait_for_cells(cell_ids.keys())
+        _check(nodes, 1, 1)
 
     def test_cell_bundle_options(self):
         set("//sys/schemas/tablet_cell_bundle/@options", {

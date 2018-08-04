@@ -429,6 +429,18 @@ private:
             options.Attributes = NYTree::FromProto(request->attributes());
         }
 
+        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, AutoAbort: %v, "
+            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
+            options.Id,
+            options.ParentId,
+            options.Timeout,
+            options.AutoAbort,
+            options.Sticky,
+            options.Ping,
+            options.PingAncestors,
+            options.Atomicity,
+            options.Durability);
+        
         CompleteCallWith(
             context,
             client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
