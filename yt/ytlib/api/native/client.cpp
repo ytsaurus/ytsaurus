@@ -5014,7 +5014,8 @@ private:
 
         if (archiveVersion >= 18) {
             auto updateTimeExpression = Format(
-                "(job_state != \"running\" OR (NOT is_null(update_time) AND update_time >= %v))",
+                "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
+                "OR (NOT is_null(update_time) AND update_time >= %v))",
                 (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
             itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
         }
