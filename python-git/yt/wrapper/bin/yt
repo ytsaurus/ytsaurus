@@ -660,9 +660,6 @@ def add_lookup_rows_parser(add_parser):
 
 
 def add_write_rows_arguments(parser):
-    aggregate_parser = parser.add_mutually_exclusive_group(required=False)
-    aggregate_parser.add_argument("--aggregate", dest="aggregate", default=None, action="store_true")
-    aggregate_parser.add_argument("--no-aggregate", dest="aggregate", default=None, action="store_false")
     atomicity_parser = parser.add_mutually_exclusive_group(required=False)
     atomicity_parser.add_argument("--atomicity", dest="atomicity", default=None, action="store_true")
     atomicity_parser.add_argument("--no-atomicity", dest="atomicity", default=None, action="store_false")
@@ -686,6 +683,9 @@ def add_insert_rows_parser(add_parser):
         update_parser = parser.add_mutually_exclusive_group(required=False)
         update_parser.add_argument("--update", dest="update", default=None, action="store_true")
         update_parser.add_argument("--no-update", dest="update", default=None, action="store_false")
+        aggregate_parser = parser.add_mutually_exclusive_group(required=False)
+        aggregate_parser.add_argument("--aggregate", dest="aggregate", default=None, action="store_true")
+        aggregate_parser.add_argument("--no-aggregate", dest="aggregate", default=None, action="store_false")
 
 def add_delete_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
