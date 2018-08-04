@@ -442,13 +442,13 @@ def is_process_alive(pid):
             raise
     return True
 
-def guid_to_parts(guid):
+def uuid_to_parts(guid):
     id_parts = guid.split("-")
     id_hi = int(id_parts[2], 16) << 32 | int(id_parts[3], 16)
     id_lo = int(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
 
-def parts_to_guid(id_hi, id_lo):
+def parts_to_uuid(id_hi, id_lo):
     guid = id_lo << 64 | id_hi
     mask = 0xFFFFFFFF
 
