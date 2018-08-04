@@ -637,41 +637,46 @@ public:
             return nullptr;
         }
 
-        if (Config_->AgentPickStrategy == EControllerAgentPickStrategy::Random) {
-            std::vector<TControllerAgentPtr> agents;
-            for (const auto& agent : registeredAgents) {
-                auto memoryStatistics = agent->GetMemoryStatistics();
-                if (memoryStatistics && memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
-                    continue;
+        switch (Config_->AgentPickStrategy) {
+            case EControllerAgentPickStrategy::Random: {
+                std::vector<TControllerAgentPtr> agents;
+                for (const auto& agent : registeredAgents) {
+                    auto memoryStatistics = agent->GetMemoryStatistics();
+                    if (memoryStatistics && memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+                        continue;
+                    }
+                    agents.push_back(agent);
                 }
-                agents.push_back(agent);
+
+                return agents.empty() ? nullptr : agents[RandomNumber(agents.size())];
             }
+            case EControllerAgentPickStrategy::MemoryUsageBalanced: {
+                TControllerAgentPtr pickedAgent;
+                double scoreSum = 0.0;
+                for (const auto& agent : registeredAgents) {
+                    auto memoryStatistics = agent->GetMemoryStatistics();
+                    if (!memoryStatistics) {
+                        LOG_WARNING("Controller agent skipped since it did not report memory information "
+                            "and memory usage balanced pick strategy used (AgentId: %v)",
+                            agent->GetId());
+                        continue;
+                    }
+                    if (memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+                        continue;
+                    }
 
-            return agents.empty() ? nullptr : agents[RandomNumber(agents.size())];
-        } else { // EPickAgentStrategy::MemoryScoring
-            TControllerAgentPtr bestAgent;
-            double bestScore = 0.0;
-            for (const auto& agent : registeredAgents) {
-                auto memoryStatistics = agent->GetMemoryStatistics();
-                if (!memoryStatistics) {
-                    LOG_WARNING("Controller agent skipped since it does not report memory information and memory scoring agent pick strategy used "
-                        "(AgentId: %v)",
-                        agent->GetId());
-                    continue;
-                }
-                if (memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
-                    continue;
-                }
+                    i64 freeMemory = std::max(static_cast<i64>(0), memoryStatistics->Limit - memoryStatistics->Usage);
+                    double score = static_cast<double>(freeMemory) / memoryStatistics->Limit;
 
-                i64 freeMemory = std::max(static_cast<i64>(0), memoryStatistics->Limit - memoryStatistics->Usage);
-                double score = static_cast<double>(freeMemory) / memoryStatistics->Limit;
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestAgent = agent;
+                    scoreSum += score;
+                    if (RandomNumber<float>() <= static_cast<float>(score) / scoreSum) {
+                        pickedAgent = agent;
+                    }
                 }
+                return pickedAgent;
             }
-            return bestAgent;
+            default:
+                Y_UNREACHABLE();
         }
     }
 

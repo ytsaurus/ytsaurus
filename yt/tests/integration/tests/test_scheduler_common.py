@@ -10,6 +10,7 @@ import yt.environment.init_operation_archive as init_operation_archive
 from operations_archive import clean_operations
 
 import pytest
+from flaky import flaky
 
 import pprint
 import random
@@ -3493,7 +3494,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "controller_agent_tracker": {
-                "agent_pick_strategy": "memory_scoring",
+                "agent_pick_strategy": "memory_usage_balanced",
                 "min_agent_available_memory": 0,
             }
         }
@@ -3508,8 +3509,8 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         "exec_agent": {
             "job_controller": {
                 "resource_limits": {
-                    "user_slots": 10,
-                    "cpu": 10
+                    "user_slots": 100,
+                    "cpu": 100
                 }
             }
         }
@@ -3520,14 +3521,15 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         if not hasattr(cls, "controller_agent_counter"):
             cls.controller_agent_counter = 0
         cls.controller_agent_counter += 1
-        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 10 * 1024 ** 3
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 100 * 1024 ** 2
 
+    @flaky(max_runs=5)
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("//tmp/t_in", [{"a": 0}])
 
         ops = []
-        for i in xrange(6):
+        for i in xrange(30):
             out = "//tmp/t_out" + str(i)
             create("table", out, attributes={"replication_factor": 1})
             ops.append(map(
@@ -3535,14 +3537,17 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                 in_="//tmp/t_in",
                 out=out,
                 dont_track=True))
-            time.sleep(1)
+            time.sleep(0.2)
 
         address_to_operation = defaultdict(list)
         for op in ops:
             wait(lambda: op.get_state() == "running")
             address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
 
-        assert [2, 4] == sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
+        operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
+        balance_ratio = float(operation_balance[0]) / operation_balance[1]
+        print >>sys.stderr, "BALANCE_RATIO", balance_ratio
+        assert 0.4 <= balance_ratio <= 0.6
 
 class TestPorts(YTEnvSetup):
     NUM_SCHEDULERS = 1
