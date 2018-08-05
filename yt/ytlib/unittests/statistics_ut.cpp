@@ -1,7 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/formats/format.h>
-#include <yt/ytlib/formats/parser.h>
+#include <yt/client/formats/format.h>
+#include <yt/client/formats/parser.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 

@@ -52,9 +52,7 @@ void TValueConsumerBase::InitializeIdToTypeMapping()
 template <typename T>
 void TValueConsumerBase::ProcessIntegralValue(const TUnversionedValue& value, EValueType columnType)
 {
-    T integralValue;
-    GetValue(&integralValue, value);
-
+    auto integralValue = FromUnversionedValue<T>(value);
     if (TypeConversionConfig_->EnableAllToStringConversion && columnType == EValueType::String) {
         char buf[64];
         char* end = buf + 64;

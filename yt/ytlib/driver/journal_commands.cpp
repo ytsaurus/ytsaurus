@@ -9,8 +9,8 @@
 
 #include <yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/formats/format.h>
-#include <yt/ytlib/formats/parser.h>
+#include <yt/client/formats/format.h>
+#include <yt/client/formats/parser.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

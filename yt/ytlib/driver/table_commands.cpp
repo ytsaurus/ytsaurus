@@ -19,12 +19,12 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/ytlib/formats/config.h>
-#include <yt/ytlib/formats/parser.h>
+#include <yt/client/formats/config.h>
+#include <yt/client/formats/parser.h>
 
 #include <yt/core/misc/finally.h>
 

@@ -28,7 +28,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_output.h>
 
-#include <yt/ytlib/formats/parser.h>
+#include <yt/client/formats/parser.h>
 
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
@@ -47,11 +47,12 @@
 #include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
-#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/table_consumer.h>
+
+#include <yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/client/table_client/schemaful_writer_adapter.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

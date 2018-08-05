@@ -31,8 +31,8 @@
 
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
-#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/client/table_client/schemaful_writer_adapter.h>
+#include <yt/client/table_client/table_consumer.h>
 
 namespace NYT {
 namespace NFormats {

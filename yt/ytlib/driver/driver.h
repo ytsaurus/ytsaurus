@@ -4,7 +4,7 @@
 
 #include <yt/client/api/public.h>
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
 
 #include <yt/ytlib/security_client/public.h>
 

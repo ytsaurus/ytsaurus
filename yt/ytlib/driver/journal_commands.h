@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 

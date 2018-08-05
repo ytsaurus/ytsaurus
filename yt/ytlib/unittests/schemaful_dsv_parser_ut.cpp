@@ -2,7 +2,7 @@
 
 #include <yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/ytlib/formats/schemaful_dsv_parser.h>
+#include <yt/client/formats/schemaful_dsv_parser.h>
 
 #include <yt/core/yson/null_consumer.h>
 
