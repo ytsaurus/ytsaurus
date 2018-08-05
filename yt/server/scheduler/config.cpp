@@ -370,6 +370,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_reporter_queue_is_too_large_alert_threshold", JobReporterQueueIsTooLargeAlertThreshold)
         .Default(10);
 
+    RegisterParameter("node_changes_count_threshold_to_update_cache", NodeChangesCountThresholdToUpdateCache)
+        .Default(5);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

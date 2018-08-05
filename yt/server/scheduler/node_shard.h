@@ -142,9 +142,8 @@ public:
 
     TOperationId FindOperationIdByJobId(const TJobId& job);
 
-    TJobResources GetTotalResourceLimits();
-    TJobResources GetTotalResourceUsage();
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter);
+    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter);
 
     int GetActiveJobCount();
 
@@ -175,7 +174,13 @@ private:
 
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
-    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
+
+    struct TResourceStatistics
+    {
+        TJobResources Usage;
+        TJobResources Limits;
+    };
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>> CachedResourceStatisticsByTags_;
 
     const NLogging::TLogger Logger;
 
@@ -191,7 +196,6 @@ private:
     std::atomic<int> ActiveJobCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock ResourcesLock_;
-    TJobResources TotalResourceLimits_;
     TJobResources TotalResourceUsage_;
 
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
@@ -271,7 +275,7 @@ private:
         EJobState state,
         const TString& address);
 
-    TJobResources CalculateResourceLimits(const TSchedulingTagFilter& filter);
+    TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
 
     TExecNodePtr GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);

@@ -159,6 +159,7 @@ struct TExecNodeDescriptor
         NNodeTrackerClient::TNodeId id,
         const TString& address,
         double ioWeight,
+        const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
         i64 maxDiskSpace,
         const THashSet<TString>& tags);
@@ -168,6 +169,7 @@ struct TExecNodeDescriptor
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     TString Address;
     double IOWeight = 0.0;
+    TJobResources ResourceUsage;
     TJobResources ResourceLimits;
     i64 MaxDiskSpace = 0;
     THashSet<TString> Tags;
