@@ -6,8 +6,6 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
-#include <yt/ytlib/security_client/public.h>
-
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
 

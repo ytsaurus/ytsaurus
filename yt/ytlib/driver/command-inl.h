@@ -6,8 +6,6 @@
 #include "private.h"
 #include "driver.h"
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/ytree/convert.h>

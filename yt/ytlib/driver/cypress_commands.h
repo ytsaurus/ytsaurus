@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <yt/ytlib/cypress_client/public.h>
+#include <yt/client/cypress_client/public.h>
 
 #include <yt/client/ypath/rich.h>
 
