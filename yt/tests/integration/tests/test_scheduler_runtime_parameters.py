@@ -117,6 +117,7 @@ class TestRuntimeParameters(YTEnvSetup):
         assert are_almost_equal(get(progress_path + "/weight"), 3.0)
         assert get(progress_path + "/resource_limits")["user_slots"] == 0
 
+    @pytest.mark.xfail(run = False, reason = "YT-9226")
     def test_update_pool_default_pooltree(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
@@ -137,6 +138,7 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
         assert get(path) == "changed_pool"
 
+    @pytest.mark.xfail(run = False, reason = "YT-9226")
     def test_running_operation_counts_on_update_pool(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
@@ -161,6 +163,7 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(pools_path + "initial_pool/running_operation_count") == 0)
         wait(lambda: get(pools_path + "changed_pool/running_operation_count") == 1)
 
+    @pytest.mark.xfail(run = False, reason = "YT-9226")
     def test_update_pool_of_multitree_operation(self):
         self.create_custom_pool_tree_with_one_node(pool_tree="custom")
         create("map_node", "//sys/pools/default_pool")
