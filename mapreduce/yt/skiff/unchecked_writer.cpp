@@ -87,6 +87,8 @@ namespace NSkiff {
     }
 
     void TUncheckedSkiffWriter::SetBufferCapacity(size_t s) {
+        size_t positionShift = Position_ - Buffer_.Data();
         Buffer_.Reserve(s);
+        Position_ = Buffer_.Data() + positionShift;
     }
 }
