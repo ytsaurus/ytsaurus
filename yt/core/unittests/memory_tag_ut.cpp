@@ -44,17 +44,14 @@ std::vector<char> MakeAllocation(size_t size)
     YCHECK(size > 16);
     // Size should be a power of two:
     YCHECK((size & (size - 1)) == 0);
-<<<<<<< HEAD
+
+    // Do not forget about 16-byte tag header.
     auto result = std::vector<char>(size - 16);
 
     // We make fake side effect to prevent any compiler optimizations here.
     // (Clever compilers like to throw away our unused allocations).
     FakeSideEffectVolatileVariable = result.data();
     return result;
-=======
-    // Do not forget about 16-byte tag header.
-    return std::vector<char>(size - 16);
->>>>>>> Working on YTAlloc
 }
 
 // GDB does not allow to set breakpoints inside lambda functions, so
