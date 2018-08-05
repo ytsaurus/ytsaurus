@@ -3,7 +3,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/ytlib/formats/yamred_dsv_writer.h>
+#include <yt/client/formats/yamred_dsv_writer.h>
 
 #include <yt/core/concurrency/async_stream.h>
 

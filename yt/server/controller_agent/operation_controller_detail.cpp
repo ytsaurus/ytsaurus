@@ -52,7 +52,7 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/row_buffer.h>

@@ -4,7 +4,7 @@
 #include "escape.h"
 #include "format.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/client/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
