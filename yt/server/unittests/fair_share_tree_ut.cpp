@@ -32,21 +32,17 @@ struct TSchedulerStrategyHostMock
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
-    virtual TJobResources GetTotalResourceLimits() override
-    {
-        TJobResources totalResources;
-        for (const auto& resources : NodeResourceLimitsList) {
-            totalResources += resources.ToJobResources();
-        }
-        return totalResources;
-    }
-
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter)
     {
         if (!filter.IsEmpty()) {
             return ZeroJobResources();
         }
-        return GetTotalResourceLimits();
+
+        TJobResources totalResources;
+        for (const auto& resources : NodeResourceLimitsList) {
+            totalResources += resources.ToJobResources();
+        }
+        return totalResources;
     }
 
     virtual TInstant GetConnectionTime() const override

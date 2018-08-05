@@ -80,8 +80,8 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
         Config_->NodeShardExecNodesCacheUpdatePeriod))
-    , CachedResourceLimitsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TJobResources>>(
-        BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
+    , CachedResourceStatisticsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>>(
+        BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
     , Logger(NLogging::TLogger(SchedulerLogger)
@@ -487,9 +487,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             statistics.PreemptiveScheduleJobAttempts,
             statistics.HasAggressivelyStarvingNodes);
 
-        TotalResourceUsage_ -= node->GetResourceUsage();
         node->SetResourceUsage(schedulingContext->ResourceUsage());
-        TotalResourceUsage_ += node->GetResourceUsage();
 
         ProcessScheduledJobs(
             schedulingContext,
@@ -563,6 +561,8 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
     HasOngoingNodesAttributesUpdate_ = true;
     auto finallyGuard = Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
 
+    int nodeChangesCount = 0;
+
     for (const auto& nodeMap : nodeMaps) {
         const auto& address = nodeMap.first;
         const auto& attributes = nodeMap.second->Attributes();
@@ -600,6 +600,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
             SubtractNodeResources(execNode);
             AbortAllJobsAtNode(execNode);
             UpdateNodeState(execNode, newState);
+            ++nodeChangesCount;
             return;
         }
 
@@ -623,7 +624,13 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
                 execNode->Tags() = tags;
                 UpdateNodeState(execNode, newState);
             }
+            ++nodeChangesCount;
         }
+    }
+
+    if (nodeChangesCount > Config_->NodeChangesCountThresholdToUpdateCache) {
+        UpdateExecNodeDescriptors();
+        CachedResourceStatisticsByTags_->Clear();
     }
 }
 
@@ -1035,29 +1042,11 @@ TOperationId TNodeShard::FindOperationIdByJobId(const TJobId& jobId)
     return job ? job->GetOperationId() : TOperationId();
 }
 
-TJobResources TNodeShard::GetTotalResourceLimits()
+TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TSchedulingTagFilter& filter)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(ResourcesLock_);
-
-    return TotalResourceLimits_;
-}
-
-TJobResources TNodeShard::GetTotalResourceUsage()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(ResourcesLock_);
-
-    return TotalResourceUsage_;
-}
-
-TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& filter)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TJobResources resources;
+    TResourceStatistics statistics;
 
     TRefCountedExecNodeDescriptorMapPtr descriptors;
     {
@@ -1068,21 +1057,25 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
     for (const auto& pair : *descriptors) {
         const auto& descriptor = pair.second;
         if (descriptor.CanSchedule(filter)) {
-            resources += descriptor.ResourceLimits;
+            statistics.Usage += descriptor.ResourceUsage;
+            statistics.Limits += descriptor.ResourceLimits;
         }
     }
-    return resources;
+    return statistics;
 }
 
 TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (filter.IsEmpty()) {
-        return TotalResourceLimits_;
-    }
+    return CachedResourceStatisticsByTags_->Get(filter).Limits;
+}
 
-    return CachedResourceLimitsByTags_->Get(filter);
+TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return CachedResourceStatisticsByTags_->Get(filter).Usage;
 }
 
 int TNodeShard::GetActiveJobCount()
@@ -1713,8 +1706,6 @@ void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
     TWriterGuard guard(ResourcesLock_);
 
-    TotalResourceLimits_ -= node->GetResourceLimits();
-    TotalResourceUsage_ -= node->GetResourceUsage();
     TotalNodeCount_ -= 1;
     if (node->GetResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ -= 1;
@@ -1725,8 +1716,6 @@ void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
     TWriterGuard guard(ResourcesLock_);
 
-    TotalResourceLimits_ += node->GetResourceLimits();
-    TotalResourceUsage_ += node->GetResourceUsage();
     TotalNodeCount_ += 1;
 
     if (node->GetResourceLimits().GetUserSlots() > 0) {
@@ -1744,7 +1733,6 @@ void TNodeShard::UpdateNodeResources(
     const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
 {
     auto oldResourceLimits = node->GetResourceLimits();
-    auto oldResourceUsage = node->GetResourceUsage();
 
     // NB: Total limits are updated separately in heartbeat.
     if (limits.GetUserSlots() > 0) {
@@ -1765,15 +1753,9 @@ void TNodeShard::UpdateNodeResources(
     if (node->GetMasterState() == ENodeState::Online) {
         TWriterGuard guard(ResourcesLock_);
 
-        TotalResourceLimits_ -= oldResourceLimits;
-        TotalResourceLimits_ += node->GetResourceLimits();
-
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->GetResourceUsage();
-
         // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
-            CachedResourceLimitsByTags_->Clear();
+            CachedResourceStatisticsByTags_->Clear();
         }
     }
 }

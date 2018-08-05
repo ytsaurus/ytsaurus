@@ -172,10 +172,6 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , CachedExecNodeMemoryDistributionByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
-            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker(EControlQueue::PeriodicActivity)))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -305,6 +301,11 @@ public:
             BIND(&TImpl::CheckJobReporterIssues, MakeWeak(this)),
             Config_->JobReporterIssuesCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
+
+        CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
+            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetControlInvoker(EControlQueue::PeriodicActivity));
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -435,12 +436,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (filter.IsEmpty()) {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-
-            return CachedExecNodeMemoryDistribution_;
-        }
-
         return CachedExecNodeMemoryDistributionByTags_->Get(filter);
     }
 
@@ -569,7 +564,7 @@ public:
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: %v)",
             operationId,
-            FormatResources(GetTotalResourceLimits()));
+            FormatResources(GetResourceLimits(EmptySchedulingTagFilter)));
 
         try {
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
@@ -930,28 +925,6 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual TJobResources GetTotalResourceLimits() override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto totalResourceLimits = ZeroJobResources();
-        for (const auto& nodeShard : NodeShards_) {
-            totalResourceLimits += nodeShard->GetTotalResourceLimits();
-        }
-        return totalResourceLimits;
-    }
-
-    TJobResources GetTotalResourceUsage()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto totalResourceUsage = ZeroJobResources();
-        for (const auto& nodeShard : NodeShards_) {
-            totalResourceUsage += nodeShard->GetTotalResourceUsage();
-        }
-        return totalResourceUsage;
-    }
-
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1211,7 +1184,6 @@ private:
     mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
-    TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
@@ -1381,8 +1353,8 @@ private:
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
-        ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
-        ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
+        ProfileResources(TotalResourceLimitsProfiler_, GetResourceLimits(EmptySchedulingTagFilter));
+        ProfileResources(TotalResourceUsageProfiler_, GetResourceUsage(EmptySchedulingTagFilter));
 
         {
             TJobTimeStatisticsDelta jobTimeStatisticsDelta;
@@ -1403,8 +1375,8 @@ private:
             LogEventFluently(ELogEventType::ClusterInfo)
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
-                .Item("resource_limits").Value(GetTotalResourceLimits())
-                .Item("resource_usage").Value(GetTotalResourceUsage());
+                .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
+                .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter));
         }
     }
 
@@ -1847,12 +1819,6 @@ private:
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, result);
-        }
-
-        auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
-        {
-            TWriterGuard guard(ExecNodeDescriptorsLock_);
-            CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
         }
     }
 
@@ -2674,6 +2640,18 @@ private:
         }
     }
 
+    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto resourceUsage = ZeroJobResources();
+        for (const auto& nodeShard : NodeShards_) {
+            resourceUsage += nodeShard->GetResourceUsage(filter);
+        }
+
+        return resourceUsage;
+    }
+
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
@@ -2711,8 +2689,8 @@ private:
                 .Item("connected").Value(IsConnected())
                 // COMPAT(babenko): deprecate cell in favor of cluster
                 .Item("cell").BeginMap()
-                    .Item("resource_limits").Value(GetTotalResourceLimits())
-                    .Item("resource_usage").Value(GetTotalResourceUsage())
+                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
+                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
@@ -2726,8 +2704,8 @@ private:
                         })
                 .EndMap()
                 .Item("cluster").BeginMap()
-                    .Item("resource_limits").Value(GetTotalResourceLimits())
-                    .Item("resource_usage").Value(GetTotalResourceUsage())
+                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
+                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
