@@ -85,4 +85,8 @@ namespace NSkiff {
     void TUncheckedSkiffWriter::Finish() {
         IOutputStream::Flush();
     }
+
+    void TUncheckedSkiffWriter::SetBufferCapacity(size_t s) {
+        Buffer_.Reserve(s);
+    }
 }
