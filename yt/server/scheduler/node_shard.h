@@ -133,6 +133,7 @@ public:
     void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
+    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
     void FailJob(const TJobId& jobId);
     void ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);

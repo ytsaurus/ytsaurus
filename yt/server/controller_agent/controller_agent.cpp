@@ -917,6 +917,7 @@ private:
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
                         ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
+                        ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
                         break;
                     default:
                         Y_UNREACHABLE();

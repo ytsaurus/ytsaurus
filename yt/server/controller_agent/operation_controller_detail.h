@@ -518,6 +518,8 @@ protected:
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 
+    std::vector<TJobId> GetJobIdsByTreeId(const TString& treeId);
+
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();

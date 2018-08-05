@@ -2161,7 +2161,7 @@ private:
             nullptr /* scraper */,
             this,
             Logger);
-        
+
         for (const auto &path : paths) {
             LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
@@ -5008,9 +5008,19 @@ private:
         int archiveVersion = DoGetOperationsArchiveVersion();
 
         TQueryBuilder itemsQueryBuilder;
-
         itemsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
         itemsQueryBuilder.SetLimit(options.Offset + options.Limit);
+
+        TQueryBuilder statisticsQueryBuilder;
+        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
+
+        auto operationIdExpression = Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            operationId.Parts64[0],
+            operationId.Parts64[1]);
+
+        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
+        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
 
         auto jobIdHiIndex = itemsQueryBuilder.AddSelectExpression("job_id_hi");
         auto jobIdLoIndex = itemsQueryBuilder.AddSelectExpression("job_id_lo");
@@ -5032,18 +5042,13 @@ private:
             failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
         }
 
-        auto operationIdExpression = Format(
-            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
-            operationId.Parts64[0],
-            operationId.Parts64[1]);
-        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
-
         if (archiveVersion >= 18) {
             auto updateTimeExpression = Format(
                 "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
                 "OR (NOT is_null(update_time) AND update_time >= %v))",
                 (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
             itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
+            statisticsQueryBuilder.AddWhereExpression(updateTimeExpression);
         }
 
         if (options.WithStderr) {
@@ -5133,9 +5138,6 @@ private:
 
         auto itemsQuery = itemsQueryBuilder.Build();
 
-        TQueryBuilder statisticsQueryBuilder;
-        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
-        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
         if (options.Address) {
             statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }
