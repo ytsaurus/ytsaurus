@@ -28,6 +28,7 @@ namespace NSkiff {
         using IOutputStream::Flush;
         void Finish();
 
+        void SetBufferCapacity(size_t s);
     private:
         void DoWrite(const void* data, size_t size) override final;
         void DoFlush() override final;

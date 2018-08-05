@@ -33,6 +33,7 @@ public:
     void Flush();
     void Finish();
 
+    void SetBufferCapacity(size_t s);
 private:
     TUncheckedSkiffWriter Writer_;
     THolder<TSkiffValidator> Validator_;

@@ -73,6 +73,11 @@ void TCheckedSkiffWriter::Finish()
     Writer_.Finish();
 }
 
+
+void TCheckedSkiffWriter::SetBufferCapacity(size_t s) {
+    Writer_.SetBufferCapacity(s);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NSkiff
