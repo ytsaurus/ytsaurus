@@ -771,8 +771,24 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
-    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
+    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
     {
+        std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
+        for (const auto& jobId : jobIds) {
+            auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
+            jobIdsByShardId[shardId].emplace_back(jobId);
+        }
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            if (jobIdsByShardId[shardId].empty()) {
+                continue;
+            }
+            NodeShards_[shardId]->GetInvoker()->Invoke(
+                BIND(&TNodeShard::AbortJobs,
+                    NodeShards_[shardId],
+                    jobIdsByShardId[shardId],
+                    TError("Job was in banned tentative pool tree")));
+        }
+
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
     }
@@ -817,6 +833,16 @@ public:
 
         auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
         Deserialize(userRuntimeParams, parameters);
+
+        // TODO(renadeen): remove this quick and dirty fix
+        if (userRuntimeParams->Pool) {
+            THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+        }
+        for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
+            if (pair.second->Pool) {
+                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+            }
+        }
 
         auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
 
@@ -3181,9 +3207,9 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
+void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
 {
-    Impl_->OnOperationBannedInTentativeTree(operation, treeId);
+    Impl_->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
 }
 
 TFuture<void> TScheduler::UpdateOperationParameters(
