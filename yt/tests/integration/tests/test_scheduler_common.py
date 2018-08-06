@@ -3521,7 +3521,9 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         if not hasattr(cls, "controller_agent_counter"):
             cls.controller_agent_counter = 0
         cls.controller_agent_counter += 1
-        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 100 * 1024 ** 2
+        if cls.controller_agent_counter > 2:
+            cls.controller_agent_counter -= 2
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 20 * 1024 ** 2
 
     @flaky(max_runs=5)
     def test_strategy(self):
@@ -3529,25 +3531,25 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         write_table("//tmp/t_in", [{"a": 0}])
 
         ops = []
-        for i in xrange(30):
+        for i in xrange(45):
             out = "//tmp/t_out" + str(i)
             create("table", out, attributes={"replication_factor": 1})
-            ops.append(map(
+            op = map(
                 command="sleep 100",
                 in_="//tmp/t_in",
                 out=out,
-                dont_track=True))
-            time.sleep(0.2)
+                dont_track=True)
+            wait(lambda: op.get_state() == "running")
+            ops.append(op)
 
         address_to_operation = defaultdict(list)
         for op in ops:
-            wait(lambda: op.get_state() == "running")
             address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
 
         operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
         print >>sys.stderr, "BALANCE_RATIO", balance_ratio
-        assert 0.4 <= balance_ratio <= 0.6
+        assert 0.5 <= balance_ratio <= 0.8
 
 class TestPorts(YTEnvSetup):
     NUM_SCHEDULERS = 1
