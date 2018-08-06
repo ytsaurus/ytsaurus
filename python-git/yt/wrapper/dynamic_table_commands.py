@@ -26,7 +26,7 @@ ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
     tablet_count = get(path + "/@tablet_count", client=client)
 
-    if first_tablet_index is None and last_tablet_index is None:
+    if first_tablet_index is not None or last_tablet_index is not None:
         first_tablet_index = get_value(first_tablet_index, 0)
         last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
         is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
