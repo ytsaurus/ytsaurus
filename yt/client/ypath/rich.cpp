@@ -3,6 +3,8 @@
 #include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/parser_helpers.h>
@@ -522,6 +524,11 @@ TNullable<TTableSchema> TRichYPath::GetSchema() const
         }
         return schema;
     });
+}
+
+TNullable<TColumnRenameDescriptors> TRichYPath::GetColumnRenameDescriptors() const
+{
+    return FindAttribute<TColumnRenameDescriptors>(*this, "rename_columns");
 }
 
 TKeyColumns TRichYPath::GetSortedBy() const

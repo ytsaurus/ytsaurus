@@ -30,6 +30,7 @@ class TSimpleVersionedBlockMeta;
 class TSchemaDictionary;
 class TColumnFilter;
 class TReqLookupRows;
+class TColumnRenameDescriptor;
 
 } // namespace NProto
 
@@ -108,6 +109,7 @@ DEFINE_ENUM(EErrorCode,
     ((SchemaViolation)            (307))
     ((RowWeightLimitExceeded)     (308))
     ((InvalidColumnFilter)        (309))
+    ((InvalidColumnRenaming)      (310))
 );
 
 DEFINE_ENUM(EControlAttribute,
@@ -158,6 +160,9 @@ class TUnversionedRowBuilder;
 class TUnversionedOwningRowBuilder;
 
 using TKeyComparer = std::function<int(TKey, TKey)>;
+
+struct TColumnRenameDescriptor;
+using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
 
 class TColumnSchema;
 class TTableSchema;

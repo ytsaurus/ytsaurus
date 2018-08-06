@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/cypress_client/public.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/client/table_client/column_rename_descriptor.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -38,6 +38,7 @@ struct TInputTable
     //! Number of chunks in the whole table (without range selectors).
     int ChunkCount = -1;
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
+    NTableClient::TColumnRenameDescriptors ColumnRenameDescriptors;
     NTableClient::TTableSchema Schema;
     NTableClient::ETableSchemaMode SchemaMode;
     bool IsDynamic;

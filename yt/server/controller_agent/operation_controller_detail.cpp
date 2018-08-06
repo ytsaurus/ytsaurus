@@ -16,8 +16,6 @@
 
 #include <yt/server/chunk_pools/helpers.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
-
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -37,8 +35,6 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/query.h>
@@ -54,14 +50,19 @@
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/client/table_client/table_consumer.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/column_rename_descriptor.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
-
 #include <yt/client/api/transaction.h>
-
-#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -497,6 +498,7 @@ void TOperationControllerBase::InitializeStructures()
         TInputTable table;
         table.Path = path;
         table.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
+        table.ColumnRenameDescriptors = path.GetColumnRenameDescriptors().Get({});
         InputTables.push_back(table);
     }
 
@@ -4471,6 +4473,44 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 path,
                 table.Schema,
                 table.ChunkCount);
+
+            if (!table.ColumnRenameDescriptors.empty()) {
+                if (table.Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
+                        << TErrorAttribute("table_path", table.Path);
+                }
+                LOG_DEBUG("Start renaming columns");
+                try {
+                    THashMap<TString, TString> columnMapping;
+                    for (const auto& descriptor : table.ColumnRenameDescriptors) {
+                        auto it = columnMapping.insert({descriptor.OriginalName, descriptor.NewName});
+                        YCHECK(it.second);
+                    }
+                    auto newColumns = table.Schema.Columns();
+                    for (auto& column : newColumns) {
+                        auto it = columnMapping.find(column.Name());
+                        if (it != columnMapping.end()) {
+                            column.SetName(it->second);
+                            ValidateColumnSchema(column, table.Schema.IsSorted(), table.IsDynamic);
+                            columnMapping.erase(it);
+                        }
+                    }
+                    if (!columnMapping.empty()) {
+                        THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
+                            << TErrorAttribute("failed_rename_descriptors", columnMapping);
+                    }
+                    table.Schema = TTableSchema(newColumns, table.Schema.GetStrict(), table.Schema.GetUniqueKeys());
+                    ValidateColumnUniqueness(table.Schema);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error renaming columns")
+                        << TErrorAttribute("table_path", table.Path)
+                        << TErrorAttribute("column_rename_descriptors", table.ColumnRenameDescriptors)
+                        << ex;
+                }
+                LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
+                    table.Path,
+                    table.Schema);
+            } 
         }
     }
 }
@@ -6956,11 +6996,13 @@ void TOperationControllerBase::SetInputDataSources(TSchedulerJobSpecExt* jobSpec
                 inputTable.GetPath(),
                 inputTable.Schema,
                 inputTable.Path.GetColumns(),
-                inputTable.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp))
+                inputTable.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp),
+                inputTable.ColumnRenameDescriptors)
             : MakeUnversionedDataSource(
                 inputTable.GetPath(),
                 inputTable.Schema,
-                inputTable.Path.GetColumns());
+                inputTable.Path.GetColumns(),
+                inputTable.ColumnRenameDescriptors);
 
         dataSourceDirectory->DataSources().push_back(dataSource);
     }

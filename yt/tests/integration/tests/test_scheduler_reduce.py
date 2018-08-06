@@ -174,6 +174,101 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                 {"key": 7}
             ]
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_simple(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b2", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t3", attributes={
+                "schema": [{"name": "a3", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+
+        create("table", "//tmp/tout")
+
+        write_table("//tmp/t1", [{"a": 42, "b": 1}])
+        write_table("//tmp/t2", [{"a2": 42, "b2": 2}])
+        write_table("//tmp/t3", [{"a3": 42, "b": 3}])
+
+        op = reduce(
+            in_=["//tmp/t1", "<rename_columns={a2=a;b2=b}>//tmp/t2", "<rename_columns={a3=a}>//tmp/t3"],
+            out="//tmp/tout",
+            reduce_by=["a"],
+            command="cat",
+            spec={"job_count": 3, # We are trying to divide rows in different jobs.
+                  "reducer": {"format": "dsv"}})
+
+        assert read_table("//tmp/tout") == [{"a": "42", "b": "1"},
+                                            {"a": "42", "b": "2"},
+                                            {"a": "42", "b": "3"}]
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        assert completed["total"] == 1 # Actualy all rows should be in one job despite job_count > 1
+
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_foreign_table(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b2", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+
+        create("table", "//tmp/tout")
+
+        write_table("//tmp/t1", [{"a": 42, "b": 1}])
+        write_table("//tmp/t2", [{"a2": 42, "b2": 2},
+                                 {"a2": 43, "b2": 3}])
+
+        reduce(
+            in_=["//tmp/t1", "<foreign=%true;rename_columns={a2=a;b2=b}>//tmp/t2"],
+            out="//tmp/tout",
+            reduce_by=["a"],
+            join_by=["a"],
+            command="cat",
+            spec={"reducer": {"enable_input_table_index": False}})
+
+        assert read_table("//tmp/tout") == [{"a": 42, "b": 1},
+                                            {"a": 42, "b": 2}]
+
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_teleport_table(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b2", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+
+        create("table", "//tmp/tout")
+
+        write_table("//tmp/t1", [{"a": 42, "b": 1}])
+        write_table("//tmp/t2", [{"a2": 43, "b2": 3}])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_=["//tmp/t1", "<teleport=%true;rename_columns={a2=a;b2=b}>//tmp/t2"],
+                out="<teleport=%true>//tmp/tout",
+                reduce_by=["a"],
+                command="cat",
+                spec={"reducer": {"format": "dsv"}})
+
     @unix_only
     def test_control_attributes_yson(self):
         create("table", "//tmp/in1")

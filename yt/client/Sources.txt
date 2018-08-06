@@ -63,6 +63,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/table_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/column_rename_descriptor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_row.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_row.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_value.cpp

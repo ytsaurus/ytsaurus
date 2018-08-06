@@ -753,6 +753,117 @@ print row + table_index
                 out="//tmp/output",
                 command="cat")
 
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns_simple(seld, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "schema": [{"name": "a", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42}])
+
+        map(in_="<rename_columns={a=b}>//tmp/tin",
+            out="//tmp/tout",
+            command="cat")
+        assert read_table("//tmp/tout") == [{"b": 42}]
+
+    def test_rename_columns_without_schema(self):
+        create("table", "//tmp/tin")
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42}])
+
+        with pytest.raises(YtError):
+            map(in_="<rename_columns={a=b}>//tmp/tin",
+                out="//tmp/tout",
+                command="cat")
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_raname_columns_overlapping_names_in_schema(self, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42, "b": 34}])
+
+        with pytest.raises(YtError):
+            map(in_="<rename_columns={a=b}>//tmp/tin",
+                out="//tmp/tout",
+                command="cat")
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns_overlapping_names_in_chunk(self, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "optimize_for": optimize_for
+                })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42, "b": 34}])
+
+        # Set weak schema
+        sort(in_="//tmp/tin",
+             out="//tmp/tin",
+             sort_by="a")
+
+        with pytest.raises(YtError):
+            map(in_="<rename_columns={a=b}>//tmp/tin",
+                out="//tmp/tout",
+                command="cat")
+
+    def test_rename_columns_wrong_name(self):
+        create("table", "//tmp/tin", attributes={
+                "schema": [{"name": "a", "type": "int64"}],
+            })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42}])
+        with pytest.raises(YtError):
+            map(in_="<rename_columns={a=\"$wrong_name\"}>//tmp/tin",
+                out="//tmp/tout",
+                command="cat")
+
+        with pytest.raises(YtError):
+            map(in_="<rename_columns={a=\"\"}>//tmp/tin",
+                out="//tmp/tout",
+                command="cat")
+
+        with pytest.raises(YtError):
+            map(in_="<rename_columns={a=" + "b" * 1000 + "}>//tmp/tin",
+                out="//tmp/tout",
+                command="cat")
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns_swap(self, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "schema": [{"name": "a", "type": "int64"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+                })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42, "b": 34}])
+
+        map(in_="<rename_columns={a=b;b=a}>//tmp/tin",
+            out="//tmp/tout",
+            command="cat")
+
+        assert read_table("//tmp/tout") == [{"b": 42, "a": 34}]
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns_filter(self, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "schema": [{"name": "a", "type": "int64"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+                })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42, "b": 34}])
+
+        map(in_="<rename_columns={a=d}>//tmp/tin{d}",
+            out="//tmp/tout",
+            command="cat")
+
+        assert read_table("//tmp/tout") == [{"d": 42}]
+
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_computed_columns(self, mode):
         create("table", "//tmp/t1")
@@ -1508,6 +1619,23 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
                 command="cat")
+
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_dynamic_table_simple(self, optimize_for):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
+        create("table", "//tmp/t_out")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": str(2)}])
+        sync_unmount_table("//tmp/t")
+
+        op = map(
+            in_="<rename_columns={key=first;value=second}>//tmp/t",
+            out="//tmp/t_out",
+            command="cat")
+
+        assert read_table("//tmp/t_out") == [{"first": 1, "second": str(2)}]
 
 ##################################################################
 
