@@ -1931,6 +1931,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             blockReadOptions,
             Schema_,
+            {} /* ColumnRenameDescriptors */,
             MemoryTracker_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();

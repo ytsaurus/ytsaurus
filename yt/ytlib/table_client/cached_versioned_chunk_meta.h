@@ -12,6 +12,7 @@
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
@@ -42,12 +43,14 @@ public:
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchema& schema,
+        const TColumnRenameDescriptors& renameDescriptors = {},
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TTableSchema& schema,
+        const TColumnRenameDescriptors& renameDescriptors = {},
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
     virtual i64 GetMemoryUsage() const override;
@@ -61,6 +64,7 @@ private:
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchema& schema,
+        const TColumnRenameDescriptors& renameDescriptors,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker);
 
     void ValidateChunkMeta();

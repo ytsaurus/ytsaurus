@@ -391,6 +391,24 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_simple(seld, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "schema": [{"name": "a", "type": "int64"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42, "b": 25}])
+
+        map_reduce(in_="<rename_columns={a=b;b=a}>//tmp/tin",
+                   out="//tmp/tout",
+                   mapper_command="cat",
+                   reducer_command="cat",
+                   sort_by=["a"])
+
+        assert read_table("//tmp/tout") == [{"b": 42, "a": 25}]
+
     def _ban_nodes_with_intermediate_chunks(self):
         # Figure out the intermediate chunk
         chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
