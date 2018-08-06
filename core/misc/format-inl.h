@@ -28,14 +28,8 @@ inline bool IsQuotationSpecSymbol(char symbol)
 template <class TValue>
 void FormatValue(TStringBuilder* builder, const TValue& value, TStringBuf format);
 
-#ifdef __GNUC__
-// Catch attempts to format 128-bit numbers early.
-#ifdef YDEPRECATED
-void FormatValue(TStringBuilder* builder, __int128 value, TStringBuf format) YDEPRECATED();
-#else
-void FormatValue(TStringBuilder* builder, __int128 value, TStringBuf format) Y_DEPRECATED();
-#endif
-#endif
+[[deprecated("Do not use this method")]]
+void FormatValue(TStringBuilder* builder, __int128 value, TStringBuf format);
 
 // TStringBuf
 inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf format)
