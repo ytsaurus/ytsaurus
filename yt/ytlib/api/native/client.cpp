@@ -318,11 +318,11 @@ public:
         , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
-            channel = CreateAuthenticatedChannel(channel, options.User);
+            channel = CreateAuthenticatedChannel(channel, options.GetUser());
             return channel;
         };
         auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
-            factory = CreateAuthenticatedChannelFactory(factory, options.User);
+            factory = CreateAuthenticatedChannelFactory(factory, options.GetUser());
             return factory;
         };
 
@@ -361,7 +361,7 @@ public:
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->PrimaryMaster->CellId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader),
-            Options_.User,
+            Options_.GetUser(),
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
 
@@ -431,7 +431,7 @@ public:
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
+        return CreateAuthenticatedChannel(std::move(channel), Options_.GetUser());
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -3248,22 +3248,22 @@ private:
             auto checkPermissionOptions = TCheckPermissionOptions();
             checkPermissionOptions.TransactionId = transaction->GetId();
 
-            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
-            readPermissionResult.ToError(Options_.User, EPermission::Read)
+            auto readPermissionResult = DoCheckPermission(Options_.GetUser(), objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.GetUser(), EPermission::Read)
                 .ThrowOnError();
 
-            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
-            removePermissionResult.ToError(Options_.User, EPermission::Remove)
+            auto removePermissionResult = DoCheckPermission(Options_.GetUser(), objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.GetUser(), EPermission::Remove)
                 .ThrowOnError();
 
-            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
+            auto usePermissionResult = DoCheckPermission(Options_.GetUser(), options.CachePath, EPermission::Use, checkPermissionOptions);
 
-            auto writePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Write, checkPermissionOptions);
+            auto writePermissionResult = DoCheckPermission(Options_.GetUser(), options.CachePath, EPermission::Write, checkPermissionOptions);
 
             if (usePermissionResult.Action == ESecurityAction::Deny && writePermissionResult.Action == ESecurityAction::Deny) {
                 THROW_ERROR_EXCEPTION("You need write or use permission to use file cache")
-                    << usePermissionResult.ToError(Options_.User, EPermission::Use)
-                    << writePermissionResult.ToError(Options_.User, EPermission::Write);
+                    << usePermissionResult.ToError(Options_.GetUser(), EPermission::Use)
+                    << writePermissionResult.ToError(Options_.GetUser(), EPermission::Write);
             }
         }
 
