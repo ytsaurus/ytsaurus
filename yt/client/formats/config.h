@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/client/table_client/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -488,6 +488,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSkiffFormatConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
 } // namespace NYT

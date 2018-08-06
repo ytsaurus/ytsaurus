@@ -6,8 +6,8 @@
 #include <yt/core/skiff/parser.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/value_consumer.h>
+#include <yt/client/table_client/table_consumer.h>
+#include <yt/client/table_client/value_consumer.h>
 
 #include <yt/core/concurrency/coroutine.h>
 
@@ -297,7 +297,7 @@ public:
     TSkiffPushParser(
         const TSkiffSchemaPtr& skiffSchema,
         const TSkiffTableColumnIds& tableColumnIds,
-        NTableClient::IValueConsumer* consumer)
+        IValueConsumer* consumer)
     {
         Consumer_.reset(new TSkiffConsumer(consumer));
         Parser_.reset(new TSkiffMultiTableParser<TSkiffConsumer>(
@@ -376,7 +376,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 
 std::unique_ptr<IParser> CreateParserForSkiff(
     TSkiffSchemaPtr skiffSchema,
-    NTableClient::IValueConsumer* consumer)
+    IValueConsumer* consumer)
 {
     auto tableDescriptionList = CreateTableDescriptionList({skiffSchema}, RangeIndexColumnName, RowIndexColumnName);
     if (tableDescriptionList.size() != 1) {

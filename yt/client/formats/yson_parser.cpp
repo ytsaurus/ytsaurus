@@ -1,7 +1,7 @@
 #include "yson_parser.h"
 #include "parser.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/client/table_client/public.h>
 
 #include <yt/core/yson/parser.h>
 

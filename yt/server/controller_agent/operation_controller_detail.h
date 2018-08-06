@@ -45,7 +45,7 @@
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/client/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/value_consumer.h>
+#include <yt/client/table_client/value_consumer.h>
 
 #include <yt/ytlib/query_client/public.h>
 
@@ -517,6 +517,8 @@ protected:
     TJobletPtr GetJobletOrThrow(const TJobId& jobId) const;
 
     void UnregisterJoblet(const TJobletPtr& joblet);
+
+    std::vector<TJobId> GetJobIdsByTreeId(const TString& treeId);
 
     // Initialization.
     virtual void DoInitialize();

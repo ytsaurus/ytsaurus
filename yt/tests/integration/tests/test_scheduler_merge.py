@@ -163,6 +163,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    def test_sorted_different_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1}])
+        write_table("//tmp/t2", [{"key": "1"}])
+
+        with pytest.raises(YtError):
+            merge(
+                mode="sorted",
+                in_=["//tmp/t1", "//tmp/t2"],
+                out="//tmp/out")
+
     def test_sorted_column_filter(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": 1, "b" : 3}, {"a": 10, "b" : 2}, {"a": 100, "b" : 1}], sorted_by="a")

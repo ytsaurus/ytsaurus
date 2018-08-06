@@ -590,6 +590,8 @@ TNewReduceOperationSpec::TNewReduceOperationSpec()
         .Default();
     RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
         .Default();
+    RegisterParameter("validate_key_column_types", ValidateKeyColumnTypes)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(ReduceBy);

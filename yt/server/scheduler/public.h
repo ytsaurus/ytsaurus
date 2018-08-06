@@ -158,7 +158,7 @@ DEFINE_ENUM(EControlQueue,
 
 DEFINE_ENUM(EControllerAgentPickStrategy,
     (Random)
-    (MemoryScoring)
+    (MemoryUsageBalanced)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

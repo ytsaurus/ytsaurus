@@ -2165,7 +2165,7 @@ private:
             nullptr /* scraper */,
             this,
             Logger);
-        
+
         for (const auto &path : paths) {
             LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
@@ -3779,6 +3779,7 @@ private:
         "finish_time",
         "result",
         "events",
+        "memory_usage",
     };
 
     template <typename TOutputIt>
@@ -3913,10 +3914,14 @@ private:
             }
         }
 
-        bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
-        bool shouldRequestBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
+        std::vector<std::pair<TString, bool>> runtimeAttributes ={
+            /* {Name, ShouldRequestFromScheduler} */
+            {"progress", true},
+            {"brief_progress", false},
+            {"memory_usage", false}
+        };
 
-        if (options.IncludeRuntime && (shouldRequestProgress || shouldRequestBriefProgress)) {
+        if (options.IncludeRuntime) {
             auto batchReq = proxy->ExecuteBatch();
 
             auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
@@ -3931,46 +3936,46 @@ private:
                 }
             };
 
-            if (shouldRequestProgress) {
-                addProgressAttributeRequest("progress", /* shouldRequestFromScheduler */ true);
+            for (const auto& attribute : runtimeAttributes) {
+                if (!options.Attributes || options.Attributes->has(attribute.first)) {
+                    addProgressAttributeRequest(attribute.first, attribute.second);
+                }
             }
-            if (shouldRequestBriefProgress) {
-                addProgressAttributeRequest("brief_progress", /* shouldRequestFromScheduler */ false);
-            }
 
-            auto batchRsp = WaitFor(batchReq->Invoke())
-                .ValueOrThrow();
+            if (batchReq->GetSize() != 0) {
+                auto batchRsp = WaitFor(batchReq->Invoke())
+                    .ValueOrThrow();
 
-            auto handleProgressAttributeRequest = [&] (const TString& attribute) {
-                INodePtr progressAttributeNode;
+                auto handleProgressAttributeRequest = [&] (const TString& attribute) {
+                    INodePtr progressAttributeNode;
 
-                auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
-                for (const auto& rsp : responses) {
-                    if (rsp.IsOK()) {
-                        auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
-                        if (!progressAttributeNode) {
-                            progressAttributeNode = node;
+                    auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
+                    for (const auto& rsp : responses) {
+                        if (rsp.IsOK()) {
+                            auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                            if (!progressAttributeNode) {
+                                progressAttributeNode = node;
+                            } else {
+                                progressAttributeNode = PatchNode(progressAttributeNode, node);
+                            }
                         } else {
-                            progressAttributeNode = PatchNode(progressAttributeNode, node);
+                            if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                                THROW_ERROR rsp;
+                            }
                         }
-                    } else {
-                        if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                            THROW_ERROR rsp;
+
+                        if (progressAttributeNode) {
+                            attrNode->RemoveChild(attribute);
+                            YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
                         }
                     }
+                };
 
-                    if (progressAttributeNode) {
-                        attrNode->RemoveChild(attribute);
-                        YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
+                for (const auto& attribute : runtimeAttributes) {
+                    if (!options.Attributes || options.Attributes->has(attribute.first)) {
+                        handleProgressAttributeRequest(attribute.first);
                     }
                 }
-            };
-
-            if (shouldRequestProgress) {
-                handleProgressAttributeRequest("progress");
-            }
-            if (shouldRequestBriefProgress) {
-                handleProgressAttributeRequest("brief_progress");
             }
         }
 
@@ -3989,6 +3994,8 @@ private:
         if (DoGetOperationsArchiveVersion() < 22) {
             fields.erase("runtime_parameters");
         }
+        // Ignoring memory_usage in archive.
+        fields.erase("memory_usage");
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
@@ -5273,9 +5280,19 @@ private:
         int archiveVersion = DoGetOperationsArchiveVersion();
 
         TQueryBuilder itemsQueryBuilder;
-
         itemsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
         itemsQueryBuilder.SetLimit(options.Offset + options.Limit);
+
+        TQueryBuilder statisticsQueryBuilder;
+        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
+
+        auto operationIdExpression = Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            operationId.Parts64[0],
+            operationId.Parts64[1]);
+
+        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
+        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
 
         auto jobIdHiIndex = itemsQueryBuilder.AddSelectExpression("job_id_hi");
         auto jobIdLoIndex = itemsQueryBuilder.AddSelectExpression("job_id_lo");
@@ -5297,18 +5314,13 @@ private:
             failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
         }
 
-        auto operationIdExpression = Format(
-            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
-            operationId.Parts64[0],
-            operationId.Parts64[1]);
-        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
-
         if (archiveVersion >= 18) {
             auto updateTimeExpression = Format(
                 "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
                 "OR (NOT is_null(update_time) AND update_time >= %v))",
                 (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
             itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
+            statisticsQueryBuilder.AddWhereExpression(updateTimeExpression);
         }
 
         if (options.WithStderr) {
@@ -5398,9 +5410,6 @@ private:
 
         auto itemsQuery = itemsQueryBuilder.Build();
 
-        TQueryBuilder statisticsQueryBuilder;
-        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
-        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
         if (options.Address) {
             statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }

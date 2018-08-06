@@ -21,7 +21,7 @@
                 "path": "yt/nodejs/targets/bin/ytnode"
             },
             "destination": {
-                "path": "/node_modules/yt/bin/ytnode"
+                "path": "/node/bin/nodejs"
             }
         },
         {

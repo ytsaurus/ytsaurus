@@ -6,7 +6,7 @@
 #include "escape.h"
 #include "schemaless_writer_adapter.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/client/table_client/public.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/nullable.h>

@@ -4,17 +4,11 @@
 
 #include <yt/client/api/config.h>
 
-#include <yt/ytlib/hive/config.h>
+#include <yt/client/chunk_client/config.h>
 
-#include <yt/ytlib/hydra/config.h>
+#include <yt/client/table_client/config.h>
 
-#include <yt/ytlib/scheduler/config.h>
-
-#include <yt/ytlib/chunk_client/config.h>
-
-#include <yt/ytlib/table_client/config.h>
-
-#include <yt/ytlib/transaction_client/config.h>
+#include <yt/client/transaction_client/config.h>
 
 #include <yt/core/rpc/retrying_channel.h>
 
