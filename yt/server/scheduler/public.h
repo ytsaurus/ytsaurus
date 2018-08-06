@@ -113,6 +113,7 @@ DEFINE_ENUM(EOperationAlertType,
     (InvalidAcl)
     (LowCpuUsage)
     (OperationTooLong)
+    (OperationIsPending)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
