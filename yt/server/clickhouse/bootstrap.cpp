@@ -57,11 +57,19 @@ const NLogging::TLogger BootstrapLogger("Bootstrap");
 TBootstrap::TBootstrap(TConfigPtr config,
                        INodePtr configNode,
                        TString xmlConfig,
-                       TString cliqueId)
+                       TString cliqueId,
+                       ui16 rpcPort,
+                       ui16 monitoringPort,
+                       ui16 tcpPort,
+                       ui16 httpPort)
     : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , XmlConfig(std::move(xmlConfig))
     , CliqueId_(std::move(cliqueId))
+    , RpcPort_(rpcPort)
+    , MonitoringPort_(monitoringPort)
+    , TcpPort_(tcpPort)
+    , HttpPort_(httpPort)
 {}
 
 TBootstrap::~TBootstrap()
@@ -115,6 +123,7 @@ void TBootstrap::DoInitialize()
     }
 
     if (Config->RpcServer) {
+        Config->BusServer->Port = RpcPort_;
         BusServer = CreateTcpBusServer(Config->BusServer);
 
         RpcServer = NRpc::NBus::CreateBusServer(BusServer);
@@ -130,15 +139,13 @@ void TBootstrap::DoInitialize()
         RpcServer->Configure(Config->RpcServer);
     }
 
-    if (Config->MonitoringPort) {
-        auto poller = CreateThreadPoolPoller(1, "Http");
-        HttpServer = NHttp::CreateServer(Config->MonitoringPort, poller);
+    auto poller = CreateThreadPoolPoller(1, "Http");
+    HttpServer = NHttp::CreateServer(MonitoringPort_, poller);
 
 // TODO(prime@): uncomment after arcadia sync
 //        HttpServer->AddHandler(
 //            "/orchid/",
 //            GetOrchidYPathHttpHandler(orchidRoot));
-    }
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -161,22 +168,15 @@ void TBootstrap::DoInitialize()
 
     Storage = CreateStorage(Connection, NativeClientCache, ScanThrottler);
 
-    if (CliqueId_.empty()) {
-        if (const auto* operationId = getenv("YT_OPERATION_ID")) {
-            CliqueId_ = operationId;
-        } else {
-            THROW_ERROR_EXCEPTION("Clique id should be set either via --clique-id command-line option or "
-                "via $YT_OPERATION_ID environment variable");
-        }
-    }
-
     CoordinationService = CreateCoordinationService(Connection, CliqueId_);
 
     Server = CreateServer(
         logger,
         Storage,
         CoordinationService,
-        XmlConfig);
+        XmlConfig,
+        TcpPort_,
+        HttpPort_);
 }
 
 void TBootstrap::DoRun()

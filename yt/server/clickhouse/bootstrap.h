@@ -29,6 +29,11 @@ private:
     const NYTree::INodePtr ConfigNode;
     const TString XmlConfig;
     TString CliqueId_;
+    ui16 RpcPort_;
+    ui16 MonitoringPort_;
+    ui16 TcpPort_;
+    ui16 HttpPort_;
+
 
     NConcurrency::TActionQueuePtr ControlQueue;
 
@@ -51,7 +56,11 @@ public:
     TBootstrap(TConfigPtr config,
                NYTree::INodePtr configNode,
                TString xmlConfig,
-               TString cliqueId);
+               TString cliqueId,
+               ui16 rpcPort,
+               ui16 monitoringPort,
+               ui16 tcpPort,
+               ui16 httpPort);
     ~TBootstrap();
 
     void Initialize();
