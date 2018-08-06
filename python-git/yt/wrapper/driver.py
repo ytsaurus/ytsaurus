@@ -1,7 +1,7 @@
 from . import http_driver
 from . import native_driver
 from .batch_response import apply_function_to_result
-from .common import YtError, update
+from .common import YtError, update, sanitize_structure
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
 from .http_helpers import get_api_commands
@@ -22,28 +22,6 @@ _DEFAULT_COMMAND_PARAMS = {
     "transaction_id": YT_NULL_TRANSACTION_ID,
     "ping_ancestor_transactions": False
 }
-
-def process_params(obj):
-    attributes = None
-    is_yson_type = isinstance(obj, yson.YsonType)
-    if is_yson_type and obj.attributes:
-        attributes = process_params(obj.attributes)
-
-    if isinstance(obj, list):
-        list_cls = yson.YsonList if is_yson_type else list
-        obj = list_cls(imap(process_params, obj))
-    elif isinstance(obj, dict):
-        dict_cls = yson.YsonMap if is_yson_type else dict
-        obj = dict_cls((k, process_params(v)) for k, v in iteritems(obj))
-    elif hasattr(obj, "to_yson_type"):
-        obj = obj.to_yson_type()
-    else:
-        obj = copy(obj)
-
-    if attributes is not None:
-        obj.attributes = attributes
-
-    return obj
 
 def get_command_list(client=None):
     if get_option("_client_type", client) == "batch":
@@ -77,7 +55,7 @@ def make_request(command_name,
 
     params = update(command_params, params)
 
-    params = process_params(params)
+    params = sanitize_structure(params)
 
     enable_request_logging = get_config(client)["enable_request_logging"]
 
