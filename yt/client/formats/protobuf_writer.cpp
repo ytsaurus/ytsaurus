@@ -296,7 +296,7 @@ private:
         }
         const auto& tableDescription = Description_->GetTableDescription(tableIndex);
         auto& fieldIndexToDescription = TableIndexToFieldIndexToDescription_[tableIndex];
-        YCHECK(fieldIndex < nameTable->GetSize());
+        YCHECK(fieldIndex < static_cast<ui32>(nameTable->GetSize()));
         if (fieldIndexToDescription.size() <= fieldIndex) {
             fieldIndexToDescription.reserve(fieldIndex + 1);
             for (size_t i = fieldIndexToDescription.size(); i <= fieldIndex; ++i) {

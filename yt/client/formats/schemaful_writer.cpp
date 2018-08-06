@@ -37,7 +37,7 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
             continue;
         }
 
-        Y_ASSERT(row.GetCount() >= columnCount);
+        Y_ASSERT(static_cast<int>(row.GetCount()) >= columnCount);
         Consumer_->OnBeginMap();
         for (int index = 0; index < columnCount; ++index) {
             const auto& value = row[index];
