@@ -94,6 +94,8 @@ private:
     const NInterop::IStoragePtr Storage;
     const NInterop::ICoordinationServicePtr CoordinationService;
     const std::string ConfigFile;
+    ui16 TcpPort_;
+    ui16 HttpPort_;
 
     IConfigPtr StaticBootstrapConfig;
 
@@ -124,11 +126,15 @@ public:
     TServer(NInterop::ILoggerPtr logger,
             NInterop::IStoragePtr storage,
             NInterop::ICoordinationServicePtr coordinationService,
-            std::string configFile)
+            std::string configFile,
+            ui16 tcpPort,
+            ui16 httpPort)
         : AppLogger(std::move(logger))
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
         , ConfigFile(std::move(configFile))
+        , TcpPort_(tcpPort)
+        , HttpPort_(httpPort)
     {}
 
     void Start() override;
@@ -236,7 +242,7 @@ void TServer::SetupExecutionClusterNodeTracker()
         CoordinationService,
         ServerAuthToken,
         Config->getString("cluster_discovery.directory_path"),
-        Config->getInt("tcp_port"));
+        TcpPort_);
 }
 
 void TServer::SetupContext()
@@ -386,8 +392,8 @@ void TServer::SetupHandlers()
     for (const auto& listenHost: listenHosts) {
         try {
             // HTTP
-            if (Config->has("http_port")) {
-                auto socketAddress = makeSocketAddress(listenHost, Config->getInt("http_port"));
+            {
+                auto socketAddress = makeSocketAddress(listenHost, HttpPort_);
 
                 Poco::Net::ServerSocket socket(socketAddress);
                 socket.setReceiveTimeout(settings.receive_timeout);
@@ -409,8 +415,8 @@ void TServer::SetupHandlers()
             }
 
             // TCP
-            if (Config->has("tcp_port")) {
-                auto socketAddress = makeSocketAddress(listenHost, Config->getInt("tcp_port"));
+            {
+                auto socketAddress = makeSocketAddress(listenHost, TcpPort_);
 
                 Poco::Net::ServerSocket socket(socketAddress);
                 socket.setReceiveTimeout(settings.receive_timeout);
@@ -437,13 +443,6 @@ void TServer::SetupHandlers()
         }
     }
 
-    // At least one of TCP and HTTP Servers must be created.
-    if (Servers.empty()) {
-        throw Exception(
-            "No Servers started (add valid listen_host and 'tcp_port' or 'http_port' to configuration file.)",
-            ErrorCodes::NO_ELEMENTS_IN_CONFIG);
-    }
-
     for (auto& server: Servers) {
         server->start();
     }
@@ -456,7 +455,7 @@ void TServer::EnterExecutionCluster()
     // TODO(max42): consider specifying two adresses, interconnect and external.
     ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
         /*host=*/ Config->getString("interconnect_hostname", GetFQDNHostName()),
-        /*port=*/ Config->getInt("tcp_port"));
+        /*port=*/ TcpPort_);
 
     ExecutionClusterNodeTracker->StartTrack(*Context);
 }
@@ -504,13 +503,17 @@ NInterop::IServerPtr CreateServer(
     NInterop::ILoggerPtr logger,
     NInterop::IStoragePtr storage,
     NInterop::ICoordinationServicePtr coordinationService,
-    std::string configFile)
+    std::string configFile,
+    ui16 tcpPort,
+    ui16 httpPort)
 {
     return std::make_shared<TServer>(
         std::move(logger),
         std::move(storage),
         std::move(coordinationService),
-        std::move(configFile));
+        std::move(configFile),
+        tcpPort,
+        httpPort);
 }
 
 }   // namespace NClickHouse

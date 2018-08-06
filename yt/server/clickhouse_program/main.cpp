@@ -22,6 +22,10 @@ class TProgram
 private:
     TString XmlConfig;
     TString CliqueId_;
+    ui16 RpcPort_;
+    ui16 MonitoringPort_;
+    ui16 TcpPort_;
+    ui16 HttpPort_;
 
 public:
     TProgram();
@@ -38,12 +42,24 @@ TProgram::TProgram()
     , TProgramConfigMixin(Opts_)
 {
     Opts_.AddLongOption("xml-config", "xml configuration file")
-        .RequiredArgument()
+        .Required()
         .DefaultValue("config.xml")
         .StoreResult(&XmlConfig);
-    Opts_.AddLongOption("clique-id", "ClickHouse clique id (if not set, $YT_OPERATION_ID is used)")
-        .DefaultValue("")
+    Opts_.AddLongOption("clique-id", "ClickHouse clique id")
+        .Required()
         .StoreResult(&CliqueId_);
+    Opts_.AddLongOption("rpc-port", "ytserver RPC port")
+        .DefaultValue(9200)
+        .StoreResult(&RpcPort_);
+    Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
+        .DefaultValue(9201)
+        .StoreResult(&MonitoringPort_);
+    Opts_.AddLongOption("tcp-port", "ClickHouse TCP port")
+        .DefaultValue(9202)
+        .StoreResult(&TcpPort_);
+    Opts_.AddLongOption("http-port", "ClickHouse HTTP port")
+        .DefaultValue(9203)
+        .StoreResult(&HttpPort_);
 }
 
 void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
@@ -71,6 +87,10 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
         std::move(configNode),
         XmlConfig,
         CliqueId_,
+        RpcPort_,
+        MonitoringPort_,
+        TcpPort_,
+        HttpPort_,
     };
 
     bootstrap.Initialize();
