@@ -16,7 +16,7 @@ class TUserInjectingChannel
     : public TChannelWrapper
 {
 public:
-    TUserInjectingChannel(IChannelPtr underlyingChannel, const TString& user)
+    TUserInjectingChannel(IChannelPtr underlyingChannel, const TNullable<TString>& user)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
     { }
@@ -37,15 +37,17 @@ public:
 protected:
     virtual void DoInject(const IClientRequestPtr& request)
     {
-        request->SetUser(User_);
+        if (User_) {
+            request->SetUser(*User_);
+        }
         request->SetUserAgent("yt-cpp-rpc-client/1.0");
     }
 
 private:
-    const TString User_;
+    const TNullable<TString> User_;
 };
 
-IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const TString& user)
+IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const TNullable<TString>& user)
 {
     YCHECK(underlyingChannel);
     return New<TUserInjectingChannel>(std::move(underlyingChannel), user);
@@ -59,7 +61,7 @@ class TTokenInjectingChannel
 public:
     TTokenInjectingChannel(
         IChannelPtr underlyingChannel,
-        const TString& user,
+        const TNullable<TString>& user,
         const TString& token)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
         , Token_(token)
@@ -80,7 +82,7 @@ private:
 
 IChannelPtr CreateTokenInjectingChannel(
     IChannelPtr underlyingChannel,
-    const TString& user,
+    const TNullable<TString>& user,
     const TString& token)
 {
     YCHECK(underlyingChannel);
@@ -98,7 +100,7 @@ class TCookieInjectingChannel
 public:
     TCookieInjectingChannel(
         IChannelPtr underlyingChannel,
-        const TString& user,
+        const TNullable<TString>& user,
         const TString& sessionId,
         const TString& sslSessionId)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
@@ -123,7 +125,7 @@ private:
 
 IChannelPtr CreateCookieInjectingChannel(
     IChannelPtr underlyingChannel,
-    const TString& user,
+    const TNullable<TString>& user,
     const TString& sessionId,
     const TString& sslSessionId)
 {

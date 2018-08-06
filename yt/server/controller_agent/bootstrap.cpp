@@ -118,7 +118,7 @@ void TBootstrap::DoRun()
     Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
-    clientOptions.User = NSecurityClient::SchedulerUserName;
+    clientOptions.PinnedUser = NSecurityClient::SchedulerUserName;
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
