@@ -12,6 +12,16 @@
     "build": {
         "targets": [
             "yt/server/cell_node_program"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            }
         ]
     },
     "data": [

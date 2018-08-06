@@ -99,6 +99,18 @@ def ya_make_env(options):
         "YA_CACHE_DIR": get_ya_cache_dir(options),
     }
 
+def ya_make_definition_args(options):
+    # This args cannot be passed to ya package.
+    return [
+        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
+        "-DYT_VERSION_BRANCH={0}".format(options.branch),
+    ]
+
+def ya_make_args(options):
+    return [
+        "--build", options.ya_build_type,
+    ]
+
 def run_yall(options):
     assert options.build_system == "ya"
     yall = os.path.join(options.checkout_directory, "yall")
@@ -106,6 +118,8 @@ def run_yall(options):
     args = [
         yall,
     ]
+    args += ya_make_args(options)
+    args += ya_make_definition_args(options)
     if options.use_asan:
         args += ["--yall-asan-build"]
 
@@ -254,23 +268,7 @@ def configure(options, build_context):
             _configure(options, build_context, options.working_directory)
     else:
         assert options.build_system == "ya"
-        ya_conf_text = (
-            """create_symlinks = false\n"""
-            """output_style = "make"\n"""
-            """install_dir = "{bin_dir}"\n"""
-            """build_type = "{build_type}"\n"""
-            """[flags]\n"""
-            """YT_VERSION_PATCH="{yt_version_patch}"\n"""
-            """YT_VERSION_BRANCH="{yt_version_branch}\"\n"""
-        ).format(
-            bin_dir=get_bin_dir(options),
-            build_type=options.ya_build_type,
-            yt_version_patch=options.patch_number,
-            yt_version_branch=options.branch,
-        )
-        ya_conf = os.path.join(options.checkout_directory, "ya.conf")
-        with open(ya_conf, "w") as outf:
-            outf.write(ya_conf_text)
+        teamcity_message("Ya build doesn't require configuration")
 
 @build_step
 def build(options, build_context):
@@ -576,7 +574,7 @@ def run_sandbox_upload(options, build_context):
     else:
         assert options.build_system == "ya"
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
-        yt_http_proxy_package = os.path.join(options.checkout_directory, "yt/packages/yandex-yt-http-proxy.json")
+        yt_http_proxy_package = os.path.join(get_bin_dir(options), "yandex-yt-http-proxy.json")
 
         with cwd(tmp_dir):
             args = [
@@ -587,6 +585,7 @@ def run_sandbox_upload(options, build_context):
                 "--tar",
                 "--no-compression",
             ]
+            args += ya_make_args(options)
             run(args, env=ya_make_env(options))
             generated_package_list = glob.glob("*.tar")
             assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
