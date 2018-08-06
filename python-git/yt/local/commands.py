@@ -330,10 +330,10 @@ def _is_exists(id, path=None):
     sandbox_path = os.path.join(get_root_path(path), id)
     return os.path.isdir(sandbox_path)
 
-def stop(id, remove_working_dir=False, path=None):
+def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
     require(_is_exists(id, path),
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
-    require(not _is_stopped(id, path),
+    require(ignore_lock or not _is_stopped(id, path),
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
