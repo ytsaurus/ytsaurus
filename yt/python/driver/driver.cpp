@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/driver/config.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -88,7 +88,9 @@ public:
 
         try {
             ConfigNode_ = ConvertObjectToNode(configDict);
-            UnderlyingDriver_ = CreateDriver(ConfigNode_);
+            auto connection = NApi::CreateConnection(ConfigNode_);
+            auto driverConfig = ConvertTo<TDriverConfigPtr>(ConfigNode_);
+            UnderlyingDriver_ = CreateDriver(connection, driverConfig);
         } catch(const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());
         }

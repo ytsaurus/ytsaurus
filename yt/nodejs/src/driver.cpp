@@ -12,6 +12,8 @@
 #include <yt/ytlib/driver/config.h>
 #include <yt/ytlib/driver/driver.h>
 
+#include <yt/ytlib/api/connection.h>
+
 #include <yt/client/formats/format.h>
 
 #include <yt/core/actions/bind_helpers.h>
@@ -479,7 +481,9 @@ Handle<Value> TDriverWrap::New(const Arguments& args)
         auto config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
 
-        auto driver = CreateDriver(config->Driver);
+        auto connection = NApi::CreateConnection(config->Driver);
+        auto driverConfig = ConvertTo<TDriverConfigPtr>(config->Driver);
+        auto driver = CreateDriver(connection, driverConfig);
 
         auto wrap = new TDriverWrap(echo, std::move(driver));
         wrap->Wrap(args.This());

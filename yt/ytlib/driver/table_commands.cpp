@@ -107,7 +107,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 
     auto finally = Finally([&] () {
         auto dataStatistics = reader->GetDataStatistics();
-        LOG_DEBUG("Command \"read_table\" statistics (RowCount: %v, WrittenSize: %v, "
+        LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
             "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
             dataStatistics.row_count(),
             writer->GetWrittenSize(),
