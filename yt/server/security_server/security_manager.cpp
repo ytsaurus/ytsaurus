@@ -1123,6 +1123,7 @@ public:
                 permission,
                 user->GetName());
             result.Action = ESecurityAction::Deny;
+            result.Subject = user;
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
