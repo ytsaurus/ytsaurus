@@ -7395,8 +7395,14 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType type, const TError& alert)
 {
-    TGuard<TSpinLock> guard(AlertsLock_);
-    Alerts_[type] = alert;
+    if (!alert.IsOK()) {
+        LOG_DEBUG(alert, "Setting %lv alert", type);
+    }
+
+    {
+        TGuard<TSpinLock> guard(AlertsLock_);
+        Alerts_[type] = alert;
+    }
 }
 
 bool TOperationControllerBase::IsCompleted() const
