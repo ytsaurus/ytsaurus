@@ -27,6 +27,11 @@ from copy import deepcopy
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
+    def _sync_create_tablet_cell(self):
+        cell_id = yt.create("tablet_cell", attributes={"size": 1})
+        wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
+        return cell_id
+
     def _test_read_write(self):
         table = TEST_DIR + "/table"
         yt.create("table", table)
@@ -230,9 +235,7 @@ class TestTableCommands(object):
                 {"name": "y", "type": "string"}
             ]})
 
-        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
-            time.sleep(0.1)
+        self._sync_create_tablet_cell()
 
         yt.mount_table(table, sync=True)
         assert yt.get("{0}/@tablets/0/state".format(table)) == "mounted"
@@ -244,8 +247,8 @@ class TestTableCommands(object):
         yt.mount_table(table, sync=True, freeze=True)
         assert yt.get("{0}/@tablets/0/state".format(table)) == "frozen"
 
-        yt.unmount_table(table)
-        assert yt.get("{0}/@tablets/0/state".format(table)) == "unmounting"
+        yt.unmount_table(table, sync=True)
+        assert yt.get("{0}/@tablets/0/state".format(table)) == "unmounted"
 
     @pytest.mark.xfail(run = False, reason = "In progress")
     def test_select(self):
@@ -285,9 +288,7 @@ class TestTableCommands(object):
                     {"name": "y", "type": "string"}
                 ]})
 
-            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
-                time.sleep(0.1)
+            self._sync_create_tablet_cell()
 
             yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
@@ -314,9 +315,7 @@ class TestTableCommands(object):
                     {"name": "y", "type": "string"}
                 ]})
 
-            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
-                time.sleep(0.1)
+            self._sync_create_tablet_cell()
 
             yt.mount_table(table, sync=True)
             vanilla_client = yt.YtClient(config=yt.config)
@@ -354,9 +353,7 @@ class TestTableCommands(object):
                     {"name": "y", "type": "string"}
                 ]})
 
-            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
-                time.sleep(0.1)
+            self._sync_create_tablet_cell()
 
             yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
@@ -547,7 +544,7 @@ class TestTableCommands(object):
             yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
 
     def _set_banned(self, value):
-        # NB: we cannot unban proxy using proxy, so we must using client for that.
+        # NB: we cannot unban proxy using proxy, so we must use client for that.
         client = yt.YtClient(config={"backend": "native", "driver_config": yt.config["driver_config"]})
         proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
         client.set(proxy + "/@banned".format(proxy), value)
@@ -635,9 +632,7 @@ class TestTableCommands(object):
                 {"name": "y", "type": "string"}
             ]})
 
-        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
-            time.sleep(0.1)
+        self._sync_create_tablet_cell()
 
         yt.mount_table(table, sync=True)
 
@@ -666,9 +661,7 @@ class TestTableCommands(object):
                     {"name": "y", "type": "string"}
                 ]})
 
-            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
-                time.sleep(0.1)
+            self._sync_create_tablet_cell()
 
             yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}], raw=False)
@@ -896,8 +889,7 @@ class TestTableCommands(object):
             address = str(replicas[0])
 
             client.set("//sys/nodes/{0}/@banned".format(address), True)
-            while client.get("//sys/nodes/{0}/@state".format(address)) != "offline":
-                time.sleep(0.1)
+            wait(lambda: client.get("//sys/nodes/{0}/@state".format(address)) == "offline")
 
             assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
         finally:
