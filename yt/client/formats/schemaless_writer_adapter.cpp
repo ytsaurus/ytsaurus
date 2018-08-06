@@ -250,13 +250,13 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
     }
 }
 
-void TSchemalessFormatWriterBase::WriteTableIndex(i64 tableIndex)
+void TSchemalessFormatWriterBase::WriteTableIndex(i64 /* tableIndex */)
 { }
 
-void TSchemalessFormatWriterBase::WriteRangeIndex(i64 rangeIndex)
+void TSchemalessFormatWriterBase::WriteRangeIndex(i64 /* rangeIndex */)
 { }
 
-void TSchemalessFormatWriterBase::WriteRowIndex(i64 rowIndex)
+void TSchemalessFormatWriterBase::WriteRowIndex(i64 /* rowIndex */)
 { }
 
 bool TSchemalessFormatWriterBase::HasError() const

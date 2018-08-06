@@ -1,5 +1,7 @@
 SET(PROTO_NAMESPACE yt/${YT_ABI})
 
+add_subdirectory(formats)
+
 include(Sources.txt)
 
 if(YT_ADD_HEADERS_TO_SRCS)
@@ -8,6 +10,7 @@ if(YT_ADD_HEADERS_TO_SRCS)
 endif()
 
 set(YT_SOURCE_FILES)
+protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})

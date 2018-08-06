@@ -29,8 +29,6 @@ public:
         const std::vector<NScheduler::TExecNodePtr>& execNodes,
         IOutputStream* eventLogOutputStream);
 
-    virtual NScheduler::TJobResources GetTotalResourceLimits() override;
-
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
 
     TInstant GetConnectionTime() const override;

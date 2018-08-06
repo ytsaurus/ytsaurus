@@ -23,11 +23,6 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 }
 
-TJobResources TSchedulerStrategyHost::GetTotalResourceLimits()
-{
-    return TotalResourceLimits_;
-}
-
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter)
 {
     auto it = FilterToJobResources_.find(filter);

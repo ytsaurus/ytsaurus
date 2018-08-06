@@ -36,7 +36,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/client/table_client/schemaless_writer.h>
-#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -172,10 +172,6 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , CachedExecNodeMemoryDistributionByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
-            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker(EControlQueue::PeriodicActivity)))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -302,9 +298,14 @@ public:
 
         JobReporterWriteFailuresChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::CheckJobReporterWriteFailures, MakeWeak(this)),
-            Config_->JobReporterWriteFailuresCheckPeriod);
+            BIND(&TImpl::CheckJobReporterIssues, MakeWeak(this)),
+            Config_->JobReporterIssuesCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
+
+        CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
+            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetControlInvoker(EControlQueue::PeriodicActivity));
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -435,12 +436,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (filter.IsEmpty()) {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-
-            return CachedExecNodeMemoryDistribution_;
-        }
-
         return CachedExecNodeMemoryDistributionByTags_->Get(filter);
     }
 
@@ -569,7 +564,7 @@ public:
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: %v)",
             operationId,
-            FormatResources(GetTotalResourceLimits()));
+            FormatResources(GetResourceLimits(EmptySchedulingTagFilter)));
 
         try {
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
@@ -771,8 +766,24 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
-    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
+    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
     {
+        std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
+        for (const auto& jobId : jobIds) {
+            auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
+            jobIdsByShardId[shardId].emplace_back(jobId);
+        }
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            if (jobIdsByShardId[shardId].empty()) {
+                continue;
+            }
+            NodeShards_[shardId]->GetInvoker()->Invoke(
+                BIND(&TNodeShard::AbortJobs,
+                    NodeShards_[shardId],
+                    jobIdsByShardId[shardId],
+                    TError("Job was in banned tentative pool tree")));
+        }
+
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
     }
@@ -817,6 +828,16 @@ public:
 
         auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
         Deserialize(userRuntimeParams, parameters);
+
+        // TODO(renadeen): remove this quick and dirty fix
+        if (userRuntimeParams->Pool) {
+            THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+        }
+        for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
+            if (pair.second->Pool) {
+                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+            }
+        }
 
         auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
 
@@ -904,28 +925,6 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual TJobResources GetTotalResourceLimits() override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto totalResourceLimits = ZeroJobResources();
-        for (const auto& nodeShard : NodeShards_) {
-            totalResourceLimits += nodeShard->GetTotalResourceLimits();
-        }
-        return totalResourceLimits;
-    }
-
-    TJobResources GetTotalResourceUsage()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto totalResourceUsage = ZeroJobResources();
-        for (const auto& nodeShard : NodeShards_) {
-            totalResourceUsage += nodeShard->GetTotalResourceUsage();
-        }
-        return totalResourceUsage;
-    }
-
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1185,7 +1184,6 @@ private:
     mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
-    TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
@@ -1355,8 +1353,8 @@ private:
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
-        ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
-        ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
+        ProfileResources(TotalResourceLimitsProfiler_, GetResourceLimits(EmptySchedulingTagFilter));
+        ProfileResources(TotalResourceUsageProfiler_, GetResourceUsage(EmptySchedulingTagFilter));
 
         {
             TJobTimeStatisticsDelta jobTimeStatisticsDelta;
@@ -1377,8 +1375,8 @@ private:
             LogEventFluently(ELogEventType::ClusterInfo)
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
-                .Item("resource_limits").Value(GetTotalResourceLimits())
-                .Item("resource_usage").Value(GetTotalResourceUsage());
+                .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
+                .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter));
         }
     }
 
@@ -1759,7 +1757,7 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
-            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterWriteFailuresCheckPeriod);
+            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -1822,30 +1820,39 @@ private:
             TWriterGuard guard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, result);
         }
-
-        auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
-        {
-            TWriterGuard guard(ExecNodeDescriptorsLock_);
-            CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
-        }
     }
 
-    void CheckJobReporterWriteFailures()
+    void CheckJobReporterIssues()
     {
         int writeFailures = 0;
+        int queueIsTooLargeNodeCount = 0;
         for (const auto& shard : NodeShards_) {
             writeFailures += shard->ExtractJobReporterWriteFailuresCount();
+            queueIsTooLargeNodeCount += shard->GetJobReporterQueueIsTooLargeNodeCount();
         }
 
-        TError error;
+        std::vector<TError> errors;
         if (writeFailures > Config_->JobReporterWriteFailuresAlertThreshold) {
-            error = TError("Too many job archive writes failed")
-                << TErrorAttribute("aggregation_period", Config_->JobReporterWriteFailuresCheckPeriod)
+            auto error = TError("Too many job archive writes failed")
+                << TErrorAttribute("aggregation_period", Config_->JobReporterIssuesCheckPeriod)
                 << TErrorAttribute("threshold", Config_->JobReporterWriteFailuresAlertThreshold)
                 << TErrorAttribute("write_failures", writeFailures);
+            errors.push_back(error);
+        }
+        if (queueIsTooLargeNodeCount > Config_->JobReporterQueueIsTooLargeAlertThreshold) {
+            auto error = TError("Too many nodes has large job archivation queues")
+                << TErrorAttribute("threshold", Config_->JobReporterQueueIsTooLargeAlertThreshold)
+                << TErrorAttribute("queue_is_too_large_node_count", queueIsTooLargeNodeCount);
+            errors.push_back(error);
         }
 
-        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, error);
+        TError resultError;
+        if (!errors.empty()) {
+            resultError = TError("Job archivation issues detected")
+                << errors;
+        }
+
+        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
     }
 
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
@@ -2633,6 +2640,18 @@ private:
         }
     }
 
+    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto resourceUsage = ZeroJobResources();
+        for (const auto& nodeShard : NodeShards_) {
+            resourceUsage += nodeShard->GetResourceUsage(filter);
+        }
+
+        return resourceUsage;
+    }
+
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
@@ -2670,8 +2689,8 @@ private:
                 .Item("connected").Value(IsConnected())
                 // COMPAT(babenko): deprecate cell in favor of cluster
                 .Item("cell").BeginMap()
-                    .Item("resource_limits").Value(GetTotalResourceLimits())
-                    .Item("resource_usage").Value(GetTotalResourceUsage())
+                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
+                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
@@ -2685,8 +2704,8 @@ private:
                         })
                 .EndMap()
                 .Item("cluster").BeginMap()
-                    .Item("resource_limits").Value(GetTotalResourceLimits())
-                    .Item("resource_usage").Value(GetTotalResourceUsage())
+                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
+                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
@@ -3181,9 +3200,9 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
+void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
 {
-    Impl_->OnOperationBannedInTentativeTree(operation, treeId);
+    Impl_->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
 }
 
 TFuture<void> TScheduler::UpdateOperationParameters(

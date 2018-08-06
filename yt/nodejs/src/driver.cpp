@@ -12,7 +12,7 @@
 #include <yt/ytlib/driver/config.h>
 #include <yt/ytlib/driver/driver.h>
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
 
 #include <yt/core/actions/bind_helpers.h>
 

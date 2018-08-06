@@ -63,6 +63,9 @@ message TAgentToSchedulerOperationEvent
 
     // for BannedInTentativeTree
     optional string tentative_tree_id = 4;
+
+    // for BannedInTentativeTree
+    repeated NYT.NProto.TGuid tentative_tree_job_ids = 5;
 }
 
 message TAgentToSchedulerJobEvent

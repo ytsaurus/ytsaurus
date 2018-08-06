@@ -280,7 +280,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
     const bool enumsAsStrings = config->EnumsAsStrings;
     std::vector<const Descriptor*> messageDescriptors;
     for (size_t i = 0; i < config->FileIndices.size(); ++i) {
-        if (config->FileIndices[i] >= fileDescriptors.size()) {
+        if (config->FileIndices[i] >= static_cast<int>(fileDescriptors.size())) {
             THROW_ERROR_EXCEPTION("File index is out of bound")
                 << TErrorAttribute("file_index", config->FileIndices[i])
                 << TErrorAttribute("file_count", fileDescriptors.size());

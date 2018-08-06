@@ -3,7 +3,7 @@
 #include "format.h"
 #include "config.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/client/table_client/public.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/format.h>

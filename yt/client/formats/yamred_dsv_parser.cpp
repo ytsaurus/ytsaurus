@@ -72,7 +72,7 @@ private:
                 fields.size());
         }
 
-        for (int i = 0; i < fields.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
             Consumer->OnKeyedItem(fieldNames[i]);
             Consumer->OnStringScalar(fields[i]);
         }

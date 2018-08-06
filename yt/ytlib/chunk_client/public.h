@@ -88,7 +88,6 @@ DEFINE_ENUM(ESessionType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)
-DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)

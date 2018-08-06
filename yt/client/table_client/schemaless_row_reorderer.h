@@ -1,8 +1,6 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/client/table_client/unversioned_row.h>
+#include "unversioned_row.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -32,7 +30,6 @@ private:
 
     std::vector<int> IdMapping_;
     std::vector<TUnversionedValue> EmptyKey_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

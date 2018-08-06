@@ -7,14 +7,14 @@
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/ytlib/formats/config.h>
-#include <yt/ytlib/formats/parser.h>
-#include <yt/ytlib/formats/lenval_control_constants.h>
-#include <yt/ytlib/formats/protobuf_writer.h>
-#include <yt/ytlib/formats/protobuf_parser.h>
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/config.h>
+#include <yt/client/formats/parser.h>
+#include <yt/client/formats/lenval_control_constants.h>
+#include <yt/client/formats/protobuf_writer.h>
+#include <yt/client/formats/protobuf_parser.h>
+#include <yt/client/formats/format.h>
 #include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/value_consumer.h>
+#include <yt/client/table_client/value_consumer.h>
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/async_stream.h>

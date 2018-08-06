@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/client/table_client/value_consumer.h> // TODO(babenko): replace with public
+
 #include <yt/client/table_client/schemaless_writer.h>
 
 #include <yt/core/concurrency/public.h>
@@ -12,7 +13,6 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/attributes.h>
-#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NFormats {

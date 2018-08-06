@@ -362,11 +362,16 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_tracker", ControllerAgentTracker)
         .DefaultNew();
 
-    RegisterParameter("job_reporter_write_failures_check_period", JobReporterWriteFailuresCheckPeriod)
+    RegisterParameter("job_reporter_issues_check_period", JobReporterIssuesCheckPeriod)
         .Default(TDuration::Minutes(1));
 
     RegisterParameter("job_reporter_write_failures_alert_threshold", JobReporterWriteFailuresAlertThreshold)
+        .Default(1000);
+    RegisterParameter("job_reporter_queue_is_too_large_alert_threshold", JobReporterQueueIsTooLargeAlertThreshold)
         .Default(10);
+
+    RegisterParameter("node_changes_count_threshold_to_update_cache", NodeChangesCountThresholdToUpdateCache)
+        .Default(5);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

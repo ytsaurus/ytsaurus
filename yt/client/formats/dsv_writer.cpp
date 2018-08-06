@@ -219,7 +219,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
-    int keyColumnCount)
+    int /* keyColumnCount */)
 {
     if (controlAttributesConfig->EnableKeySwitch) {
         THROW_ERROR_EXCEPTION("Key switches are not supported in DSV format");
