@@ -1250,6 +1250,10 @@ private:
             return;
         }
 
+        if (!alert.IsOK()) {
+            LOG_DEBUG(alert, "Setting %lv alert", alertType);
+        }
+
         operation->SetAlert(alertType, alert, timeout);
     }
 
