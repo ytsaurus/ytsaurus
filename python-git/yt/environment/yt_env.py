@@ -34,6 +34,9 @@ CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "memory", "freezer"])
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
+class YtEnvRetriableError(YtError):
+    pass
+
 def _parse_version(s):
     if "version:" in s:
         # "ytserver  version: 0.17.3-unknown~debug~0+local"
@@ -646,25 +649,35 @@ class YTInstance(object):
         self.pids_file.write(str(pid) + "\n")
         self.pids_file.flush()
 
-    def _print_stderrs(self, name, number=None):
+    def _process_stderrs(self, name, number=None):
         if not self._capture_stderr_to_file:
             return
 
-        def print_stderr(path, num=None):
+        has_some_bind_failure = False
+
+        def process_stderr(path, num=None):
             number_suffix = ""
             if num is not None:
                 number_suffix = "-" + str(num)
 
-            process_stderr = open(path).read()
-            if process_stderr:
-                sys.stderr.write("{0}{1} stderr:\n{2}"
-                                 .format(name.capitalize(), number_suffix, process_stderr))
+            stderr = open(path).read()
+            if stderr:
+                stderr.write("{0}{1} stderr:\n{2}"
+                             .format(name.capitalize(), number_suffix, stderr))
+                if "Address already in use" in stderr:
+                    return True
+            return False
 
         if number is not None:
-            print_stderr(self._stderr_paths[name][number], number)
+            has_bind_failure = process_stderr(self._stderr_paths[name][number], number)
+            has_some_bind_failure = has_some_bind_failure or has_bind_failure
         else:
             for i, stderr_path in enumerate(self._stderr_paths[name]):
-                print_stderr(stderr_path, i)
+                has_bind_failure = process_stderr(stderr_path, i)
+                has_some_bind_failure = has_some_bind_failure or has_bind_failure
+
+        if has_some_bind_failure:
+            raise YtEnvRetriableError("Process failed to bind on some of ports")
 
     def _run(self, args, name, number=None, cgroup_paths=None, timeout=0.1):
         if cgroup_paths is None:
@@ -1198,7 +1211,7 @@ class YTInstance(object):
             name_with_number = name
 
         if process.poll() is not None:
-            self._print_stderrs(name, number)
+            self._process_stderrs(name, number)
             raise YtError("Process {0} unexpectedly terminated with error code {1}. "
                           "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
                           .format(name_with_number, process.returncode))
@@ -1227,7 +1240,7 @@ class YTInstance(object):
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
 
-        self._print_stderrs(name)
+        self._process_stderrs(name)
 
         error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                         .format(name.capitalize(), max_wait_time))
