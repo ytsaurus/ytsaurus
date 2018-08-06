@@ -953,6 +953,8 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
+        DoSetOperationAlert(operationId, EOperationAlertType::OperationIsPending, TError());
+
         operation->SetActivated(true);
         if (operation->GetPrepared()) {
             MaterializeOperation(operation);
@@ -1241,7 +1243,7 @@ private:
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout = Null)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
