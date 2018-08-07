@@ -8,9 +8,12 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/operation_archive_schema.h>
+
+#include <yt/client/security_client/public.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -304,6 +307,8 @@ public:
         , Host_(host)
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
+        , Client_(Bootstrap_->GetMasterClient()->GetNativeConnection()
+            ->CreateNativeClient(TClientOptions(NSecurityClient::OperationsCleanerUserName)))
     { }
 
     void Start()
@@ -435,6 +440,8 @@ private:
 
     TNonblockingBatch<TOperationId> RemoveBatcher_;
     TNonblockingBatch<TOperationId> ArchiveBatcher_;
+
+    NNative::IClientPtr Client_;
 
     TProfiler Profiler = {"/operations_cleaner"};
 
@@ -658,7 +665,7 @@ private:
             THROW_ERROR_EXCEPTION("Unknown operations archive version");
         }
 
-        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
+        auto asyncTransaction = Client_->StartTransaction(
             ETransactionType::Tablet, TTransactionStartOptions{});
         auto transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
@@ -789,7 +796,7 @@ private:
             std::vector<TOperationId> operationIdsToRemove;
 
             {
-                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+                auto channel = Client_->GetMasterChannelOrThrow(
                     EMasterChannelKind::Follower,
                     PrimaryMasterCellTag);
 
@@ -846,7 +853,7 @@ private:
             }
 
             if (!operationIdsToRemove.empty()) {
-                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+                auto channel = Client_->GetMasterChannelOrThrow(
                     EMasterChannelKind::Leader,
                     PrimaryMasterCellTag);
 
@@ -963,7 +970,7 @@ private:
         LOG_INFO("Fetching all finished operations from Cypress");
 
         auto createBatchRequest = BIND([this] {
-            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+            auto channel = Client_->GetMasterChannelOrThrow(
                 EMasterChannelKind::Follower, PrimaryMasterCellTag);
 
             TObjectServiceProxy proxy(channel);
