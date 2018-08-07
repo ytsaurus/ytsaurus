@@ -3038,9 +3038,10 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 
     TError error;
     if (!innerErrors.empty()) {
-        error = TError("Operation has jobs with duration is less than %v seconds, "
-                       "that leads to large overhead costs for scheduling",
-                       Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds())
+        error = TError(
+            "Operation has jobs with duration is less than %v seconds, "
+            "that leads to large overhead costs for scheduling",
+            Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds())
             << innerErrors;
     }
 
@@ -3072,6 +3073,7 @@ void TOperationControllerBase::AnalyzeOperationDuration()
             break;
         }
     }
+
     SetOperationAlert(EOperationAlertType::OperationTooLong, error);
 }
 
@@ -3085,7 +3087,7 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
         error = TError(
             "Excessive job spec throttling is detected. Usage ratio of operation can be "
             "significantly less than fair share ratio")
-                << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
+             << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
     }
 
     SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
@@ -7393,16 +7395,19 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
     task->FinishInput(TDataFlowGraph::SourceDescriptor);
 }
 
-void TOperationControllerBase::SetOperationAlert(EOperationAlertType type, const TError& alert)
+void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)
 {
-    if (!alert.IsOK()) {
-        LOG_DEBUG(alert, "Setting %lv alert", type);
+    TGuard<TSpinLock> guard(AlertsLock_);
+
+    if (alert.IsOK() && !Alerts_[alertType].IsOK()) {
+        LOG_DEBUG("Alert reset (Type: %v)",
+            alertType);
+    } else {
+        LOG_DEBUG(alert, "Alert set (Type: %v)",
+            alertType);
     }
 
-    {
-        TGuard<TSpinLock> guard(AlertsLock_);
-        Alerts_[type] = alert;
-    }
+    Alerts_[alertType] = alert;
 }
 
 bool TOperationControllerBase::IsCompleted() const
