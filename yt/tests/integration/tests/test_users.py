@@ -78,20 +78,30 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@request_count") == 0
 
     def test_builtin_init(self):
-        assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
-        assert_items_equal(get("//sys/groups/users/@members"), ["superusers", "owner", "application_operations"])
+        assert_items_equal(get("//sys/groups/everyone/@members"),
+            ["users", "guest"])
+        assert_items_equal(get("//sys/groups/users/@members"),
+            ["superusers", "owner", "application_operations"])
         assert_items_equal(get("//sys/groups/superusers/@members"),
-            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations"])
+            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations", "operations_cleaner"])
 
         assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])
         assert_items_equal(get("//sys/users/scheduler/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/job/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/replicator/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/file_cache/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/application_operations/@member_of"), ["superusers", "users"])
+        assert_items_equal(get("//sys/users/operations_cleaner/@member_of"), ["superusers"])
 
         assert_items_equal(get("//sys/users/root/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/guest/@member_of_closure"), ["everyone"])
         assert_items_equal(get("//sys/users/scheduler/@member_of_closure"), ["superusers", "users", "everyone"])
         assert_items_equal(get("//sys/users/job/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/replicator/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/file_cache/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/application_operations/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/operations_cleaner/@member_of_closure"), ["superusers", "users", "everyone"])
 
     def test_create_user1(self):
         create_user("max")
