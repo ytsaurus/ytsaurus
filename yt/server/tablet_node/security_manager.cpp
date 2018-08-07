@@ -38,26 +38,6 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     : TAuthenticatedUserGuardBase(std::move(securityManager), maybeUser)
 { }
 
-#if 0
-TAuthenticatedUserGuard::TAuthenticatedUserGuard(
-    TSecurityManagerPtr securityManager,
-    const TNullable<TString>& maybeUser)
-    : SecurityManager_(std::move(securityManager))
-    , IsNull_(!maybeUser)
-{
-    if (!IsNull_) {
-        SecurityManager_->SetAuthenticatedUser(*maybeUser);
-    }
-}
-
-TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
-{
-    if (!IsNull_) {
-        SecurityManager_->ResetAuthenticatedUser();
-    }
-}
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTablePermissionKey
