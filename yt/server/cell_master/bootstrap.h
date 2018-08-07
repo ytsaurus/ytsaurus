@@ -144,6 +144,7 @@ private:
         NElection::TCellConfigPtr config,
         const TString& localAddress);
 
+    NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
     void DoInitialize();
     void DoRun();
     void DoLoadSnapshot(const TString& fileName, bool dump);
