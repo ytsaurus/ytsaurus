@@ -106,7 +106,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -165,6 +165,10 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
 
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
         table->SetLastMountTransactionId(freeze ? transaction->GetId() : TTransactionId());
         table->UpdateExpectedTabletState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
@@ -209,7 +213,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -249,6 +253,10 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
 
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
         table->SetLastMountTransactionId(transaction->GetId());
 
         if (table->IsExternal()) {
@@ -281,7 +289,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -318,6 +326,10 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
 
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
         table->SetLastMountTransactionId(transaction->GetId());
 
         if (table->IsExternal()) {
@@ -349,7 +361,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -386,6 +398,10 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
 
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
         table->SetLastMountTransactionId(TTransactionId());
         table->UpdateExpectedTabletState(ETabletState::Mounted);
 
@@ -418,7 +434,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -454,6 +470,11 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -490,7 +511,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
@@ -536,6 +557,11 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
