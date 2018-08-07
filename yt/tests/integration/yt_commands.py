@@ -1213,15 +1213,17 @@ def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
 def wait_until_sealed(path, driver=None):
     wait(lambda: get(path + "/@sealed", driver=driver))
 
-def wait_for_tablet_state(path, state_or_states, **kwargs):
-    states = [state_or_states] if isinstance(state_or_states, str) else state_or_states
-    print >>sys.stderr, "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
+def wait_for_tablet_state(path, state, **kwargs):
+    print >>sys.stderr, "Waiting for tablets to become %s..." % (state)
     driver = kwargs.pop("driver", None)
-    tablet_count = get(path + '/@tablet_count', driver=driver)
-    first_tablet_index = kwargs.get("first_tablet_index", 0)
-    last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
-    wait(lambda: all(x["state"] in states for x in
-         get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
+    if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
+        wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
+    else:
+        tablet_count = get(path + '/@tablet_count', driver=driver)
+        first_tablet_index = kwargs.get("first_tablet_index", 0)
+        last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
+        wait(lambda: all(x["state"] == state for x in
+             get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
 
 def sync_mount_table(path, freeze=False, **kwargs):
     mount_table(path, freeze=freeze, **kwargs)

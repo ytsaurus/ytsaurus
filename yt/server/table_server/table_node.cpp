@@ -66,6 +66,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, ExpectedTabletState);
     Save(context, LastMountTransactionId);
     Save(context, TabletCountByExpectedState);
+    Save(context, ActualTabletState);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -106,6 +107,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, ExpectedTabletState);
         Load(context, LastMountTransactionId);
         Load(context, TabletCountByExpectedState);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 801) {
+        Load(context, ActualTabletState);
     }
 
     // COMPAT(savrus)
@@ -206,6 +211,19 @@ bool TTableNode::IsPhysicallySorted() const
 }
 
 ETabletState TTableNode::GetTabletState() const
+{
+    if (GetLastMountTransactionId()) {
+        return ETabletState::Transient;
+    }
+
+    if (!IsDynamic()) {
+        return ETabletState::None;
+    }
+
+    return GetActualTabletState();
+}
+
+ETabletState TTableNode::ComputeActualTabletState() const
 {
     auto* trunkNode = GetTrunkNode();
     if (trunkNode->Tablets().empty()) {
@@ -571,7 +589,7 @@ void TTableNode::ValidateExpectedTabletState(const TString& message, bool allowF
         THROW_ERROR_EXCEPTION("%v since not all tablets are %v",
             message,
             allowFrozen ? "frozen or unmounted" : "unmounted")
-            << TErrorAttribute("tablet_state", trunkTable->GetTabletState())
+            << TErrorAttribute("actual_tablet_state", trunkTable->GetActualTabletState())
             << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
     }
 }
