@@ -38,7 +38,7 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
         .Apply(BIND([=, this_ = MakeStrong(this)] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error fetching %Qv from primary cell",
+                THROW_ERROR_EXCEPTION("Error fetching %v from primary cell",
                     path)
                     << cumulativeError;
             }
