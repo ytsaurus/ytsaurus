@@ -393,6 +393,21 @@ class TestDynamicTables(TestDynamicTablesBase):
         set("//sys/schemas/tablet_cell_bundle/@acl/end", make_ace("allow", "u", "create"))
         create_tablet_cell_bundle("b", authenticated_user="u")
 
+    def test_set_tablet_cell_bundle_failure(self):
+        sync_create_cells(1)
+        create_user("u")
+        create_tablet_cell_bundle("b")
+        self._create_sorted_table("//tmp/t")
+        with pytest.raises(YtError):
+            set("//tmp/t/@tablet_cell_bundle", "b", authenticated_user="u")
+
+        sync_mount_table("//tmp/t")
+        self.Env.kill_nodes()
+        unmount_table("//tmp/t")
+        with pytest.raises(YtError):
+            set("//tmp/t/@tablet_cell_bundle", "b")
+        self.Env.start_nodes()
+
     def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
         assert not get("//tmp/t/@dynamic")
