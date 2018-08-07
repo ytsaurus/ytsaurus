@@ -60,7 +60,7 @@ public:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TString user);
+        const TString& user);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
