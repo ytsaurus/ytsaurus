@@ -282,7 +282,7 @@ void TOperationControllerBase::InitializeClients()
     OutputClient = Client;
 }
 
-TOperationControllerInitializationResult TOperationControllerBase::InitializeReviving(const TControllerTransactions& transactions)
+TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactions& transactions)
 {
     LOG_INFO("Initializing operation for revive");
 
@@ -432,12 +432,12 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
 
     LOG_INFO("Operation initialized");
 
-    TOperationControllerInitializationResult result;
-    FillInitializationResult(&result);
+    TOperationControllerInitializeResult result;
+    FillInitializeResult(&result);
     return result;
 }
 
-TOperationControllerInitializationResult TOperationControllerBase::InitializeClean()
+TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 {
     LOG_INFO("Initializing operation for clean start (Title: %v)",
         Spec_->Title);
@@ -464,8 +464,8 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
 
     LOG_INFO("Operation initialized");
 
-    TOperationControllerInitializationResult result;
-    FillInitializationResult(&result);
+    TOperationControllerInitializeResult result;
+    FillInitializeResult(&result);
     return result;
 }
 
@@ -565,7 +565,7 @@ void TOperationControllerBase::InitUnrecognizedSpec()
     UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
 }
 
-void TOperationControllerBase::FillInitializationResult(TOperationControllerInitializationResult* result)
+void TOperationControllerBase::FillInitializeResult(TOperationControllerInitializeResult* result)
 {
     result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))

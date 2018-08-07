@@ -70,7 +70,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
-    const auto& initializationAttributes = attributes.InitializationAttributes;
+    const auto& initializationAttributes = attributes.InitializeAttributes;
     if (initializationAttributes) {
         UnrecognizedSpec = initializationAttributes->UnrecognizedSpec;
         FullSpec = initializationAttributes->FullSpec;

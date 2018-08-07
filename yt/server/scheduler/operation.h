@@ -43,7 +43,7 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 
 struct TControllerAttributes
 {
-    TNullable<NControllerAgent::TOperationControllerInitializationAttributes> InitializationAttributes;
+    TNullable<NControllerAgent::TOperationControllerInitializeAttributes> InitializeAttributes;
     NYson::TYsonString PrepareAttributes;
 };
 
