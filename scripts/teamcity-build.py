@@ -118,6 +118,7 @@ def run_yall(options):
     args = [
         yall,
     ]
+    args += ["--install", get_bin_dir(options)]
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
     if options.use_asan:
