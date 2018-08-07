@@ -369,6 +369,17 @@ TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAdd
     return InvalidPeerId;
 }
 
+TCellTagList TBootstrap::GetKnownParticipantCellTags() const
+{
+    TCellTagList participnatCellTags{PrimaryCellTag_};
+    if (IsPrimaryMaster()) {
+        participnatCellTags.insert(participnatCellTags.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
+    } else {
+        participnatCellTags.push_back(CellTag_);
+    }
+    return participnatCellTags;
+}
+
 void TBootstrap::DoInitialize()
 {
     Config_->PrimaryMaster->ValidateAllPeersPresent();
@@ -529,13 +540,6 @@ void TBootstrap::DoInitialize()
     // Initialize periodic latest timestamp update.
     TimestampProvider_->GetLatestTimestamp();
 
-    TCellTagList participants{PrimaryCellTag_};
-    if (IsPrimaryMaster()) {
-        participants.insert(participants.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
-    } else {
-        participants.push_back(CellTag_);
-    }
-
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
@@ -551,7 +555,7 @@ void TBootstrap::DoInitialize()
             CreateTransactionParticipantProvider(
                 CellDirectory_,
                 TimestampProvider_,
-                participants)
+                GetKnownParticipantCellTags())
         });
 
     fileSnapshotStore->Initialize();
