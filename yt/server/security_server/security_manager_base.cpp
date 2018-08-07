@@ -6,7 +6,7 @@ namespace NSecurityServer {
 ///////////////////////////////////////////////////////////////////////////////
 
 TAuthenticatedUserGuardBase::TAuthenticatedUserGuardBase(
-    ISecurityManagerBasePtr securityManager,
+    ISecurityManagerPtr securityManager,
     const TNullable<TString>& user)
 {
     if (user) {
