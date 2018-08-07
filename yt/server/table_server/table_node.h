@@ -149,16 +149,16 @@ public:
 
     void UpdateExpectedTabletState(NTabletClient::ETabletState state);
 
-    void ValidateTabletStateFixed(const TString& message) const;
-    void ValidateAllTabletsFrozenOrUnmounted(const TString& message) const;
-    void ValidateAllTabletsUnmounted(const TString& message) const;
+    void ValidateTabletStateFixed(TStringBuf message) const;
+    void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
+    void ValidateAllTabletsUnmounted(TStringBuf message) const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
 
-    void ValidateExpectedTabletState(const TString& message, bool allowFrozen) const;
+    void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
