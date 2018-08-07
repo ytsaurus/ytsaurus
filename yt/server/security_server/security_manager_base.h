@@ -18,16 +18,16 @@ class TAuthenticatedUserGuardBase
     : private TNonCopyable
 {
 public:
-    TAuthenticatedUserGuardBase(ISecurityManagerBasePtr securityManager, const TNullable<TString>& userName);
+    TAuthenticatedUserGuardBase(ISecurityManagerPtr securityManager, const TNullable<TString>& userName);
     ~TAuthenticatedUserGuardBase();
 
 protected:
-    ISecurityManagerBasePtr SecurityManager_;
+    ISecurityManagerPtr SecurityManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISecurityManagerBase
+struct ISecurityManager
     : public TRefCounted
 {
     //! Sets the authenticated user by user name.
@@ -40,7 +40,7 @@ struct ISecurityManagerBase
     virtual TNullable<TString> GetAuthenticatedUserName() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISecurityManagerBase)
+DEFINE_REFCOUNTED_TYPE(ISecurityManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

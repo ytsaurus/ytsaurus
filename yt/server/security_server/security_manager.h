@@ -64,7 +64,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public ISecurityManagerBase
+    : public ISecurityManager
 {
 public:
     TSecurityManager(
