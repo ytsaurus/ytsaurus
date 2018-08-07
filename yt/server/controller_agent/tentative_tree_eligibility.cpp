@@ -8,7 +8,6 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NJobTrackerClient;
-//using namespace NScheduler;
 
 ///////////////////////////////////////////////////////////////////////////////
 
