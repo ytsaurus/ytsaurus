@@ -266,6 +266,7 @@ public:
     void SetOwners(std::vector<TString> owners);
 
     NYson::TYsonString BuildAlertsString() const;
+    bool HasAlert(EOperationAlertType alertType) const;
     void SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout = Null);
     void ResetAlert(EOperationAlertType alertType);
 

@@ -953,7 +953,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        DoSetOperationAlert(operationId, EOperationAlertType::OperationIsPending, TError());
+        DoSetOperationAlert(operationId, EOperationAlertType::OperationPending, TError());
 
         operation->SetActivated(true);
         if (operation->GetPrepared()) {
@@ -1252,12 +1252,21 @@ private:
             return;
         }
 
-        if (!alert.IsOK()) {
-            LOG_DEBUG(alert, "Setting %lv alert", alertType);
+        if (alert.IsOK()) {
+            if (operation->HasAlert(alertType)) {
+                operation->ResetAlert(alertType);
+                LOG_DEBUG("Operation alert reset (OperationId: %v, Type: %v)",
+                    operationId,
+                    alertType);
+            }
+        } else {
+            operation->SetAlert(alertType, alert, timeout);
+            LOG_DEBUG(alert, "Operation alert set (OperationId: %v, Type: %v)",
+                operationId,
+                alertType);
         }
-
-        operation->SetAlert(alertType, alert, timeout);
     }
+
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
