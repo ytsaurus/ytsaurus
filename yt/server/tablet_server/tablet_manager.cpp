@@ -2785,16 +2785,14 @@ public:
             return;
         }
 
-        auto tabletState = table->GetTabletState();
-        if (table->GetTabletCellBundle() != nullptr &&
-            tabletState != ETabletState::Unmounted &&
-            tabletState != ETabletState::None)
-        {
-            THROW_ERROR_EXCEPTION("Cannot change tablet cell bundle: table has mounted tablets");
-        }
+        if (Bootstrap_->IsPrimaryMaster()) {
+            if (table->GetTabletCellBundle() != nullptr && table->IsDynamic()) {
+                table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
+            }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(cellBundle, EPermission::Use);
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(cellBundle, EPermission::Use);
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (table->GetTabletCellBundle()) {
