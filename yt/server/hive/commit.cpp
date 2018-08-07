@@ -25,7 +25,7 @@ TCommit::TCommit(
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    TString user)
+    const TString& user)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)

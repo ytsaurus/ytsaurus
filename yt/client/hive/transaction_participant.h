@@ -23,7 +23,7 @@ struct ITransactionParticipant
 
     virtual ETransactionParticipantState GetState() const = 0;
 
-    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp, TString user) = 0;
+    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp, const TString& user) = 0;
     virtual TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp) = 0;
     virtual TFuture<void> AbortTransaction(const TTransactionId& transactionId) = 0;
 };

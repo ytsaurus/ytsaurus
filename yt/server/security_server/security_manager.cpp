@@ -894,7 +894,7 @@ public:
         AuthenticatedUser_ = user;
     }
 
-    void SetAuthenticatedUserByNameOrThrow(TString userName)
+    void SetAuthenticatedUserByNameOrThrow(const TString& userName)
     {
         SetAuthenticatedUser(GetUserByNameOrThrow(userName));
     }

@@ -137,7 +137,7 @@ public:
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
-        TString user,
+        const TString& user,
         const std::vector<TCellId>& participantCellIds)
     {
         return MessageToError(
@@ -710,7 +710,7 @@ private:
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         const TMutationId& mutationId,
-        TString user)
+        const TString& user)
     {
         YCHECK(!HasMutationContext());
 
@@ -792,7 +792,7 @@ private:
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
         bool force,
-        TString user)
+        const TString& user)
     {
         YCHECK(!HasMutationContext());
 
@@ -879,7 +879,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
-        auto user = request->user_name();
+        const auto& user = request->user_name();
 
         auto* commit = FindCommit(transactionId);
 
@@ -938,7 +938,7 @@ private:
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
-        auto user = request->user_name();
+        const auto& user = request->user_name();
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
@@ -1147,7 +1147,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
-        auto user = request->user_name();
+        const auto& user = request->user_name();
 
         TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
@@ -1170,7 +1170,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
-        auto user = request->user_name();
+        const auto& user = request->user_name();
 
         TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
@@ -1192,7 +1192,7 @@ private:
     void HydraParticipantAbortTransaction(NHiveServer::NProto::TReqParticipantAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto user = request->user_name();
+        const auto& user = request->user_name();
 
         TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
@@ -1241,7 +1241,7 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TString user)
+        const TString& user)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
@@ -1263,7 +1263,7 @@ private:
         bool generatePrepareTimstamp,
         bool inheritCommitTimstamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TString user)
+        const TString& user)
     {
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
@@ -1909,7 +1909,7 @@ std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(
     const TTransactionId& transactionId,
-    TString user,
+    const TString& user,
     const std::vector<TCellId>& participantCellIds)
 {
     return Impl_->CommitTransaction(

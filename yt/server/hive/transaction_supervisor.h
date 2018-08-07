@@ -38,7 +38,7 @@ public:
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
-        TString user,
+        const TString& user,
         const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
 
     TFuture<void> AbortTransaction(
