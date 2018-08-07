@@ -2,6 +2,8 @@
 
 #include <yt/client/chunk_client/public.h>
 
+#include <yt/client/cypress_client/public.h>
+
 #include <yt/client/transaction_client/public.h>
 
 #include <yt/core/misc/enum.h>
@@ -123,7 +125,7 @@ DEFINE_ENUM(EUnavailableChunkStrategy,
     ((Skip)         (2))
 );
 
-using TTableId = NObjectClient::TObjectId;
+using TTableId = NCypressClient::TNodeId;
 
 //! NB: |int| is important since we use negative values to indicate that
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
