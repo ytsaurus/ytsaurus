@@ -417,7 +417,6 @@ private:
             Logger);
 
         {
-            // XXX(babenko): multicell
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
                 NApi::EMasterChannelKind::Follower,
                 CellTagFromId(tablet->GetId()));
