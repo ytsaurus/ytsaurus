@@ -282,16 +282,7 @@ def build(options, build_context):
 
 @build_step
 def gather_build_info(options, build_context):
-    if options.build_system == "cmake":
-        run(["make", "version"], cwd=options.working_directory, silent_stdout=True)
-        ytversion_file = os.path.join(options.working_directory, "ytversion")
-    else:
-        assert options.build_system == "ya"
-        ytversion_file = os.path.join(get_bin_dir(options), "ytversion")
-
-    with open(ytversion_file) as handle:
-        version = handle.read().strip()
-    build_context["yt_version"] = version
+    build_context["yt_version"] = run_captured([os.path.join(get_bin_dir(options), "ytserver-master"), "--version"]).strip()
     build_context["build_time"] = datetime.now().isoformat()
 
 @build_step
