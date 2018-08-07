@@ -116,7 +116,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletState)
-        .SetExternal(isExternal)
+        .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActualTabletState)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpectedTabletState)
         .SetPresent(isDynamic));
@@ -330,11 +331,19 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::TabletState:
-            if (!isDynamic || isExternal) {
+            if (!isDynamic) {
                 break;
             }
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetTabletState());
+            return true;
+
+        case EInternedAttributeKey::ActualTabletState:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetActualTabletState());
             return true;
 
         case EInternedAttributeKey::ExpectedTabletState:

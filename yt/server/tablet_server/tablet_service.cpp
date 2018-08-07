@@ -169,7 +169,7 @@ private:
             return;
         }
 
-        table->SetLastMountTransactionId(freeze ? transaction->GetId() : TTransactionId());
+        table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         if (table->IsExternal()) {
@@ -402,7 +402,7 @@ private:
             return;
         }
 
-        table->SetLastMountTransactionId(TTransactionId());
+        table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(ETabletState::Mounted);
 
         if (table->IsExternal()) {

@@ -10,6 +10,7 @@
     XX(Acl, acl) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
+    XX(ActualTabletState, actual_tablet_state) \
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \

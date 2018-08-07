@@ -154,11 +154,12 @@ message TReqUpdateTableStatistics
     repeated TEntry entries = 1;
 }
 
-message TReqUpdateExpectedTabletState
+message TReqUpdateUpstreamTabletState
 {
     required NYT.NProto.TGuid table_id = 1;
     required NYT.NProto.TGuid last_mount_transaction_id = 2;
-    required int32 expected_tablet_state = 3;
+    optional int32 actual_tablet_state = 3;
+    optional int32 expected_tablet_state = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

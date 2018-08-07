@@ -1871,7 +1871,7 @@ class TestTabletActions(TestDynamicTablesBase):
         wait(lambda: get("//tmp/t/@tablets/0/cell_id") == cells[1])
         sync_remove_tablet_cells([cells[1]])
 
-        assert get("//tmp/t/@tablet_state") == "unmounted"
+        wait_for_tablet_state("//tmp/t", "unmounted")
 
         actions = get("//sys/tablet_actions")
         assert len(actions) == 1

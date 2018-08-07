@@ -194,7 +194,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateExpectedTabletState, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -1510,7 +1510,7 @@ public:
             serializedWriterOptions,
             mountTimestamp);
 
-        UpdateExpectedTabletState(table);
+        UpdateTabletState(table);
     }
 
     void DoMountTablet(
@@ -1720,7 +1720,7 @@ public:
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
 
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
-        UpdateExpectedTabletState(table);
+        UpdateTabletState(table);
     }
 
     void ValidateRemountTable(
@@ -1871,7 +1871,7 @@ public:
             DoFreezeTablet(tablet);
         }
 
-        UpdateExpectedTabletState(table);
+        UpdateTabletState(table);
     }
 
     void DoFreezeTablet(TTablet* tablet)
@@ -1950,6 +1950,8 @@ public:
             auto* tablet = table->Tablets()[index];
             DoUnfreezeTablet(tablet);
         }
+
+        UpdateTabletState(table);
     }
 
     void DoUnfreezeTablet(TTablet* tablet)
@@ -2403,7 +2405,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
-        UpdateExpectedTabletState(table);
+        UpdateTabletState(table);
     }
 
     void ValidateCloneTable(
@@ -2862,6 +2864,7 @@ private:
     bool RecomputeTabletCellStatistics_ = false;
     bool RecomputeTabletErrorCount_ = false;
     bool RecomputeExpectedTabletStates_ = false;
+    bool ValidateAllTablesUnmounted_ = false;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -2950,6 +2953,8 @@ private:
         RecomputeTabletErrorCount_ = (context.GetVersion() < 715);
         // COMPAT(savrus)
         RecomputeExpectedTabletStates_ = (context.GetVersion() < 800);
+        // COMPAT(savrus)
+        ValidateAllTablesUnmounted_ = (context.GetVersion() < 801);
     }
 
 
@@ -3130,6 +3135,27 @@ private:
                             Y_UNREACHABLE();
                     }
                 }
+            }
+        }
+
+        // COMPAT(savrus)
+        if (ValidateAllTablesUnmounted_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                if (!node->IsTrunk() ||
+                    node->IsExternal() ||
+                    (node->GetType() != EObjectType::Table && node->GetType() != EObjectType::ReplicatedTable))
+                {
+                    continue;
+                }
+
+                auto* table = node->As<TTableNode>();
+                if (!table->IsDynamic()) {
+                    continue;
+                }
+
+                YCHECK(table->TabletCountByState()[ETabletState::Unmounted] == table->Tablets().size());
             }
         }
     }
@@ -3876,11 +3902,16 @@ private:
         }
     }
 
-    void HydraUpdateExpectedTabletState(TReqUpdateExpectedTabletState* request)
+    void HydraUpdateUpstreamTabletState(TReqUpdateUpstreamTabletState* request)
     {
         auto tableId = FromProto<TTableId>(request->table_id());
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
-        auto state = static_cast<ETabletState>(request->expected_tablet_state());
+        auto actualState = request->has_actual_tablet_state()
+            ? MakeNullable(static_cast<ETabletState>(request->actual_tablet_state()))
+            : Null;
+        auto expectedState = request->has_expected_tablet_state()
+            ? MakeNullable(static_cast<ETabletState>(request->expected_tablet_state()))
+            : Null;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedNodeId(tableId));
@@ -3889,87 +3920,98 @@ private:
         }
 
         auto* table = node->As<TTableNode>();
-        if (transactionId != table->GetLastMountTransactionId()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Dropped update expected tablet state request "
-                "(TableId: %v, ExpectedTabletState: %v, ExpectedLastMountTransactionId: %v, ActualLastMountTransactionId: %v)",
-                tableId,
-                state,
-                transactionId,
-                table->GetLastMountTransactionId());
 
-            return;
+        LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
+            "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, ExpectedLastMountTransactionId: %v, ActualLastMountTransactionId: %v)",
+            tableId,
+            actualState,
+            expectedState,
+            transactionId,
+            table->GetLastMountTransactionId());
+
+        if (actualState) {
+            table->SetActualTabletState(*actualState);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Expected tablet state updated (TableId: %v, ExpectedTabletState: %v, LastMountTransactionId: %v)",
-            tableId,
-            state,
-            transactionId);
-
-        table->SetExpectedTabletState(state);
-        table->SetLastMountTransactionId(TTransactionId());
+        if (transactionId == table->GetLastMountTransactionId()) {
+            if (expectedState) {
+                table->SetExpectedTabletState(*expectedState);
+            }
+            table->SetLastMountTransactionId(TTransactionId());
+        }
     }
 
-    void UpdateExpectedTabletState(TTableNode* table)
+    void UpdateTabletState(TTableNode* table)
     {
-        if (!table) {
+        if (!IsObjectAlive(table)) {
             return;
         }
 
         // TODO(savrus): Remove this after testing multicell on real cluster is done.
-        LOG_DEBUG("Expected tablet state check (LastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
+        LOG_DEBUG("Check table tablet state (TableId: %v, LastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
+            table->GetId(),
             table->GetLastMountTransactionId(),
             ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).GetData(),
             ConvertToYsonString(table->TabletCountByExpectedState(), EYsonFormat::Text).GetData());
 
-        if (!table->GetLastMountTransactionId()) {
-            return;
-        }
 
         if (table->TabletCountByExpectedState()[ETabletState::Unmounting] > 0 ||
-            table->TabletCountByExpectedState()[ETabletState::Freezing] > 0)
-        {
-            return;
-        }
-
-        ETabletState expectedState;
-
-        if (table->TabletCountByExpectedState()[ETabletState::Mounted] > 0 ||
+            table->TabletCountByExpectedState()[ETabletState::Freezing] > 0 ||
+            table->TabletCountByExpectedState()[ETabletState::FrozenMounting] > 0 ||
             table->TabletCountByExpectedState()[ETabletState::Mounting] > 0 ||
             table->TabletCountByExpectedState()[ETabletState::Unfreezing] > 0)
         {
-            expectedState = ETabletState::Mounted;
-        } else {
-            auto tabletCount =
-                table->TabletCountByExpectedState()[ETabletState::Unmounted] +
-                table->TabletCountByExpectedState()[ETabletState::FrozenMounting] +
-                table->TabletCountByExpectedState()[ETabletState::Frozen];
-            YCHECK(tabletCount == table->Tablets().size());
-
-            expectedState = table->TabletCountByExpectedState()[ETabletState::Unmounted] == tabletCount
-                ? ETabletState::Unmounted
-                : ETabletState::Frozen;
+            return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Expected tablet state updated (TableId: %v, ExpectedTabletState: %v, LastMountTransactionId: %v)",
+        {
+            // Just sanity check.
+            auto tabletCount =
+                table->TabletCountByExpectedState()[ETabletState::Mounted] +
+                table->TabletCountByExpectedState()[ETabletState::Unmounted] +
+                table->TabletCountByExpectedState()[ETabletState::Frozen];
+            YCHECK(tabletCount == table->Tablets().size());
+        }
+
+        auto actualState = table->ComputeActualTabletState();
+        TNullable<ETabletState> expectedState;
+
+        if (table->GetLastMountTransactionId()) {
+            if (table->TabletCountByExpectedState()[ETabletState::Mounted] > 0) {
+                expectedState = ETabletState::Mounted;
+            } else if (table->TabletCountByExpectedState()[ETabletState::Frozen] > 0) {
+                expectedState = ETabletState::Frozen;
+            } else {
+                expectedState = ETabletState::Unmounted;
+            }
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state updated (TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, LastMountTransactionId: %v)",
             table->GetId(),
+            actualState,
             expectedState,
             table->GetLastMountTransactionId());
-
-        table->SetExpectedTabletState(expectedState);
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             // Statistics should be correct before setting the tablet state.
             SendTableStatisticsUpdates(table);
 
-            TReqUpdateExpectedTabletState request;
+            TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
             ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
-            request.set_expected_tablet_state(static_cast<i32>(expectedState));
+            request.set_actual_tablet_state(static_cast<i32>(actualState));
+            if (expectedState) {
+                request.set_expected_tablet_state(static_cast<i32>(*expectedState));
+            }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, PrimaryMasterCellTag);
         }
 
+        table->SetActualTabletState(actualState);
+        if (expectedState) {
+            table->SetExpectedTabletState(*expectedState);
+        }
         table->SetLastMountTransactionId(TTransactionId());
     }
 
@@ -4003,6 +4045,7 @@ private:
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
         OnTabletActionStateChanged(tablet->GetAction());
+        UpdateTabletState(table);
     }
 
     void HydraOnTabletUnmounted(TRspUnmountTablet* response)
@@ -4051,7 +4094,7 @@ private:
 
         tablet->SetState(ETabletState::Frozen);
         OnTabletActionStateChanged(tablet->GetAction());
-        UpdateExpectedTabletState(table);
+        UpdateTabletState(table);
     }
 
     void HydraOnTabletUnfrozen(TRspUnfreezeTablet* response)
@@ -4062,8 +4105,8 @@ private:
             return;
         }
 
-        const auto* table = tablet->GetTable();
-        const auto* cell = tablet->GetCell();
+        auto* table = tablet->GetTable();
+        auto* cell = tablet->GetCell();
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
@@ -4080,6 +4123,7 @@ private:
 
         tablet->SetState(ETabletState::Mounted);
         OnTabletActionStateChanged(tablet->GetAction());
+        UpdateTabletState(table);
     }
 
     void HydraUpdateTableReplicaStatistics(TReqUpdateTableReplicaStatistics* request)
@@ -4191,7 +4235,7 @@ private:
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
-        UpdateExpectedTabletState(table);
+        UpdateTabletState(table);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);

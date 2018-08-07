@@ -56,6 +56,7 @@ private:
         bool Dynamic = false;
         TString MountPath;
         NSecurityServer::TClusterResources ExternalTabletResourceUsage;
+        NTabletClient::ETabletState ActualTabletState = NTabletClient::ETabletState::Unmounted;
         NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
         NTransactionClient::TTransactionId LastMountTransactionId;
 
@@ -92,6 +93,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Dynamic);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountPath);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExternalTabletResourceUsage);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ActualTabletState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExpectedTabletState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
 
@@ -136,6 +138,8 @@ public:
     bool IsPhysicallySorted() const;
 
     NTabletClient::ETabletState GetTabletState() const;
+
+    NTabletClient::ETabletState ComputeActualTabletState() const;
 
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
