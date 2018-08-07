@@ -445,7 +445,7 @@ public:
         LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    TFuture<TOperationControllerInitializationResult> InitializeOperation(
+    TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
         const TNullable<TControllerTransactions>& transactions)
     {
@@ -459,7 +459,7 @@ public:
         return callback
             .AsyncVia(controller->GetCancelableInvoker())
             .Run()
-            .Apply(BIND([=] (const TOperationControllerInitializationResult& result) {
+            .Apply(BIND([=] (const TOperationControllerInitializeResult& result) {
                 operation->SetTransactions(result.Transactions);
                 return result;
             }).AsyncVia(GetCurrentInvoker()));
@@ -1484,7 +1484,7 @@ TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
-TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(
+TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
     const TNullable<TControllerTransactions>& transactions)
 {

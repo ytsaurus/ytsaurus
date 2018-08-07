@@ -46,7 +46,7 @@ using TOperationAlertMap = THashMap<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationControllerInitializationAttributes
+struct TOperationControllerInitializeAttributes
 {
     NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
@@ -54,10 +54,10 @@ struct TOperationControllerInitializationAttributes
     NYson::TYsonString UnrecognizedSpec;
 };
 
-struct TOperationControllerInitializationResult
+struct TOperationControllerInitializeResult
 {
     std::vector<NApi::ITransactionPtr> Transactions;
-    TOperationControllerInitializationAttributes Attributes;
+    TOperationControllerInitializeAttributes Attributes;
 };
 
 struct TOperationControllerPrepareResult
@@ -292,7 +292,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeClean() = 0;
+    virtual TOperationControllerInitializeResult InitializeClean() = 0;
 
     //! Performs controller inner state initialization for reviving operation.
     /*
@@ -300,7 +300,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) = 0;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactions& transactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!

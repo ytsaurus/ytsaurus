@@ -188,12 +188,12 @@ public:
         }));
     }
 
-    virtual TOperationControllerInitializationResult InitializeClean() override
+    virtual TOperationControllerInitializeResult InitializeClean() override
     {
         return Underlying_->InitializeClean();
     }
 
-    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactions& transactions) override
     {
         return Underlying_->InitializeReviving(transactions);
     }

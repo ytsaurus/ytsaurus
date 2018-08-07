@@ -194,8 +194,8 @@ public:
     // operations on a cluster, or to a scheduler crash.
     virtual TOperationControllerReviveResult Revive() override;
 
-    virtual TOperationControllerInitializationResult InitializeClean() override;
-    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override;
+    virtual TOperationControllerInitializeResult InitializeClean() override;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactions& transactions) override;
 
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
@@ -532,7 +532,7 @@ protected:
     virtual void InitializeStructures();
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
-    void FillInitializationResult(TOperationControllerInitializationResult* result);
+    void FillInitializeResult(TOperationControllerInitializeResult* result);
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 

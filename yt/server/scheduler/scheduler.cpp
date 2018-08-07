@@ -1943,7 +1943,7 @@ private:
     {
         auto briefSpec = BuildYsonStringFluently()
             .BeginMap()
-                .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
+                .Items(operation->ControllerAttributes().InitializeAttributes->BriefSpec)
             .EndMap();
         return briefSpec;
     }
@@ -1968,7 +1968,7 @@ private:
 
             ValidateOperationState(operation, EOperationState::Initializing);
 
-            operation->ControllerAttributes().InitializationAttributes = initializationResult.Attributes;
+            operation->ControllerAttributes().InitializeAttributes = initializationResult.Attributes;
             operation->BriefSpec() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
@@ -2025,7 +2025,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
-            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializationAttributes->UnrecognizedSpec);
+            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializeAttributes->UnrecognizedSpec);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2051,7 +2051,7 @@ private:
                 auto result = WaitFor(controller->Initialize(operation->RevivalDescriptor()))
                     .ValueOrThrow();
 
-                operation->ControllerAttributes().InitializationAttributes = std::move(result.Attributes);
+                operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
                 operation->BriefSpec() = BuildBriefSpec(operation);
             }
 
