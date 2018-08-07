@@ -197,6 +197,7 @@ public:
         Timeout_ = options.Timeout;
         Atomicity_ = options.Atomicity;
         Durability_ = options.Durability;
+        Multicell_ = options.Multicell;
 
         switch (Atomicity_) {
             case EAtomicity::Full:
@@ -510,6 +511,7 @@ private:
     TNullable<TDuration> Timeout_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
+    bool Multicell_ = false;
 
     TSpinLock SpinLock_;
 
@@ -648,7 +650,7 @@ private:
             THROW_ERROR_EXCEPTION("Unable to start master transaction: connection terminated");
         }
 
-        auto cellTag = options.Multicell
+        auto cellTag = Multicell_
             ? CellTagFromId(Owner_->PrimaryCellId_)
             : CellTag_;
 
@@ -672,7 +674,7 @@ private:
         ToProto(req->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
-        if (options.Multicell) {
+        if (Multicell_) {
             auto replicateToCellTags = TCellTagList{CellTag_};
             ToProto(req->mutable_replicate_to_cell_tags(), replicateToCellTags);
         }
@@ -841,7 +843,7 @@ private:
     TCellId PickCoordinator(const TTransactionCommitOptions& options)
     {
         if (Type_ == ETransactionType::Master) {
-            return CellId_;
+            return Multicell_ ? Owner_->PrimaryCellId_ : CellId_;
         }
 
         if (options.CoordinatorCellId) {
