@@ -80,9 +80,9 @@ TTableNodeProxy::TTableNodeProxy(
 { }
 
 void TTableNodeProxy::CypressValidatePermission(
-        EPermissionCheckScope scope,
-        EPermission permission,
-        const TString& user)
+    EPermissionCheckScope scope,
+    EPermission permission,
+    const TString& user)
 {
     ValidatePermission(scope, permission, user);
 }
@@ -554,7 +554,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::ForcedCompactionRevision:
-            if (!static_cast<bool>(trunkTable->GetForcedCompactionRevision())) {
+            if (!trunkTable->GetForcedCompactionRevision()) {
                 break;
             }
             BuildYsonFluently(consumer)
