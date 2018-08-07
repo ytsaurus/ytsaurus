@@ -19,6 +19,7 @@ namespace NTabletServer {
 using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NTabletServer::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +136,8 @@ private:
             }
         }
 
-        LOG_DEBUG("Tablet cell decommissioner observes %v decommissioned cells with tablets", retiringCells.size());
+        LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
+            retiringCells.size());
 
         for (const auto& pair : tabletManager->TabletCells()) {
             const auto* cell = pair.second;
@@ -164,12 +166,10 @@ private:
                 if (Bootstrap_->IsPrimaryMaster()) {
                     const auto& statistics = cell->ClusterStatistics();
                     if (statistics.Decommissioned && statistics.TabletCount == 0) {
-                        auto req = NYTree::TYPathProxy::Remove(NObjectClient::FromObjectId(cell->GetId()));
-                        auto message = req->Serialize();
-                        auto context = NYTree::CreateYPathContext(message);
                         const auto& objectManager = Bootstrap_->GetObjectManager();
-                        auto mutation = objectManager->CreateExecuteMutation(RootUserName, context);
-                        mutation->CommitAndLog(Logger);
+                        auto rootService = objectManager->GetRootService();
+                        auto req = TYPathProxy::Remove(NObjectClient::FromObjectId(cell->GetId()));
+                        ExecuteVerb(rootService, req);
                     }
                 }
             }
