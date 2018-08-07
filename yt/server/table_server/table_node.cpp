@@ -568,7 +568,7 @@ void TTableNode::UpdateExpectedTabletState(ETabletState state)
     }
 }
 
-void TTableNode::ValidateTabletStateFixed(const TString& message) const
+void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
 {
     const auto* trunkTable = GetTrunkNode();
     const auto& transactionId = trunkTable->GetLastMountTransactionId();
@@ -579,7 +579,7 @@ void TTableNode::ValidateTabletStateFixed(const TString& message) const
     }
 }
 
-void TTableNode::ValidateExpectedTabletState(const TString& message, bool allowFrozen) const
+void TTableNode::ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const
 {
     ValidateTabletStateFixed(message);
 
@@ -594,12 +594,12 @@ void TTableNode::ValidateExpectedTabletState(const TString& message, bool allowF
     }
 }
 
-void TTableNode::ValidateAllTabletsFrozenOrUnmounted(const TString& message) const
+void TTableNode::ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const
 {
     ValidateExpectedTabletState(message, true);
 }
 
-void TTableNode::ValidateAllTabletsUnmounted(const TString& message) const
+void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
 {
     ValidateExpectedTabletState(message, false);
 }
