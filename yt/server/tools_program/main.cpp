@@ -12,6 +12,7 @@
 
 namespace NYT {
 
+
 REGISTER_TOOL(TStraceTool)
 REGISTER_TOOL(TSignalerTool)
 REGISTER_TOOL(TKillAllByUidTool)
