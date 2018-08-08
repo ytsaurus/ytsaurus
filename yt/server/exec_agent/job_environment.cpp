@@ -201,7 +201,7 @@ protected:
                 it->second.Process->Kill(SIGKILL);
             }
 
-            // Ensure that job proxy process finised.
+            // Ensure that job proxy process finished.
             auto error = WaitFor(it->second.Result);
             LOG_INFO(error, "Job proxy process finished (SlotIndex: %v)", slotIndex);
             // Drop reference to a process.
