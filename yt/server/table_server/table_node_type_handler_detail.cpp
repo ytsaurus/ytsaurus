@@ -148,9 +148,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             if (!node->IsForeign()) {
                 if (maybeTabletCount) {
-                    tabletManager->ValidateReshardTable(node, 0, 0, *maybeTabletCount, {}, true);
+                    tabletManager->PrepareReshardTable(node, 0, 0, *maybeTabletCount, {}, true);
                 } else if (maybePivotKeys) {
-                    tabletManager->ValidateReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys, true);
+                    tabletManager->PrepareReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys, true);
                 }
             }
 

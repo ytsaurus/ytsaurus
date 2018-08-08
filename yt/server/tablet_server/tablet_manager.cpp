@@ -687,8 +687,14 @@ public:
             THROW_ERROR_EXCEPTION("Invalud number of tablets: expected more than zero");
         }
 
+        auto* table = tablets[0]->GetTable();
+
+        // Validate that table is not in process of mount/unmount/etc.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
+
         for (const auto* tablet : tablets) {
-            if (tablet->GetTable() != tablets[0]->GetTable()) {
+            if (tablet->GetTable() != table) {
                 THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",
                     tablets[0]->GetId(),
                     tablet->GetId());
@@ -1153,7 +1159,7 @@ public:
                             : action->PivotKeys().size();
 
                         try {
-                            ValidateReshardTable(
+                            PrepareReshardTable(
                                 table,
                                 firstTabletIndex,
                                 lastTabletIndex,
@@ -1360,7 +1366,7 @@ public:
         return tabletStatistics;
     }
 
-    void ValidateMountTable(
+    void PrepareMountTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -1452,6 +1458,9 @@ public:
                 }
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
     }
 
     void MountTable(
@@ -1476,9 +1485,6 @@ public:
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
         ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1667,7 +1673,7 @@ public:
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
 
-    void ValidateUnmountTable(
+    void PrepareUnmountTable(
         TTableNode* table,
         bool force,
         int firstTabletIndex,
@@ -1702,6 +1708,9 @@ public:
                 }
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
     }
 
     void UnmountTable(
@@ -1716,14 +1725,11 @@ public:
 
         ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
 
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
-
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
         UpdateTabletState(table);
     }
 
-    void ValidateRemountTable(
+    void PrepareRemountTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex)
@@ -1759,6 +1765,9 @@ public:
         {
             THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
     }
 
     void RemountTable(
@@ -1771,9 +1780,6 @@ public:
         YCHECK(!table->IsExternal());
 
         ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
@@ -1819,7 +1825,7 @@ public:
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
 
-    void ValidateFreezeTable(
+    void PrepareFreezeTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex)
@@ -1850,6 +1856,9 @@ public:
                     state);
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
     }
 
     void FreezeTable(
@@ -1862,9 +1871,6 @@ public:
         YCHECK(!table->IsExternal());
 
         ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1900,7 +1906,7 @@ public:
         }
     }
 
-    void ValidateUnfreezeTable(
+    void PrepareUnfreezeTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex)
@@ -1930,6 +1936,9 @@ public:
                     state);
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
     }
 
     void UnfreezeTable(
@@ -1942,9 +1951,6 @@ public:
         YCHECK(!table->IsExternal());
 
         ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -2019,7 +2025,7 @@ public:
         }
     }
 
-    void ValidateReshardTable(
+    void PrepareReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -2202,6 +2208,8 @@ public:
             }
         }
 
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
     }
 
     int ReshardTable(
@@ -2268,9 +2276,6 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             retainedTimestamp = std::max(retainedTimestamp, tablets[index]->GetRetainedTimestamp());
         }
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         // Create new tablets.
         std::vector<TTablet*> newTablets;
@@ -5458,7 +5463,7 @@ TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
     return Impl_->GetTabletStatistics(tablet);
 }
 
-void TTabletManager::ValidateMountTable(
+void TTabletManager::PrepareMountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
@@ -5466,7 +5471,7 @@ void TTabletManager::ValidateMountTable(
     bool freeze,
     TTimestamp mountTimestamp)
 {
-    Impl_->ValidateMountTable(
+    Impl_->PrepareMountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
@@ -5475,53 +5480,53 @@ void TTabletManager::ValidateMountTable(
         mountTimestamp);
 }
 
-void TTabletManager::ValidateUnmountTable(
+void TTabletManager::PrepareUnmountTable(
     TTableNode* table,
     bool force,
     int firstTabletIndex,
     int lastTabletIndex)
 {
-    Impl_->ValidateUnmountTable(
+    Impl_->PrepareUnmountTable(
         table,
         force,
         firstTabletIndex,
         lastTabletIndex);
 }
 
-void TTabletManager::ValidateRemountTable(
+void TTabletManager::PrepareRemountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex)
 {
-    Impl_->ValidateRemountTable(
+    Impl_->PrepareRemountTable(
         table,
         firstTabletIndex,
         lastTabletIndex);
 }
 
-void TTabletManager::ValidateFreezeTable(
+void TTabletManager::PrepareFreezeTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex)
 {
-    Impl_->ValidateFreezeTable(
+    Impl_->PrepareFreezeTable(
         table,
         firstTabletIndex,
         lastTabletIndex);
 }
 
-void TTabletManager::ValidateUnfreezeTable(
+void TTabletManager::PrepareUnfreezeTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex)
 {
-    Impl_->ValidateUnfreezeTable(
+    Impl_->PrepareUnfreezeTable(
         table,
         firstTabletIndex,
         lastTabletIndex);
 }
 
-void TTabletManager::ValidateReshardTable(
+void TTabletManager::PrepareReshardTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
@@ -5529,7 +5534,7 @@ void TTabletManager::ValidateReshardTable(
     const std::vector<TOwningKey>& pivotKeys,
     bool create)
 {
-    Impl_->ValidateReshardTable(
+    Impl_->PrepareReshardTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
