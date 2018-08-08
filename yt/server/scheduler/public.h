@@ -69,7 +69,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
-struct TOperationControllerInitializationResult;
+struct TOperationControllerInitializeResult;
 struct TOperationControllerPrepareResult;
 struct TOperationRevivalDescriptor;
 
@@ -113,6 +113,7 @@ DEFINE_ENUM(EOperationAlertType,
     (InvalidAcl)
     (LowCpuUsage)
     (OperationTooLong)
+    (OperationPending)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

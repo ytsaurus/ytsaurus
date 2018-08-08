@@ -207,7 +207,7 @@ const TSchedulerBootstrapConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-const NNative::IClientPtr& TBootstrap::GetMasterClient() const
+const NApi::NNative::IClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
 }

@@ -43,7 +43,7 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 
 struct TControllerAttributes
 {
-    TNullable<NControllerAgent::TOperationControllerInitializationAttributes> InitializationAttributes;
+    TNullable<NControllerAgent::TOperationControllerInitializeAttributes> InitializeAttributes;
     NYson::TYsonString PrepareAttributes;
 };
 
@@ -266,6 +266,7 @@ public:
     void SetOwners(std::vector<TString> owners);
 
     NYson::TYsonString BuildAlertsString() const;
+    bool HasAlert(EOperationAlertType alertType) const;
     void SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout = Null);
     void ResetAlert(EOperationAlertType alertType);
 

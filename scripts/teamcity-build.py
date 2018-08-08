@@ -99,6 +99,18 @@ def ya_make_env(options):
         "YA_CACHE_DIR": get_ya_cache_dir(options),
     }
 
+def ya_make_definition_args(options):
+    # This args cannot be passed to ya package.
+    return [
+        "-DYT_VERSION_PATCH={0}".format(options.patch_number),
+        "-DYT_VERSION_BRANCH={0}".format(options.branch),
+    ]
+
+def ya_make_args(options):
+    return [
+        "--build", options.ya_build_type,
+    ]
+
 def run_yall(options):
     assert options.build_system == "ya"
     yall = os.path.join(options.checkout_directory, "yall")
@@ -106,6 +118,9 @@ def run_yall(options):
     args = [
         yall,
     ]
+    args += ["--install", get_bin_dir(options)]
+    args += ya_make_args(options)
+    args += ya_make_definition_args(options)
     if options.use_asan:
         args += ["--yall-asan-build"]
 
@@ -254,23 +269,7 @@ def configure(options, build_context):
             _configure(options, build_context, options.working_directory)
     else:
         assert options.build_system == "ya"
-        ya_conf_text = (
-            """create_symlinks = false\n"""
-            """output_style = "make"\n"""
-            """install_dir = "{bin_dir}"\n"""
-            """build_type = "{build_type}"\n"""
-            """[flags]\n"""
-            """YT_VERSION_PATCH="{yt_version_patch}"\n"""
-            """YT_VERSION_BRANCH="{yt_version_branch}\"\n"""
-        ).format(
-            bin_dir=get_bin_dir(options),
-            build_type=options.ya_build_type,
-            yt_version_patch=options.patch_number,
-            yt_version_branch=options.branch,
-        )
-        ya_conf = os.path.join(options.checkout_directory, "ya.conf")
-        with open(ya_conf, "w") as outf:
-            outf.write(ya_conf_text)
+        teamcity_message("Ya build doesn't require configuration")
 
 @build_step
 def build(options, build_context):
@@ -283,16 +282,7 @@ def build(options, build_context):
 
 @build_step
 def gather_build_info(options, build_context):
-    if options.build_system == "cmake":
-        run(["make", "version"], cwd=options.working_directory, silent_stdout=True)
-        ytversion_file = os.path.join(options.working_directory, "ytversion")
-    else:
-        assert options.build_system == "ya"
-        ytversion_file = os.path.join(get_bin_dir(options), "ytversion")
-
-    with open(ytversion_file) as handle:
-        version = handle.read().strip()
-    build_context["yt_version"] = version
+    build_context["yt_version"] = run_captured([os.path.join(get_bin_dir(options), "ytserver-master"), "--version"]).strip()
     build_context["build_time"] = datetime.now().isoformat()
 
 @build_step
@@ -326,7 +316,7 @@ def sky_share(resource, cwd):
         ["sky", "share", resource],
         cwd=cwd,
         shell=False,
-        timeout=100,
+        timeout=600,
         capture_output=True)
 
     rbtorrent = run_result.stdout.splitlines()[0].strip()
@@ -576,7 +566,7 @@ def run_sandbox_upload(options, build_context):
     else:
         assert options.build_system == "ya"
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
-        yt_http_proxy_package = os.path.join(options.checkout_directory, "yt/packages/yandex-yt-http-proxy.json")
+        yt_http_proxy_package = os.path.join(get_bin_dir(options), "yandex-yt-http-proxy.json")
 
         with cwd(tmp_dir):
             args = [
@@ -587,6 +577,7 @@ def run_sandbox_upload(options, build_context):
                 "--tar",
                 "--no-compression",
             ]
+            args += ya_make_args(options)
             run(args, env=ya_make_env(options))
             generated_package_list = glob.glob("*.tar")
             assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)

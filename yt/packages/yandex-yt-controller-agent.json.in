@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "yandex-yt-master",
+        "name": "yandex-yt-controller-agent",
         "maintainer": "YT Team <yt@yandex-team.ru>",
         "description": "YT. This package provides server-side software",
         "version": "{revision}.{branch}",
@@ -11,19 +11,28 @@
     },
     "build": {
         "targets": [
-            "yt/server/cell_master_program"
+            "yt/server/programs/controller_agent"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            }
         ]
     },
     "data": [
         {
             "source": {
                 "type": "BUILD_OUTPUT",
-                "path": "yt/server/cell_master_program/ytserver-master"
+                "path": "yt/server/programs/controller_agent/ytserver-controller-agent"
             },
             "destination": {
-                "path": "/usr/bin/ytserver-master"
+                "path": "/usr/bin/ytserver-controller-agent"
             }
         }
     ]
 }
-
