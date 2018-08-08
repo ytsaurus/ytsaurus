@@ -50,7 +50,7 @@ public:
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
 
-    void ValidateMountTable(
+    void PrepareMountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -58,28 +58,28 @@ public:
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
 
-    void ValidateUnmountTable(
+    void PrepareUnmountTable(
         NTableServer::TTableNode* table,
         bool force,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
-    void ValidateRemountTable(
+    void PrepareRemountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
-    void ValidateFreezeTable(
+    void PrepareFreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex);
 
-    void ValidateUnfreezeTable(
+    void PrepareUnfreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
-    void ValidateReshardTable(
+    void PrepareReshardTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,

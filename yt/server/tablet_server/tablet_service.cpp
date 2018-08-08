@@ -117,9 +117,9 @@ private:
                     << TErrorAttribute("requested_path", path)
                     << TErrorAttribute("resolved_path", currentPath);
             }
-
-            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
+
+        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         if (table->IsExternal()) {
             return;
@@ -132,7 +132,7 @@ private:
             cell = tabletManager->GetTabletCellOrThrow(cellId);
         }
 
-        tabletManager->ValidateMountTable(
+        tabletManager->PrepareMountTable(
             table,
             firstTabletIndex,
             lastTabletIndex,
@@ -217,9 +217,7 @@ private:
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
-        }
+        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         if (table->IsExternal()) {
             return;
@@ -227,7 +225,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        tabletManager->ValidateUnmountTable(
+        tabletManager->PrepareUnmountTable(
             table,
             force,
             firstTabletIndex,
@@ -293,9 +291,7 @@ private:
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
-        }
+        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         if (table->IsExternal()) {
             return;
@@ -303,7 +299,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        tabletManager->ValidateFreezeTable(
+        tabletManager->PrepareFreezeTable(
             table,
             firstTabletIndex,
             lastTabletIndex); 
@@ -365,9 +361,7 @@ private:
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
-        }
+        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         if (table->IsExternal()) {
             return;
@@ -375,7 +369,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        tabletManager->ValidateUnfreezeTable(
+        tabletManager->PrepareUnfreezeTable(
             table,
             firstTabletIndex,
             lastTabletIndex); 
@@ -438,9 +432,7 @@ private:
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
-        }
+        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         if (table->IsExternal()) {
             return;
@@ -448,7 +440,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        tabletManager->ValidateRemountTable(
+        tabletManager->PrepareRemountTable(
             table,
             firstTabletIndex,
             lastTabletIndex); 
@@ -515,9 +507,7 @@ private:
         auto proxy = cypressManager->GetNodeProxy(table, transaction);
         proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
-        }
+        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         if (table->IsExternal()) {
             return;
@@ -529,7 +519,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        tabletManager->ValidateReshardTable(
+        tabletManager->PrepareReshardTable(
             table,
             firstTabletIndex,
             lastTabletIndex,
