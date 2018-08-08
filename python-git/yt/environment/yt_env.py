@@ -70,16 +70,23 @@ def _which_yt_binaries():
             result[binary] = _parse_version(version_string)
     return result
 
-def _find_nodejs():
+def _is_ya_package(proxy_binary_path):
+    proxy_binary_path = os.path.realpath(proxy_binary_path)
+    ytnode_node = os.path.join(
+        os.path.dirname(os.path.dirname(proxy_binary_path)),
+        "built_by_ya.txt")
+    return os.path.exists(ytnode_node)
+
+def _find_nodejs(candidates=("nodejs", "node")):
     nodejs_binary = None
-    for name in ["nodejs", "node"]:
+    for name in candidates:
         if which(name):
             nodejs_binary = name
             break
 
     if nodejs_binary is None:
-        raise YtError("Failed to find nodejs binary. "
-                      "Make sure you added nodejs directory to PATH variable")
+        raise YtError("Failed to find nodejs binary (checked: {0}). "
+                      "Make sure you added nodejs directory to PATH variable".format(",".join(candidates)))
 
     version = subprocess.check_output([nodejs_binary, "-v"])
 
@@ -1135,7 +1142,10 @@ class YTInstance(object):
             raise YtError("Failed to find YT http proxy binary. Make sure you installed "
                           "yandex-yt-http-proxy package or specify NODE_PATH manually")
 
-        nodejs_binary_path = _find_nodejs()
+        if _is_ya_package(proxy_binary_path):
+            nodejs_binary_path = _find_nodejs(["ytnode",])
+        else:
+            nodejs_binary_path = _find_nodejs()
 
         proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)
         if proxy_version and proxy_version[:2] != self.abi_version:
