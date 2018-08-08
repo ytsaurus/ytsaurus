@@ -294,7 +294,7 @@ message TMutableWorkload {
     // Ссылка на workload
     string WorkloadRef = 1;
 
-    EWorkloadTargetState State = 2;
+    EWorkloadTargetState TargetState = 2;
 }
 
 message TStopPolicy {
@@ -559,6 +559,9 @@ message TWorkloadStatus {
 
     // понять удобно ли
     string BoxRef = 9;
+
+    // mutalbe target state
+    EWorkloadTargetState TargetState = 11;
 }
 
 enum ECheckResult {
