@@ -316,7 +316,7 @@ def sky_share(resource, cwd):
         ["sky", "share", resource],
         cwd=cwd,
         shell=False,
-        timeout=100,
+        timeout=600,
         capture_output=True)
 
     rbtorrent = run_result.stdout.splitlines()[0].strip()
