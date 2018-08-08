@@ -49,6 +49,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 struct TOperationControllerInitializeResult
 {
     NControllerAgent::TOperationControllerInitializeAttributes Attributes;
+    TOperationTransactions Transactions;
 };
 
 struct TOperationControllerPrepareResult
@@ -93,7 +94,7 @@ struct IOperationController
 
     //! Invokes IOperationControllerSchedulerHost::InitializeReviving or InitializeClean asynchronously.
     virtual TFuture<TOperationControllerInitializeResult> Initialize(
-        const TNullable<TOperationRevivalDescriptor>& descriptor) = 0;
+        const TNullable<TOperationTransactions>& transactions) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Prepare asynchronously.
     virtual TFuture<TOperationControllerPrepareResult> Prepare() = 0;

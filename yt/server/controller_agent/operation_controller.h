@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/event_log/public.h>
 
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+
 #include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -30,7 +32,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TControllerTransactions
+struct TControllerTransactionIds
 {
     NTransactionClient::TTransactionId AsyncId;
     NTransactionClient::TTransactionId InputId;
@@ -39,6 +41,9 @@ struct TControllerTransactions
     NTransactionClient::TTransactionId OutputCompletionId;
     NTransactionClient::TTransactionId DebugCompletionId;
 };
+
+void ToProto(NProto::TControllerTransactionIds* transactionsProto, const NControllerAgent::TControllerTransactionIds& transactions);
+void FromProto(NControllerAgent::TControllerTransactionIds* transactions, const NProto::TControllerTransactionIds& transactionsProto);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +61,7 @@ struct TOperationControllerInitializeAttributes
 
 struct TOperationControllerInitializeResult
 {
-    std::vector<NApi::ITransactionPtr> Transactions;
+    TControllerTransactionIds TransactionIds;
     TOperationControllerInitializeAttributes Attributes;
 };
 
@@ -300,7 +305,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactions& transactions) = 0;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!
