@@ -1230,7 +1230,8 @@ private:
             return;
         }
 
-        auto getBestPeer = [&] () -> TNullable<TPeer> {
+        TNullable<TPeer> maybePeer;
+        while (!maybePeer) {
             auto candidates = PickPeerCandidates(
                 Config_->ProbePeerCount,
                 [&] (const TString& address) {
@@ -1238,16 +1239,11 @@ private:
                 },
                 reader);
             if (candidates.empty()) {
-                return Null;
+                OnPassCompleted();
+                return;
             }
 
-            return SelectBestPeer(candidates, blockIndexes, reader);
-        };
-
-        auto maybePeer = getBestPeer();
-        if (!maybePeer) {
-            OnPassCompleted();
-            return;
+            maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
 
         const auto& peerAddress = maybePeer->Address;
