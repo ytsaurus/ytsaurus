@@ -7,7 +7,7 @@
 #include <util/string/subst.h>
 
 int main() {
-    TString text = NResource::Find("/package.json.in");
+    TString text = NResource::Find("/package.json.input");
 
     SubstGlobal(text, "@YT_VERSION_MAJOR@", ToString(NYT::GetVersionMajor()));
     SubstGlobal(text, "@YT_VERSION_MINOR@", ToString(NYT::GetVersionMinor()));
