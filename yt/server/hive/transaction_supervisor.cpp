@@ -1786,12 +1786,13 @@ private:
         return
             version == 3 ||
             version == 4 ||
-            version == 5;   // babenko
+            version == 5 || // babenko
+            version == 6;   // savrus: Add User to TCommit
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 5;
+        return 6;
     }
 
 
