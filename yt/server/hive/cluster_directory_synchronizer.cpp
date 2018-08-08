@@ -15,9 +15,6 @@
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
-#include <yt/server/security_server/security_manager.h>
-#include <yt/server/security_server/user.h>
-
 #include <yt/server/object_server/object_manager.h>
 
 namespace NYT {
@@ -121,11 +118,6 @@ private:
                 NObjectClient::TObjectServiceProxy proxy(channel);
                 auto batchReq = proxy.ExecuteBatch();
                 batchReq->AddRequest(req, "get_cluster_meta");
-
-                const auto& securityManager = Bootstrap_->GetSecurityManager();
-                const auto* user = securityManager->GetAuthenticatedUser();
-                batchReq->SetUser(user->GetName());
-
                 auto batchRes = WaitFor(batchReq->Invoke())
                     .ValueOrThrow();
 
