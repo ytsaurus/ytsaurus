@@ -82,6 +82,10 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
         self.primary_driver = get_driver(cluster="primary")
 
+    def teardown(self):
+        self.replica_driver = None
+        self.primary_driver = None
+        
     def _get_table_attributes(self, schema):
         return {
             "dynamic": True,

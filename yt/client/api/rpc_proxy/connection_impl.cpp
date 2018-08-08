@@ -193,6 +193,7 @@ void TConnection::ClearMetadataCaches()
 
 void TConnection::Terminate()
 {
+    LOG_DEBUG("Terminating connection");
     ChannelPool_->Terminate();
     UpdateProxyListExecutor_->Stop();
 }
