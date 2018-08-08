@@ -379,8 +379,8 @@ public:
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
-                        action.Source->GetDefaultAddress(),
-                        action.Target->GetDefaultAddress());
+                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
+                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
                 }));
         }
 
@@ -682,6 +682,7 @@ private:
         int srcIndex = 0;
         int dstIndex = 0;
         while (srcIndex < srcNode->GetSlots().size() &&
+            dstIndex < dstNode->GetTotalSlots() &&
             srcNode->GetCellCount(bundle) != limit &&
             dstNode->GetCellCount(bundle) != limit)
         {
