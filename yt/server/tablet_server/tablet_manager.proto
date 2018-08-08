@@ -100,7 +100,7 @@ message TReqKickOrphanedTabletActions
     repeated NYT.NProto.TGuid tablet_action_ids = 1;
 }
 
-message TProtoTabletCellStatistics
+message TTabletCellStatistics
 {
     message TTabletCountPerMemoryModeEntry
     {
@@ -130,7 +130,7 @@ message TReqSetTabletCellStatistics
     message TEntry
     {
         required NYT.NProto.TGuid tablet_cell_id = 1;
-        required TProtoTabletCellStatistics statistics = 2;
+        required TTabletCellStatistics statistics = 2;
     }
 
     required int32 cell_tag = 1;

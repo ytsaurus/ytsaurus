@@ -93,8 +93,8 @@ TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTab
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
 TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
-void ToProto(NProto::TProtoTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
-void FromProto(TTabletCellStatistics* statistics, const NProto::TProtoTabletCellStatistics& protoStatistics);
+void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
+void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
