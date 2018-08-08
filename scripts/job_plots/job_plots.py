@@ -31,6 +31,7 @@ JobInfo = namedtuple(
         "length", "state", "job_id_hi", "job_id_lo", "node",
         "input_compressed_data_size", "input_uncompressed_data_size", "input_data_weight", "input_row_count",
         "output_compressed_data_size", "output_uncompressed_data_size", "output_data_weight", "output_row_count",
+        "statistics",
     ]
 )
 
@@ -125,6 +126,7 @@ def get_jobs(op_id, cluster_name):
                     output_uncompressed_data_size=output_uncompressed_data_size,
                     output_data_weight=output_data_weight,
                     output_row_count=output_data_weight,
+                    statistics=job_info["statistics"],
                 )
             )
     for job_type in res.data:
@@ -140,9 +142,9 @@ class JobSet(object):
         self.data = defaultdict(list)
     
     def aggregate(self, data_type, func, table_num=0):
-        return func(covert_to_list(getattr(job_info, data_type))[table_num]
+        return func([self.get_statistics(job_info, data_type, table_num)
                     for job_info_per_type in self.data.itervalues() 
-                    for job_info in job_info_per_type)
+                    for job_info in job_info_per_type])
     
     def filter_jobs(
         self, job_types=None,
@@ -151,6 +153,7 @@ class JobSet(object):
         abs_starts_after=0, abs_starts_before=float("inf"),
         abs_ends_after=0, abs_ends_before=float("inf"),
         states=("completed", "failed"),
+        filter_func=lambda x: True,
     ):
         """Get new set of jobs, filtered by type, state and time limits."""
         if job_types is None:
@@ -160,7 +163,8 @@ class JobSet(object):
             if not job_type in job_types:
                 continue
             for job_info in jobs_info:
-                if (rel_starts_after <= job_info.rel_start_time <= rel_starts_before and 
+                if (filter_func(job_info) and
+                    rel_starts_after <= job_info.rel_start_time <= rel_starts_before and 
                     rel_ends_after <= job_info.rel_end_time <= rel_ends_before and
                     abs_starts_after <= job_info.abs_start_time <= abs_starts_before and 
                     abs_ends_after <= job_info.abs_end_time <= abs_ends_before and
@@ -178,6 +182,17 @@ class JobSet(object):
             bargap = 0.1,
         )
         return dict(data = data, layout = layout)
+    
+    def data_is_correct(self, data_type=None, table_num=0, other_jobset=None):
+        jobsets = ([self] if other_jobset is None else [self, other_jobset])
+        for jobset in jobsets:
+            if not jobset.data:
+                print("One of JobSets is empty!")
+                return False
+            if data_type and jobset.aggregate(data_type, len, table_num) == 0:
+                print("There is no such statistics in one of JobSets!")
+                return False
+        return True
         
     def get_hline(self, x0=0, x1=0, y=0, color="green", name="", showlegend=False, visible=True):
         return go.Scatter(
@@ -191,8 +206,20 @@ class JobSet(object):
             visible=visible,
         )
     
+    def get_statistics(self, job_info, data_type, table_num):
+        path_segments = data_type.split("/")
+        if (path_segments[0] != "statistics"):
+            return covert_to_list(getattr(job_info, data_type))[table_num]
+        data = getattr(job_info, "statistics")
+        for segment in path_segments[1:]:
+            data = data[segment]
+        return data
+            
     def draw_time_gantt(self):
         """Draw gantt chart illustrating preparation and execution periods for every job."""
+        if not self.data_is_correct():
+            return
+        init_notebook_mode(connected=True)
         for job_type, jobs_info in self.data.iteritems():
             lines = []
             for y, job_info in enumerate(jobs_info):
@@ -211,9 +238,14 @@ class JobSet(object):
     def draw_hist(self, data_type="length", table_num=0, other_jobset=None):
         """
         Draw histogram for selected data type.
+        Data type can be a path in the statistics tree,
+        starting with word statistics e.g. statistics/data/input/data_weight/sum.
         If data type refers to output, number of output table should be provided (default is 0).
         If other_jobset argument is passed, comparative chart for two operations will be drawn.
-        """
+        """ 
+        if not self.data_is_correct(data_type, other_jobset=other_jobset):
+            return
+        init_notebook_mode(connected=True)
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
         
         # Find data boundaries for calculation of bins edges:
@@ -223,7 +255,7 @@ class JobSet(object):
         traces = []
         for i, jobset in enumerate(jobsets):
             for job_type, jobs_info in jobset.data.iteritems():
-                values = [covert_to_list(getattr(job_info, data_type))[table_num] for job_info in jobs_info]
+                values = [self.get_statistics(job_info, data_type, table_num) for job_info in jobs_info]
                 traces.append(go.Histogram(
                     nbinsx=bin_count,
                     x=values,
@@ -236,6 +268,8 @@ class JobSet(object):
         Draw line graph illustrating number of running jobs during the operation.
         If other_jobset argument is passed, comparative chart for two operations will be drawn.
         """
+        if not self.data_is_correct(other_jobset=other_jobset):
+            return
         init_notebook_mode(connected=True)
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
         traces = []
