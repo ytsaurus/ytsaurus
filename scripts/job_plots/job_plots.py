@@ -18,6 +18,9 @@ import time
 import calendar
 from collections import namedtuple
 from collections import defaultdict
+from plotly import __version__
+from plotly.offline import init_notebook_mode, iplot
+import plotly.graph_objs as go
 
 
 """Object for job representation."""
@@ -27,14 +30,14 @@ JobInfo = namedtuple(
         "rel_start_time", "rel_end_time", "rel_start_running",
         "length", "state", "job_id_hi", "job_id_lo", "node",
         "input_compressed_data_size", "input_uncompressed_data_size", "input_data_weight", "input_row_count",
-        "output_compressed_data_size", "output_uncompressed_data_size", "output_data_weight", "output_row_count"
+        "output_compressed_data_size", "output_uncompressed_data_size", "output_data_weight", "output_row_count",
     ]
 )
 
 
-def format_lohi(id_lo, id_hi, prefix='', id_as_parts=True):
+def format_lohi(id_lo, id_hi, id_as_parts=False):
     if id_as_parts:
-        return "{}lo = {:20d}, {}hi = {:20d}".format(prefix, id_lo, prefix, id_hi)
+        return "lo = {:20d}, hi = {:20d}".format(id_lo, id_hi)
     else:
         return "{:32}".format(parts_to_guid(id_hi, id_lo))
 
@@ -74,12 +77,12 @@ def get_data_from_output_tables(data_type, output):
     return list(output[table_num][data_type]["sum"] for table_num in output.keys())
 
 
-def get_jobs(op_id, client):
+def get_jobs(op_id, cluster_name):
     """
-    Get set of all jobs in operation as a JobSet object by operation id.
-    Takes YtClient object for obtaining data.
+    Get set of all jobs in operation as a JobSet object by operation id and a name of the cluster.
     """
     res = JobSet()
+    client = yt.client.Yt(proxy = cluster_name)
     operation_info = get_operation_info(op_id, client)
     
     # For calculation of relative time i.e. time from the operation start:
@@ -121,7 +124,7 @@ def get_jobs(op_id, client):
                     output_compressed_data_size=output_compressed_data_size,
                     output_uncompressed_data_size=output_uncompressed_data_size,
                     output_data_weight=output_data_weight,
-                    output_row_count=output_data_weight
+                    output_row_count=output_data_weight,
                 )
             )
     for job_type in res.data:
@@ -143,10 +146,10 @@ class JobSet(object):
     
     def filter_jobs(
         self, job_types=None,
-        rel_starts_after=0, rel_starts_before=float('inf'),
-        rel_ends_after=0, rel_ends_before=float('inf'),
-        abs_starts_after=0, abs_starts_before=float('inf'),
-        abs_ends_after=0, abs_ends_before=float('inf'),
+        rel_starts_after=0, rel_starts_before=float("inf"),
+        rel_ends_after=0, rel_ends_before=float("inf"),
+        abs_starts_after=0, abs_starts_before=float("inf"),
+        abs_ends_after=0, abs_ends_before=float("inf"),
         states=("completed", "failed"),
     ):
         """Get new set of jobs, filtered by type, state and time limits."""
@@ -165,33 +168,45 @@ class JobSet(object):
                     new_jobs.data[job_type].append(job_info)
         return new_jobs
      
-    def prepare_plot(self, width=10, height=6, title="", xlabel="", ylabel=""):
+    def prepare_plot(self, data, title="", xlabel="", ylabel=""):
         """Set plot properties."""
-        plt.figure(figsize=(width, height))
-        plt.title(title, fontsize=15)
-        plt.xlabel(xlabel, fontsize=12)
-        plt.ylabel(ylabel, fontsize=12)
+        layout = dict(
+            title = title,
+            xaxis = dict(title = xlabel),
+            yaxis = dict(title = ylabel),
+            barmode = "group",
+            bargap = 0.1,
+        )
+        return dict(data = data, layout = layout)
+        
+    def get_hline(self, x0=0, x1=0, y=0, color="green", name="", showlegend=False, visible=True):
+        return go.Scatter(
+            x=[x0, x1],
+            y=[y, y],
+            mode="lines",
+            line=dict(color = color),
+            hoverinfo="none",
+            showlegend=showlegend,
+            name=name,
+            visible=visible,
+        )
     
     def draw_time_gantt(self):
         """Draw gantt chart illustrating preparation and execution periods for every job."""
         for job_type, jobs_info in self.data.iteritems():
-            self.prepare_plot(title="\n{} jobs".format(job_type), xlabel="time", ylabel="jobs")
+            lines = []
             for y, job_info in enumerate(jobs_info):
-                plt.hlines(y, xmin=job_info.rel_start_time, xmax=job_info.rel_start_running, colors='y')
-                plt.hlines(
-                    y, xmin=job_info.rel_start_running, xmax=job_info.rel_end_time,
-                    colors=('g' if job_info.state == "completed" else 'r')
-                )
-            
+                lines.append(self.get_hline(job_info.rel_start_time, job_info.rel_start_running, y, "yellow"))
+                lines.append(self.get_hline(
+                    job_info.rel_start_running, job_info.rel_end_time, y,
+                    color=("green" if job_info.state == "completed" else "red")),
+                )            
             #Creating the legend:
-            red_patch = mpatches.Patch(color="r", label="Failed jobs")
-            green_patch = mpatches.Patch(color="g", label="Completed jobs")
-            yellow_patch = mpatches.Patch(color="y", label="Preparation")
-            plt.legend(
-                handles=[red_patch, green_patch, yellow_patch], loc="upper center",
-                bbox_to_anchor=(0.5, -0.1), fontsize=12, ncol=3
-            )
-            plt.show()
+            lines.append(self.get_hline(color="red", name="Failed jobs", showlegend=True, visible="legendonly"))
+            lines.append(self.get_hline(color="green", name="Completed jobs", showlegend=True, visible="legendonly"))
+            lines.append(self.get_hline(color="yellow", name="Preparation", showlegend=True, visible="legendonly"))
+            
+            iplot(self.prepare_plot(lines, title="{} jobs".format(job_type), xlabel="time", ylabel="jobs"))
     
     def draw_hist(self, data_type="length", table_num=0, other_jobset=None):
         """
@@ -199,49 +214,58 @@ class JobSet(object):
         If data type refers to output, number of output table should be provided (default is 0).
         If other_jobset argument is passed, comparative chart for two operations will be drawn.
         """
-        self.prepare_plot(title="{} histogram".format(data_type), xlabel=data_type, ylabel="jobs number")
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
         
         # Find data boundaries for calculation of bins edges:
         min_val = min(jobset.aggregate(data_type, min, table_num) for jobset in jobsets)
         max_val = max(jobset.aggregate(data_type, max, table_num) for jobset in jobsets)
         bin_count = min(max_val - min_val + 1, 50)
-        bins = numpy.linspace(min_val, max_val, bin_count + 1)
-        
+        traces = []
         for i, jobset in enumerate(jobsets):
             for job_type, jobs_info in jobset.data.iteritems():
                 values = [covert_to_list(getattr(job_info, data_type))[table_num] for job_info in jobs_info]
-                plt.hist(values, bins, rwidth=0.9, alpha=0.5, label=job_type + " jobs in set{}".format(i + 1))
-        plt.legend(
-            fontsize=12, ncol=len(self.data.keys()),
-            loc="upper center", bbox_to_anchor=(0.5, -0.1)
-        )
-        plt.show()
+                traces.append(go.Histogram(
+                    nbinsx=bin_count,
+                    x=values,
+                    name="{} jobs in set{}".format(job_type, i + 1),
+                ))
+        iplot(self.prepare_plot(traces, title="{} histogram".format(data_type), xlabel=data_type, ylabel="jobs count"))
     
-    def draw_time_plot(self, step_count=100, other_jobset=None):
+    def draw_time_plot(self, step_count=200, other_jobset=None):
         """
         Draw line graph illustrating number of running jobs during the operation.
         If other_jobset argument is passed, comparative chart for two operations will be drawn.
         """
-        self.prepare_plot(xlabel="time", ylabel="jobs number")
+        init_notebook_mode(connected=True)
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
+        traces = []
         for i, jobset in enumerate(jobsets):
             for job_type, jobs_info in jobset.data.iteritems():
                 min_time = min(job_info.rel_start_time for job_info in jobs_info)
                 max_time = max(job_info.rel_end_time for job_info in jobs_info)
-                time_points = numpy.linspace(min_time, max_time, min(step_count, max_time - min_time + 1))
+                time_points = numpy.linspace(max(0, min_time - 1), max_time + 1, min(step_count, max_time - min_time + 1))
+                
                 job_count = []
                 for point in time_points:
                     job_count.append(sum(job_info.rel_start_time <= point <= job_info.rel_end_time
                                          for job_info in jobs_info))
-                plt.plot(time_points, job_count, label=job_type + " jobs in set{}".format(i + 1))
-        plt.legend(
-            fontsize=12, ncol=len(self.data.keys()),
-            loc="upper center", bbox_to_anchor=(0.5, -0.1)
-        )
-        plt.show()
+                    
+                job_count_without_zeros = job_count
+                for j in range(1, len(job_count) - 1):
+                    if job_count[j - 1] == 0 and job_count[j] == 0 and job_count[j + 1] == 0:
+                        job_count_without_zeros[j] = None
+                
+                traces.append(go.Scatter(
+                    x=time_points,
+                    y=job_count_without_zeros,
+                    mode="lines",
+                    fill="tozeroy",
+                    name="{} jobs in set{}".format(job_type, i + 1),
+                    connectgaps=False,
+                ))
+        iplot(self.prepare_plot(traces, xlabel="time", ylabel="jobs count"))
         
-    def print_text_data(self, id_as_parts=True):
+    def print_text_data(self, id_as_parts=False):
         """
         Print node id, job id and running time for every job.
         """
