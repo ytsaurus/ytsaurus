@@ -49,6 +49,15 @@
         },
         {
             "source": {
+                "type": "INLINE",
+                "content": "This package is built with ya package.\n"
+            },
+            "destination": {
+                "path": "/node_modules/yt/built_by_ya.txt"
+            }
+        },
+        {
+            "source": {
                 "type": "SANDBOX_RESOURCE",
                 "id": 625566363,
                 "path": "node_modules"
