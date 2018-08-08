@@ -78,6 +78,9 @@ def disable_for_ya(func):
 def get_artifacts_dir(options):
     return os.path.join(options.working_directory, "ARTIFACTS")
 
+def get_node_modules_dir(options):
+    return os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
+
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
 
@@ -97,6 +100,12 @@ def get_git_depth(options):
         cwd=options.checkout_directory,
         capture_output=True)
     return run_result.stdout.rstrip("\n")
+
+def get_http_proxy_tar_ya_package(options):
+    with cwd(get_artifacts_dir(options)):
+        generated_package_list = glob.glob("yandex-yt-http-proxy*.tar")
+        assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
+        return os.path.realpath(generated_package_list[0])
 
 def ya_make_env(options):
     return {
@@ -449,23 +458,29 @@ def package(options, build_context):
                     run(args, env=ya_make_env(options))
 
 @build_step
-@disable_for_ya
-def run_prepare(options, build_context):
+def run_prepare_node_modules(options, build_context):
     nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
     nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
 
-    yt_node_binary_path = os.path.join(nodejs_source, "lib", "ytnode.node")
-    run(["rm", "-f", yt_node_binary_path])
-    run(["ln", "-s", os.path.join(nodejs_build, "ytnode.node"), yt_node_binary_path])
+    if options.build_system == "cmake":
+        yt_node_binary_path = os.path.join(nodejs_source, "lib", "ytnode.node")
+        run(["rm", "-f", yt_node_binary_path])
+        run(["ln", "-s", os.path.join(nodejs_build, "ytnode.node"), yt_node_binary_path])
 
-    with cwd(nodejs_build):
-        if os.path.exists("node_modules"):
-            rmtree("node_modules")
-        run(["npm", "install"])
+        with cwd(nodejs_build):
+            if os.path.exists("node_modules"):
+                rmtree("node_modules")
+            run(["npm", "install"])
 
-    link_path = os.path.join(nodejs_build, "node_modules", "yt")
-    run(["rm", "-f", link_path])
-    run(["ln", "-s", nodejs_source, link_path])
+        link_path = os.path.join(nodejs_build, "node_modules", "yt")
+        run(["rm", "-f", link_path])
+        run(["ln", "-s", nodejs_source, link_path])
+    else:
+        assert options.build_system == "ya"
+        mkdirp(nodejs_build)
+        with tarfile.open(get_http_proxy_tar_ya_package(options)) as http_proxy_tar:
+            http_proxy_tar.extractall(path=nodejs_build)
+        assert os.path.exists(get_node_modules_dir(options))
 
 @build_step
 def run_sandbox_upload(options, build_context):
@@ -552,10 +567,7 @@ def run_sandbox_upload(options, build_context):
     else:
         assert options.build_system == "ya"
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
-        with cwd(get_artifacts_dir(options)):
-            generated_package_list = glob.glob("yandex-yt-http-proxy*.tar")
-            assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
-            os.symlink(os.path.realpath(generated_package_list[0]), ya_nodejs_tar)
+        os.symlink(get_http_proxy_tar_ya_package(options), ya_nodejs_tar)
 
         rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
@@ -786,7 +798,7 @@ def run_yp_integration_tests(options, build_context):
         teamcity_message("YP integration tests are skipped since all tests are disabled")
         return
 
-    node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
+    node_path = get_node_modules_dir(options)
     run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
                env={
                    "NODE_PATH": node_path
@@ -802,7 +814,7 @@ def run_python_libraries_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "15"])
 
-    node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
+    node_path = get_node_modules_dir(options)
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
                pytest_args=pytest_args,
                env={
