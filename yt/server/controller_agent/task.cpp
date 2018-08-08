@@ -30,6 +30,8 @@ using namespace NScheduler;
 using namespace NTableClient;
 using namespace NYTree;
 
+using NYT::FromProto;
+using NYT::ToProto;
 using NScheduler::NProto::TSchedulerJobSpecExt;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TTableInputSpec;

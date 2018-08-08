@@ -4,6 +4,8 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
@@ -49,8 +51,8 @@ struct TControllerAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Per-operation data retrieved from Cypress on handshake.
-struct TOperationRevivalDescriptor
+// NB: Keep sync with NControllerAgent::TControllerTransactionIds.
+struct TOperationTransactions
 {
     NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr InputTransaction;
@@ -58,6 +60,22 @@ struct TOperationRevivalDescriptor
     NApi::ITransactionPtr DebugTransaction;
     NApi::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
+};
+
+void ToProto(
+    NControllerAgent::NProto::TControllerTransactionIds* transactionsProto,
+    const TOperationTransactions& transactions);
+
+void FromProto(
+    TOperationTransactions* transactions,
+    const NControllerAgent::NProto::TControllerTransactionIds& transactionsProto,
+    NApi::NNative::IClientPtr masterClient);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Per-operation data retrieved from Cypress on handshake.
+struct TOperationRevivalDescriptor
+{
     bool UserTransactionAborted = false;
     bool OperationAborting = false;
     bool OperationCommitted = false;
@@ -205,6 +223,9 @@ public:
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
     DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
+
+    //! Structure with operation transactions.
+    DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationTransactions>, Transactions);
 
     //! Scheduling tag filters of operation pool trees.
     DEFINE_BYREF_RW_PROPERTY(TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);

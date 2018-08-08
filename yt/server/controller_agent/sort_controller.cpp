@@ -65,6 +65,9 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NScheduler;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
 

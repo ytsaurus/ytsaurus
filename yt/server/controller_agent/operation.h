@@ -32,7 +32,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
     DEFINE_BYVAL_RW_PROPERTY(TMemoryTag, MemoryTag);
-    DEFINE_BYVAL_RW_PROPERTY(std::vector<NApi::ITransactionPtr>, Transactions);
+    DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, WatchTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
     DEFINE_BYVAL_RW_PROPERTY(TOperationControllerHostPtr, Host);
 
