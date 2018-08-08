@@ -28,7 +28,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISecurityManager
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Sets the authenticated user by user name.
     virtual void SetAuthenticatedUserByNameOrThrow(const TString& userName) = 0;
