@@ -19,14 +19,16 @@ def main():
         print >>sys.stderr, "  https://wiki.yandex-team.ru/yt/internal/ya/"
         print >>sys.stderr, "ERROR occurred. Exiting..."
         exit(1)
-    env = {
-        "PYTHONPATH": "{python}:{yp_python}:{install_dir}".format(
-            python=os.path.join(repo_root, "python"),
-            yp_python=os.path.join(repo_root, "yp", "python"),
-            install_dir=os.path.join(repo_root, "ya-build")),
-        "PATH": ya_build + ":" + os.environ["PATH"],
-        "PERL5LIB": ya_build + ":" + os.environ.get("PERL5LIB", ""),
-    }
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "{python}:{yp_python}:{install_dir}:{env_pythonpath}".format(
+        python=os.path.join(repo_root, "python"),
+        yp_python=os.path.join(repo_root, "yp", "python"),
+        install_dir=os.path.join(repo_root, "ya-build"),
+        env_pythonpath=os.environ.get("PYTHONPATH", ""))
+
+    env["PATH"] = ya_build + ":" + os.environ["PATH"]
+    env["PERL5LIB"] = ya_build + ":" + os.environ.get("PERL5LIB", "")
 
     args = sys.argv[1:] + [env]
     os.execlpe("py.test", "py.test", *args)

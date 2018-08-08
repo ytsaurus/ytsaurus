@@ -26,11 +26,25 @@ struct TAdminOptions
 
 struct TClientOptions
 {
-    explicit TClientOptions(const TString& user = NSecurityClient::GuestUserName)
-        : User(user)
+    TClientOptions()
     { }
 
-    TString User;
+    explicit TClientOptions(const TString& user)
+        : PinnedUser(user)
+    { }
+
+    const TString& GetUser() const
+    {
+        return PinnedUser.Get(NSecurityClient::GuestUserName);
+    }
+
+    //! This field is not required for authentication.
+    //!
+    //! When not specified, user is derived from credentials. When
+    //! specified, server additionally checks that PinnedUser is
+    //! matching user derived from credentials.
+    TNullable<TString> PinnedUser;
+
     TNullable<TString> Token;
     TNullable<TString> SessionId;
     TNullable<TString> SslSessionId;

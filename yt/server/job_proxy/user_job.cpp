@@ -1215,7 +1215,7 @@ private:
             }
             try {
                 auto memoryUsage = GetProcessMemoryUsage(pid);
-                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
+                LOG_DEBUG("Pid: %v, ProcessName: %v, Rss: %v, Shared: %v",
                     pid,
                     GetProcessName(pid),
                     memoryUsage.Rss,

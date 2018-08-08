@@ -273,7 +273,7 @@ const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableI
 void TOperationControllerBase::InitializeClients()
 {
     TClientOptions options;
-    options.User = AuthenticatedUser;
+    options.PinnedUser = AuthenticatedUser;
     Client = Host
         ->GetClient()
         ->GetNativeConnection()
