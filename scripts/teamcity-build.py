@@ -20,6 +20,7 @@ from pytest_helpers import (get_sandbox_dirs, save_failed_test,
 from datetime import datetime
 
 import argparse
+import collections
 import glob
 import functools
 import os.path
@@ -73,6 +74,9 @@ def disable_for_ya(func):
             return
         func(options, build_context)
     return wrapper_function
+
+def get_artifacts_dir(options):
+    return os.path.join(options.working_directory, "ARTIFACTS")
 
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
@@ -397,7 +401,6 @@ def share_packages(options, build_context):
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
 
 @build_step
-@disable_for_ya
 def package(options, build_context):
     if not options.package:
         return
@@ -422,45 +425,28 @@ def package(options, build_context):
                     teamcity_message("We have uploaded a package to " + repository)
                     teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
         else:
-            os.mkdir("ARTIFACTS")
-            with cwd("ARTIFACTS"):
-                package_script = os.path.join(options.checkout_directory, "scripts", "package.py")
-                ya_version_printer = os.path.join(get_bin_dir(options), "ya_version_printer")
+            PackageTask = collections.namedtuple(
+                "PackageTask", [
+                    "package_file",
+                    "ya_package_args"])
 
-                patch_number = get_git_depth(options)
-                yt_version = run_captured([
-                    ya_version_printer,
-                    "--project=yt",
-                    "--branch", options.branch,
-                    "--patch-number", patch_number,
-                ])
-                yp_version = run_captured([
-                    ya_version_printer,
-                    "--project=yp",
-                    "--branch", options.branch,
-                    "--patch-number", patch_number,
-                ])
-                teamcity_message("Building packages, yt version '{0}', yp version: '{1}'".format(yt_version, yp_version))
-
-                env = os.environ.copy()
-                env["YA_CACHE_DIR"] = get_ya_cache_dir(options)
-                package_list = [
-                    "yt/packages/yandex-yt-master.json",
-                    "yt/packages/yandex-yt-scheduler.json",
-                    "yt/packages/yandex-yt-controller-agent.json",
-                    "yt/packages/yandex-yt-node.json",
-                    "yt/packages/yandex-yt-proxy.json",
-                ]
-                run([
-                    package_script,
-                    "--override-yt-version", yt_version,
-                    "--override-yp-version", yp_version,
-                    "--build", options.ya_build_type] + package_list,
-                    env=env)
-
-                teamcity_interact("setParameter", name="yt.package_built", value=1)
-                teamcity_interact("setParameter", name="yt.package_version", value=yt_version)
-                teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(yt_version))
+            PACKAGE_TASK_LIST = [
+                PackageTask(
+                    "yandex-yt-http-proxy.json",
+                    ("--tar", "--no-compression")),
+            ]
+            artifacts_dir = get_artifacts_dir(options)
+            os.mkdir(artifacts_dir)
+            with cwd(artifacts_dir):
+                for package_task in PACKAGE_TASK_LIST:
+                    package_file = os.path.join(get_bin_dir(options), package_task.package_file)
+                    args = [
+                        get_ya(options), "package", package_file,
+                        "--custom-version", build_context["yt_version"],
+                    ]
+                    args += package_task.ya_package_args
+                    args += ya_make_args(options)
+                    run(args, env=ya_make_env(options))
 
 @build_step
 @disable_for_ya
@@ -566,22 +552,10 @@ def run_sandbox_upload(options, build_context):
     else:
         assert options.build_system == "ya"
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
-        yt_http_proxy_package = os.path.join(get_bin_dir(options), "yandex-yt-http-proxy.json")
-
-        with cwd(tmp_dir):
-            args = [
-                get_ya(options),
-                "package",
-                yt_http_proxy_package,
-                "--custom-version", build_context["yt_version"],
-                "--tar",
-                "--no-compression",
-            ]
-            args += ya_make_args(options)
-            run(args, env=ya_make_env(options))
-            generated_package_list = glob.glob("*.tar")
+        with cwd(get_artifacts_dir(options)):
+            generated_package_list = glob.glob("yandex-yt-http-proxy*.tar")
             assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
-            os.rename(generated_package_list[0], ya_nodejs_tar)
+            os.symlink(os.path.realpath(generated_package_list[0]), ya_nodejs_tar)
 
         rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
