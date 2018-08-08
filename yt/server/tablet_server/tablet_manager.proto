@@ -104,8 +104,8 @@ message TTabletCellStatistics
 {
     message TTabletCountPerMemoryModeEntry
     {
-        required int32 key = 1;
-        required int32 value = 2;
+        required int32 key = 1; // EInMemoryMode
+        required int32 value = 2;  // TabletCount
     }
 
     required int64 unmerged_row_count = 1;
