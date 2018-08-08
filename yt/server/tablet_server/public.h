@@ -17,7 +17,7 @@ namespace NTabletServer {
 
 namespace NProto {
 
-class TProtoTabletCellStatistics;
+class TTabletCellStatistics;
 
 } // namespace NProto
 

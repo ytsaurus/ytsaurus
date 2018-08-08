@@ -208,7 +208,7 @@ TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatisti
     return result;
 }
 
-void ToProto(NProto::TProtoTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics)
+void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics)
 {
     protoStatistics->set_unmerged_row_count(statistics.UnmergedRowCount);
     protoStatistics->set_uncompressed_data_size(statistics.UncompressedDataSize);
@@ -228,7 +228,7 @@ void ToProto(NProto::TProtoTabletCellStatistics* protoStatistics, const TTabletC
     ToProto(protoStatistics->mutable_tablet_count_per_memory_mode(), statistics.TabletCountPerMemoryMode);
 }
 
-void FromProto(TTabletCellStatistics* statistics, const NProto::TProtoTabletCellStatistics& protoStatistics)
+void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics)
 {
     statistics->UnmergedRowCount = protoStatistics.unmerged_row_count();
     statistics->UncompressedDataSize = protoStatistics.uncompressed_data_size();

@@ -123,7 +123,6 @@ using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NTabletNode::EStoreType;
 using NTabletNode::TTableMountConfigPtr;
-using NTabletServer::TTabletCellStatistics;
 using NTransactionServer::TTransaction;
 
 using NYT::FromProto;
@@ -3101,7 +3100,7 @@ private:
         if (RecomputeTabletCellStatistics_) {
             for (const auto& pair : TabletCellMap_) {
                 auto* cell = pair.second;
-                cell->LocalStatistics() = TTabletCellStatistics();
+                cell->LocalStatistics() = NTabletServer::TTabletCellStatistics();
                 cell->LocalStatistics().Decommissioned = cell->GetDecommissioned();
                 for (const auto& tablet : cell->Tablets()) {
                     cell->LocalStatistics() += GetTabletStatistics(tablet);
@@ -3472,7 +3471,7 @@ private:
             if (!IsObjectAlive(cell))
                 continue;
 
-            auto newStatistics = FromProto<TTabletCellStatistics>(entry.statistics());
+            auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto serializableStatistics = New<TSerializableTabletCellStatistics>(
