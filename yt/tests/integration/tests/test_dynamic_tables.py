@@ -1213,7 +1213,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
             self._get_callback(first_command)("//tmp/t")
             self._get_callback(second_command)("//tmp/t")
             wait_for_tablet_state("//tmp/t", expected)
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
+        wait(lambda: get("//tmp/t/@tablet_state") != "transient")
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
@@ -1257,7 +1257,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
             callback()
 
         wait_for_tablet_state("//tmp/t", "frozen")
-        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
+        wait(lambda: get("//tmp/t/@tablet_state") != "transient")
         assert get("//tmp/t/@expected_tablet_state") == "frozen"
 
 ##################################################################

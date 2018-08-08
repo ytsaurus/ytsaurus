@@ -1219,11 +1219,12 @@ def wait_for_tablet_state(path, state, **kwargs):
     if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
         wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
     else:
-        tablet_count = get(path + '/@tablet_count', driver=driver)
+        tablet_count = get(path + "/@tablet_count", driver=driver)
         first_tablet_index = kwargs.get("first_tablet_index", 0)
         last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
         wait(lambda: all(x["state"] == state for x in
              get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
+        wait(lambda: get(path + "/@tablet_state") != "transient")
 
 def sync_mount_table(path, freeze=False, **kwargs):
     mount_table(path, freeze=freeze, **kwargs)
@@ -1232,12 +1233,10 @@ def sync_mount_table(path, freeze=False, **kwargs):
 def sync_unmount_table(path, **kwargs):
     unmount_table(path, **kwargs)
     wait_for_tablet_state(path, "unmounted", **kwargs)
-    wait(lambda: not exists(path + "/@last_mount_transaction_id"))
 
 def sync_freeze_table(path, **kwargs):
     freeze_table(path, **kwargs)
     wait_for_tablet_state(path, "frozen", **kwargs)
-    wait(lambda: not exists(path + "/@last_mount_transaction_id"))
 
 def sync_unfreeze_table(path, **kwargs):
     unfreeze_table(path, **kwargs)
@@ -1245,7 +1244,6 @@ def sync_unfreeze_table(path, **kwargs):
 
 def sync_reshard_table(path, *args, **kwargs):
     reshard_table(path, *args, **kwargs)
-    wait(lambda: not exists(path + "/@last_mount_transaction_id"))
 
 def sync_flush_table(path, driver=None):
     sync_freeze_table(path, driver=driver)
