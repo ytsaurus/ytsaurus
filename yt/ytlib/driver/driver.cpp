@@ -288,7 +288,7 @@ public:
         auto cachedClient = Find(user);
         if (!cachedClient) {
             TClientOptions options;
-            options.User = user;
+            options.PinnedUser = user;
             if (request.UserToken) {
                 options.Token = request.UserToken;
             }

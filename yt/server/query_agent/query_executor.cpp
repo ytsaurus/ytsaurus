@@ -382,9 +382,7 @@ private:
         std::vector<std::vector<TDataRanges>> readRanges)
     {
         NApi::TClientOptions clientOptions;
-        if (MaybeUser_) {
-            clientOptions.User = MaybeUser_.Get();
-        }
+        clientOptions.PinnedUser = MaybeUser_;
 
         auto client = Bootstrap_
             ->GetMasterClient()
