@@ -83,9 +83,6 @@
 
 #include <algorithm>
 
-//FIMXE remove
-#include <yt/server/security_server/user.h>
-
 namespace NYT {
 namespace NTabletServer {
 
@@ -867,7 +864,7 @@ public:
         int lastTabletIndex,
         int newTabletCount)
     {
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex);
 
         if (newTabletCount <= 0) {
             THROW_ERROR_EXCEPTION("Tablet count must be positive");
@@ -1286,9 +1283,8 @@ public:
             }
 
             case ETabletActionState::Failing: {
-                LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v, Error: %Qv)",
-                    action->GetId(),
-                    action->Error());
+                LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v)",
+                    action->GetId());
 
                 MountMissedInActionTablets(action);
                 UnbindTabletAction(action);
@@ -1409,7 +1405,7 @@ public:
             return;
         }
 
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
             // Will throw :)
@@ -1508,7 +1504,7 @@ public:
 
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1714,7 +1710,7 @@ public:
             return;
         }
 
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         if (!force) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -1747,7 +1743,7 @@ public:
         YCHECK(table->IsTrunk());
         YCHECK(!table->IsExternal());
 
-        ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
         UpdateTabletState(table);
@@ -1769,7 +1765,7 @@ public:
             return;
         }
 
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
@@ -1803,7 +1799,7 @@ public:
         YCHECK(table->IsTrunk());
         YCHECK(!table->IsExternal());
 
-        ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
@@ -1865,7 +1861,7 @@ public:
             return;
         }
 
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1894,7 +1890,7 @@ public:
         YCHECK(table->IsTrunk());
         YCHECK(!table->IsExternal());
 
-        ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1946,7 +1942,7 @@ public:
             return;
         }
 
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1974,7 +1970,7 @@ public:
         YCHECK(table->IsTrunk());
         YCHECK(!table->IsExternal());
 
-        ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -2132,7 +2128,7 @@ public:
         auto& tablets = table->MutableTablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
 
@@ -2152,14 +2148,14 @@ public:
                 if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
                     THROW_ERROR_EXCEPTION(
                         "First pivot key must match that of the first tablet "
-                            "in the resharded range");
+                        "in the resharded range");
                 }
 
                 if (lastTabletIndex != tablets.size() - 1) {
                     if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
                         THROW_ERROR_EXCEPTION(
                             "Last pivot key must be strictly less than that of the tablet "
-                                "which follows the resharded range");
+                            "which follows the resharded range");
                     }
                 }
             }
@@ -2278,7 +2274,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        ParseTabletRangeNoThrow(table, &firstTabletIndex, &lastTabletIndex);
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
@@ -3317,7 +3313,7 @@ private:
     {
         YCHECK(!Bootstrap_->IsPrimaryMaster());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Send table statistics update (TableId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableId: %v)",
             table->GetId());
 
         NProto::TReqUpdateTableStatistics req;
@@ -3338,7 +3334,7 @@ private:
 
         auto tableIds = FromProto<std::vector<TTableId>>(request->table_ids());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Send table statistics update (TableIds: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableIds: %v)",
             tableIds);
 
         NProto::TReqUpdateTableStatistics req;
@@ -3366,6 +3362,7 @@ private:
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
         std::vector<TTableId> tableIds;
+        tableIds.reserve(request->entries_size());
         for (const auto& entry : request->entries()) {
             tableIds.push_back(FromProto<TTableId>(entry.table_id()));
         }
@@ -4641,7 +4638,15 @@ private:
         }
 
         try {
-            CreateTabletAction(NullObjectId, kind, tablets, cells, pivotKeys, tabletCount, false, keepFinished);
+            CreateTabletAction(
+                NullObjectId,
+                kind,
+                tablets,
+                cells,
+                pivotKeys,
+                tabletCount,
+                false,
+                keepFinished);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v)",
                 kind,
@@ -5152,7 +5157,7 @@ private:
         (*writerOptions)->OptimizeFor = table->GetOptimizeFor();
     }
 
-    static TError DoParseTabletRange(
+    static TError TryParseTabletRange(
         TTableNode* table,
         int* first,
         int* last)
@@ -5182,30 +5187,22 @@ private:
         return TError();
     }
 
+    static void ParseTabletRangeOrThrow(
+        TTableNode* table,
+        int* first,
+        int* last)
+    {
+        TryParseTabletRange(table, first, last)
+            .ThrowOnError();
+    }
+
     static void ParseTabletRange(
         TTableNode* table,
         int* first,
         int* last)
     {
-        auto error = DoParseTabletRange(table, first, last);
-        if (!error.IsOK()) {
-            THROW_ERROR error;
-        }
-    }
-
-    static void ParseTabletRangeNoThrow(
-        TTableNode* table,
-        int* first,
-        int* last)
-    {
-        auto error = DoParseTabletRange(table, first, last);
-        if (!error.IsOK()) {
-            LOG_FATAL("Unexpected error while parsing tablet range "
-                "(TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, Error: %Qv)",
-                table->GetId(),
-                first,
-                last);
-        }
+        auto error = TryParseTabletRange(table, first, last);
+        YCHECK(error.IsOK());
     }
 
     IMapNodePtr GetCellMapNode()

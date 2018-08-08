@@ -2261,10 +2261,10 @@ private:
         return results;
     }
 
-    void ResolveExternalNode(const TYPath& path, TTableId* tableId, TCellTag* cellTag, TString* fullPath = nullptr)
+    void ResolveExternalNode(const TYPath path, TTableId* tableId, TCellTag* cellTag, TString* fullPath = nullptr)
     {
         TMasterReadOptions options;
-        options.ReadFrom = EMasterChannelKind::Leader;
+        options.ReadFrom = EMasterChannelKind::Follower;
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto batchReq = proxy->ExecuteBatch();
         
@@ -2283,7 +2283,7 @@ private:
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attriubtes of table %v", path);
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v", path);
         const auto& batchRsp = batchRspOrError.Value();
         auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         auto& rsp = getAttributesRspOrError.Value();
@@ -2301,7 +2301,7 @@ private:
     {
         TTableId tableId;
         TCellTag cellTag;
-        TString fullPath;
+        TYPath fullPath;
         ResolveExternalNode(path, &tableId, &cellTag, &fullPath);
 
         TTransactionStartOptions txOptions;
@@ -2341,7 +2341,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
@@ -2387,7 +2386,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
@@ -2432,7 +2430,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
@@ -2477,7 +2474,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
@@ -2522,7 +2518,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
@@ -2578,7 +2573,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;
@@ -2616,7 +2610,6 @@ private:
             transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
         }
 
-        // For mutation context
         TTransactionCommitOptions commitOptions;
         commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
         commitOptions.Force2PC = true;

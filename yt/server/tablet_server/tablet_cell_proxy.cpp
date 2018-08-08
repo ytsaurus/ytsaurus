@@ -43,24 +43,32 @@ TYsonString CombineObjectIds(
     const std::vector<TObjectId>& objectIds,
     const std::vector<std::vector<TObjectId>>& remoteObjectIds)
 {
-    TStringStream stream;
-    TBufferedBinaryYsonWriter writer(&stream);
-    writer.OnBeginList();
+    TString result;
+    TStringOutput stringOutput(result);
 
-    for (const auto& objectId : objectIds) {
-        writer.OnStringScalar(ToString(objectId));
-    }
+    auto writer = CreateYsonWriter(
+        &stringOutput,
+        EYsonFormat::Binary,
+        EYsonType::Node,
+        /* enableRaw */ false,
+        /* booleanAsString */ false);
 
-    for (const auto& objectIds : remoteObjectIds) {
-        for (const auto& objectId : objectIds) {
-            writer.OnStringScalar(ToString(objectId));
-        }
-    }
+    BuildYsonFluently(writer.get())
+        .BeginList()
+        .DoFor(objectIds, [=] (TFluentList fluent, const auto objectId) {
+            fluent.Item().Value(objectId);
+        })
+        .DoFor(remoteObjectIds, [=] (TFluentList fluent, const auto& objectIds) {
+            fluent
+            .DoFor(objectIds, [=] (TFluentList fluent, const auto objectId) {
+                fluent.Item().Value(objectId);
+            });
+        })
+        .EndList();
 
-    writer.OnEndList();
-    writer.Flush();
+    writer->Flush();
 
-    return TYsonString(stream.Str());
+    return TYsonString(result);
 }
 
 } // namesapce NDetail
@@ -232,7 +240,7 @@ private:
 
             case EInternedAttributeKey::MulticellStatistics:
                 BuildYsonFluently(consumer)
-                    .DoMapFor(cell->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TTabletCellStatistics&>& pair) {
+                    .DoMapFor(cell->MulticellStatistics(), [&] (TFluentMap fluent, const auto& pair) {
                         auto serializableStatistics = New<TSerializableTabletCellStatistics>(
                             pair.second,
                             chunkManager);
@@ -280,13 +288,13 @@ private:
                 return FetchFromSwarm<ETabletCellHealth>(key)
                     .Apply(BIND([health] (const std::vector<ETabletCellHealth>& remoteHealths) mutable {
                         auto combineHealths = [] (auto lhs, auto rhs) {
-                            static std::array<ETabletCellHealth, 4> healthOrder{{
+                            static constexpr std::array<ETabletCellHealth, 4> HealthOrder{{
                                 ETabletCellHealth::Failed,
                                 ETabletCellHealth::Degraded,
                                 ETabletCellHealth::Initializing,
                                 ETabletCellHealth::Good}};
 
-                            for (auto health : healthOrder) {
+                            for (auto health : HealthOrder) {
                                 if (lhs == health || rhs == health) {
                                     return health;
                                 }
@@ -323,7 +331,7 @@ private:
                 YCHECK(Bootstrap_->IsPrimaryMaster());
 
                 std::vector<TTabletId> tabletIds;
-                for (const auto& tablet : cell->Tablets()) {
+                for (const auto* tablet : cell->Tablets()) {
                     tabletIds.push_back(tablet->GetId());
                 }
 
@@ -338,7 +346,7 @@ private:
                 YCHECK(Bootstrap_->IsPrimaryMaster());
 
                 std::vector<TTabletActionId> actionIds;
-                for (const auto& action : cell->Actions()) {
+                for (const auto* action : cell->Actions()) {
                     actionIds.push_back(action->GetId());
                 }
 
@@ -379,7 +387,6 @@ private:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
-
 };
 
 IObjectProxyPtr CreateTabletCellProxy(
