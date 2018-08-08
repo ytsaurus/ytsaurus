@@ -145,7 +145,7 @@ public:
     }
 
 
-    virtual TFuture<TOperationControllerInitializationResult> Initialize(const TNullable<TOperationRevivalDescriptor>& descriptor) override
+    virtual TFuture<TOperationControllerInitializeResult> Initialize(const TNullable<TOperationRevivalDescriptor>& descriptor) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IncarnationId_);
@@ -168,8 +168,8 @@ public:
         }
         return InvokeAgent<TControllerAgentServiceProxy::TRspInitializeOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
-                return TOperationControllerInitializationResult{
-                    TOperationControllerInitializationAttributes{
+                return TOperationControllerInitializeResult{
+                    TOperationControllerInitializeAttributes{
                         TYsonString(rsp->mutable_attributes(), EYsonType::MapFragment),
                         TYsonString(rsp->brief_spec(), EYsonType::MapFragment),
                         TYsonString(rsp->full_spec(), EYsonType::Node),

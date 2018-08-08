@@ -11,7 +11,18 @@
     },
     "build": {
         "targets": [
-            "yt/nodejs/targets/bin"
+            "yt/nodejs/targets/bin",
+            "yt/nodejs/targets/package"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            }
         ]
     },
     "data": [
@@ -26,13 +37,10 @@
         },
         {
             "source": {
-                "type": "ARCADIA",
-                "path": "yt/nodejs",
+                "type": "BUILD_OUTPUT",
+                "path": "yt/nodejs/targets/package",
                 "files": [
-                    "index.js",
-                    "bin/*",
-                    "lib/*",
-                    "static/*"
+                    "*"
                 ]
             },
             "destination": {

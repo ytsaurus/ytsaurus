@@ -55,7 +55,7 @@ void BuildMinimalOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    const auto& initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
     fluent
         .Item("operation_type").Value(operation->GetType())
@@ -78,7 +78,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    auto initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())

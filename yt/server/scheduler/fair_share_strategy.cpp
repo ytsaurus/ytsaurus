@@ -317,6 +317,13 @@ public:
             operationId,
             violatedPool->GetId(),
             violatedPool->GetMaxRunningOperationCount());
+        Host->SetOperationAlert(
+            operationId,
+            EOperationAlertType::OperationPending,
+            TError("Max running operation count violated")
+                << TErrorAttribute("pool", violatedPool->GetId())
+                << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
+            );
         return false;
     }
 

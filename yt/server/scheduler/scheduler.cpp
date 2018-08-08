@@ -953,6 +953,8 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
+        DoSetOperationAlert(operationId, EOperationAlertType::OperationPending, TError());
+
         operation->SetActivated(true);
         if (operation->GetPrepared()) {
             MaterializeOperation(operation);
@@ -1241,7 +1243,7 @@ private:
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout = Null)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1250,8 +1252,21 @@ private:
             return;
         }
 
-        operation->SetAlert(alertType, alert, timeout);
+        if (alert.IsOK()) {
+            if (operation->HasAlert(alertType)) {
+                operation->ResetAlert(alertType);
+                LOG_DEBUG("Operation alert reset (OperationId: %v, Type: %v)",
+                    operationId,
+                    alertType);
+            }
+        } else {
+            operation->SetAlert(alertType, alert, timeout);
+            LOG_DEBUG(alert, "Operation alert set (OperationId: %v, Type: %v)",
+                operationId,
+                alertType);
+        }
     }
+
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
@@ -1937,7 +1952,7 @@ private:
     {
         auto briefSpec = BuildYsonStringFluently()
             .BeginMap()
-                .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
+                .Items(operation->ControllerAttributes().InitializeAttributes->BriefSpec)
             .EndMap();
         return briefSpec;
     }
@@ -1962,7 +1977,7 @@ private:
 
             ValidateOperationState(operation, EOperationState::Initializing);
 
-            operation->ControllerAttributes().InitializationAttributes = initializationResult.Attributes;
+            operation->ControllerAttributes().InitializeAttributes = initializationResult.Attributes;
             operation->BriefSpec() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
@@ -2019,7 +2034,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
-            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializationAttributes->UnrecognizedSpec);
+            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializeAttributes->UnrecognizedSpec);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2045,7 +2060,7 @@ private:
                 auto result = WaitFor(controller->Initialize(operation->RevivalDescriptor()))
                     .ValueOrThrow();
 
-                operation->ControllerAttributes().InitializationAttributes = std::move(result.Attributes);
+                operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
                 operation->BriefSpec() = BuildBriefSpec(operation);
             }
 

@@ -212,6 +212,11 @@ TYsonString TOperation::BuildAlertsString() const
     return result;
 }
 
+bool TOperation::HasAlert(EOperationAlertType alertType) const
+{
+    return Alerts_.find(alertType) != Alerts_.end();
+}
+
 void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout)
 {
     auto& alert = Alerts_[alertType];

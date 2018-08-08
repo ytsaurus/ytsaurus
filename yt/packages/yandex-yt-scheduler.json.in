@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "yandex-yt-controller-agent",
+        "name": "yandex-yt-scheduler",
         "maintainer": "YT Team <yt@yandex-team.ru>",
         "description": "YT. This package provides server-side software",
         "version": "{revision}.{branch}",
@@ -11,18 +11,29 @@
     },
     "build": {
         "targets": [
-            "yt/server/programs/controller_agent"
+            "yt/server/programs/scheduler"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            }
         ]
     },
     "data": [
         {
             "source": {
                 "type": "BUILD_OUTPUT",
-                "path": "yt/server/programs/controller_agent/ytserver-controller-agent"
+                "path": "yt/server/programs/scheduler/ytserver-scheduler"
             },
             "destination": {
-                "path": "/usr/bin/ytserver-controller-agent"
+                "path": "/usr/bin/ytserver-scheduler"
             }
         }
     ]
 }
+
