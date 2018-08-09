@@ -555,8 +555,6 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
     # so these flags are passed through environment variables.
     environment = {}
     environment["YT_FORBID_REQUESTS_FROM_JOB"] = "1"
-    environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
-       str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
     if get_config(client)["pickling"]["use_function_name_as_title"]:
         title = get_function_name(function)
