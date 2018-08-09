@@ -527,13 +527,21 @@ def read_journal(path, **kwargs):
     return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
 def write_journal(path, value, is_raw=False, **kwargs):
-    if not isinstance(value, list):
-        value = [value]
-    value = yson.dumps(value)
-    # remove surrounding [ ]
-    value = value[1:-1]
     kwargs["path"] = path
-    return execute_command("write_journal", kwargs, input_stream=StringIO(value))
+
+    if "input_stream" in kwargs:
+        assert value is None
+        input_stream = kwargs["input_stream"]
+        del kwargs["input_stream"]
+    else:
+        if not isinstance(value, list):
+            value = [value]
+        value = yson.dumps(value)
+        # remove surrounding [ ]
+        value = value[1:-1]
+        input_stream = StringIO(value)
+
+    return execute_command("write_journal", kwargs, input_stream=input_stream)
 
 def make_batch_request(command_name, input=None, **kwargs):
     request = dict()
