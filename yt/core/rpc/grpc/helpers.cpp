@@ -2,6 +2,8 @@
 #include "config.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/finally.h>
+
 #include <yt/core/misc/proto/protobuf_helpers.pb.h>
 #include <yt/core/misc/proto/error.pb.h>
 
@@ -13,7 +15,12 @@
 #include <contrib/libs/grpc/include/grpc/byte_buffer.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+
 #include <contrib/libs/grpc/include/grpc/support/alloc.h>
+
+#include <contrib/libs/openssl/include/openssl/pem.h>
+
+#include <array>
 
 namespace NYT {
 namespace NRpc {
@@ -439,6 +446,35 @@ TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPt
         nativeKeyCertPairs.size(),
         static_cast<grpc_ssl_client_certificate_request_type>(config->ClientCertificateRequest),
         nullptr));
+}
+
+TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
+{
+    auto* bio = BIO_new(BIO_s_mem());
+    auto bioGuard = Finally([&] {
+        BIO_free(bio);
+    });
+
+    BIO_write(bio, x509String.data(), x509String.length());
+
+    auto* x509 = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+    auto x509Guard = Finally([&] {
+        X509_free(x509);
+    });
+
+    if (!x509) {
+        return Null;
+    }
+
+    auto* issuerName = X509_get_issuer_name(x509);
+
+    std::array<char, 1024> buf;
+    auto* issuerString = X509_NAME_oneline(issuerName, buf.data(), buf.size());
+    if (!issuerString) {
+        return Null;
+    }
+
+    return TString(issuerString);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

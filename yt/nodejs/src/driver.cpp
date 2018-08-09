@@ -204,8 +204,13 @@ public:
         Request_.AuthenticatedUser = std::move(authenticatedUser);
         Request_.Parameters = parameters->AsMap();
 
-        auto trace = Request_.Parameters->FindChild("trace");
-        if (trace && ConvertTo<bool>(trace)) {
+        bool enableTrace = false;
+        if (auto trace = Request_.Parameters->FindChild("trace")) {
+            try {
+                enableTrace = ConvertTo<bool>(trace);
+            } catch (const std::exception& ) { }
+        }
+        if (enableTrace) {
             TraceContext_ = NTracing::CreateRootTraceContext();
             if (requestId) {
                 TraceContext_ = NTracing::TTraceContext(
