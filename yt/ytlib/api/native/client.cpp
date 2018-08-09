@@ -202,7 +202,9 @@ public:
 
     ~TJobInputReader()
     {
-        TransferResultFuture_.Cancel();
+        if (TransferResultFuture_) {
+            TransferResultFuture_.Cancel();
+        }
     }
 
     void Open()
