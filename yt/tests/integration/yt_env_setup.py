@@ -355,6 +355,7 @@ class YTEnvSetup(object):
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
+    USE_MASTER_CACHE = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -414,6 +415,7 @@ class YTEnvSetup(object):
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
+            enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10)
 

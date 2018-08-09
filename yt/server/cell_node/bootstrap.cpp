@@ -521,15 +521,24 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         MasterConnection->GetTimestampProvider()));
 
-    MasterCacheService = CreateMasterCacheService(
-        Config->MasterCacheService,
-        CreateDefaultTimeoutChannel(
-            CreatePeerChannel(
-                Config->ClusterConnection->PrimaryMaster,
-                MasterConnection->GetChannelFactory(),
-                EPeerKind::Follower),
-            Config->ClusterConnection->PrimaryMaster->RpcTimeout),
-        GetCellId());
+    auto initMasterCacheSerivce = [&] (const auto& masterConfig) {
+        return CreateMasterCacheService(
+            Config->MasterCacheService,
+            CreateDefaultTimeoutChannel(
+                CreatePeerChannel(
+                    masterConfig,
+                    MasterConnection->GetChannelFactory(),
+                    EPeerKind::Follower),
+                masterConfig->RpcTimeout),
+            masterConfig->CellId);
+    };
+
+    MasterCacheServices.push_back(initMasterCacheSerivce(
+        Config->ClusterConnection->PrimaryMaster));
+
+    for (const auto& masterConfig : Config->ClusterConnection->SecondaryMasters) {
+        MasterCacheServices.push_back(initMasterCacheSerivce(masterConfig));
+    }
 
     OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
 
@@ -949,12 +958,16 @@ void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 
 void TBootstrap::OnMasterConnected()
 {
-    RpcServer->RegisterService(MasterCacheService);
+    for (const auto& masterCacheService : MasterCacheServices) {
+        RpcServer->RegisterService(masterCacheService);
+    }
 }
 
 void TBootstrap::OnMasterDisconnected()
 {
-    RpcServer->UnregisterService(MasterCacheService);
+    for (const auto& masterCacheService : MasterCacheServices) {
+        RpcServer->UnregisterService(masterCacheService);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

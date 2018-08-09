@@ -126,8 +126,7 @@ private:
         auto cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
         auto tableId = attributes->Get<TObjectId>("id");
 
-        // TODO(savrus): Use EMasterChannelKind::Cache channel.
-        channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache, cellTag);
         auto cellProxy = TObjectServiceProxy(channel);
         batchReq = cellProxy.ExecuteBatch();
 

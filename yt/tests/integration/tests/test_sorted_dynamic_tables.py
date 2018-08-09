@@ -2234,6 +2234,8 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 ##################################################################
 
 class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
+    USE_MASTER_CACHE = True
+
     DELTA_DRIVER_CONFIG = {
         "max_rows_per_write_request": 2,
 

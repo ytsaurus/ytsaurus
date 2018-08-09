@@ -52,17 +52,15 @@ public:
         , MasterChannel_(CreateThrottlingChannel(
             config,
             masterChannel))
+        , Logger(NLogging::TLogger(ObjectServerLogger)
+            .AddTag("RealmId: %v", masterCellId))
         , Cache_(New<TCache>(this))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
     }
 
 private:
-    const TMasterCacheServiceConfigPtr Config_;
-    const IChannelPtr MasterChannel_;
-
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
-
 
     struct TKey
     {
@@ -152,6 +150,7 @@ private:
                 owner->Config_,
                 NProfiling::TProfiler(ObjectServerProfiler.GetPathPrefix() + "/master_cache"))
             , Owner_(owner)
+            , Logger(owner->Logger)
         { }
 
         TFuture<TSharedRefArray> Lookup(
@@ -208,8 +207,7 @@ private:
 
     private:
         TMasterCacheService* const Owner_;
-
-        const NLogging::TLogger Logger = ObjectServerLogger;
+        const NLogging::TLogger Logger;
 
 
         virtual void OnAdded(const TEntryPtr& entry) override
@@ -290,17 +288,16 @@ private:
         }
     };
 
-    TIntrusivePtr<TCache> Cache_;
-
-
     class TMasterRequest
         : public TIntrinsicRefCounted
     {
     public:
         TMasterRequest(
             IChannelPtr channel,
-            TCtxExecutePtr context)
+            TCtxExecutePtr context,
+            const NLogging::TLogger& logger)
             : Context_(std::move(context))
+            , Logger(logger)
             , Proxy_(std::move(channel))
         {
             Request_ = Proxy_.Execute();
@@ -331,12 +328,11 @@ private:
 
     private:
         const TCtxExecutePtr Context_;
+        const NLogging::TLogger Logger;
 
         TObjectServiceProxy Proxy_;
         TObjectServiceProxy::TReqExecutePtr Request_;
         std::vector<TPromise<TSharedRefArray>> Promises_;
-
-        const NLogging::TLogger Logger = ObjectServerLogger;
 
 
         void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
@@ -367,9 +363,12 @@ private:
                 attachmentIndex += partCount;
             }
         }
-
     };
 
+    const TMasterCacheServiceConfigPtr Config_;
+    const IChannelPtr MasterChannel_;
+    const NLogging::TLogger Logger;
+    const TIntrusivePtr<TCache> Cache_;
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
@@ -441,7 +440,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 key);
 
             if (!masterRequest) {
-                masterRequest = New<TMasterRequest>(MasterChannel_, context);
+                masterRequest = New<TMasterRequest>(MasterChannel_, context, Logger);
             }
 
             asyncMasterResponseMessages.push_back(masterRequest->Add(subrequestMessage));

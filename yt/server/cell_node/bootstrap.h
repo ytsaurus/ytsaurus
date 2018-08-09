@@ -133,7 +133,7 @@ private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
-    NRpc::IServicePtr MasterCacheService;
+    std::vector<NRpc::IServicePtr> MasterCacheServices;
     NHttp::IServerPtr HttpServer;
     NHttp::IServerPtr SkynetHttpServer;
     NYTree::IMapNodePtr OrchidRoot;

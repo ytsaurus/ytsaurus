@@ -101,16 +101,20 @@ public:
         auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
             initMasterChannel(EMasterChannelKind::Leader, config, leaderPeerKind);
             initMasterChannel(EMasterChannelKind::Follower, config, followerPeerKind);
+
+            auto masterCacheConfig = config;
+            if (Config_->MasterCache) {
+                masterCacheConfig = CloneYsonSerializable(Config_->MasterCache);
+                masterCacheConfig->CellId = config->CellId;
+            }
+
+            initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, followerPeerKind);
         };
 
         initMasterChannels(Config_->PrimaryMaster);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             initMasterChannels(masterConfig);
         }
-
-        // NB: Caching is only possible for the primary master.
-        auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->PrimaryMaster;
-        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, followerPeerKind);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
