@@ -143,9 +143,9 @@ public:
     TTabletCellDecommissionerConfig()
     {
         RegisterParameter("decommission_check_period", DecommissionCheckPeriod)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("orphans_check_period", OrphansCheckPeriod)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("decommission_throttler", DecommissionThrottler)
             .DefaultNew();
         RegisterParameter("kick_orphans_throttler", KickOrphansThrottler)
