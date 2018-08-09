@@ -130,7 +130,7 @@ message TVerification {
     uint64 CheckPeriodMs = 2;
 }
 
-message TBoxResource {
+message TSandboxResource {
     string TaskType = 1;
     string TaskId = 2;
     string ResourceType = 3;
@@ -139,7 +139,7 @@ message TBoxResource {
 
 message TResourceMeta {
     oneof Meta {
-        TBoxResource BoxResource = 2;
+        TSandboxResource SandboxResource = 2;
     }
 }
 
