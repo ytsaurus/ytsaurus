@@ -195,6 +195,24 @@ NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cache
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class TReq>
+void SetDynamicTableCypressRequestFullPath(TReq* req, TYPath* fullPath)
+{ }
+
+template <>
+void SetDynamicTableCypressRequestFullPath<NTableClient::NProto::TReqMount>(
+    NTableClient::NProto::TReqMount* req,
+    TYPath* fullPath)
+{
+    req->set_path(*fullPath);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobInputReader
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
@@ -2263,15 +2281,9 @@ private:
 
     void ResolveExternalNode(const TYPath path, TTableId* tableId, TCellTag* cellTag, TString* fullPath = nullptr)
     {
-        TMasterReadOptions options;
-        options.ReadFrom = EMasterChannelKind::Follower;
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
         
-        auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-        balancingHeaderExt->set_enable_stickness(true);
-        balancingHeaderExt->set_sticky_group_size(1);
-
         {
             auto req = TTableYPathProxy::Get(path + "/@");
             std::vector<TString> attributeKeys{"id", "external_cell_tag"};
@@ -2295,14 +2307,12 @@ private:
         }
     }
 
-    void DoMountTable(
-        const TYPath& path,
-        const TMountTableOptions& options)
+    template <class TReq>
+    void ExecuteDynamicTableCypressRequest(const TYPath& path, TReq* req, TYPath* fullPath = nullptr)
     {
         TTableId tableId;
         TCellTag cellTag;
-        TYPath fullPath;
-        ResolveExternalNode(path, &tableId, &cellTag, &fullPath);
+        ResolveExternalNode(path, &tableId, &cellTag, fullPath);
 
         TTransactionStartOptions txOptions;
         txOptions.Multicell = cellTag != PrimaryMasterCellTag;
@@ -2313,10 +2323,32 @@ private:
         auto transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
 
-        NTableClient::NProto::TReqMount req;
+        ToProto(req->mutable_table_id(), tableId);
 
-        ToProto(req.mutable_table_id(), tableId);
-        req.set_path(fullPath);
+        SetDynamicTableCypressRequestFullPath(req, fullPath);
+
+        auto actionData = MakeTransactionActionData(*req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
+            .ThrowOnError();
+    }
+
+    void DoMountTable(
+        const TYPath& path,
+        const TMountTableOptions& options)
+    {
+        TYPath fullPath;
+        NTableClient::NProto::TReqMount req;
  
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2333,43 +2365,15 @@ private:
             .ValueOrThrow();
         req.set_mount_timestamp(mountTimestamp);
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req, &fullPath);
     }
 
     void DoUnmountTable(
         const TYPath& path,
         const TUnmountTableOptions& options)
     {
-        TTableId tableId;
-        TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag);
-
-        TTransactionStartOptions txOptions;
-        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-        txOptions.CellTag = cellTag;
-        auto asyncTransaction = StartNativeTransaction(
-            NTransactionClient::ETransactionType::Master,
-            txOptions);
-        auto transaction = WaitFor(asyncTransaction)
-            .ValueOrThrow();
-
         NTableClient::NProto::TReqUnmount req;
 
-        ToProto(req.mutable_table_id(), tableId);
- 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -2378,43 +2382,15 @@ private:
         }
         req.set_force(options.Force);
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req);
     }
 
     void DoRemountTable(
         const TYPath& path,
         const TRemountTableOptions& options)
     {
-        TTableId tableId;
-        TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag);
-
-        TTransactionStartOptions txOptions;
-        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-        txOptions.CellTag = cellTag;
-        auto asyncTransaction = StartNativeTransaction(
-            NTransactionClient::ETransactionType::Master,
-            txOptions);
-        auto transaction = WaitFor(asyncTransaction)
-            .ValueOrThrow();
-
         NTableClient::NProto::TReqRemount req;
 
-        ToProto(req.mutable_table_id(), tableId);
- 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -2422,43 +2398,15 @@ private:
             req.set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req);
     }
 
     void DoFreezeTable(
         const TYPath& path,
         const TFreezeTableOptions& options)
     {
-        TTableId tableId;
-        TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag);
-
-        TTransactionStartOptions txOptions;
-        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-        txOptions.CellTag = cellTag;
-        auto asyncTransaction = StartNativeTransaction(
-            NTransactionClient::ETransactionType::Master,
-            txOptions);
-        auto transaction = WaitFor(asyncTransaction)
-            .ValueOrThrow();
-
         NTableClient::NProto::TReqFreeze req;
 
-        ToProto(req.mutable_table_id(), tableId);
- 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -2466,42 +2414,14 @@ private:
             req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req);
     }
 
     void DoUnfreezeTable(
         const TYPath& path,
         const TUnfreezeTableOptions& options)
     {
-        TTableId tableId;
-        TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag);
-
-        TTransactionStartOptions txOptions;
-        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-        txOptions.CellTag = cellTag;
-        auto asyncTransaction = StartNativeTransaction(
-            NTransactionClient::ETransactionType::Master,
-            txOptions);
-        auto transaction = WaitFor(asyncTransaction)
-            .ValueOrThrow();
-
         NTableClient::NProto::TReqUnfreeze req;
-
-        ToProto(req.mutable_table_id(), tableId);
 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2510,30 +2430,13 @@ private:
             req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req);
     }
 
     NTableClient::NProto::TReqReshard MakeReshardRequest(
-        const TTableId& tableId,
         const TReshardTableOptions& options)
     {
         NTableClient::NProto::TReqReshard req;
-
-        ToProto(req.mutable_table_id(), tableId);
- 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -2548,37 +2451,11 @@ private:
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
-        TTableId tableId;
-        TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag);
-
-        TTransactionStartOptions txOptions;
-        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-        txOptions.CellTag = cellTag;
-        auto asyncTransaction = StartNativeTransaction(
-            NTransactionClient::ETransactionType::Master,
-            txOptions);
-        auto transaction = WaitFor(asyncTransaction)
-            .ValueOrThrow();
-
-        auto req = MakeReshardRequest(tableId, options);
+        auto req = MakeReshardRequest(options);
         ToProto(req.mutable_pivot_keys(), pivotKeys);
         req.set_tablet_count(pivotKeys.size());
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req);
     }
 
     void DoReshardTableWithTabletCount(
@@ -2586,36 +2463,10 @@ private:
         int tabletCount,
         const TReshardTableOptions& options)
     {
-        TTableId tableId;
-        TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag);
-
-        TTransactionStartOptions txOptions;
-        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
-        txOptions.CellTag = cellTag;
-        auto asyncTransaction = StartNativeTransaction(
-            NTransactionClient::ETransactionType::Master,
-            txOptions);
-        auto transaction = WaitFor(asyncTransaction)
-            .ValueOrThrow();
-
-        auto req = MakeReshardRequest(tableId, options);
+        auto req = MakeReshardRequest(options);
         req.set_tablet_count(tabletCount);
 
-        auto actionData = MakeTransactionActionData(req);
-        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
-        transaction->AddAction(primaryCellId, actionData);
-
-        if (cellTag != PrimaryMasterCellTag) {
-            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
-        }
-
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        commitOptions.Force2PC = true;
-
-        WaitFor(transaction->Commit(commitOptions))
-            .ThrowOnError();
+        ExecuteDynamicTableCypressRequest(path, &req);
     }
 
     void DoAlterTable(
