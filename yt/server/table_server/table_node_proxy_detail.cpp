@@ -79,14 +79,6 @@ TTableNodeProxy::TTableNodeProxy(
         trunkNode)
 { }
 
-void TTableNodeProxy::CypressValidatePermission(
-    EPermissionCheckScope scope,
-    EPermission permission,
-    const TString& user)
-{
-    ValidatePermission(scope, permission, user);
-}
-
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TBase::ListSystemAttributes(descriptors);

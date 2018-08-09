@@ -50,11 +50,6 @@ protected:
     virtual void ValidateStorageParametersUpdate() override;
     virtual void ValidateLockPossible() override;
 
-    virtual void CypressValidatePermission(
-        NYTree::EPermissionCheckScope scope,
-        NYTree::EPermission permission,
-        const TString& user) override;
-
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Freeze);
