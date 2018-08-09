@@ -591,6 +591,7 @@ def add_reshard_table_parser(add_parser):
     tablet_args(parser)
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
     parser.add_argument("--tablet-count", type=int)
+    parser.add_argument("--sync", action="store_true")
 
 def add_trim_rows_parser(add_parser):
     parser = add_parser("trim-rows", yt.trim_rows)
