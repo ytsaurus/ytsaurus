@@ -330,7 +330,7 @@ class TTabletTracker::TImpl::TBalancedCandidateTracker
     : public TTabletTracker::TImpl::ICandidateTracker
 {
 public:
-    TBalancedCandidateTracker(const TBootstrap* bootstrap, bool verboseLogging)
+    explicit TBalancedCandidateTracker(const TBootstrap* bootstrap, bool verboseLogging)
         : Bootstrap_(bootstrap)
         , VerboseLogging_(verboseLogging)
     {
@@ -539,6 +539,10 @@ private:
 
     void InitNodes()
     {
+        Nodes_.clear();
+        PeerTracker_.Clear();
+        Actions_.clear();
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
@@ -623,7 +627,6 @@ private:
 
         auto& queue = it->second;
         for (auto& nodeIndex : queue) {
-            YCHECK(nodeIndex < Nodes_.size());
             auto* node = &Nodes_[nodeIndex];
             if (node->GetTotalSlots() == node->GetSlots().size()) {
                 std::swap(nodeIndex, queue.back());
