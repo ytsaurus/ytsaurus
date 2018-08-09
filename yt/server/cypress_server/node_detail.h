@@ -270,11 +270,6 @@ protected:
         TImpl* branchedNode,
         const TLockRequest& /*lockRequest*/)
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* transaction = branchedNode->GetTransaction();
-        auto* account = originatingNode->GetAccount();
-        YCHECK(!branchedNode->GetAccount());
-        securityManager->SetAccount(branchedNode, nullptr, account, transaction);
     }
 
     virtual void DoLogBranch(

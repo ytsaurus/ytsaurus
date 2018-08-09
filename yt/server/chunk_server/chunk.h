@@ -305,7 +305,7 @@ private:
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
-    //! Is also separates relatively mutable data from static one,
+    //! It also separates relatively mutable data from static one,
     //! which helps to avoid excessive CoW during snapshot construction.
     std::unique_ptr<TReplicasData> ReplicasData_;
 

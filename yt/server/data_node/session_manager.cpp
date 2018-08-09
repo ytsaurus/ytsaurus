@@ -76,6 +76,29 @@ ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
     return session;
 }
 
+TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(const TChunkId& chunkId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TSessionPtrList result;
+
+    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        auto session = FindSession(TSessionId(chunkId, mediumIndex));
+        if (session) {
+            result.emplace_back(std::move(session));
+        }
+    }
+
+    if (result.empty()) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchSession,
+            "No session found for chunk %v",
+            chunkId);
+    }
+
+    return result;
+}
+
 ISessionPtr TSessionManager::StartSession(
     const TSessionId& sessionId,
     const TSessionOptions& options)

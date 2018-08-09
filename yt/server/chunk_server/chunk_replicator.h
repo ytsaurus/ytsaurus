@@ -253,7 +253,8 @@ private:
         bool precarious,
         bool allMediaTransient,
         const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
-        int mediaOnWhichPresentCount);
+        int mediaOnWhichPresentCount,
+        int mediaOnWhichUnderreplicatedCount);
     void ComputeErasureChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
         NErasure::ICodec* codec,
@@ -269,6 +270,28 @@ private:
         bool allMediaDataPartsOnly,
         const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes,
         const TMediumSet& activeMedia);
+    void ComputeJournalChunkStatisticsForMedium(
+        TPerMediumChunkStatistics& result,
+        TReplicationPolicy replicationPolicy,
+        int replicaCount,
+        int decommissionedReplicaCount,
+        const TNodePtrWithIndexesList& decommissionedReplicas,
+        int sealedReplicaCount,
+        int unsealedReplicaCount,
+        bool hasUnsafelyPlacedReplicas,
+        bool isSealed,
+        int readQuorum);
+    void ComputeJournalChunkStatisticsCrossMedia(
+        TChunkStatistics& result,
+        int totalReplicaCount,
+        int totalDecommissionedReplicaCount,
+        int totalSealedReplicaCount,
+        bool precarious,
+        bool allMediaTransient,
+        const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
+        int mediaOnWhichPresentCount,
+        int mediaOnWhichUnderreplicatedCount,
+        int readQuorum);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
