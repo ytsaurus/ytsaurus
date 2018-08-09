@@ -3161,7 +3161,7 @@ private:
         const TCreateObjectOptions& options)
     {
         auto attributes = options.Attributes;
-        TCellTag cellTag = PrimaryMasterCellTag;
+        auto cellTag = PrimaryMasterCellTag;
 
         if (type == EObjectType::TableReplica) {
             TNullable<TString> path;
