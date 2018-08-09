@@ -21,6 +21,7 @@ from collections import defaultdict
 from plotly import __version__
 from plotly.offline import init_notebook_mode, iplot
 import plotly.graph_objs as go
+import numbers
 
 
 """Object for job representation."""
@@ -125,7 +126,7 @@ def get_jobs(op_id, cluster_name):
                     output_compressed_data_size=output_compressed_data_size,
                     output_uncompressed_data_size=output_uncompressed_data_size,
                     output_data_weight=output_data_weight,
-                    output_row_count=output_data_weight,
+                    output_row_count=output_row_count,
                     statistics=job_info["statistics"],
                 )
             )
@@ -172,8 +173,9 @@ class JobSet(object):
                     new_jobs.data[job_type].append(job_info)
         return new_jobs
      
-    def prepare_plot(self, data, title="", xlabel="", ylabel=""):
+    def prepare_plot(self, title="", xlabel="", ylabel=""):
         """Set plot properties."""
+        init_notebook_mode(connected=True)
         layout = dict(
             title = title,
             xaxis = dict(title = xlabel),
@@ -181,7 +183,8 @@ class JobSet(object):
             barmode = "group",
             bargap = 0.1,
         )
-        return dict(data = data, layout = layout)
+        return layout
+        #return dict(data = data, layout = layout)
     
     def data_is_correct(self, data_type=None, table_num=0, other_jobset=None):
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
@@ -189,8 +192,15 @@ class JobSet(object):
             if not jobset.data:
                 print("One of JobSets is empty!")
                 return False
-            if data_type and jobset.aggregate(data_type, len, table_num) == 0:
+            if data_type and not jobset.aggregate(data_type, all, table_num):
                 print("There is no such statistics in one of JobSets!")
+                return False
+            if data_type and not jobset.aggregate(
+                data_type,
+                lambda data: all(isinstance(x, numbers.Number) for x in data),
+                table_num,
+            ):
+                print("Selected statistics is not numeric!")
                 return False
         return True
         
@@ -206,12 +216,16 @@ class JobSet(object):
             visible=visible,
         )
     
-    def get_statistics(self, job_info, data_type, table_num):
+    def get_statistics(self, job_info, data_type, table_num=0):
         path_segments = data_type.split("/")
         if (path_segments[0] != "statistics"):
+            if not hasattr(job_info, data_type):
+                return None
             return covert_to_list(getattr(job_info, data_type))[table_num]
         data = getattr(job_info, "statistics")
         for segment in path_segments[1:]:
+            if not segment in data:
+                return None
             data = data[segment]
         return data
             
@@ -219,7 +233,6 @@ class JobSet(object):
         """Draw gantt chart illustrating preparation and execution periods for every job."""
         if not self.data_is_correct():
             return
-        init_notebook_mode(connected=True)
         for job_type, jobs_info in self.data.iteritems():
             lines = []
             for y, job_info in enumerate(jobs_info):
@@ -233,7 +246,10 @@ class JobSet(object):
             lines.append(self.get_hline(color="green", name="Completed jobs", showlegend=True, visible="legendonly"))
             lines.append(self.get_hline(color="yellow", name="Preparation", showlegend=True, visible="legendonly"))
             
-            iplot(self.prepare_plot(lines, title="{} jobs".format(job_type), xlabel="time", ylabel="jobs"))
+            iplot(dict(
+                data = lines,
+                layout = self.prepare_plot(title="{} jobs".format(job_type), xlabel="time", ylabel="jobs"),
+            ))
     
     def draw_hist(self, data_type="length", table_num=0, other_jobset=None):
         """
@@ -245,7 +261,6 @@ class JobSet(object):
         """ 
         if not self.data_is_correct(data_type, other_jobset=other_jobset):
             return
-        init_notebook_mode(connected=True)
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
         
         # Find data boundaries for calculation of bins edges:
@@ -257,11 +272,14 @@ class JobSet(object):
             for job_type, jobs_info in jobset.data.iteritems():
                 values = [self.get_statistics(job_info, data_type, table_num) for job_info in jobs_info]
                 traces.append(go.Histogram(
-                    nbinsx=bin_count,
+                    nbinsx=int(bin_count),
                     x=values,
                     name="{} jobs in set{}".format(job_type, i + 1),
                 ))
-        iplot(self.prepare_plot(traces, title="{} histogram".format(data_type), xlabel=data_type, ylabel="jobs count"))
+        iplot(dict(
+            data = traces,
+            layout = self.prepare_plot(title="{} histogram".format(data_type), xlabel=data_type, ylabel="jobs count"),
+        ))
     
     def draw_time_plot(self, step_count=200, other_jobset=None):
         """
@@ -270,7 +288,6 @@ class JobSet(object):
         """
         if not self.data_is_correct(other_jobset=other_jobset):
             return
-        init_notebook_mode(connected=True)
         jobsets = ([self] if other_jobset is None else [self, other_jobset])
         traces = []
         for i, jobset in enumerate(jobsets):
@@ -297,7 +314,37 @@ class JobSet(object):
                     name="{} jobs in set{}".format(job_type, i + 1),
                     connectgaps=False,
                 ))
-        iplot(self.prepare_plot(traces, xlabel="time", ylabel="jobs count"))
+        iplot(dict(
+            data = traces,
+            layout = self.prepare_plot(xlabel="time", ylabel="jobs count"),
+        ))
+        
+    def draw_scatter_plot(
+        self,
+        x_data_type="input_data_weight", x_table_num=0,
+        y_data_type="length", y_table_num=0,
+        other_jobset=None,
+    ):
+        if (not self.data_is_correct(x_data_type, other_jobset=other_jobset) and
+            not self.data_is_correct(y_data_type, other_jobset=other_jobset)):
+            return
+        jobsets = ([self] if other_jobset is None else [self, other_jobset])
+        traces = []
+        for i, jobset in enumerate(jobsets):
+            for job_type, jobs_info in jobset.data.iteritems():
+                xvalues = [self.get_statistics(job_info, x_data_type, x_table_num) for job_info in jobs_info]
+                yvalues = [self.get_statistics(job_info, y_data_type, y_table_num) for job_info in jobs_info]
+                traces.append(go.Scatter(
+                    x=xvalues,
+                    y=yvalues,
+                    mode="markers",
+                    name="{} jobs in set{}".format(job_type, i + 1),
+                ))
+        iplot(dict(
+            data = traces,
+            layout = self.prepare_plot(xlabel=x_data_type, ylabel=y_data_type),
+        ))
+        
         
     def print_text_data(self, id_as_parts=False):
         """
@@ -312,4 +359,3 @@ class JobSet(object):
                     ts_to_time_str(job_info.abs_start_time),
                     ts_to_time_str(job_info.abs_end_time)
                 ))
-
