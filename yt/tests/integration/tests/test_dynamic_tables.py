@@ -1541,9 +1541,6 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t1", tablet_cell_bundle="broken")
         self._create_sorted_table("//tmp/t2", tablet_cell_bundle="default")
 
-        sync_reshard_table("//tmp/t2", [[], [1]])
-        assert get("//tmp/t2/@tablet_count") == 2
-
         sync_mount_table("//tmp/t1", cell_id=cells_on_broken[0])
         self._decommission_all_peers(cells_on_broken[0])
 
@@ -1560,14 +1557,16 @@ class TestTabletActions(TestDynamicTablesBase):
         _check()
 
         # test tablet balancing
+
+        sync_reshard_table("//tmp/t2", [[], [1]])
+        assert get("//tmp/t2/@tablet_count") == 2
         sync_mount_table("//tmp/t2")
+        wait(lambda: get("//tmp/t2/@tablet_count") == 1)
         wait_for_tablet_state("//tmp/t2", "mounted")
 
         _check()
 
         # test cell balancing
-        def get_cells_of_tablets(table):
-            return [ tablet["cell_id"] for tablet in list(get("{}/@tablets".format(table))) ]
 
         sync_unmount_table("//tmp/t2")
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
@@ -1580,9 +1579,9 @@ class TestTabletActions(TestDynamicTablesBase):
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True)
         def wait_func():
-            t = get_cells_of_tablets("//tmp/t2")
-            assert len(t) == 2
-            return t[0] != t[1]
+            cells = [tablet["cell_id"] for tablet in list(get("{}/@tablets".format(table)))]
+            assert len(cells) == 2
+            return cells[0] != cells[1]
         wait(wait_func)
 
         _check()
