@@ -258,7 +258,6 @@ public:
         return Reader_->GetRowIndex();
     }
 
-private:
     void ReadRow(Message* row) const
     {
         //Not all the IProtoReaderImpl implementations support multiple ReadRow calls
