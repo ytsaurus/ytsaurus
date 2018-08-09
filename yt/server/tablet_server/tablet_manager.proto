@@ -162,5 +162,10 @@ message TReqUpdateUpstreamTabletState
     optional int32 expected_tablet_state = 4;
 }
 
+message TReqUpdateTabletState
+{
+    required NYT.NProto.TGuid table_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
