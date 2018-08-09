@@ -328,7 +328,9 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
     } else {
         if (IsJournal()) {
             for (auto& existingReplica : data->StoredReplicas) {
-                if (existingReplica.GetPtr() == replica.GetPtr()) {
+                if (existingReplica.GetPtr() == replica.GetPtr() &&
+                    existingReplica.GetMediumIndex() == replica.GetMediumIndex())
+                {
                     existingReplica = replica;
                     return;
                 }
@@ -361,7 +363,9 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
         for (auto it = storedReplicas.begin(); it != storedReplicas.end(); ++it) {
             auto& existingReplica = *it;
             if (existingReplica == replica ||
-                IsJournal() && existingReplica.GetPtr() == replica.GetPtr())
+                (IsJournal() &&
+                 existingReplica.GetPtr() == replica.GetPtr() &&
+                 existingReplica.GetMediumIndex() == replica.GetMediumIndex()))
             {
                 std::swap(existingReplica, storedReplicas.back());
                 storedReplicas.pop_back();
@@ -388,7 +392,9 @@ void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
     if (IsJournal()) {
         auto* data = MutableReplicasData();
         for (auto& existingReplica : data->StoredReplicas) {
-            if (existingReplica.GetPtr() == replica.GetPtr()) {
+            if (existingReplica.GetPtr() == replica.GetPtr() &&
+                existingReplica.GetMediumIndex() == replica.GetMediumIndex())
+            {
                 existingReplica = replica;
                 return;
             }

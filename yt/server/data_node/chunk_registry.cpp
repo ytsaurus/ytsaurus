@@ -20,14 +20,18 @@ TChunkRegistry::TChunkRegistry(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
 
-IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
+IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId, int mediumIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
-    auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
+    auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId, mediumIndex);
     if (storedChunk) {
         return storedChunk;
+    }
+
+    if (mediumIndex != AllMediaIndex) {
+        return nullptr;
     }
 
     auto cachedChunk = Bootstrap_->GetChunkCache()->FindChunk(chunkId);
@@ -38,11 +42,11 @@ IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
     return nullptr;
 }
 
-IChunkPtr TChunkRegistry::GetChunkOrThrow(const TChunkId& chunkId)
+IChunkPtr TChunkRegistry::GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto chunk = FindChunk(chunkId);
+    auto chunk = FindChunk(chunkId, mediumIndex);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchChunk,
