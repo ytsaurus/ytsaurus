@@ -86,8 +86,8 @@ private:
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* tablet = GetThisImpl();
-        const auto* table = tablet->GetTable();
         const auto* chunkList = tablet->GetChunkList();
+        const auto* table = tablet->GetTable();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -117,7 +117,6 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(cypressManager->GetNodePath(
-                        //table->GetTrunkNode(),
                         tablet->GetTable()->GetTrunkNode(),
                         nullptr));
                 return true;

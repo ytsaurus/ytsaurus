@@ -81,6 +81,7 @@ private:
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
         const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         switch (key) {
             case EInternedAttributeKey::ClusterName:
@@ -100,7 +101,7 @@ private:
 
             case EInternedAttributeKey::TableId: {
                 BuildYsonFluently(consumer)
-                    .Value(replica->GetTable()->GetId());
+                    .Value(table->GetId());
                 return true;
             }
 
@@ -109,7 +110,9 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(replica->GetTable()->GetId());
+                    .Value(cypressManager->GetNodePath(
+                        table->GetTrunkNode(),
+                        nullptr));
                 return true;
             }
 

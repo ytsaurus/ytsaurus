@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import TestDynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
 from time import sleep
 from yt.yson import YsonEntity
@@ -92,7 +92,7 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
             "schema": schema
         }
 
-    def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA, attributes={}, mount=True):
+    def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA, mount=True, **attributes):
         attributes.update(self._get_table_attributes(schema))
         attributes["enable_replication_logging"] = True
         create("replicated_table", path, attributes=attributes)
@@ -142,7 +142,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
     def test_replicated_tablet_node_profiling(self, schema):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema, attributes={"enable_profiling": True})
+        self._create_replicated_table("//tmp/t", schema, enable_profiling=True)
 
         tablet_profiling = self._get_table_profiling("//tmp/t")
         def get_all_counters():
@@ -163,7 +163,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
     def test_replica_tablet_node_profiling(self, schema):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema, attributes={"enable_profiling": True})
+        self._create_replicated_table("//tmp/t", schema, enable_profiling=True)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema)
 
@@ -247,9 +247,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_replicated_in_memory_fail(self):
         self._create_cells()
         with pytest.raises(YtError):
-            self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "compressed"})
+            self._create_replicated_table("//tmp/t", in_memory_mode="compressed")
         with pytest.raises(YtError):
-            self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "uncompressed"})
+            self._create_replicated_table("//tmp/t", in_memory_mode="uncompressed")
 
     def test_add_replica_fail1(self):
         with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
@@ -451,12 +451,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 return rows[0]["value2"]
 
         self._create_cells()
-        self._create_replicated_table("//tmp/t", attributes={
-            "replication_throttler": {
-                "limit": 500
-            },
-            "max_data_weight_per_replication_commit": 500
-        })
+        self._create_replicated_table("//tmp/t", replication_throttler={"limit": 500}, max_data_weight_per_replication_commit=500)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
@@ -645,7 +640,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_sync_replication_switch(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA, {"replicated_table_options": {"enable_replicated_table_manager": "true"}})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA, replicated_table_options={"enable_replicated_table_manager": "true"})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
@@ -820,7 +815,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     )
     def test_replication_trim(self, ttl, chunk_count, trimmed_row_count, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl, "dynamic_store_auto_flush_period": 1000})
+        self._create_replicated_table("//tmp/t", min_replication_log_ttl=ttl, dynamic_store_auto_flush_period=1000)
         sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
             attributes={"mode": mode})
@@ -948,7 +943,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_shard_replication(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA, attributes={"pivot_keys": [[], [10]]})
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA, pivot_keys=[[], [10]])
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA)
 
@@ -1170,17 +1165,16 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     }
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
-    def test_external_replicated_table(self, mode):
+    @parametrize_external
+    def test_external_replicated_table(self, mode, external):
         self._create_cells()
-        self._create_replicated_table("//tmp/t")
+        self._create_replicated_table("//tmp/t", external=external)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
-        self._create_replica_table("//tmp/r", replica_id)
+        self._create_replica_table("//tmp/r", replica_id, external=external)
 
-        assert get("//tmp/t/@external") == True
-        print get("//tmp/t/@external_cell_tag")
-
-        assert get("//tmp/r/@external", driver=self.replica_driver) == True
-        print get("//tmp/r/@external_cell_tag", driver=self.replica_driver)
+        if external:
+            assert get("//tmp/t/@external") == True
+            assert get("//tmp/r/@external", driver=self.replica_driver) == True
 
         assert get("#" + replica_id + "/@table_path") == "//tmp/t"
 
