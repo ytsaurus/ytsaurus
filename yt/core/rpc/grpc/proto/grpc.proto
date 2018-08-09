@@ -12,6 +12,7 @@ message TSslCredentialsExt
     }
 
     optional string peer_identity = 1;
+    optional string issuer = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
