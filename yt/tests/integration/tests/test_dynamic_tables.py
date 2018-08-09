@@ -1579,7 +1579,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True)
         def wait_func():
-            cells = [tablet["cell_id"] for tablet in list(get("{}/@tablets".format(table)))]
+            cells = [tablet["cell_id"] for tablet in list(get("//tmp/t2/@tablets"))]
             assert len(cells) == 2
             return cells[0] != cells[1]
         wait(wait_func)
