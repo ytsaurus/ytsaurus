@@ -207,7 +207,9 @@ TProcessState::TProcessState()
     }
 
     try {
-        UserName = ::GetUsername();
+        auto userName = ::GetUsername();
+        LOG_DEBUG("Initializing ProcessState, got username: %s", ~userName);
+        UserName = userName;
     } catch (const yexception& e) {
         ythrow yexception() << "Cannot get user name: " << e.what();
     }
