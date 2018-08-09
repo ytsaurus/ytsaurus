@@ -1244,6 +1244,7 @@ def sync_unfreeze_table(path, **kwargs):
 
 def sync_reshard_table(path, *args, **kwargs):
     reshard_table(path, *args, **kwargs)
+    wait(lambda: get(path + "/@tablet_state") != "transient")
 
 def sync_flush_table(path, driver=None):
     sync_freeze_table(path, driver=driver)
