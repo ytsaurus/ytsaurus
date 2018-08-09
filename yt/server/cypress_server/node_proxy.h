@@ -65,12 +65,6 @@ struct ICypressNodeProxy
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options) const = 0;
 
-    virtual void CypressValidatePermission(
-        NYTree::EPermissionCheckScope scope,
-        NYTree::EPermission permission,
-        const TString& user = "")
-    { }
-
     static ICypressNodeProxy* FromNode(NYTree::INode* ptr);
     static TIntrusivePtr<ICypressNodeProxy> FromNode(const TIntrusivePtr<NYTree::INode>& ptr);
     static const ICypressNodeProxy* FromNode(const NYTree::INode* ptr);

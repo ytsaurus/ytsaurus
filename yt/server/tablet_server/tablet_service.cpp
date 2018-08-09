@@ -9,6 +9,8 @@
 
 #include <yt/server/table_server/shared_table_schema.h>
 
+#include <yt/server/security_server/security_manager.h>
+
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 namespace NYT {
@@ -107,8 +109,10 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
@@ -214,8 +218,10 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -288,8 +294,10 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -358,8 +366,10 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -429,8 +439,10 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -467,8 +479,9 @@ private:
             return;
         }
 
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         if (table->IsExternal()) {
             return;
@@ -504,8 +517,10 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -552,8 +567,9 @@ private:
             return;
         }
 
-        auto proxy = cypressManager->GetNodeProxy(table, transaction);
-        proxy->CypressValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
 
         table->SetLastMountTransactionId(transaction->GetId());
 
