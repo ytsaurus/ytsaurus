@@ -87,12 +87,21 @@ message TPodAgentStatus {
 // Спека для получения расширенного debug состояния pod_agent
 message TPodAgentDebugSpec {
     repeated string WorkloadIds = 1;
+    repeated string ResourceIds = 2;
+    repeated string VolumeIds = 3;
+    repeated string BoxIds = 4;
 }
 
 // Расширенный debug status возвращаемый Pod-agent
 message TPodAgentDebugStatus {
     // Состояние behavior tree для workloads в dot формате
     map<string, string> WorkloadTreeDots = 1 [(NYT.NYson.NProto.yson_map) = true];
+    // Состояние behavior tree для resources в dot формате
+    map<string, string> ResourceTreeDots = 2 [(NYT.NYson.NProto.yson_map) = true];
+    // Состояние behavior tree для volumes в dot формате
+    map<string, string> VolumeTreeDots = 3 [(NYT.NYson.NProto.yson_map) = true];
+    // Состояние behavior tree для boxes в dot формате
+    map<string, string> BoxTreeDots = 4 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 //============================== SPEC ==========================
