@@ -3989,6 +3989,12 @@ private:
         }
 
         if (table->IsExternal()) {
+            // Primary master is the coordinator of 2pc and commits after secondary to hold the exclusive lock.
+            // (It is necessary for primary master to hold the lock longer to prevent
+            // user from locking the node while secondary master still performs 2pc.)
+            // Thus, secondary master can commit and send updates when primary master is not ready yet.
+            // Here we ask secondary master to resend tablet state.
+
             TReqUpdateTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
 
