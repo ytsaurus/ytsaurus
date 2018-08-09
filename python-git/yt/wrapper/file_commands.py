@@ -421,7 +421,10 @@ def upload_file_to_cache(filename, hash=None, client=None):
     with open(filename, "rb") as stream:
         write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
 
-    return put_file_to_cache(real_destination, hash, client=client)
+    destination = put_file_to_cache(real_destination, hash, client=client)
+    remove(real_destination, force=True, client=client)
+
+    return destination
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):
