@@ -3967,9 +3967,33 @@ private:
         }
     }
 
+    void HydraUpdateTabletState(TReqUpdateTabletState* request)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto tableId = FromProto<TTableId>(request->table_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->FindNode(TVersionedNodeId(tableId));
+        if (!IsObjectAlive(node)) {
+            return;
+        }
+
+        auto* table = node->As<TTableNode>();
+        UpdateTabletState(table);
+    }
+
     void UpdateTabletState(TTableNode* table)
     {
         if (!IsObjectAlive(table)) {
+            return;
+        }
+
+        if (table->IsExternal()) {
+            TReqUpdateTabletState request;
+            ToProto(request.mutable_table_id(), table->GetId());
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMaster(request, table->GetExternalCellTag());
             return;
         }
 
