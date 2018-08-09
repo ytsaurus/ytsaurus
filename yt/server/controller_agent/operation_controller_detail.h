@@ -56,6 +56,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
+#include <yt/core/concurrency/fair_share_invoker_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -117,7 +118,7 @@ class TOperationControllerBase
 public: \
     virtual returnType method signature final \
     { \
-        VERIFY_INVOKER_AFFINITY(Invoker); \
+        VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default)); \
         TSafeAssertionsGuard guard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
@@ -202,7 +203,7 @@ public:
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
-    virtual IInvokerPtr GetInvoker() const override;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
@@ -249,7 +250,7 @@ public:
 
     // ITaskHost implementation.
 
-    virtual IInvokerPtr GetCancelableInvoker() const override;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const override;
     virtual TNullable<NYPath::TRichYPath> GetCoreTablePath() const override;
@@ -364,9 +365,9 @@ protected:
     NApi::NNative::IClientPtr OutputClient;
 
     TCancelableContextPtr CancelableContext;
-    IInvokerPtr Invoker;
-    ISuspendableInvokerPtr SuspendableInvoker;
-    IInvokerPtr CancelableInvoker;
+    IInvokerPoolPtr InvokerPool;
+    ISuspendableInvokerPoolPtr SuspendableInvokerPool;
+    IInvokerPoolPtr CancelableInvokerPool;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
 
