@@ -9,6 +9,8 @@
 #include "chunk_scanner.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/node_tracker_server/node.h>
@@ -115,6 +117,7 @@ private:
     const TPeriodicExecutorPtr SealExecutor_;
     const std::unique_ptr<TChunkScanner> SealScanner_;
 
+    bool Enabled_ = true;
 
     static bool IsSealNeeded(TChunk* chunk)
     {
@@ -180,6 +183,12 @@ private:
 
     void OnRefresh()
     {
+        OnCheckEnabled();
+
+        if (!IsEnabled()) {
+            return;
+        }
+
         int totalCount = 0;
         while (totalCount < Config_->MaxChunksPerSeal &&
                SealScanner_->HasUnscannedChunk())
@@ -200,6 +209,28 @@ private:
                     .AsyncVia(GetCurrentInvoker())
                     .Run();
             }
+        }
+    }
+
+    bool IsEnabled()
+    {
+        return Enabled_;
+    }
+
+    void OnCheckEnabled()
+    {
+        auto enabledInConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkSealer;
+
+        if (!enabledInConfig && Enabled_) {
+            LOG_INFO("Chunk sealer disabled, see //sys/@config");
+            Enabled_ = false;
+            return;
+        }
+
+        if (enabledInConfig && !Enabled_) {
+            LOG_INFO("Chunk sealer enabled");
+            Enabled_ = true;
+            return;
         }
     }
 
@@ -227,18 +258,19 @@ private:
 
     void GuardedSealChunk(TChunk* chunk)
     {
+        ValidateChunkHasReplicas(chunk);
+
         // NB: Copy all the needed properties into locals. The subsequent code involves yields
         // and the chunk may expire. See YT-8120.
         auto chunkId = chunk->GetId();
         auto readQuorum = chunk->GetReadQuorum();
-        auto mediumIndex = ComputeChunkMediumIndex(chunk);
         auto replicas = GetChunkReplicas(chunk);
         LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
             chunkId);
 
         {
             auto asyncResult = AbortSessionsQuorum(
-                TSessionId(chunkId, mediumIndex),
+                chunkId,
                 replicas,
                 Config_->JournalRpcTimeout,
                 readQuorum,
@@ -282,34 +314,23 @@ private:
             chunkId);
     }
 
-    int ComputeChunkMediumIndex(TChunk* chunk)
+    void ValidateChunkHasReplicas(TChunk* chunk)
     {
-        auto result = InvalidMediumIndex;
-        for (auto replica : chunk->StoredReplicas()) {
-            auto mediumIndex = replica.GetMediumIndex();
-            if (result != InvalidMediumIndex && result != mediumIndex) {
-                THROW_ERROR_EXCEPTION("Journal chunk %v resides on multiple media: %v and %v",
-                    chunk->GetId(),
-                    result,
-                    mediumIndex);
-            }
-            result = mediumIndex;
-        }
-        if (result == InvalidMediumIndex) {
+        if (chunk->StoredReplicas().empty()) {
             THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
                 chunk->GetId());
         }
-        return result;
     }
 
-    std::vector<TNodeDescriptor> GetChunkReplicas(TChunk* chunk)
+    std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicas(TChunk* chunk)
     {
-        std::vector<TNodeDescriptor> replicas;
+        std::vector<NJournalClient::TChunkReplicaDescriptor> result;
         for (auto replica : chunk->StoredReplicas()) {
             auto* node = replica.GetPtr();
-            replicas.push_back(node->GetDescriptor());
+            auto mediumIndex = replica.GetMediumIndex();
+            result.emplace_back(NJournalClient::TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
         }
-        return replicas;
+        return result;
     }
 };
 
