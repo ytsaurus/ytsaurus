@@ -74,7 +74,7 @@ Y_STATIC_THREAD(std::vector<TLogEvent>) PerThreadBatchingEventsHolder;
 
 bool operator == (const TLogWritersCacheKey& lhs, const TLogWritersCacheKey& rhs)
 {
-    return lhs.Category == rhs.Category && lhs.LogLevel == rhs.LogLevel && lhs.Format == rhs.Format;
+    return lhs.Category == rhs.Category && lhs.LogLevel == rhs.LogLevel && lhs.MessageFormat == rhs.MessageFormat;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,7 +609,7 @@ private:
             return SystemWriters_;
         }
 
-        TLogWritersCacheKey cacheKey{event.Category->Name, event.Level, event.Format};
+        TLogWritersCacheKey cacheKey{event.Category->Name, event.Level, event.MessageFormat};
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
             return it->second;
@@ -617,7 +617,7 @@ private:
 
         THashSet<TString> writerIds;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(event.Category->Name, event.Level, event.Format)) {
+            if (rule->IsApplicable(event.Category->Name, event.Level, event.MessageFormat)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
@@ -737,11 +737,11 @@ private:
             std::unique_ptr<ILogFormatter> formatter;
             std::unique_ptr<TNotificationWatch> watch;
 
-            switch (config->LogFormat) {
-                case ELogEventFormat::PlainText:
+            switch (config->AcceptedMessageFormat) {
+                case ELogMessageFormat::PlainText:
                     formatter = std::make_unique<TPlainTextLogFormatter>();
                     break;
-                case ELogEventFormat::Json:
+                case ELogMessageFormat::Structured:
                     formatter = std::make_unique<TJsonLogFormatter>();
                     break;
                 default:

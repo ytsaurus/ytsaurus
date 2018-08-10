@@ -1,7 +1,7 @@
 import pytest
 from flaky import flaky
 
-from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges, wait
+from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges
 from yt_commands import *
 
 import string
