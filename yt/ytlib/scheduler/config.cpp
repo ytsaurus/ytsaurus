@@ -914,6 +914,9 @@ TSchedulableConfig::TSchedulableConfig()
         .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
+    RegisterParameter("create_ephemeral_subpool", CreateEphemeralSubpool)
+        .Default();
+
     RegisterParameter("max_share_ratio", MaxShareRatio)
         .Default()
         .InRange(0.0, 1.0);
@@ -1015,6 +1018,8 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("pool", Pool)
         .Default();
+    RegisterParameter("create_ephemeral_subpool", CreateEphemeralSubpool)
+        .Default();
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 }
@@ -1041,6 +1046,7 @@ void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec
         auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
         if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
             treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
+            treeParams->CreateEphemeralSubpool = spec->CreateEphemeralSubpool ? spec->CreateEphemeralSubpool : specIt->second->CreateEphemeralSubpool;
             if (spec->Pool) {
                 treeParams->Pool = spec->Pool;
             } else {
@@ -1049,6 +1055,7 @@ void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec
             treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
         } else {
             treeParams->Weight = spec->Weight;
+            treeParams->CreateEphemeralSubpool = spec->CreateEphemeralSubpool;
             treeParams->Pool = spec->Pool ? spec->Pool : user;
             treeParams->ResourceLimits = spec->ResourceLimits;
         }

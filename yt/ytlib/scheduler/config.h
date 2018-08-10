@@ -71,6 +71,8 @@ class TSchedulableConfig
 public:
     TNullable<double> Weight;
 
+    TNullable<bool> CreateEphemeralSubpool;
+
     // Specifies resource limits in terms of a share of all cluster resources.
     TNullable<double> MaxShareRatio;
     // Specifies resource limits in absolute values.
@@ -942,6 +944,7 @@ public:
     TNullable<double> Weight;
 
     TNullable<TString> Pool;
+    TNullable<bool> CreateEphemeralSubpool;
 
     TResourceLimitsConfigPtr ResourceLimits;
 

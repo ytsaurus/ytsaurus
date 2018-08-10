@@ -1346,7 +1346,7 @@ class TestSchedulerPools(YTEnvSetup):
             command=(with_breakpoint("cat ; BREAKPOINT")),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"pool": "custom_pool|"})
+            spec={"pool": "custom_pool", "create_ephemeral_subpool": True})
 
         wait_breakpoint()
 
