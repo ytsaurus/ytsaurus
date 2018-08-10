@@ -157,7 +157,9 @@ class YTInstance(object):
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
-                 add_binaries_to_path=True, enable_master_cache=None, driver_backend="native"):
+                 add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
+                 structured_master_logging=False):
+        # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
 
         _configure_logger()
         if add_binaries_to_path:
@@ -275,7 +277,7 @@ class YTInstance(object):
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
-                                  proxy_port, rpc_proxy_port, enable_master_cache, modify_configs_func)
+                                  proxy_port, rpc_proxy_port, enable_master_cache, modify_configs_func, structured_master_logging)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -341,7 +343,7 @@ class YTInstance(object):
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port, rpc_proxy_port,
-                             enable_master_cache, modify_configs_func):
+                             enable_master_cache, modify_configs_func, structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
@@ -389,6 +391,7 @@ class YTInstance(object):
         provision["enable_debug_logging"] = self._enable_debug_logging
         if enable_master_cache is not None:
             provision["enable_master_cache"] = enable_master_cache
+        provision["structured_master_logging"] = structured_master_logging
 
         master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
 
