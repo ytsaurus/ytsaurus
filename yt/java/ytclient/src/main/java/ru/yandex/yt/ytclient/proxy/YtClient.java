@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,9 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
     final private RpcOptions options;
     final private DataCenter localDataCenter;
 
+    final private LinkedList<CompletableFuture<Void>> waiting = new LinkedList<>();
+
+    @Deprecated
     public YtClient(
            BusConnector connector,
            Map<String, List<String>> initialAddresses,
@@ -72,6 +76,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                 @Override
                 public void onProxiesAdded(Set<RpcClient> proxies) {
                     dc.addProxies(proxies);
+                    wakeUp();
                 }
 
                 @Override
@@ -84,6 +89,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                     new PeriodicDiscovery(
                             dataCenterName,
                             entry.getValue(),
+                            null,
                             connector,
                             options,
                             credentials,
@@ -97,11 +103,125 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
 
     public YtClient(
             BusConnector connector,
+            List<YtCluster> clusters,
+            String localDataCenterName,
+            RpcCredentials credentials,
+            RpcOptions options)
+    {
+        super(options);
+        discovery = new ArrayList<>();
+
+        this.dataCenters = new DataCenter[clusters.size()];
+        this.executorService = connector.executorService();
+        this.options = options;
+
+        int dataCenterIndex = 0;
+
+        DataCenter localDataCenter = null;
+
+        for (YtCluster entry : clusters) {
+            final String dataCenterName = entry.name;
+
+            final DataCenter dc = new DataCenter(
+                    dataCenterName,
+                    new BalancingDestination[0],
+                    -1.0,
+                    options);
+
+            dataCenters[dataCenterIndex++] = dc;
+
+            if (dataCenterName.equals(localDataCenterName)) {
+                localDataCenter = dc;
+            }
+
+            final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
+                @Override
+                public void onProxiesAdded(Set<RpcClient> proxies) {
+                    dc.addProxies(proxies);
+                    wakeUp();
+                }
+
+                @Override
+                public void onProxiesRemoved(Set<RpcClient> proxies) {
+                    dc.removeProxies(proxies);
+                }
+            };
+
+            discovery.add(
+                    new PeriodicDiscovery(
+                            dataCenterName,
+                            entry.initialProxies,
+                            entry.clusterUrl,
+                            connector,
+                            options,
+                            credentials,
+                            listener));
+        }
+
+        this.localDataCenter = localDataCenter;
+
+        schedulePing();
+    }
+
+    public YtClient(
+            BusConnector connector,
+            YtCluster cluster,
+            RpcCredentials credentials,
+            RpcOptions options)
+    {
+        this(connector, Cf.list(cluster), cluster.name, credentials, options);
+    }
+
+    public YtClient(
+            BusConnector connector,
+            String clusterName,
+            RpcCredentials credentials,
+            RpcOptions options)
+    {
+        this(connector, new YtCluster(clusterName), credentials, options);
+    }
+
+    public YtClient(
+            BusConnector connector,
+            String clusterName,
+            RpcCredentials credentials)
+    {
+        this(connector, clusterName, credentials, new RpcOptions());
+    }
+
+    @Deprecated
+    public YtClient(
+            BusConnector connector,
             List<String> addresses,
             RpcCredentials credentials,
             RpcOptions options)
     {
         this(connector, Cf.map("unknown", addresses), "unknown", credentials, options);
+    }
+
+    private void wakeUp()
+    {
+        synchronized (waiting) {
+            while (!waiting.isEmpty()) {
+                waiting.pop().complete(null);
+            }
+        }
+    }
+
+    public CompletableFuture<Void> waitProxies() {
+        int proxies = 0;
+        for (DataCenter dataCenter: dataCenters) {
+            proxies += dataCenter.getAliveDestinations().size();
+        }
+        if (proxies > 0) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            synchronized (waiting) {
+                waiting.push(future);
+            }
+            return future;
+        }
     }
 
     @Override

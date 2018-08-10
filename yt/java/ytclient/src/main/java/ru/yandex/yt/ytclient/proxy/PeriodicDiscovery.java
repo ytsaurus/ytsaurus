@@ -16,10 +16,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+import com.ning.http.client.AsyncHttpClient;
+import com.ning.http.client.ListenableFuture;
+import com.ning.http.client.Response;
+import com.ning.http.client.RequestBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Option;
+import ru.yandex.inside.yt.kosher.common.YtFormat;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
@@ -38,13 +45,16 @@ public class PeriodicDiscovery implements AutoCloseable {
     private final RpcOptions options;
     private final Random rnd;
     private final List<HostPort> initialAddresses;
+    private final Option<String> clusterUrl;
     private final RpcCredentials credentials;
     private final Option<PeriodicDiscoveryListener> listenerOpt;
     private final AtomicBoolean running = new AtomicBoolean(true);
+    private final AsyncHttpClient httpClient;
 
     public PeriodicDiscovery(
             String datacenterName,
             List<String> initialAddresses,
+            String clusterUrl,
             BusConnector connector,
             RpcOptions options,
             RpcCredentials credentials,
@@ -56,9 +66,11 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.options = Objects.requireNonNull(options);
         this.rnd = new Random();
         this.initialAddresses = initialAddresses.stream().map(HostPort::parse).collect(Collectors.toList());
+        this.clusterUrl = Option.ofNullable(clusterUrl);
         this.proxies = new HashMap<>();
         this.credentials = Objects.requireNonNull(credentials);
         this.listenerOpt = Option.ofNullable(listener);
+        this.httpClient = new AsyncHttpClient();
 
         addProxies(this.initialAddresses);
         updateProxies();
@@ -67,10 +79,11 @@ public class PeriodicDiscovery implements AutoCloseable {
     public PeriodicDiscovery(
             String datacenterName,
             List<String> initialAddresses,
+            String clusterUrl,
             BusConnector connector,
             RpcOptions options)
     {
-        this(datacenterName, initialAddresses, connector, options, new RpcCredentials(), null);
+        this(datacenterName, initialAddresses, clusterUrl, connector, options, new RpcCredentials(), null);
     }
 
     public Set<String> getAddresses() {
@@ -142,6 +155,46 @@ public class PeriodicDiscovery implements AutoCloseable {
     }
 
     private void updateProxies() {
+        if (proxies.isEmpty() && clusterUrl.isPresent()) {
+            updateProxiesFromHttp();
+        } else {
+            updateProxiesFromRpc();
+        }
+    }
+
+    private void updateProxiesFromHttp() {
+        ListenableFuture<Response> responseFuture = httpClient.executeRequest(
+                new RequestBuilder()
+                    .setUrl(clusterUrl.get() + "/api/v4/discover_proxies?type=rpc")
+                    .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
+                    .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
+                    .setHeader("Authorization", String.format("OAuth %s", credentials.getToken()))
+                    .build());
+
+        responseFuture.addListener(() -> {
+            try {
+                Response response = responseFuture.get();
+                String body = new String(response.getResponseBodyAsBytes());
+                YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
+                List<HostPort> proxies = node
+                        .asMap()
+                        .getOrThrow("proxies")
+                        .asList()
+                        .map(YTreeNode::stringValue)
+                        .map(HostPort::parse);
+
+                processProxies(new HashSet<>(proxies));
+            } catch (Throwable e) {
+                logger.error("Error on process proxies {}", e, e);
+            } finally {
+                if (running.get()) {
+                    scheduleUpdate();
+                }
+            }
+        }, connector.executorService());
+    }
+
+    private void updateProxiesFromRpc() {
         List<DiscoveryServiceClient> clients = new ArrayList<>(proxies.values());
         DiscoveryServiceClient client = clients.get(rnd.nextInt(clients.size()));
         client.discoverProxies().whenComplete((result, error) -> {
@@ -170,8 +223,12 @@ public class PeriodicDiscovery implements AutoCloseable {
         addProxies(added);
 
         if (proxies.isEmpty()) {
-            logger.warn("Empty proxies list. Bootstraping from the initial list: {}", initialAddresses);
-            addProxies(initialAddresses);
+            if (clusterUrl.isPresent()) {
+                logger.warn("Empty proxies list. Bootstraping from the initial list: {}", clusterUrl);
+            } else {
+                logger.warn("Empty proxies list. Bootstraping from the initial list: {}", initialAddresses);
+                addProxies(initialAddresses);
+            }
         }
     }
 
@@ -183,5 +240,6 @@ public class PeriodicDiscovery implements AutoCloseable {
     public void close() {
         logger.debug("Stopping periodic discovery");
         running.set(false);
+        httpClient.closeAsynchronously();
     }
 }
