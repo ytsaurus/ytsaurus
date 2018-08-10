@@ -45,11 +45,11 @@ struct TPoolName {
 
     static const char DELIMITER = '|';
 
-    static TPoolName Create(const TString& raw, const TString& user) {
-        if (raw.back() == DELIMITER) {
-            return TPoolName(raw + user, raw.substr(0, raw.size() - 1));
+    static TPoolName Create(const TString& pool, const TString& user, bool createEphemeralSubpool) {
+        if (createEphemeralSubpool) {
+            return TPoolName(pool + DELIMITER + user, pool);
         }
-        return TPoolName(raw.empty() ? user : raw, Null);
+        return TPoolName(pool, Null);
     }
 };
 
@@ -2954,12 +2954,18 @@ private:
         THashMap<TString, TPoolName> pools;
 
         for (const auto& treeId : allTrees) {
-            TString pool = "";
+            TString pool;
+            bool createEphemeralSubpool;
             auto optionsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
+            // TODO(renadeen): replace with YCHECK
             if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
                 pool = optionsIt->second->Pool.Get();
+                createEphemeralSubpool = optionsIt->second->CreateEphemeralSubpool.Get(false);
+            } else {
+                pool = operation->GetAuthenticatedUser();
+                createEphemeralSubpool = false;
             }
-            pools.emplace(treeId, TPoolName::Create(pool, operation->GetAuthenticatedUser()));
+            pools.emplace(treeId, TPoolName::Create(pool, operation->GetAuthenticatedUser(), createEphemeralSubpool));
         }
 
         return pools;
