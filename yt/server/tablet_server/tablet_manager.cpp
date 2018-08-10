@@ -3857,13 +3857,11 @@ private:
                 RestartPrerequisiteTransaction(cell);
             }
 
-            ReconfigureCell(cell);
-
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
-        } else {
-            ReconfigureCell(cell);
         }
+
+        ReconfigureCell(cell);
     }
 
     void HydraRevokePeers(TReqRevokePeers* request)
@@ -3889,13 +3887,12 @@ private:
                 AbortPrerequisiteTransaction(cell);
                 AbortCellSubtreeTransactions(cell);
             }
-            ReconfigureCell(cell);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
-        } else {
-            ReconfigureCell(cell);
         }
+
+        ReconfigureCell(cell);
     }
 
     void HydraSetLeadingPeer(TReqSetLeadingPeer* request)
@@ -3919,13 +3916,12 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             RestartPrerequisiteTransaction(cell);
-            ReconfigureCell(cell);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
-        } else {
-            ReconfigureCell(cell);
         }
+
+        ReconfigureCell(cell);
     }
 
     void HydraUpdateUpstreamTabletState(TReqUpdateUpstreamTabletState* request)
