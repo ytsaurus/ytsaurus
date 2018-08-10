@@ -11,6 +11,7 @@
 #include <yt/core/misc/intrusive_linked_list.h>
 #include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/align.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
@@ -19,6 +20,7 @@
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <atomic>
 #include <array>
@@ -31,20 +33,16 @@
 #include <pthread.h>
 
 #ifndef MAP_POPULATE
-#define MAP_POPULATE 0
+#define MAP_POPULATE 0x08000
 #endif
 
 #ifndef MADV_POPULATE
 #define MADV_POPULATE 0x59410001
 #endif
 
-//#ifndef MADV_FREE
-//#define MADV_FREE 8
-//#endif
-
-// XXX(babenko)
-#undef MADV_FREE
-#define MADV_FREE MADV_DONTNEED
+#ifndef MADV_FREE
+#define MADV_FREE 8
+#endif
 
 namespace NYT {
 namespace NYTAlloc {
@@ -52,7 +50,7 @@ namespace NYTAlloc {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Allocations are classified into three types:
-// 
+//
 // a) Small chunks (less than LargeSizeThreshold)
 // These are the fastest and are extensively cached (both per-thread and globally).
 // Memory claimed for these allocations is never reclaimed back.
@@ -68,7 +66,7 @@ namespace NYTAlloc {
 //
 // c) Huge blobs (from HugeSizeThreshold).
 // These should be rare; we delegate directly to mmap and munmap for each allocation.
-// 
+//
 // We also provide a separate allocator for all system allocations (that are needed by YTAlloc itself).
 // These are rare and also delegate to mmap/unmap.
 
@@ -104,6 +102,10 @@ constexpr size_t SmallSegmentSize = 1_MB;
 
 constexpr size_t LargeExtentSize = 1_GB;
 constexpr size_t HugeSizeThreshold = 1ULL << (LargeRankCount - 1);
+
+constexpr const char* ThreadName = "YTAlloc";
+constexpr const char* LoggerCategory = "YTAlloc";
+constexpr const char* ProfilerPath = "/yt_alloc";
 
 DEFINE_ENUM(EAllocationKind,
     (Untagged)
@@ -467,6 +469,126 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Holds TYAlloc control knobs.
+// Thread safe.
+class TConfigurationManager
+{
+public:
+    void EnableLogging()
+    {
+        LoggingEnabled_.store(true);
+    }
+
+    bool IsLoggingEnabled() const
+    {
+        return LoggingEnabled_.load(std::memory_order_relaxed);
+    }
+
+
+    void EnableProfiling()
+    {
+        ProfilingEnabled_.store(true);
+    }
+
+    bool IsProfilingEnabled()
+    {
+        return ProfilingEnabled_.load(std::memory_order_relaxed);
+    }
+
+
+    void SetLargeUnreclaimableCoeff(double value)
+    {
+        LargeUnreclaimableCoeff_.store(value);
+    }
+
+    double GetLargeUnreclaimableCoeff() const
+    {
+        return LargeUnreclaimableCoeff_.load(std::memory_order_relaxed);
+    }
+
+
+    void SetLargeUnreclaimableBytes(size_t value)
+    {
+        LargeUnreclaimableBytes_.store(value);
+    }
+
+    size_t GetLargeUnreclaimableBytes() const
+    {
+        return LargeUnreclaimableBytes_.load(std::memory_order_relaxed);
+    }
+
+
+    void SetSyscallTimeWarningThreshold(TDuration value)
+    {
+        SyscallTimeWarningThreshold_.store(value.MicroSeconds());
+    }
+
+    TDuration GetSyscallTimeWarningThreshold() const
+    {
+        return TDuration::MicroSeconds(SyscallTimeWarningThreshold_.load());
+    }
+
+private:
+    std::atomic<bool> LoggingEnabled_ = {false};
+    std::atomic<bool> ProfilingEnabled_ = {false};
+    std::atomic<double> LargeUnreclaimableCoeff_ = {0.1};
+    std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
+    std::atomic<ui64> SyscallTimeWarningThreshold_ = {10000000}; // in microseconds, 10 ms by default
+};
+
+TBox<TConfigurationManager> ConfigurationManager;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Used to log statistics about long-running syscalls.
+// Maintains recursion depth and execution stats in TLS.
+// Recursion depth counter ensures that logging only happens
+// when the topmost guard is being destroyed and thus YTAlloc does not invoke itself in
+// an unexpected way.
+class TSyscallGuard
+    : public TNonCopyable
+{
+public:
+    TSyscallGuard()
+    {
+        ++RecursionDepth_;
+    }
+
+    ~TSyscallGuard()
+    {
+        if (RecursionDepth_ > 1) {
+            --RecursionDepth_;
+            return;
+        }
+
+        if (ConfigurationManager->IsLoggingEnabled() &&
+            TDuration::MicroSeconds(ElapsedTime_) > ConfigurationManager->GetSyscallTimeWarningThreshold())
+        {
+            // These calls may cause allocations so we RecursionDepth_ must remain positive here.
+            static const NLogging::TLogger Logger(LoggerCategory);
+            LOG_DEBUG("Syscalls took too long (Time: %v)",
+                ElapsedTime_);
+        }
+
+        RecursionDepth_ = 0;
+        ElapsedTime_ = 0;
+    }
+
+    static void ChargeTime(TDuration time)
+    {
+        if (RecursionDepth_ > 0) {
+            ElapsedTime_ += time.MicroSeconds();
+        }
+    }
+
+private:
+    Y_POD_STATIC_THREAD(int) RecursionDepth_;
+    Y_POD_STATIC_THREAD(ui64) ElapsedTime_; // in microseconds
+};
+
+Y_POD_THREAD(int) TSyscallGuard::RecursionDepth_;
+Y_POD_THREAD(ui64) TSyscallGuard::ElapsedTime_;
+
 // A wrapper for mmap, mumap, and madvise calls.
 // The latter are invoked with MADV_POPULATE and MADV_FREE flags
 // and may fail if the OS support is missing. These failures are
@@ -485,21 +607,27 @@ public:
 
     void* Map(uintptr_t hint, size_t size, int flags)
     {
-        auto* result = ::mmap(
-            reinterpret_cast<void*>(hint),
-            size,
-            PROT_READ | PROT_WRITE,
-            MAP_PRIVATE | MAP_ANONYMOUS | flags,
-            -1,
-            0);
-        YCHECK(result != MAP_FAILED);
-        return result;
+        return RunSyscall(
+            [&] {
+                auto* result = ::mmap(
+                    reinterpret_cast<void*>(hint),
+                    size,
+                    PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS | flags,
+                    -1,
+                    0);
+                YCHECK(result != MAP_FAILED);
+                return result;
+            });
     }
 
     void Unmap(void* ptr, size_t size)
     {
-        auto result = ::munmap(ptr, size);
-        YCHECK(result == 0);
+        RunSyscall(
+            [&] {
+                auto result = ::munmap(ptr, size);
+                YCHECK(result == 0);
+            });
     }
 
     void Populate(void* ptr, size_t size)
@@ -533,6 +661,20 @@ public:
     }
 
 private:
+    template <class F>
+    auto RunSyscall(F func) -> decltype(func())
+    {
+        // Sadly, TWallTimer cannot be used prior to all statics being initialized.   
+        if (!ConfigurationManager->IsLoggingEnabled()) {
+            return func();
+        }
+        NProfiling::TWallTimer timer;
+        auto guard = Finally([&] {
+            TSyscallGuard::ChargeTime(timer.GetElapsedTime());
+        });
+        return func();
+    }
+
     void Advise(
         void* ptr,
         size_t size,
@@ -543,12 +685,15 @@ private:
             return;
         }
 
-        auto result = ::madvise(ptr, size, flag);
-        if (result != 0) {
-            auto error = errno;
-            YCHECK(error == EINVAL);
-            notSupported->store(true);
-        }
+        RunSyscall(
+            [&] {
+                auto result = ::madvise(ptr, size, flag);
+                if (result != 0) {
+                    auto error = errno;
+                    YCHECK(error == EINVAL);
+                    notSupported->store(true);
+                }
+            });
     }
 
 private:
@@ -902,20 +1047,6 @@ struct TThreadState
     TEnumIndexedVector<TSmallBlobCache, EAllocationKind> SmallBlobCache;
 };
 
-// TThreadState instance for the current thread.
-// Initially null, then initialized when first needed.
-// TThreadState is destroyed upon thread termination (which is detected with
-// the help of pthread_key_create machinery), so this pointer can become null again.
-Y_POD_THREAD(TThreadState*) ThreadState;
-
-// Initially false, then set to true then TThreadState is destroyed.
-// If the thread requests for its state afterwards, null is returned and no new state is (re-)created.
-// The caller must be able to deal with it.
-Y_POD_THREAD(bool) ThreadStateDestroyed;
-
-// See tagged allocations API below.
-Y_POD_THREAD(TMemoryTag) CurrentMemoryTag;
-
 struct TThreadStateToRegistryNode
 {
     auto operator() (TThreadState* state) const
@@ -973,13 +1104,13 @@ public:
 
     Y_FORCE_INLINE static TMemoryTag GetCurrentMemoryTag()
     {
-        return CurrentMemoryTag;
+        return CurrentMemoryTag_;
     }
 
     Y_FORCE_INLINE static void SetCurrentMemoryTag(TMemoryTag tag)
     {
         YCHECK(tag <= MaxMemoryTag);
-        CurrentMemoryTag = tag;
+        CurrentMemoryTag_ = tag;
     }
 
 private:
@@ -1015,6 +1146,20 @@ private:
     void DestroyThreadState(TThreadState* state);
 
 private:
+    // TThreadState instance for the current thread.
+    // Initially null, then initialized when first needed.
+    // TThreadState is destroyed upon thread termination (which is detected with
+    // the help of pthread_key_create machinery), so this pointer can become null again.
+    Y_POD_STATIC_THREAD(TThreadState*) ThreadState_;
+
+    // Initially false, then set to true then TThreadState is destroyed.
+    // If the thread requests for its state afterwards, null is returned and no new state is (re-)created.
+    // The caller must be able to deal with it.
+    Y_POD_STATIC_THREAD(bool) ThreadStateDestroyed_;
+
+    // See tagged allocations API.
+    Y_POD_STATIC_THREAD(TMemoryTag) CurrentMemoryTag_;
+
     pthread_key_t ThreadDtorKey_;
 
     static constexpr size_t ThreadStatesBatchSize = 16;
@@ -1023,6 +1168,10 @@ private:
     NConcurrency::TForkAwareSpinLock ThreadRegistryLock_;
     TIntrusiveLinkedList<TThreadState, TThreadStateToRegistryNode> ThreadRegistry_;
 };
+
+Y_POD_THREAD(TThreadState*) TThreadManager::ThreadState_;
+Y_POD_THREAD(bool) TThreadManager::ThreadStateDestroyed_;
+Y_POD_THREAD(TMemoryTag) TThreadManager::CurrentMemoryTag_;
 
 TBox<TThreadManager> ThreadManager;
 
@@ -1389,28 +1538,28 @@ TBox<TStatisticsManager> StatisticsManager;
 
 Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
 {
-    if (Y_LIKELY(ThreadState)) {
-        return ThreadState;
+    if (Y_LIKELY(ThreadState_)) {
+        return ThreadState_;
     }
 
-    if (ThreadStateDestroyed) {
+    if (ThreadStateDestroyed_) {
         return nullptr;
     }
 
     InitializeGlobals();
 
     // InitializeGlobals must not allocate.
-    YCHECK(!ThreadState);
-    ThreadState = ThreadManager->AllocateThreadState();
+    YCHECK(!ThreadState_);
+    ThreadState_ = ThreadManager->AllocateThreadState();
 
-    return ThreadState;
+    return ThreadState_;
 }
 
 void TThreadManager::DestroyThread(void*)
 {
-    ThreadManager->UnrefThreadState(ThreadState);
-    ThreadState = nullptr;
-    ThreadStateDestroyed = true;
+    ThreadManager->UnrefThreadState(ThreadState_);
+    ThreadState_ = nullptr;
+    ThreadStateDestroyed_ = true;
 }
 
 void TThreadManager::DestroyThreadState(TThreadState* state)
@@ -1446,7 +1595,7 @@ void TSystemAllocator::Free(void* ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Small allocator
-// 
+//
 // Allocations (called small chunks) are grouped by their sizes. Two most-significant binary digits are
 // used to determine the rank of a chunk, which guarantees 25% overhead in the worst case.
 // A pair of helper arrays (SmallSizeToRank1 and SmallSizeToRank2) are used to compute ranks; we expect
@@ -1474,7 +1623,7 @@ void TSystemAllocator::Free(void* ptr)
 // Each thread maintains a separate cache of chunks of each rank (two caches to be precise: one
 // for tagged allocations and the other for untagged). These caches are fully thread-local and
 // involve no atomic operations.
-// 
+//
 // There are also global caches (per rank, for tagged and untagged allocations).
 // Instead of keeping individual chunks these work with chunk groups (collections of up to ChunksPerGroup
 // arbitrary chunks).
@@ -1513,7 +1662,6 @@ public:
     void* Allocate(size_t size)
     {
         void* ptr;
-
         while (true) {
             ptr = TryAllocateFromCurrentSegment();
             if (Y_LIKELY(ptr)) {
@@ -1547,7 +1695,8 @@ private:
 
     void PopulateAnotherSegment()
     {
-        auto guard = Guard(SegmentLock_);
+        TSyscallGuard syscallGuard;
+        auto lockGuard = Guard(SegmentLock_);
 
         auto* oldPtr = CurrentPtr_.load();
         if (oldPtr && PtrToSegmentIndex(oldPtr + ChunkSize_) == PtrToSegmentIndex(oldPtr)) {
@@ -1762,6 +1911,7 @@ private:
     template <EAllocationKind Kind>
     static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
+        TSyscallGuard syscallGuard;
         StatisticsManager->IncrementTotalCounter(tag, ETotalCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
     }
@@ -1769,6 +1919,7 @@ private:
     template <EAllocationKind Kind>
     static void FreeGlobal(TMemoryTag tag, void* ptr, size_t rank, size_t size)
     {
+        TSyscallGuard syscallGuard;
         StatisticsManager->IncrementTotalCounter(tag, ETotalCounter::BytesFreed, size);
         (*GlobalSmallChunkCaches)[Kind]->MoveOneToGlobal(ptr, rank);
     }
@@ -1961,20 +2112,11 @@ public:
         ReclaimMemory(context);
     }
 
-    void SetLargeUnreclaimableCoeff(double value)
-    {
-        LargeUnreclaimableCoeff_.store(value);
-    }
-
-    void SetLargeUnreclaimableBytes(size_t value)
-    {
-        LargeUnreclaimableBytes_.store(value);
-    }
-
 private:
     template <class TState>
     void PopulateArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
+        TSyscallGuard syscallGuard;
         MappedMemoryManager->Populate(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesPopulated, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesPopulated, size / PageSize);
@@ -1985,6 +2127,7 @@ private:
     template <class TState>
     void ReleaseArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
+        TSyscallGuard syscallGuard;
         MappedMemoryManager->Release(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesReleased, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesReleased, size / PageSize);
@@ -2038,7 +2181,9 @@ private:
         auto totalBytesUsed = totalBytesAllocated - totalBytesFreed;
         auto totalBytesReclaimable = totalBytesSpare + totalBytesOverhead;
 
-        auto threshold = std::max(static_cast<size_t>(LargeUnreclaimableCoeff_.load() * totalBytesUsed), LargeUnreclaimableBytes_.load());
+        auto threshold = std::max(
+            static_cast<size_t>(ConfigurationManager->GetLargeUnreclaimableCoeff() * totalBytesUsed),
+            ConfigurationManager->GetLargeUnreclaimableBytes());
         if (totalBytesReclaimable < threshold) {
             return 0;
         }
@@ -2299,6 +2444,8 @@ private:
     template <class TState>
     void AllocateArenaExtent(TState* state, TLargeArena* arena)
     {
+        TSyscallGuard syscallGuard;
+
         auto rank = arena->Rank;
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::ExtentsAllocated, 1);
 
@@ -2434,9 +2581,6 @@ private:
 
     static constexpr size_t DisposedSegmentsBatchSize = 1024;
     TSystemPool<TDisposedSegment, DisposedSegmentsBatchSize> DisposedSegmentPool_;
-
-    std::atomic<double> LargeUnreclaimableCoeff_ = {0.1};
-    std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
 };
 
 TBox<TLargeBlobAllocator> LargeBlobAllocator;
@@ -2451,7 +2595,7 @@ struct THugeBlobHeader
 {
     THugeBlobHeader(TMemoryTag tag, size_t size)
         : Tag(tag)
-          , Size(size)
+        , Size(size)
     { }
 
     TMemoryTag Tag;
@@ -2469,6 +2613,8 @@ public:
 
     void* Allocate(size_t size)
     {
+        TSyscallGuard syscallGuard;
+
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
         auto* blob = static_cast<THugeBlobHeader*>(ZoneAllocator_.Allocate(rawSize, MAP_POPULATE));
@@ -2483,6 +2629,8 @@ public:
 
     void Free(void* ptr)
     {
+        TSyscallGuard syscallGuard;
+
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
@@ -2522,7 +2670,7 @@ public:
             return HugeBlobAllocator->Allocate(size);
         }
     }
-    
+
     static void Free(void* ptr)
     {
         InitializeGlobals();
@@ -2560,16 +2708,6 @@ public:
         return Singleton<TBackgroundThread>();
     }
 
-    void EnableLogging()
-    {
-        EnableLogging_.store(true);
-    }
-
-    void EnableProfiling()
-    {
-        EnableProfiling_.store(true);
-    }
-
 private:
     TThread Thread_;
     TManualEvent StopEvent_;
@@ -2588,15 +2726,15 @@ private:
     void ThreadMain()
     {
         InitializeGlobals();
-        TThread::CurrentThreadSetName("YTAlloc");
+        TThread::CurrentThreadSetName(ThreadName);
 
         while (!StopEvent_.WaitT(BackgroundInterval)) {
             TBackgroundContext context;
             if (EnableLogging_.load()) {
-                context.Logger = NLogging::TLogger("YTAlloc");
+                context.Logger = NLogging::TLogger(LoggerCategory);
             }
             if (EnableProfiling_.load()) {
-                context.Profiler = NProfiling::TProfiler("/yt_alloc");
+                context.Profiler = NProfiling::TProfiler(ProfilerPath);
             }
 
             StatisticsManager->RunBackgroundTasks(context);
@@ -2719,24 +2857,38 @@ size_t YTGetSize(void* ptr)
 
 void EnableLogging()
 {
-    TBackgroundThread::Get()->EnableLogging();
+    InitializeGlobals();
+    ConfigurationManager->EnableLogging();
 }
 
 void EnableProfiling()
 {
-    TBackgroundThread::Get()->EnableProfiling();
+    InitializeGlobals();
+    ConfigurationManager->EnableProfiling();
 }
 
 void SetLargeUnreclaimableCoeff(double value)
 {
     InitializeGlobals();
-    LargeBlobAllocator->SetLargeUnreclaimableCoeff(value);
+    ConfigurationManager->SetLargeUnreclaimableCoeff(value);
+}
+
+void SetSyscallTimeWarningThreshold(TDuration value)
+{
+    InitializeGlobals();
+    ConfigurationManager->SetSyscallTimeWarningThreshold(value);
+}
+
+TDuration GetSyscallTimeWarningThreshold()
+{
+    InitializeGlobals();
+    return ConfigurationManager->GetSyscallTimeWarningThreshold();
 }
 
 void SetLargeUnreclaimableBytes(size_t value)
 {
     InitializeGlobals();
-    LargeBlobAllocator->SetLargeUnreclaimableBytes(value);
+    ConfigurationManager->SetLargeUnreclaimableBytes(value);
 }
 
 TEnumIndexedVector<ssize_t, ETotalCounter> GetTotalCounters()
