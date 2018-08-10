@@ -121,7 +121,7 @@ public:
             return Controller->GetJobType();
         }
 
-        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 

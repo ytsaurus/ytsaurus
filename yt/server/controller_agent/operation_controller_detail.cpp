@@ -2013,7 +2013,14 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobMetrics(joblet, *jobSummary);
     UpdateJobStatistics(joblet, *jobSummary);
 
-    joblet->Task->OnJobFailed(joblet, *jobSummary);
+    auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
+    if (taskResult.BanTree) {
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
+    }
+
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
     }
@@ -2100,7 +2107,13 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         }
     }
 
-    joblet->Task->OnJobAborted(joblet, *jobSummary);
+    auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
+    if (taskResult.BanTree) {
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
