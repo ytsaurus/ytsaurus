@@ -18,8 +18,8 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Sets;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.ListenableFuture;
-import com.ning.http.client.Response;
 import com.ning.http.client.RequestBuilder;
+import com.ning.http.client.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

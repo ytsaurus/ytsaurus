@@ -1,15 +1,15 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
