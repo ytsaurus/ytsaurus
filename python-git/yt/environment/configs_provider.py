@@ -122,6 +122,7 @@ _default_provision = {
         "count": 0,
     },
     "enable_debug_logging": True,
+    "enable_structured_master_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
 }
@@ -234,9 +235,9 @@ class ConfigsProvider(object):
     def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
         pass
 
-def init_logging(node, path, name, enable_debug_logging):
+def init_logging(node, path, name, enable_debug_logging, enable_structured_logging=False):
     if not node:
-        node = default_configs.get_logging_config(enable_debug_logging)
+        node = default_configs.get_logging_config(enable_debug_logging, enable_structured_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -410,7 +411,9 @@ class ConfigsProvider_19(ConfigsProvider):
                            os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
-                                                 "master-{0}-{1}".format(cell_index, master_index), provision["enable_debug_logging"])
+                                                 "master-{0}-{1}".format(cell_index, master_index),
+                                                 provision["enable_debug_logging"],
+                                                 provision["enable_structured_master_logging"])
 
                 _set_bind_retry_options(config, key="bus_server")
 
