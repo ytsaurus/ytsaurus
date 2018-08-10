@@ -86,6 +86,7 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
+#include <yt/ytlib/tablet_client/master_tablet_service.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
@@ -202,8 +203,8 @@ void SetDynamicTableCypressRequestFullPath(TReq* req, TYPath* fullPath)
 { }
 
 template <>
-void SetDynamicTableCypressRequestFullPath<NTableClient::NProto::TReqMount>(
-    NTableClient::NProto::TReqMount* req,
+void SetDynamicTableCypressRequestFullPath<NTabletClient::NProto::TReqMount>(
+    NTabletClient::NProto::TReqMount* req,
     TYPath* fullPath)
 {
     req->set_path(*fullPath);
@@ -2348,7 +2349,7 @@ private:
         const TMountTableOptions& options)
     {
         TYPath fullPath;
-        NTableClient::NProto::TReqMount req;
+        NTabletClient::NProto::TReqMount req;
  
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2372,7 +2373,7 @@ private:
         const TYPath& path,
         const TUnmountTableOptions& options)
     {
-        NTableClient::NProto::TReqUnmount req;
+        NTabletClient::NProto::TReqUnmount req;
 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2389,7 +2390,7 @@ private:
         const TYPath& path,
         const TRemountTableOptions& options)
     {
-        NTableClient::NProto::TReqRemount req;
+        NTabletClient::NProto::TReqRemount req;
 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2405,7 +2406,7 @@ private:
         const TYPath& path,
         const TFreezeTableOptions& options)
     {
-        NTableClient::NProto::TReqFreeze req;
+        NTabletClient::NProto::TReqFreeze req;
 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2421,7 +2422,7 @@ private:
         const TYPath& path,
         const TUnfreezeTableOptions& options)
     {
-        NTableClient::NProto::TReqUnfreeze req;
+        NTabletClient::NProto::TReqUnfreeze req;
 
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
@@ -2433,10 +2434,10 @@ private:
         ExecuteDynamicTableCypressRequest(path, &req);
     }
 
-    NTableClient::NProto::TReqReshard MakeReshardRequest(
+    NTabletClient::NProto::TReqReshard MakeReshardRequest(
         const TReshardTableOptions& options)
     {
-        NTableClient::NProto::TReqReshard req;
+        NTabletClient::NProto::TReqReshard req;
         if (options.FirstTabletIndex) {
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
