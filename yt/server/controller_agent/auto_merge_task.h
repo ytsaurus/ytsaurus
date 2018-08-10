@@ -79,9 +79,9 @@ public:
     virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
-    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
-    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
-    virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
+    virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
+    virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
+    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
 
     void RegisterNewTeleportChunks();
 

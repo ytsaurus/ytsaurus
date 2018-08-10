@@ -2,6 +2,8 @@ from yt_env_setup import YTEnvSetup, wait
 from yt.environment.helpers import are_almost_equal
 from yt_commands import *
 
+import pytest
+
 class TestRuntimeParameters(YTEnvSetup):
 
     NUM_MASTERS = 1
