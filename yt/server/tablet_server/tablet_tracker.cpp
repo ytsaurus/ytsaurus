@@ -339,19 +339,41 @@ public:
 
     virtual void AssignPeer(const TTabletCell* cell, int peerId, TPeerSet* /*forbiddenAddresses*/) override
     {
-        if (auto* node = TryAllocateNode(cell)) {
+        auto* node = TryAllocateNode(cell);
+
+        if (VerboseLogging_) {
+            LOG_DEBUG("Tablet tracker assigning peer (CellId: %v, PeerId: %v, AllocatedNode: %v)",
+                cell->GetId(),
+                peerId,
+                node ? node->GetNode()->GetDefaultAddress() : "None");
+        }
+
+        if (node) {
             AddCell(node, cell, peerId);
         }
     }
 
     virtual void RevokePeer(const TTabletCell* cell, int peerId) override
     {
-        if (auto* node = cell->Peers()[peerId].Node) {
-            //TODO(savrus) assign new peer
+        const auto& descriptor = cell->Peers()[peerId].Descriptor;
+
+        if (VerboseLogging_) {
+            auto* node = cell->Peers()[peerId].Node;
+            LOG_DEBUG("Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
+                cell->GetId(),
+                peerId,
+                node ? node->GetDefaultAddress() : "None",
+                descriptor.GetDefaultAddress());
+        }
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto* node = nodeTracker->FindNodeByAddress(descriptor.GetDefaultAddress());
+        if (node) {
             BannedPeerTracker_.AddPeer(cell, peerId, node);
             PeerTracker_.RemovePeer(cell, peerId, node);
-            Actions_.emplace_back(cell, peerId, node, nullptr);
         }
+
+        Actions_.emplace_back(cell, peerId, node, nullptr);
     }
 
     virtual std::vector<TAction> GetActions() override
@@ -369,6 +391,17 @@ public:
         if (VerboseLogging_) {
             LOG_DEBUG("Tablet cells distribution after balancing: %v",
                 StateToString());
+        }
+
+        if (VerboseLogging_) {
+            LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
+                MakeFormattableRange(Actions_, [] (TStringBuilder* builder, const TAction& action) {
+                    builder->AppendFormat("<%v,%v,%v,%v>",
+                        action.Cell->GetId(),
+                        action.PeerId,
+                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
+                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
+                }));
         }
 
         FilterActions();
@@ -585,8 +618,9 @@ private:
                     continue;
                 }
 
-                const auto* node = nodeTracker->GetNodeByAddress(descriptor.GetDefaultAddress());
-                PeerTracker_.AddPeer(cell, peerId, node);
+                if (const auto* node = nodeTracker->FindNodeByAddress(descriptor.GetDefaultAddress())) {
+                    PeerTracker_.AddPeer(cell, peerId, node);
+                }
             }
         }
     }
@@ -598,17 +632,17 @@ private:
         int last = -1;
         for (int index = 0; index < Actions_.size() ; ++index) {
             if (last < 0 || Actions_[last].Cell != Actions_[index].Cell) {
+                if (last >= 0 && Actions_[last].Source == Actions_[last].Target && Actions_[last].Target) {
+                    --last;
+                }
+
                 ++last;
                 if (last != index) {
                     Actions_[last] = Actions_[index];
                 }
             }
             if (Actions_[last].Cell == Actions_[index].Cell) {
-                if (Actions_[last].Source == Actions_[index].Target) {
-                    --last;
-                } else {
-                    Actions_[last].Target = Actions_[index].Target;
-                }
+                Actions_[last].Target = Actions_[index].Target;
             }
         }
         Actions_.resize(last + 1);
@@ -899,7 +933,7 @@ void TTabletTracker::TImpl::ScanCells()
             };
 
             for (const auto& action : actions) {
-                if (action.Source) {
+                if (action.Source || !action.Target) {
                     commit(action.Cell);
                     request.add_peer_ids(action.PeerId);
                 }
