@@ -1171,7 +1171,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         minShareRatioSum += childAttributes.AdjustedMinShareRatio;
     }
 
-    if (minShareRatioSum > Attributes_.GuaranteedResourcesRatio + RatioComparisonPrecision) {
+    if (minShareRatioSum > Attributes_.AdjustedMinShareRatio + RatioComparisonPrecision) {
         UpdateFairShareAlerts_.emplace_back(
             "Impossible to satisfy resources guarantees for children of %Qv, "
             "given out resources share is greater than guaranteed resources share: %v > %v",
@@ -1179,7 +1179,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             minShareRatioSum,
             Attributes_.GuaranteedResourcesRatio);
 
-        double fitFactor = Attributes_.GuaranteedResourcesRatio / minShareRatioSum;
+        double fitFactor = Attributes_.AdjustedMinShareRatio / minShareRatioSum;
         for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             childAttributes.AdjustedMinShareRatio *= fitFactor;
