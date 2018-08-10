@@ -122,7 +122,7 @@ _default_provision = {
         "count": 0,
     },
     "enable_debug_logging": True,
-    "structured_master_logging": False,
+    "enable_structured_master_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
 }
@@ -413,7 +413,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index),
                                                  provision["enable_debug_logging"],
-                                                 provision["structured_master_logging"])
+                                                 provision["enable_structured_master_logging"])
 
                 _set_bind_retry_options(config, key="bus_server")
 
