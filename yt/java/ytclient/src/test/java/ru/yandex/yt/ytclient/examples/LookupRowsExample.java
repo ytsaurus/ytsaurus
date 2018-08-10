@@ -23,6 +23,7 @@ public class LookupRowsExample {
                 .addValue("utc_time", ColumnValueType.STRING)
                 .addValue("data", ColumnValueType.STRING)
                 .build();
+        logger.info("start");
         ExamplesUtil.runExampleWithBalancing(client -> {
             long t0 = System.nanoTime();
             LookupRowsRequest request = new LookupRowsRequest("//home/dev/andozer/autorestart_nodes_copy", schema.toLookup())

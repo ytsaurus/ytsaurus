@@ -117,7 +117,8 @@ public final class ExamplesUtil {
 
     public static void runExampleWithBalancing(Consumer<YtClient> consumer) {
         try (BusConnector connector = createConnector()) {
-            YtClient client = new YtClient(connector, Cf.list(getHosts()), getCredentials(), new RpcOptions());
+            YtClient client = new YtClient(connector, "hahn", getCredentials());
+            client.waitProxies().join();
             consumer.accept(client);
         }
     }
