@@ -11,7 +11,7 @@
 
 #include <yt/server/security_server/security_manager.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/tablet_client/master_tablet_service.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -25,7 +25,6 @@ using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
-using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTabletClient::NProto;
@@ -84,7 +83,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void HydraPrepareMountTable(TTransaction* transaction, NTableClient::NProto::TReqMount* request, bool persist)
+    void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -145,7 +144,7 @@ private:
             mountTimestamp);
     }
 
-    void HydraCommitMountTable(TTransaction* transaction, NTableClient::NProto::TReqMount* request)
+    void HydraCommitMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -198,7 +197,7 @@ private:
             mountTimestamp);
     }
 
-    void HydraPrepareUnmountTable(TTransaction* transaction, NTableClient::NProto::TReqUnmount* request, bool persist)
+    void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -238,7 +237,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraCommitUnmountTable(TTransaction* transaction, NTableClient::NProto::TReqUnmount* request)
+    void HydraCommitUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -276,7 +275,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraPrepareFreezeTable(TTransaction* transaction, NTableClient::NProto::TReqFreeze* request, bool persist)
+    void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -313,7 +312,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraCommitFreezeTable(TTransaction* transaction, NTableClient::NProto::TReqFreeze* request)
+    void HydraCommitFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -348,7 +347,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTableClient::NProto::TReqUnfreeze* request, bool persist)
+    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -385,7 +384,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraCommitUnfreezeTable(TTransaction* transaction, NTableClient::NProto::TReqUnfreeze* request)
+    void HydraCommitUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -421,7 +420,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraPrepareRemountTable(TTransaction* transaction, NTableClient::NProto::TReqRemount* request, bool persist)
+    void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -458,7 +457,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraCommitRemountTable(TTransaction* transaction, NTableClient::NProto::TReqRemount* request)
+    void HydraCommitRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -495,7 +494,7 @@ private:
             lastTabletIndex); 
     }
 
-    void HydraPrepareReshardTable(TTransaction* transaction, NTableClient::NProto::TReqReshard* request, bool persist)
+    void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -542,7 +541,7 @@ private:
             pivotKeys);
     }
 
-    void HydraCommitReshardTable(TTransaction* transaction, NTableClient::NProto::TReqReshard* request)
+    void HydraCommitReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
