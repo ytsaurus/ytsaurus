@@ -42,6 +42,11 @@ void EnableProfiling();
 void SetLargeUnreclaimableCoeff(double value);
 void SetLargeUnreclaimableBytes(size_t value);
 
+// When logging is enabled (see #EnableLogging) and a syscall (mmap, munmap, or madvise)
+// takes longer then the configured time, a warning is printed to the log.
+void SetSyscallTimeWarningThreshold(TDuration value);
+TDuration GetSyscallTimeWarningThreshold();
+
 ////////////////////////////////////////////////////////////////////////////////
 // Statistics API
 
