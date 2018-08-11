@@ -183,9 +183,7 @@ public:
 
     virtual void RevokePeer(const TTabletCell* cell, int peerId) override
     {
-        if (auto* node = cell->Peers()[peerId].Node) {
-            Actions_.emplace_back(cell, peerId, node, nullptr);
-        }
+        Actions_.emplace_back(cell, peerId, nullptr, nullptr);
     }
 
     virtual std::vector<TAction> GetActions() override
@@ -371,6 +369,9 @@ public:
         if (node) {
             BannedPeerTracker_.AddPeer(cell, peerId, node);
             PeerTracker_.RemovePeer(cell, peerId, node);
+            if (auto it = NodeToIndex_.find(node)) {
+                Nodes_[it->second].RemoveCell(cell);
+            }
         }
 
         Actions_.emplace_back(cell, peerId, node, nullptr);
@@ -464,6 +465,17 @@ private:
             ++CellCount_[cell->GetCellBundle()];
         }
 
+        void RemoveCell(const TTabletCell* cell)
+        {
+            for (int cellIndex = 0; cellIndex < Slots_.size(); ++cellIndex) {
+                if (Slots_[cellIndex] == cell) {
+                    ExtractCell(cellIndex);
+                    return;
+                }
+            }
+            Y_ASSERT(false);
+        }
+
         int GetCellCount(const TTabletCellBundle* bundle) const
         {
             auto it = CellCount_.find(bundle);
@@ -553,6 +565,7 @@ private:
     const bool VerboseLogging_;
 
     std::vector<TNodeHolder> Nodes_;
+    THashMap<const TNode*, int> NodeToIndex_;
     TPeerTracker PeerTracker_;
     TPeerTracker BannedPeerTracker_;
     THashMap<const TTabletCellBundle*, std::vector<int>> FreeNodes_;
@@ -595,6 +608,8 @@ private:
 
             const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress());
 
+            int nodeIndex = Nodes_.size();
+            NodeToIndex_[node] = nodeIndex;
             Nodes_.emplace_back(
                 node,
                 node->GetTotalTabletSlots(),
@@ -604,7 +619,7 @@ private:
                 THostilityChecker hostility(node);
                 for (const auto& pair : tabletManager->TabletCellBundles()) {
                     if (hostility.IsPossibleHost(pair.second)) {
-                        FreeNodes_[pair.second].push_back(Nodes_.size() - 1);
+                        FreeNodes_[pair.second].push_back(nodeIndex);
                     }
                 }
             }

@@ -544,7 +544,9 @@ class TestDynamicTables(TestDynamicTablesBase):
             assert peer["address"] != node
 
     #@flaky(max_runs=5) # TODO(savrus) Disable flacky for testing new code
-    def test_cell_bundle_distribution(self):
+    @pytest.mark.parametrize("enable_tablet_cell_balancer", [True, False])
+    def test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True)
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
@@ -574,6 +576,9 @@ class TestDynamicTables(TestDynamicTablesBase):
         slots = get("//sys/nodes/{0}/@tablet_slots".format(nodes[0]))
         assert len([slot for slot in slots if slot["state"] != "none"]) == 0
         _check(nodes[1:], 1, 2)
+
+        if not enable_tablet_cell_balancer:
+            return
 
         set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
         sleep(0.2)
