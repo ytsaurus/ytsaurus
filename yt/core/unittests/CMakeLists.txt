@@ -22,5 +22,4 @@ target_link_libraries(unittester-core
   yt-core-rpc-grpc
   yt-core-crypto
   yt-core-skiff
-  yt-core-alloc
 )
