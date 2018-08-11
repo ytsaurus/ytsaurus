@@ -17,7 +17,6 @@ target_link_libraries(yt-library-server
   yt-library-server-misc
   yt-core-re2
   yt-core-rpc-grpc
-  yt-core-alloc
   deps-arcadia-library-http
 )
 
@@ -33,6 +32,7 @@ add_executable(ytserver-master
 
 target_link_libraries(ytserver-master
   yt-core-phdr-cache
+  yt-core-alloc
   yt-library-server
   deps-arcadia-library-getopt
 )
@@ -47,6 +47,7 @@ add_executable(ytserver-node
 
 target_link_libraries(ytserver-node
   yt-core-phdr-cache
+  yt-core-alloc
   yt-library-server
   deps-arcadia-library-getopt
 )
@@ -61,6 +62,7 @@ add_executable(ytserver-scheduler
 
 target_link_libraries(ytserver-scheduler
   yt-core-phdr-cache
+  yt-core-alloc
   yt-library-server
   deps-arcadia-library-getopt
 )
@@ -75,6 +77,7 @@ add_executable(ytserver-controller-agent
 
 target_link_libraries(ytserver-controller-agent
   yt-core-phdr-cache
+  yt-core-alloc
   yt-library-server
   deps-arcadia-library-getopt
 )
@@ -89,6 +92,7 @@ add_executable(ytserver-proxy
 
 target_link_libraries(ytserver-proxy
   yt-core-phdr-cache
+  yt-core-alloc
   yt-library-server-rpc-proxy
   deps-arcadia-library-getopt
 )
@@ -116,6 +120,7 @@ add_executable(ytserver-job-proxy
 )
 
 target_link_libraries(ytserver-job-proxy
+  yt-core-alloc
   yt-library-server
   deps-arcadia-library-getopt
 )
@@ -129,6 +134,7 @@ add_executable(ytserver-exec
 )
 
 target_link_libraries(ytserver-exec
+  yt-core-alloc
   yt-library-server
   deps-arcadia-library-getopt
 )
@@ -169,6 +175,7 @@ add_executable(ytserver-skynet-manager
 
 target_link_libraries(ytserver-skynet-manager
   yt-core-phdr-cache
+  yt-core-alloc
   yt-library-server-skynet-manager
   deps-arcadia-library-getopt
 )

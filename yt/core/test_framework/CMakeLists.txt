@@ -12,7 +12,6 @@ target_include_directories(yt-core-test-framework
 
 target_link_libraries(yt-core-test-framework
   yt-core
-  yt-core-alloc
   deps-arcadia-contrib-libs-gtest
   deps-arcadia-contrib-libs-gmock
 )

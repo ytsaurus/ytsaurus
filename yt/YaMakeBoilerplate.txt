@@ -14,8 +14,16 @@ SET(YT_ARCADIA_CXXFLAGS
   -Wno-uninitialized
   -Wno-switch
   -Wno-type-limits
+  -Wno-missing-braces
   -DYT_IN_ARCADIA
 )
+
+IF(GCC)
+  SET(YT_ARCADIA_CXXFLAGS
+    ${YT_ARCADIA_CXXFLAGS}
+    -Wno-maybe-uninitialized
+  )
+ENDIF()
 
 SET(YT_VERSION_MAJOR 19)
 SET(YT_VERSION_MINOR 4)
