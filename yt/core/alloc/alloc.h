@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public.h"
-
+#include <yt/core/misc/public.h>
 #include <yt/core/misc/enum.h>
 
 namespace NYT {
@@ -49,6 +48,9 @@ TDuration GetSyscallTimeWarningThreshold();
 
 ////////////////////////////////////////////////////////////////////////////////
 // Statistics API
+
+constexpr size_t SmallRankCount = 25;
+constexpr size_t LargeRankCount = 30;Failed to set operation ACL
 
 DEFINE_ENUM(EBasicCounter,
     (BytesAllocated)
