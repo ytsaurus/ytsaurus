@@ -62,6 +62,8 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
+    using TSubrequestResponse = std::pair<TSharedRefArray, TNullable<i64>>;
+
     struct TKey
     {
         TString User;
@@ -124,6 +126,7 @@ private:
         TEntry(
             const TKey& key,
             bool success,
+            TNullable<i64> revision,
             TInstant timestamp,
             TSharedRefArray responseMessage)
             : TAsyncCacheValueBase(key)
@@ -131,12 +134,14 @@ private:
             , ResponseMessage_(std::move(responseMessage))
             , TotalSpace_(GetByteSize(ResponseMessage_))
             , Timestamp_(timestamp)
+            , Revision_(revision)
         { }
 
         DEFINE_BYVAL_RO_PROPERTY(bool, Success);
         DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalSpace);
         DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
+        DEFINE_BYVAL_RO_PROPERTY(TNullable<i64>, Revision);
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -153,30 +158,46 @@ private:
             , Logger(owner->Logger)
         { }
 
-        TFuture<TSharedRefArray> Lookup(
+        TFuture<TSubrequestResponse> Lookup(
             const TKey& key,
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
-            TDuration failureExpirationTime)
+            TDuration failureExpirationTime,
+            TNullable<i64> refreshRevision)
         {
             auto entry = Find(key);
             if (entry) {
+                if (refreshRevision && entry->GetRevision() && *entry->GetRevision() <= *refreshRevision)
+                    LOG_DEBUG("Cache entry refresh requested (Key: %v, RefreshRevision: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
+                        key,
+                        refreshRevision,
+                        entry->GetRevision(),
+                        entry->GetSuccess(),
+                        successExpirationTime,
+                        failureExpirationTime);
+
+                    TryRemove(entry);
+
                 if (!IsExpired(entry, successExpirationTime, failureExpirationTime)) {
+                    LOG_DEBUG("Cache entry expired (Key: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
+                        key,
+                        entry->GetRevision(),
+                        entry->GetSuccess(),
+                        successExpirationTime,
+                        failureExpirationTime);
+
+                    TryRemove(entry);
+
+                } else {
                     LOG_DEBUG("Cache hit (Key: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                         key,
                         entry->GetSuccess(),
                         successExpirationTime,
                         failureExpirationTime);
-                    return MakeFuture(TErrorOr<TSharedRefArray>(entry->GetResponseMessage()));
+                    return MakeFuture(TErrorOr<TSubrequestResponse>(std::make_pair(
+                        entry->GetResponseMessage(),
+                        entry->GetRevision())));
                 }
-
-                LOG_DEBUG("Cache entry expired (Key: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
-                    key,
-                    entry->GetSuccess(),
-                    successExpirationTime,
-                    failureExpirationTime);
-
-                TryRemove(entry);
             }
 
             auto cookie = BeginInsert(key);
@@ -200,8 +221,8 @@ private:
                     Passed(std::move(cookie))));
             }
 
-            return result.Apply(BIND([] (const TEntryPtr& entry) -> TSharedRefArray {
-                return entry->GetResponseMessage();
+            return result.Apply(BIND([] (const TEntryPtr& entry) -> TSubrequestResponse {
+                return std::make_pair(entry->GetResponseMessage(), entry->GetRevision());
             }));
         }
 
@@ -217,8 +238,9 @@ private:
             TAsyncSlruCacheBase::OnAdded(entry);
 
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry added (Key: %v, Success: %v, TotalSpace: %v)",
+            LOG_DEBUG("Cache entry added (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
                 key,
+                entry->GetRevision(),
                 entry->GetSuccess(),
                 entry->GetTotalSpace());
         }
@@ -230,8 +252,9 @@ private:
             TAsyncSlruCacheBase::OnRemoved(entry);
 
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry removed (Key: %v, Success: %v, TotalSpace: %v)",
+            LOG_DEBUG("Cache entry removed (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
                 key,
+                entry->GetRevision(),
                 entry->GetSuccess(),
                 entry->GetTotalSpace());
         }
@@ -274,14 +297,17 @@ private:
             TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
             auto responseError = FromProto<TError>(responseHeader.error());
+            auto revision = rsp->revisions_size() > 0 ? MakeNullable(rsp->revisions(0)) : Null;
 
-            LOG_DEBUG("Cache population request succeeded (Key: %v, Error: %v)",
+            LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
                 key,
+                revision,
                 responseError);
 
             auto entry = New<TEntry>(
                 key,
                 responseError.IsOK(),
+                revision,
                 TInstant::Now(),
                 responseMessage);
             cookie.EndInsert(entry);
@@ -305,7 +331,7 @@ private:
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
-        TFuture<TSharedRefArray> Add(TSharedRefArray subrequestMessage)
+        TFuture<TSubrequestResponse> Add(TSharedRefArray subrequestMessage)
         {
             Request_->add_part_counts(subrequestMessage.Size());
             Request_->Attachments().insert(
@@ -313,7 +339,7 @@ private:
                 subrequestMessage.Begin(),
                 subrequestMessage.End());
 
-            auto promise = NewPromise<TSharedRefArray>();
+            auto promise = NewPromise<TSubrequestResponse>();
             Promises_.push_back(promise);
             return promise;
         }
@@ -332,7 +358,7 @@ private:
 
         TObjectServiceProxy Proxy_;
         TObjectServiceProxy::TReqExecutePtr Request_;
-        std::vector<TPromise<TSharedRefArray>> Promises_;
+        std::vector<TPromise<TSubrequestResponse>> Promises_;
 
 
         void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
@@ -359,7 +385,7 @@ private:
                 auto parts = std::vector<TSharedRef>(
                     attachments.begin() + attachmentIndex,
                     attachments.begin() + attachmentIndex + partCount);
-                Promises_[subresponseIndex].Set(TSharedRefArray(std::move(parts)));
+                Promises_[subresponseIndex].Set(std::make_pair(TSharedRefArray(std::move(parts)), Null));
                 attachmentIndex += partCount;
             }
         }
@@ -383,7 +409,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();
 
-    std::vector<TFuture<TSharedRefArray>> asyncMasterResponseMessages;
+    std::vector<TFuture<TSubrequestResponse>> asyncMasterResponseMessages;
     TIntrusivePtr<TMasterRequest> masterRequest;
 
     for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
@@ -414,6 +440,9 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
+            auto refreshRevision = cachingRequestHeaderExt.has_refresh_revision()
+                ? MakeNullable(cachingRequestHeaderExt.refresh_revision())
+                : Null;
 
             if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
@@ -423,7 +452,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
             }
 
-            LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
+            LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex:  %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);
@@ -432,7 +461,8 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 key,
                 std::move(subrequestMessage),
                 FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),
-                FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time())));
+                FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time()),
+                refreshRevision));
         } else {
             LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
@@ -455,13 +485,27 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         .ValueOrThrow();
 
     auto& responseAttachments = response->Attachments();
-    for (const auto& masterResponseMessage : masterResponseMessages) {
+    for (const auto& pair : masterResponseMessages) {
+        const auto& masterResponseMessage = pair.first;
         response->add_part_counts(masterResponseMessage.Size());
         responseAttachments.insert(
             responseAttachments.end(),
             masterResponseMessage.Begin(),
             masterResponseMessage.End());
     }
+
+    [&] {
+        for (const auto& pair : masterResponseMessages) {
+            const auto& revision = pair.second;
+            if (!revision) {
+                return;
+            }
+        }
+        for (const auto& pair : masterResponseMessages) {
+            const auto& revision = pair.second;
+            response->add_revisions(*revision);
+        }
+    } ();
 
     context->Reply();
 }

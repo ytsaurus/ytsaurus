@@ -325,6 +325,8 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
         PartRanges_.push_back(std::make_pair(currentIndex, currentIndex + partCount));
         currentIndex += partCount;
     }
+
+    FromProto(&Revisions_, body.revisions());
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::Append(const TRspExecuteBatchPtr& subbatchResponse)
@@ -382,6 +384,16 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
     return TSharedRefArray(std::vector<TSharedRef>(
         Attachments_.begin() + beginIndex,
         Attachments_.begin() + endIndex));
+}
+
+TNullable<i64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
+{
+    if (Revisions_.empty()) {
+        return Null;
+    }
+
+    YCHECK(index >= 0 && index <= Revisions_.size());
+    return Revisions_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
