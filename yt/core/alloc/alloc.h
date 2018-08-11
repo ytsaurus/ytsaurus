@@ -50,7 +50,7 @@ TDuration GetSyscallTimeWarningThreshold();
 // Statistics API
 
 constexpr size_t SmallRankCount = 25;
-constexpr size_t LargeRankCount = 30;Failed to set operation ACL
+constexpr size_t LargeRankCount = 30;
 
 DEFINE_ENUM(EBasicCounter,
     (BytesAllocated)

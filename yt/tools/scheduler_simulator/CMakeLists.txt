@@ -7,6 +7,7 @@ add_library(yt-scheduler-simulator ${YT_SRCS_RESOLVED})
 target_link_libraries(yt-scheduler-simulator
   yt-library-ytlib
   yt-library-server
+  yt-core-alloc
 )
 
 add_executable(scheduler_simulator
