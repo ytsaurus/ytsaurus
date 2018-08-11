@@ -26,6 +26,9 @@ message TRspExecute
     // NB: a batched response may have less subresponses than its corresponding request
     // does subrequests if TReqExecute::allow_backoff was |true| (because of timeouts).
     repeated int32 part_counts = 1;
+
+    // Hydra revision at the beginning of each YPath request execution.
+    repeated int64 revisions = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

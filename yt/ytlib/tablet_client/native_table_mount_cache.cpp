@@ -71,15 +71,15 @@ public:
 
 private:
 
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key) override
     {
         auto connection = Connection_.Lock();
         if (!connection) {
             THROW_ERROR_EXCEPTION("Unable to get table mount info: сonnection terminated")
-                << TErrorAttribute("table_path", path);
+                << TErrorAttribute("table_path", key.Path);
         }
 
-        return BIND(&TTableMountCache::DoDoGet, MakeStrong(this), connection, path)
+        return BIND(&TTableMountCache::DoDoGet, MakeStrong(this), connection, key)
             .AsyncVia(connection->GetInvoker())
             .Run();
     }
@@ -88,10 +88,16 @@ private:
     const TWeakPtr<IConnection> Connection_;
     const TCellDirectoryPtr CellDirectory_;
 
-    TFuture<TTableMountInfoPtr> DoDoGet(IConnectionPtr connection, const TYPath& path)
+    TFuture<TTableMountInfoPtr> DoDoGet(IConnectionPtr connection, const TTableMountCacheKey& key)
     {
-        LOG_DEBUG("Requesting table mount info (Path: %v)",
-            path);
+        const auto& path = key.Path;
+        const auto& refreshPrimaryRevision = key.RefreshPrimaryRevision;
+        const auto& refreshSecondaryRevision = key.RefreshSecondaryRevision;
+
+        LOG_DEBUG("Requesting table mount info (Path: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
+            path,
+            refreshPrimaryRevision,
+            refreshSecondaryRevision);
 
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
         auto primaryProxy = TObjectServiceProxy(channel);
@@ -112,6 +118,9 @@ private:
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            if (refreshPrimaryRevision) {
+                cachingHeaderExt->set_refresh_revision(*refreshPrimaryRevision);
+            }
 
             batchReq->AddRequest(req, "get_attributes");
         }
@@ -121,14 +130,15 @@ private:
         const auto& batchRsp = batchRspOrError.Value();
         auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         auto& rsp = getAttributesRspOrError.Value();
+        auto primaryRevision = batchRsp->GetRevision(0);
 
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
         auto cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
         auto tableId = attributes->Get<TObjectId>("id");
 
         channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache, cellTag);
-        auto cellProxy = TObjectServiceProxy(channel);
-        batchReq = cellProxy.ExecuteBatch();
+        auto secondaryProxy = TObjectServiceProxy(channel);
+        batchReq = secondaryProxy.ExecuteBatch();
 
         {
             auto req = TTableYPathProxy::GetMountInfo(FromObjectId(tableId));
@@ -136,6 +146,9 @@ private:
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            if (refreshSecondaryRevision) {
+                cachingHeaderExt->set_refresh_revision(*refreshSecondaryRevision);
+            }
 
             batchReq->AddRequest(req, "get_mount_info");
         }
@@ -158,6 +171,8 @@ private:
                 auto tableInfo = New<TTableMountInfo>();
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+                tableInfo->SecondaryRevision = batchRsp->GetRevision(0);
+                tableInfo->PrimaryRevision = primaryRevision;
 
                 auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
                 primarySchema = FromProto<TTableSchema>(rsp->schema());
@@ -236,15 +251,27 @@ private:
                     tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
                 }
 
-                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
                     path,
                     tableInfo->TableId,
                     tableInfo->Tablets.size(),
-                    tableInfo->Dynamic);
+                    tableInfo->Dynamic,
+                    tableInfo->PrimaryRevision,
+                    tableInfo->SecondaryRevision);
 
                 return tableInfo;
             }));
 
+    }
+
+    virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
+    {
+        Invalidate(tableInfo->Path);
+
+        TAsyncExpiringCache::Get(TTableMountCacheKey{
+            tableInfo->Path,
+            tableInfo->PrimaryRevision,
+            tableInfo->SecondaryRevision});
     }
 };
 

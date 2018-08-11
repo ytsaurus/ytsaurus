@@ -2,6 +2,8 @@
 
 #include "config.h"
 
+#include <yt/core/misc/hash.h>
+
 namespace NYT {
 namespace NTabletClient {
 
@@ -67,6 +69,42 @@ void TTabletCache::RemoveExpiredEntries()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableMountCacheKey::TTableMountCacheKey(
+    const NYPath::TYPath& path,
+    TNullable<i64> refreshPrimaryRevision,
+    TNullable<i64> refreshSecondaryRevision)
+    : Path(path)
+    , RefreshPrimaryRevision(refreshPrimaryRevision)
+    , RefreshSecondaryRevision(refreshSecondaryRevision)
+{ }
+
+TTableMountCacheKey::operator size_t() const
+{
+    size_t result = 0;
+    HashCombine(result, Path);
+    return result;
+}
+
+bool TTableMountCacheKey::operator == (const TTableMountCacheKey& other) const
+{
+    return Path == other.Path;
+}
+
+void FormatValue(TStringBuilder* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{%v %v %v}",
+        key.Path,
+        key.RefreshPrimaryRevision,
+        key.RefreshSecondaryRevision);
+}
+
+TString ToString(const TTableMountCacheKey& key)
+{
+    return ToStringViaBuilder(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableMountCacheBase::TTableMountCacheBase(
     TTableMountCacheConfigPtr config,
     const NLogging::TLogger& logger)
@@ -89,7 +127,7 @@ void TTableMountCacheBase::InvalidateTablet(TTabletInfoPtr tabletInfo)
 {
     for (const auto& weakOwner : tabletInfo->Owners) {
         if (auto owner = weakOwner.Lock()) {
-            Invalidate(owner->Path);
+            InvalidateTable(owner);
         }
     }
 }

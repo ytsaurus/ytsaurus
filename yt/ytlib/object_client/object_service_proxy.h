@@ -232,6 +232,9 @@ public:
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
 
+        //! Returns revision of specified response.
+        TNullable<i64> GetRevision(int index) const;
+
     private:
         friend class TReqExecuteSubbatch;
         friend class TReqExecuteBatch;
@@ -239,6 +242,7 @@ public:
         std::multimap<TString, int> KeyToIndexes_;
         TPromise<TRspExecuteBatchPtr> Promise_ = NewPromise<TRspExecuteBatchPtr>();
         std::vector<std::pair<int, int>> PartRanges_;
+        std::vector<i64> Revisions_;
 
         TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,

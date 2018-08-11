@@ -216,6 +216,8 @@ private:
     // NB: only TryAcquire() is called on this lock, never Acquire().
     TSpinLock CurrentSubrequestLock_;
 
+    std::vector<i64> Revisions_;
+
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
@@ -229,6 +231,7 @@ private:
         const auto& request = Context_->Request();
         const auto& attachments = Context_->RequestAttachments();
         Subrequests_.resize(SubrequestCount_);
+        Revisions_.resize(SubrequestCount_);
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < SubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -422,6 +425,8 @@ private:
             subrequest.RequestHeader.method(),
             NTracing::ServerReceiveAnnotation);
 
+        Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
+
         if (subrequest.Mutation) {
             ExecuteWriteSubrequest(&subrequest, user);
             LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
@@ -581,6 +586,8 @@ private:
                 } else {
                     response.add_part_counts(0);
                 }
+
+                response.add_revisions(Revisions_[i]);
             }
         }
 
