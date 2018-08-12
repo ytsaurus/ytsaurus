@@ -305,6 +305,12 @@ public:
             BIND(&TImpl::CheckJobReporterWriteFailures, MakeWeak(this)),
             Config_->JobReporterWriteFailuresCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
+
+        StrategyUnschedulableOperationsChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::CheckUnschedulableOperations, MakeWeak(this)),
+            Config_->OperationUnschedulableCheckPeriod);
+        StrategyUnschedulableOperationsChecker_->Start();
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -1213,6 +1219,7 @@ private:
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
+    TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
 
     TString ServiceAddress_;
@@ -1769,6 +1776,7 @@ private:
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterWriteFailuresCheckPeriod);
+            StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -1855,6 +1863,19 @@ private:
         }
 
         SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, error);
+    }
+
+    void CheckUnschedulableOperations()
+    {
+        for (auto pair : Strategy_->GetUnschedulableOperations()) {
+            const auto& operationId = pair.first;
+            const auto& error = pair.second;
+            auto operation = FindOperation(operationId);
+            if (!operation) {
+                continue;
+            }
+            OnOperationFailed(operation, error);
+        }
     }
 
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
