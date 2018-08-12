@@ -539,6 +539,9 @@ public:
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
 
+    void OnOperationDeactivated(EDeactivationReason reason);
+    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
+
     TJobResources Disable();
     void Enable();
 
@@ -661,6 +664,9 @@ private:
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
+    std::atomic<int> ScheduledJobCount_ = {0};
+    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
+
     bool Enabled_ = false;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
@@ -748,6 +754,9 @@ public:
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+
+    void OnOperationDeactivated(EDeactivationReason reason);
+    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
 
     void Disable();
     void Enable();
