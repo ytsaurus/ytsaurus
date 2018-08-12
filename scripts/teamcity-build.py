@@ -15,7 +15,8 @@ from helpers import (mkdirp, run, run_captured, cwd, copytree,
                      ChildHasNonZeroExitCode)
 
 from pytest_helpers import (get_sandbox_dirs, save_failed_test,
-                            find_core_dumps_with_report, copy_artifacts)
+                            find_core_dumps_with_report, copy_artifacts,
+                            prepare_python_bindings)
 
 from datetime import datetime
 
@@ -152,6 +153,7 @@ def prepare(options, build_context):
     options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
     options.build_enable_python_2_6 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
+    options.build_enable_python_3_4 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_3_4", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
 
@@ -260,6 +262,7 @@ def _configure(options, build_context, build_directory, use_asan=False, build_se
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs and not use_asan)),
         "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6 and not use_asan)),
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7 and not use_asan)),
+        "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4 and not use_asan)),
         "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet and not use_asan)),
         "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl and not use_asan)),
         "-DYT_USE_ASAN={0}".format(format_yes_no(use_asan)),
@@ -682,11 +685,23 @@ def run_javascript_tests(options, build_context):
         process_core_dumps(options, "javascript", tests_path)
 
 
-def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
+def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
 
     if not options.build_enable_python:
         return
+
+    if python_version is None:
+        if not options.build_enable_python_2_7:
+            teamcity_message("Skip test suite '{0}' since python2.7 build is disabled".format(suite_name))
+            return
+        else:
+            python_version = "2.7"
+
+    prepare_python_bindings(
+        os.path.join(options.checkout_directory, "python"),
+        options.working_directory,
+        python_version)
 
     if pytest_args is None:
         pytest_args = []
@@ -716,7 +731,9 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     with tempfile.NamedTemporaryFile() as handle:
         try:
             run([
-                "py.test",
+                "python" + python_version,
+                "-m",
+                "pytest",
                 "-r", "x",
                 "--verbose",
                 "--verbose",
@@ -799,10 +816,18 @@ def run_yp_integration_tests(options, build_context):
         return
 
     node_path = get_node_modules_dir(options)
-    run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
-               env={
-                   "NODE_PATH": node_path
-               })
+    python_versions = (
+        ("2.7", options.build_enable_python_2_7),
+        ("3.4", options.build_enable_python_3_4)
+    )
+    for python_version, enabled in python_versions:
+        if not enabled:
+            continue
+        run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
+           env={
+               "NODE_PATH": node_path
+           },
+           python_version=python_version)
 
 @build_step
 def run_python_libraries_tests(options, build_context):
