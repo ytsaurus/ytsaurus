@@ -620,6 +620,7 @@ public:
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
             .Item("fifo_index").Value(element->Attributes().FifoIndex)
+            .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
             .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
     }
 
@@ -666,7 +667,8 @@ public:
             "MaxPossibleUsage: %.6lf,  BestAllocation: %.6lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v, "
-            "AggressivelyPreemptableRunningJobs: %v}",
+            "AggressivelyPreemptableRunningJobs: %v, "
+            "DeactivationReasons: %v}",
             TreeId,
             element->GetStatus(),
             attributes.DominantResource,
@@ -681,7 +683,8 @@ public:
             element->GetStarving(),
             element->GetWeight(),
             element->GetPreemptableJobCount(),
-            element->GetAggressivelyPreemptableJobCount());
+            element->GetAggressivelyPreemptableJobCount(),
+            element->GetDeactivationReasons());
     }
 
     // NB: This function is public for testing purposes.

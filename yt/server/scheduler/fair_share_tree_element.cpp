@@ -1478,6 +1478,20 @@ TJobResources TOperationElementSharedState::Disable()
     return resourceUsage;
 }
 
+void TOperationElementSharedState::OnOperationDeactivated(EDeactivationReason reason)
+{
+    ++DeactivationReasons_[reason];
+}
+
+TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasons() const
+{
+    TEnumIndexedVector<int, EDeactivationReason> result;
+    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+        result[reason] = DeactivationReasons_[reason];
+    }
+    return result;
+}
+
 void TOperationElementSharedState::Enable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1673,9 +1687,20 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     YCHECK(it.second);
 
     ++RunningJobCount_;
+    ++ScheduledJobCount_;
 
     IncreaseJobResourceUsage(&it.first->second, resourceUsage);
     return resourceUsage;
+}
+
+void TOperationElement::OnOperationDeactivated(EDeactivationReason reason)
+{
+    SharedState_->OnOperationDeactivated(reason);
+}
+
+TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasons() const
+{
+    return SharedState_->GetDeactivationReasons();
 }
 
 void TOperationElement::Disable()
@@ -1931,9 +1956,14 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
 
     attributes.Active = true;
 
-    if (!IsAlive()) {
-        ++context->DeactivationReasons[EDeactivationReason::IsNotAlive];
+    auto onOperationDeactivated = [&] (EDeactivationReason reason) {
+        ++context->DeactivationReasons[reason];
+        OnOperationDeactivated(reason);
         attributes.Active = false;
+    };
+
+    if (!IsAlive()) {
+        onOperationDeactivated(EDeactivationReason::IsNotAlive);
         return;
     }
 
@@ -1941,20 +1971,17 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context->CanSchedule[SchedulingTagFilterIndex_])
     {
-        ++context->DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
-        attributes.Active = false;
+        onOperationDeactivated(EDeactivationReason::UnmatchedSchedulingTag);
         return;
     }
 
     if (starvingOnly && !Starving_) {
-        ++context->DeactivationReasons[EDeactivationReason::IsNotStarving];
-        attributes.Active = false;
+        onOperationDeactivated(EDeactivationReason::IsNotStarving);
         return;
     }
 
     if (IsBlocked(context->SchedulingContext->GetNow())) {
-        ++context->DeactivationReasons[EDeactivationReason::IsBlocked];
-        attributes.Active = false;
+        onOperationDeactivated(EDeactivationReason::IsBlocked);
         return;
     }
 
@@ -1987,6 +2014,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
 
     auto disableOperationElement = [&] (EDeactivationReason reason) {
         ++context->DeactivationReasons[reason];
+        OnOperationDeactivated(reason);
         context->DynamicAttributes(this).Active = false;
         updateAncestorsAttributes();
     };
