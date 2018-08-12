@@ -2699,12 +2699,17 @@ public:
     TBackgroundThread()
         : Thread_(ThreadMainStatic, this)
     {
+        pthread_atfork(nullptr, nullptr, &OnFork);
         Thread_.Start();
     }
 
     ~TBackgroundThread()
     {
-        StopEvent_.Signal();
+        if (Forked_) {
+            Thread_.Detach();
+        } else {
+            StopEvent_.Signal();
+        }
     }
 
     static TBackgroundThread* Get()
@@ -2716,10 +2721,15 @@ private:
     TThread Thread_;
     TManualEvent StopEvent_;
 
-    std::atomic<bool> EnableLogging_ = {false};
-    std::atomic<bool> EnableProfiling_ = {false};
+    bool Forked_ = false;
 
 private:
+    static void OnFork()
+    {
+         auto* this_ = TBackgroundThread::Get();
+         this_->Forked_ = true;
+    }
+    
     static void* ThreadMainStatic(void* opaque)
     {
         auto* this_ = static_cast<TBackgroundThread*>(opaque);
@@ -2734,10 +2744,10 @@ private:
 
         while (!StopEvent_.WaitT(BackgroundInterval)) {
             TBackgroundContext context;
-            if (EnableLogging_.load()) {
+            if (ConfigurationManager->IsLoggingEnabled()) {
                 context.Logger = NLogging::TLogger(LoggerCategory);
             }
-            if (EnableProfiling_.load()) {
+            if (ConfigurationManager->IsProfilingEnabled()) {
                 context.Profiler = NProfiling::TProfiler(ProfilerPath);
             }
 
