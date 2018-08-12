@@ -196,6 +196,8 @@ struct ISchedulerStrategy
     virtual TString GetOperationLoggingProgress(const TOperationId& operationId) = 0;
 
     virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) = 0;
+
+    virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
