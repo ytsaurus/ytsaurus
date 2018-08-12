@@ -2167,9 +2167,8 @@ private:
         arena->SpareBlobs.Put(state, blob);
     }
 
-    size_t GetBytesToReclaim()
+    size_t GetBytesToReclaim(const std::array<TLocalLargeCounters, LargeRankCount>& arenaCounters)
     {
-        auto arenaCounters = StatisticsManager->GetLargeArenaCounters();
         size_t totalBytesAllocated = 0;
         size_t totalBytesFreed = 0;
         size_t totalBytesSpare = 0;
@@ -2394,7 +2393,8 @@ private:
 
     void ReclaimMemory(const TBackgroundContext& context)
     {
-        ssize_t bytesToReclaim = GetBytesToReclaim();
+        auto arenaCounters = StatisticsManager->GetLargeArenaCounters();
+        ssize_t bytesToReclaim = GetBytesToReclaim(arenaCounters);
         if (bytesToReclaim == 0) {
             return;
         }
@@ -2402,8 +2402,6 @@ private:
         const auto& Logger = context.Logger;
         LOG_DEBUG("Memory reclaim started (BytesToReclaim: %vM)",
             bytesToReclaim / 1_MB);
-
-        auto arenaCounters = StatisticsManager->GetLargeArenaCounters();
 
         std::array<ssize_t, LargeRankCount * 2> bytesReclaimablePerArena;
         for (size_t rank = 0; rank < LargeRankCount; ++rank) {
