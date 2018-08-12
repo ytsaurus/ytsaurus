@@ -93,7 +93,7 @@ message TRspInitializeOperation
     required bytes brief_spec = 2; // YSON
     required bytes unrecognized_spec = 3; // YSON
     required bytes full_spec = 4; // YSON
-    optional TControllerTransactionIds transaction_ids = 5;
+    required TControllerTransactionIds transaction_ids = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

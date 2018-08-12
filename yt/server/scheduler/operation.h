@@ -63,13 +63,13 @@ struct TOperationTransactions
 };
 
 void ToProto(
-    NControllerAgent::NProto::TControllerTransactionIds* transactionsProto,
+    NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
     const TOperationTransactions& transactions);
 
 void FromProto(
     TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionsProto,
-    NApi::NNative::IClientPtr masterClient);
+    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
+    const NApi::NNative::IClientPtr& masterClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 

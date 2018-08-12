@@ -48,7 +48,7 @@ void Deserialize(TOperationEvent& event, INodePtr node)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
-    NControllerAgent::NProto::TControllerTransactionIds* transactionsProto,
+    NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
     const TOperationTransactions& transactions)
 {
     auto getId = [] (const NApi::ITransactionPtr& transaction) {
@@ -63,13 +63,13 @@ void ToProto(
     transactionIds.OutputCompletionId = getId(transactions.OutputCompletionTransaction);
     transactionIds.DebugCompletionId = getId(transactions.DebugCompletionTransaction);
 
-    ToProto(transactionsProto, transactionIds);
+    ToProto(transactionIdsProto, transactionIds);
 }
 
 void FromProto(
     TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionsProto,
-    NNative::IClientPtr masterClient)
+    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
+    const NNative::IClientPtr& masterClient)
 {
     auto attachTransaction = [&] (const TTransactionId& transactionId) -> ITransactionPtr {
         if (!transactionId) {
@@ -84,7 +84,7 @@ void FromProto(
         return client->AttachTransaction(transactionId, options);
     };
 
-    auto transactionIds = FromProto<NControllerAgent::TControllerTransactionIds>(transactionsProto);
+    auto transactionIds = FromProto<NControllerAgent::TControllerTransactionIds>(transactionIdsProto);
 
     transactions->AsyncTransaction = attachTransaction(transactionIds.AsyncId);
     transactions->InputTransaction = attachTransaction(transactionIds.InputId);
