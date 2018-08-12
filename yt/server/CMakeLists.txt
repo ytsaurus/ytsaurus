@@ -27,7 +27,7 @@ add_subdirectory(skynet_manager)
 ################################################################################
 
 add_executable(ytserver-master
-  ${CMAKE_CURRENT_LIST_DIR}/cell_master_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/master/main.cpp
 )
 
 target_link_libraries(ytserver-master
@@ -42,7 +42,7 @@ set_target_properties(ytserver-master PROPERTIES LINK_FLAGS "-static-libstdc++")
 ################################################################################
 
 add_executable(ytserver-node
-  ${CMAKE_CURRENT_LIST_DIR}/cell_node_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/node/main.cpp
 )
 
 target_link_libraries(ytserver-node
@@ -57,7 +57,7 @@ set_target_properties(ytserver-node PROPERTIES LINK_FLAGS "-static-libstdc++")
 ################################################################################
 
 add_executable(ytserver-scheduler
-  ${CMAKE_CURRENT_LIST_DIR}/programs/scheduler/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/scheduler/main.cpp
 )
 
 target_link_libraries(ytserver-scheduler
@@ -72,7 +72,7 @@ set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc+
 ################################################################################
 
 add_executable(ytserver-controller-agent
-  ${CMAKE_CURRENT_LIST_DIR}/programs/controller_agent/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/controller_agent/main.cpp
 )
 
 target_link_libraries(ytserver-controller-agent
@@ -87,7 +87,7 @@ set_target_properties(ytserver-controller-agent PROPERTIES LINK_FLAGS "-static-l
 ################################################################################
 
 add_executable(ytserver-proxy
-  ${CMAKE_CURRENT_LIST_DIR}/cell_proxy_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/rpc_proxy/main.cpp
 )
 
 target_link_libraries(ytserver-proxy
@@ -116,7 +116,7 @@ set_target_properties(ytserver-http-proxy PROPERTIES LINK_FLAGS "-static-libstdc
 ################################################################################
 
 add_executable(ytserver-job-proxy
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/job_proxy/main.cpp
 )
 
 target_link_libraries(ytserver-job-proxy
@@ -130,7 +130,7 @@ set_target_properties(ytserver-job-proxy PROPERTIES LINK_FLAGS "-static-libstdc+
 ################################################################################
 
 add_executable(ytserver-exec
-  ${CMAKE_CURRENT_LIST_DIR}/exec_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/exec/main.cpp
 )
 
 target_link_libraries(ytserver-exec
@@ -144,7 +144,7 @@ set_target_properties(ytserver-exec PROPERTIES LINK_FLAGS "-static-libstdc++")
 ################################################################################
 
 add_executable(ytserver-tools
-  ${CMAKE_CURRENT_LIST_DIR}/tools_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/tools/main.cpp
 )
 
 target_link_libraries(ytserver-tools
@@ -157,7 +157,7 @@ set_target_properties(ytserver-tools PROPERTIES LINK_FLAGS "-static-libstdc++")
 ################################################################################
 
 add_executable(ytserver-core-forwarder
-  ${CMAKE_CURRENT_LIST_DIR}/core_forwarder/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/core_forwarder/main.cpp
 )
 
 target_link_libraries(ytserver-core-forwarder
@@ -170,7 +170,7 @@ set_target_properties(ytserver-core-forwarder PROPERTIES LINK_FLAGS "-static-lib
 ################################################################################
 
 add_executable(ytserver-skynet-manager
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/skynet_manager/main.cpp
 )
 
 target_link_libraries(ytserver-skynet-manager
