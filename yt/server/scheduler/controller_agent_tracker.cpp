@@ -163,9 +163,8 @@ public:
                 TOperationTransactions transactions;
                 try {
                     FromProto(&transactions, rsp->transaction_ids(), Bootstrap_->GetMasterClient());
-                } catch (const TErrorException& ex) {
-                    auto error = ex.Error();
-                    LOG_INFO(error, "Failed to attach operation transactions (OperationId: %v)",
+                } catch (const std::exception& ex) {
+                    LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
                         OperationId_);
                 }
                 return TOperationControllerInitializeResult{

@@ -39,24 +39,24 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TControllerTransactionIds* transactionsProto, const NControllerAgent::TControllerTransactionIds& transactions)
+void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds)
 {
-    ToProto(transactionsProto->mutable_async_id(), transactions.AsyncId);
-    ToProto(transactionsProto->mutable_input_id(), transactions.InputId);
-    ToProto(transactionsProto->mutable_output_id(), transactions.OutputId);
-    ToProto(transactionsProto->mutable_debug_id(), transactions.DebugId);
-    ToProto(transactionsProto->mutable_output_completion_id(), transactions.OutputCompletionId);
-    ToProto(transactionsProto->mutable_debug_completion_id(), transactions.DebugCompletionId);
+    ToProto(transactionIdsProto->mutable_async_id(), transactionIds.AsyncId);
+    ToProto(transactionIdsProto->mutable_input_id(), transactionIds.InputId);
+    ToProto(transactionIdsProto->mutable_output_id(), transactionIds.OutputId);
+    ToProto(transactionIdsProto->mutable_debug_id(), transactionIds.DebugId);
+    ToProto(transactionIdsProto->mutable_output_completion_id(), transactionIds.OutputCompletionId);
+    ToProto(transactionIdsProto->mutable_debug_completion_id(), transactionIds.DebugCompletionId);
 }
 
-void FromProto(NControllerAgent::TControllerTransactionIds* transactions, const NProto::TControllerTransactionIds& transactionsProto)
+void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto)
 {
-    transactions->AsyncId = FromProto<TTransactionId>(transactionsProto.async_id());
-    transactions->InputId = FromProto<TTransactionId>(transactionsProto.input_id());
-    transactions->OutputId = FromProto<TTransactionId>(transactionsProto.output_id());
-    transactions->DebugId  = FromProto<TTransactionId>(transactionsProto.debug_id());
-    transactions->OutputCompletionId = FromProto<TTransactionId>(transactionsProto.output_completion_id());
-    transactions->DebugCompletionId = FromProto<TTransactionId>(transactionsProto.debug_completion_id());
+    transactionIds->AsyncId = FromProto<TTransactionId>(transactionIdsProto.async_id());
+    transactionIds->InputId = FromProto<TTransactionId>(transactionIdsProto.input_id());
+    transactionIds->OutputId = FromProto<TTransactionId>(transactionIdsProto.output_id());
+    transactionIds->DebugId  = FromProto<TTransactionId>(transactionIdsProto.debug_id());
+    transactionIds->OutputCompletionId = FromProto<TTransactionId>(transactionIdsProto.output_completion_id());
+    transactionIds->DebugCompletionId = FromProto<TTransactionId>(transactionIdsProto.debug_completion_id());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

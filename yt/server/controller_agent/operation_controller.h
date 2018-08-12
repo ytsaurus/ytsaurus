@@ -42,8 +42,8 @@ struct TControllerTransactionIds
     NTransactionClient::TTransactionId DebugCompletionId;
 };
 
-void ToProto(NProto::TControllerTransactionIds* transactionsProto, const NControllerAgent::TControllerTransactionIds& transactions);
-void FromProto(NControllerAgent::TControllerTransactionIds* transactions, const NProto::TControllerTransactionIds& transactionsProto);
+void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds);
+void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto);
 
 ////////////////////////////////////////////////////////////////////////////////
 
