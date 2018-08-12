@@ -2779,6 +2779,7 @@ void InitializeGlobals()
         GlobalState.Construct();
         LargeBlobAllocator.Construct();
         HugeBlobAllocator.Construct();
+        ConfigurationManager.Construct();
 
         SmallArenaAllocators.Construct();
         auto constructSmallArenaAllocators = [&] (EAllocationKind kind, uintptr_t zonesStart) {
