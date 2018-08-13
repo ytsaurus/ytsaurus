@@ -442,6 +442,17 @@ class TestDynamicTables(TestDynamicTablesBase):
         remount_table("//tmp/t", authenticated_user="u")
         sync_reshard_table("//tmp/t", [[]], authenticated_user="u")
 
+    def test_mount_permission_allowed_by_ancestor(self):
+        sync_create_cells(1)
+        create("map_node", "//tmp/d")
+        self._create_sorted_table("//tmp/d/t")
+        create_user("u")
+        set("//tmp/d/@acl/end", make_ace("allow", "u", "mount"))
+        sync_mount_table("//tmp/d/t", authenticated_user="u")
+        sync_unmount_table("//tmp/d/t", authenticated_user="u")
+        remount_table("//tmp/d/t", authenticated_user="u")
+        sync_reshard_table("//tmp/d/t", [[]], authenticated_user="u")
+
     def test_default_cell_bundle(self):
         assert ls("//sys/tablet_cell_bundles") == ["default"]
         sync_create_cells(1)
