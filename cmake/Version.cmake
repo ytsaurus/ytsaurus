@@ -73,7 +73,7 @@ set(YP_BUILD_TYPE "${YT_BUILD_TYPE}")
 
 # Set the YP build version
 set(YP_VERSION_MAJOR 0)
-set(YP_VERSION_MINOR 2)
+set(YP_VERSION_MINOR 3)
 set(YP_VERSION_PATCH ${YP_BUILD_GIT_DEPTH})
 
 # Get the build name, hostname and user name
