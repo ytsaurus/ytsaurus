@@ -219,7 +219,7 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -228,9 +228,9 @@ protected:
             return result;
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet, jobSummary);
+            return TTask::OnJobAborted(joblet, jobSummary);
         }
     };
 
