@@ -1044,7 +1044,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             "given out resources share is greater than guaranteed resources share: %v > %v",
             GetId(),
             minShareRatioSum,
-            Attributes_.GuaranteedResourcesRatio);
+            Attributes_.AdjustedMinShareRatio);
 
         double fitFactor = Attributes_.GuaranteedResourcesRatio / minShareRatioSum;
         for (const auto& child : EnabledChildren_) {
