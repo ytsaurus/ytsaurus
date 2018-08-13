@@ -139,7 +139,7 @@ message TReqSetTabletCellStatistics
 
 message TReqSendTableStatisticsUpdates
 {
-    repeated NYT.NProto.TGuid table_ids = 1;
+    required int64 table_count = 1;
 }
 
 message TReqUpdateTableStatistics

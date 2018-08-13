@@ -77,6 +77,7 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/random_access_queue.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ypath/token.h>
@@ -2928,7 +2929,7 @@ private:
         }
     };
 
-    THashMap<TTableId, TTableStatistics> TableStatisticsUpdates_;
+    TRandomAccessQueue<TTableId, TTableStatistics> TableStatisticsUpdates_;
 
     TPeriodicExecutorPtr TabletCellStatisticsGossipExecutor_;
     TPeriodicExecutorPtr TableStatisticsGossipExecutor_;
@@ -3254,6 +3255,7 @@ private:
         NameToTabletCellBundleMap_.clear();
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
+        TableStatisticsUpdates_.Clear();
 
         BundleNodeTracker_->Clear();
 
@@ -3340,25 +3342,22 @@ private:
                 statistics.DataStatistics = table->SnapshotStatistics();
             }
 
-            TableStatisticsUpdates_[table->GetId()] = statistics;
+            TableStatisticsUpdates_.Push(std::make_pair(table->GetId(), statistics));
         }
     }
 
     void OnTableStatisticsGossip()
     {
-        std::vector<TTableId> tableIds;
-        for (const auto& pair : TableStatisticsUpdates_) {
-            if (TableStatisticsGossipThrottler_->TryAcquire(1)) {
-                tableIds.push_back(pair.first);
-            }
+        auto tableCount = TableStatisticsUpdates_.Size();
+        if (tableCount == 0) {
+            return;
         }
-
-        if (tableIds.empty()) {
+        if (!TableStatisticsGossipThrottler_->TryAcquire(tableCount)) {
             return;
         }
 
         NProto::TReqSendTableStatisticsUpdates request;
-        ToProto(request.mutable_table_ids(), tableIds);
+        request.set_table_count(tableCount);
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
@@ -3380,33 +3379,35 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(req, PrimaryMasterCellTag);
 
-        TableStatisticsUpdates_.erase(table->GetId());
+        TableStatisticsUpdates_.Pop(table->GetId());
     }
 
     void HydraSendTableStatisticsUpdates(NProto::TReqSendTableStatisticsUpdates* request)
     {
         YCHECK(!Bootstrap_->IsPrimaryMaster());
 
-        auto tableIds = FromProto<std::vector<TTableId>>(request->table_ids());
+        auto tableCount = request->table_count();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableIds: %v)",
-            tableIds);
-
+        std::vector<TTableId> tableIds;
         NProto::TReqUpdateTableStatistics req;
-        for (const auto& tableId : tableIds) {
-            if (auto it = TableStatisticsUpdates_.find(tableId)) {
-                const auto& statistics = it->second;
-                auto* entry = req.add_entries();
-                ToProto(entry->mutable_table_id(), tableId);
-                if (statistics.DataStatistics) {
-                    ToProto(entry->mutable_data_statistics(), *statistics.DataStatistics);
-                }
-                if (statistics.TabletResourceUsage) {
-                    ToProto(entry->mutable_tablet_resource_usage(), *statistics.TabletResourceUsage);
-                }
-                TableStatisticsUpdates_.erase(it);
+        while (tableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
+            auto pair = TableStatisticsUpdates_.Pop();
+            const auto& tableId = pair.first;
+            const auto& statistics = pair.second;
+            tableIds.push_back(tableId);
+            auto* entry = req.add_entries();
+            ToProto(entry->mutable_table_id(), tableId);
+            if (statistics.DataStatistics) {
+                ToProto(entry->mutable_data_statistics(), *statistics.DataStatistics);
+            }
+            if (statistics.TabletResourceUsage) {
+                ToProto(entry->mutable_tablet_resource_usage(), *statistics.TabletResourceUsage);
             }
         }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
+            tableCount,
+            tableIds);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(req, PrimaryMasterCellTag);
