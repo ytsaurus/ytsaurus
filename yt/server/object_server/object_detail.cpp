@@ -276,6 +276,9 @@ bool TObjectProxyBase::ShouldHideAttributes()
     return true;
 }
 
+void TObjectProxyBase::SetObjectIsBeingCreated(bool)
+{ }
+
 bool TObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);

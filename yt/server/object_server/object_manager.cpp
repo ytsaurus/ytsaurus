@@ -766,6 +766,7 @@ void TObjectManager::FillAttributes(
     }
 
     auto proxy = GetProxy(object, nullptr);
+    proxy->SetObjectIsBeingCreated(true);
     std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
