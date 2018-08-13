@@ -49,21 +49,7 @@ TClientReader::TClientReader(
 {
     if (options.CreateTransaction_) {
         ReadTransaction_ = MakeHolder<TPingableTransaction>(auth, transactionId);
-        int lastAttempt = TConfig::Get()->RetryCount - 1;
-        for (int attempt = 0; attempt <= lastAttempt; ++attempt) {
-            try {
-                auto id = NDetail::Get(Auth_, ReadTransaction_->GetId(), path.Path_ + "/@id").AsString();
-                Path_.Path("#" + id);
-                NDetail::Lock(Auth_, ReadTransaction_->GetId(), path.Path_, LM_SNAPSHOT);
-            } catch (TErrorResponse& e) {
-                if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
-                    throw;
-                }
-                NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
-                continue;
-            }
-            break;
-        }
+        Path_.Path(Snapshot(Auth_, ReadTransaction_->GetId(), path.Path_));
     }
 
     if (useFormatFromTableAttributes) {

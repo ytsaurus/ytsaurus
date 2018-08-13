@@ -124,16 +124,33 @@ TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TY
 {
     const int maxAttempt = TConfig::Get()->RetryCount;
     for (int attempt = 0; attempt < maxAttempt; ++attempt) {
+        bool canRetry = attempt + 1 < maxAttempt;
         try {
+            // A race condition is possible if object at path is replaced between
+            // calls to Get() and Lock() methods and its id is invalidated
             auto id = NDetail::Get(auth, transactionId, path + "/@id").AsString();
             TYPath result = TString("#") + id;
-            NDetail::Lock(auth, transactionId, path, LM_SNAPSHOT);
-            return result;
-        } catch (TErrorResponse& e) {
-            if (!NDetail::IsRetriable(e) || attempt + 1 == maxAttempt) {
+            try {
+                // It is important to lock object-id path (which will be used later)
+                // instead of original cypress path (which can be invalidated
+                // regardless of snapshot lock)
+                NDetail::Lock(auth, transactionId, result, LM_SNAPSHOT);
+            } catch (TErrorResponse& e) {
+                if (canRetry && e.IsResolveError()) {
+                    // Object id got invalidated before Lock(), retry with
+                    // updated object id
+                    NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+                    continue;
+                }
                 throw;
             }
-            NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+            return result;
+        } catch (TErrorResponse& e) {
+            if (canRetry && NDetail::IsRetriable(e)) {
+                NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+                continue;
+            }
+            throw;
         }
     }
     Y_FAIL("unreachable");
