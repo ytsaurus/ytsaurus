@@ -66,7 +66,8 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
-        attributes->push_back(EInternedAttributeKey::EnableReplicatedTableManager);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableManager)
+            .SetWritable(true));
 
         TBase::ListSystemAttributes(attributes);
     }
