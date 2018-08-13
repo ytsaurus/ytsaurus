@@ -2189,7 +2189,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
         create("table", "//tmp/t_out")
 
-        events = EventsOnFs()
+        events = events_on_fs()
 
         op = map(
             command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
@@ -2244,8 +2244,6 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 if tentative:
                     events.notify_event("continue_job_{0}".format(job_id))
                     tentative_job_count += 1
-
-        release_breakpoint()
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
