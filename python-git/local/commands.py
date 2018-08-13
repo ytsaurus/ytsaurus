@@ -66,8 +66,8 @@ def _get_bool_from_env(name, default=False):
         return default
     return value == 1
 
-def _get_attributes_from_local_dir(local_path):
-    meta_file_path = os.path.join(local_path, ".meta")
+def _get_attributes_from_local_dir(local_path, meta_files_suffix):
+    meta_file_path = os.path.join(local_path, meta_files_suffix)
     if os.path.isfile(meta_file_path):
         with open(meta_file_path, "rb") as f:
             try:
@@ -78,16 +78,16 @@ def _get_attributes_from_local_dir(local_path):
             return meta.get("attributes", {})
     return {}
 
-def _create_map_node_from_local_dir(local_path, dest_path, client):
-    attributes = _get_attributes_from_local_dir(local_path)
+def _create_map_node_from_local_dir(local_path, dest_path, meta_files_suffix, client):
+    attributes = _get_attributes_from_local_dir(local_path, meta_files_suffix)
     client.create("map_node", dest_path, attributes=attributes, ignore_existing=True)
 
-def _create_node_from_local_file(local_filename, dest_filename, client):
-    if not os.path.isfile(local_filename + ".meta"):
+def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffix, client):
+    if not os.path.isfile(local_filename + meta_files_suffix):
         logger.warning("Found file {0} without meta info, skipping".format(local_filename))
         return
 
-    with open(local_filename + ".meta", "rb") as f:
+    with open(local_filename + meta_files_suffix, "rb") as f:
         try:
             meta = yson.load(f)
         except yson.YsonError:
@@ -114,14 +114,17 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
         for key in attributes:
             client.set_attribute(dest_filename, key, attributes[key])
 
-def _synchronize_cypress_with_local_dir(local_cypress_dir, client):
+def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client):
     cypress_path_prefix = "//"
+
+    if meta_files_suffix is None:
+        meta_files_suffix = ".meta"
 
     local_cypress_dir = os.path.abspath(local_cypress_dir)
     require(os.path.exists(local_cypress_dir),
             lambda: YtError("Local Cypress directory does not exist"))
 
-    root_attributes = _get_attributes_from_local_dir(local_cypress_dir)
+    root_attributes = _get_attributes_from_local_dir(local_cypress_dir, meta_files_suffix)
     for key in root_attributes:
         client.set_attribute("/", key, root_attributes[key])
 
@@ -130,12 +133,14 @@ def _synchronize_cypress_with_local_dir(local_cypress_dir, client):
         for dir in dirs:
             _create_map_node_from_local_dir(os.path.join(root, dir),
                                             os.path.join(cypress_path_prefix, rel_path, dir),
+                                            meta_files_suffix,
                                             client)
         for file in files:
-            if file.endswith(".meta"):
+            if file.endswith(meta_files_suffix):
                 continue
             _create_node_from_local_file(os.path.join(root, file),
                                          os.path.join(cypress_path_prefix, rel_path, file),
+                                         meta_files_suffix,
                                          client)
 
 def _read_pids_file(pids_file_path):
@@ -231,7 +236,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
-          set_pdeath_sig=False, watcher_config=None, cell_tag=0):
+          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0):
 
     options = {}
     for name in _START_DEFAULTS:
@@ -307,7 +312,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
             _initialize_world(client, environment, wait_tablet_cell_initialization,
                               (environment.abi_version[0] == 19))
             if local_cypress_dir is not None:
-                _synchronize_cypress_with_local_dir(local_cypress_dir, client)
+                _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client)
 
     log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only)
     touch(is_started_file)
@@ -330,10 +335,10 @@ def _is_exists(id, path=None):
     sandbox_path = os.path.join(get_root_path(path), id)
     return os.path.isdir(sandbox_path)
 
-def stop(id, remove_working_dir=False, path=None):
+def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
     require(_is_exists(id, path),
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
-    require(not _is_stopped(id, path),
+    require(ignore_lock or not _is_stopped(id, path),
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")

@@ -34,6 +34,9 @@ CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "memory", "freezer"])
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
+class YtEnvRetriableError(YtError):
+    pass
+
 def _parse_version(s):
     if "version:" in s:
         # "ytserver  version: 0.17.3-unknown~debug~0+local"
@@ -67,16 +70,23 @@ def _which_yt_binaries():
             result[binary] = _parse_version(version_string)
     return result
 
-def _find_nodejs():
+def _is_ya_package(proxy_binary_path):
+    proxy_binary_path = os.path.realpath(proxy_binary_path)
+    ytnode_node = os.path.join(
+        os.path.dirname(os.path.dirname(proxy_binary_path)),
+        "built_by_ya.txt")
+    return os.path.exists(ytnode_node)
+
+def _find_nodejs(candidates=("nodejs", "node")):
     nodejs_binary = None
-    for name in ["nodejs", "node"]:
+    for name in candidates:
         if which(name):
             nodejs_binary = name
             break
 
     if nodejs_binary is None:
-        raise YtError("Failed to find nodejs binary. "
-                      "Make sure you added nodejs directory to PATH variable")
+        raise YtError("Failed to find nodejs binary (checked: {0}). "
+                      "Make sure you added nodejs directory to PATH variable".format(",".join(candidates)))
 
     version = subprocess.check_output([nodejs_binary, "-v"])
 
@@ -147,7 +157,9 @@ class YTInstance(object):
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
-                 add_binaries_to_path=True, driver_backend="native"):
+                 add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
+                 enable_structured_master_logging=False):
+        # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
 
         _configure_logger()
         if add_binaries_to_path:
@@ -265,7 +277,7 @@ class YTInstance(object):
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
-                                  proxy_port, rpc_proxy_port, modify_configs_func)
+                                  proxy_port, rpc_proxy_port, enable_master_cache, modify_configs_func, enable_structured_master_logging)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -331,7 +343,7 @@ class YTInstance(object):
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port, rpc_proxy_port,
-                             modify_configs_func):
+                             enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
@@ -377,6 +389,9 @@ class YTInstance(object):
         provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
+        if enable_master_cache is not None:
+            provision["enable_master_cache"] = enable_master_cache
+        provision["enable_structured_master_logging"] = enable_structured_master_logging
 
         master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
 
@@ -646,25 +661,35 @@ class YTInstance(object):
         self.pids_file.write(str(pid) + "\n")
         self.pids_file.flush()
 
-    def _print_stderrs(self, name, number=None):
+    def _process_stderrs(self, name, number=None):
         if not self._capture_stderr_to_file:
             return
 
-        def print_stderr(path, num=None):
+        has_some_bind_failure = False
+
+        def process_stderr(path, num=None):
             number_suffix = ""
             if num is not None:
                 number_suffix = "-" + str(num)
 
-            process_stderr = open(path).read()
-            if process_stderr:
-                sys.stderr.write("{0}{1} stderr:\n{2}"
-                                 .format(name.capitalize(), number_suffix, process_stderr))
+            stderr = open(path).read()
+            if stderr:
+                stderr.write("{0}{1} stderr:\n{2}"
+                             .format(name.capitalize(), number_suffix, stderr))
+                if "Address already in use" in stderr:
+                    return True
+            return False
 
         if number is not None:
-            print_stderr(self._stderr_paths[name][number], number)
+            has_bind_failure = process_stderr(self._stderr_paths[name][number], number)
+            has_some_bind_failure = has_some_bind_failure or has_bind_failure
         else:
             for i, stderr_path in enumerate(self._stderr_paths[name]):
-                print_stderr(stderr_path, i)
+                has_bind_failure = process_stderr(stderr_path, i)
+                has_some_bind_failure = has_some_bind_failure or has_bind_failure
+
+        if has_some_bind_failure:
+            raise YtEnvRetriableError("Process failed to bind on some of ports")
 
     def _run(self, args, name, number=None, cgroup_paths=None, timeout=0.1):
         if cgroup_paths is None:
@@ -1122,7 +1147,10 @@ class YTInstance(object):
             raise YtError("Failed to find YT http proxy binary. Make sure you installed "
                           "yandex-yt-http-proxy package or specify NODE_PATH manually")
 
-        nodejs_binary_path = _find_nodejs()
+        if _is_ya_package(proxy_binary_path):
+            nodejs_binary_path = _find_nodejs(["ytnode",])
+        else:
+            nodejs_binary_path = _find_nodejs()
 
         proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)
         if proxy_version and proxy_version[:2] != self.abi_version:
@@ -1198,7 +1226,7 @@ class YTInstance(object):
             name_with_number = name
 
         if process.poll() is not None:
-            self._print_stderrs(name, number)
+            self._process_stderrs(name, number)
             raise YtError("Process {0} unexpectedly terminated with error code {1}. "
                           "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
                           .format(name_with_number, process.returncode))
@@ -1227,7 +1255,7 @@ class YTInstance(object):
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
 
-        self._print_stderrs(name)
+        self._process_stderrs(name)
 
         error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                         .format(name.capitalize(), max_wait_time))

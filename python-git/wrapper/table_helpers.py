@@ -239,21 +239,26 @@ def _prepare_operation_formats(format, input_format, output_format, binary, inpu
     return input_format, output_format
 
 def _prepare_binary(binary, file_uploader, params, client=None):
+    result = None
     if _is_python_function(binary):
         start_time = time.time()
         if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
                 and set(params.group_by) != {"key"}:
             raise YtError("Yamr format does not support reduce by %r", params.group_by)
-        wrap_result = \
+        result = \
             py_wrapper.wrap(function=binary,
                             uploader=file_uploader,
                             params=params,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
-        return wrap_result
     else:
-        return py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={}, local_files_to_remove=[], title=None)
+        result = py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={}, local_files_to_remove=[], title=None)
+
+    result.environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
+       str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
+
+    return result
 
 def _prepare_destination_tables(tables, client=None):
     from .table_commands import _create_table

@@ -280,10 +280,13 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
 
     file_count = len(attributes["spec"][op_type]["file_paths"])
     for index, file_ in enumerate(attributes["spec"][op_type]["file_paths"]):
-        file_attrs = yt.get(file_ + "&/@", attributes=["key", "type"])
-        file_name = file_.attributes.get("file_name", file_attrs.get("key"))
+        file_original_attrs = yt.get(file_ + "&/@", attributes=["key", "type"])
+        file_attrs = yt.get(file_ + "/@", attributes=["key", "type"])
+        file_name = file_.attributes.get("file_name", file_original_attrs.get("key"))
+        file_name_parts = file_name.split("/")
+        makedirp(os.path.join(sandbox_path, *file_name_parts[:-1]))
         logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
-        destination_path = os.path.join(sandbox_path, file_name)
+        destination_path = os.path.join(sandbox_path, *file_name_parts)
         download_file(file_, destination_path)
         node_type = file_attrs["type"]
         if node_type == "file":

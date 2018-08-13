@@ -55,6 +55,16 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtChunkUnavailable
         if self.is_concurrent_transaction_lock_conflict():
             self.__class__ = YtConcurrentTransactionLockConflict
+        if self.is_tablet_transaction_lock_conflict():
+            self.__class__ = YtTabletTransactionLockConflict
+        if self.is_cypress_transaction_lock_conflict():
+            self.__class__ = YtCypressTransactionLockConflict
+        if self.is_tablet_in_intermediate_state():
+            self.__class__ = YtTabletIsInIntermediateState
+        if self.is_no_such_tablet():
+            self.__class__ = YtNoSuchTablet
+        if self.is_tablet_not_mounted():
+            self.__class__ = YtTabletNotMounted
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -111,10 +121,17 @@ class YtChunkUnavailable(YtHttpResponseError):
        It is used in read retries"""
     pass
 
-class YtConcurrentTransactionLockConflict(YtHttpResponseError):
-    """Concurrent transaction lock conflict error
+class YtCypressTransactionLockConflict(YtHttpResponseError):
+    """Concurrent transaction lock conflict error.
        It is used in upload_file_to_cache retries."""
     pass
+
+class YtTabletTransactionLockConflict(YtHttpResponseError):
+    """Tablet transaction lock conflict error."""
+    pass
+
+# Deprecated.
+YtConcurrentTransactionLockConflict = YtCypressTransactionLockConflict
 
 class YtNoSuchService(YtHttpResponseError):
     """No such service error"""
@@ -122,6 +139,14 @@ class YtNoSuchService(YtHttpResponseError):
 
 class YtTabletIsInIntermediateState(YtHttpResponseError):
     """Tablet is in intermediate state error"""
+    pass
+
+class YtNoSuchTablet(YtHttpResponseError):
+    """No such tablet error"""
+    pass
+
+class YtTabletNotMounted(YtHttpResponseError):
+    """Tablet is not mounted error"""
     pass
 
 class YtProxyUnavailable(YtError):

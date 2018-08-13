@@ -2,7 +2,7 @@ import yt.logger as logger
 from .config import get_config, get_option
 from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value, \
                     update, remove_nones_from_dict
-from .errors import YtError, YtResponseError, YtConcurrentTransactionLockConflict
+from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
@@ -280,7 +280,7 @@ class PutFileToCacheRetrier(Retrier):
         super(PutFileToCacheRetrier, self).__init__(
             retry_config=retry_config,
             timeout=retries_timeout,
-            exceptions=(YtConcurrentTransactionLockConflict,),
+            exceptions=(YtCypressTransactionLockConflict,),
             chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
         self._params = params
@@ -421,7 +421,10 @@ def upload_file_to_cache(filename, hash=None, client=None):
     with open(filename, "rb") as stream:
         write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
 
-    return put_file_to_cache(real_destination, hash, client=client)
+    destination = put_file_to_cache(real_destination, hash, client=client)
+    remove(real_destination, force=True, client=client)
+
+    return destination
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):
