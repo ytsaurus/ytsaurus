@@ -1,5 +1,36 @@
 #include "core.cpp"
 
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+// Memory tags API bridge
+
+TMemoryTag GetCurrentMemoryTag()
+{
+    return NYTAlloc::TThreadManager::GetCurrentMemoryTag();
+}
+
+void SetCurrentMemoryTag(TMemoryTag tag)
+{
+    NYTAlloc::TThreadManager::SetCurrentMemoryTag(tag);
+}
+
+void GetMemoryUsageForTags(TMemoryTag* tags, size_t count, size_t* result)
+{
+    NYTAlloc::StatisticsManager->GetTaggedMemoryUsage(MakeRange(tags, count), result);
+}
+
+size_t GetMemoryUsageForTag(TMemoryTag tag)
+{
+    size_t result;
+    GetMemoryUsageForTags(&tag, 1, &result);
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
 ////////////////////////////////////////////////////////////////////////////////
 // Malloc bridge
 
