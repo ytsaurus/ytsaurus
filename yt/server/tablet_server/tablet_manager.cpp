@@ -152,7 +152,7 @@ public:
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
         , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Config_->TabletCellDecommissioner, Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
-            Config_->TableStatisticsGossipThrottler,
+            Config_->MulticellGossipConfig->TableStatisticsGossipThrottler,
             TabletServerLogger))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
@@ -2963,6 +2963,18 @@ private:
         if (CleanupExecutor_) {
             CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
         }
+        if (TabletCellDecommissioner_ && dynamicConfig->TabletCellDecommissioner) {
+            TabletCellDecommissioner_->Reconfigure(dynamicConfig->TabletCellDecommissioner);
+        }
+        if (auto gossipConfig = dynamicConfig->MulticellGossipConfig) {
+            TableStatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
+            if (TabletCellStatisticsGossipExecutor_) {
+                TabletCellStatisticsGossipExecutor_->SetPeriod(gossipConfig->TabletCellStatisticsGossipPeriod);
+            }
+            if (TableStatisticsGossipExecutor_) {
+                TableStatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
+            }
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -4763,16 +4775,18 @@ private:
         TabletCellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnTabletCellStatisticsGossip, MakeWeak(this)),
-            Config_->TabletCellStatisticsGossipPeriod);
+            Config_->MulticellGossipConfig->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnTableStatisticsGossip, MakeWeak(this)),
-                Config_->TableStatisticsGossipPeriod);
+                Config_->MulticellGossipConfig->TableStatisticsGossipPeriod);
             TableStatisticsGossipExecutor_->Start();
         }
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override

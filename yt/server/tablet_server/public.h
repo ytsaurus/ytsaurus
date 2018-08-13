@@ -100,6 +100,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletCellBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicReplicatedTableManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicTablesMulticellGossipConfig)
 
 class TTableReplica;
 

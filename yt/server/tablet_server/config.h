@@ -157,6 +157,34 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTablesMulticellGossipConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Multicell tablet cell statistics gossip period.
+    TDuration TabletCellStatisticsGossipPeriod;
+
+    //! Multicell table (e.g. chunk owner) statistics gossip period.
+    TDuration TableStatisticsGossipPeriod;
+
+    //! Throttler for table statistics gossip.
+    NConcurrency::TThroughputThrottlerConfigPtr TableStatisticsGossipThrottler;
+
+    TDynamicTablesMulticellGossipConfig()
+    {
+        RegisterParameter("tablet_cell_statistics_gossip_period", TabletCellStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("table_statistics_gossip_period", TableStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("table_statistics_gossip_throttler", TableStatisticsGossipThrottler)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTablesMulticellGossipConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -204,14 +232,8 @@ public:
     //! Tablet cell decommissioner config.
     TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
 
-    //! Multicell tablet cell statistics gossip period.
-    TDuration TabletCellStatisticsGossipPeriod;
-
-    //! Multicell table (e.g. chunk owner) statistics gossip period.
-    TDuration TableStatisticsGossipPeriod;
-
-    //! Throttler for table statistics gossip.
-    NConcurrency::TThroughputThrottlerConfigPtr TableStatisticsGossipThrottler;
+    //! Dynamic tables multicell gossip config.
+    TDynamicTablesMulticellGossipConfigPtr MulticellGossipConfig;
 
     TTabletManagerConfig()
     {
@@ -247,11 +269,7 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
             .DefaultNew();
-        RegisterParameter("tablet_cell_statistics_gossip_period", TabletCellStatisticsGossipPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("table_statistics_gossip_period", TableStatisticsGossipPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("table_statistics_gossip_throttler", TableStatisticsGossipThrottler)
+        RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
             .DefaultNew();
     }
 };
@@ -362,6 +380,12 @@ public:
 
     TDynamicReplicatedTableManagerConfigPtr ReplicatedTableManager;
 
+    //! Tablet cell decommissioner config.
+    TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
+
+    //! Dynamic tables multicell gossip config.
+    TDynamicTablesMulticellGossipConfigPtr MulticellGossipConfig;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
@@ -374,6 +398,10 @@ public:
             .DefaultNew();
         RegisterParameter("replicated_table_manager", ReplicatedTableManager)
             .DefaultNew();
+        RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
+            .Optional();
+        RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
+            .Optional();
     }
 };
 
