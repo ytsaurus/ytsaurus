@@ -336,7 +336,8 @@ def get_api_version(client=None):
         else:
             api_versions = _request_api(client=client)
             # To deprecate using api/v2
-            api_versions.remove("v2")
+            if "v2" in api_versions:
+                api_versions.remove("v2")
             api_version = "v3"
             require(api_version in api_versions, lambda: YtError("API {0} is not supported".format(api_version)))
     else:
