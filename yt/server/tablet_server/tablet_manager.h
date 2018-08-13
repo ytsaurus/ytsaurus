@@ -54,7 +54,7 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell,
+        TTabletCellId hintCellId,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
 
@@ -99,9 +99,10 @@ public:
 
     void MountTable(
         NTableServer::TTableNode* table,
+        const TString& path,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell,
+        TTabletCellId hintCellId,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
 

@@ -87,7 +87,7 @@ private:
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto hintCellId = FromProto<TTabletCellId>(request->cell_id());
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
@@ -100,7 +100,7 @@ private:
             Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
             firstTabletIndex,
             lastTabletIndex,
-            cellId,
+            hintCellId,
             freeze,
             mountTimestamp);
 
@@ -129,17 +129,11 @@ private:
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-        TTabletCell* cell = nullptr;
-        if (cellId) {
-            cell = tabletManager->GetTabletCellOrThrow(cellId);
-        }
-
         tabletManager->PrepareMountTable(
             table,
             firstTabletIndex,
             lastTabletIndex,
-            cell,
+            hintCellId,
             freeze,
             mountTimestamp);
     }
@@ -148,7 +142,7 @@ private:
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
-        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto hintCellId = FromProto<TTabletCellId>(request->cell_id());
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
@@ -161,7 +155,7 @@ private:
             Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
             firstTabletIndex,
             lastTabletIndex,
-            cellId,
+            hintCellId,
             freeze,
             mountTimestamp);
 
@@ -180,19 +174,12 @@ private:
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-        TTabletCell* cell = nullptr;
-        if (cellId) {
-            cell = tabletManager->FindTabletCell(cellId);
-        }
-
-        table->SetMountPath(path);
-
         tabletManager->MountTable(
             table,
+            path,
             firstTabletIndex,
             lastTabletIndex,
-            cell,
+            hintCellId,
             freeze,
             mountTimestamp);
     }
@@ -224,12 +211,7 @@ private:
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->PrepareUnmountTable(
             table,
             force,
@@ -262,12 +244,7 @@ private:
 
         table->SetLastMountTransactionId(transaction->GetId());
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->UnmountTable(
             table,
             force,
@@ -300,12 +277,7 @@ private:
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->PrepareFreezeTable(
             table,
             firstTabletIndex,
@@ -335,12 +307,7 @@ private:
 
         table->SetLastMountTransactionId(transaction->GetId());
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->FreezeTable(
             table,
             firstTabletIndex,
@@ -372,12 +339,7 @@ private:
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->PrepareUnfreezeTable(
             table,
             firstTabletIndex,
@@ -408,12 +370,7 @@ private:
         table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(ETabletState::Mounted);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->UnfreezeTable(
             table,
             firstTabletIndex,
@@ -445,12 +402,7 @@ private:
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->PrepareRemountTable(
             table,
             firstTabletIndex,
@@ -482,12 +434,7 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         securityManager->ValidatePermission(table, user, EPermission::Mount);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->RemountTable(
             table,
             firstTabletIndex,
@@ -523,16 +470,11 @@ private:
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->PrepareReshardTable(
             table,
             firstTabletIndex,
@@ -572,12 +514,7 @@ private:
 
         table->SetLastMountTransactionId(transaction->GetId());
 
-        if (table->IsExternal()) {
-            return;
-        }
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         tabletManager->ReshardTable(
             table,
             firstTabletIndex,
