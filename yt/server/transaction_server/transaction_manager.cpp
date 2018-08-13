@@ -569,11 +569,11 @@ public:
 
         auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (oldState == ETransactionState::Active) {
+            RunPrepareTransactionActions(transaction, persistent);
+
             transaction->SetState(persistent
                 ? ETransactionState::PersistentCommitPrepared
                 : ETransactionState::TransientCommitPrepared);
-
-            RunPrepareTransactionActions(transaction, persistent);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
                 transactionId,
