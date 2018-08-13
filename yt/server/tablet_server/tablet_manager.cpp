@@ -191,6 +191,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -1186,7 +1187,7 @@ public:
                                 lastTabletIndex,
                                 newTabletCount,
                                 action->PivotKeys());
-                            newTabletCount = ReshardTable(
+                            newTabletCount = DoReshardTable(
                                 table,
                                 firstTabletIndex,
                                 lastTabletIndex,
@@ -1390,7 +1391,7 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell,
+        TTabletCellId hintCellId,
         bool freeze,
         TTimestamp mountTimestamp)
     {
@@ -1406,6 +1407,11 @@ public:
         }
 
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        TTabletCell* hintCell = nullptr;
+        if (hintCellId) {
+            hintCell = GetTabletCellOrThrow(hintCellId);
+        }
 
         if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
             // Will throw :)
@@ -1485,15 +1491,27 @@ public:
 
     void MountTable(
         TTableNode* table,
+        const TString& path,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell,
+        TTabletCellId hintCellId,
         bool freeze,
         TTimestamp mountTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        YCHECK(!table->IsExternal());
+
+        if (table->IsExternal()) {
+            UpdateTabletState(table);
+            return;
+        }
+
+        TTabletCell* hintCell = nullptr;
+        if (hintCellId) {
+            hintCell = FindTabletCell(hintCellId);
+        }
+
+        table->SetMountPath(path);
 
         const auto& allTablets = table->Tablets();
 
@@ -1741,7 +1759,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        YCHECK(!table->IsExternal());
+
+        if (table->IsExternal()) {
+            UpdateTabletState(table);
+            return;
+        }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
@@ -1797,7 +1819,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        YCHECK(!table->IsExternal());
+
+        if (table->IsExternal()) {
+            UpdateTabletState(table);
+            return;
+        }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
@@ -1888,7 +1914,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        YCHECK(!table->IsExternal());
+
+        if (table->IsExternal()) {
+            UpdateTabletState(table);
+            return;
+        }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
@@ -1968,7 +1998,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        YCHECK(!table->IsExternal());
+
+        if (table->IsExternal()) {
+            UpdateTabletState(table);
+            return;
+        }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
@@ -2232,7 +2266,29 @@ public:
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
     }
 
-    int ReshardTable(
+    void ReshardTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<TOwningKey>& pivotKeys)
+    {
+        if (table->IsExternal()) {
+            UpdateTabletState(table);
+            return;
+        }
+
+        DoReshardTable(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            newTabletCount,
+            pivotKeys);
+
+        UpdateTabletState(table);
+    }
+
+    int DoReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -2240,7 +2296,7 @@ public:
         const std::vector<TOwningKey>& pivotKeys)
     {
         if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
-            DoReshardTable(
+            ReshardTableImpl(
                 table,
                 firstTabletIndex,
                 lastTabletIndex,
@@ -2251,7 +2307,7 @@ public:
 
         auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
         newTabletCount = newPivotKeys.size();
-        DoReshardTable(
+        ReshardTableImpl(
             table,
             firstTabletIndex,
             lastTabletIndex,
@@ -2260,7 +2316,7 @@ public:
         return newTabletCount;
     }
 
-    void DoReshardTable(
+    void ReshardTableImpl(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -2430,7 +2486,6 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
-        UpdateTabletState(table);
     }
 
     void ValidateCloneTable(
@@ -5516,7 +5571,7 @@ void TTabletManager::PrepareMountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
-    TTabletCell* hintCell,
+    TTabletCellId hintCellId,
     bool freeze,
     TTimestamp mountTimestamp)
 {
@@ -5524,7 +5579,7 @@ void TTabletManager::PrepareMountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
-        hintCell,
+        hintCellId,
         freeze,
         mountTimestamp);
 }
@@ -5604,17 +5659,19 @@ void TTabletManager::ValidateMakeTableStatic(TTableNode* table)
 
 void TTabletManager::MountTable(
     TTableNode* table,
+    const TString& path,
     int firstTabletIndex,
     int lastTabletIndex,
-    TTabletCell* hintCell,
+    TTabletCellId hintCellId,
     bool freeze,
     TTimestamp mountTimestamp)
 {
     Impl_->MountTable(
         table,
+        path,
         firstTabletIndex,
         lastTabletIndex,
-        hintCell,
+        hintCellId,
         freeze,
         mountTimestamp);
 }
