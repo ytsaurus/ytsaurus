@@ -627,6 +627,7 @@ public:
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
             .Item("fifo_index").Value(element->Attributes().FifoIndex)
+            .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
             .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
     }
 
