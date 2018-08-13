@@ -203,7 +203,9 @@ public:
 
     ~TJobInputReader()
     {
-        TransferResultFuture_.Cancel();
+        if (TransferResultFuture_) {
+            TransferResultFuture_.Cancel();
+        }
     }
 
     void Open()
@@ -3200,13 +3202,12 @@ private:
         return result;
     }
 
-
-    TPutFileToCacheResult DoPutFileToCache(
+    TPutFileToCacheResult DoAttemptPutFileToCache(
         const NYPath::TYPath& path,
         const TString& expectedMD5,
-        const TPutFileToCacheOptions& options)
+        const TPutFileToCacheOptions& options,
+        NLogging::TLogger logger)
     {
-        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
         auto Logger = logger;
 
         TPutFileToCacheResult result;
@@ -3306,18 +3307,18 @@ private:
 
         // Move file.
         {
-            auto moveOptions = TMoveNodeOptions();
-            moveOptions.TransactionId = transaction->GetId();
-            moveOptions.Recursive = true;
-            moveOptions.Force = true;
-            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
-            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            auto copyOptions = TCopyNodeOptions();
+            copyOptions.TransactionId = transaction->GetId();
+            copyOptions.Recursive = true;
+            copyOptions.Force = true;
+            copyOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            copyOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
 
-            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+            WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
                 .ValueOrThrow();
 
             LOG_DEBUG(
-                "File has been moved to cache (Destination: %v)",
+                "File has been copied to cache (Destination: %v)",
                 destination);
         }
 
@@ -3328,6 +3329,30 @@ private:
 
         result.Path = destination;
         return result;
+    }
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        int retryAttempts = 0;
+        while (true) {
+            try {
+                return DoAttemptPutFileToCache(path, expectedMD5, options, logger);
+            } catch (const TErrorException& ex) {
+                auto error = ex.Error();
+                ++retryAttempts;
+                if (retryAttempts < options.RetryCount && error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+                    LOG_DEBUG(error, "Put file to cache failed, make next retry");
+                } else {
+                    throw;
+                }
+            }
+        }
     }
 
     void DoAddMember(
