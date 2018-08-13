@@ -1800,6 +1800,11 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
+int TOperationElementSharedState::GetScheduledJobCount() const
+{
+    return ScheduledJobCount_;
+}
+
 TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -2422,6 +2427,11 @@ int TOperationElement::GetAggressivelyPreemptableJobCount() const
 TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatistics() const
 {
     return SharedState_->GetPreemptionStatusStatistics();
+}
+
+int TOperationElement::GetScheduledJobCount() const
+{
+    return SharedState_->GetScheduledJobCount();
 }
 
 int TOperationElement::GetSlotIndex() const

@@ -570,6 +570,8 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
+    int GetScheduledJobCount() const;
+
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
 
@@ -788,6 +790,8 @@ public:
     int GetAggressivelyPreemptableJobCount() const;
 
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
+   
+    int GetScheduledJobCount() const;
 
     int GetSlotIndex() const;
 
