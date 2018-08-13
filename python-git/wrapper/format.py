@@ -343,10 +343,12 @@ class SkiffFormat(Format):
     .. seealso:: `Skiff on wiki <https://wiki.yandex-team.ru/yt/userdoc/skiff/>`_
     """
 
-    def __init__(self, schemas, schema_registry=None, attributes=None, raw=None):
+    def __init__(self, schemas=None, schema_registry=None, attributes=None, raw=None):
         skiff.check_skiff_bindings()
 
-        schemas = flatten(schemas)
+        if schemas is not None:
+            schemas = flatten(schemas)
+
         kwargs = {
             "schemas": schemas,
             "schema_registry": schema_registry,
@@ -359,19 +361,20 @@ class SkiffFormat(Format):
         self._row_index_column_name = "@row_index"
 
         attributes = get_value(attributes, {})
-        attributes["table_skiff_schemas"] = schemas
+        if schemas is not None:
+            attributes["table_skiff_schemas"] = schemas
+            self._schemas = [
+                skiff.SkiffSchema(
+                    [schema],
+                    get_value(schema_registry, {}),
+                    self._range_index_column_name,
+                    self._row_index_column_name
+                )
+                for schema in schemas
+            ]
+
         if schema_registry is not None:
             attributes["skiff_schema_registry"] = schema_registry
-
-        self._schemas = [
-            skiff.SkiffSchema(
-                [schema],
-                get_value(schema_registry, {}),
-                self._range_index_column_name,
-                self._row_index_column_name
-            )
-            for schema in schemas
-        ]
 
         super(SkiffFormat, self).__init__("skiff", attributes=attributes, raw=raw)
 

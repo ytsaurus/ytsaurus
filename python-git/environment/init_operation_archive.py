@@ -898,10 +898,14 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
             raise ValueError("Version {0} must have actions or transformations".format(version))
         client.set_attribute(archive_path, "version", version)
 
-def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
-    """ Creates operation archive tables of latest version """
+def create_tables(client, target_version, shards=1, base_path=BASE_PATH):
+    """ Creates operation archive tables of given version """
+    assert target_version in TRANSFORMS
+
     schemas = {}
     for version in sorted(TRANSFORMS.keys()):
+        if version > target_version:
+            break
         for convertion in TRANSFORMS[version]:
             if convertion.table_info:
                 schemas[convertion.table] = convertion.table_info
@@ -910,8 +914,12 @@ def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
         schemas[table].create_dynamic_table(client, table_path)
         schemas[table].alter_table(client, table_path, shards)
 
-    version = max(TRANSFORMS.keys())
-    client.set(BASE_PATH + "/@version", version)
+    client.set(BASE_PATH + "/@version", target_version)
+
+def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
+    """ Creates operation archive tables of latest version """
+    latest_version = max(TRANSFORMS.keys())
+    create_tables(client, latest_version, shards=shards, base_path=base_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Transform operations archive")

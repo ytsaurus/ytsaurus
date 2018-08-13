@@ -76,7 +76,7 @@ class Retrier(object):
                 if isinstance(exception, self.exceptions):
                     is_error_retriable = True
                 else:
-                    for retriable_code in self.retry_config["additional_retriable_error_codes"]:
+                    for retriable_code in self.retry_config.get("additional_retriable_error_codes", []):
                         if exception.contains_code(retriable_code):
                             is_error_retriable = True
                             break

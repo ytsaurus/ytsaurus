@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, get_tests_sandbox,
+from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
                       ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait)
 
 # Necessary for tests.
@@ -17,7 +17,7 @@ from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
-from yt.environment.helpers import are_almost_equal
+from yt.test_helpers import are_almost_equal
 from yt.local import start, stop
 
 from yt.yson import YsonMap, YsonList
@@ -77,7 +77,7 @@ class TestOperations(object):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
         self.env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
-            "PYTHONPATH": PYTHONPATH
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
         }
 
     def teardown(self):
@@ -582,13 +582,12 @@ from __future__ import print_function
 import yt.wrapper as yt
 import sys
 
-input, output, pythonpath = sys.argv[1:4]
+input, output = sys.argv[1:3]
 yt.config["proxy"]["request_retry_timeout"] = 5000
 yt.config["proxy"]["request_retry_count"] = 1
 yt.config["detached"] = False
-op = yt.run_map("sleep 1000", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
+op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
 print(op.id)
-
 """
         dir_ = yt_env.env.path
         with tempfile.NamedTemporaryFile(mode="w", dir=dir_, prefix="mapper", delete=False) as file:
@@ -597,7 +596,7 @@ print(op.id)
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        op_id = subprocess.check_output([get_python(), file.name, table, table, PYTHONPATH],
+        op_id = subprocess.check_output([get_python(), file.name, table, table],
                                         env=self.env, stderr=sys.stderr).strip()
         wait(lambda: yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted")
 

@@ -3,7 +3,7 @@ from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
-from .errors import YtNoSuchService, YtTabletIsInIntermediateState
+from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
@@ -23,26 +23,33 @@ import time
 SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
 ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
-def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
-    tablet_count = get(path + "/@tablet_count", client=client)
-
-    if first_tablet_index is None and last_tablet_index is None:
-        first_tablet_index = get_value(first_tablet_index, 0)
-        last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
-        is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
-                                       get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
-    else:
-        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state
-
+def _waiting_for_condition(condition, error_message, client=None):
     check_interval = get_config(client)["tablets_check_interval"] / 1000.0
     timeout = get_config(client)["tablets_ready_timeout"] / 1000.0
 
     start_time = time.time()
-    while not is_tablets_ready():
+    while not condition():
         if time.time() - start_time > timeout:
-            raise YtError("Timed out while waiting for tablets")
+            raise YtError(error_message)
 
         time.sleep(check_interval)
+
+def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
+    if first_tablet_index is not None or last_tablet_index is not None:
+        tablet_count = get(path + "/@tablet_count", client=client)
+        first_tablet_index = get_value(first_tablet_index, 0)
+        last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
+        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transition" and \
+            all(tablet["state"] == state for tablet in
+                get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
+    else:
+        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state
+
+    _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
+
+def _waiting_for_tablet_transition(path, client=None):
+    is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transition"
+    _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
 
 def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
@@ -57,7 +64,7 @@ class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, data=None, client=None):
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
-        retriable_errors = tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState])
+        retriable_errors = tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted])
         super(DynamicTableRequestRetrier, self).__init__(
             retry_config=retry_config,
             timeout=request_timeout,
@@ -139,7 +146,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         return format.load_rows(response)
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
-                format=None, raw=None, require_sync_replica=None, client=None):
+                require_sync_replica=None, format=None, raw=None, client=None):
     """Inserts rows from input_stream to dynamic table.
 
     :param table: output table path.
@@ -376,11 +383,14 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=F
 
     return response
 
-def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):
+def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
     """Changes pivot keys separating tablets of a given table.
 
     TODO
     """
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
     params = {"path": TablePath(path, client=client)}
 
     set_param(params, "pivot_keys", pivot_keys)
@@ -388,7 +398,12 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
-    return make_request("reshard_table", params, client=client)
+    response = make_request("reshard_table", params, client=client)
+
+    if sync:
+        _waiting_for_tablet_transition(path, client)
+
+    return response
 
 def trim_rows(path, tablet_index, trimmed_row_count, client=None):
     """Trim rows of the dynamic table.

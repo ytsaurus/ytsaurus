@@ -6,45 +6,45 @@ except ImportError:
 
 """This module provides default ytserver configs"""
 
-def get_logging_config(enable_debug_logging=True):
-    config = yson.loads(
-b"""
-{
-    rules = [
-        {
-            min_level = info;
-            writers = [ info ];
-        };
-        {
-            min_level = error;
-            writers = [ stderr ];
-        };
-        {
-            min_level = debug;
-            exclude_categories = [ Bus ];
-            writers = [ debug ];
-        };
-    ];
-    writers = {
-        stderr = {
-            type = stderr;
-        };
-        info = {
-            type = file;
-            file_name = "{path}/{name}.log";
-        };
-        debug = {
-            type = file;
-            file_name = "{path}/{name}.debug.log";
-        };
-    };
-}
-""")
-    if not enable_debug_logging:
-        del config["rules"][2]
-        del config["writers"]["debug"]
+def get_logging_config(enable_debug_logging=True, enable_structured_logging=False):
+    config = {
+        "rules": [
+            {"min_level": "info", "writers": ["info"]},
+            {"min_level": "error", "writers": ["stderr"]},
+        ],
+        "writers": {
+            "stderr": {
+                "type": "stderr",
+            },
+            "info": {
+                "type": "file",
+                "file_name": "{path}/{name}.log",
+            }
+        }
+    }
+    if enable_debug_logging:
+        config["rules"].append({
+            "min_level": "debug",
+            "exclude_categories": ["Bus"],
+            "writers": ["debug"],
+        })
+        config["writers"]["debug"] = {
+            "type": "file",
+            "file_name": "{path}/{name}.debug.log",
+        }
+    if enable_structured_logging:
+        config["rules"].append({
+            "min_level": "debug",
+            "writers": ["json"],
+            "log_event_form": "structured",
+        })
+        config["writers"]["json"] = {
+            "type": "file",
+            "file_name": "{path}/{name}.json.log",
+            "accepted_log_event_form": "structured",
+        }
 
-    return config
+    return yson.to_yson_type(config)
 
 def get_master_config():
     return yson.loads(

@@ -79,8 +79,16 @@ class YtResponseError(YtError):
         return self.contains_code(901)
 
     def is_concurrent_transaction_lock_conflict(self):
+        """Deprecated! Transaction lock conflict."""
+        return self.contains_code(402)
+
+    def is_cypress_transaction_lock_conflict(self):
         """Transaction lock conflict."""
         return self.contains_code(402)
+
+    def is_tablet_transaction_lock_conflict(self):
+        """Transaction lock conflict."""
+        return self.contains_code(1700)
 
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
@@ -125,6 +133,14 @@ class YtResponseError(YtError):
     def is_tablet_in_intermediate_state(self):
         """Tablet is in intermediate state."""
         return self.matches_regexp("Tablet .* is in state .*")
+
+    def is_no_such_tablet(self):
+        """No such tablet."""
+        return self.contains_code(1701)
+
+    def is_tablet_not_mounted(self):
+        """Tablet is not mounted."""
+        return self.contains_code(1702)
 
     def contains_code(self, code):
         """Check if HTTP response has specified error code."""
@@ -426,13 +442,13 @@ def is_process_alive(pid):
             raise
     return True
 
-def guid_to_parts(guid):
+def uuid_to_parts(guid):
     id_parts = guid.split("-")
     id_hi = int(id_parts[2], 16) << 32 | int(id_parts[3], 16)
     id_lo = int(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
 
-def parts_to_guid(id_hi, id_lo):
+def parts_to_uuid(id_hi, id_lo):
     guid = id_lo << 64 | id_hi
     mask = 0xFFFFFFFF
 

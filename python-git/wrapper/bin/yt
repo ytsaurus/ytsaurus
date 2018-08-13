@@ -591,6 +591,7 @@ def add_reshard_table_parser(add_parser):
     tablet_args(parser)
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
     parser.add_argument("--tablet-count", type=int)
+    parser.add_argument("--sync", action="store_true")
 
 def add_trim_rows_parser(add_parser):
     parser = add_parser("trim-rows", yt.trim_rows)
@@ -658,34 +659,42 @@ def add_lookup_rows_parser(add_parser):
         add_format_argument(parser, help="input format")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
-@copy_docstring_from(yt.insert_rows)
-def insert_rows(**args):
-    args["require_sync_replica"] = not args.pop("no_require_sync_replica")
-    yt.insert_rows(**args)
+
+def add_write_rows_arguments(parser):
+    atomicity_parser = parser.add_mutually_exclusive_group(required=False)
+    atomicity_parser.add_argument("--atomicity", dest="atomicity", default=None, action="store_true")
+    atomicity_parser.add_argument("--no-atomicity", dest="atomicity", default=None, action="store_false")
+    durability_parser = parser.add_mutually_exclusive_group(required=False)
+    durability_parser.add_argument("--durability", dest="durability", default=None, action="store_true")
+    durability_parser.add_argument("--no-durability", dest="durability", default=None, action="store_false")
+    require_sync_replica_parser = parser.add_mutually_exclusive_group(required=False)
+    require_sync_replica_parser.add_argument("--require-sync-replica", dest="require_sync_replica", default=None, action="store_true")
+    require_sync_replica_parser.add_argument("--no-require-sync-replica", dest="require_sync_replica", default=None, action="store_false")
+
 
 def add_insert_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
     for name in ("insert", "insert-rows"):
-        parser = add_parser(name, insert_rows)
+        parser = add_parser(name, yt.insert_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.add_argument("--no-require-sync-replica", action="store_true",
-                            help="do not require sync replication")
+        add_write_rows_arguments(parser)
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
-@copy_docstring_from(yt.delete_rows)
-def delete_rows(**args):
-    args["require_sync_replica"] = not args.pop("no_require_sync_replica")
-    yt.delete_rows(**args)
+        update_parser = parser.add_mutually_exclusive_group(required=False)
+        update_parser.add_argument("--update", dest="update", default=None, action="store_true")
+        update_parser.add_argument("--no-update", dest="update", default=None, action="store_false")
+        aggregate_parser = parser.add_mutually_exclusive_group(required=False)
+        aggregate_parser.add_argument("--aggregate", dest="aggregate", default=None, action="store_true")
+        aggregate_parser.add_argument("--no-aggregate", dest="aggregate", default=None, action="store_false")
 
 def add_delete_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
     for name in ("delete", "delete-rows"):
-        parser = add_parser(name, delete_rows)
+        parser = add_parser(name, yt.delete_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.add_argument("--no-require-sync-replica", action="store_true",
-                            help="do not require sync replication")
+        add_write_rows_arguments(parser)
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
 SPEC_BUILDERS = {

@@ -122,6 +122,7 @@ _default_provision = {
         "count": 0,
     },
     "enable_debug_logging": True,
+    "enable_structured_master_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
 }
@@ -234,9 +235,9 @@ class ConfigsProvider(object):
     def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
         pass
 
-def init_logging(node, path, name, enable_debug_logging):
+def init_logging(node, path, name, enable_debug_logging, enable_structured_logging=False):
     if not node:
-        node = default_configs.get_logging_config(enable_debug_logging)
+        node = default_configs.get_logging_config(enable_debug_logging, enable_structured_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -410,7 +411,9 @@ class ConfigsProvider_19(ConfigsProvider):
                            os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
-                                                 "master-{0}-{1}".format(cell_index, master_index), provision["enable_debug_logging"])
+                                                 "master-{0}-{1}".format(cell_index, master_index),
+                                                 provision["enable_debug_logging"],
+                                                 provision["enable_structured_master_logging"])
 
                 _set_bind_retry_options(config, key="bus_server")
 
@@ -799,7 +802,33 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
 
         return configs
 
+class ConfigsProvider_19_4(ConfigsProvider_19_3):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+        configs, connection_configs = super(ConfigsProvider_19_4, self)._build_master_configs(
+            provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
+
+        for key, cell_configs in iteritems(configs):
+            if key in ["primary_cell_tag", "secondary_cell_tags"]:
+                continue
+
+            for config in cell_configs:
+                tablet_manager_config = config["tablet_manager"]
+                if "table_statistics_gossip_period" not in tablet_manager_config:
+                    tablet_manager_config["table_statistics_gossip_period"] = 100
+                if "tablet_cell_statistics_gossip_period" not in tablet_manager_config:
+                    tablet_manager_config["tablet_cell_statistics_gossip_period"] = 100
+                if "tablet_cell_decommissioner" not in tablet_manager_config:
+                    tablet_manager_config["tablet_cell_decommissioner"] = {
+                        "decommission_check_period": 100,
+                        "orphans_check_period": 100,
+                    }
+
+        return configs, connection_configs
+
+
+
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (19, 2): ConfigsProvider_19_2,
     (19, 3): ConfigsProvider_19_3,
+    (19, 4): ConfigsProvider_19_4,
 }
