@@ -43,12 +43,12 @@ class TestFileCache(YTEnvSetup):
         write_file("//tmp/file", "abacaba")
 
         with pytest.raises(YtError):
-            put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest())
+            put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
 
         write_file("//tmp/file", "abacaba", compute_md5=True)
 
         with pytest.raises(YtError):
-            put_file_to_cache("//tmp/file", "invalid_hash")
+            put_file_to_cache("//tmp/file", "invalid_hash", cache_path="//tmp/cache")
 
         with pytest.raises(YtError):
             put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest())
@@ -56,9 +56,8 @@ class TestFileCache(YTEnvSetup):
         path = put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
         assert read_file(path) == "abacaba"
         assert get(path + "/@touched")
-        assert not exists("//tmp/file")
+        assert exists("//tmp/file")
 
-        create("file", "//tmp/file")
         write_file("//tmp/file", "abacaba", compute_md5=True)
         set(path + "/@touched", False)
 
@@ -66,7 +65,6 @@ class TestFileCache(YTEnvSetup):
         assert path2 == path
         assert get(path + "/@touched")
 
-        create("file", "//tmp/file")
         write_file("//tmp/file", "aba", compute_md5=True)
 
         create("file", "//tmp/file2")
@@ -82,7 +80,6 @@ class TestFileCache(YTEnvSetup):
         assert read_file(path4) == "abacaba"
         assert path4 == path3
 
-        create("file", "//tmp/file")
         write_file("//tmp/file", "aba", compute_md5=True)
 
         create_user("u")
