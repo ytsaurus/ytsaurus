@@ -106,9 +106,9 @@ message TPodAgentDebugStatus {
 
 //============================== SPEC ==========================
 message TComputeResources {
-    // Ограничения по CPU, в процентах ядра: 50 - пол-ядра, 400 - 4 ядра
-    uint64 CpuGuarantee = 2;
-    uint64 CpuLimit = 3;
+    // Ограничения по CPU, в виртуальных миллиядрах (vcpu). Тем самым, заказав vcpu = 1000, мы получим одно виртуальное ядро.
+    uint64 VCpuGuarantee = 2;
+    uint64 VCpuLimit = 3;
 
     // Ограничения по памяти, в байтах
     uint64 MemoryGuarantee = 4;
