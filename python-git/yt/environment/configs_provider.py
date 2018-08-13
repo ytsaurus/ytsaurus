@@ -813,10 +813,13 @@ class ConfigsProvider_19_4(ConfigsProvider_19_3):
 
             for config in cell_configs:
                 tablet_manager_config = config["tablet_manager"]
-                if "table_statistics_gossip_period" not in tablet_manager_config:
-                    tablet_manager_config["table_statistics_gossip_period"] = 100
-                if "tablet_cell_statistics_gossip_period" not in tablet_manager_config:
-                    tablet_manager_config["tablet_cell_statistics_gossip_period"] = 100
+
+                multicell_gossip_config = tablet_manager_config.setdefault("multicell_gossip_config", {})
+                if "table_statistics_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["table_statistics_gossip_period"] = 100
+                if "tablet_cell_statistics_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["tablet_cell_statistics_gossip_period"] = 100
+
                 if "tablet_cell_decommissioner" not in tablet_manager_config:
                     tablet_manager_config["tablet_cell_decommissioner"] = {
                         "decommission_check_period": 100,
@@ -824,7 +827,6 @@ class ConfigsProvider_19_4(ConfigsProvider_19_3):
                     }
 
         return configs, connection_configs
-
 
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
