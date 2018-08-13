@@ -103,6 +103,34 @@ public:
         return true;
     }
 
+    virtual i64 TryAcquireAvailable(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        // Fast lane (only).
+        if (count == 0) {
+            return 0;
+        }
+
+        if (HasLimit_) {
+            while (true) {
+                auto available = Available_.load();
+                if (available <= 0) {
+                    return 0;
+                }
+                i64 acquire = std::min(count, available);
+                if (Available_.compare_exchange_strong(available, available - acquire)) {
+                    count = acquire;
+                    break;
+                }
+            }
+        }
+
+        Profiler.Increment(ValueCounter_, count);
+        return true;
+    }
+
     virtual void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -287,6 +315,15 @@ public:
         return true;
     }
 
+    virtual i64 TryAcquireAvailable(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        Profiler.Increment(ValueCounter_, count);
+        return count;
+    }
+
     virtual void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -357,6 +394,11 @@ public:
     }
 
     virtual bool TryAcquire(i64 /*count*/) override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual i64 TryAcquireAvailable(i64 /*count*/) override
     {
         Y_UNREACHABLE();
     }
