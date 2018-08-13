@@ -42,6 +42,13 @@ struct IThroughputThrottler
      */
     virtual bool TryAcquire(i64 count) = 0;
 
+    //! Tries to acquire #count bytes for transfer.
+    //! Returns number of bytes that could be served without overdraft.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual i64 TryAcquireAvailable(i64 count) = 0;
+
     //! Unconditionally acquires #count bytes for transfer.
     //! This request could easily lead to an overdraft.
     /*!

@@ -3349,10 +3349,8 @@ private:
     void OnTableStatisticsGossip()
     {
         auto tableCount = TableStatisticsUpdates_.Size();
+        tableCount = TableStatisticsGossipThrottler_->TryAcquireAvailable(tableCount);
         if (tableCount == 0) {
-            return;
-        }
-        if (!TableStatisticsGossipThrottler_->TryAcquire(tableCount)) {
             return;
         }
 
