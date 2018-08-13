@@ -51,6 +51,8 @@ public:
 
     virtual void ValidateStorageParametersUpdate();
 
+    virtual void SetObjectIsBeingCreated(bool objectIsBeingCreated) override;
+
 protected:
     class TCustomAttributeDictionary
         : public NYTree::IAttributeDictionary
@@ -220,6 +222,8 @@ private:
         bool recursive = false);
 
     void GatherInheritableAttributes(TCypressNodeBase* parent, TCompositeNodeBase::TAttributes* attributes);
+
+    bool ObjectIsBeingCreated = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
