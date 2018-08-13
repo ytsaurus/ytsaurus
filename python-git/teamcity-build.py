@@ -14,7 +14,7 @@ from helpers import (mkdirp, run, run_captured, cwd, rm_content,
                      postprocess_junit_xml, sudo_rmtree, kill_by_name)
 
 from pytest_helpers import (copy_artifacts, find_core_dumps_with_report,
-                            copy_failed_tests_and_report_stderrs)
+                            copy_failed_tests_and_report_stderrs, prepare_python_bindings)
 
 import argparse
 import tempfile
@@ -189,28 +189,6 @@ def run_prepare(options):
 def copy_modules_from_contrib(options):
     run(["cmake", "."], cwd=options.checkout_directory)
 
-def _prepare_bindings(options, python_version):
-    for bindings_type in ["yson", "driver"]:
-        teamcity_message("Making symlink to appropriate {0} bindings for Python {1}"
-                         .format(bindings_type, python_version))
-        lib_name = bindings_type + "_lib.so"
-
-        bindings_dir = os.path.join(
-            options.checkout_directory,
-            "yt_{0}_bindings".format(bindings_type))
-        symlink_path = os.path.join(bindings_dir, lib_name)
-
-        if os.path.isfile(symlink_path):
-            os.remove(symlink_path)
-
-        lib_path = os.path.join(
-            options.yt_build_directory,
-            "lib",
-            "pyshared-" + python_version.replace(".", "-"),
-            lib_name)
-
-        os.symlink(lib_path, symlink_path)
-
 def _run_tests(options, python_version):
     sandbox_directory = os.path.join(options.sandbox_directory, python_version)
     mkdirp(sandbox_directory)
@@ -292,7 +270,7 @@ def _run_tests_for_python_version(options, python_version):
         return
 
     bindings_version = "2.7" if python_version == "pypy" else python_version
-    _prepare_bindings(options, bindings_version)
+    prepare_python_bindings(options.checkout_directory, options.yt_build_directory, bindings_version)
     _run_tests(options, python_version)
 
 @build_step
