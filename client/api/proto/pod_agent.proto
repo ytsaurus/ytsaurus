@@ -398,17 +398,12 @@ message TBoxStatus {
 
     repeated TContainerStatus Inits = 3;
 
-    //Нужно понять удобно ли так
-    repeated string VolumeRefs = 4;
-
     //Неструктурированное описание последней ошибки связанной c запуском контейнера
     string FailReason = 5;
 
     TCondition Ready = 6;
 
     TCondition InProgress = 7;
-
-    repeated string RootfsLayerRefs = 8;
 }
 
 enum EBoxState {
@@ -566,9 +561,6 @@ message TWorkloadStatus {
 
     TCondition InProgress = 8;
 
-    // понять удобно ли
-    string BoxRef = 9;
-
     // mutalbe target state
     EWorkloadTargetState TargetState = 11;
 }
@@ -688,7 +680,4 @@ message TVolumeStatus {
     TCondition Ready = 5;
 
     TCondition InProgress = 6;
-
-    // понять удобно ли
-    repeated string LayerRefs = 7;
 }
