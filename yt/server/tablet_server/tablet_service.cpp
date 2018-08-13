@@ -109,9 +109,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
+        ValidateMountPermissions(table);
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
@@ -205,9 +203,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
+        ValidateMountPermissions(table);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -271,9 +267,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
+        ValidateMountPermissions(table);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -333,9 +327,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
+        ValidateMountPermissions(table);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -396,9 +388,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
+        ValidateMountPermissions(table);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -430,10 +420,6 @@ private:
             return;
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
-
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
             table,
@@ -464,9 +450,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
+        ValidateMountPermissions(table);
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
@@ -508,10 +492,6 @@ private:
             return;
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
-
         table->SetLastMountTransactionId(transaction->GetId());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -528,6 +508,17 @@ private:
         if (transaction->GetParent()) {
             THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
         }
+    }
+
+    void ValidateMountPermissions(TTableNode* table)
+    {
+        if (table->IsForeign()) {
+            return;
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(table, user, EPermission::Mount);
     }
 };
 
