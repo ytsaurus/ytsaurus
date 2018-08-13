@@ -377,6 +377,65 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             assert "%s" % row["value"][1] == "b:" + str(key["key"])
             assert "%s" % row["value"][2] == "a:" + str(key["key"])
 
+    # TODO(savrus) Support versioned format.
+    @pytest.mark.parametrize("optimize_for", ["lookup"])
+    def test_lookup_versioned_filter(self, optimize_for):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"}]
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "optimize_for": optimize_for,
+            "schema": schema})
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
+        keys = [{"key": 0}]
+        full_row = lookup_rows("//tmp/t", keys, versioned=True)[0]
+
+        def _check(row):
+            assert row.attributes["write_timestamps"] == full_row.attributes["write_timestamps"]
+            assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
+            assert len(row) == 0
+
+        actual = lookup_rows("//tmp/t", keys, column_names=["value2"], versioned=True)
+        _check(actual[0])
+
+        sync_flush_table("//tmp/t")
+
+        actual = lookup_rows("//tmp/t", keys, column_names=["value2"], versioned=True)
+        _check(actual[0])
+
+    # TODO(savrus) Support versioned format.
+    @pytest.mark.parametrize("optimize_for", ["lookup"])
+    def test_lookup_versioned_filter_alter(self, optimize_for):
+        sync_create_cells(1)
+        schema1 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"}]
+        schema2 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"}]
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "optimize_for": optimize_for,
+            "schema": schema1})
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
+        keys = [{"key": 0}]
+        full_row = lookup_rows("//tmp/t", keys, versioned=True)[0]
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema2)
+        sync_mount_table("//tmp/t")
+        row = lookup_rows("//tmp/t", keys, column_names=["value2"], versioned=True)[0]
+        assert row.attributes["write_timestamps"] == full_row.attributes["write_timestamps"]
+        assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
+        assert len(row) == 0
+
     def test_overflow_row_data_weight(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")

@@ -406,7 +406,7 @@ void VersionedLookupRows(
         timestamp,
         user,
         true,
-        columnFilter,
+        TColumnFilter(),
         blockReadOptions,
         std::move(lookupKeys));
 
