@@ -174,7 +174,7 @@ protected:
         auto precisionValue = NProfiling::DurationToValue(precision);
         auto expectedValue = NProfiling::DurationToValue(expectedCpuTime);
         auto actualValue = NProfiling::CpuDurationToValue(MockCallbackQueue->GetTotalCpuTime(bucketIndex));
-        EXPECT_GT(precisionValue, abs(expectedValue - actualValue));
+        EXPECT_GT(precisionValue, std::abs(expectedValue - actualValue));
     }
 
     void DoTestFairness(IInvokerPoolPtr invokerPool, int invokerCount)
