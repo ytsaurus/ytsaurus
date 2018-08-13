@@ -69,7 +69,8 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
-        attributes->push_back(EInternedAttributeKey::EnableReplicatedTableManager);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableManager)
+            .SetWritable(true));
         attributes->push_back(EInternedAttributeKey::PreserveTimestamps);
         attributes->push_back(EInternedAttributeKey::Atomicity);
 
