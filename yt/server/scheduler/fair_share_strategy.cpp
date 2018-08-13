@@ -342,6 +342,9 @@ public:
         YCHECK(OperationIdToElement.erase(operationId) == 1);
         operationElement->SetAlive(false);
 
+        // Operation can be missing in this map.
+        OperationIdToActivationTime_.erase(operationId);
+
         TOperationUnregistrationResult result;
         if (wasActive) {
             TryActivateOperationsFromQueue(&result.OperationsToActivate);
@@ -565,6 +568,54 @@ public:
         auto wasActive = DetachOperation(state, element);
         YCHECK(AttachOperation(state, element, poolId));
         return wasActive;
+    }
+
+    TError CheckOperationUnschedulable(
+        const TOperationId& operationId,
+        TDuration safeTimeout,
+        int minScheduleJobCallAttempts)
+    {
+        // TODO(ignat): Could we guarantee that operation must be in tree?
+        auto element = FindOperationElement(operationId);
+        if (!element) {
+            return TError();
+        }
+
+        auto now = TInstant::Now();
+        TInstant activationTime;
+
+        auto it = OperationIdToActivationTime_.find(operationId);
+        if (!element->IsActive(GlobalDynamicAttributes_)) {
+            if (it != OperationIdToActivationTime_.end()) {
+                it->second = TInstant::Max();
+            }
+            return TError();
+        } else {
+            if (it == OperationIdToActivationTime_.end()) {
+                activationTime = now;
+                OperationIdToActivationTime_.emplace(operationId, now);
+            } else {
+                it->second = std::min(it->second, now);
+                activationTime = it->second;
+            }
+        }
+
+        int deactivationCount = 0;
+        auto deactivationReasons = element->GetDeactivationReasons();
+        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+            deactivationCount += deactivationReasons[reason];
+        }
+
+        if (element->GetScheduledJobCount() == 0 &&
+            activationTime + safeTimeout < now &&
+            deactivationCount > minScheduleJobCallAttempts)
+        {
+            return TError("Operation has no successfull scheduled jobs for a long period (Period: %v, UnsuccessfullScheduleJobCalls: %v)",
+                safeTimeout,
+                deactivationCount);
+        }
+
+        return TError();
     }
 
     void UpdateOperationRuntimeParameters(
@@ -924,6 +975,8 @@ private:
 
     using TOperationElementPtrByIdMap = THashMap<TOperationId, TOperationElementPtr>;
     TOperationElementPtrByIdMap OperationIdToElement;
+
+    THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
 
     std::list<TOperationId> WaitingOperationQueue;
 
@@ -2321,6 +2374,39 @@ public:
         for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolIdMap()) {
             const auto& treeName = pair.first;
             result.insert(std::make_pair(treeName, GetTree(treeName)->GetNodesFilter()));
+        }
+        return result;
+    }
+
+    virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() override
+    {
+        std::vector<std::pair<TOperationId, TError>> result;
+        for (const auto& operationStatePair : OperationIdToOperationState_) {
+            const auto& operationId = operationStatePair.first;
+            const auto& operationState = operationStatePair.second;
+
+            bool hasSchedulableTree = false;
+            TError operationError("Operation unschedulable in all trees");
+
+            YCHECK(operationState->TreeIdToPoolIdMap().size() > 0);
+
+            for (const auto& treePoolPair : operationState->TreeIdToPoolIdMap()) {
+                const auto& treeName = treePoolPair.first;
+                auto error = GetTree(treeName)->CheckOperationUnschedulable(
+                    operationId,
+                    Config->OperationUnschedulableSafeTimeout,
+                    Config->OperationUnschedulableMinScheduleJobCallAttempts);
+                if (error.IsOK()) {
+                    hasSchedulableTree = true;
+                    break;
+                } else {
+                    operationError.InnerErrors().push_back(error);
+                }
+            }
+
+            if (!hasSchedulableTree) {
+                result.emplace_back(operationId, operationError);
+            }
         }
         return result;
     }

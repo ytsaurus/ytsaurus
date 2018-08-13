@@ -146,6 +146,15 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
+    RegisterParameter("operation_unschedulable_check_period", OperationUnschedulableCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
+    RegisterParameter("operation_unschedulable_safe_timeout", OperationUnschedulableSafeTimeout)
+        .Default(TDuration::Minutes(10));
+
+    RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobCallAttempts)
+        .Default(1000);
+
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default(5000)
         .GreaterThan(0)
