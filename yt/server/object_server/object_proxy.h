@@ -22,9 +22,6 @@ struct IObjectProxy
 
     //! Returns the corresponding object.
     virtual TObjectBase* GetObject() const = 0;
-
-    //! Flag for cypress descendant.
-    virtual void SetObjectIsBeingCreated(bool objectIsBeingCreated) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectProxy)

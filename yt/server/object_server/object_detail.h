@@ -48,8 +48,6 @@ public:
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override;
-    virtual void SetObjectIsBeingCreated(bool objectIsBeingCreated) override;
-
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
