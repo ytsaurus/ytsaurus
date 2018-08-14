@@ -177,12 +177,8 @@ struct TExecNodeDescriptor
     void Persist(const TStreamPersistenceContext& context);
 };
 
-namespace NProto {
-
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor);
 void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor);
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

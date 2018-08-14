@@ -129,8 +129,6 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, Tags);
 }
 
-namespace NProto {
-
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
     protoDescriptor->set_node_id(descriptor.Id);
@@ -152,8 +150,6 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
         descriptor->Tags.insert(tag);
     }
 }
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
