@@ -1844,6 +1844,7 @@ private:
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("min_share_resources").Value(element->GetMinShareResources())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
+            .Item("recursive_min_share_ratio").Value(attributes.RecursiveMinShareRatio)
             .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
             .Item("guaranteed_resources").Value(guaranteedResources)
             .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
