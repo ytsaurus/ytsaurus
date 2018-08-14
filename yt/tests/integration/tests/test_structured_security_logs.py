@@ -9,7 +9,8 @@ import time
 class TestLogging(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
-    log_write_wait_time = 0.2
+
+    LOG_WRITE_WAIT_TIME = 0.2
 
     def test_users_and_groups(self):
         create_group("some_group")
@@ -18,7 +19,7 @@ class TestLogging(YTEnvSetup):
         remove_member("some_user", "some_group")
         remove_user("some_user")
         remove_group("some_group")
-        time.sleep(self.log_write_wait_time)
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
 
         log = self.load_structured_master_log()
 
@@ -32,7 +33,7 @@ class TestLogging(YTEnvSetup):
     def test_acd_update(self):
         create("table", "//tmp/test_table")
         set("//tmp/test_table/@acl", [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}])
-        time.sleep(self.log_write_wait_time)
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
 
         self.assert_log_event(self.load_structured_master_log(), {
             "event": "object_acd_updated",
@@ -43,11 +44,11 @@ class TestLogging(YTEnvSetup):
     def test_no_redundant_acd_updated_events(self):
         previous_log_size = len(self.load_structured_master_log())
         create("table", "//tmp/test_table")
-        time.sleep(self.log_write_wait_time)
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
 
         actual_log = self.load_structured_master_log()[previous_log_size:]
         for event in actual_log:
-            if event.get("event", "") == "object_acd_updated":
+            if event.get("event") == "object_acd_updated":
                 assert False, "Master log contains redundant event: " + str(event)
 
     def load_structured_master_log(self):
@@ -71,4 +72,3 @@ class TestLogging(YTEnvSetup):
                 found = True
 
         assert found, "Event {} is not presented in log {}".format(expected_event, log)
-
