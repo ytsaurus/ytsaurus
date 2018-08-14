@@ -578,7 +578,7 @@ public:
         TInstant activationTime;
 
         auto it = OperationIdToActivationTime_.find(operationId);
-        if (!element->IsActive(GlobalDynamicAttributes_)) {
+        if (!GetGlobalDynamicAttributes(element).Active) {
             if (it != OperationIdToActivationTime_.end()) {
                 it->second = TInstant::Max();
             }
@@ -603,9 +603,9 @@ public:
             activationTime + safeTimeout < now &&
             deactivationCount > minScheduleJobCallAttempts)
         {
-            return TError("Operation has no successfull scheduled jobs for a long period (Period: %v, UnsuccessfullScheduleJobCalls: %v)",
-                safeTimeout,
-                deactivationCount);
+            return TError("Operation has no successfull scheduled jobs for a long period")
+                << TErrorAttribute("period", safeTimeout)
+                << TErrorAttribute("unsuccessfull_schedule_job_calls", deactivationCount);
         }
 
         return TError();
@@ -2429,7 +2429,7 @@ public:
             const auto& operationState = operationStatePair.second;
 
             bool hasSchedulableTree = false;
-            TError operationError("Operation unschedulable in all trees");
+            TError operationError("Operation is unschedulable in all trees");
 
             YCHECK(operationState->TreeIdToPoolIdMap().size() > 0);
 
