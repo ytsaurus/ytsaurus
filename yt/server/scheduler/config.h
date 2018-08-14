@@ -120,11 +120,6 @@ public:
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
 
-    //! Enables new possible resource usage computation scheme.
-    //! TODO(asaitgalin): Use this by default and remove ThresholdToEnableMaxPossibleUsageRegularization
-    //! option.
-    bool EnableNewPossibleResourceUsageComputation;
-
     TFairShareStrategyTreeConfig();
 };
 

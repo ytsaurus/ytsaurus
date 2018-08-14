@@ -283,16 +283,8 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
-        auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
-        possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
-    } else {
-        if (GetLocalResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio)
-        {
-            auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
-            possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
-        }
-    }
+    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
+    possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
 
     Attributes_.MaxPossibleUsageRatio = std::min(
         possibleUsageRatio,
@@ -746,10 +738,6 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
 
 TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
-    if (!TreeConfig_->EnableNewPossibleResourceUsageComputation) {
-        limit = Min(limit, MaxPossibleResourceUsage() - GetLocalResourceUsage());
-    }
-
     auto additionalUsage = ZeroJobResources();
 
     for (const auto& child : EnabledChildren_) {
@@ -2056,28 +2044,17 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = GetLocalResourceUsage();
-    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
-        if (!Dominates(limit, usage)) {
-            return usage * GetMinResourceRatio(limit, usage);
-        } else {
-            auto remainingDemand = ResourceDemand() - usage;
-            if (remainingDemand == ZeroJobResources()) {
-                return usage;
-            }
-
-            auto remainingLimit = Max(ZeroJobResources(), limit - usage);
-            // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
-            return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
-        }
+    if (!Dominates(limit, usage)) {
+        return usage * GetMinResourceRatio(limit, usage);
     } else {
-        // Max possible resource usage can be less than usage just after scheduler connection
-        // when not all nodes come with heartbeat to the scheduler.
-        limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
-        if (usage == ZeroJobResources()) {
-            return limit;
-        } else {
-            return usage * GetMinResourceRatio(limit, usage);
+        auto remainingDemand = ResourceDemand() - usage;
+        if (remainingDemand == ZeroJobResources()) {
+            return usage;
         }
+
+        auto remainingLimit = Max(ZeroJobResources(), limit - usage);
+        // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+        return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
     }
 }
 
