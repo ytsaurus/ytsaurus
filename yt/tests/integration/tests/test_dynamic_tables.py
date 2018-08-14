@@ -1513,12 +1513,9 @@ class TestTabletActions(TestDynamicTablesBase):
             sync_mount_table("//tmp/t2.{}".format(i), cell_id=cells[1])
 
         assert tablets_distribution("//tmp/t1") == [13, 0, 0, 0, 0]
-        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
 
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
         wait(lambda: sorted(tablets_distribution("//tmp/t1")) == [2, 2, 3, 3, 3])
-        for i in range(7):
-            assert tablets_distribution("//tmp/t2.{}".format(i)) == [0, 1, 0, 0, 0]
-        assert tablets_distribution("//tmp/t1")[1] == 2
 
         for i in range(3, 15):
             name = "//tmp/t{}".format(i)
@@ -1526,32 +1523,42 @@ class TestTabletActions(TestDynamicTablesBase):
             reshard(name, 3)
             sync_mount_table(name, cell_id=cells[2])
 
-        sleep(1)
         wait(lambda: all(
             max(tablets_distribution("//tmp/t{}".format(i))) == 1
             for i
             in range(3, 15)
         ))
 
-        cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
-        without_large = cell_fullness[:2] + cell_fullness[3:]
-        assert max(without_large) - min(without_large) <= 1
-        assert cell_fullness[2] <= 3 + (15 - 3)
+        # Add new cell and wait till slack tablets distribute evenly between cells
+        cells += sync_create_cells(1)
+        def wait_func():
+            cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
+            return max(cell_fullness) - min(cell_fullness) <= 1
+        wait(wait_func)
+        assert sorted(tablets_distribution("//tmp/t1")) == [2, 2, 2, 2, 2, 3]
 
-    def test_balancer_new_cell_added(self):
+    @pytest.mark.parametrize("cell_count", [2, 3])
+    @pytest.mark.parametrize("tablet_count", [6, 9, 10])
+    def test_balancer_new_cell_added(self, cell_count, tablet_count):
         self._configure_bundle("default")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
-        cells = sync_create_cells(2)
+        cells = sync_create_cells(cell_count)
 
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1], [2], [3], [4], [5]])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
         sync_mount_table("//tmp/t", cell_id=cells[0])
 
-        wait(lambda: get("//sys/tablet_cells/{}/@tablet_count".format(cells[0])) == 3)
+        def check_tablet_count():
+            tablet_counts = [get("//sys/tablet_cells/{}/@tablet_count".format(i)) for i in cells]
+            return tablet_count / cell_count <= min(tablet_counts) and max(tablet_counts) <= (tablet_count - 1) / cell_count + 1
+
+        wait(lambda: check_tablet_count())
 
         new_cell = sync_create_cells(1)[0]
-        wait(lambda: get("//sys/tablet_cells/{}/@tablet_count".format(new_cell)) == 2)
+        cells += [new_cell]
+        cell_count += 1
+        wait(lambda: check_tablet_count())
 
     def test_balancer_in_memory_types(self):
         self._configure_bundle("default")
@@ -2030,4 +2037,3 @@ class TestDynamicTableStateTransitionsRpcProxy(TestDynamicTableStateTransitions)
 class TestTabletActionsRpcProxy(TestTabletActions):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
