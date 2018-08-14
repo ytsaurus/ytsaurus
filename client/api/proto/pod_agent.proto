@@ -563,6 +563,9 @@ message TWorkloadStatus {
 
     // mutalbe target state
     EWorkloadTargetState TargetState = 11;
+
+    // Ревизия к которой относится workload
+    uint32 Revision = 12;
 }
 
 enum ECheckResult {
