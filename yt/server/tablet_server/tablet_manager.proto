@@ -165,6 +165,7 @@ message TReqUpdateUpstreamTabletState
 message TReqUpdateTabletState
 {
     required NYT.NProto.TGuid table_id = 1;
+    required NYT.NProto.TGuid last_mount_transaction_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

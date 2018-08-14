@@ -4041,6 +4041,8 @@ private:
         }
 
         auto* table = node->As<TTableNode>();
+        auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
+        table->SetPrimaryLastMountTransactionId(transactionId);
         UpdateTabletState(table);
     }
 
@@ -4059,6 +4061,7 @@ private:
 
             TReqUpdateTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
+            ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetExternalCellTag());
@@ -4066,9 +4069,10 @@ private:
         }
 
         // TODO(savrus): Remove this after testing multicell on real cluster is done.
-        LOG_DEBUG("Check table tablet state (TableId: %v, LastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
+        LOG_DEBUG("Check table tablet state (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
             table->GetId(),
             table->GetLastMountTransactionId(),
+            table->GetPrimaryLastMountTransactionId(),
             ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).GetData(),
             ConvertToYsonString(table->TabletCountByExpectedState(), EYsonFormat::Text).GetData());
 
@@ -4104,11 +4108,13 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state updated (TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, LastMountTransactionId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state updated "
+            "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
             table->GetId(),
             actualState,
             expectedState,
-            table->GetLastMountTransactionId());
+            table->GetLastMountTransactionId(),
+            table->GetPrimaryLastMountTransactionId());
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             // Statistics should be correct before setting the tablet state.
@@ -4130,7 +4136,13 @@ private:
         if (expectedState) {
             table->SetExpectedTabletState(*expectedState);
         }
-        table->SetLastMountTransactionId(TTransactionId());
+
+        if (!table->IsForeign() ||
+            table->GetLastMountTransactionId() == table->GetPrimaryLastMountTransactionId())
+        {
+            table->SetLastMountTransactionId(TTransactionId());
+            table->SetPrimaryLastMountTransactionId(TTransactionId());
+        }
     }
 
     void HydraOnTabletMounted(TRspMountTablet* response)
