@@ -710,6 +710,7 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+        remount_table("//tmp/t")
 
         # Compaction fails with "Versioned row data weight is too large".
         wait(lambda: bool(get("//tmp/t/@tablet_errors")))
