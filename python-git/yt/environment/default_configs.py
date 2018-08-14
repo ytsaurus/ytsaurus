@@ -36,12 +36,12 @@ def get_logging_config(enable_debug_logging=True, enable_structured_logging=Fals
         config["rules"].append({
             "min_level": "debug",
             "writers": ["json"],
-            "log_event_form": "structured",
+            "message_format": "structured",
         })
         config["writers"]["json"] = {
             "type": "file",
             "file_name": "{path}/{name}.json.log",
-            "accepted_log_event_form": "structured",
+            "accepted_message_format": "structured",
         }
 
     return yson.to_yson_type(config)
