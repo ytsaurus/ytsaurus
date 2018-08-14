@@ -436,6 +436,51 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
         assert len(row) == 0
 
+    # TODO(savrus) Support versioned format.
+    @pytest.mark.parametrize("optimize_for", ["lookup"])
+    def test_lookup_versioned_retention(self, optimize_for):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"},
+            {"name": "value3", "type": "string"}]
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "optimize_for": optimize_for,
+            "schema": schema})
+
+        sync_mount_table("//tmp/t")
+        for i in xrange(10):
+            insert_rows("//tmp/t", [{"key": 0, "value1": str(i)}], update=True)
+            insert_rows("//tmp/t", [{"key": 0, "value2": str(i)}], update=True)
+        keys = [{"key": 0}]
+
+        retention_config = {
+            "min_data_ttl": 0,
+            "max_data_ttl": 1000 * 60 * 10,
+            "min_data_versions": 1,
+            "max_data_versions": 1}
+
+        full_row = lookup_rows("//tmp/t", keys, versioned=True, retention_config=retention_config)[0]
+        assert len(full_row.attributes["write_timestamps"]) == 2
+        assert len(full_row.attributes["delete_timestamps"]) == 0
+        assert len(full_row) == 3
+
+        def _check(row):
+            assert row.attributes["write_timestamps"] == full_row.attributes["write_timestamps"]
+            assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
+            assert len(row) == 0
+
+        actual = lookup_rows("//tmp/t", keys, column_names=["value3"], versioned=True, retention_config=retention_config)
+        _check(actual[0])
+
+        sync_flush_table("//tmp/t")
+
+        actual = lookup_rows("//tmp/t", keys, column_names=["value3"], versioned=True, retention_config=retention_config)
+        _check(actual[0])
+
+
     def test_overflow_row_data_weight(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")

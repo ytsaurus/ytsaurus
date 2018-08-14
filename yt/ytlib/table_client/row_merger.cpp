@@ -442,7 +442,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         [&] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
             auto lhsIndex = ColumnIdToIndex_[lhs.Id];
             auto rhsIndex = ColumnIdToIndex_[rhs.Id];
-            return std::tie(lhsIndex, lhs.Timestamp) < std::tie(rhsIndex, rhs.Timestamp);
+            return std::tie(lhsIndex, lhs.Id, lhs.Timestamp) < std::tie(rhsIndex, rhs.Id, rhs.Timestamp);
         });
     PartialValues_.erase(
         std::unique(
