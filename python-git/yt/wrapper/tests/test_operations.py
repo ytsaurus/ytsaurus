@@ -1664,3 +1664,18 @@ print(op.id)
 
         yt.run_map(mapper, input_table, TEST_DIR + "/output_table2")
         assert list(yt.read_table(TEST_DIR + "/output_table2")) == [{"y": 9}, {"y": 25}, {"y": 0}]
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_shuffle(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        yt.shuffle_table(table)
+        assert len(list(yt.read_table(table))) == 3
+
+        table = TEST_DIR + "/table"
+        yt.remove(table)
+        yt.create("table", table, attributes={"schema": [{"name": "x", "type": "int64", "sort_order": "ascending", "required": True}]})
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        yt.shuffle_table(table)
+        assert len(list(yt.read_table(table))) == 3
+
