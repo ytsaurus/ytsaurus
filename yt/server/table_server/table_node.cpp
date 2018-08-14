@@ -67,6 +67,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, LastMountTransactionId);
     Save(context, TabletCountByExpectedState);
     Save(context, ActualTabletState);
+    Save(context, PrimaryLastMountTransactionId);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -111,6 +112,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(savrus)
     if (context.GetVersion() >= 801) {
         Load(context, ActualTabletState);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 803) {
+        Load(context, PrimaryLastMountTransactionId);
     }
 
     // COMPAT(savrus)

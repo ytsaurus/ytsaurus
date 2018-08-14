@@ -59,6 +59,7 @@ private:
         NTabletClient::ETabletState ActualTabletState = NTabletClient::ETabletState::Unmounted;
         NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
         NTransactionClient::TTransactionId LastMountTransactionId;
+        NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -96,6 +97,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ActualTabletState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExpectedTabletState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, PrimaryLastMountTransactionId);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
