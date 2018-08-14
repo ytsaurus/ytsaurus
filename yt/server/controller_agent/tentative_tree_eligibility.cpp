@@ -47,7 +47,18 @@ void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
     Persist(context, MinJobDuration_);
 
     Persist(context, StartedJobsPerPoolTree_);
-    Persist(context, FinishedJobsPerStatePerPoolTree_);
+
+    if (context.IsLoad() && context.GetVersion() <= 300015) {
+        THashMap<TString, int> completedJobsPerPoolTree;
+        Persist(context, completedJobsPerPoolTree);
+        for (const auto& pair : completedJobsPerPoolTree) {
+            const auto& treeName = pair.first;
+            auto jobCount = pair.second;
+            FinishedJobsPerStatePerPoolTree_[treeName][EJobState::Completed] = jobCount;
+        }
+    } else {
+        Persist(context, FinishedJobsPerStatePerPoolTree_);
+    }
 
     Persist(context, BannedTrees_);
 }
@@ -72,7 +83,7 @@ bool TTentativeTreeEligibility::CanScheduleJob(
     }
     int runningJobCount = startedJobCount - finishedJobCount;
     int completedJobCount = FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
-    int remainingSampleJobCount = SampleJobCount_ - completedJobCount; 
+    int remainingSampleJobCount = SampleJobCount_ - completedJobCount;
 
     if (remainingSampleJobCount > 0 && runningJobCount >= remainingSampleJobCount)
     {
