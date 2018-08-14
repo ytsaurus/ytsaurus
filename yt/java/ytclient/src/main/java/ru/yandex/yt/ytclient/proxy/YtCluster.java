@@ -17,4 +17,12 @@ public class YtCluster {
     public YtCluster(String name) {
         this(name, "http://" + name + ".yt.yandex.net", new ArrayList<>());
     }
+
+    public String getClusterUrl() {
+        return clusterUrl;
+    }
+
+    public String getName() {
+        return name;
+    }
 }
