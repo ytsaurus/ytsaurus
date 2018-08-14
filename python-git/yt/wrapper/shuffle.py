@@ -1,5 +1,7 @@
 from .common import forbidden_inside_job
 from .run_operation_commands import run_map_reduce
+from .cypress_commands import get
+from .ypath import TablePath
 
 @forbidden_inside_job
 def shuffle_table(table, sync=True, temp_column_name="__random_number", spec=None, client=None):
@@ -22,4 +24,12 @@ def shuffle_table(table, sync=True, temp_column_name="__random_number", spec=Non
             del row[temp_column_name]
             yield row
 
-    return run_map_reduce(shuffle_mapper, shuffle_reducer, table, table, reduce_by=temp_column_name, sync=sync, spec=spec, client=client)
+    schema = None
+    attributes = get(table + "/@", attributes=["schema", "schema_mode"], client=client)
+    if attributes.get("schema_mode") == "strong":
+        schema = attributes["schema"]
+        for elem in schema:
+            if "sort_order" in elem:
+                del elem["sort_order"]
+
+    return run_map_reduce(shuffle_mapper, shuffle_reducer, table, TablePath(table, schema=schema, client=client), reduce_by=temp_column_name, sync=sync, spec=spec, client=client)
