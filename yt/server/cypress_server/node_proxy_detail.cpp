@@ -442,7 +442,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         case EInternedAttributeKey::Acl:
         case EInternedAttributeKey::Owner: {
             auto attributeApplied = TObjectProxyBase::SetBuiltinAttribute(key, value);
-            if (!ObjectIsBeingCreated && attributeApplied) {
+            if (attributeApplied && !GetThisImpl()->IsBeingCreated()) {
                 LogStructuredEventFluently(Logger, ELogLevel::Info)
                     .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
                     .Item("attribute").Value(GetUninternedAttributeKey(key))
@@ -688,11 +688,6 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
 void TNontemplateCypressNodeProxyBase::ValidateStorageParametersUpdate()
 { }
-
-void TNontemplateCypressNodeProxyBase::SetObjectIsBeingCreated(bool objectIsBeingCreated)
-{
-    ObjectIsBeingCreated = objectIsBeingCreated;
-}
 
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {
