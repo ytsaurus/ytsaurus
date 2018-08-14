@@ -60,6 +60,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTabletInfos);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BatchModifyRows);
+
 
     // File chaching
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFileFromCache);
