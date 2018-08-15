@@ -27,7 +27,8 @@ def extract_attrs(file_path, comment_line_begin):
 class ExecutableItem(pytest.Item):
     def __init__(self, parent, driver_backend):
         assert parent.fspath is not None
-        name = "{0}[{1}]".format(parent.fspath.basename.rsplit('.', 1)[0], driver_backend)
+        self.base_name = parent.fspath.basename.rsplit('.', 1)[0]
+        name = "{0}[{1}]".format(self.base_name, driver_backend)
         super(ExecutableItem, self).__init__(name, parent)
         self.sandbox_path, self.environment_path = resolve_test_paths(name)
         self.pids_file = os.path.join(self.environment_path, 'pids.txt')
@@ -158,7 +159,7 @@ class CppItem(ExecutableItem):
         if env.master_count > 0:
             environment["YT_CONSOLE_DRIVER_CONFIG_PATH"] = env.config_paths["console_driver"][0]
 
-        execs = [self.name]
+        execs = [self.base_name]
 
         gt_filter = pytest.config.getoption("--gtest_filter")
         if gt_filter:
