@@ -245,6 +245,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op2.id]
 
     def test_text_filter(self, read_from):
+        # Title filter.
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="op3 title", read_from=read_from)
         assert res["pool_counts"] == {"user3": 1}
         assert res["user_counts"] == {"user3": 1}
@@ -253,6 +254,10 @@ class _TestListOperationsBase(ListOperationsSetup):
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
+
+        # Pool filter.
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="some_pool", read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
     def test_pool_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="user3", read_from=read_from)

@@ -4393,10 +4393,6 @@ private:
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-            // TODO(renadeen): extract pool from runtime_parameters.
-            if (briefSpecMapNode->FindChild("pool")) {
-                textFactors.push_back(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
-            }
             if (briefSpecMapNode->FindChild("title")) {
                 textFactors.push_back(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
             }
@@ -4412,6 +4408,12 @@ private:
                     textFactors.push_back(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
                 }
             }
+        }
+
+        if (operation.RuntimeParameters) {
+            auto runtimeParametersMapNode = ConvertToNode(operation.RuntimeParameters)->AsMap();
+            auto pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+            textFactors.insert(textFactors.end(), pools.begin(), pools.end());
         }
 
         return to_lower(JoinToString(textFactors, AsStringBuf(" ")));
