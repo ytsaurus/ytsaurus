@@ -19,9 +19,9 @@ DEFINE_ENUM(ELogLevel,
     (Maximum)
 );
 
-DEFINE_ENUM(ELogMessageFormat,
+DEFINE_ENUM(ELogEventFormat,
     (PlainText)
-    (Structured)
+    (Json)
 );
 
 DEFINE_ENUM(EWriterType,

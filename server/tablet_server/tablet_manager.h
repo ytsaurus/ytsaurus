@@ -30,7 +30,8 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTabletCellSet = SmallVector<const TTabletCell*, NTabletClient::TypicalTabletSlotCount>;
+constexpr int TypicalTabletSlotCount = 10;
+using TTabletCellSet = SmallVector<TTabletCell*, TypicalTabletSlotCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

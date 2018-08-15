@@ -66,17 +66,17 @@ class TestGetJobStderr(YTEnvSetup):
             })
 
         job_id = wait_breakpoint()[0]
-        res = remove_asan_warning(get_job_stderr(op.id, job_id))
+        res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
         release_breakpoint()
         op.track()
-        res = remove_asan_warning(get_job_stderr(op.id, job_id))
+        res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
 
         clean_operations(self.Env.create_native_client())
         time.sleep(1)
 
-        res = remove_asan_warning(get_job_stderr(op.id, job_id))
+        res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
     
     def test_get_job_stderr_acl(self):

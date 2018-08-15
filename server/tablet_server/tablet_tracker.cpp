@@ -6,8 +6,6 @@
 #include "tablet_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
-#include <yt/server/cell_master/config_manager.h>
-#include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/node_tracker_server/config.h>
@@ -20,12 +18,9 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-
 namespace NYT {
 namespace NTabletServer {
 
-using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NObjectServer;
 using namespace NTabletServer::NProto;
@@ -33,186 +28,21 @@ using namespace NNodeTrackerServer;
 using namespace NHydra;
 using namespace NHiveServer;
 
-using NTabletClient::TypicalTabletSlotCount;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTracker::TImpl
-    : public TRefCounted
+class TTabletTracker::TCandidatePool
 {
 public:
-    TImpl(
-        TTabletManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
-
-    void Start();
-    void Stop();
-
-private:
-    class THostilityChecker;
-    struct TAction;
-    struct ICandidateTracker;
-    class TUnbalancedCandidateTracker;
-    class TBalancedCandidateTracker;
-
-    using TPeerSet = SmallSet<TString, TypicalPeerCount>;
-
-    const TTabletManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* const Bootstrap_;
-    const NProfiling::TProfiler Profiler;
-
-    TInstant StartTime_;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-    TNullable<bool> LastEnabled_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    bool IsEnabled();
-    void ScanCells();
-
-    void ScheduleLeaderReassignment(TTabletCell* cell);
-    void SchedulePeerAssignment(TTabletCell* cell, ICandidateTracker* candidates);
-    void SchedulePeerRevocation(TTabletCell* cell, ICandidateTracker* candidates);
-
-    bool IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout);
-    static bool IsGood(const NNodeTrackerServer::TNode* node);
-    static int FindGoodPeer(const TTabletCell* cell);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletTracker::TImpl::THostilityChecker
-{
-public:
-    explicit THostilityChecker(const TNode* node)
-        : Node_(node)
-    { }
-
-    bool IsPossibleHost(const TTabletCellBundle* bundle)
-    {
-        return CheckBundleCache(bundle);
-    }
-
-private:
-    const TNode* Node_;
-    THashMap<const TTabletCellBundle*, bool> BundleCache_;
-    THashMap<TString, bool> FormulaCache_;
-
-    bool CheckBundleCache(const TTabletCellBundle* bundle)
-    {
-        if (auto it = BundleCache_.find(bundle)) {
-            return it->second;
-        }
-
-        return BundleCache_.insert(std::make_pair(bundle, CheckFormulaCache(bundle))).first->second;
-    }
-
-    bool CheckFormulaCache(const TTabletCellBundle* bundle)
-    {
-        const auto formula = bundle->NodeTagFilter().GetFormula();
-        if (auto it = FormulaCache_.find(formula)) {
-            return it->second;
-        }
-
-        return FormulaCache_.insert(std::make_pair(formula, CheckNode(bundle))).first->second;
-    }
-
-    bool CheckNode(const TTabletCellBundle* bundle)
-    {
-        return bundle->NodeTagFilter().IsSatisfiedBy(Node_->Tags());
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletTracker::TImpl::TAction
-{
-    const TTabletCell* Cell;
-    int PeerId;
-    const TNode* Source;
-    const TNode* Target;
-
-    TAction() = default;
-
-    //TODO(savrus) really?
-    TAction(const TTabletCell* cell, int peerId, const TNode* source, const TNode* target)
-        : Cell(cell)
-        , PeerId(peerId)
-        , Source(source)
-        , Target(target)
-    { }
-
-    bool operator<(const TAction& other) const
-    {
-        return Cell == other.Cell
-            ? PeerId < other.PeerId
-            : Cell < other.Cell;
-    }
-};
-
-struct TTabletTracker::TImpl::ICandidateTracker
-{
-    virtual ~ICandidateTracker() = default;
-
-    virtual void AssignPeer(const TTabletCell* cell, int peerId, TPeerSet* forbiddenAddresses) = 0;
-    virtual void RevokePeer(const TTabletCell* cell, int peerId) = 0;
-    virtual std::vector<TAction> GetActions() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletTracker::TImpl::TUnbalancedCandidateTracker
-    : public TTabletTracker::TImpl::ICandidateTracker
-{
-public:
-    explicit TUnbalancedCandidateTracker(const NCellMaster::TBootstrap* bootstrap)
+    explicit TCandidatePool(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void AssignPeer(const TTabletCell* cell, int peerId, TPeerSet* forbiddenAddresses) override
-    {
-        if (const auto* node = TryAllocate(cell, *forbiddenAddresses)) {
-            forbiddenAddresses->insert(node->GetDefaultAddress());
-            Actions_.emplace_back(cell, peerId, nullptr, node);
-        }
-    }
-
-    virtual void RevokePeer(const TTabletCell* cell, int peerId) override
-    {
-        Actions_.emplace_back(cell, peerId, nullptr, nullptr);
-    }
-
-    virtual std::vector<TAction> GetActions() override
-    {
-        std::sort(Actions_.begin(), Actions_.end());
-        return std::move(Actions_);
-    }
-
-private:
-    // Key is pair (nubmer of slots assigned to this bunde, minus number of spare slots),
-    // value is node index in Nodes_ array.
-    using TQueueType = std::multimap<std::pair<int,int>, int>;
-
-    struct TNodeData
-    {
-        const TNode* Node;
-        THashMap<const TTabletCellBundle*, TQueueType::iterator> Iterators;
-    };
-
-    const NCellMaster::TBootstrap* const Bootstrap_;
-
-    std::vector<TAction> Actions_;
-
-    bool Initialized_ = false;
-    std::vector<TNodeData> Nodes_;
-    THashMap<const TTabletCellBundle*, TQueueType> Queues_;
-
-    const TNode* TryAllocate(
-        const TTabletCell* cell,
+    TNode* TryAllocate(
+        TTabletCell* cell,
         const SmallSet<TString, TypicalPeerCount>& forbiddenAddresses)
     {
         LazyInitialization();
@@ -228,6 +58,50 @@ private:
         }
         return nullptr;
     }
+
+private:
+    // Key is pair (nubmer of slots assigned to this bunde, minus number of spare slots),
+    // value is node index in Nodes_ array.
+    using TQueueType = std::multimap<std::pair<int,int>, int>;
+
+    struct TNodeData
+    {
+        TNode* Node;
+        THashMap<TTabletCellBundle*, TQueueType::iterator> Iterators;
+    };
+
+    class THostilityChecker
+    {
+    public:
+        explicit THostilityChecker(TNode* node)
+            : Node_(node)
+        { }
+
+        bool IsPossibleHost(const TTabletCellBundle* bundle)
+        {
+            const auto& tagFilter = bundle->NodeTagFilter();
+            auto formula = tagFilter.GetFormula();
+            if (auto it = Cache_.find(formula)) {
+                return it->second;
+            }
+
+            auto result = tagFilter.IsSatisfiedBy(Node_->Tags());
+            YCHECK(Cache_.insert(std::make_pair(formula, result)).second);
+            return result;
+        }
+
+    private:
+        const TNode* Node_;
+        THashMap<TString, bool> Cache_;
+    };
+
+
+    const NCellMaster::TBootstrap* const Bootstrap_;
+
+    bool Initialized_ = false;
+    std::vector<TNodeData> Nodes_;
+    THashMap<TTabletCellBundle*, TQueueType> Queues_;
+
 
     void LazyInitialization()
     {
@@ -248,7 +122,7 @@ private:
         Initialized_ = true;
     }
 
-    void AddNode(const TNode* node)
+    void AddNode(TNode* node)
     {
         if (!IsGood(node)) {
             return;
@@ -291,10 +165,10 @@ private:
         Nodes_.push_back(std::move(data));
     }
 
-    void ChargeNode(int index, const TTabletCell* cell)
+    void ChargeNode(int index, TTabletCell* cell)
     {
         auto& node = Nodes_[index];
-        SmallVector<const TTabletCellBundle*, TypicalTabletSlotCount> remove;
+        SmallVector<TTabletCellBundle*, TypicalTabletSlotCount> remove;
 
         for (auto& pair : node.Iterators) {
             auto* bundle = pair.first;
@@ -324,532 +198,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTracker::TImpl::TBalancedCandidateTracker
-    : public TTabletTracker::TImpl::ICandidateTracker
-{
-public:
-    TBalancedCandidateTracker(const TBootstrap* bootstrap, bool verboseLogging)
-        : Bootstrap_(bootstrap)
-        , VerboseLogging_(verboseLogging)
-    {
-        InitNodes();
-    }
-
-    virtual void AssignPeer(const TTabletCell* cell, int peerId, TPeerSet* /*forbiddenAddresses*/) override
-    {
-        auto* node = TryAllocateNode(cell);
-
-        if (VerboseLogging_) {
-            LOG_DEBUG("Tablet tracker assigning peer (CellId: %v, PeerId: %v, AllocatedNode: %v)",
-                cell->GetId(),
-                peerId,
-                node ? node->GetNode()->GetDefaultAddress() : "None");
-        }
-
-        if (node) {
-            AddCell(node, cell, peerId);
-        }
-    }
-
-    virtual void RevokePeer(const TTabletCell* cell, int peerId) override
-    {
-        const auto& descriptor = cell->Peers()[peerId].Descriptor;
-
-        if (VerboseLogging_) {
-            auto* node = cell->Peers()[peerId].Node;
-            LOG_DEBUG("Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
-                cell->GetId(),
-                peerId,
-                node ? node->GetDefaultAddress() : "None",
-                descriptor.GetDefaultAddress());
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto* node = nodeTracker->FindNodeByAddress(descriptor.GetDefaultAddress());
-        if (node) {
-            BannedPeerTracker_.AddPeer(cell, peerId, node);
-            PeerTracker_.RemovePeer(cell, peerId, node);
-            if (auto it = NodeToIndex_.find(node)) {
-                Nodes_[it->second].RemoveCell(cell);
-            }
-        }
-
-        Actions_.emplace_back(cell, peerId, node, nullptr);
-    }
-
-    virtual std::vector<TAction> GetActions() override
-    {
-        if (VerboseLogging_) {
-            LOG_DEBUG("Tablet cells distribution before balancing: %v",
-                StateToString());
-        }
-
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            RebalanceBundle(pair.second);
-        }
-
-        if (VerboseLogging_) {
-            LOG_DEBUG("Tablet cells distribution after balancing: %v",
-                StateToString());
-        }
-
-        if (VerboseLogging_) {
-            LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
-                MakeFormattableRange(Actions_, [] (TStringBuilder* builder, const TAction& action) {
-                    builder->AppendFormat("<%v,%v,%v,%v>",
-                        action.Cell->GetId(),
-                        action.PeerId,
-                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
-                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
-                }));
-        }
-
-        FilterActions();
-
-        if (VerboseLogging_) {
-            LOG_DEBUG("Tablet cell balancer request moves: %v",
-                MakeFormattableRange(Actions_, [] (TStringBuilder* builder, const TAction& action) {
-                    builder->AppendFormat("<%v,%v,%v,%v>",
-                        action.Cell->GetId(),
-                        action.PeerId,
-                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
-                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
-                }));
-        }
-
-        return std::move(Actions_);
-    }
-
-private:
-    class TNodeHolder
-    {
-    public:
-        TNodeHolder(const TNode* node, int totalSlots, const TTabletCellSet& slots)
-            : Node_(node)
-            , TotalSlots_(totalSlots)
-            , Slots_(slots)
-        {
-            CountCells();
-        }
-
-        const TNode* GetNode() const
-        {
-            return Node_;
-        }
-
-        int GetTotalSlots() const
-        {
-            return TotalSlots_;
-        }
-
-        const TTabletCellSet& GetSlots() const
-        {
-            return Slots_;
-        }
-
-        const TTabletCell* ExtractCell(int cellIndex)
-        {
-            Y_ASSERT(cellIndex < Slots_.size());
-
-            auto* cell = Slots_[cellIndex];
-            Slots_[cellIndex] = Slots_.back();
-            Slots_.pop_back();
-            --CellCount_[cell->GetCellBundle()];
-            return cell;
-        }
-
-        void InsertCell(const TTabletCell* cell)
-        {
-            Slots_.push_back(cell);
-            ++CellCount_[cell->GetCellBundle()];
-        }
-
-        void RemoveCell(const TTabletCell* cell)
-        {
-            for (int cellIndex = 0; cellIndex < Slots_.size(); ++cellIndex) {
-                if (Slots_[cellIndex] == cell) {
-                    ExtractCell(cellIndex);
-                    return;
-                }
-            }
-            Y_ASSERT(false);
-        }
-
-        int GetCellCount(const TTabletCellBundle* bundle) const
-        {
-            auto it = CellCount_.find(bundle);
-            return it != CellCount_.end() ? it->second : 0;
-        }
-
-    private:
-        const TNode* Node_;
-        const int TotalSlots_;
-        TTabletCellSet Slots_;
-        THashMap<const TTabletCellBundle*, int> CellCount_;
-
-        void CountCells()
-        {
-            for (const auto* cell : Slots_) {
-                CellCount_[cell->GetCellBundle()] += 1;
-            }
-        }
-    };
-
-    class TPeerTracker
-    {
-    public:
-        void AddPeer(const TTabletCell* cell, int peerId, const TNode* peer)
-        {
-            Y_ASSERT(!IsPeer(cell, peer));
-
-            auto& peers = Peers_[cell];
-            if (peers.size() <= peerId) {
-                peers.resize(peerId + 1, nullptr);
-            }
-
-            Y_ASSERT(peers[peerId] == nullptr);
-            peers[peerId] = peer;
-        }
-
-        void RemovePeer(const TTabletCell* cell, int peerId, const TNode* peer)
-        {
-            Y_ASSERT(IsPeer(cell, peer));
-
-            auto& peers = Peers_[cell];
-            Y_ASSERT(peers[peerId] == peer);
-            peers[peerId] = nullptr;
-        }
-
-        int MoveCell(const TTabletCell* cell, const TNode* src, const TNode* dst)
-        {
-            Y_ASSERT(IsPeer(cell, src));
-
-            auto& peers = Peers_[cell];
-            for (int peerId = 0; peerId < peers.size(); ++peerId) {
-                if (peers[peerId] == src) {
-                    peers[peerId] = dst;
-                    return peerId;
-                }
-            }
-
-            Y_UNREACHABLE();
-        }
-
-        bool IsPeer(const TTabletCell* cell, const TNode* node) const
-        {
-            auto it = Peers_.find(cell);
-            if (it == Peers_.end()) {
-                return false;
-            }
-
-            for (const auto* peer : it->second) {
-                if (peer == node) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        void Clear()
-        {
-            Peers_.clear();
-        }
-
-    private:
-        THashMap<const TTabletCell*, SmallVector<const TNode*, TypicalPeerCount>> Peers_;
-    };
-
-    const NCellMaster::TBootstrap* const Bootstrap_;
-    const bool VerboseLogging_;
-
-    std::vector<TNodeHolder> Nodes_;
-    THashMap<const TNode*, int> NodeToIndex_;
-    TPeerTracker PeerTracker_;
-    TPeerTracker BannedPeerTracker_;
-    THashMap<const TTabletCellBundle*, std::vector<int>> FreeNodes_;
-
-    std::vector<TAction> Actions_;
-
-    TString StateToString()
-    {
-        return Format("%v", MakeFormattableRange(Nodes_, [] (TStringBuilder* builder, const TNodeHolder& node) {
-            builder->AppendFormat("<%v: %v>",
-                node.GetNode()->GetDefaultAddress(),
-                MakeFormattableRange(node.GetSlots(), [] (TStringBuilder* builder, const TTabletCell* cell) {
-                    builder->AppendFormat("<%v,%v>", cell->GetCellBundle()->GetName(), cell->GetId());
-                }));
-            }));
-    }
-
-    void InitNodes()
-    {
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-        auto isGood = [&] (const auto* node) {
-            return IsGood(node) && node->GetTotalTabletSlots() > 0;
-        };
-
-        int nodeCount = 0;
-        for (const auto& pair : nodeTracker->Nodes()) {
-            if (isGood(pair.second)) {
-                ++nodeCount;
-            }
-        }
-
-        Nodes_.reserve(nodeCount);
-        for (const auto& pair : nodeTracker->Nodes()) {
-            const auto* node = pair.second;
-            if (!isGood(node)) {
-                continue;
-            }
-
-            const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress());
-
-            int nodeIndex = Nodes_.size();
-            NodeToIndex_[node] = nodeIndex;
-            Nodes_.emplace_back(
-                node,
-                node->GetTotalTabletSlots(),
-                cells ? *cells : TTabletCellSet());
-
-            if (!cells || node->GetTotalTabletSlots() > cells->size()) {
-                THostilityChecker hostility(node);
-                for (const auto& pair : tabletManager->TabletCellBundles()) {
-                    if (hostility.IsPossibleHost(pair.second)) {
-                        FreeNodes_[pair.second].push_back(nodeIndex);
-                    }
-                }
-            }
-        }
-
-        for (const auto& pair : tabletManager->TabletCells()) {
-            const auto* cell = pair.second;
-            for (int peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-                const auto& descriptor = cell->Peers()[peerId].Descriptor;
-                if (descriptor.IsNull()) {
-                    continue;
-                }
-
-                if (const auto* node = nodeTracker->FindNodeByAddress(descriptor.GetDefaultAddress())) {
-                    PeerTracker_.AddPeer(cell, peerId, node);
-                }
-            }
-        }
-    }
-
-    void FilterActions()
-    {
-        std::stable_sort(Actions_.begin(), Actions_.end());
-
-        int last = -1;
-        for (int index = 0; index < Actions_.size() ; ++index) {
-            if (last < 0 || Actions_[last].Cell != Actions_[index].Cell) {
-                if (last >= 0 && Actions_[last].Source == Actions_[last].Target && Actions_[last].Target) {
-                    --last;
-                }
-
-                ++last;
-                if (last != index) {
-                    Actions_[last] = Actions_[index];
-                }
-            }
-            if (Actions_[last].Cell == Actions_[index].Cell) {
-                Actions_[last].Target = Actions_[index].Target;
-            }
-        }
-        Actions_.resize(last + 1);
-    }
-
-    TNodeHolder* TryAllocateNode(const TTabletCell* cell)
-    {
-        auto it = FreeNodes_.find(cell->GetCellBundle());
-        if (it == FreeNodes_.end()) {
-            return nullptr;
-        }
-
-        auto& queue = it->second;
-        for (int index = 0; index < queue.size(); ++index) {
-            auto nodeIndex = queue[index];
-            YCHECK(nodeIndex < Nodes_.size());
-            auto* node = &Nodes_[nodeIndex];
-            if (node->GetTotalSlots() == node->GetSlots().size()) {
-                std::swap(queue[index], queue.back());
-                queue.pop_back();
-            } else if (!NodeInPeers(cell, node)) {
-                return node;
-            }
-        }
-
-        return nullptr;
-    }
-
-    void AddCell(TNodeHolder* dstNode, const TTabletCell* cell, int peerId)
-    {
-        dstNode->InsertCell(cell);
-        PeerTracker_.AddPeer(cell, peerId, dstNode->GetNode());
-        Actions_.emplace_back(cell, peerId, nullptr, dstNode->GetNode());
-    }
-
-    void MoveCell(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode)
-    {
-        const auto* srcCell = srcNode->ExtractCell(srcIndex);
-        dstNode->InsertCell(srcCell);
-        int srcPeerId = PeerTracker_.MoveCell(srcCell, srcNode->GetNode(), dstNode->GetNode());
-        Actions_.emplace_back(srcCell, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
-    }
-
-    void ExchangeCells(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode, int dstIndex)
-    {
-        const auto* srcCell = srcNode->ExtractCell(srcIndex);
-        const auto* dstCell = dstNode->ExtractCell(dstIndex);
-        srcNode->InsertCell(dstCell);
-        dstNode->InsertCell(srcCell);
-        int srcPeerId = PeerTracker_.MoveCell(srcCell, srcNode->GetNode(), dstNode->GetNode());
-        int dstPeerId = PeerTracker_.MoveCell(dstCell, dstNode->GetNode(), srcNode->GetNode());
-        Actions_.emplace_back(srcCell, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
-        Actions_.emplace_back(dstCell, dstPeerId, dstNode->GetNode(), srcNode->GetNode());
-    }
-
-    bool NodeInPeers(const TTabletCell* cell, const TNodeHolder* node)
-    {
-        return PeerTracker_.IsPeer(cell, node->GetNode()) ||
-            BannedPeerTracker_.IsPeer(cell, node->GetNode());
-    };
-
-    void SmoothNodes(TNodeHolder* srcNode, TNodeHolder* dstNode, const TTabletCellBundle* bundle, int limit)
-    {
-        if (srcNode->GetCellCount(bundle) < dstNode->GetCellCount(bundle)) {
-            std::swap(srcNode, dstNode);
-        }
-
-        THostilityChecker hostility(srcNode->GetNode());
-        int srcIndex = 0;
-        int dstIndex = 0;
-        while (srcIndex < srcNode->GetSlots().size() &&
-            dstIndex < dstNode->GetTotalSlots() &&
-            srcNode->GetCellCount(bundle) != limit &&
-            dstNode->GetCellCount(bundle) != limit)
-        {
-            auto* srcCell = srcNode->GetSlots()[srcIndex];
-            if (srcCell->GetCellBundle() != bundle ||
-                NodeInPeers(srcCell, dstNode))
-            {
-                ++srcIndex;
-                continue;
-            }
-
-            if (dstNode->GetTotalSlots() > dstNode->GetSlots().size()) {
-                MoveCell(srcNode, srcIndex, dstNode);
-                continue;
-            }
-
-            const auto* dstCell = dstNode->GetSlots()[dstIndex];
-            const auto* dstBundle = dstCell->GetCellBundle();
-            if (dstBundle == bundle ||
-                NodeInPeers(dstCell, srcNode) ||
-                srcNode->GetCellCount(dstBundle) >= dstNode->GetCellCount(dstBundle) ||
-                !hostility.IsPossibleHost(dstBundle))
-            {
-                ++dstIndex;
-                continue;
-            }
-
-            ExchangeCells(srcNode, srcIndex, dstNode, dstIndex);
-        }
-    }
-
-    void RebalanceBundle(const TTabletCellBundle* bundle)
-    {
-        const auto& tagFilter = bundle->NodeTagFilter();
-        std::vector<TNodeHolder*> nodes;
-        for (auto& node : Nodes_) {
-            if (tagFilter.IsSatisfiedBy(node.GetNode()->Tags())) {
-                nodes.push_back(&node);
-            }
-        }
-
-        if (nodes.empty()) {
-            return;
-        }
-
-        auto smooth = [&](std::vector<TNodeHolder*>& candidates, int limit, auto filter) {
-            for (auto* srcNode : nodes) {
-                if (!filter(srcNode)) {
-                    continue;
-                }
-
-                int candidateIndex = 0;
-                while (candidateIndex < candidates.size()) {
-                    if (srcNode->GetCellCount(bundle) == limit) {
-                        break;
-                    }
-                    auto* dstNode = candidates[candidateIndex];
-                    SmoothNodes(srcNode, dstNode, bundle, limit);
-                    if (dstNode->GetCellCount(bundle) == limit) {
-                        candidates[candidateIndex] = candidates[candidates.size() - 1];
-                        candidates.pop_back();
-                    } else {
-                        ++candidateIndex;
-                    }
-                }
-            }
-        };
-
-        auto ceil = DivCeil<i64>(bundle->TabletCells().size(), nodes.size());
-        auto floor = bundle->TabletCells().size() / nodes.size();
-
-        auto aboveCeil = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
-            return node->GetCellCount(bundle) > ceil;
-        });
-        auto belowFloor = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
-            return node->GetCellCount(bundle) < floor;
-        });
-
-        if (VerboseLogging_ && (aboveCeil > 0 || belowFloor > 0)) {
-            LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
-                bundle->GetName(),
-                ceil,
-                floor,
-                aboveCeil,
-                belowFloor);
-        }
-
-        std::vector<TNodeHolder*> candidates;
-        std::copy_if(nodes.begin(), nodes.end(), std::back_inserter(candidates), [&] (const auto* node) {
-            return node->GetCellCount(bundle) < ceil;
-        });
-        smooth(candidates, ceil, [&] (const auto* node) {
-            return node->GetCellCount(bundle) > ceil;
-        });
-
-        candidates.clear();
-        std::copy_if(nodes.begin(), nodes.end(), std::back_inserter(candidates), [&] (const auto* node) {
-            return node->GetCellCount(bundle) > floor;
-        });
-        smooth(candidates, floor, [&] (const auto* node) {
-            return node->GetCellCount(bundle) < floor;
-        });
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTabletTracker::TImpl::TImpl(
+TTabletTracker::TTabletTracker(
     TTabletManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
-    : Config_(std::move(config))
+    : Config_(config)
     , Bootstrap_(bootstrap)
-    , Profiler("/tablet_server/cell_balancer")
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 }
 
-void TTabletTracker::TImpl::Start()
+void TTabletTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -858,12 +218,12 @@ void TTabletTracker::TImpl::Start()
     YCHECK(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletTracker),
-        BIND(&TTabletTracker::TImpl::ScanCells, MakeWeak(this)),
+        BIND(&TTabletTracker::ScanCells, MakeWeak(this)),
         Config_->CellScanPeriod);
     PeriodicExecutor_->Start();
 }
 
-void TTabletTracker::TImpl::Stop()
+void TTabletTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -873,7 +233,7 @@ void TTabletTracker::TImpl::Stop()
     }
 }
 
-bool TTabletTracker::TImpl::IsEnabled()
+bool TTabletTracker::IsEnabled()
 {
     // This method also logs state changes.
 
@@ -900,95 +260,28 @@ bool TTabletTracker::TImpl::IsEnabled()
     return true;
 }
 
-void TTabletTracker::TImpl::ScanCells()
+void TTabletTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (!IsEnabled())
         return;
 
-    PROFILE_TIMING("/scan_cells") {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->TabletCellBalancer;
-        std::unique_ptr<ICandidateTracker> tracker;
-        if (config->EnableTabletCellBalancer) {
-            tracker = std::make_unique<TBalancedCandidateTracker>(Bootstrap_, config->EnableVerboseLogging);
-        } else {
-            tracker = std::make_unique<TUnbalancedCandidateTracker>(Bootstrap_);
-        }
+    TCandidatePool pool(Bootstrap_);
 
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& tabletManger = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManger->TabletCells()) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell))
-                continue;
+    auto tabletManger = Bootstrap_->GetTabletManager();
+    for (const auto& pair : tabletManger->TabletCells()) {
+        auto* cell = pair.second;
+        if (!IsObjectAlive(cell))
+            continue;
 
-            ScheduleLeaderReassignment(cell);
-            SchedulePeerAssignment(cell, tracker.get());
-            SchedulePeerRevocation(cell, tracker.get());
-        }
-
-        auto actions  = tracker->GetActions();
-
-        {
-            TReqRevokePeers request;
-            const TTabletCell* requestCell = nullptr;
-            auto commit = [&] (const TTabletCell* cell) {
-                if (cell != requestCell) {
-                    if (requestCell) {
-                        CreateMutation(hydraManager, request)
-                            ->CommitAndLog(Logger);
-                    }
-                    request = TReqRevokePeers();
-                    requestCell = cell;
-                    if (cell) {
-                        ToProto(request.mutable_cell_id(), cell->GetId());
-                    }
-                }
-            };
-
-            for (const auto& action : actions) {
-                if (action.Source || !action.Target) {
-                    commit(action.Cell);
-                    request.add_peer_ids(action.PeerId);
-                }
-            }
-
-            commit(nullptr);
-        }
-
-        {
-            TReqAssignPeers request;
-            const TTabletCell* requestCell = nullptr;
-            auto commit = [&] (const TTabletCell* cell) {
-                if (cell != requestCell) {
-                    if (requestCell) {
-                        CreateMutation(hydraManager, request)
-                            ->CommitAndLog(Logger);
-                    }
-                    request = TReqAssignPeers();
-                    requestCell = cell;
-                    if (cell) {
-                        ToProto(request.mutable_cell_id(), cell->GetId());
-                    }
-                }
-            };
-
-            for (const auto& action : actions) {
-                if (action.Target) {
-                    commit(action.Cell);
-                    auto* peerInfo = request.add_peer_infos();
-                    peerInfo->set_peer_id(action.PeerId);
-                    ToProto(peerInfo->mutable_node_descriptor(), action.Target->GetDescriptor());
-                }
-            }
-
-            commit(nullptr);
-        }
+        ScheduleLeaderReassignment(cell, &pool);
+        SchedulePeerAssignment(cell, &pool);
+        SchedulePeerRevocation(cell);
     }
 }
 
-void TTabletTracker::TImpl::ScheduleLeaderReassignment(TTabletCell* cell)
+void TTabletTracker::ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool)
 {
     // Try to move the leader to a good peer.
     if (!IsFailed(cell, cell->GetLeadingPeerId(), Config_->LeaderReassignmentTimeout))
@@ -1007,7 +300,7 @@ void TTabletTracker::TImpl::ScheduleLeaderReassignment(TTabletCell* cell)
         ->CommitAndLog(Logger);
 }
 
-void TTabletTracker::TImpl::SchedulePeerAssignment(TTabletCell* cell, ICandidateTracker* tracker)
+void TTabletTracker::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool)
 {
     const auto& peers = cell->Peers();
 
@@ -1017,14 +310,11 @@ void TTabletTracker::TImpl::SchedulePeerAssignment(TTabletCell* cell, ICandidate
     bool hasLeader = false;
     for (const auto& peer : peers) {
         auto* node = peer.Node;
-        if (!node) {
+        if (!node)
             continue;
-        }
-
         auto* slot = node->FindTabletSlot(cell);
-        if (!slot) {
+        if (!slot)
             continue;
-        }
 
         auto state = slot->PeerState;
         if (state == EPeerState::Leading || state == EPeerState::LeaderRecovery) {
@@ -1035,11 +325,12 @@ void TTabletTracker::TImpl::SchedulePeerAssignment(TTabletCell* cell, ICandidate
         }
     }
 
-    if (hasFollower && !hasLeader) {
+    if (hasFollower && !hasLeader)
         return;
-    }
 
     // Try to assign missing peers.
+    TReqAssignPeers request;
+    ToProto(request.mutable_cell_id(), cell->GetId());
 
     SmallSet<TString, TypicalPeerCount> forbiddenAddresses;
     for (const auto& peer : peers) {
@@ -1049,27 +340,53 @@ void TTabletTracker::TImpl::SchedulePeerAssignment(TTabletCell* cell, ICandidate
     }
 
     for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
-        if (peers[id].Descriptor.IsNull()) {
-            tracker->AssignPeer(cell, id, &forbiddenAddresses);
-        }
+        if (!peers[id].Descriptor.IsNull())
+            continue;
+
+        auto* node = pool->TryAllocate(cell, forbiddenAddresses);
+        if (!node)
+            break;
+
+        auto* peerInfo = request.add_peer_infos();
+        peerInfo->set_peer_id(id);
+        ToProto(peerInfo->mutable_node_descriptor(), node->GetDescriptor());
+
+        forbiddenAddresses.insert(node->GetDefaultAddress());
     }
+
+    if (request.peer_infos_size() == 0)
+        return;
+
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger);
 }
 
-void TTabletTracker::TImpl::SchedulePeerRevocation(TTabletCell* cell, ICandidateTracker* tracker)
+void TTabletTracker::SchedulePeerRevocation(TTabletCell* cell)
 {
     // Don't perform failover until enough time has passed since the start.
-    if (TInstant::Now() < StartTime_ + Config_->PeerRevocationTimeout) {
+    if (TInstant::Now() < StartTime_ + Config_->PeerRevocationTimeout)
         return;
-    }
 
+    const auto& cellId = cell->GetId();
+
+    TReqRevokePeers request;
+    ToProto(request.mutable_cell_id(), cellId);
     for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
         if (IsFailed(cell, peerId, Config_->PeerRevocationTimeout)) {
-            tracker->RevokePeer(cell, peerId);
+            request.add_peer_ids(peerId);
         }
     }
+
+    if (request.peer_ids_size() == 0)
+        return;
+
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger);
 }
 
-bool TTabletTracker::TImpl::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout)
+bool TTabletTracker::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout)
 {
     const auto& peer = cell->Peers()[peerId];
     if (peer.Descriptor.IsNull()) {
@@ -1107,7 +424,7 @@ bool TTabletTracker::TImpl::IsFailed(const TTabletCell* cell, TPeerId peerId, TD
     return true;
 }
 
-bool TTabletTracker::TImpl::IsGood(const TNode* node)
+bool TTabletTracker::IsGood(const TNode* node)
 {
     if (!IsObjectAlive(node)) {
         return false;
@@ -1132,7 +449,7 @@ bool TTabletTracker::TImpl::IsGood(const TNode* node)
     return true;
 }
 
-int TTabletTracker::TImpl::FindGoodPeer(const TTabletCell* cell)
+int TTabletTracker::FindGoodPeer(const TTabletCell* cell)
 {
     for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
         const auto& peer = cell->Peers()[id];
@@ -1141,24 +458,6 @@ int TTabletTracker::TImpl::FindGoodPeer(const TTabletCell* cell)
         }
     }
     return InvalidPeerId;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTabletTracker::TTabletTracker(
-    TTabletManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
-{ }
-
-void TTabletTracker::Start()
-{
-    Impl_->Start();
-}
-
-void TTabletTracker::Stop()
-{
-    Impl_->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

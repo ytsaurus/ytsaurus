@@ -19,7 +19,6 @@ struct TAgentToSchedulerOperationEvent
     TOperationId OperationId;
     TError Error;
     TString TentativeTreeId;
-    std::vector<TJobId> TentativeTreeJobIds;
 };
 
 struct TAgentToSchedulerJobEvent
@@ -86,7 +85,7 @@ public:
     virtual void OnOperationAborted(const TError& error) override;
     virtual void OnOperationFailed(const TError& error) override;
     virtual void OnOperationSuspended(const TError& error) override;
-    virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) override;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId) override;
 
     virtual void ValidateOperationPermission(
         const TString& user,

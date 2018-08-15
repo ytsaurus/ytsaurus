@@ -53,7 +53,7 @@ using namespace NControllerAgent;
 using namespace NConcurrency;
 using namespace NLogging;
 
-static const auto& Logger = SchedulerSimulatorLogger;
+TLogger Logger("Simulator");
 
 DEFINE_ENUM(EEventType,
     (Heartbeat)
@@ -430,15 +430,6 @@ public:
         }
     }
 
-    void InitOperationRuntimeParameters(
-        const TOperationRuntimeParametersPtr& runtimeParameters,
-        const TOperationSpecBasePtr& spec,
-        const TString& user)
-    {
-        // No locking needed.
-        SchedulerStrategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user);
-    }
-
 private:
     TSchedulerStrategyHost& StrategyHost_;
     ISchedulerStrategyPtr SchedulerStrategy_;
@@ -797,12 +788,7 @@ public:
             case EEventType::OperationStarted: {
                 const auto& description = OperationsStorage_->GetOperationDescription(event.OperationId);
 
-                auto runtimeParameters = New<NScheduler::TOperationRuntimeParameters>();
-                SchedulingStrategy_->InitOperationRuntimeParameters(
-                    runtimeParameters,
-                    NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(description.Spec),
-                    description.AuthenticatedUser);
-                auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
+                auto operation = New<NSchedulerSimulator::TOperation>(description);
 
                 auto operationController = New<NSchedulerSimulator::TOperationController>(operation.Get(), &description);
                 operation->SetController(operationController);
@@ -989,7 +975,7 @@ void Run(const char* configFilename)
 
     schedulingData.OnMasterDisconnected(invoker);
     threadPool->Shutdown();
-}
+ }
 
 } // namespace NYT
 

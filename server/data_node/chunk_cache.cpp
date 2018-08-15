@@ -10,7 +10,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/client/formats/config.h>
+#include <yt/ytlib/formats/config.h>
 
 #include <yt/client/api/config.h>
 
@@ -27,7 +27,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_reader.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/hydra/peer_channel.h>
 

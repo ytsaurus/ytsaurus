@@ -2,11 +2,11 @@
 
 #include "row_helpers.h"
 
-#include <yt/client/formats/config.h>
-#include <yt/client/formats/parser.h>
-#include <yt/client/formats/skiff_parser.h>
-#include <yt/client/formats/skiff_writer.h>
-#include <yt/client/formats/format.h>
+#include <yt/ytlib/formats/config.h>
+#include <yt/ytlib/formats/parser.h>
+#include <yt/ytlib/formats/skiff_parser.h>
+#include <yt/ytlib/formats/skiff_writer.h>
+#include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/table_client/public.h>
 #include <yt/client/table_client/name_table.h>
 

@@ -2,39 +2,35 @@ import os
 import subprocess
 
 from yt.environment import YTInstance
-
 from yt_env_setup import resolve_test_paths
 
 from yt.common import update_inplace
 
 import pytest
 
-def extract_attrs(file_path, comment_line_begin):
-    with open(file_path, 'rt') as handle:
-        for line in handle:
-            if not line.startswith(comment_line_begin):
-                break
-            config_mark = comment_line_begin + '%'
-            if line.startswith(config_mark):
-                line = line.lstrip(config_mark).rstrip('\r\n').replace(' ', '')
-                try:
-                    key, value = line.split('=', 2)
-                    yield key, eval(value)
-                except ValueError:
-                    print '%s: Unable to interpret line "%s"' % \
-                        (file_path, line)
 
 class ExecutableItem(pytest.Item):
-    def __init__(self, parent, driver_backend):
+    def __init__(self, parent):
         assert parent.fspath is not None
-        name = "{0}[{1}]".format(parent.fspath.basename.rsplit('.', 1)[0], driver_backend)
+        name = parent.fspath.basename.rsplit('.', 1)[0]
         super(ExecutableItem, self).__init__(name, parent)
         self.sandbox_path, self.environment_path = resolve_test_paths(name)
         self.pids_file = os.path.join(self.environment_path, 'pids.txt')
-        self.driver_backend = driver_backend
 
     def extract_attrs(self, path):
-        return extract_attrs(path, self.comment_line_begin)
+        with open(path, 'rt') as handle:
+            for line in handle:
+                if not line.startswith(self.comment_line_begin):
+                    break
+                config_mark = self.comment_line_begin + '%'
+                if line.startswith(config_mark):
+                    line = line.lstrip(config_mark).rstrip('\r\n').replace(' ', '')
+                    try:
+                        key, value = line.split('=', 2)
+                        yield key, eval(value)
+                    except ValueError:
+                        print '%s: Unable to interpret line "%s"' % \
+                            (path, line)
 
     def runtest(self):
         print ''
@@ -45,22 +41,18 @@ class ExecutableItem(pytest.Item):
         params_map = {
             "NUM_MASTERS": "master_count",
             "NUM_SCHEDULERS": "scheduler_count",
-            "NUM_NODES": "node_count",
-            "ENABLE_RPC_PROXY": "has_rpc_proxy",
-            "DRIVER_BACKENDS": None # This key is recognized but is handled elsewhere.
+            "NUM_NODES": "node_count"
         }
 
-        kwargs = {"driver_backend": self.driver_backend}
+        kwargs = {}
         config_patches = {}
         for key, value in self.extract_attrs(str(self.fspath)):
             if key == "DELTA_MASTER_CONFIG":
                 config_patches['master'] = value
                 continue
 
-            param_key = params_map[key]
-            if param_key is not None:
-                print 'Setting "%s" to "%s"' % (key, value)
-                kwargs[param_key] = value
+            print 'Setting "%s" to "%s"' % (key, value)
+            kwargs[params_map[key]] = value
 
         def modify_configs(configs, abi_version):
             if 'master' in config_patches:
@@ -109,8 +101,8 @@ class YtShellTestException(Exception):
 
 
 class PerlItem(ExecutableItem):
-    def __init__(self, parent, driver_backend):
-        super(PerlItem, self).__init__(parent, driver_backend)
+    def __init__(self, parent):
+        super(PerlItem, self).__init__(parent)
         self.comment_line_begin = "#"
 
     def on_runtest(self, env):
@@ -131,7 +123,6 @@ class PerlItem(ExecutableItem):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
-
         stdout, stderr = child.communicate()
         child.wait()
 
@@ -148,8 +139,8 @@ class PerlItem(ExecutableItem):
 
 
 class CppItem(ExecutableItem):
-    def __init__(self, parent, driver_backend):
-        super(CppItem, self).__init__(parent, driver_backend)
+    def __init__(self, parent):
+        super(CppItem, self).__init__(parent)
         self.comment_line_begin = "//"
 
     def on_runtest(self, env):
@@ -179,35 +170,13 @@ class CppItem(ExecutableItem):
     def reportinfo(self):
         return self.fspath, 0, "c++:%s" % self.name
 
-class ExecutableFile(pytest.File):
-    def extract_driver_backends(self):
-        driver_backends = []
-        for key, value in extract_attrs(str(self.fspath), self.comment_line_begin):
-            if key == "DRIVER_BACKENDS":
-                driver_backends.extend(value)
-                break
 
-        if len(driver_backends) == 0:
-            driver_backends.append('native')
-
-        return driver_backends
-
-class PerlFile(ExecutableFile):
-    def __init__(self, path, parent):
-        super(ExecutableFile, self).__init__(path, parent)
-        self.comment_line_begin = '#'
-
+class PerlFile(pytest.File):
     def collect(self):
-        for backend in self.extract_driver_backends():
-            yield PerlItem(self, backend)
+        yield PerlItem(self)
 
-class CppFile(ExecutableFile):
-    def __init__(self, path, parent):
-        super(ExecutableFile, self).__init__(path, parent)
-        self.comment_line_begin = '//'
 
+class CppFile(pytest.File):
     def collect(self):
-        for backend in self.extract_driver_backends():
-            yield CppItem(self, backend)
-
+        yield CppItem(self)
 

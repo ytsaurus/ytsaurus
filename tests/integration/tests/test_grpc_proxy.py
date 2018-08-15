@@ -9,12 +9,7 @@ import yt_proto.yt.client.api.rpc_proxy.proto.api_service_pb2 as api_service_pb2
 import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, underscore_case_to_camel_case
-try:
-    from yt.common import uuid_to_parts, parts_to_uuid
-except ImportError:
-    from yt.common import guid_to_parts as uuid_to_parts, parts_to_guid as parts_to_uuid
-
+from yt.common import YtError, guid_to_parts, parts_to_guid, underscore_case_to_camel_case
 from yt.wire_format import (AttachmentStream, serialize_rows_to_unversioned_wire_format,
                             deserialize_rows_from_unversioned_wire_format, build_columns_from_schema)
 
@@ -27,11 +22,11 @@ from cStringIO import StringIO
 
 SERIALIZATION_ALIGNMENT = 8
 
-def uuid_from_dict(d):
-    return parts_to_uuid(d["first"], d["second"])
+def guid_from_dict(d):
+    return parts_to_guid(d["first"], d["second"])
 
-def uuid_to_dict(guid):
-    parts = uuid_to_parts(guid)
+def guid_to_dict(guid):
+    parts = guid_to_parts(guid)
     return {"first": parts[0], "second": parts[1]}
 
 class TestGrpcProxy(YTEnvSetup):
@@ -135,7 +130,7 @@ class TestGrpcProxy(YTEnvSetup):
 
     def _create_object(self, **kwargs):
         object_id_parts = loads(self._make_light_api_request("create_object", kwargs))["object_id"]
-        return uuid_from_dict(object_id_parts)
+        return guid_from_dict(object_id_parts)
 
     def _exists_node(self, **kwargs):
         return loads(self._make_light_api_request("exists_node", kwargs))["exists"]
@@ -145,7 +140,7 @@ class TestGrpcProxy(YTEnvSetup):
 
     def _start_transaction(self, **kwargs):
         id_parts = loads(self._make_light_api_request("start_transaction", kwargs))["id"]
-        return uuid_from_dict(id_parts)
+        return guid_from_dict(id_parts)
 
     def _commit_transaction(self, **kwargs):
         return loads(self._make_light_api_request("commit_transaction", kwargs))
@@ -193,7 +188,7 @@ class TestGrpcProxy(YTEnvSetup):
         self._create_node(type=401, path=table_path, attributes={"dynamic": True, "schema": schema})
         self._sync_mount_table(table_path)
         # 1 = "tablet", see ETransactionType in proto
-        tx = self._start_transaction(type=1, timeout=10000000, sticky=True)
+        tx = self._start_transaction(type=1, timeout=10000, sticky=True)
         print >>sys.stderr, tx
 
         rows = [
@@ -208,7 +203,7 @@ class TestGrpcProxy(YTEnvSetup):
         self._make_heavy_api_request(
             "modify_rows",
             {
-                "transaction_id": uuid_to_dict(tx),
+                "transaction_id": guid_to_dict(tx),
                 "path": table_path,
                 # 0 = "write", see ERowModificationType in proto
                 "row_modification_types": [0] * len(rows),
@@ -217,7 +212,7 @@ class TestGrpcProxy(YTEnvSetup):
             data=rows,
             data_serializer=partial(serialize_rows_to_unversioned_wire_format, schema=schema))
 
-        self._commit_transaction(transaction_id=uuid_to_dict(tx), sticky=True)
+        self._commit_transaction(transaction_id=guid_to_dict(tx), sticky=True)
 
         msg, stream = self._make_heavy_api_request("select_rows", {"query": "* FROM [{}]".format(table_path)})
         selected_rows = deserialize_rows_from_unversioned_wire_format(

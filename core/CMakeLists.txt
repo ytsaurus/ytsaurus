@@ -7,7 +7,6 @@ add_subdirectory(crypto)
 add_subdirectory(re2)
 add_subdirectory(skiff)
 add_subdirectory(erasure)
-add_subdirectory(phdr_cache)
 
 include(Sources.txt)
 

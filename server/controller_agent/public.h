@@ -99,9 +99,9 @@ using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 
-struct TControllerTransactionIds;
-struct TOperationControllerInitializeAttributes;
-struct TOperationControllerInitializeResult;
+struct TControllerTransactions;
+struct TOperationControllerInitializationAttributes;
+struct TOperationControllerInitializationResult;
 struct TOperationControllerReviveResult;
 struct TOperationControllerPrepareResult;
 

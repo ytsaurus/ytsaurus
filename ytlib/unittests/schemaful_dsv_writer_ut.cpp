@@ -1,8 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 #include "format_writer_ut.h"
 
-#include <yt/client/formats/schemaful_dsv_writer.h>
-#include <yt/client/formats/format.h>
+#include <yt/ytlib/formats/schemaful_dsv_writer.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/client/table_client/name_table.h>
 

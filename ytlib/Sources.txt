@@ -120,6 +120,32 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/file_client/file_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_client/private.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/formats/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/escape.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/format.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_writer_adapter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_web_json_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/skiff_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/skiff_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/versioned_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamred_dsv_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamred_dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yson_parser.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory.cpp
@@ -280,18 +306,23 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schema_inferer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_concatenating_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_reader_adapter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_block_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_buffered_table_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_partition_sort_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_row_reorderer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/skynet_column_evaluator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/table_consumer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/table_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unordered_schemaful_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/value_consumer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_reader.cpp

@@ -55,7 +55,6 @@ using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NRpc;
-using namespace NTransactionClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -446,9 +445,9 @@ public:
         LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    TFuture<TOperationControllerInitializeResult> InitializeOperation(
+    TFuture<TOperationControllerInitializationResult> InitializeOperation(
         const TOperationPtr& operation,
-        const TNullable<TControllerTransactionIds>& transactions)
+        const TNullable<TControllerTransactions>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -460,25 +459,8 @@ public:
         return callback
             .AsyncVia(controller->GetCancelableInvoker())
             .Run()
-            .Apply(BIND([=] (const TOperationControllerInitializeResult& result) {
-                const auto& transactionIds = result.TransactionIds;
-                std::vector<TTransactionId> watchTransactionIds({
-                    transactionIds.AsyncId,
-                    transactionIds.InputId,
-                    transactionIds.OutputId,
-                    transactionIds.DebugId
-                });
-                watchTransactionIds.push_back(operation->GetUserTransactionId());
-
-                watchTransactionIds.erase(
-                    std::remove_if(
-                        watchTransactionIds.begin(),
-                        watchTransactionIds.end(),
-                        [] (const auto& transactionId) { return !transactionId; }),
-                    watchTransactionIds.end());
-
-                operation->SetWatchTransactionIds(watchTransactionIds);
-
+            .Apply(BIND([=] (const TOperationControllerInitializationResult& result) {
+                operation->SetTransactions(result.Transactions);
                 return result;
             }).AsyncVia(GetCurrentInvoker()));
     }
@@ -532,7 +514,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        operation->SetWatchTransactionIds({});
+        operation->SetTransactions({});
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Complete, controller)
@@ -545,7 +527,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        operation->SetWatchTransactionIds({});
+        operation->SetTransactions({});
 
         const auto& controller = operation->GetController();
         if (!controller) {
@@ -935,7 +917,6 @@ private:
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
                         ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
-                        ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
                         break;
                     default:
                         Y_UNREACHABLE();
@@ -1033,11 +1014,6 @@ private:
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
-
-        if (Config_->TotalControllerMemoryLimit) {
-            request->set_controller_memory_limit(*Config_->TotalControllerMemoryLimit);
-            request->set_controller_memory_usage(MemoryTagQueue_.GetTotalUsage());
-        }
 
         return preparedRequest;
     }
@@ -1502,9 +1478,9 @@ TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
-TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
+TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
-    const TNullable<TControllerTransactionIds>& transactions)
+    const TNullable<TControllerTransactions>& transactions)
 {
     return Impl_->InitializeOperation(
         operation,

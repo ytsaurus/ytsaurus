@@ -2,8 +2,8 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/client/table_client/schemaful_reader_adapter.h>
-#include <yt/client/table_client/schemaful_writer_adapter.h>
+#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
+#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

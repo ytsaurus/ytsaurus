@@ -217,7 +217,7 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -231,9 +231,9 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            return TTask::OnJobAborted(joblet, jobSummary);
+            TTask::OnJobAborted(joblet, jobSummary);
         }
     };
 
@@ -1092,7 +1092,7 @@ private:
         TOperationControllerBase::InitializeClients();
 
         TClientOptions options;
-        options.PinnedUser = AuthenticatedUser;
+        options.User = AuthenticatedUser;
         InputClient = GetRemoteConnection()->CreateNativeClient(options);
     }
 

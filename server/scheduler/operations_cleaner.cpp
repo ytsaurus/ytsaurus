@@ -8,12 +8,9 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/operation_archive_schema.h>
-
-#include <yt/client/security_client/public.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -27,8 +24,6 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/utilex/random.h>
-
-#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -70,7 +65,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
-    const auto& initializationAttributes = attributes.InitializeAttributes;
+    const auto& initializationAttributes = attributes.InitializationAttributes;
     if (initializationAttributes) {
         UnrecognizedSpec = initializationAttributes->UnrecognizedSpec;
         FullSpec = initializationAttributes->FullSpec;
@@ -179,30 +174,6 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     return to_lower(result);
 }
 
-TYsonString GetPools(const TYsonString& runtimeParameters)
-{
-    if (!runtimeParameters) {
-        return {};
-    }
-
-    auto schedulingOptionsNode = ConvertToNode(runtimeParameters)->AsMap()->FindChild("scheduling_options_per_pool_tree");
-    if (!schedulingOptionsNode) {
-        return {};
-    }
-
-    return BuildYsonStringFluently()
-        .DoListFor(schedulingOptionsNode->AsMap()->GetChildren(),
-            [] (TFluentList fluent, const std::pair<TString, INodePtr>& entry) {
-                fluent.Item().Value(entry.second->AsMap()->GetChild("pool")->AsString());
-            });
-}
-
-bool HasFailedJobs(const TYsonString& briefProgress)
-{
-    auto jobsNode = ConvertToNode(briefProgress)->AsMap()->FindChild("jobs");
-    return jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
-}
-
 TUnversionedRow BuildOrderedByIdTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
@@ -267,7 +238,6 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
     auto filterFactors = GetFilterFactors(request);
-    auto pools = GetPools(request.RuntimeParameters);
 
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
@@ -277,15 +247,6 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     builder.AddValue(MakeUnversionedStringValue(state, index.State));
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
     builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
-
-    if (version >= 24) {
-        if (pools) {
-            builder.AddValue(MakeUnversionedAnyValue(pools.GetData(), index.Pools));
-        }
-        if (request.BriefProgress) {
-            builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
-        }
-    }
 
     return rowBuffer->Capture(builder.GetRow());
 }
@@ -307,8 +268,6 @@ public:
         , Host_(host)
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
-        , Client_(Bootstrap_->GetMasterClient()->GetNativeConnection()
-            ->CreateNativeClient(TClientOptions(NSecurityClient::OperationsCleanerUserName)))
     { }
 
     void Start()
@@ -441,8 +400,6 @@ private:
     TNonblockingBatch<TOperationId> RemoveBatcher_;
     TNonblockingBatch<TOperationId> ArchiveBatcher_;
 
-    NNative::IClientPtr Client_;
-
     TProfiler Profiler = {"/operations_cleaner"};
 
     TSimpleGauge RemovePendingCounter_ {"/remove_pending"};
@@ -574,7 +531,7 @@ private:
         THashMap<TString, int> operationCountPerUser;
 
         auto canArchive = [&] (const auto& request) {
-            if (retainedCount >= Config_->HardRetainedOperationCount) {
+            if (retainedCount > Config_->HardRetainedOperationCount) {
                 return true;
             }
 
@@ -588,12 +545,12 @@ private:
                 return true;
             }
 
-            if (operationCountPerUser[request.AuthenticatedUser] >= Config_->MaxOperationCountPerUser) {
+            if (operationCountPerUser[request.AuthenticatedUser] > Config_->MaxOperationCountPerUser) {
                 return true;
             }
 
             // TODO(asaitgalin): Consider only operations without stderrs?
-            if (retainedCount >= Config_->SoftRetainedOperationCount &&
+            if (retainedCount > Config_->SoftRetainedOperationCount &&
                 request.State != EOperationState::Failed)
             {
                 return true;
@@ -665,7 +622,7 @@ private:
             THROW_ERROR_EXCEPTION("Unknown operations archive version");
         }
 
-        auto asyncTransaction = Client_->StartTransaction(
+        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
             ETransactionType::Tablet, TTransactionStartOptions{});
         auto transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
@@ -796,7 +753,7 @@ private:
             std::vector<TOperationId> operationIdsToRemove;
 
             {
-                auto channel = Client_->GetMasterChannelOrThrow(
+                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
                     EMasterChannelKind::Follower,
                     PrimaryMasterCellTag);
 
@@ -853,7 +810,7 @@ private:
             }
 
             if (!operationIdsToRemove.empty()) {
-                auto channel = Client_->GetMasterChannelOrThrow(
+                auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
                     EMasterChannelKind::Leader,
                     PrimaryMasterCellTag);
 
@@ -961,7 +918,7 @@ private:
             DoFetchFinishedOperations();
         } catch (const std::exception& ex) {
             // NOTE(asaitgalin): Maybe disconnect? What can we do here?
-            LOG_WARNING(ex, "Failed to fetch finished operations from Cypress");
+            LOG_WARNING(ex, "Failed to fetch finished operation from Cypress");
         }
     }
 
@@ -970,7 +927,7 @@ private:
         LOG_INFO("Fetching all finished operations from Cypress");
 
         auto createBatchRequest = BIND([this] {
-            auto channel = Client_->GetMasterChannelOrThrow(
+            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
                 EMasterChannelKind::Follower, PrimaryMasterCellTag);
 
             TObjectServiceProxy proxy(channel);

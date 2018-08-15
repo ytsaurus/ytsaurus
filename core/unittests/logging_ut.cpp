@@ -55,7 +55,7 @@ protected:
 
     void WritePlainTextEvent(ILogWriter* writer) {
         TLogEvent event;
-        event.MessageFormat = ELogMessageFormat::PlainText;
+        event.Format = ELogEventFormat::PlainText;
         event.Category = &Category;
         event.Level = ELogLevel::Debug;
         event.Message = "message";
@@ -160,10 +160,10 @@ TEST_F(TLoggingTest, Rule)
 
     EXPECT_TRUE(rule->IsApplicable("some_service"));
     EXPECT_FALSE(rule->IsApplicable("bus"));
-    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogMessageFormat::PlainText));
-    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogMessageFormat::PlainText));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogMessageFormat::PlainText));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogMessageFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogEventFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogEventFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogEventFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogEventFormat::PlainText));
 }
 
 TEST_F(TLoggingTest, LogManager)
@@ -221,7 +221,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     NFs::Remove("test.log");
 
     TLogEvent event;
-    event.MessageFormat = ELogMessageFormat::Structured;
+    event.Format = ELogEventFormat::Json;
     event.Category = &Category;
     event.Level = ELogLevel::Debug;
     event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()

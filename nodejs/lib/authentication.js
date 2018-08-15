@@ -99,9 +99,9 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
     function(result) {
         if (result.isAuthenticated) {
             return void epilogue(result.login, result.realm, result.blackbox_userid);
-        } else if (result.csrf_token_is_expired || !result.csrf_token_is_valid) {
+        } else if (result.csrf_token_is_expired) {
             rsp.statusCode = 401;
-            utils.dispatchJson(rsp, {code: 110, message: "Invalid CSRF token", attributes: {}, inner_errors: []});
+            utils.dispatchJson(rsp, {code: 110, message: "CSRF token expired", attributes: {}, inner_errors: []});
             if (typeof(prev) === "function") { prev(); }
             return void 0;
         } else {

@@ -65,7 +65,7 @@ def expect_to_find_in_stderr_table(stderr_table_path, content):
     assert get("{0}/@sorted".format(stderr_table_path))
     assert get("{0}/@sorted_by".format(stderr_table_path)) == ["job_id", "part_index"]
     table_row_list = list(read_table(stderr_table_path))
-    assert sorted(remove_asan_warning(row["data"]) for row in table_row_list) == sorted(content)
+    assert sorted(row["data"] for row in table_row_list) == sorted(content)
     job_id_list = [row["job_id"] for row in table_row_list]
     assert sorted(job_id_list) == job_id_list
 

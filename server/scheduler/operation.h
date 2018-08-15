@@ -4,8 +4,6 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
-
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
@@ -45,14 +43,14 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 
 struct TControllerAttributes
 {
-    TNullable<NControllerAgent::TOperationControllerInitializeAttributes> InitializeAttributes;
+    TNullable<NControllerAgent::TOperationControllerInitializationAttributes> InitializationAttributes;
     NYson::TYsonString PrepareAttributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: Keep sync with NControllerAgent::TControllerTransactionIds.
-struct TOperationTransactions
+//! Per-operation data retrieved from Cypress on handshake.
+struct TOperationRevivalDescriptor
 {
     NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr InputTransaction;
@@ -60,22 +58,6 @@ struct TOperationTransactions
     NApi::ITransactionPtr DebugTransaction;
     NApi::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
-};
-
-void ToProto(
-    NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
-    const TOperationTransactions& transactions);
-
-void FromProto(
-    TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    const NApi::NNative::IClientPtr& masterClient);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Per-operation data retrieved from Cypress on handshake.
-struct TOperationRevivalDescriptor
-{
     bool UserTransactionAborted = false;
     bool OperationAborting = false;
     bool OperationCommitted = false;
@@ -224,9 +206,6 @@ public:
     //! by Master Connector.
     DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
 
-    //! Structure with operation transactions.
-    DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationTransactions>, Transactions);
-
     //! Scheduling tag filters of operation pool trees.
     DEFINE_BYREF_RW_PROPERTY(TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
 
@@ -287,7 +266,6 @@ public:
     void SetOwners(std::vector<TString> owners);
 
     NYson::TYsonString BuildAlertsString() const;
-    bool HasAlert(EOperationAlertType alertType) const;
     void SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout = Null);
     void ResetAlert(EOperationAlertType alertType);
 

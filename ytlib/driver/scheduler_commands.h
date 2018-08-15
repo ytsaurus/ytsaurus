@@ -2,9 +2,9 @@
 
 #include "command.h"
 
-#include <yt/client/job_tracker_client/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/client/scheduler/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
 #include <yt/core/ytree/fluent.h>
 

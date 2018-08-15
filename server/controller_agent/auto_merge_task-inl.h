@@ -62,25 +62,21 @@ public:
         return CanScheduleJob_;
     }
 
-    virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
     {
-        auto result = TUnderlyingTask::OnJobAborted(joblet, jobSummary);
+        TUnderlyingTask::OnJobAborted(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
-
-        return result;
     }
 
-    virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
     {
-        auto result = TUnderlyingTask::OnJobFailed(joblet, jobSummary);
+        TUnderlyingTask::OnJobFailed(joblet, jobSummary);
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
-
-        return result;
     }
 
-    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+    virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
     {
         auto result = TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 

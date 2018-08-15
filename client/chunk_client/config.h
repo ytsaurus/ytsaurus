@@ -433,25 +433,5 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEncodingWriterOptions
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    NCompression::ECodec CompressionCodec;
-    bool ChunksEden;
-
-    TEncodingWriterOptions()
-    {
-        RegisterParameter("compression_codec", CompressionCodec)
-            .Default(NCompression::ECodec::None);
-        RegisterParameter("chunks_eden", ChunksEden)
-            .Default(false);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NChunkClient
 } // namespace NYT

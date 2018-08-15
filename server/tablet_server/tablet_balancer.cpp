@@ -594,7 +594,6 @@ private:
                 sourceCellTablets.pop_back();
 
                 CreateMoveAction(tablet, targetCell.Cell->GetId());
-                ++actionCount;
 
                 targetCell.AlterTabletCount(1);
                 bundleCells->AlterTabletCount(targetCell.Cell, 1);

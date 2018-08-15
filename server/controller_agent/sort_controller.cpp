@@ -65,9 +65,6 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NScheduler;
 
-using NYT::FromProto;
-using NYT::ToProto;
-
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
 
@@ -490,7 +487,7 @@ protected:
             TTask::OnJobStarted(joblet);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -535,26 +532,22 @@ protected:
             }
         }
 
-        virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
-            auto result = TTask::OnJobFailed(joblet, jobSummary);
+            TTask::OnJobFailed(joblet, jobSummary);
 
             if (DataBalancer_) {
                 DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
             }
-
-            return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            auto result = TTask::OnJobAborted(joblet, jobSummary);
+            TTask::OnJobAborted(joblet, jobSummary);
 
             if (DataBalancer_) {
                 DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
             }
-
-            return result;
         }
 
         virtual void OnTaskCompleted() override
@@ -812,7 +805,7 @@ protected:
             }
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
 
@@ -855,7 +848,7 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
             Controller->SortDataWeightCounter->Failed(joblet->InputStripeList->TotalDataWeight);
 
@@ -865,10 +858,10 @@ protected:
                 Controller->FinalSortJobCounter->Failed(1);
             }
 
-            return TTask::OnJobFailed(joblet, jobSummary);
+            TTask::OnJobFailed(joblet, jobSummary);
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             Controller->SortDataWeightCounter->Aborted(joblet->InputStripeList->TotalDataWeight);
 
@@ -878,7 +871,7 @@ protected:
                 Controller->FinalSortJobCounter->Aborted(1, jobSummary.AbortReason);
             }
 
-            return TTask::OnJobAborted(joblet, jobSummary);
+            TTask::OnJobAborted(joblet, jobSummary);
         }
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
@@ -1266,7 +1259,7 @@ protected:
             YCHECK(ActiveJoblets_.insert(joblet).second);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
@@ -1279,24 +1272,20 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
             Controller->SortedMergeJobCounter->Failed(1);
 
-            auto result = TMergeTask::OnJobFailed(joblet, jobSummary);
+            TMergeTask::OnJobFailed(joblet, jobSummary);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
-
-            return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             Controller->SortedMergeJobCounter->Aborted(1, jobSummary.AbortReason);
 
-            auto result = TMergeTask::OnJobAborted(joblet, jobSummary);
+            TMergeTask::OnJobAborted(joblet, jobSummary);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
-
-            return result;
         }
 
         virtual void OnTaskCompleted() override
@@ -1403,7 +1392,7 @@ protected:
             Controller->UnorderedMergeJobCounter->Start(1);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
@@ -1415,22 +1404,18 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
-            auto result = TMergeTask::OnJobFailed(joblet, jobSummary);
+            TMergeTask::OnJobFailed(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter->Failed(1);
-
-            return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            auto result = TMergeTask::OnJobAborted(joblet, jobSummary);
+            TMergeTask::OnJobAborted(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter->Aborted(1, jobSummary.AbortReason);
-
-            return result;
         }
 
     };

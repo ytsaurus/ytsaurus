@@ -120,6 +120,7 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
         auto apiConnection = CreateConnection(clusterConfig->Connection);
 
         TClientOptions options;
+        options.User = clusterConfig->User;
         options.Token = clusterConfig->OAuthToken;
         auto client = apiConnection->CreateClient(options);
 

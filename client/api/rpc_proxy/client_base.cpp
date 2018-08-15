@@ -534,7 +534,6 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
         result.Rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
-        FromProto(&result.Statistics, rsp->statistics());
         return result;
     }));
 }

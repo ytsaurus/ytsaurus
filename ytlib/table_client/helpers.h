@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/api/native/public.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>

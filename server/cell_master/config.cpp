@@ -47,8 +47,6 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)
         .DefaultNew();
-    RegisterParameter("replicated_table_manager", ReplicatedTableManager)
-        .DefaultNew();
     RegisterParameter("timestamp_manager", TimestampManager)
         .DefaultNew();
     RegisterParameter("timestamp_provider", TimestampProvider);

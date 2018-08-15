@@ -93,9 +93,9 @@ public:
         bool treeIsTentative,
         TScheduleJobResult* scheduleJobResult);
 
-    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
-    virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
-    virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
+    virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
+    virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
+    virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
 
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 

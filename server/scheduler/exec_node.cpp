@@ -42,7 +42,6 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
         Id_,
         GetDefaultAddress(),
         IOWeight_,
-        ResourceUsage_,
         ResourceLimits_,
         GetMaxAvailableDiskSpace(DiskInfo_),
         Tags_
@@ -94,20 +93,19 @@ void TExecNode::SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& va
     DiskInfo_ = value;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
     const TString& address,
     double ioWeight,
-    const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
     i64 maxDiskSpace,
     const THashSet<TString>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
-    , ResourceUsage(resourceUsage)
     , ResourceLimits(resourceLimits)
     , MaxDiskSpace(maxDiskSpace)
     , Tags(tags)
@@ -128,6 +126,8 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, ResourceLimits);
     Persist(context, Tags);
 }
+
+namespace NProto {
 
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
@@ -150,6 +150,8 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
         descriptor->Tags.insert(tag);
     }
 }
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

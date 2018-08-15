@@ -16,15 +16,15 @@ class TWriterConfig
 public:
     EWriterType Type;
     TString FileName;
-    ELogMessageFormat AcceptedMessageFormat;
+    ELogEventFormat LogFormat;
 
     TWriterConfig()
     {
         RegisterParameter("type", Type);
         RegisterParameter("file_name", FileName)
             .Default();
-        RegisterParameter("accepted_message_format", AcceptedMessageFormat)
-            .Default(ELogMessageFormat::PlainText);
+        RegisterParameter("log_format", LogFormat)
+            .Default(ELogEventFormat::PlainText);
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
@@ -50,7 +50,7 @@ public:
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
-    ELogMessageFormat MessageFormat;
+    ELogEventFormat LogEventFormat;
 
     std::vector<TString> Writers;
 
@@ -64,14 +64,14 @@ public:
             .Default(ELogLevel::Minimum);
         RegisterParameter("max_level", MaxLevel)
             .Default(ELogLevel::Maximum);
-        RegisterParameter("message_format", MessageFormat)
-            .Default(ELogMessageFormat::PlainText);
+        RegisterParameter("log_event_format", LogEventFormat)
+            .Default(ELogEventFormat::PlainText);
         RegisterParameter("writers", Writers)
             .NonEmpty();
     }
 
     bool IsApplicable(const TString& category) const;
-    bool IsApplicable(const TString& category, ELogLevel level, ELogMessageFormat format) const;
+    bool IsApplicable(const TString& category, ELogLevel level, ELogEventFormat format) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuleConfig)
@@ -125,14 +125,8 @@ public:
         RegisterPostprocessor([&] () {
             for (const auto& rule : Rules) {
                 for (const TString& writer : rule->Writers) {
-                    auto it = WriterConfigs.find(writer);
-                    if (it == WriterConfigs.end()) {
+                    if (WriterConfigs.find(writer) == WriterConfigs.end()) {
                         THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
-                    }
-                    if (rule->MessageFormat != it->second->AcceptedMessageFormat) {
-                        THROW_ERROR_EXCEPTION("Writer %Qv does not accept message format %Qv",
-                            writer,
-                            rule->MessageFormat);
                     }
                 }
             }

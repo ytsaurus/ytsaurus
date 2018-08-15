@@ -240,7 +240,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
@@ -429,18 +428,6 @@ private:
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
-
-        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, AutoAbort: %v, "
-            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
-            options.Id,
-            options.ParentId,
-            options.Timeout,
-            options.AutoAbort,
-            options.Sticky,
-            options.Ping,
-            options.PingAncestors,
-            options.Atomicity,
-            options.Durability);
 
         CompleteCallWith(
             context,
@@ -1629,8 +1616,8 @@ private:
             client->SelectRows(query, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
+                // TODO(sandello): Statistics?
                 AttachRowset(response, result.Rowset);
-                ToProto(response->mutable_statistics(), result.Statistics);
 
                 context->SetResponseInfo("RowCount: %v",
                     result.Rowset->GetRows().Size());
@@ -1712,119 +1699,67 @@ private:
             });
     }
 
-    void DoModifyRows(const NApi::NRpcProxy::NProto::TReqModifyRows& request,
-        const std::vector<TSharedRef>& attachments,
-        const ITransactionPtr& transaction,
-        const IServiceContextPtr& context)
-     {
-        const auto& path = request.path();
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
+    {
+        const auto& path = request->path();
+
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+        attachOptions.Sticky = true; // XXX(sandello): Fix me!
+
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            request,
+            FromProto<TTransactionId>(request->transaction_id()),
+            attachOptions);
+        if (!transaction) {
+            return;
+        }
 
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-            request.rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(attachments));
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
 
         auto nameTable = TNameTable::FromSchema(rowset->Schema());
 
         const auto& rowsetRows = rowset->GetRows();
         auto rowsetSize = rowset->GetRows().Size();
 
-        if (rowsetSize != request.row_modification_types_size()) {
+        if (rowsetSize != request->row_modification_types_size()) {
             THROW_ERROR_EXCEPTION("Row count mismatch: %v != %v",
                 rowsetSize,
-                request.row_modification_types_size());
+                request->row_modification_types_size());
         }
 
         std::vector<TRowModification> modifications;
         modifications.reserve(rowsetSize);
         for (size_t index = 0; index < rowsetSize; ++index) {
             modifications.push_back({
-                CheckedEnumCast<ERowModificationType>(request.row_modification_types(index)),
+                CheckedEnumCast<ERowModificationType>(request->row_modification_types(index)),
                 rowsetRows[index].ToTypeErasedRow()
             });
         }
 
         TModifyRowsOptions options;
-        if (request.has_require_sync_replica()) {
-            options.RequireSyncReplica = request.require_sync_replica();
+        if (request->has_require_sync_replica()) {
+            options.RequireSyncReplica = request->require_sync_replica();
         }
-        if (request.has_upstream_replica_id()) {
-            FromProto(&options.UpstreamReplicaId, request.upstream_replica_id());
+        if (request->has_upstream_replica_id()) {
+            FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
+
+        context->SetRequestInfo("Path: %v, ModificationCount: %v, RequireSyncReplica: %v, UpstreamReplicaId: %v",
+            path,
+            rowsetSize,
+            options.RequireSyncReplica,
+            options.UpstreamReplicaId);
 
         transaction->ModifyRows(
             path,
             std::move(nameTable),
             MakeSharedRange(std::move(modifications), rowset),
             options);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
-    {
-        TTransactionAttachOptions attachOptions;
-        attachOptions.Ping = false;
-        attachOptions.PingAncestors = false;
-        attachOptions.Sticky = true; // XXX(sandello): Fix me!
-
-        auto transaction = GetTransactionOrAbortContext(
-            context,
-            request,
-            FromProto<TTransactionId>(request->transaction_id()),
-            attachOptions);
-        if (!transaction) {
-            return;
-        }
-
-        DoModifyRows(*request, request->Attachments(), transaction, context);
-
-        context->SetRequestInfo(
-            "Path: %v, ModificationCount: %v",
-            request->path(),
-            request->row_modification_types_size());
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BatchModifyRows)
-    {
-        auto requestCount = request->part_counts_size();
-        if (!requestCount) {
-            context->Reply();
-            return;
-        }
-
-        TTransactionAttachOptions attachOptions;
-        attachOptions.Ping = false;
-        attachOptions.PingAncestors = false;
-        attachOptions.Sticky = true; // XXX(sandello): Fix me!
-
-        auto transaction = GetTransactionOrAbortContext(
-            context,
-            request,
-            FromProto<TTransactionId>(request->transaction_id()),
-            attachOptions);
-        if (!transaction) {
-            return;
-        }
-
-
-        auto blobIndex = 0;
-        const auto attachmentsStart = request->Attachments().begin();
-        for (auto subrequestIndex = 0; subrequestIndex < requestCount; ++subrequestIndex) {
-            NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
-            DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
-            ++blobIndex;
-            std::vector<TSharedRef> attachments(
-                attachmentsStart + blobIndex,
-                attachmentsStart + blobIndex + request->part_counts(subrequestIndex));
-
-            DoModifyRows(subrequest, attachments, transaction, context);
-
-            blobIndex += request->part_counts(subrequestIndex);
-        }
-
-        context->SetRequestInfo("BatchSize: %v, TransactionId: %v",
-            requestCount,
-            transaction->GetId());
 
         context->Reply();
     }
