@@ -2396,7 +2396,7 @@ public:
                 auto error = GetTree(treeName)->CheckOperationUnschedulable(
                     operationId,
                     Config->OperationUnschedulableSafeTimeout,
-                    Config->OperationUnschedulableMinScheduleJobCallAttempts);
+                    Config->OperationUnschedulableMinScheduleJobAttempts);
                 if (error.IsOK()) {
                     hasSchedulableTree = true;
                     break;

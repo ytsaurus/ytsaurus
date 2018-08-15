@@ -149,7 +149,7 @@ public:
     TDuration OperationUnschedulableSafeTimeout;
 
     //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
-    int OperationUnschedulableMinScheduleJobCallAttempts;
+    int OperationUnschedulableMinScheduleJobAttempts;
 
     TFairShareStrategyConfig();
 };

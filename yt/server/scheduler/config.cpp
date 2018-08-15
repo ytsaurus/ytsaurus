@@ -149,7 +149,7 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("operation_unschedulable_safe_timeout", OperationUnschedulableSafeTimeout)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobCallAttempts)
+    RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobAttempts)
         .Default(1000);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
