@@ -4184,7 +4184,7 @@ private:
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
-                "//sys/operations_archive/stderrs",
+                GetOperationsArchiveJobStderrsPath(),
                 tableDescriptor.NameTable,
                 MakeSharedRange(keys, rowBuffer),
                 lookupOptions))
@@ -4262,7 +4262,7 @@ private:
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
-                "//sys/operations_archive/fail_contexts",
+                GetOperationsArchiveJobFailContextsPath(),
                 tableDescriptor.NameTable,
                 MakeSharedRange(keys, rowBuffer),
                 lookupOptions))
