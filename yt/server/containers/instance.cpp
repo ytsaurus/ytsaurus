@@ -347,9 +347,12 @@ public:
         SetProperty("isolate", Isolate_ ? "true" : "false");
         SetProperty("command", command);
 
+        TStringBuilder envBuilder;
         for (auto arg : env) {
-            SetProperty("env", TString(arg) + ";");
+            envBuilder.AppendString(arg);
+            envBuilder.AppendChar(';');
         }
+        SetProperty("env", envBuilder.Flush());
 
         // Wait for all pending actions - do not start real execution if
         // preparation has failed
