@@ -741,7 +741,7 @@ private:
             writer.Finish();
         }
 
-        return PutFileToCache(
+        auto cachePath = PutFileToCache(
             Auth_,
             Options_.FileStorageTransactionId_,
             uniquePath,
@@ -749,6 +749,10 @@ private:
             GetCachePath(),
             TPutFileToCacheOptions(),
             &retryPolicy);
+
+        Remove(Auth_, Options_.FileStorageTransactionId_, uniquePath, TRemoveOptions().Force(true));
+
+        return cachePath;
     }
 
     TString UploadToCache(const IItemToUpload& itemToUpload) const
