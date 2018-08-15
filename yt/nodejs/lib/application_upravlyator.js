@@ -29,8 +29,8 @@ function YtApplicationUpravlyator(logger, driver, authority)
 
 YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
 {
-    return this.driver.executeSimple(
-        "get",
+    return this.driver.executeSimpleWithUser(
+        "get", "robot-yt-idm",
         { path: "//sys/" + type + "/" + utils.escapeYPath(name) + "/@" })
     .catch(function(error) {
         if (error.checkFor(500)) {
@@ -99,7 +99,7 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 {
     var logger = this.logger;
 
-    return this.driver.executeSimple("list", {
+    return this.driver.executeSimpleWithUser("list", "robot-yt-idm", {
         path: "//sys/users",
         max_size: MAX_SIZE_FOR_LIST,
         attributes: [
@@ -140,7 +140,7 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
 {
     var logger = this.logger;
 
-    return this.driver.executeSimple("list", {
+    return this.driver.executeSimpleWithUser("list", "robot-yt-idm", {
         path: "//sys/groups",
         max_size: MAX_SIZE_FOR_LIST,
         attributes: [
@@ -293,8 +293,8 @@ YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
         }
 
         tagged_logger.debug("Adding Upravlyator role");
-        var membership = self.driver.executeSimple(
-            "add_member",
+        var membership = self.driver.executeSimpleWithUser(
+            "add_member", "robot-yt-idm",
             { member: user_name, group: group_name });
         return Q.all([ tagged_logger, membership ]);
     })
@@ -330,8 +330,8 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
         }
 
         tagged_logger.debug("Removing Upravlyator role");
-        var membership = self.driver.executeSimple(
-            "remove_member",
+        var membership = self.driver.executeSimpleWithUser(
+            "remove_member", "robot-yt-idm",
             { member: user_name, group: group_name });
         return Q.all([ tagged_logger, membership ]);
     })
@@ -428,7 +428,7 @@ YtApplicationUpravlyator.prototype._dispatchGroupHints = function(req, rsp)
         var path = body.path;
         var perm = body.permissions.split(",").sort();
 
-        var acls = self.driver.executeSimple("get", {
+        var acls = self.driver.executeSimpleWithUser("get", "robot-yt-idm", {
             path: path + "/@effective_acl"
         });
 
@@ -470,11 +470,11 @@ YtApplicationUpravlyator.prototype._dispatchGetResponsibles = function(req, rsp)
     return Q.cast(req.body).then(function(body) {
         var path = body.path;
 
-        return self.driver.executeSimple("get", {
+        return self.driver.executeSimpleWithUser("get", "robot-yt-idm", {
             path: path + "/@account"
         });
     }).then(function(account) {
-        return self.driver.executeSimple("get", {
+        return self.driver.executeSimpleWithUser("get", "robot-yt-idm", {
             path: "//sys/accounts/" + account + "/@responsibles"
         });
     }).then(function(responsibles) {
@@ -491,7 +491,7 @@ YtApplicationUpravlyator.prototype._dispatchCreateGroup = function(req, rsp)
         var responsibles = body.responsibles.split(",");
         var permissions = body.permissions.split(",");
 
-        return Q.all([path, name, permissions, self.driver.executeSimple("create", {
+        return Q.all([path, name, permissions, self.driver.executeSimpleWithUser("create", "robot-yt-idm", {
             type: "group",
             name: name,
             attributes: {
@@ -501,7 +501,7 @@ YtApplicationUpravlyator.prototype._dispatchCreateGroup = function(req, rsp)
             }
         })]);
     }).spread(function(path, name, permissions) {
-        return self.driver.executeSimple("set", {
+        return self.driver.executeSimpleWithUser("set", "robot-yt-idm", {
             path: path + "/@acl/end"
         }, {
             action: "allow",
