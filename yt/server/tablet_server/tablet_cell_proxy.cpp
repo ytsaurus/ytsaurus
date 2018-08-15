@@ -371,7 +371,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Decommissioned: {
-                ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+                ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
                 auto decommissioned = ConvertTo<bool>(value);
 
