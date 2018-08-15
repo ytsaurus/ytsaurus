@@ -1162,6 +1162,7 @@ void BuildUserJobFluently1(
     TFluentMap fluent)
 {
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
+    TMaybe<double> cpuLimit = preparer.GetSpec().CpuLimit_;
 
     auto tmpfsSize = preparer.GetSpec().ExtraTmpfsSize_.GetOrElse(0LL);
     if (preparer.ShouldMountSandbox()) {
@@ -1186,6 +1187,9 @@ void BuildUserJobFluently1(
         })
         .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("memory_limit").Value(*memoryLimit);
+        })
+        .DoIf(cpuLimit.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("cpu_limit").Value(*cpuLimit);
         })
         .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("tmpfs_path").Value(".");

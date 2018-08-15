@@ -264,6 +264,7 @@ struct TUserJobSpec
     // tmpfs_size = size_of_binary + size_of_required_files + ExtraTmpfsSize
     // memory_limit = MemoryLimit + tmpfs_size
     FLUENT_FIELD_OPTION(i64, MemoryLimit);
+    FLUENT_FIELD_OPTION(double, CpuLimit);
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
 
     FLUENT_FIELD_OPTION(TString, JobBinary);
