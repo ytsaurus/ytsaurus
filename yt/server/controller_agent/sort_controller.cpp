@@ -2410,18 +2410,10 @@ private:
         // Create the fake partition.
         InitSimpleSortPool(jobSizeConstraints);
         partition->ChunkPoolOutput = SimpleSortPool.get();
-<<<<<<< HEAD
-=======
-        partition->SortTask->AddInput(stripes);
-        FinishTaskInput(partition->SortTask);
->>>>>>> stable-old/19.3
         partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         ProcessInputs(partition->SortTask, jobSizeConstraints);
 
-<<<<<<< HEAD
         FinishTaskInput(partition->SortTask);
-=======
->>>>>>> stable-old/19.3
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
         SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
