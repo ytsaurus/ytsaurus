@@ -6569,14 +6569,16 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
         CheckJobActivity(
             job->BriefStatistics,
             briefStatistics,
-            options);
+            options,
+            job->JobType);
 
     bool wasSuspicious = job->Suspicious;
     job->Suspicious = (!wasActive && briefStatistics->Timestamp - job->LastActivityTime > options->InactivityTimeout);
     if (!wasSuspicious && job->Suspicious) {
-        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
+        LOG_DEBUG("Found a suspicious job (JobId: %v, JobType: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
             "OldBriefStatistics: %v, NewBriefStatistics: %v)",
             job->JobId,
+            job->JobType,
             job->LastActivityTime,
             options->InactivityTimeout,
             job->BriefStatistics,
