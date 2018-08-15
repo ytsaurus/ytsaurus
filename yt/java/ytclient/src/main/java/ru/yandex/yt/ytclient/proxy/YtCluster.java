@@ -16,6 +16,10 @@ public class YtCluster {
         this.initialProxies = initialProxies;
     }
 
+    public YtCluster(String name, String balancerFqdn, int httpPort) {
+        this(name, balancerFqdn, httpPort, new ArrayList<>());
+    }
+
     public YtCluster(String name) {
         this(name, name + ".yt.yandex.net", 80, new ArrayList<>());
     }
