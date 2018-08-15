@@ -126,6 +126,25 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
 
 namespace NDetail {
 
+TNullable<std::vector<TString>> GetPools(const TYsonString& runtimeParameters)
+{
+    if (!runtimeParameters) {
+        return Null;
+    }
+
+    auto schedulingOptionsNode = ConvertToNode(runtimeParameters)->AsMap()->FindChild("scheduling_options_per_pool_tree");
+    if (!schedulingOptionsNode) {
+        return Null;
+    }
+
+    std::vector<TString> pools;
+    for (const auto& pair : schedulingOptionsNode->AsMap()->GetChildren()) {
+        pools.push_back(pair.second->AsMap()->GetChild("pool")->GetValue<TString>());
+    }
+
+    return pools;
+}
+
 TString GetFilterFactors(const TArchiveOperationRequest& request)
 {
     auto dropYPathAttributes = [] (const TString& path) -> TString {
@@ -175,26 +194,14 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     }
 
+    if (request.RuntimeParameters) {
+        if (auto pools = GetPools(request.RuntimeParameters)) {
+            parts.insert(parts.end(), pools->begin(), pools->end());
+        }
+    }
+
     auto result = JoinToString(parts.begin(), parts.end(), AsStringBuf(" "));
     return to_lower(result);
-}
-
-TYsonString GetPools(const TYsonString& runtimeParameters)
-{
-    if (!runtimeParameters) {
-        return {};
-    }
-
-    auto schedulingOptionsNode = ConvertToNode(runtimeParameters)->AsMap()->FindChild("scheduling_options_per_pool_tree");
-    if (!schedulingOptionsNode) {
-        return {};
-    }
-
-    return BuildYsonStringFluently()
-        .DoListFor(schedulingOptionsNode->AsMap()->GetChildren(),
-            [] (TFluentList fluent, const std::pair<TString, INodePtr>& entry) {
-                fluent.Item().Value(entry.second->AsMap()->GetChild("pool")->AsString());
-            });
 }
 
 bool HasFailedJobs(const TYsonString& briefProgress)
@@ -267,7 +274,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
     auto filterFactors = GetFilterFactors(request);
-    auto pools = GetPools(request.RuntimeParameters);
+    auto pools = ConvertToYsonString(GetPools(request.RuntimeParameters));
 
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
