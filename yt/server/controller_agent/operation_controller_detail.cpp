@@ -2091,7 +2091,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
     }
-    
+
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
             LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
@@ -6190,7 +6190,7 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
 }
-    
+
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
 {
     std::vector<TJobId> jobIds;
