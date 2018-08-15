@@ -9,7 +9,7 @@ import yt_proto.yt.client.api.rpc_proxy.proto.api_service_pb2 as api_service_pb2
 import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, guid_to_parts, parts_to_guid, underscore_case_to_camel_case
+from yt.common import YtError, uuid_to_parts, parts_to_uuid, underscore_case_to_camel_case
 from yt.wire_format import (AttachmentStream, serialize_rows_to_unversioned_wire_format,
                             deserialize_rows_from_unversioned_wire_format, build_columns_from_schema)
 
@@ -23,10 +23,10 @@ from cStringIO import StringIO
 SERIALIZATION_ALIGNMENT = 8
 
 def guid_from_dict(d):
-    return parts_to_guid(d["first"], d["second"])
+    return parts_to_uuid(d["first"], d["second"])
 
 def guid_to_dict(guid):
-    parts = guid_to_parts(guid)
+    parts = uuid_to_parts(guid)
     return {"first": parts[0], "second": parts[1]}
 
 class TestGrpcProxy(YTEnvSetup):
