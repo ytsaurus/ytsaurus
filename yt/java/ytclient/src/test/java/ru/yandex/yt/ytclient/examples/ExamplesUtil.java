@@ -115,10 +115,16 @@ public final class ExamplesUtil {
     }
 
     public static void runExampleWithBalancing(Consumer<YtClient> consumer) {
+        YtClient client = null;
         try (BusConnector connector = createConnector()) {
-            YtClient client = new YtClient(connector, "hahn", getCredentials());
+            client = new YtClient(connector, "hahn", getCredentials());
             client.waitProxies().join();
             consumer.accept(client);
+        } finally {
+            if (client != null) {
+                client.close();
+                System.exit(0);
+            }
         }
     }
 }
