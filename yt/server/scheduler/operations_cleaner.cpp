@@ -126,15 +126,15 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
 
 namespace NDetail {
 
-TNullable<std::vector<TString>> GetPools(const TYsonString& runtimeParameters)
+std::vector<TString> GetPools(const TYsonString& runtimeParameters)
 {
     if (!runtimeParameters) {
-        return Null;
+        return {};
     }
 
     auto schedulingOptionsNode = ConvertToNode(runtimeParameters)->AsMap()->FindChild("scheduling_options_per_pool_tree");
     if (!schedulingOptionsNode) {
-        return Null;
+        return {};
     }
 
     std::vector<TString> pools;
@@ -195,9 +195,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     }
 
     if (request.RuntimeParameters) {
-        if (auto pools = GetPools(request.RuntimeParameters)) {
-            parts.insert(parts.end(), pools->begin(), pools->end());
-        }
+        auto pools = GetPools(request.RuntimeParameters);
+        parts.insert(parts.end(), pools.begin(), pools.end());
     }
 
     auto result = JoinToString(parts.begin(), parts.end(), AsStringBuf(" "));
