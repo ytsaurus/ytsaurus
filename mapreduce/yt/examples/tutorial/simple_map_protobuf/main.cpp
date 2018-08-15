@@ -30,8 +30,6 @@ REGISTER_MAPPER(TComputeEmailsMapper);
 int main(int argc, const char** argv) {
     NYT::Initialize(argc, argv);
 
-    TConfig::Get()->UseClientProtobuf = false; // Говорим библиотеке, что будем использовать «нативный» протобуф.
-
     auto client = CreateClient("freud");
 
     // Выходная табличка у нас будет лежать в tmp и содержать имя текущего пользователя.

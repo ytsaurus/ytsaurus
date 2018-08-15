@@ -53,8 +53,6 @@ REGISTER_REDUCER(TSplitHumanRobotsReduce)
 int main(int argc, const char** argv) {
     NYT::Initialize(argc, argv);
 
-    TConfig::Get()->UseClientProtobuf = false; // Говорим библиотеке, что будем использовать «нативный» протобуф.
-
     auto client = CreateClient("freud");
 
     const TString sortedUserTable = "//tmp/" + GetUsername() + "-tutorial-user-sorted";
