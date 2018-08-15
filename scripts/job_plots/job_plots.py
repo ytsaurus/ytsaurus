@@ -272,14 +272,20 @@ def draw_comparative_hist(jobsets, data_type="length", table_num=0):
     min_val = min(aggregate(jobset, min, data_type, table_num) for jobset in jobsets)
     max_val = max(aggregate(jobset, max, data_type, table_num) for jobset in jobsets)
     bin_count = min(max_val - min_val + 1, 50)
+    bin_size = float(max_val - min_val + 1) / bin_count
     traces = []
     for i, jobset in enumerate(jobsets):
         for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
             values = [get_statistics(job_info, data_type, table_num) for job_info in jobs_info]
             traces.append(go.Histogram(
-                nbinsx=int(bin_count),
                 x=values,
                 name="{} jobs in set{}".format(job_type, i + 1),
+                autobinx=False,
+                xbins=dict(
+                    start = min_val,
+                    end = max_val + bin_size,
+                    size = bin_size,
+                )
             ))
     iplot(dict(
         data = traces,
