@@ -759,7 +759,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "fair_share_update_period": 100
+            "fair_share_update_period": 100,
         }
     }
 
@@ -1004,6 +1004,50 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         wait(lambda: len(op.get_running_jobs()) == 0)
+
+class TestSchedulerUnschedulableOperations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "operation_unschedulable_check_period": 100,
+            "operation_unschedulable_safe_timeout": 5000,
+            "operation_unschedulable_min_schedule_job_attempts": 10,
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
+        config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
+
+    def test_unschedulable_operations(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        ops = []
+        for i in xrange(5):
+            table = "//tmp/t_out" + str(i)
+            create("table", table)
+            op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out=table,
+                     spec={"pool": "fake_pool", "locality_timeout": 0, "mapper": {"cpu_limit": 0.8}})
+            ops.append(op)
+
+        for op in ops:
+            wait(lambda: len(op.get_running_jobs()) == 1)
+
+        table = "//tmp/t_out_other"
+        create("table", table)
+        op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out=table,
+                 spec={"pool": "fake_pool", "locality_timeout": 0, "mapper": {"cpu_limit": 1.5}})
+
+        wait(lambda: op.get_state() == "failed")
+
+        assert "unschedulable" in str(get(get_operation_cypress_path(op.id) + "/@result"))
+
 
 ##################################################################
 
