@@ -463,6 +463,191 @@ describe("YtCommand - command descriptors", function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
+=======
+describe("YtCommand - v2 command parameters", function() {
+    var V = "/v2";
+
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
+    });
+
+    afterEach(function() {
+        this.stub.restore();
+    });
+
+    it("should set meaningful defaults", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/get",
+        {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql({
+                input_format: "yson",
+                output_format: "json"
+            });
+        }, done).end();
+    });
+
+    it("should take query string parameters", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "path": "/",
+            "foo": "bar"
+        };
+        ask("GET", V + "/get?" + qs.encode(params),
+        {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql(params);
+        }, done).end();
+    });
+
+    it("should take header parameters", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "path": "/",
+            "foo": "bar"
+        };
+        ask("GET", V + "/get",
+        { "X-YT-Parameters": JSON.stringify(params) },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql(params);
+        }, done).end();
+    });
+
+    it("should take header base64-encoded parameters", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "path": "/",
+            "foo": "bar"
+        };
+        var headers = {};
+        putStrippedHeader(headers, "X-YT-Parameters", JSON.stringify(params));
+        ask("GET", V + "/get", headers,
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql(params);
+        }, done).end();
+    });
+
+    it("should not take invalid header parameters", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/get",
+        { "X-YT-Parameters": '"hi"' },
+        function(rsp) {
+            rsp.should.be.http4xx;
+        }, done).end();
+    });
+
+    it("should take header parameters in YSON", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "foo": "bar"
+        };
+        ask("GET", V + "/get",
+        { "X-YT-Header-Format": "yson", "X-YT-Parameters": "{who=me;foo=bar}" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql(params);
+        }, done).end();
+    });
+
+    it("should take body parameters for POST methods", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "path": "/",
+            "foo": "bar"
+        };
+        ask("POST", V + "/map",
+        { "Content-Type": "application/json" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql(params);
+        }, done).end(JSON.stringify(params));
+    });
+
+    it("should set proper precedence", function(done) {
+        //  URL: a1 a2 a3
+        // HEAD:    a2 a3 a4
+        // BODY:       a3 a4 a5
+        var stub = this.stub;
+        var from_url  = qs.encode({ a1: "foo", a2: "bar", a3: "baz" });
+        var from_head = JSON.stringify({ a2: "xyz", a3: "www", a4: "abc" });
+        var from_body = JSON.stringify({ a3: "pooh", a4: "puff", a5: "blah" });
+        ask("POST", V + "/map?" + from_url,
+        { "Content-Type": "application/json", "X-YT-Parameters": from_head },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Get().should.eql({
+                a1: "foo", a2: "xyz", a3: "pooh", a4: "puff", a5: "blah",
+                input_format: "json", output_format: "json"
+            });
+        }, done).end(from_body);
+    });
+
+    it("should properly treat attributes in JSON", function(done) {
+        var stub = this.stub;
+        ask("POST", V + "/map",
+        { "Content-Type": "application/json" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Print()
+                .should.eql('{"input_format"=<"boolean_as_string"=%true;>"json";"output_format"=<"boolean_as_string"=%true;>"json";"path"=<"append"="true";>"//home";}');
+        }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
+    });
+
+    it("should properly treat binary strings in JSON", function(done) {
+        var stub = this.stub;
+        ask("POST", V + "/map",
+        { "Content-Type": "application/json" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[7].Print()
+                .should.eql('{"input_format"=<"boolean_as_string"=%true;>"json";"output_format"=<"boolean_as_string"=%true;>"json";"\\x80"="\\xFF";}');
+
+        }, done).end('{"\\u0080":"\\u00FF"}');
+    });
+});
+
+>>>>>>> stable-old/19.3
 [3, 4].forEach(function (version) {
     describe("YtCommand - v" + version + " command parameters", function() {
         var V = "/v" + version;
