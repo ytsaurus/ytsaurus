@@ -1,0 +1,71 @@
+{
+    "meta": {
+        "name": "yandex-yt-http-proxy",
+        "maintainer": "YT Team <yt@yandex-team.ru>",
+        "description": "YT. This package provides server-side software",
+        "version": "{revision}.{branch}",
+        "pre-depends": [],
+        "depends": ["libc6 (>= 2.15)"],
+        "conflicts": ["yandex-yt"],
+        "homepage": "https://wiki.yandex-team.ru/yt/"
+    },
+    "build": {
+        "targets": [
+            "yt/nodejs/targets/bin",
+            "yt/nodejs/targets/package"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            }
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/nodejs/targets/bin/ytnode"
+            },
+            "destination": {
+                "path": "/node/bin/nodejs"
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/nodejs/targets/package",
+                "files": [
+                    "*"
+                ]
+            },
+            "destination": {
+                "path": "/node_modules/yt/"
+            }
+        },
+        {
+            "source": {
+                "type": "INLINE",
+                "content": "This package is built with ya package.\n"
+            },
+            "destination": {
+                "path": "/node_modules/yt/built_by_ya.txt"
+            }
+        },
+        {
+            "source": {
+                "type": "SANDBOX_RESOURCE",
+                "id": 625566363,
+                "path": "node_modules"
+            },
+            "destination": {
+                "path": "/node_modules/yt/"
+            }
+        }
+    ]
+}
+

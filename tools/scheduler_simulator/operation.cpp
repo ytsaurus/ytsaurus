@@ -9,16 +9,16 @@ namespace NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperation::TOperation(const TOperationDescription& description)
+TOperation::TOperation(
+    const TOperationDescription& description,
+    const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters)
     : Id_(description.Id)
     , Type_(description.Type)
     , Spec_(description.Spec)
     , AuthenticatedUser_(description.AuthenticatedUser)
     , StartTime_(description.StartTime)
-    , RuntimeParams_(New<NScheduler::TOperationRuntimeParameters>())
-{
-    RuntimeParams_->FillFromSpec(NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(Spec_), Null, description.AuthenticatedUser);
-}
+    , RuntimeParams_(runtimeParameters)
+{ }
 
 const NScheduler::TOperationId& TOperation::GetId() const
 {

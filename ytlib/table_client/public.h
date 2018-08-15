@@ -59,8 +59,6 @@ DECLARE_REFCOUNTED_CLASS(TColumnarStatisticsFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderPerformanceCounters)
 
-struct IValueConsumer;
-
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkState)
@@ -83,7 +81,6 @@ class TVersionedRowMerger;
 class TSamplingRowMerger;
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
@@ -91,8 +88,6 @@ DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
-
-DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

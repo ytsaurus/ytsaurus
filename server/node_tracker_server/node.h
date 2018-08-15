@@ -186,7 +186,7 @@ public:
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
-    using TTabletSlotList = SmallVector<TTabletSlot, NTabletClient::TypicalPeerCount>;
+    using TTabletSlotList = SmallVector<TTabletSlot, NTabletClient::TypicalTabletSlotCount>;
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:

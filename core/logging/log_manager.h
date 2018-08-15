@@ -15,7 +15,7 @@ struct TLogWritersCacheKey
 {
     TString Category;
     ELogLevel LogLevel;
-    ELogEventFormat Format;
+    ELogMessageFormat MessageFormat;
 };
 
 bool operator == (const TLogWritersCacheKey& lhs, const TLogWritersCacheKey& rhs);
@@ -78,7 +78,7 @@ struct hash<NYT::NLogging::TLogWritersCacheKey>
         size_t hash = 0;
         NYT::HashCombine(hash, THash<TString>()(obj.Category));
         NYT::HashCombine(hash, static_cast<size_t>(obj.LogLevel));
-        NYT::HashCombine(hash, static_cast<size_t>(obj.Format));
+        NYT::HashCombine(hash, static_cast<size_t>(obj.MessageFormat));
         return hash;
     }
 };

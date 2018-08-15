@@ -8,6 +8,10 @@
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/config.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/api/transaction.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
@@ -19,6 +23,9 @@ using namespace NJobTrackerClient;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +43,55 @@ void Deserialize(TOperationEvent& event, INodePtr node)
     auto mapNode = node->AsMap();
     event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
     event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
+    const TOperationTransactions& transactions)
+{
+    auto getId = [] (const NApi::ITransactionPtr& transaction) {
+        return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
+    };
+
+    NControllerAgent::TControllerTransactionIds transactionIds;
+    transactionIds.AsyncId = getId(transactions.AsyncTransaction);
+    transactionIds.InputId = getId(transactions.InputTransaction);
+    transactionIds.OutputId = getId(transactions.OutputTransaction);
+    transactionIds.DebugId = getId(transactions.DebugTransaction);
+    transactionIds.OutputCompletionId = getId(transactions.OutputCompletionTransaction);
+    transactionIds.DebugCompletionId = getId(transactions.DebugCompletionTransaction);
+
+    ToProto(transactionIdsProto, transactionIds);
+}
+
+void FromProto(
+    TOperationTransactions* transactions,
+    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
+    const NNative::IClientPtr& masterClient)
+{
+    auto attachTransaction = [&] (const TTransactionId& transactionId) -> ITransactionPtr {
+        if (!transactionId) {
+            return nullptr;
+        }
+
+        auto client = CreateClientForTransaction(masterClient, transactionId);
+
+        TTransactionAttachOptions options;
+        options.Ping = true;
+        options.PingAncestors = false;
+        return client->AttachTransaction(transactionId, options);
+    };
+
+    auto transactionIds = FromProto<NControllerAgent::TControllerTransactionIds>(transactionIdsProto);
+
+    transactions->AsyncTransaction = attachTransaction(transactionIds.AsyncId);
+    transactions->InputTransaction = attachTransaction(transactionIds.InputId);
+    transactions->OutputTransaction = attachTransaction(transactionIds.OutputId);
+    transactions->DebugTransaction = attachTransaction(transactionIds.DebugId);
+    transactions->OutputCompletionTransaction = attachTransaction(transactionIds.OutputCompletionId);
+    transactions->DebugCompletionTransaction = attachTransaction(transactionIds.DebugCompletionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +266,11 @@ TYsonString TOperation::BuildAlertsString() const
         });
 
     return result;
+}
+
+bool TOperation::HasAlert(EOperationAlertType alertType) const
+{
+    return Alerts_.find(alertType) != Alerts_.end();
 }
 
 void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout)

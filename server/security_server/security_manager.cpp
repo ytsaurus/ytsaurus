@@ -306,6 +306,7 @@ public:
         ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
         OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
         FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
+        OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1123,6 +1124,7 @@ public:
                 permission,
                 user->GetName());
             result.Action = ESecurityAction::Deny;
+            result.Subject = user;
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
@@ -1418,6 +1420,9 @@ private:
     TUserId FileCacheUserId_;
     TUser* FileCacheUser_ = nullptr;
 
+    TUserId OperationsCleanerUserId_;
+    TUser* OperationsCleanerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1548,7 +1553,8 @@ private:
             id == JobUserId_ ||
             id == SchedulerUserId_ ||
             id == ReplicatorUserId_ ||
-            id == FileCacheUserId_)
+            id == FileCacheUserId_ ||
+            id == OperationsCleanerUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1980,6 +1986,7 @@ private:
         GuestUser_ = nullptr;
         JobUser_ = nullptr;
         SchedulerUser_ = nullptr;
+        OperationsCleanerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -2097,6 +2104,12 @@ private:
         if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
             FileCacheUser_->SetRequestRateLimit(1000000);
             FileCacheUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // operations cleaner
+        if (EnsureBuiltinUserInitialized(OperationsCleanerUser_, OperationsCleanerUserId_, OperationsCleanerUserName)) {
+            OperationsCleanerUser_->SetRequestRateLimit(1000000);
+            OperationsCleanerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts

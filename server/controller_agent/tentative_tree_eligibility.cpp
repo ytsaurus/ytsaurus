@@ -8,7 +8,6 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NJobTrackerClient;
-//using namespace NScheduler;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +46,18 @@ void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
     Persist(context, MinJobDuration_);
 
     Persist(context, StartedJobsPerPoolTree_);
-    Persist(context, FinishedJobsPerPoolTree_);
+
+    if (context.IsLoad() && context.GetVersion() <= 300015) {
+        THashMap<TString, int> completedJobsPerPoolTree;
+        Persist(context, completedJobsPerPoolTree);
+        for (const auto& pair : completedJobsPerPoolTree) {
+            const auto& treeName = pair.first;
+            auto jobCount = pair.second;
+            FinishedJobsPerStatePerPoolTree_[treeName][EJobState::Completed] = jobCount;
+        }
+    } else {
+        Persist(context, FinishedJobsPerStatePerPoolTree_);
+    }
 
     Persist(context, BannedTrees_);
 }
@@ -64,9 +74,18 @@ bool TTentativeTreeEligibility::CanScheduleJob(
         return false;
     }
 
-    auto jobsStarted = StartedJobsPerPoolTree_.Value(treeId, 0);
-    auto jobsFinished = FinishedJobsPerPoolTree_.Value(treeId, 0);
-    if (jobsStarted == SampleJobCount_ && jobsFinished != jobsStarted) {
+    auto startedJobCount = StartedJobsPerPoolTree_.Value(treeId, 0);
+    int finishedJobCount = 0;
+    for (const auto& pair : FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>())) {
+        auto jobCount = pair.second;
+        finishedJobCount += jobCount;
+    }
+    int runningJobCount = startedJobCount - finishedJobCount;
+    int completedJobCount = FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
+    int remainingSampleJobCount = SampleJobCount_ - completedJobCount;
+
+    if (remainingSampleJobCount > 0 && runningJobCount >= remainingSampleJobCount)
+    {
         // Wait for a sample of jobs to finish before allowing the rest of the
         // jobs to start.
         return false;
@@ -82,16 +101,18 @@ void TTentativeTreeEligibility::OnJobStarted(const TString& treeId, bool tentati
     }
 }
 
-TJobCompletedResult TTentativeTreeEligibility::OnJobFinished(const TJobSummary& jobSummary, const TString& treeId, bool tentative)
+TJobFinishedResult TTentativeTreeEligibility::OnJobFinished(const TJobSummary& jobSummary, const TString& treeId, bool tentative)
 {
     if (tentative) {
-        ++FinishedJobsPerPoolTree_[treeId];
+        ++FinishedJobsPerStatePerPoolTree_[treeId][jobSummary.State];
     }
 
-    UpdateDurations(jobSummary, treeId, tentative);
-    CheckDurations(treeId, tentative);
+    if (jobSummary.State == EJobState::Completed) {
+        UpdateDurations(jobSummary, treeId, tentative);
+        CheckDurations(treeId, tentative);
+    }
 
-    TJobCompletedResult result;
+    TJobFinishedResult result;
     result.BanTree = IsTreeBanned(treeId);
 
     return result;

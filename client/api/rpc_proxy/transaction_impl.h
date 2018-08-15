@@ -196,11 +196,15 @@ private:
     const TNullable<TDuration> PingPeriod_;
     const bool Sticky_;
 
+    static const size_t MaxBatchModifyRowsSize_ = 100;
+
     TSpinLock SpinLock_;
+    TSpinLock BatchModifyRowsRequestLock_;
+    TSpinLock BatchModifyRowsInvokeLock_;
     TError Error_;
     ETransactionState State_ = ETransactionState::Active;
 
-    std::vector<TFuture<void>> AsyncResults_;
+    NRpcProxy::TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
 
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
@@ -222,6 +226,12 @@ private:
 
     void ValidateActive();
     void ValidateActive(TGuard<TSpinLock>&);
+
+    //! Returns a fresh batch modify rows request.
+    NRpcProxy::TApiServiceProxy::TReqBatchModifyRowsPtr CreateBatchModifyRowsRequest();
+    //! Invokes the stored batch modify rows request and replaces it with an empty
+    //! one. Guarantees sequential order between invocations.
+    TFuture<void> InvokeBatchModifyRowsRequest();
 
     template <class T>
     T PatchTransactionId(const T& options);

@@ -131,6 +131,7 @@ private:
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
+    NTabletServer::TReplicatedTableManagerPtr ReplicatedTableManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::TCellDirectoryPtr CellDirectory_;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;

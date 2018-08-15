@@ -2,9 +2,9 @@
 
 #include "command.h"
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/client/table_client/config.h>
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/client/ypath/rich.h>
@@ -247,6 +247,7 @@ private:
     NYPath::TRichYPath Path;
     TNullable<std::vector<TString>> ColumnNames;
     bool Versioned;
+    NTableClient::TRetentionConfigPtr RetentionConfig;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

@@ -19,12 +19,12 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/ytlib/formats/config.h>
-#include <yt/ytlib/formats/parser.h>
+#include <yt/client/formats/config.h>
+#include <yt/client/formats/parser.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -107,7 +107,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 
     auto finally = Finally([&] () {
         auto dataStatistics = reader->GetDataStatistics();
-        LOG_DEBUG("Command \"read_table\" statistics (RowCount: %v, WrittenSize: %v, "
+        LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
             "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
             dataStatistics.row_count(),
             writer->GetWrittenSize(),
@@ -638,6 +638,8 @@ TLookupRowsCommand::TLookupRowsCommand()
         .Default();
     RegisterParameter("versioned", Versioned)
         .Default(false);
+    RegisterParameter("retention_config", RetentionConfig)
+        .Optional();
     RegisterParameter("timestamp", Options.Timestamp)
         .Optional();
     RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
@@ -700,6 +702,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         versionedOptions.ColumnFilter = Options.ColumnFilter;
         versionedOptions.KeepMissingRows = Options.KeepMissingRows;
         versionedOptions.Timestamp = Options.Timestamp;
+        versionedOptions.RetentionConfig = RetentionConfig;
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();

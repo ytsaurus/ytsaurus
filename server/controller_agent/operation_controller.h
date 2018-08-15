@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/event_log/public.h>
 
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+
 #include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -30,7 +32,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TControllerTransactions
+struct TControllerTransactionIds
 {
     NTransactionClient::TTransactionId AsyncId;
     NTransactionClient::TTransactionId InputId;
@@ -40,13 +42,16 @@ struct TControllerTransactions
     NTransactionClient::TTransactionId DebugCompletionId;
 };
 
+void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds);
+void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TOperationAlertMap = THashMap<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationControllerInitializationAttributes
+struct TOperationControllerInitializeAttributes
 {
     NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
@@ -54,10 +59,10 @@ struct TOperationControllerInitializationAttributes
     NYson::TYsonString UnrecognizedSpec;
 };
 
-struct TOperationControllerInitializationResult
+struct TOperationControllerInitializeResult
 {
-    std::vector<NApi::ITransactionPtr> Transactions;
-    TOperationControllerInitializationAttributes Attributes;
+    TControllerTransactionIds TransactionIds;
+    TOperationControllerInitializeAttributes Attributes;
 };
 
 struct TOperationControllerPrepareResult
@@ -237,7 +242,7 @@ struct IOperationControllerHost
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
-    virtual void OnOperationBannedInTentativeTree(const TString& treeId) = 0;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) = 0;
 
     virtual void ValidateOperationPermission(
         const TString& user,
@@ -292,7 +297,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeClean() = 0;
+    virtual TOperationControllerInitializeResult InitializeClean() = 0;
 
     //! Performs controller inner state initialization for reviving operation.
     /*
@@ -300,7 +305,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) = 0;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!

@@ -30,6 +30,8 @@ public:
 
     void UpdateConfig(TControllerAgentConfigPtr config);
 
+    i64 GetTotalUsage();
+
 private:
     TControllerAgentConfigPtr Config_;
     int AllocatedTagCount_ = DefaultMemoryTagCount;
@@ -49,9 +51,13 @@ private:
     NYson::TYsonString CachedTaggedMemoryStatistics_ = NYson::TYsonString("", NYson::EYsonType::ListFragment);
     TInstant CachedTaggedMemoryStatisticsLastUpdateTime_;
 
+    //! Cached total memory usage.
+    i64 CachedTotalUsage_;
+
     void AllocateNewTags();
 
     void UpdateStatistics();
+    void UpdateStatisticsIfNeeded();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

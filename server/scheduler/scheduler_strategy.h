@@ -24,7 +24,6 @@ struct ISchedulerStrategyHost
 {
     virtual ~ISchedulerStrategyHost() = default;
 
-    virtual TJobResources GetTotalResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
@@ -193,6 +192,8 @@ struct ISchedulerStrategy
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
     virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) = 0;
+
+    virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

@@ -10,8 +10,6 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-#include <yt/ytlib/api/connection.h>
-
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/connection.h>
 
@@ -290,7 +288,7 @@ public:
         auto cachedClient = Find(user);
         if (!cachedClient) {
             TClientOptions options;
-            options.User = user;
+            options.PinnedUser = user;
             if (request.UserToken) {
                 options.Token = request.UserToken;
             }
@@ -520,10 +518,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(INodePtr configNode)
+IDriverPtr CreateDriver(
+    NApi::IConnectionPtr connection,
+    TDriverConfigPtr config)
 {
-    auto config = ConvertTo<TDriverConfigPtr>(configNode);
-    auto connection = CreateConnection(configNode);
     return New<TDriver>(std::move(config), std::move(connection));
 }
 
