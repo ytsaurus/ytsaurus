@@ -165,7 +165,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     private void updateProxiesFromHttp() {
         ListenableFuture<Response> responseFuture = httpClient.executeRequest(
                 new RequestBuilder()
-                    .setUrl(clusterUrl.get() + "/api/v4/discover_proxies?type=rpc")
+                    .setUrl(String.format("http://%s/api/v4/discover_proxies?type=rpc", clusterUrl.get()))
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("Authorization", String.format("OAuth %s", credentials.getToken()))

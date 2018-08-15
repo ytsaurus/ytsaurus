@@ -151,7 +151,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                     new PeriodicDiscovery(
                             dataCenterName,
                             entry.initialProxies,
-                            entry.clusterUrl,
+                            String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
                             connector,
                             options,
                             credentials,
