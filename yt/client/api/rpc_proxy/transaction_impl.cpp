@@ -346,9 +346,12 @@ void TTransaction::ModifyRows(
         BatchModifyRowsRequest_->Attachments().insert(
             BatchModifyRowsRequest_->Attachments().end(),
             attachments.begin(), attachments.end());
-        LOG_DEBUG("Pushing a subrequest into a BatchMofifyRows rows request (SubrequestSize: %v)",
-            attachments.size());
         BatchModifyRowsRequest_->add_part_counts(attachments.size());
+
+        LOG_DEBUG("Added subrequest into a BatchMofifyRows rows request (TransactionId: %v,  SubrequestSize: %v, TotalSubrequestCount: %v)",
+            Id_,
+            attachments.size(),
+            BatchModifyRowsRequest_->part_counts_size());
 
         if (BatchModifyRowsRequest_->part_counts_size() == MaxBatchModifyRowsSize_) {
             asyncResult = InvokeBatchModifyRowsRequest();
