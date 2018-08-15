@@ -385,7 +385,7 @@ private:
             return;
         } else {
             if (rsp.Error) {
-                LOG_ERROR("Container finished with porto api error "
+                LOG_ERROR("Container finished with porto API error "
                     "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                     name,
                     rsp.Error,

@@ -118,6 +118,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
 
 struct TCodecDuration;
 class TCodecStatistics;

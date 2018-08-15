@@ -1,7 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/formats/dsv_parser.h>
-#include <yt/ytlib/formats/dsv_writer.h>
+#include <yt/client/formats/dsv_parser.h>
+#include <yt/client/formats/dsv_writer.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/unversioned_row.h>

@@ -101,10 +101,10 @@ void ToProto(
 }
 
 void ToProto(
-    NProto::TTabletReadOptions* proto,
+    NProto::TTabletReadOptions* protoOptions,
     const NApi::TTabletReadOptions& options)
 {
-    proto->set_read_from(static_cast<NProto::ETabletReadKind>(options.ReadFrom));
+    protoOptions->set_read_from(static_cast<NProto::ETabletReadKind>(options.ReadFrom));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,6 +223,51 @@ void FromProto(NTabletClient::TTabletInfo* tabletInfo, const NProto::TTabletInfo
     tabletInfo->PivotKey = FromProto<NTableClient::TOwningKey>(protoTabletInfo.pivot_key());
     if (protoTabletInfo.has_cell_id()) {
         tabletInfo->CellId = FromProto<TTabletCellId>(protoTabletInfo.cell_id());
+    }
+}
+
+void ToProto(
+    NProto::TQueryStatistics* protoStatistics,
+    const NQueryClient::TQueryStatistics& statistics)
+{
+    protoStatistics->set_rows_read(statistics.RowsRead);
+    protoStatistics->set_bytes_read(statistics.BytesRead);
+    protoStatistics->set_rows_written(statistics.RowsWritten);
+    protoStatistics->set_sync_time(statistics.SyncTime.GetValue());
+    protoStatistics->set_async_time(statistics.AsyncTime.GetValue());
+    protoStatistics->set_execute_time(statistics.ExecuteTime.GetValue());
+    protoStatistics->set_read_time(statistics.ReadTime.GetValue());
+    protoStatistics->set_write_time(statistics.WriteTime.GetValue());
+    protoStatistics->set_codegen_time(statistics.CodegenTime.GetValue());
+    protoStatistics->set_wait_on_ready_event_time(statistics.WaitOnReadyEventTime.GetValue());
+    protoStatistics->set_incomplete_input(statistics.IncompleteInput);
+    protoStatistics->set_incomplete_output(statistics.IncompleteOutput);
+
+    for (const auto& innerStatistics : statistics.InnerStatistics) {
+        ToProto(protoStatistics->add_inner_statistics(), innerStatistics);
+    }
+}
+
+void FromProto(
+    NQueryClient::TQueryStatistics* statistics,
+    const NProto::TQueryStatistics& protoStatistics)
+{
+    statistics->RowsRead = protoStatistics.rows_read();
+    statistics->BytesRead = protoStatistics.bytes_read();
+    statistics->RowsWritten = protoStatistics.rows_written();
+    statistics->SyncTime = TDuration::FromValue(protoStatistics.sync_time());
+    statistics->AsyncTime = TDuration::FromValue(protoStatistics.async_time());
+    statistics->ExecuteTime = TDuration::FromValue(protoStatistics.execute_time());
+    statistics->ReadTime = TDuration::FromValue(protoStatistics.read_time());
+    statistics->WriteTime = TDuration::FromValue(protoStatistics.write_time());
+    statistics->CodegenTime = TDuration::FromValue(protoStatistics.codegen_time());
+    statistics->WaitOnReadyEventTime = TDuration::FromValue(protoStatistics.wait_on_ready_event_time());
+    statistics->IncompleteInput = protoStatistics.incomplete_input();
+    statistics->IncompleteOutput = protoStatistics.incomplete_output();
+
+    statistics->InnerStatistics.resize(protoStatistics.inner_statistics_size());
+    for (auto i = 0; i < protoStatistics.inner_statistics_size(); ++i) {
+        FromProto(&statistics->InnerStatistics[i], protoStatistics.inner_statistics(i));
     }
 }
 

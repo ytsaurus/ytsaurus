@@ -77,9 +77,9 @@ std::vector<TString> GetRpcProxiesFromHttp(
     headers->Add(
         "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
             .BeginMap()
-            .Item("output_format")
+                .Item("output_format")
             .BeginAttributes()
-            .Item("format").Value("text")
+                .Item("format").Value("text")
             .EndAttributes()
             .Value("yson")
             .DoIf(
@@ -108,16 +108,16 @@ IChannelPtr CreateCredentialsInjectingChannel(
     if (options.Token) {
         return CreateTokenInjectingChannel(
             underlying,
-            options.User,
+            options.PinnedUser,
             *options.Token);
     } else if (options.SessionId || options.SslSessionId) {
         return CreateCookieInjectingChannel(
             underlying,
-            options.User,
+            options.PinnedUser,
             options.SessionId.Get(TString()),
             options.SslSessionId.Get(TString()));
     } else {
-        return CreateUserInjectingChannel(underlying, options.User);
+        return CreateUserInjectingChannel(underlying, options.PinnedUser);
     }
 }
 
@@ -193,6 +193,7 @@ void TConnection::ClearMetadataCaches()
 
 void TConnection::Terminate()
 {
+    LOG_DEBUG("Terminating connection");
     ChannelPool_->Terminate();
     UpdateProxyListExecutor_->Stop();
 }

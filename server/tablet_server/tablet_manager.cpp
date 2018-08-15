@@ -2971,7 +2971,7 @@ private:
         }
 
         // Figure out and analyze the reality.
-        THashSet<TTabletCell*> actualCells;
+        THashSet<const TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = node->TabletSlots()[slotIndex];
@@ -4388,9 +4388,10 @@ private:
     {
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : TabletCellMap_) {
-                const auto& cellId = pair.first;
-                auto* cell = pair.second;
+            auto cellIds = GetKeys(TabletCellMap_);
+
+            for (const auto cellId : cellIds) {
+                auto* cell = FindTabletCell(cellId);
                 if (!IsObjectAlive(cell)) {
                     continue;
                 }

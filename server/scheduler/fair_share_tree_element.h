@@ -570,11 +570,16 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
+    int GetScheduledJobCount() const;
+
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
+
+    void OnOperationDeactivated(EDeactivationReason reason);
+    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
 
     TJobResources Disable();
     void Enable();
@@ -702,6 +707,9 @@ private:
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
+    std::atomic<int> ScheduledJobCount_ = {0};
+    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
+
     bool Enabled_ = false;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
@@ -782,6 +790,8 @@ public:
     int GetAggressivelyPreemptableJobCount() const;
 
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
+   
+    int GetScheduledJobCount() const;
 
     int GetSlotIndex() const;
 
@@ -791,6 +801,9 @@ public:
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+
+    void OnOperationDeactivated(EDeactivationReason reason);
+    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
 
     void Disable();
     void Enable();

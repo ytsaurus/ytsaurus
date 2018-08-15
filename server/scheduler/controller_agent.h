@@ -59,6 +59,14 @@ using TScheduleJobRequestPtr = std::unique_ptr<TScheduleJobRequest>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TControllerAgentMemoryStatistics
+{
+    i64 Limit;
+    i64 Usage;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EControllerAgentState,
     (Registering)
     (Registered)
@@ -118,6 +126,9 @@ public:
     void Cancel();
     const IInvokerPtr& GetCancelableInvoker();
 
+    TNullable<TControllerAgentMemoryStatistics> GetMemoryStatistics();
+    void SetMemoryStatistics(TControllerAgentMemoryStatistics memoryStatistics);
+
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
@@ -135,6 +146,9 @@ private:
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
+
+    TSpinLock MemoryStatisticsLock_;
+    TNullable<TControllerAgentMemoryStatistics> MemoryStatistics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

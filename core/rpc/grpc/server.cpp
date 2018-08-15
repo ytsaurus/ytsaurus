@@ -482,6 +482,12 @@ private:
                 return;
             }
 
+            ParsePeerIdentity(authContext);
+            ParseIssuer(authContext);
+        }
+
+        void ParsePeerIdentity(const TGrpcAuthContextPtr& authContext)
+        {
             const char* peerIdentityPropertyName = grpc_auth_context_peer_identity_property_name(authContext.Unwrap());
             if (!peerIdentityPropertyName) {
                 return;
@@ -493,8 +499,34 @@ private:
                 return;
             }
 
-            SslCredentialsExt_.Emplace();
-            SslCredentialsExt_->set_peer_identity(TString(peerIdentityProperty->value));
+            if (!SslCredentialsExt_) {
+                SslCredentialsExt_.Emplace();
+            }
+            SslCredentialsExt_->set_peer_identity(TString(peerIdentityProperty->value, peerIdentityProperty->value_length));
+        }
+
+        void ParseIssuer(const TGrpcAuthContextPtr& authContext)
+        {
+            const char* peerIdentityPropertyName = grpc_auth_context_peer_identity_property_name(authContext.Unwrap());
+            if (!peerIdentityPropertyName) {
+                return;
+            }
+
+            auto pemCertPropertyIt = grpc_auth_context_find_properties_by_name(authContext.Unwrap(), GRPC_X509_PEM_CERT_PROPERTY_NAME);
+            auto* pemCertProperty = grpc_auth_property_iterator_next(&pemCertPropertyIt);
+            if (!pemCertProperty) {
+                return;
+            }
+
+            auto issuer = ParseIssuerFromX509(TStringBuf(pemCertProperty->value, pemCertProperty->value_length));
+            if (!issuer) {
+                return;
+            }
+
+            if (!SslCredentialsExt_) {
+                SslCredentialsExt_.Emplace();
+            }
+            SslCredentialsExt_->set_issuer(std::move(*issuer));
         }
 
         void ParseTimeout()

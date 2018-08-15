@@ -6,6 +6,8 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
+#include <yt/core/phdr_cache/phdr_cache.h>
+
 namespace NYT {
 
 using namespace NSkynetManager;
@@ -32,6 +34,7 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
 
         if (HandlePdeathsigOptions()) {
             return;

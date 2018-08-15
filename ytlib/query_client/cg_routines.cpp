@@ -1898,6 +1898,53 @@ extern "C" void MakeMap(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TElement, typename TValue>
+bool ListContainsImpl(const NYTree::INodePtr& node, const TValue& value)
+{
+    const auto valueType = NYTree::NDetail::TScalarTypeTraits<TValue>::NodeType;
+    for (const auto& element : node->AsList()->GetChildren()) {
+        if (element->GetType() == valueType && NYTree::ConvertTo<TElement>(element) == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ListContains(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* ysonList,
+    TUnversionedValue* what)
+{
+    const auto node = NYTree::ConvertToNode(NYson::TYsonString(ysonList->Data.String, ysonList->Length));
+
+    bool found;
+    switch (what->Type) {
+        case EValueType::String:
+            found = ListContainsImpl<TString>(node, TString(what->Data.String, what->Length));
+            break;
+        case EValueType::Int64:
+            found = ListContainsImpl<i64>(node, what->Data.Int64);
+            break;
+        case EValueType::Uint64:
+            found = ListContainsImpl<ui64>(node, what->Data.Uint64);
+            break;
+        case EValueType::Boolean:
+            found = ListContainsImpl<bool>(node, what->Data.Boolean);
+            break;
+        case EValueType::Double:
+            found = ListContainsImpl<double>(node, what->Data.Double);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("ListContains() is not implemented for type %v",
+                ToString(what->Type));
+    }
+
+    *result = MakeUnversionedBooleanValue(found);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1958,6 +2005,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_YPATH_GET_ROUTINE(Boolean);
     REGISTER_YPATH_GET_ROUTINE(String);
     REGISTER_YPATH_GET_ROUTINE(Any);
+    REGISTER_ROUTINE(ListContains);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 

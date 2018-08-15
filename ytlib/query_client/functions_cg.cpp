@@ -449,6 +449,14 @@ void LoadLlvmBitcode(
     auto diag = SMDiagnostic();
 
     auto implBuffer = MemoryBufferRef(ToStringRef(implementationFile), StringRef("implementation"));
+
+    // NB(levysotsky): This is workaround for the bug in LLVM function llvm::isBitcode
+    // (buffer overflow on short (< 4 bytes) inputs).
+    constexpr size_t minimalIRSize = 4;
+    if (implBuffer.getBufferSize() < minimalIRSize) {
+        THROW_ERROR_EXCEPTION("LLVM bitcode must be at least %v bytes long (function %Qv)", minimalIRSize, functionName);
+    }
+
     auto implModule = parseIR(implBuffer, diag, builder->getContext());
 
     if (!implModule) {

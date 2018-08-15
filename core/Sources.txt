@@ -38,6 +38,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_stack.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_action_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_invoker_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_invoker_queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_thread_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_queue_scheduler_thread.cpp
@@ -123,7 +124,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/utf8_decoder.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/phdr_cache.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/proto/error.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/proto/bloom_filter.proto

@@ -21,6 +21,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+        }
+    }
+
     @classmethod
     def setup_class(cls):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
@@ -198,20 +204,68 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
     def test_revive(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a" : i} for i in range(100)],
+                    max_row_buffer_size=1,
+                    table_writer={"desired_chunk_size": 1},
+                    driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
-                            spec={"cluster_name": self.REMOTE_CLUSTER_NAME})
+                         spec={"cluster_name": self.REMOTE_CLUSTER_NAME})
+
+        wait(lambda: op.get_state() == "running")
+        wait(lambda: exists(op.get_path() + "/snapshot"))
+
+        input_tx = get(op.get_path() + "/@input_transaction_id")
 
         self.Env.kill_schedulers()
+        self.Env.kill_controller_agents()
         time.sleep(1)
         self.Env.start_schedulers()
+        self.Env.start_controller_agents()
 
         op.track()
 
-        assert read_table("//tmp/t2") == [{"a" : "b"}]
+        assert input_tx == get(op.get_path() + "/@input_transaction_id")
+
+        assert read_table("//tmp/t2") == [{"a" : i} for i in xrange(100)]
+
+    def test_revive_with_specified_connection(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a" : i} for i in xrange(100)],
+                    max_row_buffer_size=1,
+                    table_writer={"desired_chunk_size": 1},
+                    driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        clusters = get("//sys/clusters")
+        cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
+        try:
+            set("//sys/clusters", {})
+            time.sleep(2)
+            op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
+                    spec={"cluster_connection": cluster_connection, "job_count": 100})
+
+            wait(lambda: op.get_state() == "running")
+            wait(lambda: exists(op.get_path() + "/snapshot"))
+
+            input_tx = get(op.get_path() + "/@input_transaction_id")
+
+            self.Env.kill_schedulers()
+            self.Env.kill_controller_agents()
+            time.sleep(1)
+            self.Env.start_schedulers()
+            self.Env.start_controller_agents()
+
+            op.track()
+
+            assert input_tx != get(op.get_path() + "/@input_transaction_id")
+        finally:
+            set("//sys/clusters", clusters)
+
+        assert read_table("//tmp/t2") ==  [{"a" : i} for i in xrange(100)]
 
     def test_failed_cases(self):
         create("table", "//tmp/t1", driver=self.remote_driver)

@@ -401,12 +401,14 @@ void VersionedLookupRows(
         true,
         false);
 
+    // NB: TLookupSession captures TColumnFilter by const ref.
+    static const TColumnFilter UniversalColumnFilter;
     TLookupSession session(
         std::move(tabletSnapshot),
         timestamp,
         user,
         true,
-        columnFilter,
+        UniversalColumnFilter,
         blockReadOptions,
         std::move(lookupKeys));
 

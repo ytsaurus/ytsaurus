@@ -69,17 +69,22 @@ message TRspRegisterOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TControllerTransactionIds
+{
+    optional NYT.NProto.TGuid async_id = 1;
+    optional NYT.NProto.TGuid input_id = 2;
+    optional NYT.NProto.TGuid output_id = 3;
+    optional NYT.NProto.TGuid debug_id = 4;
+    optional NYT.NProto.TGuid output_completion_id = 5;
+    optional NYT.NProto.TGuid debug_completion_id = 6;
+}
+
 message TReqInitializeOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
     required bool clean = 3;
-    optional NYT.NProto.TGuid async_transaction_id = 4;
-    optional NYT.NProto.TGuid input_transaction_id = 5;
-    optional NYT.NProto.TGuid output_transaction_id = 6;
-    optional NYT.NProto.TGuid debug_transaction_id = 7;
-    optional NYT.NProto.TGuid output_completion_transaction_id = 8;
-    optional NYT.NProto.TGuid debug_completion_transaction_id = 9;
+    optional TControllerTransactionIds transaction_ids = 4;
 }
 
 message TRspInitializeOperation
@@ -88,6 +93,7 @@ message TRspInitializeOperation
     required bytes brief_spec = 2; // YSON
     required bytes unrecognized_spec = 3; // YSON
     required bytes full_spec = 4; // YSON
+    required TControllerTransactionIds transaction_ids = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

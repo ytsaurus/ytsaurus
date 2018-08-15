@@ -42,10 +42,16 @@ template <class T>
 T* TFls<T>::Get(TFiber* fiber) const
 {
     auto& slot = NDetail::FlsAt(Index_, fiber);
-    if (!slot) {
+    if (slot == 0) {
         slot = NDetail::FlsConstruct(Index_);
     }
     return reinterpret_cast<T*>(slot);
+}
+
+template <class T>
+bool TFls<T>::IsInitialized(TFiber* fiber) const
+{
+    return NDetail::FlsAt(Index_, fiber) != 0;
 }
 
 template <class T>
