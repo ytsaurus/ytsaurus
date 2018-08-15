@@ -9,7 +9,7 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/core/misc/phdr_cache.h>
 
 namespace NYT {
 

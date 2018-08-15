@@ -3,7 +3,6 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "operation.h"
-#include "operation_controller.h"
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -16,9 +15,6 @@ using namespace NRpc;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NScheduler;
-
-using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -141,21 +137,24 @@ private:
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
 
-            TNullable<TControllerTransactionIds> transactionIds;
+            TNullable<TControllerTransactions> transactions;
             if (!clean) {
-                transactionIds.Emplace();
-                *transactionIds = FromProto<TControllerTransactionIds>(request->transaction_ids());
+                transactions.Emplace();
+                transactions->AsyncId = FromProto<TTransactionId>(request->async_transaction_id());
+                transactions->InputId = FromProto<TTransactionId>(request->input_transaction_id());
+                transactions->OutputId = FromProto<TTransactionId>(request->output_transaction_id());
+                transactions->DebugId  = FromProto<TTransactionId>(request->debug_transaction_id());
+                transactions->OutputCompletionId = FromProto<TTransactionId>(request->output_completion_transaction_id());
+                transactions->DebugCompletionId = FromProto<TTransactionId>(request->debug_completion_transaction_id());
             }
 
-            auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactionIds))
+            auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactions))
                 .ValueOrThrow();
 
             response->set_mutable_attributes(result.Attributes.Mutable.GetData());
             response->set_brief_spec(result.Attributes.BriefSpec.GetData());
             response->set_full_spec(result.Attributes.FullSpec.GetData());
             response->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
-            ToProto(response->mutable_transaction_ids(), result.TransactionIds);
-
             context->Reply();
         });
     }

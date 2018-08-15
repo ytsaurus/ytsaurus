@@ -670,10 +670,6 @@ private:
 
     virtual void OnMyEntity() override
     {
-        if (FieldStack_.empty()) {
-            // This is the root.
-            return;
-        }
         ValidateNotRepeated();
         FieldStack_.pop_back();
         YPathStack_.Pop();

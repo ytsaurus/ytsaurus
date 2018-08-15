@@ -52,7 +52,7 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/client/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/row_buffer.h>
@@ -111,9 +111,6 @@ using namespace NProfiling;
 using namespace NScheduler;
 using namespace NEventLog;
 using namespace NLogging;
-
-using NYT::FromProto;
-using NYT::ToProto;
 
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
@@ -276,7 +273,7 @@ const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableI
 void TOperationControllerBase::InitializeClients()
 {
     TClientOptions options;
-    options.PinnedUser = AuthenticatedUser;
+    options.User = AuthenticatedUser;
     Client = Host
         ->GetClient()
         ->GetNativeConnection()
@@ -285,19 +282,19 @@ void TOperationControllerBase::InitializeClients()
     OutputClient = Client;
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
+TOperationControllerInitializationResult TOperationControllerBase::InitializeReviving(const TControllerTransactions& transactions)
 {
     LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
 
-    auto attachTransaction = [&] (const TTransactionId& transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
+    auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping) -> ITransactionPtr {
         if (!transactionId) {
             return nullptr;
         }
 
         try {
-            return AttachTransaction(transactionId, client, ping);
+            return AttachTransaction(transactionId, ping);
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
                 OperationId,
@@ -306,13 +303,13 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         }
     };
 
-    auto inputTransaction = attachTransaction(transactions.InputId, InputClient, true);
-    auto outputTransaction = attachTransaction(transactions.OutputId, OutputClient, true);
-    auto debugTransaction = attachTransaction(transactions.DebugId, Client, true);
+    auto inputTransaction = attachTransaction(transactions.InputId, true);
+    auto outputTransaction = attachTransaction(transactions.OutputId, true);
+    auto debugTransaction = attachTransaction(transactions.DebugId, true);
     // NB: Async and completion transactions are never reused and thus are not pinged.
-    auto asyncTransaction = attachTransaction(transactions.AsyncId, Client, false);
-    auto outputCompletionTransaction = attachTransaction(transactions.OutputCompletionId, OutputClient, false);
-    auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, Client, false);
+    auto asyncTransaction = attachTransaction(transactions.AsyncId, false);
+    auto outputCompletionTransaction = attachTransaction(transactions.OutputCompletionId, false);
+    auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, false);
 
     bool cleanStart = false;
 
@@ -320,21 +317,14 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     {
         std::vector<std::pair<ITransactionPtr, TFuture<void>>> asyncCheckResults;
 
-        auto checkTransaction = [&] (
-            const ITransactionPtr& transaction,
-            ETransactionType transactionType,
-            const TTransactionId& transactionId)
-        {
+        auto checkTransaction = [&] (const ITransactionPtr& transaction) {
             if (cleanStart) {
                 return;
             }
 
             if (!transaction) {
                 cleanStart = true;
-                LOG_INFO("Operation transaction is missing, will use clean start "
-                    "(TransactionType: %v, TransactionId: %v)",
-                    transactionType,
-                    transactionId);
+                LOG_INFO("Operation transaction is missing, will use clean start");
                 return;
             }
 
@@ -343,13 +333,13 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
         // NB: Async transaction is not checked.
         if (IsTransactionNeeded(ETransactionType::Input)) {
-            checkTransaction(inputTransaction, ETransactionType::Input, transactions.InputId);
+            checkTransaction(inputTransaction);
         }
         if (IsTransactionNeeded(ETransactionType::Output)) {
-            checkTransaction(outputTransaction, ETransactionType::Output, transactions.OutputId);
+            checkTransaction(outputTransaction);
         }
         if (IsTransactionNeeded(ETransactionType::Debug)) {
-            checkTransaction(debugTransaction, ETransactionType::Debug, transactions.DebugId);
+            checkTransaction(debugTransaction);
         }
 
         for (const auto& pair : asyncCheckResults) {
@@ -381,23 +371,23 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     {
         std::vector<TFuture<void>> asyncResults;
 
-        auto scheduleAbort = [&] (const ITransactionPtr& transaction, const NNative::IClientPtr& client) {
+        auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
             if (transaction) {
                 // Transaction object may be in incorrect state, we need to abort using only transaction id.
-                asyncResults.push_back(AttachTransaction(transaction->GetId(), client)->Abort());
+                asyncResults.push_back(AttachTransaction(transaction->GetId())->Abort());
             }
         };
 
-        scheduleAbort(asyncTransaction, Client);
-        scheduleAbort(outputCompletionTransaction, OutputClient);
-        scheduleAbort(debugCompletionTransaction, Client);
+        scheduleAbort(asyncTransaction);
+        scheduleAbort(outputCompletionTransaction);
+        scheduleAbort(debugCompletionTransaction);
 
         if (cleanStart) {
             LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
-            scheduleAbort(inputTransaction, InputClient);
-            scheduleAbort(outputTransaction, OutputClient);
-            scheduleAbort(debugTransaction, Client);
+            scheduleAbort(inputTransaction);
+            scheduleAbort(outputTransaction);
+            scheduleAbort(debugTransaction);
         } else {
             LOG_INFO("Reusing operation transactions");
             InputTransaction = inputTransaction;
@@ -435,12 +425,12 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
     LOG_INFO("Operation initialized");
 
-    TOperationControllerInitializeResult result;
-    FillInitializeResult(&result);
+    TOperationControllerInitializationResult result;
+    FillInitializationResult(&result);
     return result;
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
+TOperationControllerInitializationResult TOperationControllerBase::InitializeClean()
 {
     LOG_INFO("Initializing operation for clean start (Title: %v)",
         Spec_->Title);
@@ -467,8 +457,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     LOG_INFO("Operation initialized");
 
-    TOperationControllerInitializeResult result;
-    FillInitializeResult(&result);
+    TOperationControllerInitializationResult result;
+    FillInitializationResult(&result);
     return result;
 }
 
@@ -568,7 +558,7 @@ void TOperationControllerBase::InitUnrecognizedSpec()
     UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
 }
 
-void TOperationControllerBase::FillInitializeResult(TOperationControllerInitializeResult* result)
+void TOperationControllerBase::FillInitializationResult(TOperationControllerInitializationResult* result)
 {
     result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
@@ -578,7 +568,7 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
         .Finish();
     result->Attributes.FullSpec = ConvertToYsonString(Spec_);
     result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
-    result->TransactionIds = GetTransactionIds();
+    result->Transactions = GetTransactions();
 }
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
@@ -982,11 +972,11 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
     }
 }
 
-ITransactionPtr TOperationControllerBase::AttachTransaction(
-    const TTransactionId& transactionId,
-    const NNative::IClientPtr& client,
-    bool ping)
+ITransactionPtr TOperationControllerBase::AttachTransaction(const TTransactionId& transactionId, bool ping)
 {
+    auto connection = GetRemoteConnectionOrThrow(Host->GetClient()->GetNativeConnection(), CellTagFromId(transactionId));
+    auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
+
     TTransactionAttachOptions options;
     options.Ping = ping;
     options.PingAncestors = false;
@@ -1966,10 +1956,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
     if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
+        Host->OnOperationBannedInTentativeTree(joblet->TreeId);
     }
 
     if (JobSplitter_) {
@@ -2050,14 +2037,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobMetrics(joblet, *jobSummary);
     UpdateJobStatistics(joblet, *jobSummary);
 
-    auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
-
+    joblet->Task->OnJobFailed(joblet, *jobSummary);
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
     }
@@ -2144,13 +2124,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         }
     }
 
-    auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    joblet->Task->OnJobAborted(joblet, *jobSummary);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -2631,21 +2605,19 @@ void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransact
     }
 }
 
-TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
+std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
-    auto getId = [] (const NApi::ITransactionPtr& transaction) {
-        return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
+    std::vector<ITransactionPtr> transactions{
+        UserTransaction,
+        AsyncTransaction,
+        InputTransaction,
+        OutputTransaction,
+        DebugTransaction
     };
-
-    TControllerTransactionIds transactionIds;
-    transactionIds.AsyncId = getId(AsyncTransaction);
-    transactionIds.InputId = getId(InputTransaction);
-    transactionIds.OutputId = getId(OutputTransaction);
-    transactionIds.DebugId = getId(DebugTransaction);
-    transactionIds.OutputCompletionId = getId(OutputCompletionTransaction);
-    transactionIds.DebugCompletionId = getId(DebugCompletionTransaction);
-
-    return transactionIds;
+    transactions.erase(
+        std::remove_if(transactions.begin(), transactions.end(), [] (const auto& transaction) { return !transaction; }),
+        transactions.end());
+    return transactions;
 }
 
 bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
@@ -2688,16 +2660,16 @@ void TOperationControllerBase::SafeAbort()
                 LOG_ERROR(ex, "Failed to commit debug transaction");
                 // Intentionally do not wait for abort.
                 // Transaction object may be in incorrect state, we need to abort using only transaction id.
-                AttachTransaction(DebugTransaction->GetId(), Client)->Abort();
+                AttachTransaction(DebugTransaction->GetId())->Abort();
             }
         }
     }
 
     std::vector<TFuture<void>> abortTransactionFutures;
-    auto abortTransaction = [&] (const ITransactionPtr& transaction, const NNative::IClientPtr& client, bool sync = true) {
+    auto abortTransaction = [&] (const ITransactionPtr& transaction, bool sync = true) {
         if (transaction) {
             // Transaction object may be in incorrect state, we need to abort using only transaction id.
-            auto asyncResult = AttachTransaction(transaction->GetId(), client)->Abort();
+            auto asyncResult = AttachTransaction(transaction->GetId())->Abort();
             if (sync) {
                 abortTransactionFutures.push_back(asyncResult);
             }
@@ -2707,9 +2679,9 @@ void TOperationControllerBase::SafeAbort()
     // NB: We do not abort input transaction synchronously since
     // it can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    abortTransaction(InputTransaction, InputClient, /* sync */ false);
-    abortTransaction(OutputTransaction, OutputClient);
-    abortTransaction(AsyncTransaction, Client, /* sync */ false);
+    abortTransaction(InputTransaction, /* sync */ false);
+    abortTransaction(OutputTransaction);
+    abortTransaction(AsyncTransaction, /* sync */ false);
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
@@ -3056,10 +3028,9 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 
     TError error;
     if (!innerErrors.empty()) {
-        error = TError(
-            "Operation has jobs with duration is less than %v seconds, "
-            "that leads to large overhead costs for scheduling",
-            Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds())
+        error = TError("Operation has jobs with duration is less than %v seconds, "
+                       "that leads to large overhead costs for scheduling",
+                       Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds())
             << innerErrors;
     }
 
@@ -3091,7 +3062,6 @@ void TOperationControllerBase::AnalyzeOperationDuration()
             break;
         }
     }
-
     SetOperationAlert(EOperationAlertType::OperationTooLong, error);
 }
 
@@ -3105,7 +3075,7 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
         error = TError(
             "Excessive job spec throttling is detected. Usage ratio of operation can be "
             "significantly less than fair share ratio")
-             << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
+                << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
     }
 
     SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
@@ -6190,19 +6160,6 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
 }
-    
-std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
-{
-    std::vector<TJobId> jobIds;
-    for (const auto& pair : JobletMap) {
-        const auto& jobId = pair.first;
-        const auto& joblet = pair.second;
-        if (joblet->TreeId == treeId) {
-            jobIds.push_back(jobId);
-        }
-    }
-    return jobIds;
-}
 
 void TOperationControllerBase::SetProgressUpdated()
 {
@@ -7413,19 +7370,10 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
     task->FinishInput(TDataFlowGraph::SourceDescriptor);
 }
 
-void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)
+void TOperationControllerBase::SetOperationAlert(EOperationAlertType type, const TError& alert)
 {
     TGuard<TSpinLock> guard(AlertsLock_);
-
-    if (alert.IsOK() && !Alerts_[alertType].IsOK()) {
-        LOG_DEBUG("Alert reset (Type: %v)",
-            alertType);
-    } else {
-        LOG_DEBUG(alert, "Alert set (Type: %v)",
-            alertType);
-    }
-
-    Alerts_[alertType] = alert;
+    Alerts_[type] = alert;
 }
 
 bool TOperationControllerBase::IsCompleted() const

@@ -55,13 +55,13 @@ message TReqPollJobShell
 {
     required NYT.NProto.TGuid job_id = 1;
     // Parameters in YSON format.
-    required bytes parameters = 2;
+    required string parameters = 2;
 }
 
 message TRspPollJobShell
 {
     // Result in YSON format.
-    required bytes result = 1;
+    required string result = 1;
 }
 
 message TReqAbortJob

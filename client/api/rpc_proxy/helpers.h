@@ -81,16 +81,8 @@ void FromProto(
     const NProto::TTabletInfo& protoTabletInfo);
 
 void ToProto(
-    NProto::TTabletReadOptions* protoOptions,
+    NProto::TTabletReadOptions* proto,
     const NApi::TTabletReadOptions& options);
-
-void ToProto(
-    NProto::TQueryStatistics* protoStatistics,
-    const NQueryClient::TQueryStatistics& statistics);
-
-void FromProto(
-    NQueryClient::TQueryStatistics* statistics,
-    const NProto::TQueryStatistics& protoStatistics);
 
 } // namespace NProto
 ////////////////////////////////////////////////////////////////////////////////

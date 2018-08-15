@@ -185,11 +185,6 @@ DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
-DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
-
-DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
-DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
-
 class TSaveContext;
 class TLoadContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
@@ -201,8 +196,6 @@ using TSchemaData = std::vector<ui32>;
 
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
-
-struct IValueConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

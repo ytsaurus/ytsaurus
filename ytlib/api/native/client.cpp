@@ -71,7 +71,6 @@
 #include <yt/client/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
-#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
@@ -203,9 +202,7 @@ public:
 
     ~TJobInputReader()
     {
-        if (TransferResultFuture_) {
-            TransferResultFuture_.Cancel();
-        }
+        TransferResultFuture_.Cancel();
     }
 
     void Open()
@@ -320,11 +317,11 @@ public:
         , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
-            channel = CreateAuthenticatedChannel(channel, options.GetUser());
+            channel = CreateAuthenticatedChannel(channel, options.User);
             return channel;
         };
         auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
-            factory = CreateAuthenticatedChannelFactory(factory, options.GetUser());
+            factory = CreateAuthenticatedChannelFactory(factory, options.User);
             return factory;
         };
 
@@ -363,7 +360,7 @@ public:
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->PrimaryMaster->CellId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader),
-            Options_.GetUser(),
+            Options_.User,
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
 
@@ -433,7 +430,7 @@ public:
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        return CreateAuthenticatedChannel(std::move(channel), Options_.GetUser());
+        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -2163,7 +2160,7 @@ private:
             nullptr /* scraper */,
             this,
             Logger);
-
+        
         for (const auto &path : paths) {
             LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
@@ -3202,12 +3199,13 @@ private:
         return result;
     }
 
-    TPutFileToCacheResult DoAttemptPutFileToCache(
+
+    TPutFileToCacheResult DoPutFileToCache(
         const NYPath::TYPath& path,
         const TString& expectedMD5,
-        const TPutFileToCacheOptions& options,
-        NLogging::TLogger logger)
+        const TPutFileToCacheOptions& options)
     {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
         auto Logger = logger;
 
         TPutFileToCacheResult result;
@@ -3249,22 +3247,22 @@ private:
             auto checkPermissionOptions = TCheckPermissionOptions();
             checkPermissionOptions.TransactionId = transaction->GetId();
 
-            auto readPermissionResult = DoCheckPermission(Options_.GetUser(), objectIdPath, EPermission::Read, checkPermissionOptions);
-            readPermissionResult.ToError(Options_.GetUser(), EPermission::Read)
+            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.User, EPermission::Read)
                 .ThrowOnError();
 
-            auto removePermissionResult = DoCheckPermission(Options_.GetUser(), objectIdPath, EPermission::Remove, checkPermissionOptions);
-            removePermissionResult.ToError(Options_.GetUser(), EPermission::Remove)
+            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.User, EPermission::Remove)
                 .ThrowOnError();
 
-            auto usePermissionResult = DoCheckPermission(Options_.GetUser(), options.CachePath, EPermission::Use, checkPermissionOptions);
+            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
 
-            auto writePermissionResult = DoCheckPermission(Options_.GetUser(), options.CachePath, EPermission::Write, checkPermissionOptions);
+            auto writePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Write, checkPermissionOptions);
 
             if (usePermissionResult.Action == ESecurityAction::Deny && writePermissionResult.Action == ESecurityAction::Deny) {
                 THROW_ERROR_EXCEPTION("You need write or use permission to use file cache")
-                    << usePermissionResult.ToError(Options_.GetUser(), EPermission::Use)
-                    << writePermissionResult.ToError(Options_.GetUser(), EPermission::Write);
+                    << usePermissionResult.ToError(Options_.User, EPermission::Use)
+                    << writePermissionResult.ToError(Options_.User, EPermission::Write);
             }
         }
 
@@ -3307,18 +3305,18 @@ private:
 
         // Move file.
         {
-            auto copyOptions = TCopyNodeOptions();
-            copyOptions.TransactionId = transaction->GetId();
-            copyOptions.Recursive = true;
-            copyOptions.Force = true;
-            copyOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
-            copyOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            auto moveOptions = TMoveNodeOptions();
+            moveOptions.TransactionId = transaction->GetId();
+            moveOptions.Recursive = true;
+            moveOptions.Force = true;
+            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
 
-            WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
+            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
                 .ValueOrThrow();
 
             LOG_DEBUG(
-                "File has been copied to cache (Destination: %v)",
+                "File has been moved to cache (Destination: %v)",
                 destination);
         }
 
@@ -3329,30 +3327,6 @@ private:
 
         result.Path = destination;
         return result;
-    }
-
-    TPutFileToCacheResult DoPutFileToCache(
-        const NYPath::TYPath& path,
-        const TString& expectedMD5,
-        const TPutFileToCacheOptions& options)
-    {
-        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
-        auto Logger = logger;
-
-        int retryAttempts = 0;
-        while (true) {
-            try {
-                return DoAttemptPutFileToCache(path, expectedMD5, options, logger);
-            } catch (const TErrorException& ex) {
-                auto error = ex.Error();
-                ++retryAttempts;
-                if (retryAttempts < options.RetryCount && error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
-                    LOG_DEBUG(error, "Put file to cache failed, make next retry");
-                } else {
-                    throw;
-                }
-            }
-        }
     }
 
     void DoAddMember(
@@ -3539,7 +3513,6 @@ private:
         "finish_time",
         "result",
         "events",
-        "memory_usage",
     };
 
     template <typename TOutputIt>
@@ -3674,14 +3647,10 @@ private:
             }
         }
 
-        std::vector<std::pair<TString, bool>> runtimeAttributes ={
-            /* {Name, ShouldRequestFromScheduler} */
-            {"progress", true},
-            {"brief_progress", false},
-            {"memory_usage", false}
-        };
+        bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
+        bool shouldRequestBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
 
-        if (options.IncludeRuntime) {
+        if (options.IncludeRuntime && (shouldRequestProgress || shouldRequestBriefProgress)) {
             auto batchReq = proxy->ExecuteBatch();
 
             auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
@@ -3696,46 +3665,46 @@ private:
                 }
             };
 
-            for (const auto& attribute : runtimeAttributes) {
-                if (!options.Attributes || options.Attributes->has(attribute.first)) {
-                    addProgressAttributeRequest(attribute.first, attribute.second);
-                }
+            if (shouldRequestProgress) {
+                addProgressAttributeRequest("progress", /* shouldRequestFromScheduler */ true);
+            }
+            if (shouldRequestBriefProgress) {
+                addProgressAttributeRequest("brief_progress", /* shouldRequestFromScheduler */ false);
             }
 
-            if (batchReq->GetSize() != 0) {
-                auto batchRsp = WaitFor(batchReq->Invoke())
-                    .ValueOrThrow();
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
 
-                auto handleProgressAttributeRequest = [&] (const TString& attribute) {
-                    INodePtr progressAttributeNode;
+            auto handleProgressAttributeRequest = [&] (const TString& attribute) {
+                INodePtr progressAttributeNode;
 
-                    auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
-                    for (const auto& rsp : responses) {
-                        if (rsp.IsOK()) {
-                            auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
-                            if (!progressAttributeNode) {
-                                progressAttributeNode = node;
-                            } else {
-                                progressAttributeNode = PatchNode(progressAttributeNode, node);
-                            }
+                auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
+                for (const auto& rsp : responses) {
+                    if (rsp.IsOK()) {
+                        auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                        if (!progressAttributeNode) {
+                            progressAttributeNode = node;
                         } else {
-                            if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                                THROW_ERROR rsp;
-                            }
+                            progressAttributeNode = PatchNode(progressAttributeNode, node);
                         }
-
-                        if (progressAttributeNode) {
-                            attrNode->RemoveChild(attribute);
-                            YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
+                    } else {
+                        if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                            THROW_ERROR rsp;
                         }
                     }
-                };
 
-                for (const auto& attribute : runtimeAttributes) {
-                    if (!options.Attributes || options.Attributes->has(attribute.first)) {
-                        handleProgressAttributeRequest(attribute.first);
+                    if (progressAttributeNode) {
+                        attrNode->RemoveChild(attribute);
+                        YCHECK(attrNode->AddChild(attribute, progressAttributeNode));
                     }
                 }
+            };
+
+            if (shouldRequestProgress) {
+                handleProgressAttributeRequest("progress");
+            }
+            if (shouldRequestBriefProgress) {
+                handleProgressAttributeRequest("brief_progress");
             }
         }
 
@@ -3754,8 +3723,6 @@ private:
         if (DoGetOperationsArchiveVersion() < 22) {
             fields.erase("runtime_parameters");
         }
-        // Ignoring memory_usage in archive.
-        fields.erase("memory_usage");
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
@@ -4417,23 +4384,6 @@ private:
         return to_lower(JoinToString(textFactors, AsStringBuf(" ")));
     }
 
-    std::vector<TString> GetPoolsFromRuntimeParameters(const TYsonString& runtimeParameters)
-    {
-        YCHECK(runtimeParameters);
-
-        std::vector<TString> result;
-        auto runtimeParametersNode = ConvertToNode(runtimeParameters)->AsMap();
-        if (auto schedulingOptionsNode = runtimeParametersNode->FindChild("scheduling_options_per_pool_tree")) {
-            for (const auto& entry : schedulingOptionsNode->AsMap()->GetChildren()) {
-                if (auto poolNode = entry.second->AsMap()->FindChild("pool")) {
-                    result.push_back(poolNode->GetValue<TString>());
-                }
-            }
-        }
-        return result;
-    }
-
-
     TListOperationsResult DoListOperations(
         const TListOperationsOptions& options)
     {
@@ -4499,13 +4449,17 @@ private:
             }
             operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
             operation.BriefSpec = attributes.FindYson("brief_spec");
-            operation.BriefProgress = attributes.FindYson("brief_progress");
-            operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
 
-            if (operation.RuntimeParameters) {
-                operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+            if (operation.BriefSpec) {
+                auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
+                auto poolNode = briefSpecMapNode->FindChild("pool");
+                if (poolNode) {
+                    operation.Pool = poolNode->AsString()->GetValue();
+                }
             }
 
+            operation.BriefProgress = attributes.FindYson("brief_progress");
+            operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
             operation.Suspended = attributes.Get<bool>("suspended");
             return operation;
         };
@@ -4583,14 +4537,12 @@ private:
         }
 
         auto filterAndCount =
-            [&] (const TNullable<std::vector<TString>>& pools, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
-                if (pools) {
-                    for (const auto& pool : *pools) {
-                        poolCounts[pool] += count;
-                    }
+            [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+                if (pool) {
+                    poolCounts[*pool] += count;
                 }
 
-                if (options.Pool && (!pools || std::find(pools->begin(), pools->end(), *options.Pool) == pools->end())) {
+                if (options.Pool && (!pool || *options.Pool != *pool)) {
                     return false;
                 }
 
@@ -4636,7 +4588,7 @@ private:
                 continue;
             }
 
-            if (!filterAndCount(operation.Pools, user, state, type, 1)) {
+            if (!filterAndCount(operation.Pool, user, state, type, 1)) {
                 continue;
             }
 
@@ -4694,7 +4646,7 @@ private:
             }
 
             if (options.Pool) {
-                itemsConditions.push_back(Format("list_contains(pools, %Qv)", *options.Pool));
+                itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
             }
 
             if (options.StateFilter) {
@@ -4716,14 +4668,14 @@ private:
                 itemsSortDirection,
                 1 + options.Limit);
 
-            const auto archiveHasPools = (DoGetOperationsArchiveVersion() >= 24);
-            const auto poolQueryExpression = archiveHasPools ? "any_to_yson_string(pools)" : "pool";
+            static const TString NullPoolName = "unknown";
+            auto poolColumnName = "pool";
+
             auto queryForCounts = Format(
-                "pool_or_pools, user, state, type, sum(1) AS count FROM [%v] WHERE %v "
-                "GROUP BY %v AS pool_or_pools, authenticated_user AS user, state AS state, operation_type AS type",
+                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", countsConditions),
-                poolQueryExpression);
+                poolColumnName);
 
             TSelectRowsOptions selectRowsOptions;
             selectRowsOptions.Timeout = deadline - Now();
@@ -4737,18 +4689,13 @@ private:
             const auto& rowsCounts = resultCounts.Rowset->GetRows();
 
             for (auto row : rowsCounts) {
-                TNullable<std::vector<TString>> pools;
-                if (row[0].Type != EValueType::Null) {
-                    pools = archiveHasPools
-                        ? ConvertTo<std::vector<TString>>(TYsonString(row[0].Data.String, row[0].Length))
-                        : std::vector<TString>{FromUnversionedValue<TString>(row[0])};
-                }
+                auto pool = row[0].Type == EValueType::Null ? NullPoolName : TString(row[0].Data.String, row[0].Length);
                 auto user = TString(row[1].Data.String, row[1].Length);
                 auto state = ParseEnum<EOperationState>(TString(row[2].Data.String, row[2].Length));
                 auto type = ParseEnum<EOperationType>(TString(row[3].Data.String, row[3].Length));
                 i64 count = row[4].Data.Int64;
 
-                filterAndCount(pools, user, state, type, count);
+                filterAndCount(pool, user, state, type, count);
             }
 
             auto nameTable = New<TNameTable>();
@@ -4862,12 +4809,7 @@ private:
 
                 if (DoGetOperationsArchiveVersion() >= 22) {
                     operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
-
-                    if (operation.RuntimeParameters) {
-                        operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
-                    }
                 }
-
                 archiveData.push_back(operation);
             }
         }
@@ -4898,7 +4840,7 @@ private:
                 if (it1->OperationId == it2->OperationId) {
                     merged.push_back(*it1);
 
-                    filterAndCount(it1->Pools, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
+                    filterAndCount(it1->Pool, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
 
                     ++it1;
                     ++it2;
@@ -5040,19 +4982,9 @@ private:
         int archiveVersion = DoGetOperationsArchiveVersion();
 
         TQueryBuilder itemsQueryBuilder;
+
         itemsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
         itemsQueryBuilder.SetLimit(options.Offset + options.Limit);
-
-        TQueryBuilder statisticsQueryBuilder;
-        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
-
-        auto operationIdExpression = Format(
-            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
-            operationId.Parts64[0],
-            operationId.Parts64[1]);
-
-        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
-        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
 
         auto jobIdHiIndex = itemsQueryBuilder.AddSelectExpression("job_id_hi");
         auto jobIdLoIndex = itemsQueryBuilder.AddSelectExpression("job_id_lo");
@@ -5074,13 +5006,17 @@ private:
             failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
         }
 
+        auto operationIdExpression = Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            operationId.Parts64[0],
+            operationId.Parts64[1]);
+        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
+
         if (archiveVersion >= 18) {
             auto updateTimeExpression = Format(
-                "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
-                "OR (NOT is_null(update_time) AND update_time >= %v))",
+                "(job_state != \"running\" OR (NOT is_null(update_time) AND update_time >= %v))",
                 (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
             itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
-            statisticsQueryBuilder.AddWhereExpression(updateTimeExpression);
         }
 
         if (options.WithStderr) {
@@ -5170,6 +5106,9 @@ private:
 
         auto itemsQuery = itemsQueryBuilder.Build();
 
+        TQueryBuilder statisticsQueryBuilder;
+        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
+        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
         if (options.Address) {
             statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }

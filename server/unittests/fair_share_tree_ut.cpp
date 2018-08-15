@@ -32,17 +32,21 @@ struct TSchedulerStrategyHostMock
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
-    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter)
+    virtual TJobResources GetTotalResourceLimits() override
     {
-        if (!filter.IsEmpty()) {
-            return ZeroJobResources();
-        }
-
         TJobResources totalResources;
         for (const auto& resources : NodeResourceLimitsList) {
             totalResources += resources.ToJobResources();
         }
         return totalResources;
+    }
+
+    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter)
+    {
+        if (!filter.IsEmpty()) {
+            return ZeroJobResources();
+        }
+        return GetTotalResourceLimits();
     }
 
     virtual TInstant GetConnectionTime() const override
@@ -327,7 +331,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareTreeTest, TestAttributes)
+TEST(FairShareTree, TestAttributes)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -342,12 +346,34 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
+    auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        treeConfig,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
-    auto poolA = CreateTestPool(host.Get(), "A");
-    auto poolB = CreateTestPool(host.Get(), "B");
+    auto poolA = New<TPool>(
+        host.Get(),
+        "A",
+        New<TPoolConfig>(),
+        true,
+        treeConfig,
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+        "default");
+
+    auto poolB = New<TPool>(
+        host.Get(),
+        "B",
+        New<TPoolConfig>(),
+        true,
+        treeConfig,
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"),
+        "default");
 
     rootElement->AddChild(poolA);
     poolA->SetParent(rootElement.Get());
@@ -356,7 +382,16 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     poolB->SetParent(rootElement.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
+    auto operationElementX = New<TOperationElement>(
+        treeConfig,
+        New<TStrategyOperationSpec>(),
+        operationOptions,
+        operationControllerX,
+        config,
+        host.Get(),
+        operationX.Get(),
+        "default");
 
     poolA->AddChild(operationElementX);
     operationElementX->SetParent(poolA.Get());
@@ -376,7 +411,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
 }
 
-TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
+TEST(FairShareTree, TestUpdatePreemptableJobsList)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -391,12 +426,28 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
+    auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        treeConfig,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
+    auto operationElementX = New<TOperationElement>(
+        treeConfig,
+        New<TStrategyOperationSpec>(),
+        operationOptions,
+        operationControllerX,
+        config,
+        host.Get(),
+        operationX.Get(),
+        "default");
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
@@ -427,7 +478,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     }
 }
 
-TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
+TEST(FairShareTree, TestBestAllocationRatio)
 {
     TJobResourcesWithQuota nodeResourcesA;
     nodeResourcesA.SetUserSlots(10);
@@ -447,12 +498,28 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
+    auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResourcesA, nodeResourcesA, nodeResourcesB}));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        treeConfig,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
+    auto operationElementX = New<TOperationElement>(
+        treeConfig,
+        New<TStrategyOperationSpec>(),
+        operationOptions,
+        operationControllerX,
+        config,
+        host.Get(),
+        operationX.Get(),
+        "default");
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
@@ -466,14 +533,29 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
     EXPECT_EQ(0.375, operationElementX->Attributes().FairShareRatio);
 }
 
-TEST_F(TFairShareTreeTest, TestOperationCountLimits)
+TEST(FairShareTree, TestOperationCountLimits)
 {
     auto host = New<TSchedulerStrategyHostMock>();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto poolConfig = New<TPoolConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
+
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        treeConfig,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     TPoolPtr pools[3];
     for (int i = 0; i < 3; ++i) {
-        pools[i] = CreateTestPool(host.Get(), "pool" + ToString(i));
+        pools[i] = New<TPool>(
+            host.Get(),
+            "pool" + ToString(i),
+            poolConfig,
+            true, /* defaultConfigured */
+            treeConfig,
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "pool" + ToString(i)),
+            "default");
     }
 
     rootElement->AddChild(pools[0], /* enabled */ true);
@@ -507,8 +589,11 @@ TEST_F(TFairShareTreeTest, TestOperationCountLimits)
     EXPECT_EQ(0, rootElement->RunningOperationCount());
 }
 
-TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
+TEST(FairShareTree, TestMaxPossibleUsageRatioWithoutLimit)
 {
+    auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
+
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
@@ -524,7 +609,16 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     firstOperationJobResources.SetMemory(5);
 
     auto firstOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, firstOperationJobResources));
-    auto firstOperationElement = CreateTestOperationElement(host.Get(), operationOptions, firstOperation.Get());
+    auto firstOperationController = New<TFairShareStrategyOperationController>(firstOperation.Get());
+    auto firstOperationElement = New<TOperationElement>(
+        treeConfig,
+        New<TStrategyOperationSpec>(),
+        operationOptions,
+        firstOperationController,
+        config,
+        host.Get(),
+        firstOperation.Get(),
+        "default");
 
     // Second operation with demand <5, 10>.
     TJobResourcesWithQuota secondOperationJobResources;
@@ -532,10 +626,26 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     secondOperationJobResources.SetMemory(10);
 
     auto secondOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, secondOperationJobResources));
-    auto secondOperationElement = CreateTestOperationElement(host.Get(), operationOptions, secondOperation.Get());
+    auto secondOperationController = New<TFairShareStrategyOperationController>(secondOperation.Get());
+    auto secondOperationElement = New<TOperationElement>(
+        treeConfig,
+        New<TStrategyOperationSpec>(),
+        operationOptions,
+        secondOperationController,
+        config,
+        host.Get(),
+        secondOperation.Get(),
+        "default");
 
     // Pool with total demand <10, 15>.
-    auto pool = CreateTestPool(host.Get(), "A");
+    auto pool = New<TPool>(
+        host.Get(),
+        "A",
+        New<TPoolConfig>(),
+        true,
+        treeConfig,
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+        "default");
 
     pool->AddChild(firstOperationElement, true);
     firstOperationElement->SetParent(pool.Get());
@@ -543,7 +653,12 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     secondOperationElement->SetParent(pool.Get());
 
     // Root element.
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        treeConfig,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     rootElement->AddChild(pool, true);
     pool->SetParent(rootElement.Get());

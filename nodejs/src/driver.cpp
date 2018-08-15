@@ -12,9 +12,7 @@
 #include <yt/ytlib/driver/config.h>
 #include <yt/ytlib/driver/driver.h>
 
-#include <yt/ytlib/api/connection.h>
-
-#include <yt/client/formats/format.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/core/actions/bind_helpers.h>
 
@@ -204,13 +202,8 @@ public:
         Request_.AuthenticatedUser = std::move(authenticatedUser);
         Request_.Parameters = parameters->AsMap();
 
-        bool enableTrace = false;
-        if (auto trace = Request_.Parameters->FindChild("trace")) {
-            try {
-                enableTrace = ConvertTo<bool>(trace);
-            } catch (const std::exception& ) { }
-        }
-        if (enableTrace) {
+        auto trace = Request_.Parameters->FindChild("trace");
+        if (trace && ConvertTo<bool>(trace)) {
             TraceContext_ = NTracing::CreateRootTraceContext();
             if (requestId) {
                 TraceContext_ = NTracing::TTraceContext(
@@ -486,9 +479,7 @@ Handle<Value> TDriverWrap::New(const Arguments& args)
         auto config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
 
-        auto connection = NApi::CreateConnection(config->Driver);
-        auto driverConfig = ConvertTo<TDriverConfigPtr>(config->Driver);
-        auto driver = CreateDriver(connection, driverConfig);
+        auto driver = CreateDriver(config->Driver);
 
         auto wrap = new TDriverWrap(echo, std::move(driver));
         wrap->Wrap(args.This());

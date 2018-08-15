@@ -176,8 +176,6 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
 
-    DECLARE_SIGNAL(void(TCypressNodeBase*), NodeCreated);
-
 private:
     class TNodeFactory;
     class TNodeTypeHandler;

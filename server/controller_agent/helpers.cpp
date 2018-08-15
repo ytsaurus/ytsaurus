@@ -34,9 +34,6 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NApi;
 
-using NYT::FromProto;
-using NYT::ToProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSizeConstraints

@@ -44,15 +44,12 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
-
-#include <yt/ytlib/api/native/public.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
-
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/value_consumer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -194,8 +191,8 @@ public:
     // operations on a cluster, or to a scheduler crash.
     virtual TOperationControllerReviveResult Revive() override;
 
-    virtual TOperationControllerInitializeResult InitializeClean() override;
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
+    virtual TOperationControllerInitializationResult InitializeClean() override;
+    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override;
 
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
@@ -521,8 +518,6 @@ protected:
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 
-    std::vector<TJobId> GetJobIdsByTreeId(const TString& treeId);
-
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
@@ -532,7 +527,7 @@ protected:
     virtual void InitializeStructures();
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
-    void FillInitializeResult(TOperationControllerInitializeResult* result);
+    void FillInitializationResult(TOperationControllerInitializationResult* result);
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 
@@ -764,10 +759,7 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
-        const NApi::NNative::IClientPtr& client,
-        bool ping = false);
+    NApi::ITransactionPtr AttachTransaction(const NTransactionClient::TTransactionId& transactionId, bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
@@ -1067,7 +1059,7 @@ private:
 
     void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
-    TControllerTransactionIds GetTransactionIds();
+    std::vector<NApi::ITransactionPtr> GetTransactions();
 
     TNullable<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;

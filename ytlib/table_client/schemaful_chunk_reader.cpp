@@ -3,15 +3,15 @@
 #include "config.h"
 #include "private.h"
 #include "schemaful_chunk_reader.h"
+#include "schemaful_reader_adapter.h"
 #include "schemaless_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/block_fetcher.h>
-
 #include <yt/client/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -19,7 +19,6 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaful_reader_adapter.h>
 
 #include <yt/ytlib/table_client/columnar_chunk_meta.h>
 

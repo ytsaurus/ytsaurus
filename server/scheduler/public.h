@@ -50,7 +50,6 @@ DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TOperationsCleanerConfig)
-DECLARE_REFCOUNTED_CLASS(TControllerAgentTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 
@@ -69,7 +68,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
-struct TOperationControllerInitializeResult;
+struct TOperationControllerInitializationResult;
 struct TOperationControllerPrepareResult;
 struct TOperationRevivalDescriptor;
 
@@ -113,7 +112,6 @@ DEFINE_ENUM(EOperationAlertType,
     (InvalidAcl)
     (LowCpuUsage)
     (OperationTooLong)
-    (OperationPending)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,11 +153,6 @@ DEFINE_ENUM(EControlQueue,
     (AgentTracker)
     (NodeTracker)
     (OperationsCleaner)
-);
-
-DEFINE_ENUM(EControllerAgentPickStrategy,
-    (Random)
-    (MemoryUsageBalanced)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

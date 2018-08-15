@@ -99,7 +99,7 @@ DEFINE_ENUM(EErrorCode,
     ((PoisonPill)                   (106))
     ((RequestQueueSizeLimitExceeded)(108))
     ((AuthenticationError)          (109))
-    ((InvalidCsrfToken)             (110))
+    ((CsrfTokenExpired)             (110))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

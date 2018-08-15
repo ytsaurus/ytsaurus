@@ -77,23 +77,7 @@ struct ISuspendableInvoker
 
 DEFINE_REFCOUNTED_TYPE(ISuspendableInvoker)
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct IInvokerPool
-    : public virtual TRefCounted
-{
-    //! Provides access to indexed invokers.
-    /*
-     *  Underlying invokers are supposed to share common state in the pool
-     *  and work in cooperative way (e.g.: pool could share CPU between invokers fairly).
-     *  Parameter #index is supposed to take values in the [0, implementation-defined limit) range.
-     */
-    virtual IInvokerPtr GetInvoker(int index) const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IInvokerPool)
-
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////n/////////////////////////////////////
 
 } // namespace NYT
 

@@ -39,8 +39,6 @@ public:
 
     T* Get(TFiber* fiber = nullptr) const;
 
-    bool IsInitialized(TFiber* fiber = nullptr) const;
-
 private:
     const int Index_;
 

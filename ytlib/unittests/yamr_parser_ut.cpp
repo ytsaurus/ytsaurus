@@ -2,7 +2,7 @@
 
 #include <yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/client/formats/yamr_parser.h>
+#include <yt/ytlib/formats/yamr_parser.h>
 
 #include <yt/core/yson/null_consumer.h>
 

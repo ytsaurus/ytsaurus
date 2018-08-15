@@ -93,9 +93,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
-    
-    //! Mark that node has large job archivation queues.
-    DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
 public:
     TExecNode(
@@ -159,7 +156,6 @@ struct TExecNodeDescriptor
         NNodeTrackerClient::TNodeId id,
         const TString& address,
         double ioWeight,
-        const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
         i64 maxDiskSpace,
         const THashSet<TString>& tags);
@@ -169,7 +165,6 @@ struct TExecNodeDescriptor
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     TString Address;
     double IOWeight = 0.0;
-    TJobResources ResourceUsage;
     TJobResources ResourceLimits;
     i64 MaxDiskSpace = 0;
     THashSet<TString> Tags;
@@ -177,8 +172,12 @@ struct TExecNodeDescriptor
     void Persist(const TStreamPersistenceContext& context);
 };
 
+namespace NProto {
+
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor);
 void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

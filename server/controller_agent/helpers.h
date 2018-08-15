@@ -182,12 +182,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(ignat): move to ytlib.
 NApi::NNative::IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
 
-// TODO(ignat): move to ytlib.
 NApi::NNative::IConnectionPtr GetRemoteConnectionOrThrow(
     const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);

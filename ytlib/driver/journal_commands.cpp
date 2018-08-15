@@ -1,13 +1,16 @@
 #include "journal_commands.h"
 #include "config.h"
 
+#include <yt/ytlib/api/native/journal_reader.h>
+#include <yt/ytlib/api/native/journal_writer.h>
+
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
 
 #include <yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/formats/format.h>
-#include <yt/client/formats/parser.h>
+#include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/formats/parser.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

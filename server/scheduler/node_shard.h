@@ -133,7 +133,6 @@ public:
     void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
-    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
     void FailJob(const TJobId& jobId);
     void ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
@@ -142,8 +141,9 @@ public:
 
     TOperationId FindOperationIdByJobId(const TJobId& job);
 
+    TJobResources GetTotalResourceLimits();
+    TJobResources GetTotalResourceUsage();
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter);
-    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter);
 
     int GetActiveJobCount();
 
@@ -164,7 +164,6 @@ public:
         const NProto::TScheduleJobResponse& response);
 
     int ExtractJobReporterWriteFailuresCount();
-    int GetJobReporterQueueIsTooLargeNodeCount();
 
 private:
     const int Id_;
@@ -174,13 +173,7 @@ private:
 
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
-
-    struct TResourceStatistics
-    {
-        TJobResources Usage;
-        TJobResources Limits;
-    };
-    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>> CachedResourceStatisticsByTags_;
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
 
     const NLogging::TLogger Logger;
 
@@ -196,6 +189,7 @@ private:
     std::atomic<int> ActiveJobCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock ResourcesLock_;
+    TJobResources TotalResourceLimits_;
     TJobResources TotalResourceUsage_;
 
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
@@ -210,7 +204,6 @@ private:
     TJobTimeStatisticsDelta JobTimeStatisticsDelta_;
 
     std::atomic<int> JobReporterWriteFailuresCount_ = {0};
-    std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock JobCounterLock_;
     TJobCounter JobCounter_;
@@ -275,7 +268,7 @@ private:
         EJobState state,
         const TString& address);
 
-    TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
+    TJobResources CalculateResourceLimits(const TSchedulingTagFilter& filter);
 
     TExecNodePtr GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);

@@ -42,7 +42,7 @@ struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
     ELogLevel Level = ELogLevel::Minimum;
-    ELogMessageFormat MessageFormat = ELogMessageFormat::PlainText;
+    ELogEventFormat Format = ELogEventFormat::PlainText;
     TString Message;
     NYson::TYsonString StructuredMessage;
     NProfiling::TCpuInstant Instant = 0;

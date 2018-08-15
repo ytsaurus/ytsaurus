@@ -11,7 +11,6 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/client/tablet_client/helpers.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/client/table_client/wire_protocol.h>
@@ -365,7 +364,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        ValidateTabletTransaction(GetId());
+        ValidateTabletTransaction();
 
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION("Cannot modify rows since transaction %v is already in %Qlv state",
@@ -1615,6 +1614,14 @@ private:
                 Y_UNREACHABLE();
         }
     }
+
+    void ValidateTabletTransaction()
+    {
+        if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
+            THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
+        }
+    }
+
 
     void RegisterForeignTransaction(NApi::ITransactionPtr transaction)
     {

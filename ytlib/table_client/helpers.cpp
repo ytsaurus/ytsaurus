@@ -18,7 +18,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/client/formats/parser.h>
+#include <yt/ytlib/formats/parser.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

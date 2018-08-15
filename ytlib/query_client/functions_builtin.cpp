@@ -27,8 +27,6 @@
 #include "udf/dates.h" // Y_IGNORE
 #include "udf/ypath_get.h" // Y_IGNORE
 #include "udf/to_any.h" // Y_IGNORE
-#include "udf/list_contains.h" // Y_IGNORE
-#include "udf/any_to_yson_string.h" // Y_IGNORE
 #endif
 
 namespace NYT {
@@ -901,23 +899,6 @@ void RegisterBuiltinFunctions(
         UDF_BC(to_any),
         ECallingConvention::UnversionedValue);
 
-    builder.RegisterFunction(
-        "list_contains",
-        std::vector<TType>{
-            EValueType::Any,
-            TUnionType{
-                EValueType::String,
-            }},
-        EValueType::Boolean,
-        UDF_BC(list_contains),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "any_to_yson_string",
-        std::vector<TType>{EValueType::Any},
-        EValueType::String,
-        UDF_BC(any_to_yson_string),
-        ECallingConvention::Simple);
 }
 
 } // namespace

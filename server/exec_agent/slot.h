@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/core/actions/public.h>
 

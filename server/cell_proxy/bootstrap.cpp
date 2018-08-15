@@ -113,7 +113,7 @@ void TBootstrap::DoRun()
     NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
-    clientOptions.PinnedUser = NSecurityClient::RootUserName;
+    clientOptions.User = NSecurityClient::RootUserName;
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     AuthenticationManager_ = New<TAuthenticationManager>(

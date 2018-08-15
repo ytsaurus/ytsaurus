@@ -1,11 +1,11 @@
 #include "schemaless_sorting_reader.h"
+#include "schemaless_row_reorderer.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaless_row_reorderer.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

@@ -67,7 +67,7 @@ inline void LogEventImpl(
 {
     TLogEvent event = CreateLogEvent(logger, level);
     event.Message = std::move(message);
-    event.MessageFormat = ELogMessageFormat::PlainText;
+    event.Format = ELogEventFormat::PlainText;
     logger.Write(std::move(event));
 }
 
@@ -83,7 +83,7 @@ inline void LogStructuredEvent(
     YCHECK(message.GetType() == NYson::EYsonType::MapFragment);
     TLogEvent event = NDetail::CreateLogEvent(logger, level);
     event.StructuredMessage = std::move(message);
-    event.MessageFormat = ELogMessageFormat::Structured;
+    event.Format = ELogEventFormat::Json;
     logger.Write(std::move(event));
 }
 

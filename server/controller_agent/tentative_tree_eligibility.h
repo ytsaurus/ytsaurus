@@ -15,7 +15,7 @@ namespace NControllerAgent {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TJobFinishedResult
+struct TJobCompletedResult
 {
     bool BanTree = false;
 };
@@ -46,7 +46,7 @@ public:
 
     void OnJobStarted(const TString& treeId, bool tentative);
 
-    TJobFinishedResult OnJobFinished(
+    TJobCompletedResult OnJobFinished(
         const TJobSummary& jobSummary,
         const TString& treeId,
         bool tentative);
@@ -67,7 +67,7 @@ private:
 
     // Number of started/finished jobs per pool tree.
     THashMap<TString, int> StartedJobsPerPoolTree_;
-    THashMap<TString, THashMap<EJobState, int>> FinishedJobsPerStatePerPoolTree_;
+    THashMap<TString, int> FinishedJobsPerPoolTree_;
 
     THashSet<TString> BannedTrees_;
 

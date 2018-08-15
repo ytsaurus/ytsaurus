@@ -1033,7 +1033,10 @@ private:
                         return nullptr;
                     }
                     try {
-                        auto client = CreateClientForTransaction(Bootstrap_->GetMasterClient(), transactionId);
+                        auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
+                            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                            CellTagFromId(transactionId));
+                        auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
 
                         TTransactionAttachOptions options;
                         options.Ping = ping;
@@ -1047,29 +1050,28 @@ private:
                     }
                 };
 
-                TOperationTransactions transactions;
                 TOperationRevivalDescriptor revivalDescriptor;
-                transactions.AsyncTransaction = attachTransaction(
+                revivalDescriptor.AsyncTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
                     true,
                     "async");
-                transactions.InputTransaction = attachTransaction(
+                revivalDescriptor.InputTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
                     true,
                     "input");
-                transactions.OutputTransaction = attachTransaction(
+                revivalDescriptor.OutputTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
                     true,
                     "output");
-                transactions.OutputCompletionTransaction = attachTransaction(
+                revivalDescriptor.OutputCompletionTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
                     true,
                     "output completion");
-                transactions.DebugTransaction = attachTransaction(
+                revivalDescriptor.DebugTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
                     true,
                     "debug");
-                transactions.DebugCompletionTransaction = attachTransaction(
+                revivalDescriptor.DebugCompletionTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
                     true,
                     "debug completion");
@@ -1087,7 +1089,6 @@ private:
                 }
 
                 operation->RevivalDescriptor() = std::move(revivalDescriptor);
-                operation->Transactions() = std::move(transactions);
             }
         }
 
@@ -1104,10 +1105,10 @@ private:
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
             for (const auto& operation : operations) {
-                const auto& transactions = *operation->Transactions();
+                auto& revivalDescriptor = *operation->RevivalDescriptor();
                 std::vector<TTransactionId> possibleTransactions;
-                if (transactions.OutputTransaction) {
-                    possibleTransactions.push_back(transactions.OutputTransaction->GetId());
+                if (revivalDescriptor.OutputTransaction) {
+                    possibleTransactions.push_back(revivalDescriptor.OutputTransaction->GetId());
                 }
                 possibleTransactions.push_back(NullTransactionId);
 

@@ -4,7 +4,7 @@
 #include "ql_helpers.h"
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/core/ytree/fluent.h>
 

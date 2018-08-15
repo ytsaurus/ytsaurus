@@ -233,27 +233,6 @@ TEST(TYsonToProtobufTest, TypeConversions)
     EXPECT_EQ(10000U, message.fixed64_field());
 }
 
-TEST(TYsonToProtobufTest, RootMessageFromEntity)
-{
-    TEST_PROLOGUE(TMessage)
-        .Entity();
-
-    TEST_EPILOGUE(TMessage)
-    EXPECT_FALSE(message.has_int32_field_xxx());
-}
-
-TEST(TYsonToProtobufTest, NestedMessageFromEntity)
-{
-    TEST_PROLOGUE(TMessage)
-        .BeginMap()
-            .Item("nested_message1").Entity()
-            .Item("int32_field").Value(10000)
-        .EndMap();
-
-    TEST_EPILOGUE(TMessage)
-    EXPECT_EQ(10000, message.int32_field_xxx());
-}
-
 TEST(TYsonToProtobufTest, Failure)
 {
     EXPECT_YPATH({

@@ -560,7 +560,6 @@ struct TPutFileToCacheOptions
     , public TPrerequisiteOptions
 {
     NYPath::TYPath CachePath;
-    int RetryCount = 10;
 };
 
 struct TJournalReaderOptions
@@ -810,7 +809,8 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
-    TNullable<std::vector<TString>> Pools;
+    //TODO(renadeen): remove
+    TNullable<TString> Pool;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;

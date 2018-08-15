@@ -162,7 +162,7 @@ private:
 class TSortedDynamicStore::TReaderBase
 {
 public:
-    TReaderBase(
+    explicit TReaderBase(
         TSortedDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,

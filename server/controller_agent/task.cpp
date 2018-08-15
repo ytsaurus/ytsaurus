@@ -30,8 +30,6 @@ using namespace NScheduler;
 using namespace NTableClient;
 using namespace NYTree;
 
-using NYT::FromProto;
-using NYT::ToProto;
 using NScheduler::NProto::TSchedulerJobSpecExt;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TTableInputSpec;
@@ -479,14 +477,16 @@ bool TTask::CanLoseJobs() const
     return false;
 }
 
-TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
+TJobCompletedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     YCHECK(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
 
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+    TJobCompletedResult result;
 
     if (!jobSummary.Abandoned) {
+        result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+
         auto outputStatisticsMap = GetOutputDataStatistics(statistics);
         for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
@@ -565,10 +565,8 @@ void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputC
     AddPendingHint();
 }
 
-TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
+void TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
-
     TaskHost_->RegisterStderr(joblet, jobSummary);
     TaskHost_->RegisterCores(joblet, jobSummary);
 
@@ -576,14 +574,10 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     UpdateMaximumUsedTmpfsSize(*jobSummary.Statistics);
 
     ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
-
-    return result;
 }
 
-TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
+void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
-
     if (joblet->StderrTableChunkListId) {
         TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId});
     }
@@ -598,8 +592,6 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
         joblet,
         BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
         jobSummary.AbortReason == EAbortReason::RevivalConfirmationTimeout /* waitForSnapshot */);
-
-    return result;
 }
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)

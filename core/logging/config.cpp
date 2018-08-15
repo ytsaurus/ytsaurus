@@ -17,13 +17,13 @@ bool TRuleConfig::IsApplicable(const TString& category) const
 
 }
 
-bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogMessageFormat format) const
+bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogEventFormat format) const
 {
     if (!IsApplicable(category)) {
         return false;
     }
 
-    return MinLevel <= level && level <= MaxLevel && format == MessageFormat;
+    return MinLevel <= level && level <= MaxLevel && format == LogEventFormat;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

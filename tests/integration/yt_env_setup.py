@@ -351,8 +351,6 @@ class YTEnvSetup(object):
 
     NUM_REMOTE_CLUSTERS = 0
 
-    SINGLE_SETUP_TEARDOWN = False
-
     # To be redefined in successors
     @classmethod
     def modify_master_config(cls, config):
@@ -408,8 +406,7 @@ class YTEnvSetup(object):
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             modify_configs_func=modify_configs_func,
-            cell_tag=index * 10,
-            enable_structured_master_logging=True)
+            cell_tag=index * 10)
 
         instance._cluster_name = cls.get_cluster_name(index)
         instance._driver_backend = cls.get_param("DRIVER_BACKEND", index)
@@ -499,9 +496,6 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
-        if cls.SINGLE_SETUP_TEARDOWN:
-            cls._setup_method()
-
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
@@ -523,9 +517,6 @@ class YTEnvSetup(object):
 
     @classmethod
     def teardown_class(cls):
-        if cls.SINGLE_SETUP_TEARDOWN:
-            cls._teardown_method()
-
         if cls.liveness_checkers:
             map(lambda c: c.stop(), cls.liveness_checkers)
 
@@ -634,10 +625,8 @@ class YTEnvSetup(object):
             yt_commands.clear_metadata_caches(driver=driver)
 
     def setup_method(self, method):
-        if not self.SINGLE_SETUP_TEARDOWN:
-            self._setup_method()
+        self._setup_method()
 
     def teardown_method(self, method):
-        if not self.SINGLE_SETUP_TEARDOWN:
-            self._teardown_method()
+        self._teardown_method()
 

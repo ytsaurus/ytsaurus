@@ -193,9 +193,7 @@ void DumpCodicils()
 {
     TRawFormatter<256> formatter;
 
-    // NB: Avoid constructing FLS slot to avoid allocations; these may lead to deadlocks if the
-    // program crashes during an allocation itself.
-    if (CodicilsStack.IsInitialized() && !CodicilsStack->empty()) {
+    if (!CodicilsStack->empty()) {
         formatter.Reset();
         formatter.AppendString("*** Begin codicils ***\n");
         WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());

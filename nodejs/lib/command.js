@@ -17,6 +17,7 @@ var __DBG = require("./debug").that("C", "Command");
 
 // This mapping defines the supported API versions.
 var _VERSION_TO_FACADE = {
+    2 : require("./driver_facade_v2.js").that,
     3 : require("./driver_facade_v3.js").that,
     4 : require("./driver_facade_v3.js").that,
 };

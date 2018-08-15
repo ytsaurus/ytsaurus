@@ -36,7 +36,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/client/table_client/schemaless_writer.h>
-#include <yt/client/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -172,6 +172,10 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
+        , CachedExecNodeMemoryDistributionByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
+            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetControlInvoker(EControlQueue::PeriodicActivity)))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -298,20 +302,9 @@ public:
 
         JobReporterWriteFailuresChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::CheckJobReporterIssues, MakeWeak(this)),
-            Config_->JobReporterIssuesCheckPeriod);
+            BIND(&TImpl::CheckJobReporterWriteFailures, MakeWeak(this)),
+            Config_->JobReporterWriteFailuresCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
-
-        CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
-            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker(EControlQueue::PeriodicActivity));
-
-        StrategyUnschedulableOperationsChecker_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::CheckUnschedulableOperations, MakeWeak(this)),
-            Config_->OperationUnschedulableCheckPeriod);
-        StrategyUnschedulableOperationsChecker_->Start();
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -442,6 +435,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (filter.IsEmpty()) {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            return CachedExecNodeMemoryDistribution_;
+        }
+
         return CachedExecNodeMemoryDistributionByTags_->Get(filter);
     }
 
@@ -570,7 +569,7 @@ public:
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: %v)",
             operationId,
-            FormatResources(GetResourceLimits(EmptySchedulingTagFilter)));
+            FormatResources(GetTotalResourceLimits()));
 
         try {
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
@@ -772,24 +771,8 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
-    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
+    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
     {
-        std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
-        for (const auto& jobId : jobIds) {
-            auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
-            jobIdsByShardId[shardId].emplace_back(jobId);
-        }
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            if (jobIdsByShardId[shardId].empty()) {
-                continue;
-            }
-            NodeShards_[shardId]->GetInvoker()->Invoke(
-                BIND(&TNodeShard::AbortJobs,
-                    NodeShards_[shardId],
-                    jobIdsByShardId[shardId],
-                    TError("Job was in banned tentative pool tree")));
-        }
-
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
     }
@@ -834,16 +817,6 @@ public:
 
         auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
         Deserialize(userRuntimeParams, parameters);
-
-        // TODO(renadeen): remove this quick and dirty fix
-        if (userRuntimeParams->Pool) {
-            THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-        }
-        for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
-            if (pair.second->Pool) {
-                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-            }
-        }
 
         auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
 
@@ -931,6 +904,28 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
+    virtual TJobResources GetTotalResourceLimits() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto totalResourceLimits = ZeroJobResources();
+        for (const auto& nodeShard : NodeShards_) {
+            totalResourceLimits += nodeShard->GetTotalResourceLimits();
+        }
+        return totalResourceLimits;
+    }
+
+    TJobResources GetTotalResourceUsage()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto totalResourceUsage = ZeroJobResources();
+        for (const auto& nodeShard : NodeShards_) {
+            totalResourceUsage += nodeShard->GetTotalResourceUsage();
+        }
+        return totalResourceUsage;
+    }
+
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -958,8 +953,6 @@ public:
         auto operation = GetOperation(operationId);
 
         auto codicilGuard = operation->MakeCodicilGuard();
-
-        DoSetOperationAlert(operationId, EOperationAlertType::OperationPending, TError());
 
         operation->SetActivated(true);
         if (operation->GetPrepared()) {
@@ -1192,6 +1185,7 @@ private:
     mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
+    TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
@@ -1210,7 +1204,6 @@ private:
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
-    TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
 
     TString ServiceAddress_;
@@ -1250,7 +1243,7 @@ private:
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout = Null)
+        TNullable<TDuration> timeout)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1259,21 +1252,8 @@ private:
             return;
         }
 
-        if (alert.IsOK()) {
-            if (operation->HasAlert(alertType)) {
-                operation->ResetAlert(alertType);
-                LOG_DEBUG("Operation alert reset (OperationId: %v, Type: %v)",
-                    operationId,
-                    alertType);
-            }
-        } else {
-            operation->SetAlert(alertType, alert, timeout);
-            LOG_DEBUG(alert, "Operation alert set (OperationId: %v, Type: %v)",
-                operationId,
-                alertType);
-        }
+        operation->SetAlert(alertType, alert, timeout);
     }
-
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
@@ -1375,8 +1355,8 @@ private:
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
-        ProfileResources(TotalResourceLimitsProfiler_, GetResourceLimits(EmptySchedulingTagFilter));
-        ProfileResources(TotalResourceUsageProfiler_, GetResourceUsage(EmptySchedulingTagFilter));
+        ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
+        ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
 
         {
             TJobTimeStatisticsDelta jobTimeStatisticsDelta;
@@ -1397,8 +1377,8 @@ private:
             LogEventFluently(ELogEventType::ClusterInfo)
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
-                .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
-                .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter));
+                .Item("resource_limits").Value(GetTotalResourceLimits())
+                .Item("resource_usage").Value(GetTotalResourceUsage());
         }
     }
 
@@ -1779,8 +1759,7 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
-            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
-            StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
+            JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterWriteFailuresCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -1843,52 +1822,30 @@ private:
             TWriterGuard guard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, result);
         }
+
+        auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
+        {
+            TWriterGuard guard(ExecNodeDescriptorsLock_);
+            CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
+        }
     }
 
-    void CheckJobReporterIssues()
+    void CheckJobReporterWriteFailures()
     {
         int writeFailures = 0;
-        int queueIsTooLargeNodeCount = 0;
         for (const auto& shard : NodeShards_) {
             writeFailures += shard->ExtractJobReporterWriteFailuresCount();
-            queueIsTooLargeNodeCount += shard->GetJobReporterQueueIsTooLargeNodeCount();
         }
 
-        std::vector<TError> errors;
+        TError error;
         if (writeFailures > Config_->JobReporterWriteFailuresAlertThreshold) {
-            auto error = TError("Too many job archive writes failed")
-                << TErrorAttribute("aggregation_period", Config_->JobReporterIssuesCheckPeriod)
+            error = TError("Too many job archive writes failed")
+                << TErrorAttribute("aggregation_period", Config_->JobReporterWriteFailuresCheckPeriod)
                 << TErrorAttribute("threshold", Config_->JobReporterWriteFailuresAlertThreshold)
                 << TErrorAttribute("write_failures", writeFailures);
-            errors.push_back(error);
-        }
-        if (queueIsTooLargeNodeCount > Config_->JobReporterQueueIsTooLargeAlertThreshold) {
-            auto error = TError("Too many nodes has large job archivation queues")
-                << TErrorAttribute("threshold", Config_->JobReporterQueueIsTooLargeAlertThreshold)
-                << TErrorAttribute("queue_is_too_large_node_count", queueIsTooLargeNodeCount);
-            errors.push_back(error);
         }
 
-        TError resultError;
-        if (!errors.empty()) {
-            resultError = TError("Job archivation issues detected")
-                << errors;
-        }
-
-        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
-    }
-
-    void CheckUnschedulableOperations()
-    {
-        for (auto pair : Strategy_->GetUnschedulableOperations()) {
-            const auto& operationId = pair.first;
-            const auto& error = pair.second;
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-            OnOperationFailed(operation, error);
-        }
+        SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, error);
     }
 
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
@@ -1973,7 +1930,7 @@ private:
     {
         auto briefSpec = BuildYsonStringFluently()
             .BeginMap()
-                .Items(operation->ControllerAttributes().InitializeAttributes->BriefSpec)
+                .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
             .EndMap();
         return briefSpec;
     }
@@ -1993,13 +1950,12 @@ private:
 
             const auto& controller = operation->GetController();
 
-            auto initializeResult = WaitFor(controller->Initialize(/* transactions */ Null))
+            auto initializationResult = WaitFor(controller->Initialize(Null))
                 .ValueOrThrow();
 
             ValidateOperationState(operation, EOperationState::Initializing);
 
-            operation->Transactions() = initializeResult.Transactions;
-            operation->ControllerAttributes().InitializeAttributes = std::move(initializeResult.Attributes);
+            operation->ControllerAttributes().InitializationAttributes = initializationResult.Attributes;
             operation->BriefSpec() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
@@ -2056,7 +2012,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
-            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializeAttributes->UnrecognizedSpec);
+            .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializationAttributes->UnrecognizedSpec);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2079,13 +2035,11 @@ private:
 
             {
                 YCHECK(operation->RevivalDescriptor());
-                auto result = WaitFor(controller->Initialize(operation->Transactions()))
+                auto result = WaitFor(controller->Initialize(operation->RevivalDescriptor()))
                     .ValueOrThrow();
 
-                operation->Transactions() = std::move(result.Transactions);
-                operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
+                operation->ControllerAttributes().InitializationAttributes = std::move(result.Attributes);
                 operation->BriefSpec() = BuildBriefSpec(operation);
-                operation->Transactions() = std::move(result.Transactions);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2482,7 +2436,7 @@ private:
 
         NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
         auto req = proxy.GetOperationInfo();
-        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentLightRpcTimeout);
         ToProto(req->mutable_operation_id(), operation->GetId());
 
         return req->Invoke();
@@ -2574,33 +2528,11 @@ private:
                 WaitFor(controller->Abort())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to abort controller of operation %v",
-                    operation->GetId())
+                auto error = TError("Failed to abort controller")
+                    << TErrorAttribute("operation_id", operation->GetId())
                     << ex;
                 MasterConnector_->Disconnect(error);
                 return;
-            }
-        }
-
-        if (!operation->FindAgent() && operation->Transactions()) {
-            std::vector<TFuture<void>> asyncResults;
-            auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
-                if (transaction) {
-                    asyncResults.push_back(transaction->Abort());
-                }
-            };
-
-            const auto& transactions = *operation->Transactions();
-            scheduleAbort(transactions.AsyncTransaction);
-            scheduleAbort(transactions.InputTransaction);
-            scheduleAbort(transactions.OutputTransaction);
-            scheduleAbort(transactions.DebugTransaction);
-
-            try {
-                WaitFor(Combine(asyncResults))
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)", operation->GetId());
             }
         }
 
@@ -2638,8 +2570,9 @@ private:
         LOG_INFO("Completing operation without revival (OperationId: %v)",
              operation->GetId());
 
-        if (operation->RevivalDescriptor()->ShouldCommitOutputTransaction) {
-            WaitFor(operation->Transactions()->OutputTransaction->Commit())
+        const auto& revivalDescriptor = *operation->RevivalDescriptor();
+        if (revivalDescriptor.ShouldCommitOutputTransaction) {
+            WaitFor(revivalDescriptor.OutputTransaction->Commit())
                 .ThrowOnError();
         }
 
@@ -2669,10 +2602,10 @@ private:
             }
         };
 
-        const auto& transactions = *operation->Transactions();
-        abortTransaction(transactions.AsyncTransaction);
-        abortTransaction(transactions.InputTransaction);
-        abortTransaction(transactions.OutputTransaction);
+        const auto& revivalDescriptor = *operation->RevivalDescriptor();
+        abortTransaction(revivalDescriptor.AsyncTransaction);
+        abortTransaction(revivalDescriptor.InputTransaction);
+        abortTransaction(revivalDescriptor.OutputTransaction);
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
 
@@ -2698,18 +2631,6 @@ private:
         for (const auto& filter : toRemove) {
             YCHECK(CachedResourceLimitsByTags_.erase(filter) == 1);
         }
-    }
-
-    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto resourceUsage = ZeroJobResources();
-        for (const auto& nodeShard : NodeShards_) {
-            resourceUsage += nodeShard->GetResourceUsage(filter);
-        }
-
-        return resourceUsage;
     }
 
     TYsonString BuildSuspiciousJobsYson()
@@ -2749,8 +2670,8 @@ private:
                 .Item("connected").Value(IsConnected())
                 // COMPAT(babenko): deprecate cell in favor of cluster
                 .Item("cell").BeginMap()
-                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
-                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
+                    .Item("resource_limits").Value(GetTotalResourceLimits())
+                    .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
@@ -2764,8 +2685,8 @@ private:
                         })
                 .EndMap()
                 .Item("cluster").BeginMap()
-                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
-                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
+                    .Item("resource_limits").Value(GetTotalResourceLimits())
+                    .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
@@ -2857,7 +2778,7 @@ private:
     bool HandleWaitingForAgentOperation(const TOperationPtr& operation)
     {
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agent = agentTracker->PickAgentForOperation(operation);
+        auto agent = agentTracker->PickAgentForOperation(operation, Config_->MinAgentCountForWaitingOperation);
         if (!agent) {
             LOG_DEBUG("Failed to assign operation to agent; backing off");
             OperationToAgentAssignmentFailureTime_ = TInstant::Now();
@@ -3091,7 +3012,7 @@ private:
 
             NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
             auto req = proxy.GetJobInfo();
-            req->SetTimeout(Scheduler_->Config_->ControllerAgentTracker->LightRpcTimeout);
+            req->SetTimeout(Scheduler_->Config_->ControllerAgentLightRpcTimeout);
             ToProto(req->mutable_operation_id(), operationId);
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())
@@ -3260,9 +3181,9 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
+void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
 {
-    Impl_->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
+    Impl_->OnOperationBannedInTentativeTree(operation, treeId);
 }
 
 TFuture<void> TScheduler::UpdateOperationParameters(

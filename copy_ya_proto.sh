@@ -34,4 +34,4 @@ for path in $YT_PROTOS; do
     python ../replace-imports.py <"..$YT_PREFIX/$path" >"ya_proto/yt_proto/$path"
 done
 
-echo -e "SET(PROTO_SRCS${PROTO_PATHS}\n)" >ya_proto/ya.make.inc
+echo "SET(PROTO_SRCS${PROTO_PATHS}\n)" >ya_proto/ya.make.inc

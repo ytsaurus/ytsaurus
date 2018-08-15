@@ -2,7 +2,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/ytlib/table_client/value_consumer.h>
 
 #include <vector>
 

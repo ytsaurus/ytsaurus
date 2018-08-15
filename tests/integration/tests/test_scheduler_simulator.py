@@ -260,7 +260,8 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             spec={"job_count": 1,
                   "max_failed_job_count": 1,
                   "data_size_per_job": 1,
-                  "pool": "test_pool"})
+                  "pool": "test_pool",
+                  "pool_trees": ["default"]})
 
         time.sleep(5)
 

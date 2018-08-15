@@ -28,12 +28,6 @@ T* TGrpcObjectPtr<T, Deletor>::Unwrap()
 }
 
 template <class T, void(*Deletor)(T*)>
-const T* TGrpcObjectPtr<T, Deletor>::Unwrap() const
-{
-    return Ptr_;
-}
-
-template <class T, void(*Deletor)(T*)>
 TGrpcObjectPtr<T, Deletor>::operator bool() const
 {
     return Ptr_ != nullptr;

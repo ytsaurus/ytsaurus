@@ -6,8 +6,8 @@
 
 #include <yt/ytlib/api/native/config.h>
 
-#include <yt/client/formats/format.h>
-#include <yt/client/formats/config.h>
+#include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/formats/config.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
@@ -749,8 +749,6 @@ public:
     TNullable<bool> EnableKeyGuarantee;
 
     std::vector<NTableClient::TOwningKey> PivotKeys;
-
-    bool ValidateKeyColumnTypes;
 
     TNewReduceOperationSpec();
 

@@ -19,9 +19,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TOperationControllerPtr, Controller);
 
 public:
-    TOperation(
-        const TOperationDescription& description,
-        const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters);
+    TOperation(const TOperationDescription& description);
 
     virtual const NScheduler::TOperationId& GetId() const override;
     virtual NScheduler::EOperationType GetType() const override;

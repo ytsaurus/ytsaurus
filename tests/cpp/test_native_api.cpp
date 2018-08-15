@@ -95,7 +95,7 @@ protected:
     static void CreateClient(const TString& userName)
     {
         TClientOptions clientOptions;
-        clientOptions.PinnedUser = userName;
+        clientOptions.User = userName;
         Client_ = Connection_->CreateNativeClient(clientOptions);
     }
 };
