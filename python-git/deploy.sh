@@ -81,7 +81,7 @@ fi
 # Detect repos to upload.
 REPOS=""
 case $PACKAGE in
-    yandex-yt-python|yandex-yt-python-tools|yandex-yt-local|yandex-yt-transfer-manager-client)
+    yandex-yt-python|yandex-yt-python-tools|yandex-yt-local|yandex-yt-transfer-manager-client|yandex-yp-python|yandex-yp-python-skynet)
         REPOS="common yt-common search"
         ;;
     yandex-yt-python-fennel|yandex-yt-fennel)
