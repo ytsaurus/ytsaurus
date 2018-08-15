@@ -2054,7 +2054,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
     }
-    
+
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
             LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
@@ -6148,7 +6148,7 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
 }
-    
+
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
 {
     std::vector<TJobId> jobIds;
@@ -7046,17 +7046,10 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     for (const auto& table : InputTables) {
         if (table.SchemaMode != OutputTables_[0].TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-<<<<<<< HEAD
                 << TErrorAttribute("input_table1_path", table.GetPath())
                 << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
                 << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
                 << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
-=======
-                    << TErrorAttribute("input_table1_path", table.GetPath())
-                    << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
-                    << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
-                    << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
->>>>>>> stable-old/19.3
         }
     }
 
