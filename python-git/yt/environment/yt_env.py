@@ -934,11 +934,10 @@ class YTInstance(object):
                 active_scheduler_orchid_path = None
                 for instance in instances:
                     orchid_path = "//sys/scheduler/instances/{0}/orchid".format(instance)
-                    path = orchid_path + "/scheduler"
                     try:
                         client.set(orchid_path + "/@retry_backoff_time", 100)
-                        if client.get(path + "/connected"):
-                            active_scheduler_orchid_path = path
+                        if client.get(orchid_path + "/scheduler/connected"):
+                            active_scheduler_orchid_path = orchid_path
                     except YtError as err:
                         if not err.is_resolve_error():
                             raise
@@ -946,19 +945,18 @@ class YTInstance(object):
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
 
-                # TODO(ignat): /config/primary_master_cell_id is temporary solution.
                 try:
                     master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/primary_master_cell_id")
+                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
                     if master_cell_id != scheduler_cell_id:
                         return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
                 except YtResponseError as err:
                     if err.is_resolve_error():
-                        return False, "Failed to request primary_master_cell_id from master and scheduler" + str(err)
+                        return False, "Failed to request primary master cell id from master and scheduler" + str(err)
                     else:
                         raise
 
-                nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/nodes")))
+                nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
             except YtResponseError as err:
                 # Orchid connection refused
