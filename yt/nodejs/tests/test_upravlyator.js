@@ -1,7 +1,7 @@
 var querystring = require("querystring");
 var Q = require("bluebird");
 
-var YtApplicationUpravlyator = require("../lib/middleware/application_upravlyator").that;
+var YtApplicationUpravlyator = require("../lib/middleware/appli cation_upravlyator").that;
 var YtError = require("../lib/error").that;
 var YtRegistry = require("../lib/registry").that;
 
@@ -25,6 +25,7 @@ function stubRegistry()
     YtRegistry.set("logger", logger);
     YtRegistry.set("driver", { executeSimple: function(){ return Q.resolve(); } });
     YtRegistry.set("authority", { ensureUser: function(){ return Q.resolve(); } });
+    YtRegistry.set("robot_yt_idm", "root");
 }
 
 function map(object, iterator, context)
