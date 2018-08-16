@@ -40,6 +40,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
+            "alerts_update_period": 100,
         }
     }
 
@@ -77,8 +78,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
         create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
-        create("map_node", "//sys/pools/small_pool/subpool_3", attributes={"min_share_ratio": 1.0})
-        create("map_node", "//sys/pools/small_pool/subpool_4", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/small_pool/subpool_3")
+        create("map_node", "//sys/pools/small_pool/subpool_4")
 
         total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
 
