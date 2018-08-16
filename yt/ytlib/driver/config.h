@@ -41,6 +41,8 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
+    TNullable<TString> Token;
+
     TDriverConfig()
     {
         RegisterParameter("file_reader", FileReader)
@@ -70,6 +72,9 @@ public:
 
         RegisterParameter("api_version", ApiVersion)
             .Default(ApiVersion3);
+
+        RegisterParameter("token", Token)
+            .Optional();
     }
 };
 
