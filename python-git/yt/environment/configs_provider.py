@@ -503,10 +503,6 @@ class ConfigsProvider_19(ConfigsProvider):
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
 
-            # TODO(ignat): temporary solution to check that correctness of connected scheduler.
-            # correct solution is to publish cell_id in some separate place in orchid.
-            set_at(config, "scheduler/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
-
             _set_bind_retry_options(config, key="bus_server")
 
             configs.append(config)
