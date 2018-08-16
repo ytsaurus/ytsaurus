@@ -2,6 +2,7 @@ import os
 import subprocess
 
 from yt.environment import YTInstance
+
 from yt_env_setup import resolve_test_paths
 
 from yt.common import update_inplace
@@ -26,28 +27,33 @@ def get_config_patcher(patches):
             configs["driver"][key] = update_inplace(config, patches.get("DELTA_DRIVER_CONFIG", {}))
     return apply_config_patches
 
+def extract_attrs(file_path, comment_line_begin):
+    with open(file_path, 'rt') as handle:
+        for line in handle:
+            if not line.startswith(comment_line_begin):
+                break
+            config_mark = comment_line_begin + '%'
+            if line.startswith(config_mark):
+                line = line.lstrip(config_mark).rstrip('\r\n').replace(' ', '')
+                try:
+                    key, value = line.split('=', 2)
+                    yield key, eval(value)
+                except ValueError:
+                    print '%s: Unable to interpret line "%s"' % \
+                        (file_path, line)
+
 class ExecutableItem(pytest.Item):
-    def __init__(self, parent):
+    def __init__(self, parent, driver_backend):
         assert parent.fspath is not None
-        name = parent.fspath.basename.rsplit('.', 1)[0]
+        self.base_name = parent.fspath.basename.rsplit('.', 1)[0]
+        name = "{0}[{1}]".format(self.base_name, driver_backend)
         super(ExecutableItem, self).__init__(name, parent)
         self.sandbox_path, self.environment_path = resolve_test_paths(name)
         self.pids_file = os.path.join(self.environment_path, 'pids.txt')
+        self.driver_backend = driver_backend
 
     def extract_attrs(self, path):
-        with open(path, 'rt') as handle:
-            for line in handle:
-                if not line.startswith(self.comment_line_begin):
-                    break
-                config_mark = self.comment_line_begin + '%'
-                if line.startswith(config_mark):
-                    line = line.lstrip(config_mark).rstrip('\r\n').replace(' ', '')
-                    try:
-                        key, value = line.split('=', 2)
-                        yield key, eval(value)
-                    except ValueError:
-                        print '%s: Unable to interpret line "%s"' % \
-                            (path, line)
+        return extract_attrs(path, self.comment_line_begin)
 
     def runtest(self):
         print ''
@@ -58,7 +64,9 @@ class ExecutableItem(pytest.Item):
         params_map = {
             "NUM_MASTERS": "master_count",
             "NUM_SCHEDULERS": "scheduler_count",
-            "NUM_NODES": "node_count"
+            "NUM_NODES": "node_count",
+            "ENABLE_RPC_PROXY": "has_rpc_proxy",
+            "DRIVER_BACKENDS": None # This key is recognized but is handled elsewhere.
         }
 
         config_keys = {
@@ -69,7 +77,7 @@ class ExecutableItem(pytest.Item):
             "DELTA_DRIVER_CONFIG"
         }
 
-        kwargs = {}
+        kwargs = {"driver_backend": self.driver_backend}
         config_patches = {}
         for key, value in self.extract_attrs(str(self.fspath)):
             print 'Setting "%s" to "%s"' % (key, value)
@@ -122,8 +130,8 @@ class YtShellTestException(Exception):
 
 
 class PerlItem(ExecutableItem):
-    def __init__(self, parent):
-        super(PerlItem, self).__init__(parent)
+    def __init__(self, parent, driver_backend):
+        super(PerlItem, self).__init__(parent, driver_backend)
         self.comment_line_begin = "#"
 
     def on_runtest(self, env):
@@ -144,6 +152,7 @@ class PerlItem(ExecutableItem):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
+
         stdout, stderr = child.communicate()
         child.wait()
 
@@ -160,8 +169,8 @@ class PerlItem(ExecutableItem):
 
 
 class CppItem(ExecutableItem):
-    def __init__(self, parent):
-        super(CppItem, self).__init__(parent)
+    def __init__(self, parent, driver_backend):
+        super(CppItem, self).__init__(parent, driver_backend)
         self.comment_line_begin = "//"
 
     def on_runtest(self, env):
@@ -170,7 +179,7 @@ class CppItem(ExecutableItem):
         if env.master_count > 0:
             environment["YT_CONSOLE_DRIVER_CONFIG_PATH"] = env.config_paths["console_driver"][0]
 
-        execs = [self.name]
+        execs = [self.base_name]
 
         gt_filter = pytest.config.getoption("--gtest_filter")
         if gt_filter:
@@ -191,13 +200,35 @@ class CppItem(ExecutableItem):
     def reportinfo(self):
         return self.fspath, 0, "c++:%s" % self.name
 
+class ExecutableFile(pytest.File):
+    def extract_driver_backends(self):
+        driver_backends = []
+        for key, value in extract_attrs(str(self.fspath), self.comment_line_begin):
+            if key == "DRIVER_BACKENDS":
+                driver_backends.extend(value)
+                break
 
-class PerlFile(pytest.File):
+        if len(driver_backends) == 0:
+            driver_backends.append('native')
+
+        return driver_backends
+
+class PerlFile(ExecutableFile):
+    def __init__(self, path, parent):
+        super(ExecutableFile, self).__init__(path, parent)
+        self.comment_line_begin = '#'
+
     def collect(self):
-        yield PerlItem(self)
+        for backend in self.extract_driver_backends():
+            yield PerlItem(self, backend)
 
+class CppFile(ExecutableFile):
+    def __init__(self, path, parent):
+        super(ExecutableFile, self).__init__(path, parent)
+        self.comment_line_begin = '//'
 
-class CppFile(pytest.File):
     def collect(self):
-        yield CppItem(self)
+        for backend in self.extract_driver_backends():
+            yield CppItem(self, backend)
+
 

@@ -145,36 +145,36 @@ public:
     }
 
 
-    virtual TFuture<TOperationControllerInitializeResult> Initialize(const TNullable<TOperationRevivalDescriptor>& descriptor) override
+    virtual TFuture<TOperationControllerInitializeResult> Initialize(const TNullable<TOperationTransactions>& transactions) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->InitializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        if (descriptor) {
+        if (transactions) {
             req->set_clean(false);
-            auto getId = [] (const NApi::ITransactionPtr& transaction) {
-                return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
-            };
-            ToProto(req->mutable_async_transaction_id(), getId(descriptor->AsyncTransaction));
-            ToProto(req->mutable_input_transaction_id(), getId(descriptor->InputTransaction));
-            ToProto(req->mutable_output_transaction_id(), getId(descriptor->OutputTransaction));
-            ToProto(req->mutable_debug_transaction_id(), getId(descriptor->DebugTransaction));
-            ToProto(req->mutable_output_completion_transaction_id(), getId(descriptor->OutputCompletionTransaction));
-            ToProto(req->mutable_debug_completion_transaction_id(), getId(descriptor->DebugCompletionTransaction));
+            ToProto(req->mutable_transaction_ids(), *transactions);
         } else {
             req->set_clean(true);
         }
         return InvokeAgent<TControllerAgentServiceProxy::TRspInitializeOperation>(req).Apply(
-            BIND([] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
+            BIND([this, this_ = MakeStrong(this)] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
+                TOperationTransactions transactions;
+                try {
+                    FromProto(&transactions, rsp->transaction_ids(), Bootstrap_->GetMasterClient());
+                } catch (const std::exception& ex) {
+                    LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
+                        OperationId_);
+                }
                 return TOperationControllerInitializeResult{
                     TOperationControllerInitializeAttributes{
                         TYsonString(rsp->mutable_attributes(), EYsonType::MapFragment),
                         TYsonString(rsp->brief_spec(), EYsonType::MapFragment),
                         TYsonString(rsp->full_spec(), EYsonType::Node),
                         TYsonString(rsp->unrecognized_spec(), EYsonType::Node)
-                    }
+                    },
+                    transactions
                 };
             }));
     }
@@ -262,7 +262,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // XXX(babenko): this may not be quite OK since transactions are left behind
         if (!IncarnationId_) {
             LOG_WARNING("Operation has no agent assigned; control abort request ignored (OperationId: %v)",
                 OperationId_);

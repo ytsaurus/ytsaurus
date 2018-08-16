@@ -195,7 +195,7 @@ public:
     virtual TOperationControllerReviveResult Revive() override;
 
     virtual TOperationControllerInitializeResult InitializeClean() override;
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactions& transactions) override;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
 
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
@@ -1067,7 +1067,7 @@ private:
 
     void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
-    std::vector<NApi::ITransactionPtr> GetTransactions();
+    TControllerTransactionIds GetTransactionIds();
 
     TNullable<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;

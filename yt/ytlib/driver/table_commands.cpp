@@ -638,6 +638,8 @@ TLookupRowsCommand::TLookupRowsCommand()
         .Default();
     RegisterParameter("versioned", Versioned)
         .Default(false);
+    RegisterParameter("retention_config", RetentionConfig)
+        .Optional();
     RegisterParameter("timestamp", Options.Timestamp)
         .Optional();
     RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
@@ -700,6 +702,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         versionedOptions.ColumnFilter = Options.ColumnFilter;
         versionedOptions.KeepMissingRows = Options.KeepMissingRows;
         versionedOptions.Timestamp = Options.Timestamp;
+        versionedOptions.RetentionConfig = RetentionConfig;
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();

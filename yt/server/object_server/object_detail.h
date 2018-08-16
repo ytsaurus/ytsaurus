@@ -49,7 +49,6 @@ public:
         const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
-
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;

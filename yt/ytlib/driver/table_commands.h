@@ -247,6 +247,7 @@ private:
     NYPath::TRichYPath Path;
     TNullable<std::vector<TString>> ColumnNames;
     bool Versioned;
+    NTableClient::TRetentionConfigPtr RetentionConfig;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

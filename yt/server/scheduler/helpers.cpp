@@ -5,7 +5,10 @@
 #include "job.h"
 #include "operation.h"
 
+#include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
@@ -13,6 +16,8 @@
 #include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -30,6 +35,7 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
+using namespace NApi;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -236,6 +242,20 @@ TListOperationsResult ListOperations(
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+NNative::IClientPtr CreateClientForTransaction(
+    const NNative::IClientPtr& client,
+    const TTransactionId& transactionId)
+{
+    auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
+        client->GetNativeConnection(),
+        CellTagFromId(transactionId));
+    return connection->CreateNativeClient(TClientOptions(SchedulerUserName));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

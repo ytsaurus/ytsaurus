@@ -594,7 +594,7 @@ private:
     Py::Object DumpsProtoImpl(Py::Object protoObject, TNullable<bool> skipUnknownFields)
     {
         auto serializeToString = Py::Callable(GetAttr(protoObject, "SerializeToString"));
-        auto serializedProto = Py::String(serializeToString.apply(Py::Tuple(), Py::Dict()));
+        auto serializedProto = Py::Bytes(serializeToString.apply(Py::Tuple(), Py::Dict()));
         auto serializedStringBuf = ConvertToStringBuf(serializedProto);
 
         auto descriptorObject = GetAttr(protoObject, "DESCRIPTOR");

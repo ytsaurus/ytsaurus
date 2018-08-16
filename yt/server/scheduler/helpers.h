@@ -52,6 +52,12 @@ TListOperationsResult ListOperations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NApi::NNative::IClientPtr CreateClientForTransaction(
+    const NApi::NNative::IClientPtr& client,
+    const NTransactionClient::TTransactionId& transactionId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

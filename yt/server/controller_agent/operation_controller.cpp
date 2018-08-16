@@ -35,6 +35,29 @@ using namespace NYTree;
 
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds)
+{
+    ToProto(transactionIdsProto->mutable_async_id(), transactionIds.AsyncId);
+    ToProto(transactionIdsProto->mutable_input_id(), transactionIds.InputId);
+    ToProto(transactionIdsProto->mutable_output_id(), transactionIds.OutputId);
+    ToProto(transactionIdsProto->mutable_debug_id(), transactionIds.DebugId);
+    ToProto(transactionIdsProto->mutable_output_completion_id(), transactionIds.OutputCompletionId);
+    ToProto(transactionIdsProto->mutable_debug_completion_id(), transactionIds.DebugCompletionId);
+}
+
+void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto)
+{
+    transactionIds->AsyncId = FromProto<TTransactionId>(transactionIdsProto.async_id());
+    transactionIds->InputId = FromProto<TTransactionId>(transactionIdsProto.input_id());
+    transactionIds->OutputId = FromProto<TTransactionId>(transactionIdsProto.output_id());
+    transactionIds->DebugId  = FromProto<TTransactionId>(transactionIdsProto.debug_id());
+    transactionIds->OutputCompletionId = FromProto<TTransactionId>(transactionIdsProto.output_completion_id());
+    transactionIds->DebugCompletionId = FromProto<TTransactionId>(transactionIdsProto.debug_completion_id());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,7 +216,7 @@ public:
         return Underlying_->InitializeClean();
     }
 
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactions& transactions) override
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override
     {
         return Underlying_->InitializeReviving(transactions);
     }

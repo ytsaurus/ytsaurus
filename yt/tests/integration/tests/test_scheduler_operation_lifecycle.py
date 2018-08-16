@@ -798,7 +798,9 @@ class TestControllerAgent(YTEnvSetup):
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "controller_agent_heartbeat_timeout": 2000,
+            "controller_agent_tracker": {
+                "heartbeat_timeout": 2000,
+            },
             "testing_options": {
                 "finish_operation_transition_delay": 2000,
             },
@@ -824,21 +826,26 @@ class TestControllerAgent(YTEnvSetup):
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        op = map(
-            command="sleep 1000",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            dont_track=True)
+        for wait_transition_state in (False, True):
+            for iter in xrange(2):
+                op = map(
+                    command="sleep 1000",
+                    in_=["//tmp/t_in"],
+                    out="//tmp/t_out",
+                    dont_track=True)
 
-        self._wait_for_state(op, "running")
+                self._wait_for_state(op, "running")
 
-        self.Env.kill_controller_agents()
+                self.Env.kill_controller_agents()
 
-        op.abort()
+                if wait_transition_state:
+                    self._wait_for_state(op, "waiting_for_agent")
 
-        self.Env.start_controller_agents()
+                op.abort()
 
-        self._wait_for_state(op, "aborted")
+                self.Env.start_controller_agents()
+
+                self._wait_for_state(op, "aborted")
 
     def test_complete_operation_without_controller_agent(self):
         self._create_table("//tmp/t_in")

@@ -567,6 +567,7 @@ struct TPutFileToCacheOptions
     , public TPrerequisiteOptions
 {
     NYPath::TYPath CachePath;
+    int RetryCount = 10;
 };
 
 struct TJournalReaderOptions

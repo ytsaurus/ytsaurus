@@ -306,6 +306,12 @@ public:
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
             GetControlInvoker(EControlQueue::PeriodicActivity));
+
+        StrategyUnschedulableOperationsChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::CheckUnschedulableOperations, MakeWeak(this)),
+            Config_->OperationUnschedulableCheckPeriod);
+        StrategyUnschedulableOperationsChecker_->Start();
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -1204,6 +1210,7 @@ private:
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
+    TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
 
     TString ServiceAddress_;
@@ -1773,6 +1780,7 @@ private:
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
+            StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -1868,6 +1876,19 @@ private:
         }
 
         SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
+    }
+
+    void CheckUnschedulableOperations()
+    {
+        for (auto pair : Strategy_->GetUnschedulableOperations()) {
+            const auto& operationId = pair.first;
+            const auto& error = pair.second;
+            auto operation = FindOperation(operationId);
+            if (!operation) {
+                continue;
+            }
+            OnOperationFailed(operation, error);
+        }
     }
 
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
@@ -1972,12 +1993,13 @@ private:
 
             const auto& controller = operation->GetController();
 
-            auto initializationResult = WaitFor(controller->Initialize(Null))
+            auto initializeResult = WaitFor(controller->Initialize(/* transactions */ Null))
                 .ValueOrThrow();
 
             ValidateOperationState(operation, EOperationState::Initializing);
 
-            operation->ControllerAttributes().InitializeAttributes = initializationResult.Attributes;
+            operation->Transactions() = initializeResult.Transactions;
+            operation->ControllerAttributes().InitializeAttributes = std::move(initializeResult.Attributes);
             operation->BriefSpec() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
@@ -2057,11 +2079,13 @@ private:
 
             {
                 YCHECK(operation->RevivalDescriptor());
-                auto result = WaitFor(controller->Initialize(operation->RevivalDescriptor()))
+                auto result = WaitFor(controller->Initialize(operation->Transactions()))
                     .ValueOrThrow();
 
+                operation->Transactions() = std::move(result.Transactions);
                 operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
                 operation->BriefSpec() = BuildBriefSpec(operation);
+                operation->Transactions() = std::move(result.Transactions);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2558,6 +2582,28 @@ private:
             }
         }
 
+        if (!operation->FindAgent() && operation->Transactions()) {
+            std::vector<TFuture<void>> asyncResults;
+            auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
+                if (transaction) {
+                    asyncResults.push_back(transaction->Abort());
+                }
+            };
+
+            const auto& transactions = *operation->Transactions();
+            scheduleAbort(transactions.AsyncTransaction);
+            scheduleAbort(transactions.InputTransaction);
+            scheduleAbort(transactions.OutputTransaction);
+            scheduleAbort(transactions.DebugTransaction);
+
+            try {
+                WaitFor(Combine(asyncResults))
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)", operation->GetId());
+            }
+        }
+
         SetOperationFinalState(operation, finalState, error);
 
         // Second flush: ensure that the state is changed to its final value.
@@ -2592,9 +2638,8 @@ private:
         LOG_INFO("Completing operation without revival (OperationId: %v)",
              operation->GetId());
 
-        const auto& revivalDescriptor = *operation->RevivalDescriptor();
-        if (revivalDescriptor.ShouldCommitOutputTransaction) {
-            WaitFor(revivalDescriptor.OutputTransaction->Commit())
+        if (operation->RevivalDescriptor()->ShouldCommitOutputTransaction) {
+            WaitFor(operation->Transactions()->OutputTransaction->Commit())
                 .ThrowOnError();
         }
 
@@ -2624,10 +2669,10 @@ private:
             }
         };
 
-        const auto& revivalDescriptor = *operation->RevivalDescriptor();
-        abortTransaction(revivalDescriptor.AsyncTransaction);
-        abortTransaction(revivalDescriptor.InputTransaction);
-        abortTransaction(revivalDescriptor.OutputTransaction);
+        const auto& transactions = *operation->Transactions();
+        abortTransaction(transactions.AsyncTransaction);
+        abortTransaction(transactions.InputTransaction);
+        abortTransaction(transactions.OutputTransaction);
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
 
