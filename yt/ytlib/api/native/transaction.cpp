@@ -861,6 +861,7 @@ private:
             , TabletInfo_(std::move(tabletInfo))
             , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
+            , UserName_(transaction->Client_->GetOptions().GetUser())
             , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
@@ -929,6 +930,7 @@ private:
         const TTabletInfoPtr TabletInfo_;
         const TTableCommitSessionPtr TableSession_;
         const TConnectionConfigPtr Config_;
+        const TString UserName_;
         const TColumnEvaluatorPtr ColumnEvaluator_;
         const ITableMountCachePtr TableMountCache_;
         const int ColumnCount_;
@@ -1055,7 +1057,10 @@ private:
         template <typename TRow>
         void WriteRow(const TRow& submittedRow)
         {
-            if (++TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction) {
+            ++TotalBatchedRowCount_;
+            if (UserName_ != NSecurityClient::ReplicatorUserName &&
+                TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction)
+            {
                 THROW_ERROR_EXCEPTION("Transaction affects too many rows")
                     << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
             }
