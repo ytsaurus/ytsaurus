@@ -110,10 +110,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         client.set(dir + "/@opaque", "true")
 
     add_acl("/", {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]}, client)
-    add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]}, client)
+    add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer", "mount"]}, client)
 
     add_acl("//sys", {"action": "allow", "subjects": ["users"], "permissions": ["read"]}, client)
-    add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]},
+    add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer", "mount"]},
             client)
     client.set("//sys/@inherit_acl", "false")
 
