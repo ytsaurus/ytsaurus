@@ -70,10 +70,6 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         assert False
 
     def test_scheduler_guaranteed_resources_ratio(self):
-        def get_alerts():
-            alerts = get("//sys/scheduler/@alerts")
-            return list(filter(lambda alert: "unrecognized" not in str(alert), alerts))
-
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
@@ -86,14 +82,14 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        assert not get_alerts()
+        assert not get("//sys/scheduler/@alerts")
 
         set("//sys/pools/small_pool/subpool_3/@min_share_resources", {"cpu": 1})
 
         # Wait for fair share update.
         time.sleep(1)
 
-        assert get_alerts()
+        assert get("//sys/scheduler/@alerts")
 
         remove("//sys/pools/small_pool/subpool_3/@min_share_resources")
 
