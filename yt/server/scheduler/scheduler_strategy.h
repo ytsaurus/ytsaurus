@@ -156,7 +156,8 @@ struct ISchedulerStrategy
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user) = 0;
+        const TString& user,
+        EOperationType operationType) = 0;
 
     virtual void UpdateOperationRuntimeParametersOld(
         IOperationStrategyHost* operation,

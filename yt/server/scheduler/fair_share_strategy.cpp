@@ -38,21 +38,6 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPoolName {
-    TPoolName(TString pool, TNullable<TString> parent) : Pool(std::move(pool)), ParentPool(std::move(parent)) {}
-    TString Pool;
-    TNullable<TString> ParentPool;
-
-    static const char DELIMITER = '|';
-
-    static TPoolName Create(const TString& pool, const TString& user, bool createEphemeralSubpool) {
-        if (createEphemeralSubpool) {
-            return TPoolName(pool + DELIMITER + user, pool);
-        }
-        return TPoolName(pool, Null);
-    }
-};
-
 namespace {
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
@@ -965,6 +950,18 @@ public:
 
         return Config->NodesFilter;
     }
+
+    TPoolName MakeAppropriatePoolName(const TNullable<TString>& specPool, const TString& user)
+    {
+        if (!specPool) {
+            return {user, Null};
+        }
+        TPoolPtr pool = FindPool(specPool.Get());
+        if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
+            return {user, specPool.Get()};
+        }
+        return {specPool.Get(), Null};
+    };
 
 private:
     TFairShareStrategyTreeConfigPtr Config;
@@ -2185,7 +2182,7 @@ public:
 
         auto spec = ParseSpec(operation);
         auto state = New<TFairShareStrategyOperationState>(operation);
-        state->TreeIdToPoolIdMap() = ParseOperationPools(operation, operation->GetRuntimeParameters());
+        state->TreeIdToPoolIdMap() = GetOperationPools(operation->GetRuntimeParameters());
 
         YCHECK(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
@@ -2481,7 +2478,7 @@ public:
         const auto state = GetOperationState(operation->GetId());
         const auto runtimeParams = operation->GetRuntimeParameters();
 
-        auto newPools = ParseOperationPools(operation, operation->GetRuntimeParameters());
+        auto newPools = GetOperationPools(operation->GetRuntimeParameters());
 
         YCHECK(newPools.size() == state->TreeIdToPoolIdMap().size());
 
@@ -2514,11 +2511,27 @@ public:
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user) override
+        const TString& user,
+        EOperationType operationType) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        runtimeParameters->FillFromSpec(spec, DefaultTreeId_, user);
+        auto poolTrees = ParsePoolTrees(spec, operationType);
+        runtimeParameters->Owners = spec->Owners;
+        for (const auto& tree : poolTrees) {
+            auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
+            auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
+            if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
+                treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
+                treeParams->Pool = GetTree(tree)->MakeAppropriatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user);
+                treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
+            } else {
+                treeParams->Weight = spec->Weight;
+                treeParams->Pool = GetTree(tree)->MakeAppropriatePoolName(spec->Pool, user);
+                treeParams->ResourceLimits = spec->ResourceLimits;
+            }
+            YCHECK(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
+        }
     }
 
     virtual void ValidateOperationRuntimeParameters(
@@ -2663,7 +2676,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        auto pools = ParseOperationPools(operation, runtimeParameters);
+        auto pools = GetOperationPools(runtimeParameters);
 
         for (const auto& pair : pools) {
             auto tree = GetTree(pair.first);
@@ -2677,7 +2690,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        auto pools = ParseOperationPools(operation, runtimeParameters);
+        auto pools = GetOperationPools(runtimeParameters);
 
         for (const auto& pair : pools) {
             auto tree = GetTree(pair.first);
@@ -2905,12 +2918,8 @@ private:
         }
     }
 
-    THashMap<TString, TPoolName> ParseOperationPools(
-        const IOperationStrategyHost* operation,
-        const TOperationRuntimeParametersPtr& runtimeParams) const
+    std::vector<TString> ParsePoolTrees(const TStrategyOperationSpecPtr& spec, EOperationType operationType) const
     {
-        auto spec = ParseSpec(operation);
-
         for (const auto& treeId : spec->PoolTrees) {
             if (!FindTree(treeId)) {
                 THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
@@ -2927,17 +2936,17 @@ private:
             }
         }
 
-        std::vector<TString> allTrees(spec->PoolTrees.begin(), spec->PoolTrees.end());
-        if (allTrees.empty()) {
+        std::vector<TString> result(spec->PoolTrees.begin(), spec->PoolTrees.end());
+        if (result.empty()) {
             if (!DefaultTreeId_) {
                 THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
-            allTrees.push_back(*DefaultTreeId_);
+            result.push_back(*DefaultTreeId_);
         }
 
         // Data shuffling shouldn't be launched in tentative trees.
-        if (FindIndex(OperationTypesWithShuffle, operation->GetType()) == NPOS) {
+        if (FindIndex(OperationTypesWithShuffle, operationType) == NPOS) {
             std::vector<TString> presentedTentativePoolTrees;
             for (const auto& treeId : spec->TentativePoolTrees) {
                 if (FindTree(treeId)) {
@@ -2948,26 +2957,18 @@ private:
                     }
                 }
             }
-            allTrees.insert(allTrees.end(), presentedTentativePoolTrees.begin(), presentedTentativePoolTrees.end());
+            result.insert(result.end(), presentedTentativePoolTrees.begin(), presentedTentativePoolTrees.end());
         }
 
+        return result;
+    }
+
+    THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams) const
+    {
         THashMap<TString, TPoolName> pools;
-
-        for (const auto& treeId : allTrees) {
-            TString pool;
-            bool createEphemeralSubpool;
-            auto optionsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            // TODO(renadeen): replace with YCHECK
-            if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
-                pool = optionsIt->second->Pool.Get();
-                createEphemeralSubpool = optionsIt->second->CreateEphemeralSubpool.Get(false);
-            } else {
-                pool = operation->GetAuthenticatedUser();
-                createEphemeralSubpool = false;
-            }
-            pools.emplace(treeId, TPoolName::Create(pool, operation->GetAuthenticatedUser(), createEphemeralSubpool));
+        for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
+            pools.emplace(pair.first, pair.second->Pool.Get());
         }
-
         return pools;
     }
 
@@ -2978,7 +2979,7 @@ private:
         }
 
         auto spec = ParseSpec(operation);
-        auto pools = ParseOperationPools(operation, runtimeParameters);
+        auto pools = GetOperationPools(runtimeParameters);
 
         if (pools.size() > 1 && !spec->SchedulingTagFilter.IsEmpty()) {
             THROW_ERROR_EXCEPTION(
