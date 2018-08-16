@@ -36,6 +36,25 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPoolName {
+    TPoolName();
+    TPoolName(TString pool, TNullable<TString> parent);
+
+    TString Pool;
+    TNullable<TString> ParentPool;
+
+    static const char DELIMITER = '|';
+
+    static TPoolName FromString(const TString& value);
+
+    TString ToString() const;
+};
+
+void Deserialize(TPoolName& value, NYTree::INodePtr node);
+void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSupportsSchedulingTagsConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -70,8 +89,6 @@ class TSchedulableConfig
 {
 public:
     TNullable<double> Weight;
-
-    TNullable<bool> CreateEphemeralSubpool;
 
     // Specifies resource limits in terms of a share of all cluster resources.
     TNullable<double> MaxShareRatio;
@@ -126,6 +143,8 @@ public:
     bool EnableAggressiveStarvation;
 
     bool ForbidImmediateOperations;
+
+    bool CreateEphemeralSubpools;
 
     TPoolConfig();
 
@@ -943,8 +962,7 @@ class TOperationFairShareTreeRuntimeParameters
 public:
     TNullable<double> Weight;
 
-    TNullable<TString> Pool;
-    TNullable<bool> CreateEphemeralSubpool;
+    TNullable<TPoolName> Pool;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -964,8 +982,6 @@ public:
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParameters();
-
-    void FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)

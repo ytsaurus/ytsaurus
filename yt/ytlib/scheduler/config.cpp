@@ -2,10 +2,50 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <util/string/split.h>
+
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TPoolName::TPoolName()
+{ }
+
+TPoolName::TPoolName(TString pool, TNullable<TString> parent) : Pool(std::move(pool)), ParentPool(std::move(parent))
+{ }
+
+TPoolName TPoolName::FromString(const TString& value) {
+    std::vector<TString> parts;
+    SplitStringTo(value, DELIMITER, &parts);
+    switch (parts.size()) {
+        case 1:
+            return {value, Null};
+        case 2:
+            return {parts[1], parts[0]};
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse PoolName from string: %Qv", value);
+    }
+}
+
+TString TPoolName::ToString() const
+{
+    return ParentPool
+        ? ParentPool.Get() + DELIMITER + Pool
+        : Pool;
+}
+
+void Deserialize(TPoolName& value, NYTree::INodePtr node)
+{
+    value = TPoolName::FromString(node->AsString()->GetValue());
+}
+
+void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(value.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////
 
 TJobIOConfig::TJobIOConfig()
 {
@@ -914,9 +954,6 @@ TSchedulableConfig::TSchedulableConfig()
         .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
-    RegisterParameter("create_ephemeral_subpool", CreateEphemeralSubpool)
-        .Default();
-
     RegisterParameter("max_share_ratio", MaxShareRatio)
         .Default()
         .InRange(0.0, 1.0);
@@ -978,6 +1015,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("forbid_immediate_operations", ForbidImmediateOperations)
         .Default(false);
+
+    RegisterParameter("create_ephemeral_subpools", CreateEphemeralSubpools)
+        .Default(false);
 }
 
 void TPoolConfig::Validate()
@@ -1018,8 +1058,6 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("pool", Pool)
         .Default();
-    RegisterParameter("create_ephemeral_subpool", CreateEphemeralSubpool)
-        .Default();
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 }
@@ -1031,36 +1069,6 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
     RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
         .Default()
         .MergeBy(NYTree::EMergeStrategy::Combine);
-}
-
-void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user)
-{
-    Owners = spec->Owners;
-    auto allTrees = spec->PoolTrees;
-    allTrees.insert(spec->TentativePoolTrees.begin(), spec->TentativePoolTrees.end());
-    if (allTrees.empty() && defaultTree.HasValue()) {
-        allTrees.insert(defaultTree.Get());
-    }
-    for (const auto& tree : allTrees) {
-        auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
-        auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
-        if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
-            treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-            treeParams->CreateEphemeralSubpool = spec->CreateEphemeralSubpool ? spec->CreateEphemeralSubpool : specIt->second->CreateEphemeralSubpool;
-            if (spec->Pool) {
-                treeParams->Pool = spec->Pool;
-            } else {
-                treeParams->Pool = specIt->second->Pool ? specIt->second->Pool : user;
-            }
-            treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
-        } else {
-            treeParams->Weight = spec->Weight;
-            treeParams->CreateEphemeralSubpool = spec->CreateEphemeralSubpool;
-            treeParams->Pool = spec->Pool ? spec->Pool : user;
-            treeParams->ResourceLimits = spec->ResourceLimits;
-        }
-        YCHECK(SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
-    }
 }
 
 TUserFriendlyOperationRuntimeParameters::TUserFriendlyOperationRuntimeParameters()
@@ -1079,9 +1087,10 @@ TOperationRuntimeParametersPtr TUserFriendlyOperationRuntimeParameters::UpdatePa
         if (Weight) {
             pair.second->Weight = Weight;
         }
-        if (Pool) {
-            pair.second->Pool = Pool;
-        }
+//        TODO(renadeen): fix this when we revive pool change
+//        if (Pool) {
+//            pair.second->Pool = Pool;
+//        }
     }
     return result;
 }

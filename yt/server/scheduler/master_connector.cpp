@@ -870,14 +870,8 @@ private:
 
             auto user = attributes.Get<TString>("authenticated_user");
 
-            TOperationRuntimeParametersPtr runtimeParams = nullptr;
-            // COMPAT(renadeen): there is no runtime_parameters when we revive operations after cluster update on this version
-            if (attributes.Contains("runtime_parameters")) {
-                runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
-            } else {
-                runtimeParams = New<TOperationRuntimeParameters>();
-                Owner_->Bootstrap_->GetScheduler()->GetStrategy()->InitOperationRuntimeParameters(runtimeParams, spec, user);
-            }
+            YCHECK(attributes.Contains("runtime_parameters"));
+            TOperationRuntimeParametersPtr runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
 
             auto operation = New<TOperation>(
                 operationId,
