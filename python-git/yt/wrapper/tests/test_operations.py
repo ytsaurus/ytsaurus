@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait)
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning)
 
 # Necessary for tests.
 try:
@@ -30,17 +30,18 @@ from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
-import os
-import sys
-import time
-import string
-import tempfile
-import random
-import logging
-import pytest
-import signal
-import uuid
 import io
+import logging
+import os
+import pytest
+import random
+import re
+import signal
+import string
+import sys
+import tempfile
+import time
+import uuid
 
 class AggregateMapper(object):
     def __init__(self):
@@ -236,7 +237,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] == "map\n"
+            assert remove_asan_warning(r["data"]) == "map\n"
 
 
         yt.run_reduce("echo reduce >&2 ; cat",
@@ -246,7 +247,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] == "reduce\n"
+            assert remove_asan_warning(r["data"]) == "reduce\n"
 
         yt.run_map_reduce(
             "echo mr-map >&2 ; cat",
@@ -258,7 +259,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] in ["mr-map\n", "mr-reduce\n"]
+            assert remove_asan_warning(r["data"]) in ["mr-map\n", "mr-reduce\n"]
 
     def test_stderr_table_inside_transaction(self):
         table = TEST_DIR + "/table"
@@ -280,7 +281,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] == "map\n"
+            assert remove_asan_warning(r["data"]) == "map\n"
 
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self, yt_env):
@@ -336,7 +337,7 @@ class TestOperations(object):
         def check(op):
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "aaa\n"
+            assert remove_asan_warning(stderrs[0]["stderr"]) == "aaa\n"
 
         op = yt.run_operation(VanillaSpecBuilder().task("sample", {"command": "echo 'aaa' >&2", "job_count": 1}))
         check(op)
@@ -1102,7 +1103,7 @@ print(op.id)
 
         stderrs_list = get_stderrs(operation.id, False)
         for stderr in stderrs_list:
-            assert stderr["stderr"] == "Job with stderr"
+            assert remove_asan_warning(stderr["stderr"]) == "Job with stderr"
         assert len(stderrs_list) == 10
 
         assert yt.format_operation_stderrs(stderrs_list)
@@ -1339,7 +1340,7 @@ print(op.id)
 
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "AAA\n"
+            assert remove_asan_warning(stderrs[0]["stderr"]) == "AAA\n"
 
     def test_list_operations(self):
         assert yt.list_operations()["operations"] == []

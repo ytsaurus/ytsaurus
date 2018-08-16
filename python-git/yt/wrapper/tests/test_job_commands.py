@@ -1,4 +1,4 @@
-from .helpers import ENABLE_JOB_CONTROL, TEST_DIR
+from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, remove_asan_warning
 
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.driver import get_command_list
@@ -120,7 +120,7 @@ class TestJobCommands(object):
         op = yt.run_map(mapper, input_table, output_table, format=yt.DsvFormat(), sync=False)
         job_id = job_events.wait_breakpoint()[0]
 
-        assert b"STDERR OUTPUT\n" == yt.get_job_stderr(op.id, job_id).read()
+        assert b"STDERR OUTPUT\n" == remove_asan_warning(yt.get_job_stderr(op.id, job_id).read())
 
         job_events.release_breakpoint()
         op.wait()
