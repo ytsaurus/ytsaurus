@@ -404,6 +404,9 @@ message TBoxStatus {
     TCondition Ready = 6;
 
     TCondition InProgress = 7;
+
+    // Ревизия к которой относится box
+    uint32 Revision = 8;
 }
 
 enum EBoxState {
@@ -645,6 +648,9 @@ message TLayerStatus {
     TCondition Ready = 7;
 
     TCondition InProgress = 8;
+
+    // Ревизия к которой относится layer
+    uint32 Revision = 9;
 }
 
 enum EVolumeState {
@@ -683,4 +689,7 @@ message TVolumeStatus {
     TCondition Ready = 5;
 
     TCondition InProgress = 6;
+
+    // Ревизия к которой относится volume
+    uint32 Revision = 7;
 }
