@@ -54,6 +54,8 @@ public:
     i64 GetPreliminaryRowCount() const;
     int GetPreliminarySliceCount() const;
 
+    TString GetDebugString() const;
+
     void SetUnsplittable();
 
 private:
