@@ -590,12 +590,13 @@ class YTEnvSetup(object):
     @classmethod
     def _setup_method(cls):
         for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-            if cls.USE_DYNAMIC_TABLES:
-                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1")
-
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
             if driver is None:
                 continue
+
+            if cls.USE_DYNAMIC_TABLES:
+                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
+                yt_commands.set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True, driver=driver)
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
