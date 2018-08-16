@@ -204,15 +204,16 @@ def data_is_correct(jobsets, data_type=None, table_num=0):
     return True
 
 
-def prepare_plot(title="", xlabel="", ylabel=""):
+def prepare_plot(title="", xlabel="", ylabel="", xaxis=True, yaxis=True, hovermode="x"):
     """Set plot properties."""
     init_notebook_mode(connected=True)
     layout = dict(
         title = title,
-        xaxis = dict(title = xlabel),
-        yaxis = dict(title = ylabel),
+        xaxis = dict(title = xlabel, visible = xaxis),
+        yaxis = dict(title = ylabel, visible = yaxis),
         barmode = "group",
         bargap = 0.1,
+        hovermode = hovermode,
     )
     return layout
 
@@ -224,10 +225,13 @@ def get_hline(x0=0, x1=0, y=0, color="green", name="", showlegend=False, visible
         y=[y, y],
         mode="lines",
         line=dict(color = color),
-        hoverinfo="none",
         showlegend=showlegend,
         name=name,
         visible=visible,
+        hoverinfo="name",
+        hoverlabel=dict(
+            namelength=-1,
+        ),
     )
 
 
@@ -238,11 +242,16 @@ def draw_time_gantt(jobset):
     for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
         lines = []
         for y, job_info in enumerate(jobs_info):
-            lines.append(get_hline(job_info.rel_start_time, job_info.rel_start_running, y, "yellow"))
+            lines.append(get_hline(
+                job_info.rel_start_time, job_info.rel_start_running, y,
+                color="yellow",
+                name="Job {}".format(format_lohi(job_info.job_id_lo, job_info.job_id_hi)),
+            ))
             lines.append(get_hline(
                 job_info.rel_start_running, job_info.rel_end_time, y,
-                color=("green" if job_info.state == "completed" else "red")),
-            )
+                color=("green" if job_info.state == "completed" else "red"),
+                name="Job {}".format(format_lohi(job_info.job_id_lo, job_info.job_id_hi)),
+            ))
         #Creating the legend:
         lines.append(get_hline(color="red", name="Failed jobs", showlegend=True, visible="legendonly"))
         lines.append(get_hline(color="green", name="Completed jobs", showlegend=True, visible="legendonly"))
@@ -250,7 +259,10 @@ def draw_time_gantt(jobset):
 
         iplot(dict(
             data = lines,
-            layout = prepare_plot(title="{} jobs".format(job_type), xlabel="time", ylabel="jobs"),
+            layout = prepare_plot(
+                title="{} jobs".format(job_type),
+                xlabel="time", ylabel="jobs", yaxis=False, hovermode="closest",
+            ),
         ))
 
 
@@ -285,7 +297,7 @@ def draw_comparative_hist(jobsets, data_type="length", table_num=0):
                     start = min_val,
                     end = max_val + bin_size,
                     size = bin_size,
-                )
+                ),
             ))
     iplot(dict(
         data = traces,
@@ -327,10 +339,11 @@ def draw_comparative_time_plot(jobsets):
                 fill="tozeroy",
                 name="{} jobs in set{}".format(job_type, i + 1),
                 connectgaps=False,
+                hoverinfo="x+y",
             ))
     iplot(dict(
         data = traces,
-        layout = prepare_plot(xlabel="time", ylabel="jobs count"),
+        layout = prepare_plot(xlabel="time", ylabel="jobs count", hovermode="closest"),
     ))
 
 
