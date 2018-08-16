@@ -284,44 +284,39 @@ def prepare(options, build_context):
 
     teamcity_message(pprint.pformat(options.__dict__))
 
-def _configure(options, build_context, build_directory, use_asan=False, build_server=True, build_tests=True):
-    run([
-        "cmake",
-        "-DCMAKE_INSTALL_PREFIX=/usr",
-        "-DCMAKE_BUILD_TYPE={0}".format(options.type),
-        "-DCMAKE_COLOR_MAKEFILE:BOOL=OFF",
-        "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
-        "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
-        "-DYT_BUILD_ENABLE_GDB_INDEX:BOOL=ON",
-        "-DYT_BUILD_ENABLE_YP:BOOL=ON",
-        "-DYT_BUILD_BRANCH={0}".format(options.branch),
-        "-DYT_BUILD_NUMBER={0}".format(options.build_number),
-        "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
-        "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
-        "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs and not use_asan)),
-        "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6 and not use_asan)),
-        "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7 and not use_asan)),
-        "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4 and not use_asan)),
-        "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet and not use_asan)),
-        "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl and not use_asan)),
-        "-DYT_USE_ASAN={0}".format(format_yes_no(use_asan)),
-        "-DYT_USE_TSAN={0}".format(format_yes_no(options.use_tsan)),
-        "-DYT_USE_MSAN={0}".format(format_yes_no(options.use_msan)),
-        "-DYT_USE_LTO={0}".format(format_yes_no(options.use_lto)),
-        "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
-        "-DCMAKE_C_COMPILER={0}".format(options.cc),
-        "-DBUILD_SHARED_LIBS=OFF",
-        options.checkout_directory],
-        cwd=build_directory)
-
 @build_step
 def configure(options, build_context):
     if options.build_system == "cmake":
-        if options.use_asan:
-            _configure(options, build_context, options.working_directory, use_asan=False, build_server=False, build_tests=False)
-            _configure(options, build_context, options.asan_build_directory, use_asan=True, build_server=True, build_tests=True)
-        else:
-            _configure(options, build_context, options.working_directory)
+        run([
+                "cmake",
+                "-DCMAKE_INSTALL_PREFIX=/usr",
+                "-DCMAKE_BUILD_TYPE={0}".format(options.type),
+                "-DCMAKE_COLOR_MAKEFILE:BOOL=OFF",
+                "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
+                "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
+                "-DYT_BUILD_ENABLE_GDB_INDEX:BOOL=ON",
+                "-DYT_BUILD_ENABLE_YP:BOOL=ON",
+                "-DYT_BUILD_BRANCH={0}".format(options.branch),
+                "-DYT_BUILD_NUMBER={0}".format(options.build_number),
+                "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
+                "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
+                "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
+                "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
+                "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
+                "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4)),
+                "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
+                "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
+                "-DYT_USE_ASAN={0}".format(format_yes_no(options.use_asan)),
+                "-DYT_USE_TSAN={0}".format(format_yes_no(options.use_tsan)),
+                "-DYT_USE_MSAN={0}".format(format_yes_no(options.use_msan)),
+                "-DYT_USE_LTO={0}".format(format_yes_no(options.use_lto)),
+                "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
+                "-DCMAKE_C_COMPILER={0}".format(options.cc),
+                "-DBUILD_SHARED_LIBS=OFF",
+                options.checkout_directory
+            ],
+            cwd=build_directory,
+        )
     else:
         assert options.build_system == "ya"
         teamcity_message("Ya build doesn't require configuration")
@@ -897,6 +892,9 @@ def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
+    if options.use_asan:
+        teamcity_message("Integration tests are skipped since they are not quite stable under ASAN")
+        return
 
     pytest_args = []
     if options.enable_parallel_testing:
@@ -919,7 +917,10 @@ def run_yp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("YP integration tests are skipped since all tests are disabled")
         return
-    
+    if options.use_asan:
+        teamcity_message("YP integration tests are skipped since they currently don't play well with ASAN")
+        return
+
     pytest_args = []
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(YP_TESTS_PARALLELISM)])
@@ -941,6 +942,9 @@ def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
         return
+    if options.use_asan:
+        teamcity_message("Python tests are skipped since they don't play well with ASAN")
+        return
 
     pytest_args = []
     if options.enable_parallel_testing:
@@ -958,7 +962,14 @@ def run_python_libraries_tests(options, build_context):
 @build_step
 @only_for_projects("yt")
 def run_perl_tests(options, build_context):
-    if not options.build_enable_perl or options.disable_tests:
+    if not options.build_enable_perl:
+        teamcity_message("Perl tests are skipped since they are not enabled")
+        return
+    if options.disable_tests:
+        teamcity_message("Perl tests are skipped since all tests are disabled")
+        return
+    if options.use_asan:
+        teamcity_message("Perl tests are skipped since they don't play well with ASAN")
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
