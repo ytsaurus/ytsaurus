@@ -29,6 +29,7 @@ using namespace NYson;
 using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////
 

@@ -188,16 +188,18 @@ void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
     TaskHost_->GetAutoMergeDirector()->OnMergeJobStarted();
 }
 
-void TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
+TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
-    TTask::OnJobAborted(joblet, jobSummary);
+    auto result = TTask::OnJobAborted(joblet, jobSummary);
 
     CurrentChunkCount_ += joblet->InputStripeList->TotalChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
+
+    return result;
 }
 
-TJobCompletedResult TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
+TJobFinishedResult TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -212,13 +214,15 @@ TJobCompletedResult TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompleted
     return result;
 }
 
-void TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
+TJobFinishedResult TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
-    TTask::OnJobFailed(joblet, jobSummary);
+    auto result = TTask::OnJobFailed(joblet, jobSummary);
 
     CurrentChunkCount_ += joblet->InputStripeList->TotalChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
+
+    return result;
 }
 
 void TAutoMergeTask::RegisterNewTeleportChunks()

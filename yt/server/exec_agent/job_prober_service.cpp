@@ -109,16 +109,15 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto parameters = FromProto<TString>(request->parameters());
+        auto parameters = TYsonString(request->parameters());
 
-        context->SetRequestInfo("JobId: %v, Parameters: %v",
-            jobId,
-            parameters);
+        context->SetRequestInfo("JobId: %v",
+            jobId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto result = job->PollJobShell(TYsonString(parameters));
+        auto result = job->PollJobShell(parameters);
 
-        ToProto(response->mutable_result(), result.GetData());
+        response->set_result(result.GetData());
         context->Reply();
     }
 

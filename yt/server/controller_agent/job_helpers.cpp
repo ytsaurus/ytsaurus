@@ -97,8 +97,14 @@ TString ToString(const TBriefJobStatisticsPtr& briefStatistics)
 bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
-    const TSuspiciousJobsOptionsPtr& options)
+    const TSuspiciousJobsOptionsPtr& options,
+    EJobType jobType)
 {
+    if (jobType == EJobType::Vanilla) {
+        // It is hard to deduce that the job is suspicious when it does literally nothing.
+        return true;
+    }
+
     bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
     wasActive |= lhs->ProcessedInputUncompressedDataSize < rhs->ProcessedInputUncompressedDataSize;
     wasActive |= lhs->ProcessedInputCompressedDataSize < rhs->ProcessedInputCompressedDataSize;

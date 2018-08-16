@@ -112,6 +112,9 @@ using namespace NScheduler;
 using namespace NEventLog;
 using namespace NLogging;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
@@ -282,7 +285,7 @@ void TOperationControllerBase::InitializeClients()
     OutputClient = Client;
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactions& transactions)
+TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
 {
     LOG_INFO("Initializing operation for revive");
 
@@ -575,7 +578,7 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
         .Finish();
     result->Attributes.FullSpec = ConvertToYsonString(Spec_);
     result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
-    result->Transactions = GetTransactions();
+    result->TransactionIds = GetTransactionIds();
 }
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
@@ -2047,7 +2050,14 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobMetrics(joblet, *jobSummary);
     UpdateJobStatistics(joblet, *jobSummary);
 
-    joblet->Task->OnJobFailed(joblet, *jobSummary);
+    auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
+    if (taskResult.BanTree) {
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
+    }
+
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
     }
@@ -2081,7 +2091,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
     }
-    
+
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
             LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
@@ -2134,7 +2144,13 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         }
     }
 
-    joblet->Task->OnJobAborted(joblet, *jobSummary);
+    auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
+    if (taskResult.BanTree) {
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -2615,19 +2631,21 @@ void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransact
     }
 }
 
-std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
+TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
 {
-    std::vector<ITransactionPtr> transactions{
-        UserTransaction,
-        AsyncTransaction,
-        InputTransaction,
-        OutputTransaction,
-        DebugTransaction
+    auto getId = [] (const NApi::ITransactionPtr& transaction) {
+        return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
     };
-    transactions.erase(
-        std::remove_if(transactions.begin(), transactions.end(), [] (const auto& transaction) { return !transaction; }),
-        transactions.end());
-    return transactions;
+
+    TControllerTransactionIds transactionIds;
+    transactionIds.AsyncId = getId(AsyncTransaction);
+    transactionIds.InputId = getId(InputTransaction);
+    transactionIds.OutputId = getId(OutputTransaction);
+    transactionIds.DebugId = getId(DebugTransaction);
+    transactionIds.OutputCompletionId = getId(OutputCompletionTransaction);
+    transactionIds.DebugCompletionId = getId(DebugCompletionTransaction);
+
+    return transactionIds;
 }
 
 bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
@@ -6184,7 +6202,7 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
     const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
 }
-    
+
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
 {
     std::vector<TJobId> jobIds;
@@ -6563,14 +6581,16 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
         CheckJobActivity(
             job->BriefStatistics,
             briefStatistics,
-            options);
+            options,
+            job->JobType);
 
     bool wasSuspicious = job->Suspicious;
     job->Suspicious = (!wasActive && briefStatistics->Timestamp - job->LastActivityTime > options->InactivityTimeout);
     if (!wasSuspicious && job->Suspicious) {
-        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
+        LOG_DEBUG("Found a suspicious job (JobId: %v, JobType: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
             "OldBriefStatistics: %v, NewBriefStatistics: %v)",
             job->JobId,
+            job->JobType,
             job->LastActivityTime,
             options->InactivityTimeout,
             job->BriefStatistics,

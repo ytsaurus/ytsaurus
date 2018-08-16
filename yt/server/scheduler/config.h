@@ -120,11 +120,6 @@ public:
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
 
-    //! Enables new possible resource usage computation scheme.
-    //! TODO(asaitgalin): Use this by default and remove ThresholdToEnableMaxPossibleUsageRegularization
-    //! option.
-    bool EnableNewPossibleResourceUsageComputation;
-
     TFairShareStrategyTreeConfig();
 };
 
@@ -146,6 +141,15 @@ public:
 
     //! Limit on number of operations in cluster.
     int MaxOperationCount;
+
+    //! Unschedulable operations check period.
+    TDuration OperationUnschedulableCheckPeriod;
+
+    //! During this timeout after activation operation can not be considered as unschedulable.
+    TDuration OperationUnschedulableSafeTimeout;
+
+    //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
+    int OperationUnschedulableMinScheduleJobAttempts;
 
     TFairShareStrategyConfig();
 };

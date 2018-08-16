@@ -226,7 +226,9 @@ public:
 
     ~TJobInputReader()
     {
-        TransferResultFuture_.Cancel();
+        if (TransferResultFuture_) {
+            TransferResultFuture_.Cancel();
+        }
     }
 
     void Open()
@@ -3316,13 +3318,12 @@ private:
         return result;
     }
 
-
-    TPutFileToCacheResult DoPutFileToCache(
+    TPutFileToCacheResult DoAttemptPutFileToCache(
         const NYPath::TYPath& path,
         const TString& expectedMD5,
-        const TPutFileToCacheOptions& options)
+        const TPutFileToCacheOptions& options,
+        NLogging::TLogger logger)
     {
-        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
         auto Logger = logger;
 
         TPutFileToCacheResult result;
@@ -3422,18 +3423,18 @@ private:
 
         // Move file.
         {
-            auto moveOptions = TMoveNodeOptions();
-            moveOptions.TransactionId = transaction->GetId();
-            moveOptions.Recursive = true;
-            moveOptions.Force = true;
-            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
-            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            auto copyOptions = TCopyNodeOptions();
+            copyOptions.TransactionId = transaction->GetId();
+            copyOptions.Recursive = true;
+            copyOptions.Force = true;
+            copyOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            copyOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
 
-            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+            WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
                 .ValueOrThrow();
 
             LOG_DEBUG(
-                "File has been moved to cache (Destination: %v)",
+                "File has been copied to cache (Destination: %v)",
                 destination);
         }
 
@@ -3444,6 +3445,30 @@ private:
 
         result.Path = destination;
         return result;
+    }
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        int retryAttempts = 0;
+        while (true) {
+            try {
+                return DoAttemptPutFileToCache(path, expectedMD5, options, logger);
+            } catch (const TErrorException& ex) {
+                auto error = ex.Error();
+                ++retryAttempts;
+                if (retryAttempts < options.RetryCount && error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+                    LOG_DEBUG(error, "Put file to cache failed, make next retry");
+                } else {
+                    throw;
+                }
+            }
+        }
     }
 
     void DoAddMember(
@@ -4275,7 +4300,7 @@ private:
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
-                "//sys/operations_archive/stderrs",
+                GetOperationsArchiveJobStderrsPath(),
                 tableDescriptor.NameTable,
                 MakeSharedRange(keys, rowBuffer),
                 lookupOptions))
@@ -4353,7 +4378,7 @@ private:
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
-                "//sys/operations_archive/fail_contexts",
+                GetOperationsArchiveJobFailContextsPath(),
                 tableDescriptor.NameTable,
                 MakeSharedRange(keys, rowBuffer),
                 lookupOptions))
@@ -4484,10 +4509,6 @@ private:
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-            // TODO(renadeen): extract pool from runtime_parameters.
-            if (briefSpecMapNode->FindChild("pool")) {
-                textFactors.push_back(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
-            }
             if (briefSpecMapNode->FindChild("title")) {
                 textFactors.push_back(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
             }
@@ -4503,6 +4524,12 @@ private:
                     textFactors.push_back(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
                 }
             }
+        }
+
+        if (operation.RuntimeParameters) {
+            auto runtimeParametersMapNode = ConvertToNode(operation.RuntimeParameters)->AsMap();
+            auto pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+            textFactors.insert(textFactors.end(), pools.begin(), pools.end());
         }
 
         return to_lower(JoinToString(textFactors, AsStringBuf(" ")));

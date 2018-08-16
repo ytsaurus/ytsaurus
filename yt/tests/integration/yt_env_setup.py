@@ -417,7 +417,8 @@ class YTEnvSetup(object):
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             modify_configs_func=modify_configs_func,
-            cell_tag=index * 10)
+            cell_tag=index * 10,
+            enable_structured_master_logging=True)
 
         instance._cluster_name = cls.get_cluster_name(index)
         instance._driver_backend = cls.get_param("DRIVER_BACKEND", index)

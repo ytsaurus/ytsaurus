@@ -572,6 +572,7 @@ void TServiceBase::HandleRequest(
         method,
         NTracing::ServerReceiveAnnotation);
 
+    // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{
         requestId,
         std::move(replyBus),
@@ -589,10 +590,11 @@ void TServiceBase::HandleRequest(
     // Not actually atomic but should work fine as long as some small error is OK.
     auto maxAuthenticationQueueSize = MaxAuthenticationQueueSize_;
     if (AuthenticationQueueSizeCounter_.GetCurrent() > maxAuthenticationQueueSize) {
-        replyError(TError(
+        auto error = TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Authentication request queue size limit exceeded")
-            << TErrorAttribute("limit", maxAuthenticationQueueSize));
+            << TErrorAttribute("limit", maxAuthenticationQueueSize);
+        ReplyError(error, *acceptedRequest.Header, acceptedRequest.ReplyBus);
         return;
     }
     Profiler.Increment(AuthenticationQueueSizeCounter_, +1);

@@ -55,6 +55,7 @@ using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NRpc;
+using namespace NTransactionClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -447,7 +448,7 @@ public:
 
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
-        const TNullable<TControllerTransactions>& transactions)
+        const TNullable<TControllerTransactionIds>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -460,7 +461,24 @@ public:
             .AsyncVia(controller->GetCancelableInvoker())
             .Run()
             .Apply(BIND([=] (const TOperationControllerInitializeResult& result) {
-                operation->SetTransactions(result.Transactions);
+                const auto& transactionIds = result.TransactionIds;
+                std::vector<TTransactionId> watchTransactionIds({
+                    transactionIds.AsyncId,
+                    transactionIds.InputId,
+                    transactionIds.OutputId,
+                    transactionIds.DebugId
+                });
+                watchTransactionIds.push_back(operation->GetUserTransactionId());
+
+                watchTransactionIds.erase(
+                    std::remove_if(
+                        watchTransactionIds.begin(),
+                        watchTransactionIds.end(),
+                        [] (const auto& transactionId) { return !transactionId; }),
+                    watchTransactionIds.end());
+
+                operation->SetWatchTransactionIds(watchTransactionIds);
+
                 return result;
             }).AsyncVia(GetCurrentInvoker()));
     }
@@ -514,7 +532,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        operation->SetTransactions({});
+        operation->SetWatchTransactionIds({});
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Complete, controller)
@@ -527,7 +545,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        operation->SetTransactions({});
+        operation->SetWatchTransactionIds({});
 
         const auto& controller = operation->GetController();
         if (!controller) {
@@ -1486,7 +1504,7 @@ TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
-    const TNullable<TControllerTransactions>& transactions)
+    const TNullable<TControllerTransactionIds>& transactions)
 {
     return Impl_->InitializeOperation(
         operation,
