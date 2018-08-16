@@ -184,6 +184,13 @@ message TMountedVolume {
     EVolumeMountMode Mode = 3;
 }
 
+message TMountedStaticResource {
+    // id Resource который требуется подмонтировать
+    string ResourceRef = 1;
+    // точка монтирования
+    string MountPoint = 2;
+}
+
 message TRootfsVolume {
     // Квота на размер
     uint64 QuotaBytes = 1;
@@ -329,6 +336,10 @@ message TBox {
 
     // Процессы, запускаемые при подготовке Box после создания вольюмов
     repeated TUtilityContainer Init = 9;
+
+    //NOTE: валидация должна гарантировать, что не может быть двух ресурсов в этом списке, у которых совпадает mountPoint
+    //NOTE: валидация уникальности id в списке
+    repeated TMountedStaticResource StaticResources = 10;
 }
 
 message THttpGet {
