@@ -1464,8 +1464,6 @@ private:
             return;
         }
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
-
         if (!timestampsOrError.IsOK()) {
             // If this is a distributed transaction then it's already prepared at coordinator and
             // at all participants. We _must_ forcefully abort it.
