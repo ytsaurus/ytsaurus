@@ -564,7 +564,6 @@ class TestDynamicTables(TestDynamicTablesBase):
     @pytest.mark.parametrize("enable_tablet_cell_balancer", [True, False])
     def test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
-        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True)
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
         node_count = len(nodes)
