@@ -32,8 +32,10 @@ public:
     { }
 
 private:
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key) override
     {
+        const auto& path = key.Path;
+
         LOG_DEBUG("Requesting table mount info (Path: %v)", path);
 
         TApiServiceProxy proxy(Channel_);
@@ -109,6 +111,11 @@ private:
 
 private:
     const IChannelPtr Channel_;
+
+    virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
+    {
+        Invalidate(tableInfo->Path);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

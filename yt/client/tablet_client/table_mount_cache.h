@@ -98,6 +98,10 @@ struct TTableMountInfo
     NTableClient::TOwningKey LowerCapBound;
     NTableClient::TOwningKey UpperCapBound;
 
+    // Master reply revision for master service cache invalidation.
+    TNullable<i64> PrimaryRevision;
+    TNullable<i64> SecondaryRevision;
+
     bool IsSorted() const;
     bool IsOrdered() const;
     bool IsReplicated() const;
