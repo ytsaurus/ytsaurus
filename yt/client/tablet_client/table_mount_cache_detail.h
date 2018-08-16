@@ -27,9 +27,29 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TTableMountCacheKey
+{
+    NYPath::TYPath Path;
+    TNullable<i64> RefreshPrimaryRevision;
+    TNullable<i64> RefreshSecondaryRevision;
+
+    TTableMountCacheKey(
+        const NYPath::TYPath& path,
+        TNullable<i64> refreshPrimaryRevision = Null,
+        TNullable<i64> refreshSecondaryRevision = Null);
+
+    operator size_t() const;
+    bool operator == (const TTableMountCacheKey& other) const;
+};
+
+void FormatValue(TStringBuilder* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/);
+TString ToString(const TTableMountCacheKey& key);
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TTableMountCacheBase
     : public ITableMountCache
-    , public TAsyncExpiringCache<NYPath::TYPath, TTableMountInfoPtr>
+    , public TAsyncExpiringCache<TTableMountCacheKey, TTableMountInfoPtr>
 {
 public:
     TTableMountCacheBase(TTableMountCacheConfigPtr config, const NLogging::TLogger& logger);
@@ -44,6 +64,8 @@ protected:
     const TTableMountCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
     TTabletCache TabletCache_;
+
+    virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
