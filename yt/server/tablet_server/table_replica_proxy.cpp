@@ -69,7 +69,7 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableManager)
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableTracker)
             .SetWritable(true));
         attributes->push_back(EInternedAttributeKey::PreserveTimestamps);
         attributes->push_back(EInternedAttributeKey::Atomicity);
@@ -154,9 +154,9 @@ private:
                     .Value(replica->ComputeReplicationLagTime(timestampProvider->GetLatestTimestamp()));
                 return true;
 
-            case EInternedAttributeKey::EnableReplicatedTableManager:
+            case EInternedAttributeKey::EnableReplicatedTableTracker:
                 BuildYsonFluently(consumer)
-                    .Value(replica->GetEnableReplicatedTableManager());
+                    .Value(replica->GetEnableReplicatedTableTracker());
                 return true;
 
             case EInternedAttributeKey::PreserveTimestamps:
@@ -198,10 +198,10 @@ private:
         auto* replica = GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::EnableReplicatedTableManager: {
+            case EInternedAttributeKey::EnableReplicatedTableTracker: {
                 ValidateNoTransaction();
 
-                replica->SetEnableReplicatedTableManager(ConvertTo<bool>(value));
+                replica->SetEnableReplicatedTableTracker(ConvertTo<bool>(value));
                 return true;
             }
         }

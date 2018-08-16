@@ -30,7 +30,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async)
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, DisablingTablets)
-    DEFINE_BYVAL_RW_PROPERTY(bool, EnableReplicatedTableManager, true)
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableReplicatedTableTracker, true)
     DEFINE_BYVAL_RW_PROPERTY(bool, PreserveTimestamps, true)
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full)
 

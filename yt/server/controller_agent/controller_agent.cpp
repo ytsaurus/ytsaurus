@@ -582,7 +582,7 @@ public:
             auto asyncJobSpec = BIND(&IOperationController::ExtractJobSpec,
                 controller,
                 request.JobId)
-                .AsyncVia(controller->GetCancelableInvoker())
+                .AsyncVia(controller->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
                 .Run();
 
             asyncJobSpecs.push_back(asyncJobSpec);

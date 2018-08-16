@@ -1,5 +1,5 @@
 #include "private.h"
-#include "replicated_table_manager.h"
+#include "replicated_table_tracker.h"
 
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/scheduler_thread.h>
@@ -53,10 +53,13 @@ using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NTableServer;
 using namespace NTabletServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
+using namespace NTabletClient;
 using namespace NYTree;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,28 +67,29 @@ static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableManager::TImpl
+class TReplicatedTableTracker::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    TImpl(const NTabletServer::TReplicatedTableManagerConfigPtr& config, TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
-        , Config_(config)
-        , CheckerThreadPool_(New<TThreadPool>(Config_->ThreadCount, "TReplicatedTableManager"))
+    TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
+        , Config_(std::move(config))
+        , CheckerThreadPool_(New<TThreadPool>(Config_->ThreadCount, "ReplTableCheck"))
         , ClusterDirectory_(New<TClusterDirectory>())
         , ClusterDirectorySynchronizer_(New<NHiveServer::TClusterDirectorySynchronizer>(
             New<NHiveServer::TClusterDirectorySynchronizerConfig>(),
             Bootstrap_,
             ClusterDirectory_))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SubscribeNodeCreated(BIND(&TImpl::OnNewNode, MakeStrong(this)));
+        cypressManager->SubscribeNodeCreated(BIND(&TImpl::OnNodeCreated, MakeStrong(this)));
     }
 
 private:
-    NTabletServer::TReplicatedTableManagerConfigPtr Config_;
+    NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
     bool Enabled_ = false;
 
     class TReplica
@@ -97,18 +101,20 @@ private:
             ETableReplicaMode mode,
             const TString& clusterName,
             const TYPath& path,
-            const NApi::IConnectionPtr& connection,
-            const TDuration& lag)
+            IConnectionPtr connection,
+            IInvokerPtr checkerInvoker,
+            TDuration lag)
             : Id_(id)
             , Mode_(mode)
             , ClusterName_(clusterName)
             , Path_(path)
-            , Connection_(connection)
+            , Connection_(std::move(connection))
             , Client_(Connection_ ? Connection_->CreateClient(NApi::TClientOptions(RootUserName)) : NApi::IClientPtr())
+            , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
         { }
 
-        const TDuration& GetLag() const
+        TDuration GetLag() const
         {
             return Lag_;
         }
@@ -125,48 +131,58 @@ private:
             }
 
             auto check1 = Client_->ListNode("/").As<void>();
-            auto check2 = Client_->NodeExists(Path_).Apply(BIND([] (const TErrorOr<bool>& error) {
+
+            auto check2 = Client_->NodeExists(Path_).Apply(BIND([path = Path_] (const TErrorOr<bool>& error) {
                 auto flag = error.ValueOrThrow();
                 if (!flag) {
-                    THROW_ERROR_EXCEPTION("Node is not found");
+                    THROW_ERROR_EXCEPTION("Node %v does not exist",
+                        path);
                 }
             }));
 
-            std::vector<TFuture<void>> checks = {check1, check2};
-            return Combine(checks);
+            return Combine(std::vector<TFuture<void>>{
+                check1,
+                check2
+            });
         }
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
         {
-            auto automatonInvoker = bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager);
-
-            LOG_DEBUG("Switch replica mode (Id: %v, Mode: %v)",
+            LOG_DEBUG("Switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
+                Path_,
                 Id_,
                 mode);
 
-            return BIND([this, this_ = MakeStrong(this), mode, bootstrap] () {
-                auto req = NTabletClient::TTableReplicaYPathProxy::Alter(NObjectClient::FromObjectId(Id_));
+            auto automatonInvoker = bootstrap
+                ->GetHydraFacade()
+                ->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager);
 
-                NCypressClient::SetTransactionId(req, NObjectClient::NullTransactionId);
+            return BIND([=, this_ = MakeStrong(this)] () {
+                auto req = TTableReplicaYPathProxy::Alter(NObjectClient::FromObjectId(Id_));
                 NRpc::SetMutationId(req, NRpc::GenerateMutationId(), false);
-
                 req->set_mode(static_cast<int>(mode));
 
-                auto message = req->Serialize();
-                auto context = NYTree::CreateYPathContext(message);
                 const auto& objectManager = bootstrap->GetObjectManager();
-                auto mutation = objectManager->CreateExecuteMutation(RootUserName, context);
-                mutation->CommitAndLog(Logger);
+                auto rootService = objectManager->GetRootService();
+                return ExecuteVerb(rootService, req);
             })
                 .AsyncVia(automatonInvoker)
                 .Run()
-                .As<void>()
-                .Apply(BIND([this, this_ = MakeStrong(this), mode] () {
-                    Mode_ = mode;
-                    LOG_DEBUG("Mode switched (Id: %v, Mode: %Qv)",
-                        Id_,
-                        mode);
-                }));
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTableReplicaYPathProxy::TRspAlterPtr>& rspOrError) {
+                    if (rspOrError.IsOK()) {
+                        Mode_ = mode;
+                        LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, Mode: %v)",
+                            Path_,
+                            Id_,
+                            mode);
+                    } else {
+                        LOG_DEBUG(rspOrError, "Error switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
+                            Path_,
+                            Id_,
+                            mode);
+                    }
+                })
+                .Via(CheckerInvoker_));
         }
 
     private:
@@ -176,8 +192,8 @@ private:
         const TYPath Path_;
         const NApi::IConnectionPtr Connection_;
         NApi::IClientPtr Client_;
-
-        TDuration Lag_;
+        const IInvokerPtr CheckerInvoker_;
+        const TDuration Lag_;
     };
 
     using TReplicaPtr = TIntrusivePtr<TReplica>;
@@ -186,9 +202,9 @@ private:
         : public TRefCounted
     {
     public:
-        TTable(TObjectId id, const NTableServer::TReplicatedTableOptionsPtr& config = NTableServer::TReplicatedTableOptionsPtr())
+        explicit TTable(TObjectId id, TReplicatedTableOptionsPtr config = nullptr)
             : Id_(id)
-            , Config_(config)
+            , Config_(std::move(config))
         { }
 
         const TObjectId& GetId() const
@@ -199,7 +215,7 @@ private:
         bool IsEnabled() const
         {
             auto guard = Guard(Lock_);
-            return Config_ && Config_->EnableReplicatedTableManager;
+            return Config_ && Config_->EnableReplicatedTableTracker;
         }
 
         void SetConfig(const NTableServer::TReplicatedTableOptionsPtr& config)
@@ -219,14 +235,12 @@ private:
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
                 std::vector<TReplicaPtr> asyncReplicas;
-                int syncReplicasNeeded = 0;
+                int desiredSyncReplicas = 0;
 
                 {
                     auto guard = Guard(Lock_);
-                    syncReplicasNeeded = Config_->SyncReplicas;
-
+                    desiredSyncReplicas = Config_->SyncReplicaCount;
                     asyncReplicas.reserve(Replicas_.size());
-
                     for (auto& replica : Replicas_) {
                         if (replica->IsSync()) {
                             syncReplicas.push_back(replica);
@@ -238,36 +252,36 @@ private:
 
                 std::vector<TFuture<void>> futures;
                 futures.reserve(syncReplicas.size());
-
                 for (const auto& syncReplica : syncReplicas) {
                     futures.push_back(syncReplica->Check());
                 }
 
                 CheckFuture_ = CombineAll(futures)
-                    .Apply(BIND([bootstrap, syncReplicas, asyncReplicas, syncReplicasNeeded] (const std::vector<TErrorOr<void>>& answers) mutable {
+                    .Apply(BIND([bootstrap, syncReplicas, asyncReplicas, desiredSyncReplicas] (const std::vector<TErrorOr<void>>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
                         std::vector<TReplicaPtr> goodSyncReplicas;
                         goodSyncReplicas.reserve(syncReplicas.size());
                         badSyncReplicas.reserve(syncReplicas.size());
-                        for (int index = 0; index < answers.size(); ++index) {
-                            if (answers[index].IsOK()) {
+                        for (size_t index = 0; index < results.size(); ++index) {
+                            if (results[index].IsOK()) {
                                 goodSyncReplicas.push_back(syncReplicas[index]);
                             } else {
                                 badSyncReplicas.push_back(syncReplicas[index]);
                             }
                         }
 
+                        std::sort(
+                            asyncReplicas.begin(),
+                            asyncReplicas.end(),
+                            [&] (const auto& lhs, const auto& rhs) {
+                                return lhs->GetLag() > rhs->GetLag();
+                            });
+
+                        // Don't check async replicas.
+                        // If any is bad we will switch to anther one on the next iteration.
                         std::vector<TFuture<void>> futures;
                         futures.reserve(syncReplicas.size() + asyncReplicas.size());
-
-                        std::sort(asyncReplicas.begin(), asyncReplicas.end(),
-                            BIND([](const TReplicaPtr& a, const TReplicaPtr& b) -> bool {
-                                return a->GetLag() > b->GetLag();
-                            })
-                        );
-                        // Don't check async replicas
-                        // If any is bad we will switch to anther one on the next iteration
-                        for (int index = goodSyncReplicas.size(); index < syncReplicasNeeded && !asyncReplicas.empty(); ++index) {
+                        for (int index = goodSyncReplicas.size(); index < desiredSyncReplicas && !asyncReplicas.empty(); ++index) {
                             futures.push_back(asyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
                             asyncReplicas.pop_back();
                         }
@@ -276,7 +290,7 @@ private:
                             futures.push_back(replica->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
-                        for (int index = syncReplicasNeeded; index < goodSyncReplicas.size(); ++index) {
+                        for (int index = desiredSyncReplicas; index < goodSyncReplicas.size(); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
@@ -313,6 +327,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(CheckerThread);
 
+
     void CheckEnabled()
     {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
@@ -327,9 +342,9 @@ private:
             return;
         }
 
-        const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableManager;
+        const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker;
 
-        if (!dynamicConfig->EnableReplicatedTableManager) {
+        if (!dynamicConfig->EnableReplicatedTableTracker) {
             Enabled_ = false;
             LOG_INFO("Replicated table manager is disabled, see //sys/@config");
             return;
@@ -342,26 +357,25 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        THashMap<TObjectId, TTablePtr> copy;
+        THashMap<TObjectId, TTablePtr> capturedTables;
 
         {
             auto lock = Guard(Lock_);
-            copy = Tables_;
+            capturedTables = Tables_;
         }
 
-        for (auto it : copy) {
-            auto& id = it.first;
+        for (const auto& pair : capturedTables) {
+            auto& id = pair.first;
             auto object = Bootstrap_->GetObjectManager()->FindObject(id);
-
-            if (!object) {
+            if (!IsObjectAlive(object)) {
                 auto lock = Guard(Lock_);
-                LOG_DEBUG("Object not found (Id: %v)",
+                LOG_DEBUG("Table no longer exists (TableId: %v)",
                     id);
                 Tables_.erase(id);
-                return;
-            } else {
-                OnNewNode(object);
+                continue;
             }
+
+            OnNodeCreated(object);
         }
     }
 
@@ -376,7 +390,7 @@ private:
             futures.reserve(Tables_.size());
             for (const auto& item : Tables_) {
                 if (!item.second->IsEnabled()) {
-                    LOG_DEBUG("Replicated Table Manager is disabled (Id: %v)",
+                    LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
                         item.first);
                     continue;
                 }
@@ -399,8 +413,8 @@ private:
 
         try {
             UpdateTables();
-        } catch (const std::exception& e) {
-            LOG_WARNING(e, "Cannot update tables");
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Cannot update tables");
         }
     }
 
@@ -414,8 +428,8 @@ private:
 
         try {
             CheckTables();
-        } catch (const std::exception& e) {
-            LOG_WARNING(e, "Cannot check tables");
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Cannot check tables");
         }
     }
 
@@ -424,7 +438,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (Config_->EnableReplicatedTableManager) {
+        if (Config_->EnableReplicatedTableTracker) {
             ClusterDirectorySynchronizer_->Start();
 
             UpdaterExecutor_ = New<TPeriodicExecutor>(
@@ -444,14 +458,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        ClusterDirectorySynchronizer_->Stop();
+
         if (CheckerExecutor_) {
-            ClusterDirectorySynchronizer_->Stop();
-
-            UpdaterExecutor_->Stop();
-            UpdaterExecutor_.Reset();
-
             CheckerExecutor_->Stop();
             CheckerExecutor_.Reset();
+        }
+
+        if (UpdaterExecutor_) {
+            UpdaterExecutor_->Stop();
+            UpdaterExecutor_.Reset();
         }
     }
 
@@ -505,13 +521,12 @@ private:
         int asyncReplicas = 0;
 
         for (const auto& replica : object->Replicas()) {
-            if (!replica->GetEnableReplicatedTableManager()) {
+            if (!replica->GetEnableReplicatedTableTracker()) {
                 skippedReplicas += 1;
                 continue;
             }
 
-            switch (replica->GetMode())
-            {
+            switch (replica->GetMode()) {
                 case ETableReplicaMode::Sync:
                     syncReplicas += 1;
                     break;
@@ -523,9 +538,8 @@ private:
             }
 
             auto connection = ClusterDirectory_->FindConnection(replica->GetClusterName());
-
             if (!connection) {
-                LOG_WARNING("Unknown cluster name (Name: %Qv, Replica: %v,  Table %v)",
+                LOG_WARNING("Unknown replica cluster (Name: %v, ReplicaId: %v, TableId: %v)",
                     replica->GetClusterName(),
                     replica->GetId(),
                     table->GetId());
@@ -538,34 +552,37 @@ private:
                     replica->GetClusterName(),
                     replica->GetReplicaPath(),
                     connection,
+                    CheckerThreadPool_->GetInvoker(),
                     replica->ComputeReplicationLagTime(lastestTimestamp)));
         }
 
-        LOG_DEBUG("Add table (Id: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, SyncReplicasWanted: %v)",
+        LOG_DEBUG("Table added (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,
             asyncReplicas,
             skippedReplicas,
-            config->SyncReplicas);
+            config->SyncReplicaCount);
 
         table->SetConfig(config);
         table->SetReplicas(replicas);
     }
 
-    void OnNewNode(TObjectBase* object)
+    void OnNodeCreated(TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (object->IsTrunk() && object->GetType() == NCypressClient::EObjectType::ReplicatedTable) {
-            auto replicatedTable = object->As<NTableServer::TReplicatedTableNode>();
+            auto* replicatedTable = object->As<NTableServer::TReplicatedTableNode>();
             ProcessReplicatedTable(replicatedTable);
         }
     }
 };
 
-TReplicatedTableManager::TReplicatedTableManager(const NTabletServer::TReplicatedTableManagerConfigPtr& config, TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TReplicatedTableTracker::TReplicatedTableTracker(
+    TReplicatedTableTrackerConfigPtr config,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

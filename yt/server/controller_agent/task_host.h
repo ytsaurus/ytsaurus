@@ -4,6 +4,7 @@
 #include "serialize.h"
 #include "table.h"
 #include "data_flow_graph.h"
+#include "operation_controller.h"
 
 #include <yt/server/chunk_pools/public.h>
 #include <yt/server/chunk_pools/chunk_stripe.h>
@@ -29,7 +30,7 @@ struct ITaskHost
     , public IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called to extract stderr table path from the spec.
     virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const = 0;

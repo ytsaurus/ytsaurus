@@ -640,7 +640,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_sync_replication_switch(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA, replicated_table_options={"enable_replicated_table_manager": "true"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA, replicated_table_options={"enable_replicated_table_tracker": "true"})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)

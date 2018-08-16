@@ -132,10 +132,9 @@ public:
         }
     }
 
-    virtual IInvokerPtr GetInvoker(int index) const override
+    virtual int GetSize() const override
     {
-        YCHECK(IsValidInvokerIndex(index));
-        return Invokers_[index];
+        return Invokers_.size();
     }
 
     void Enqueue(TClosure callback, int index)
@@ -144,6 +143,13 @@ public:
         UnderlyingInvoker_->Invoke(BIND(
             &TFairShareInvokerPool::Run,
             MakeStrong(this)));
+    }
+
+protected:
+    virtual const IInvokerPtr& DoGetInvoker(int index) const override
+    {
+        YCHECK(IsValidInvokerIndex(index));
+        return Invokers_[index];
     }
 
 private:
