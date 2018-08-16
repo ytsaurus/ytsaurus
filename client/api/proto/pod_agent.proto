@@ -309,7 +309,7 @@ message TMutableWorkload {
 message TStopPolicy {
     oneof Policy {
         TUtilityContainer Stop = 1;
-        THTTPGet HttpStop = 2;
+        THttpGet HttpStop = 2;
     }
 
     // Количестно попыток выполнить gracefully stop перед тем, как убить процесс
@@ -331,7 +331,7 @@ message TBox {
     repeated TUtilityContainer Init = 9;
 }
 
-message THTTPGet {
+message THttpGet {
     uint32 Port = 1;
 
     string Path = 2;
@@ -352,7 +352,7 @@ message TReadinessCheck {
     oneof Check {
         TUtilityContainer Container = 2;
         TTcpCheck TcpCheck = 3;
-        THTTPGet HttpCheck = 4;
+        THttpGet HttpCheck = 4;
     }
 }
 
@@ -360,7 +360,7 @@ message TLivenessCheck {
     oneof Check {
         TUtilityContainer Container = 1;
         TTcpCheck TcpCheck = 2;
-        THTTPGet HttpCheck = 3;
+        THttpGet HttpCheck = 3;
     }
 }
 
@@ -580,7 +580,7 @@ message TTcpCheckStatus {
     ECheckResult CheckResult = 1;
 }
 
-message THttpCheckStatus {
+message THttpGetStatus {
     ECheckResult CheckResult = 1;
 }
 
@@ -588,7 +588,7 @@ message TReadinessStatus {
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         TTcpCheckStatus TcpCheckStatus = 2;
-        THttpCheckStatus HttpCheckStatus = 3;
+        THttpGetStatus HttpCheckStatus = 3;
     }
 }
 
@@ -596,7 +596,7 @@ message TLivenessStatus {
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         TTcpCheckStatus TcpCheckStatus = 2;
-        THttpCheckStatus HttpCheckStatus = 3;
+        THttpGetStatus HttpCheckStatus = 3;
     }
 }
 
