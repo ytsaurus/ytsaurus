@@ -1,0 +1,191 @@
+#!/usr/bin/nodejs --expose-gc
+
+var http = require("http");
+var fs = require("fs");
+
+var optimist = require("optimist");
+var connect = require("connect");
+var Q = require("bluebird");
+
+var yt = process._linkedBinding ? require("../index.js") : require("yt");
+
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("ytnode");
+
+var bunyan = require("../lib/bunyan.js");
+
+var opts = optimist
+    .usage("YT integration for IDM.\nUsage: $0")
+
+    .alias("c", "config")
+    .describe("c", "Specify configuration file")
+
+    .alias("p", "port")
+    .describe("p", "Specify port to listen")
+
+    .alias("a", "address")
+    .describe("a", "Specify address to listen")
+
+    .alias("v", "version")
+    .boolean("v")
+    .describe("v", "Show version and exit")
+
+    .alias("h", "help")
+    .boolean("h")
+    .describe("h", "Show help message and exit")
+    ;
+
+if (opts.argv.h) {
+    opts.showHelp();
+    process.exit(0);
+}
+
+function merge(lhs, rhs) {
+    for (var p in rhs) {
+        if (rhs.hasOwnProperty(p)) {
+            try {
+                if (typeof(rhs[p]) !== "undefined" && rhs[p] !== null) {
+                    if (rhs[p].constructor === Object) {
+                        lhs[p] = merge(lhs[p], rhs[p]);
+                    } else {
+                        lhs[p] = rhs[p];
+                    }
+                }
+            } catch (err) {
+                lhs[p] = rhs[p];
+            }
+        }
+    }
+    return lhs;
+}
+
+var config = {
+    port              : 80,
+    address           : "::",
+    ssl_port          : null,
+    ssl_address       : null,
+    ssl_key           : null,
+    ssl_passphrase    : null,
+    ssl_certificate   : null,
+    ssl_ca            : null,
+    ssl_ciphers       : "kEECDH+AES128:kEECDH:kEDH:-3DES:kRSA+AES128:kEDH+3DES:DES-CBC3-SHA:!RC4:!aNULL:!eNULL:!MD5:!EXPORT:!LOW:!SEED:!CAMELLIA:!IDEA:!PSK:!SRP:!SSLv2",
+    ssl_reject_unauthorized : false,
+    memory_limit      : 32 * 1024 * 1024,
+
+    authentication: {
+        enable: true,
+        cache_max_size: 5000,
+        cache_max_token_age: 60 * 1000,
+        cache_max_exist_age: 86400 * 1000,
+        optimism_timeout: 5000,
+        cypress: {
+            enable: false
+        },
+        blackbox: {
+            enable: false
+        },
+        oauth: []
+    }
+};
+
+config = merge(config, (opts.argv.c && JSON.parse(fs.readFileSync(opts.argv.c, "utf8"))) || {});
+config.proxy.driver.token = process.env.YT_TOKEN;
+
+var logger = bunyan.createLogger({
+    name: "yt",
+    streams: [{
+        type: "stream",
+        stream: process.stderr,
+        level: "debug",
+    }],
+    hostname: config.fqdn,
+    serializers: null,
+});
+
+if (typeof(config.low_watermark) === "undefined") {
+    config.low_watermark = parseInt(0.80 * config.memory_limit, 10);
+}
+
+if (typeof(config.high_watermark) === "undefined") {
+    config.high_watermark = parseInt(0.95 * config.memory_limit, 10);
+}
+
+process.on("uncaughtException", function(err) {
+    console.error("*** Uncaught Exception ***");
+    console.error(err);
+    if (err.trace) {
+        console.error(err.trace);
+    }
+    if (err.stack) {
+        console.error(err.stack);
+    }
+    // Wipe process.
+    binding.WipeOutCurrentProcess(1);
+});
+
+yt.configureSingletons(config.proxy);
+yt.YtRegistry.set("logger", logger);
+yt.YtRegistry.set("robot_yt_idm", "robot-yt-idm")
+
+var clusters = { };
+
+for (var i in config.clusters) {
+    var cluster = config.clusters[i];
+
+    config.proxy.driver.cluster_url = cluster;
+    var driver = new yt.YtDriver(config);
+    var authority = new yt.YtAuthority(
+        config.authentication,
+        driver);
+
+    var application = connect()
+        .use("/upravlyator", yt.YtApplicationUpravlyator(
+            driver,
+            authority));
+
+    clusters[cluster] = application;
+}
+
+function virtualHostHandler(req, res) {
+    var balancer_secret = process.env.BALANCER_SECRET;
+
+    if (req.headers.authorization != balancer_secret) {
+        logger.info("Received invalid authorization header");
+        res.statusCode = 403;
+        res.end();
+        return;
+    }
+    
+    for (var cluster in clusters) {
+        if (req.headers.host.indexOf("idm." + cluster) == 0) {
+            clusters[cluster](req, res);
+            return;
+        }
+    }
+
+    res.statusCode = 404;
+    res.end();
+}
+
+if (config.port && config.address) {
+    insecure_server = http.createServer(virtualHostHandler);
+    insecure_server.listen(config.port, config.address);
+}
+
+if (config.ssl_port && config.ssl_address) {
+    var ssl_key = fs.readFileSync(config.ssl_key);
+    var ssl_certificate = fs.readFileSync(config.ssl_certificate);
+    var ssl_ca = null;
+    if (config.ssl_ca) {
+        ssl_ca = fs.readFileSync(config.ssl_ca);
+    }
+
+    secure_server = https.createServer({
+        key: ssl_key,
+        passphrase: config.ssl_passphrase,
+        cert: ssl_certificate,
+        ca: ssl_ca,
+        ciphers: config.ssl_ciphers,
+        rejectUnauthorized: config.ssl_reject_unauthorized,
+    }, virtualHostHandler);
+    secure_server.listen(config.ssl_port, config.ssl_address);
+}
