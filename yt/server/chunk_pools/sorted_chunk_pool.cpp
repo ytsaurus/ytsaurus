@@ -208,6 +208,14 @@ public:
             job->Finalize(true /* sortByPosition */);
 
             if (job->GetDataWeight() > Options_.MaxDataWeightPerJob) {
+                LOG_DEBUG("Maximum allowed data violated for a sorted job (DataWeight: %v, MaxDataWeightPerJob: %v, "
+                    "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
+                    job->GetDataWeight(),
+                    Options_.MaxDataWeightPerJob,
+                    job->LowerPrimaryKey(),
+                    job->UpperPrimaryKey(),
+                    job->GetDebugString());
+
                 THROW_ERROR_EXCEPTION(
                     "Maximum allowed data weight violated for a sorted job: %v > %v",
                     job->GetDataWeight(),
@@ -292,10 +300,15 @@ private:
         }
         for (const auto& pair : DataSliceToInputCookie_) {
             const auto& dataSlice = pair.first;
-            LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v)",
+            std::vector<TChunkId> chunkIds;
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
+            }
+            LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
                 dataSlice.Get(),
                 dataSlice->GetDataWeight(),
-                dataSlice->InputStreamIndex);
+                dataSlice->InputStreamIndex,
+                chunkIds);
         }
         for (const auto& teleportChunk : TeleportChunks_) {
             LOG_DEBUG("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
@@ -790,6 +803,11 @@ private:
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                     if (chunkSliceFetcher) {
+                        if (SortedJobOptions_.LogDetails) {
+                            LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v)",
+                                inputChunk->ChunkId(),
+                                inputChunk->GetDataWeight());
+                        }
                         chunkSliceFetcher->AddChunk(inputChunk);
                     } else {
                         auto chunkSlice = CreateInputChunkSlice(inputChunk);
