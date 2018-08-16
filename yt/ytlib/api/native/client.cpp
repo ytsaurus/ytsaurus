@@ -4527,7 +4527,6 @@ private:
         }
 
         if (operation.RuntimeParameters) {
-            auto runtimeParametersMapNode = ConvertToNode(operation.RuntimeParameters)->AsMap();
             auto pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
             textFactors.insert(textFactors.end(), pools.begin(), pools.end());
         }
