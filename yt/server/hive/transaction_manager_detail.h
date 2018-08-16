@@ -15,9 +15,10 @@ class TTransactionManagerBase
     : public virtual NLogging::TLoggerOwner
 {
 public:
-    void RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
-    void RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
-    void RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterTransactionActionHandlers(
+        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
 protected:
     THashMap<TString, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;

@@ -26,6 +26,13 @@ TTransactionActionHandlerDescriptor<TCallback<void(TTransaction*, const TString&
     };
 }
 
+template <class TTransaction, class TProto, class... TArgs>
+TCallback<void(TTransaction*, TProto*, TArgs...)>
+MakeEmptyTransactionActionHandler()
+{
+    return BIND([] (TTransaction*, TProto*, TArgs...) {});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 

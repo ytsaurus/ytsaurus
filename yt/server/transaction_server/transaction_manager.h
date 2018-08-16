@@ -108,9 +108,10 @@ public:
         TTransaction* transaction,
         NObjectServer::TObjectBase* object);
 
-    void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
-    void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
-    void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterTransactionActionHandlers(
+        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,

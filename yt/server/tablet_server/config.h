@@ -324,18 +324,18 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableManagerConfig
+class TReplicatedTableTrackerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableReplicatedTableManager;
+    bool EnableReplicatedTableTracker;
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
     int ThreadCount;
 
-    TReplicatedTableManagerConfig()
+    TReplicatedTableTrackerConfig()
     {
-        RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
+        RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(true);
         RegisterParameter("check_period", CheckPeriod)
             .Default(TDuration::Seconds(1));
@@ -346,24 +346,24 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicatedTableManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicReplicatedTableManagerConfig
+class TDynamicReplicatedTableTrackerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableReplicatedTableManager;
+    bool EnableReplicatedTableTracker;
 
-    TDynamicReplicatedTableManagerConfig()
+    TDynamicReplicatedTableTrackerConfig()
     {
-        RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
+        RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(true);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -378,7 +378,7 @@ public:
     TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
     TDynamicTabletCellBalancerMasterConfigPtr TabletCellBalancer;
 
-    TDynamicReplicatedTableManagerConfigPtr ReplicatedTableManager;
+    TDynamicReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
     //! Tablet cell decommissioner config.
     TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
@@ -396,7 +396,7 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_cell_balancer", TabletCellBalancer)
             .DefaultNew();
-        RegisterParameter("replicated_table_manager", ReplicatedTableManager)
+        RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
             .DefaultNew();
         RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
             .Optional();

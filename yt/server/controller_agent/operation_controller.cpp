@@ -276,14 +276,14 @@ public:
         return Underlying_->GetCancelableContext();
     }
 
-    virtual IInvokerPtr GetCancelableInvoker() const override
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue) const override
     {
-        return Underlying_->GetCancelableInvoker();
+        return Underlying_->GetInvoker(queue);
     }
 
-    virtual IInvokerPtr GetInvoker() const override
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue) const override
     {
-        return Underlying_->GetInvoker();
+        return Underlying_->GetCancelableInvoker(queue);
     }
 
     virtual TFuture<void> Suspend() override
