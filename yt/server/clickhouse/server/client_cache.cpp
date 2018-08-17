@@ -16,7 +16,7 @@ struct THash<NYT::NApi::TClientOptions>
 {
     size_t operator ()(const NYT::NApi::TClientOptions& options) const
     {
-        return options.User.hash();
+        return options.PinnedUser->hash();
     }
 };
 
@@ -26,7 +26,7 @@ struct TEqualTo<NYT::NApi::TClientOptions>
     bool operator ()(const NYT::NApi::TClientOptions& l,
                      const NYT::NApi::TClientOptions& r) const
     {
-        return l.User == r.User;
+        return l.PinnedUser == r.PinnedUser;
     }
 };
 
