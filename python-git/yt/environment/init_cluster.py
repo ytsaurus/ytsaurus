@@ -70,8 +70,7 @@ def add_acl(path, new_acl, client):
     else:
         logger.warning("ACL '%s' is already present in %s/@acl", new_acl, path)
 
-        # Backwards compatibility.
-
+# Backwards compatibility.
 def get_default_resource_limits(client):
     result = {"node_count": 500000, "chunk_count": 1000000}
     if client.exists("//sys/media"):
