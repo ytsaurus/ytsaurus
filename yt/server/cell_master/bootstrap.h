@@ -26,6 +26,8 @@
 
 #include <yt/server/transaction_server/public.h>
 
+#include <yt/ytlib/api/native/public.h>
+
 #include <yt/ytlib/election/public.h>
 
 #include <yt/ytlib/monitoring/public.h>
@@ -70,6 +72,7 @@ public:
     const TMulticellManagerPtr& GetMulticellManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
+    const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -112,6 +115,7 @@ private:
     TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
+    NApi::NNative::IConnectionPtr ClusterConnection_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NHttp::IServerPtr HttpServer_;
@@ -145,10 +149,10 @@ private:
         const TString& localAddress);
 
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
+    NApi::NNative::IConnectionPtr CreateClusterConnection() const;
     void DoInitialize();
     void DoRun();
     void DoLoadSnapshot(const TString& fileName, bool dump);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

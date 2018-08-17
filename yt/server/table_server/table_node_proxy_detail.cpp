@@ -25,6 +25,10 @@
 
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
@@ -49,8 +53,10 @@
 namespace NYT {
 namespace NTableServer {
 
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectServer;
@@ -863,6 +869,12 @@ void TTableNodeProxy::ValidateFetchParameters(
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
 {
+    DISPATCH_YPATH_SERVICE_METHOD(Mount);
+    DISPATCH_YPATH_SERVICE_METHOD(Unmount);
+    DISPATCH_YPATH_SERVICE_METHOD(Remount);
+    DISPATCH_YPATH_SERVICE_METHOD(Freeze);
+    DISPATCH_YPATH_SERVICE_METHOD(Unfreeze);
+    DISPATCH_YPATH_SERVICE_METHOD(Reshard);
     DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
     DISPATCH_YPATH_SERVICE_METHOD(Alter);
     return TBase::DoInvoke(context);
@@ -892,6 +904,190 @@ void TTableNodeProxy::ValidateLockPossible()
 
     const auto* table = GetThisImpl();
     table->ValidateTabletStateFixed("Cannot lock table");
+}
+
+void TTableNodeProxy::CallViaNativeClient(const TString& user, std::function<TFuture<void>(const IClientPtr&)> callback)
+{
+    const auto& connection = Bootstrap_->GetClusterConnection();
+    auto asyncPair = BIND([&] {
+            auto client = connection->CreateNativeClient(TClientOptions(user));
+            return std::make_pair(client, callback(client));
+        })
+        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Run();
+
+    auto pair = WaitFor(asyncPair)
+        .ValueOrThrow();
+    WaitFor(pair.second)
+        .ThrowOnError();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
+{
+    DeclareNonMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->last_tablet_index();
+    auto cellId = FromProto<TTabletCellId>(request->cell_id());
+    bool freeze = request->freeze();
+
+    context->SetRequestInfo(
+        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v",
+        firstTabletIndex,
+        lastTabletIndex,
+        cellId,
+        freeze);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
+
+    TMountTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+    options.CellId = cellId;
+    options.Freeze = freeze;
+
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->MountTable(path, options);
+    });
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
+{
+    DeclareNonMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->last_tablet_index();
+    bool force = request->force();
+
+    context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %v",
+        firstTabletIndex,
+        lastTabletIndex,
+        force);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
+
+    TUnmountTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+    options.Force = force;
+
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->UnmountTable(path, options);
+    });
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Freeze)
+{
+    DeclareNonMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->last_tablet_index();
+
+    context->SetRequestInfo(
+        "FirstTabletIndex: %v, LastTabletIndex: %v",
+        firstTabletIndex,
+        lastTabletIndex);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
+
+    TFreezeTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->FreezeTable(path, options);
+    });
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unfreeze)
+{
+    DeclareNonMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->last_tablet_index();
+
+    context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
+        firstTabletIndex,
+        lastTabletIndex);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
+
+    TUnfreezeTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->UnfreezeTable(path, options);
+    });
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Remount)
+{
+    DeclareNonMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->first_tablet_index();
+
+    context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
+        firstTabletIndex,
+        lastTabletIndex);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
+
+    TRemountTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->RemountTable(path, options);
+    });
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Reshard)
+{
+    DeclareNonMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->last_tablet_index();
+    int tabletCount = request->tablet_count();
+    auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+
+    context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount: %v",
+        firstTabletIndex,
+        lastTabletIndex,
+        tabletCount);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
+
+    TReshardTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        if (pivotKeys.empty()) {
+            return client->ReshardTable(path, tabletCount, options);
+        } else {
+            return client->ReshardTable(path, pivotKeys, options);
+        }
+    });
+
+    context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)

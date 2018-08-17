@@ -259,11 +259,23 @@ private:
             subrequestHeader.set_retry(subrequestHeader.retry() || Context_->IsRetry());
             subrequestHeader.set_user(UserName_);
 
-            auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
+            auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
+            const auto& path = ypathExt->path();
+            bool mutating = ypathExt->mutating();
 
-            const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
-            const auto& path = ypathExt.path();
-            bool mutating = ypathExt.mutating();
+            // COMPAT(savrus) Support old mount/unmoun/etc interface.
+            if (mutating && (subrequestHeader.method() == "Mount" ||
+                subrequestHeader.method() == "Unmount" ||
+                subrequestHeader.method() == "Freeze" ||
+                subrequestHeader.method() == "Unfreeze" ||
+                subrequestHeader.method() == "Remount" ||
+                subrequestHeader.method() == "Reshard"))
+            {
+                mutating = false;
+                ypathExt->set_mutating(false);
+            }
+
+            auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
             auto loggingInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
                 RequestId_,

@@ -6,6 +6,88 @@ import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqMount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+
+    // If omitted then cell is chosen automatically.
+    optional NYT.NProto.TGuid cell_id = 3;
+
+    required bool freeze = 4;
+    optional uint64 mount_timestamp = 5 [default = 0];
+}
+
+message TRspMount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnmount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required bool force = 3 [default = false];
+}
+
+message TRspUnmount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspFreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnfreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspUnfreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReshard
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    // For sorted tables only.
+    repeated bytes pivot_keys = 3;
+    required int32 tablet_count = 4;
+}
+
+message TRspReshard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetMountInfo
 { }
 

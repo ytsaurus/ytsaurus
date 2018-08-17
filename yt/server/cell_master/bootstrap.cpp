@@ -62,6 +62,9 @@
 
 #include <yt/server/admin_server/admin_service.h>
 
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/election/cell_manager.h>
@@ -113,6 +116,7 @@
 namespace NYT {
 namespace NCellMaster {
 
+using namespace NApi;
 using namespace NAdmin;
 using namespace NBus;
 using namespace NRpc;
@@ -229,6 +233,11 @@ const IServerPtr& TBootstrap::GetRpcServer() const
 const IChannelPtr& TBootstrap::GetLocalRpcChannel() const
 {
     return LocalRpcChannel_;
+}
+
+const NNative::IConnectionPtr& TBootstrap::GetClusterConnection() const
+{
+    return ClusterConnection_;
 }
 
 const TCellManagerPtr& TBootstrap::GetCellManager() const
@@ -380,6 +389,33 @@ TCellTagList TBootstrap::GetKnownParticipantCellTags() const
     return participnatCellTags;
 }
 
+NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
+{
+    auto cloneMasterConfig = [] (const auto& cellConfig) {
+        auto result = New<NNative::TMasterConnectionConfig>();
+        result->CellId = cellConfig->CellId;
+        result->Addresses.reserve(cellConfig->Peers.size());
+        for (const auto& peer : cellConfig->Peers) {
+            if (peer.Address) {
+                result->Addresses.push_back(*peer.Address);
+            }
+        }
+        return result;
+    };
+
+    auto config = New<NNative::TConnectionConfig>();
+    config->Networks = Config_->Networks;
+    config->PrimaryMaster = cloneMasterConfig(Config_->PrimaryMaster);
+    config->SecondaryMasters.reserve(Config_->SecondaryMasters.size());
+    for (const auto& secondaryMaster : Config_->SecondaryMasters) {
+        config->SecondaryMasters.push_back(cloneMasterConfig(secondaryMaster));
+    }
+    config->TimestampProvider = Config_->TimestampProvider;
+    config->UseTabletService = true;
+
+    return NNative::CreateConnection(config);
+}
+
 void TBootstrap::DoInitialize()
 {
     Config_->PrimaryMaster->ValidateAllPeersPresent();
@@ -472,6 +508,8 @@ void TBootstrap::DoInitialize()
     LocalRpcChannel_ = CreateRealmChannel(
         CreateLocalChannel(RpcServer_),
         CellId_);
+
+    ClusterConnection_ = CreateClusterConnection();
 
     CellManager_ = New<TCellManager>(
         localCellConfig,
