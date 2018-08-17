@@ -43,17 +43,17 @@ TFuture<void> TAdmin::GCCollect(const TGCCollectOptions& options)
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TAdmin::KillProcess(const TString& address, const TKillProcessOptions& options)
+TFuture<void> TAdmin::KillProcess(const TString& /* address */, const TKillProcessOptions& /* options */)
 {
     Y_UNIMPLEMENTED();
 }
 
-TFuture<TString> TAdmin::WriteCoreDump(const TString& address, const TWriteCoreDumpOptions& options)
+TFuture<TString> TAdmin::WriteCoreDump(const TString& /* address */, const TWriteCoreDumpOptions& /* options */)
 {
     Y_UNIMPLEMENTED();
 }
 
-TFuture<TString> TAdmin::WriteOperationControllerCoreDump(const TOperationId& operationId)
+TFuture<TString> TAdmin::WriteOperationControllerCoreDump(const TOperationId& /* operationId */)
 {
     Y_UNIMPLEMENTED();
 }
