@@ -34,7 +34,7 @@ int main(int argc, const char** argv) {
     }
     {
         TOFStream dump(localPath);
-        auto path = TRichYPath(cypressPath).AddRange(TReadRange().FromRowIndexes(0LL, numRows));
+        auto path = TRichYPath(cypressPath).AddRange(TReadRange().FromRowIndices(0LL, numRows));
         auto reader = client->CreateRawReader(path, CreateSkiffFormat(schema));
         reader->ReadAll(dump);
     }
