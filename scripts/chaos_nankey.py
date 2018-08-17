@@ -28,6 +28,9 @@ import random
 import logging
 import time
 
+import urllib3
+urllib3.disable_warnings()
+VERIFY_SSL=False
 #logging.basicConfig(level=logging.DEBUG)
 
 def wait(predicate):
@@ -104,7 +107,7 @@ class Nanny:
     def get_service(self, service):
         url = urljoin(self._nanny_url, "services/{0}/current_state/".format(service))
         session = self._get_session()
-        result = session.get(url)
+        result = session.get(url, verify=VERIFY_SSL)
 
         if not result.ok:
             raise Exception("Could not get service {0}: {1}".format(service, result.text))
@@ -119,7 +122,7 @@ class Nanny:
     def get_instances(self, service_url):
         url = urljoin(self._nanny_url, "services/instances/{0}/".format(service_url))
         session = self._get_session()
-        result = session.get(url)
+        result = session.get(url, verify=VERIFY_SSL)
 
         if not result.ok:
             raise Exception("Could not get instances of service {0}: {1}".format(service_url, result.text))
@@ -136,7 +139,7 @@ class Nanny:
         url = urljoin(self._nanny_url, "services/instances/{0}/set_target_state/".format(instance_url))
         session = self._get_session()
         command = {"target": target_state, "comment": "Chaos-Nanny at work"}
-        result = session.post(url, data=json.dumps(command))
+        result = session.post(url, data=json.dumps(command), verify=VERIFY_SSL)
 
         if not result.ok:
             raise Exception("Could not change target state of instance {0}: {1}".format(instance_url, result.text))
