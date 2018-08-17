@@ -63,7 +63,7 @@ class TAuthTokenService
         }
 
         TClientOptions options;
-        options.User = user.Get();
+        options.PinnedUser = user.Get();
         options.Token = GetValue(attrs, "token");
         options.SessionId = GetValue(attrs, "sessionId");
         options.SslSessionId = GetValue(attrs, "sessionId2");
