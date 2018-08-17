@@ -12,17 +12,34 @@ namespace NScheduler {
 TPoolName::TPoolName()
 { }
 
-TPoolName::TPoolName(TString pool, TNullable<TString> parent) : Pool(std::move(pool)), ParentPool(std::move(parent))
-{ }
+TPoolName::TPoolName(TString pool, TNullable<TString> parent)
+{
+    if (parent) {
+        Pool = parent.Get() + DELIMITER + pool;
+        ParentPool = std::move(parent);
+    } else {
+        Pool = std::move(pool);
+    }
+}
+
+const TString& TPoolName::GetPool() const
+{
+    return Pool;
+}
+
+const TNullable<TString>& TPoolName::GetParentPool() const
+{
+    return ParentPool;
+}
 
 TPoolName TPoolName::FromString(const TString& value) {
     std::vector<TString> parts;
     SplitStringTo(value, DELIMITER, &parts);
     switch (parts.size()) {
         case 1:
-            return {value, Null};
+            return TPoolName(value, Null);
         case 2:
-            return {parts[1], parts[0]};
+            return TPoolName(parts[1], parts[0]);
         default:
             THROW_ERROR_EXCEPTION("Cannot parse PoolName from string: %Qv", value);
     }
@@ -30,9 +47,7 @@ TPoolName TPoolName::FromString(const TString& value) {
 
 TString TPoolName::ToString() const
 {
-    return ParentPool
-        ? ParentPool.Get() + DELIMITER + Pool
-        : Pool;
+    return Pool;
 }
 
 void Deserialize(TPoolName& value, NYTree::INodePtr node)

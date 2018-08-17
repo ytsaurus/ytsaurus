@@ -278,25 +278,25 @@ public:
     {
         auto operationId = state->GetHost()->GetId();
 
-        auto pool = FindPool(poolName.Pool);
+        auto pool = FindPool(poolName.GetPool());
         if (!pool) {
             pool = New<TPool>(
                 Host,
-                poolName.Pool,
+                poolName.GetPool(),
                 New<TPoolConfig>(),
                 /* defaultConfigured */ true,
                 Config,
-                GetPoolProfilingTag(poolName.Pool),
+                GetPoolProfilingTag(poolName.GetPool()),
                 TreeId);
 
             const auto& userName = state->GetHost()->GetAuthenticatedUser();
             pool->SetUserName(userName);
-            UserToEphemeralPools[userName].insert(poolName.Pool);
+            UserToEphemeralPools[userName].insert(poolName.GetPool());
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
-            if (poolName.ParentPool) {
-                SetPoolParent(pool, GetPool(poolName.ParentPool.Get()));
+            if (poolName.GetParentPool()) {
+                SetPoolParent(pool, GetPool(poolName.GetParentPool().Get()));
             } else {
                 SetPoolDefaultParent(pool);
             }
@@ -308,7 +308,7 @@ public:
         pool->IncreaseHierarchicalResourceUsage(operationElement->GetLocalResourceUsage());
         operationElement->SetParent(pool.Get());
 
-        AllocateOperationSlotIndex(state, poolName.Pool);
+        AllocateOperationSlotIndex(state, poolName.GetPool());
 
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(pool.Get());
         if (!violatedPool) {
@@ -566,7 +566,7 @@ public:
         LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v)",
             operationId,
             element->GetParent()->GetId(),
-            newPool.Pool);
+            newPool.GetPool());
 
         auto wasActive = DetachOperation(state, element);
         YCHECK(AttachOperation(state, element, newPool));
@@ -954,13 +954,13 @@ public:
     TPoolName MakeAppropriatePoolName(const TNullable<TString>& specPool, const TString& user)
     {
         if (!specPool) {
-            return {user, Null};
+            return TPoolName(user, Null);
         }
         TPoolPtr pool = FindPool(specPool.Get());
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-            return {user, specPool.Get()};
+            return TPoolName(user, specPool.Get());
         }
-        return {specPool.Get(), Null};
+        return TPoolName(specPool.Get(), Null);
     };
 
 private:
@@ -1930,16 +1930,16 @@ private:
 
     TCompositeSchedulerElementPtr GetPoolOrParent(const TPoolName& poolName)
     {
-        TCompositeSchedulerElementPtr pool = FindPool(poolName.Pool);
+        TCompositeSchedulerElementPtr pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
         }
-        if (!poolName.ParentPool) {
+        if (!poolName.GetParentPool()) {
             return GetDefaultParent();
         }
-        pool = FindPool(poolName.ParentPool.Get());
+        pool = FindPool(poolName.GetParentPool().Get());
         if (!pool) {
-            THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.ParentPool);
+            THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.GetParentPool());
         }
         return pool;
     }
@@ -1959,7 +1959,7 @@ private:
 
     void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
     {
-        auto pool = FindPool(poolName.Pool);
+        auto pool = FindPool(poolName.GetPool());
         if (pool) {
             return;
         }
@@ -1981,10 +1981,10 @@ private:
 
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolPair)
     {
-        TCompositeSchedulerElementPtr pool = FindPool(poolPair.Pool);
+        TCompositeSchedulerElementPtr pool = FindPool(poolPair.GetPool());
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
-            THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolPair.Pool);
+            THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolPair.GetPool());
         }
 
         if (!pool) {
@@ -2466,7 +2466,7 @@ public:
                 auto it = pools.find(*DefaultTreeId_);
                 if (it != pools.end()) {
                     fluent
-                        .Item("pool").Value(it->second.Pool);
+                        .Item("pool").Value(it->second.GetPool());
                 }
             });
     }
@@ -2494,7 +2494,7 @@ public:
             auto newPoolIt = newPools.find(treeId);
             YCHECK(newPoolIt != newPools.end());
 
-            if (oldPool.Pool != newPoolIt->second.Pool) {
+            if (oldPool.GetPool() != newPoolIt->second.GetPool()) {
                 bool wasActive = GetTree(treeId)->ChangeOperationPool(operation->GetId(), state, newPoolIt->second);
                 if (!wasActive) {
                     ActivateOperations({operation->GetId()});
@@ -2918,7 +2918,7 @@ private:
         }
     }
 
-    std::vector<TString> ParsePoolTrees(const TStrategyOperationSpecPtr& spec, EOperationType operationType) const
+    std::vector<TString> ParsePoolTrees(const TOperationSpecBasePtr& spec, EOperationType operationType) const
     {
         for (const auto& treeId : spec->PoolTrees) {
             if (!FindTree(treeId)) {

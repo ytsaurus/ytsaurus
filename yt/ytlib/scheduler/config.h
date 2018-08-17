@@ -36,18 +36,22 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPoolName {
+class TPoolName {
+public:
     TPoolName();
     TPoolName(TString pool, TNullable<TString> parent);
 
-    TString Pool;
-    TNullable<TString> ParentPool;
+    TString ToString() const;
+    static TPoolName FromString(const TString& value);
 
     static const char DELIMITER = '|';
 
-    static TPoolName FromString(const TString& value);
+    const TString& GetPool() const;
+    const TNullable<TString>& GetParentPool() const;
 
-    TString ToString() const;
+private:
+    TString Pool;
+    TNullable<TString> ParentPool;
 };
 
 void Deserialize(TPoolName& value, NYTree::INodePtr node);
