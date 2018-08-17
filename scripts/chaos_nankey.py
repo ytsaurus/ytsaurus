@@ -1,5 +1,21 @@
 #!/usr/bin/python
+#
+# Chaos monkey script for nanny services accepts several group of services:
+#
+# ./chaos_monkey [--cleanup] SERVICE_GROUP ...
+#
+#  SERVICE_GROUP is yson-map service description:
+#     {
+#          "services" - list of nanny service names
+#          "offline" - maximum number of offline instances
+#          "sleep" - number of seconds between instance activation/deactivation
+#     }
+#
+#  Example:
+#  ./chaos_nankey.py '{services=[man_yt_socrates_nodes_tablet;man_yt_socrates_nodes;man_yt_socrates_nodes_rootfs];sleep=60;offline=2}' '{services=[man_yt_socrates_masters];offline=1;sleep=300}'
+#
 
+import yt.yson as yson
 import requests
 import argparse
 import json
@@ -44,8 +60,6 @@ class NannyInstance:
 
     def down(self):
         self.set_target_state("PREPARED")
-
-
 
 class NannySerivce:
     def __init__(self, nanny, service_url):
@@ -129,42 +143,53 @@ class Nanny:
 
         print result.text
 
+class ServiceGroup:
+    def __init__(self, nanny, yson_description):
+        self._nanny = nanny
+        description = yson.loads(yson_description)
+        self._services = [nanny.get_service(service) for service in description["services"]]
+        self._max_offline = description.get("max_offline", 1)
+        self._sleep = description.get("sleep", 120)
+        self._last_run_time = 0
 
-def cleanup(serivces):
-    for service in services:
-        instances = service.get_instances()
-        for instance in instances:
-            if instance.get_target_state() != "ACTIVE":
-                instance.up()
+    def cleanup(self):
+        for service in self._services:
+            instances = service.get_instances()
+            for instance in instances:
+                if instance.get_target_state() != "ACTIVE":
+                    instance.up()
 
-    for service in services:
-        service.wait_for_instances()
-
-def chaos(services, max_offline):
-    def _wait():
-        for service in services:
+    def wait_for_instances(self):
+        for service in self._services:
             service.wait_for_instances()
-    def _get_instances():
-        instances = []
-        for service in services:
-            instances += service.get_instances()
-        return instances
 
-    def _split_statistics(instances):
-        result = {}
-        for instance in instances:
-            state = instance.get_current_state()
-            result.setdefault(state, []).append(instance)
-        return result
+    def chaos_step(self):
+        if time.time() - self._last_run_time < self._sleep:
+            return
 
-    while True:
+        def _wait():
+            for service in self._services:
+                service.wait_for_instances()
+        def _get_instances():
+            instances = []
+            for service in self._services:
+                instances += service.get_instances()
+            return instances
+
+        def _split_statistics(instances):
+            result = {}
+            for instance in instances:
+                state = instance.get_current_state()
+                result.setdefault(state, []).append(instance)
+            return result
+
         _wait()
         instances = _get_instances()
         per_state = _split_statistics(instances)
 
         online = len(per_state.get("ACTIVE", []))
         offline = len(per_state.get("PREPARED", []))
-        activate = random.uniform(0, max(0, max_offline - offline)) == 0
+        activate = random.uniform(0, max(0, self._max_offline - offline)) == 0
 
         if activate and offline > 0:
             instance = random.choice(per_state["PREPARED"])
@@ -173,12 +198,27 @@ def chaos(services, max_offline):
             instance = random.choice(per_state["ACTIVE"])
             instance.down()
 
+        print "Wait {0} seconds before next iteration".format(self._sleep)
+        self._last_run_time = time.time()
+
+def cleanup(serivce_groups):
+    for serivce_group in serivce_groups:
+        serivce_group.cleanup()
+
+    for serivce_group in serivce_groups:
+        serivce_group.wait_for_instances()
+
+def chaos(serivce_groups):
+    while True:
+        for serivce_group in serivce_groups:
+            serivce_group.chaos_step()
+        time.sleep(1)
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Randomly restart nodes and possibly schedulers.")
-    parser.add_argument("--cleanup", action="store_true", default=False, help="Restart nodes")
+    parser = argparse.ArgumentParser(description="Randomly restart service instances.")
+    parser.add_argument("--cleanup", action="store_true", default=False, help="Activate all instances (restore state from previous chaos runs)")
     parser.add_argument("--token", type=str, help="Nanny token path")
-    parser.add_argument("services", type=str, nargs="+", help="Nanny services")
-    parser.add_argument("--offline", type=int, default=1, help="Number of instances which can be offline")
+    parser.add_argument("services", type=str, nargs="+", help="Yson description of service group {services=[service1;service2;...];offline=1;sleep=120}")
     args = parser.parse_args()
 
     token_path = os.path.expanduser(args.token if args.token else "~/.nanny/token")
@@ -187,13 +227,12 @@ if __name__ == "__main__":
 
     nanny = Nanny(token)
 
-    services = []
-    for service_name in args.services:
-        service = nanny.get_service(service_name)
-        services.append(service)
+    service_gropus = []
+    for description in args.services:
+        service_gropus.append(ServiceGroup(nanny, description))
 
     if args.cleanup:
-        cleanup(services)
+        cleanup(service_gropus)
     else:
-        chaos(services, args.offline)
+        chaos(service_gropus)
 
