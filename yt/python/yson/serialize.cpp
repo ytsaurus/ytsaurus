@@ -242,8 +242,9 @@ void Serialize(
     } else {
         throw CreateYsonError(
             Format(
-                "Value %s cannot be serialized to YSON since it has unsupported type",
-                Py::Repr(obj)
+                "Value %s cannot be serialized to YSON since it has unsupported type: %s",
+                Py::Repr(obj),
+                Py::Repr(obj.type())
             ),
             context);
     }
