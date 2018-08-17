@@ -63,7 +63,7 @@ message TPodAgentStatus {
 
     repeated TVolumeStatus Volumes = 4;
 
-    repeated TLayerStatus Resources = 5;
+    repeated TLayerStatus Layers = 5;
 
     repeated TWorkloadStatus Workloads = 6;
 
@@ -87,7 +87,7 @@ message TPodAgentStatus {
 // Спека для получения расширенного debug состояния pod_agent
 message TPodAgentDebugSpec {
     repeated string WorkloadIds = 1;
-    repeated string ResourceIds = 2;
+    repeated string LayerIds = 2;
     repeated string VolumeIds = 3;
     repeated string BoxIds = 4;
 }
@@ -96,8 +96,8 @@ message TPodAgentDebugSpec {
 message TPodAgentDebugStatus {
     // Состояние behavior tree для workloads в dot формате
     map<string, string> WorkloadTreeDots = 1 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для resources в dot формате
-    map<string, string> ResourceTreeDots = 2 [(NYT.NYson.NProto.yson_map) = true];
+    // Состояние behavior tree для layers в dot формате
+    map<string, string> LayerTreeDots = 2 [(NYT.NYson.NProto.yson_map) = true];
     // Состояние behavior tree для volumes в dot формате
     map<string, string> VolumeTreeDots = 3 [(NYT.NYson.NProto.yson_map) = true];
     // Состояние behavior tree для boxes в dot формате
