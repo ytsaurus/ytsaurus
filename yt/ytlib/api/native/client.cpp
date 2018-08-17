@@ -3521,6 +3521,7 @@ private:
         return version;
     }
 
+    // Attribute names allowed for 'get_operation' and 'list_operation' commands.
     const THashSet<TString> AllowedOperationAttributes = {
         "id",
         "state",
@@ -3542,41 +3543,49 @@ private:
         "memory_usage",
     };
 
-    template <typename TOutputIt>
-    void MakeCypressOperationAttributes(const THashSet<TString>& attributes, TOutputIt output)
+    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
+    // commands to Cypress node attribute names.
+    std::vector<TString> MakeCypressOperationAttributes(const THashSet<TString>& attributes)
     {
+        std::vector<TString> result;
+        result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!AllowedOperationAttributes.has(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
             if (attribute == "id") {
-                *output++ = "key";
+                result.push_back("key");
             } else if (attribute == "type") {
-                *output++ = "operation_type";
+                result.push_back("operation_type");
             } else {
-                *output++ = attribute;
+                result.push_back(attribute);
             }
         }
+        return result;
     };
 
-    template <typename TOutputIt>
-    void MakeArchiveOperationAttributes(const THashSet<TString>& attributes, TOutputIt output)
+    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
+    // commands to operations archive column names.
+    std::vector<TString> MakeArchiveOperationAttributes(const THashSet<TString>& attributes)
     {
+        std::vector<TString> result;
+        result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
             if (!AllowedOperationAttributes.has(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
             if (attribute == "id") {
-                *output++ = "id_lo";
-                *output++ = "id_hi";
+                result.push_back("id_hi");
+                result.push_back("id_lo");
             } else if (attribute == "type") {
-                *output++ = "operation_type";
+                result.push_back("operation_type");
             } else {
-                *output++ = attribute;
+                result.push_back(attribute);
             }
         }
+        return result;
     };
 
     TYsonString DoGetOperationFromCypress(
@@ -3586,9 +3595,7 @@ private:
     {
         TNullable<std::vector<TString>> cypressAttributes;
         if (options.Attributes) {
-            cypressAttributes.Emplace();
-            cypressAttributes->reserve(options.Attributes->size() + 1);
-            MakeCypressOperationAttributes(*options.Attributes, std::back_inserter(*cypressAttributes));
+            cypressAttributes = MakeCypressOperationAttributes(*options.Attributes);
 
             if (!options.Attributes->has("controller_agent_address")) {
                 cypressAttributes->push_back("controller_agent_address");
@@ -3747,15 +3754,16 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options)
     {
-        THashSet<TString> fields;
-        MakeArchiveOperationAttributes(
-            options.Attributes ? *options.Attributes : AllowedOperationAttributes,
-            std::inserter(fields, fields.end()));
+        auto attributes = options.Attributes.Get(AllowedOperationAttributes);
+
         if (DoGetOperationsArchiveVersion() < 22) {
-            fields.erase("runtime_parameters");
+            attributes.erase("runtime_parameters");
         }
         // Ignoring memory_usage in archive.
-        fields.erase("memory_usage");
+        attributes.erase("memory_usage");
+
+        auto fieldsVector = MakeArchiveOperationAttributes(attributes);
+        THashSet<TString> fields(fieldsVector.begin(), fieldsVector.end());
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
