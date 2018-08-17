@@ -185,8 +185,8 @@ void TServer::Start()
     SetupExecutionClusterNodeTracker();
     SetupContext();
     WarmupDictionaries();
-    SetupHandlers();
     EnterExecutionCluster();
+    SetupHandlers();
 }
 
 void TServer::SetupRootLogger()
