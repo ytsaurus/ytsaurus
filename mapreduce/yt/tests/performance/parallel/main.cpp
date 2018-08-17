@@ -17,7 +17,7 @@ int main(int argc, const char** argv) {
 
     auto client = CreateClient(ytProxy);
     auto reader = client->CreateTableReader<TNode>(TRichYPath(path)
-        .AddRange(TReadRange::FromRowIndexes(0, rowCount)));
+        .AddRange(TReadRange::FromRowIndices(0, rowCount)));
     size_t count = 0;
     for ( ; reader->IsValid(); reader->Next()) {
         count += reader->GetRow().Size();

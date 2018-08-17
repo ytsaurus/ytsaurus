@@ -229,7 +229,7 @@ struct TReadRange
     FLUENT_FIELD(TReadLimit, UpperLimit);
     FLUENT_FIELD(TReadLimit, Exact);
 
-    static TReadRange FromRowIndexes(i64 lowerLimit, i64 upperLimit)
+    static TReadRange FromRowIndices(i64 lowerLimit, i64 upperLimit)
     {
         return TReadRange()
             .LowerLimit(TReadLimit().RowIndex(lowerLimit))
