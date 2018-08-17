@@ -81,8 +81,9 @@ class ExecutableItem(pytest.Item):
         config_patches = {}
         for key, value in self.extract_attrs(str(self.fspath)):
             print 'Setting "%s" to "%s"' % (key, value)
-            if key in params_map.keys():
-                kwargs[params_map[key]] = value
+            param_key = params_map.get(key, None)
+            if param_key is not None:
+                kwargs[param_key] = value
             elif key in config_keys:
                 config_patches[key] = value
 
