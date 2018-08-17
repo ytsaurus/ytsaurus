@@ -90,7 +90,7 @@ TEphemeralNodeKeeper::TEphemeralNodeKeeper(
     , SessionTimeout(sessionTimeout)
     , Client(std::move(client))
 {
-    CreateNodeLater(TDuration::Seconds(0));
+    CreateNode();
 }
 
 void TEphemeralNodeKeeper::CreateNode()
