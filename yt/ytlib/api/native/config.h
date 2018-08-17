@@ -105,6 +105,8 @@ public:
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
 
+    bool UseTabletService;
+
     TConnectionConfig();
 };
 
