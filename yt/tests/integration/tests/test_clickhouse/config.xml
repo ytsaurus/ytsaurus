@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<yandex>
+
+    <path>data-0</path>
+
+    <logger>
+        <level>trace</level>
+    </logger>
+
+
+    <profiles>
+        <default>
+            <readonly>2</readonly>
+        </default>
+    </profiles>
+
+    <quotas>
+        <default>
+            <interval>
+                <duration>3600</duration>
+                <queries>0</queries>
+                <errors>0</errors>
+                <result_rows>0</result_rows>
+                <read_rows>0</read_rows>
+                <execution_time>0</execution_time>
+            </interval>
+        </default>
+    </quotas>
+
+    <users>
+        <default>
+            <password></password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+        </default>
+    </users>
+
+    <remote_servers>
+        <default>
+            <shard>
+                <replica>
+                    <host>FQDN</host>
+                    <port>TCP_PORT</port>
+                </replica>
+            </shard>
+        </default>
+    </remote_servers>
+
+    <listen_host>::</listen_host>
+
+    <auth>
+        <server_user>root</server_user>
+    </auth>
+
+    <storage_home_path>//sys/clickhouse</storage_home_path>
+
+    <tcp_port>TCP_PORT</tcp_port>
+    <http_port>HTTP_PORT</http_port>
+
+</yandex>

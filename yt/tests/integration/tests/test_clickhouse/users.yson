@@ -1,0 +1,28 @@
+{
+    "user_template" = {
+        "password" = "";
+        "profile" = "default";
+        "networks" = {
+            "ip" = "::/0";
+        };
+        "quota" = "default";
+    };
+    "quotas" = {
+        "default" = {
+            "interval" = {
+                "duration" = 3600;
+                "read_rows" = 0;
+                "queries" = 0;
+                "execution_time" = 0;
+                "result_rows" = 0;
+                "errors" = 0;
+            };
+        };
+    };
+    "users" = {};
+    "profiles" = {
+        "default" = {
+            "readonly" = 2;
+        };
+    };
+}
