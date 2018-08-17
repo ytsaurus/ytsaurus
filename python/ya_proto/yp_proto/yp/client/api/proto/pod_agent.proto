@@ -26,6 +26,7 @@ option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 // NOTE: сущности верхнего уровня имеют уникальные в рамках Пода идентификаторы (поле Id)
 // и могут ссылаться друг на друга по этим идентификаторам (поля *Refs)
 // NOTE: Валидация - необходимо проверить, что нет висячих ссылок
+// NOTE: Валидация - На каждый Workload ссылается ровно один MutableWorkload, нет ссылок из MutableWorkload на несуществующие Workload
 message TPodAgentSpec {
     //pod revision, server-side монотонно возрастаюшая последовательность
     uint32 Revision = 1;
@@ -44,6 +45,9 @@ message TPodAgentSpec {
 
     //Все окружения, в которых могут быть запущены Workloads
     repeated TBox Boxes = 8;
+
+    //Часть Worklaod, изменение которой не приведет к полной пересборке Workload
+    repeated TMutableWorkload MutableWorkloads = 9;
 }
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
@@ -176,6 +180,7 @@ message TRootfsVolume {
     uint64 QuotaBytes = 1;
 
     // Слои, из которых собирается volume
+    // как и в porto, слои идут в порядке top-layer;...;bottom-layer
     //NOTE: Валидация ids в списке должны быть уникальные
     repeated string LayerRefs = 4;
 }
@@ -211,7 +216,7 @@ message TVolume {
 // maxExecutionTimeMs - ограничение на время выполнения.
 // Интервал между запусками рассчитывается по формуле
 // min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
-// step считается с 0 и равен max(0, ConsecutiveFailuresCounter - 1)
+// step считается с 0 и равен max(0, ConsecutiveSuccessesCounter - 1)
 message TTimeLimit {
     uint64 InitialDelayMs = 1;
     uint64 RestartPeriodScaleMs = 2;
@@ -242,22 +247,20 @@ message TEnvVar {
     TEnvVarValue Value = 2;
 }
 
+enum EWorkloadTargetState {
+    EWorkloadTarget_ACTIVE = 0 [(NYT.NYson.NProto.enum_value_name) = "active"];
+    EWorkloadTarget_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+}
+
 //pid-ns как изолируется относительно соседей
 message TWorkload {
     // уникальный в рамках pod идентификатор Workload. Должeн состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
 
-    //атрибуты контейнера (по сути это сквозной проброс опций Porto)
-    //Тут важно разделять интерфейс предоствляемый пользователию и внутренний между YP<->agent
-    TComputeResources ComputeResources = 2;
-
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
     //Если команда падает - она перезапускается до победного
     repeated TUtilityContainer Init = 3;
-
-    //Команда которая будет установлена в porto-container в качестве опции cmd. Т.е. entry point для контейнера.
-    string CommandLine = 4;
 
     //Переменные окружения
     repeated TEnvVar Env = 5;
@@ -268,7 +271,6 @@ message TWorkload {
     //     https://wiki.yandex-team.ru/jandekspoisk/sepe/instancectl/#ortho-tags
     //     https://docs.platform.yandex-team.ru/doc/component#status_hook
     // Если это поведение поменять сделать миграцию автоматической будет сложнее
-    // Если потребуется поведение, что в случае провала хука нужно килять инстанс - то добавим хук health
     // Если пользователь хочет пробпросить кастомный стуктурированный status, то рекомендуемое место для этого
     // stdout этого хука
     TReadinessCheck ReadinessCheck = 6;
@@ -278,7 +280,21 @@ message TWorkload {
     //Указатель на Box, в котором надо запускаться
     string BoxRef = 8;
 
+    //В случае ненулевого возврата - workload убивается и переходит в состояние DEACTIVATED_BY_LIVENESS
     TLivenessCheck LivenessCheck = 9;
+
+    // В связи с изменением структуры контейнеров: https://st.yandex-team.ru/ISS-5791
+    // Поля ComputeResources и CommandLine заменены на контейнер Start
+    // Данный контейнер содержит ограничения для запуска основной команды и саму команду
+    TUtilityContainer Start = 11;
+}
+
+// Mutable поля Workload
+message TMutableWorkload {
+    // Ссылка на workload
+    string WorkloadRef = 1;
+
+    EWorkloadTargetState State = 2;
 }
 
 message TStopPolicy {
@@ -286,6 +302,10 @@ message TStopPolicy {
         TUtilityContainer Stop = 1;
         THTTPGet HttpStop = 2;
     }
+
+    // Количестно попыток выполнить gracefully stop перед тем, как убить процесс
+    // Должно быть > 0
+    uint32 MaxTries = 3;
 }
 
 message TBox {
@@ -446,6 +466,9 @@ enum EWorkloadState {
 
     // Workload deactivated by liveness
     EWorkloadState_DEACTIVATED_BY_LIVENESS = 9 [(NYT.NYson.NProto.enum_value_name) = "deactivated_by_liveness"];
+
+    // running init commands
+    EWorkloadState_INIT_PROCESESS = 10 [(NYT.NYson.NProto.enum_value_name) = "init_procesess"];
 }
 
 // Описание результата выполнения хука
@@ -496,6 +519,7 @@ message TContainerStatus {
     uint32 KilledExternallyCounter = 10;
     uint32 SystemFailureCounter = 11;
     uint32 ConsecutiveFailuresCounter = 12;
+    uint32 ConsecutiveSuccessesCounter = 13;
 }
 
 enum EConditionStatus {

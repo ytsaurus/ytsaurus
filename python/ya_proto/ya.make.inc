@@ -4,4 +4,6 @@ yp_proto/yp/client/api/proto/pod_agent.proto
 yp_proto/yp/client/api/proto/data_model.proto
 yp_proto/yp/client/api/proto/discovery_service.proto
 yp_proto/yp/client/api/proto/object_service.proto
+yp_proto/yp/client/api/proto/object_type.proto
+yp_proto/yp/client/api/proto/replica_set.proto
 )

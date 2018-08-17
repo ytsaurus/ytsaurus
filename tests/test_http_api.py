@@ -3,7 +3,7 @@ import pytest
 from yp.client import YpClient
 
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject, TRspCreateObject
-from yp_proto.yp.client.api.proto.data_model_pb2 import EObjectType
+from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
 
 import yt.packages.requests as requests
 import yt.yson as yson

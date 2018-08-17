@@ -3,7 +3,7 @@ import pytest
 from yp.client import YpClient
 
 import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
-import yp_proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
+import yp_proto.yp.client.api.proto.object_type_pb2 as object_type_pb2
 
 import yt.yson as yson
 
@@ -13,20 +13,20 @@ class TestGrpcStubs(object):
         object_stub = yp_client.create_grpc_object_stub()
 
         req = object_service_pb2.TReqCreateObject()
-        req.object_type = data_model_pb2.OT_POD_SET
+        req.object_type = object_type_pb2.OT_POD_SET
         rsp = object_stub.CreateObject(req)
 
         pod_set_id = rsp.object_id
 
         req = object_service_pb2.TReqCreateObject()
-        req.object_type = data_model_pb2.OT_POD
+        req.object_type = object_type_pb2.OT_POD
         req.attributes = yson.dumps({"meta": {"pod_set_id": pod_set_id}})
         rsp = object_stub.CreateObject(req)
 
         pod_id = rsp.object_id
 
         req = object_service_pb2.TReqGetObject()
-        req.object_type = data_model_pb2.OT_POD
+        req.object_type = object_type_pb2.OT_POD
         req.object_id = pod_id
         req.selector.paths[:] = ["/status/agent/state", "/meta/id", "/meta/pod_set_id"]
         rsp = object_stub.GetObject(req)

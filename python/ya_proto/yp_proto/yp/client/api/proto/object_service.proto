@@ -3,6 +3,7 @@ package NYP.NClient.NApi.NProto;
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 import "yp_proto/yp/client/api/proto/data_model.proto";
+import "yp_proto/yp/client/api/proto/object_type.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Object";
@@ -342,6 +343,10 @@ message TReqCheckObjectPermissions
         required EAccessControlPermission permission = 4;
     }
     repeated TSubrequest subrequests = 1;
+
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 2;
 }
 
 message TRspCheckObjectPermissions
@@ -359,6 +364,38 @@ message TRspCheckObjectPermissions
 
         //! Subject to which the decision applies. Can be null.
         optional string subject_id = 4;
+    }
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetObjectAccessAllowedFor
+{
+    message TSubrequest
+    {
+        // Id of the object to check.
+        required string object_id = 1;
+
+        // Type of the object to check.
+        required EObjectType object_type = 2;
+
+        // Permission to check.
+        required EAccessControlPermission permission = 4;
+    }
+    repeated TSubrequest subrequests = 1;
+
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 2;
+}
+
+message TRspGetObjectAccessAllowedFor
+{
+    message TSubresponse
+    {
+        // Ids of users that are granted access.
+        repeated string user_ids = 1;
     }
     repeated TSubresponse subresponses = 1;
 }
@@ -449,7 +486,11 @@ service ObjectService
     // Executes a query and fetches attributes for relevant objects.
     rpc SelectObjects (TReqSelectObjects) returns (TRspSelectObjects);
 
+    // Runs permission checks for given objects, permissions, and users.
     rpc CheckObjectPermissions (TReqCheckObjectPermissions) returns (TRspCheckObjectPermissions);
+
+    // Given objects and permissions, computes the set of users that are granted the specified permission.
+    rpc GetObjectAccessAllowedFor (TReqGetObjectAccessAllowedFor) returns (TRspGetObjectAccessAllowedFor);
 
     // Reads updates from event queue.
     rpc WatchObjects (TReqWatchObjects) returns (TRspWatchObjects);

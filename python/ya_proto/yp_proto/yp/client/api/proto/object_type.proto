@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EObjectType
+{
+    OT_NODE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "node"];
+
+    OT_POD = 1
+    [(NYT.NYson.NProto.enum_value_name) = "pod"];
+
+    OT_POD_SET = 2
+    [(NYT.NYson.NProto.enum_value_name) = "pod_set"];
+
+    OT_RESOURCE = 3
+    [(NYT.NYson.NProto.enum_value_name) = "resource"];
+
+    OT_NETWORK_PROJECT = 4
+    [(NYT.NYson.NProto.enum_value_name) = "network_project"];
+
+    OT_ENDPOINT = 5
+    [(NYT.NYson.NProto.enum_value_name) = "endpoint"];
+
+    OT_ENDPOINT_SET = 6
+    [(NYT.NYson.NProto.enum_value_name) = "endpoint_set"];
+
+    OT_NODE_SEGMENT = 7
+    [(NYT.NYson.NProto.enum_value_name) = "node_segment"];
+
+    OT_VIRTUAL_SERVICE = 8
+    [(NYT.NYson.NProto.enum_value_name) = "virtual_service"];
+
+    OT_USER = 9
+    [(NYT.NYson.NProto.enum_value_name) = "user"];
+
+    OT_GROUP = 10
+    [(NYT.NYson.NProto.enum_value_name) = "group"];
+
+    OT_INTERNET_ADDRESS = 11
+    [(NYT.NYson.NProto.enum_value_name) = "internet_address"];
+
+    OT_ACCOUNT = 12
+    [(NYT.NYson.NProto.enum_value_name) = "account"];
+
+    OT_REPLICA_SET = 13
+    [(NYT.NYson.NProto.enum_value_name) = "replica_set"];
+
+    OT_SCHEMA = 256
+    [(NYT.NYson.NProto.enum_value_name) = "schema"];
+
+    OT_NULL = -1
+    [(NYT.NYson.NProto.enum_value_name) = "null"];
+}
+
+////////////////////////////////////////////////////////////////////////////////

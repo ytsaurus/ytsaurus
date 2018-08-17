@@ -3,6 +3,7 @@ package NYP.NClient.NApi.NProto;
 // COMPAT(babenko): will be dropped after switching to pod agent.
 import "yp_proto/yp/client/api/proto/cluster_api.proto";
 import "yp_proto/yp/client/api/proto/pod_agent.proto";
+import "yp_proto/yp/client/api/proto/object_type.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
@@ -12,54 +13,6 @@ option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DataModel";
 
 ////////////////////////////////////////////////////////////////////////////////
-
-enum EObjectType
-{
-    OT_NULL = -1
-    [(NYT.NYson.NProto.enum_value_name) = "null"];
-
-    OT_NODE = 0
-    [(NYT.NYson.NProto.enum_value_name) = "node"];
-
-    OT_POD = 1
-    [(NYT.NYson.NProto.enum_value_name) = "pod"];
-
-    OT_POD_SET = 2
-    [(NYT.NYson.NProto.enum_value_name) = "pod_set"];
-
-    OT_RESOURCE = 3
-    [(NYT.NYson.NProto.enum_value_name) = "resource"];
-
-    OT_NETWORK_PROJECT = 4
-    [(NYT.NYson.NProto.enum_value_name) = "network_project"];
-
-    OT_ENDPOINT = 5
-    [(NYT.NYson.NProto.enum_value_name) = "endpoint"];
-
-    OT_ENDPOINT_SET = 6
-    [(NYT.NYson.NProto.enum_value_name) = "endpoint_set"];
-
-    OT_NODE_SEGMENT = 7
-    [(NYT.NYson.NProto.enum_value_name) = "node_segment"];
-
-    OT_VIRTUAL_SERVICE = 8
-    [(NYT.NYson.NProto.enum_value_name) = "virtual_service"];
-
-    OT_USER = 9
-    [(NYT.NYson.NProto.enum_value_name) = "user"];
-
-    OT_GROUP = 10
-    [(NYT.NYson.NProto.enum_value_name) = "group"];
-
-    OT_INTERNET_ADDRESS = 11
-    [(NYT.NYson.NProto.enum_value_name) = "internet_address"];
-
-    OT_ACCOUNT = 12
-    [(NYT.NYson.NProto.enum_value_name) = "account"];
-
-    OT_SCHEMA = 256
-    [(NYT.NYson.NProto.enum_value_name) = "schema"];
-}
 
 enum EEventType
 {
@@ -103,6 +56,9 @@ enum EAccessControlPermission
 
     ACA_USE = 6
     [(NYT.NYson.NProto.enum_value_name) = "use"];
+
+    ACA_GET_QYP_VM_STATUS = 7
+    [(NYT.NYson.NProto.enum_value_name) = "get_qyp_vm_status"];
 }
 
 message TAccessControlEntry
@@ -115,6 +71,24 @@ message TAccessControlEntry
 
     // List of subjects (users and groups) this entry applies to.
     repeated string subjects = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAntiaffinityConstraint
+{
+    // Topology zone key.
+    // Node zones are specified via /node/labels/topology/key=value labels.
+    // and are filled on node's import.
+    // Supported zone keys are: node, rack, dc.
+    required string key = 1;
+
+    // Maximum number of pods that can be placed in the same zone.
+    required int64 max_pods = 2;
+
+    // Describes the pods this constraint applies to.
+    // TODO(babenko): this is not currently implemented
+    optional string pod_filter = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -502,6 +476,15 @@ message TPodMeta
     repeated TAccessControlEntry acl = 11;
 }
 
+enum EPodHostNameKind
+{
+    PHNK_TRANSIENT = 0
+    [(NYT.NYson.NProto.enum_value_name) = "transient"];
+
+    PHNK_PERSISTENT = 1
+    [(NYT.NYson.NProto.enum_value_name) = "persistent"];
+}
+
 message TPodSpec
 {
     // Raw ISS payload to be delivered to agent.
@@ -658,8 +641,11 @@ message TPodSpec
         optional uint32 ip6_mtu = 3;
         optional string decapsulator_anycast_address = 4;
     }
-
     optional TVirtualServiceOptions virtual_service_options = 12;
+
+    // Determines the kind of "hostname" Porto property: either
+    // "persistent" or "transient" pod FQDN can be used.
+    optional EPodHostNameKind host_name_kind = 15;
 }
 
 enum EEvictionState
@@ -732,7 +718,7 @@ message TPodStatus
         optional NYtPython.NProto.TError execution_error = 6;
 
         // Errors in pod spec validation passed from agent via heartbeat.
-        repeated NYtPython.NProto.TError validation_errors = 8;
+        repeated string validation_failures = 8;
 
         // The instant the last heartbeat from agent containing the status of this pod was received.
         optional uint64 last_heartbeat_time = 7;
@@ -907,22 +893,6 @@ message TPodSetMeta
 
 message TPodSetSpec
 {
-    message TAntiaffinityConstraint
-    {
-        // Topology zone key.
-        // Node zones are specified via /node/labels/topology/key=value labels.
-        // and are filled on node's import.
-        // Supported zone keys are: node, rack, dc.
-        required string key = 1;
-
-        // Maximum number of pods that can be placed in the same zone.
-        required int64 max_pods = 2;
-
-        // Describes the pods this constraint applies to.
-        // TODO(babenko): this is not currently implemented
-        optional string pod_filter = 3;
-    }
-
     // Limits placing pods of this pod set to the same topology zone (e.g. node, rack, DC).
     repeated TAntiaffinityConstraint antiaffinity_constraints = 1;
 

@@ -5,7 +5,8 @@ except ImportError:
 
 from yt_proto.yt.core.misc.proto.error_pb2 import TError
 from yt_proto.yt.core.ytree.proto.attributes_pb2 import TAttribute
-from yp_proto.yp.client.api.proto.data_model_pb2 import TPodSetMeta, EObjectType
+from yp_proto.yp.client.api.proto.data_model_pb2 import TPodSetMeta
+from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject
 
 class TestYsonProto(object):
