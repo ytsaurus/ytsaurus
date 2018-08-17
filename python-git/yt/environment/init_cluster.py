@@ -73,7 +73,7 @@ def add_acl(path, new_acl, client):
         # Backwards compatibility.
 
 def get_default_resource_limits(client):
-    result = {"node_count": 200000, "chunk_count": 1000000}
+    result = {"node_count": 500000, "chunk_count": 1000000}
     if client.exists("//sys/media"):
         result["disk_space_per_medium"] = {"default": 10 * TB}
     else:
