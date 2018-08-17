@@ -1339,6 +1339,8 @@ class TestSchedulerPools(YTEnvSetup):
         create_test_tables()
 
         create("map_node", "//sys/pools/custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+
         time.sleep(0.2)
 
         map(
@@ -1346,7 +1348,7 @@ class TestSchedulerPools(YTEnvSetup):
             command=(with_breakpoint("cat ; BREAKPOINT")),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"pool": "custom_pool", "create_ephemeral_subpool": True})
+            spec={"pool": "custom_pool"})
 
         wait_breakpoint()
 
