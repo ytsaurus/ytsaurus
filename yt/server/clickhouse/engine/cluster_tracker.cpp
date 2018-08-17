@@ -157,9 +157,14 @@ TClusterNodeTicket TClusterNodeTracker::EnterCluster(const std::string& host, ui
     auto nameHint = NEphemeralNodes::ToNodeNameHint(host, port);
     auto content = NEphemeralNodes::ToNodeContent(host, port);
 
-    return Directory->CreateAndKeepEphemeralNode(
+    auto result = Directory->CreateAndKeepEphemeralNode(
         nameHint,
         content);
+
+    // Synchronously update cluster directory.
+    LOG_DEBUG(Logger, "Forcing cluster directory update");
+    OnUpdate(static_cast<NInterop::TNodeRevision>(-2));
+    return result;
 }
 
 TClusterNodeNames TClusterNodeTracker::ListAvailableNodes()
