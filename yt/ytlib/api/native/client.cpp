@@ -3761,6 +3761,7 @@ private:
         return version;
     }
 
+    // Attribute names allowed for 'get_operation' and 'list_operation' commands.
     const THashSet<TString> AllowedOperationAttributes = {
         "id",
         "state",
@@ -3782,41 +3783,49 @@ private:
         "memory_usage",
     };
 
-    template <typename TOutputIt>
-    void MakeCypressOperationAttributes(const THashSet<TString>& attributes, TOutputIt output)
+    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
+    // commands to Cypress node attribute names.
+    std::vector<TString> MakeCypressOperationAttributes(const THashSet<TString>& attributes)
     {
+        std::vector<TString> result;
+        result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!AllowedOperationAttributes.has(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
             if (attribute == "id") {
-                *output++ = "key";
+                result.push_back("key");
             } else if (attribute == "type") {
-                *output++ = "operation_type";
+                result.push_back("operation_type");
             } else {
-                *output++ = attribute;
+                result.push_back(attribute);
             }
         }
+        return result;
     };
 
-    template <typename TOutputIt>
-    void MakeArchiveOperationAttributes(const THashSet<TString>& attributes, TOutputIt output)
+    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
+    // commands to operations archive column names.
+    std::vector<TString> MakeArchiveOperationAttributes(const THashSet<TString>& attributes)
     {
+        std::vector<TString> result;
+        result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
             if (!AllowedOperationAttributes.has(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
             if (attribute == "id") {
-                *output++ = "id_lo";
-                *output++ = "id_hi";
+                result.push_back("id_hi");
+                result.push_back("id_lo");
             } else if (attribute == "type") {
-                *output++ = "operation_type";
+                result.push_back("operation_type");
             } else {
-                *output++ = attribute;
+                result.push_back(attribute);
             }
         }
+        return result;
     };
 
     TYsonString DoGetOperationFromCypress(
@@ -3826,9 +3835,7 @@ private:
     {
         TNullable<std::vector<TString>> cypressAttributes;
         if (options.Attributes) {
-            cypressAttributes.Emplace();
-            cypressAttributes->reserve(options.Attributes->size() + 1);
-            MakeCypressOperationAttributes(*options.Attributes, std::back_inserter(*cypressAttributes));
+            cypressAttributes = MakeCypressOperationAttributes(*options.Attributes);
 
             if (!options.Attributes->has("controller_agent_address")) {
                 cypressAttributes->push_back("controller_agent_address");
@@ -3987,15 +3994,16 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options)
     {
-        THashSet<TString> fields;
-        MakeArchiveOperationAttributes(
-            options.Attributes ? *options.Attributes : AllowedOperationAttributes,
-            std::inserter(fields, fields.end()));
+        auto attributes = options.Attributes.Get(AllowedOperationAttributes);
+
         if (DoGetOperationsArchiveVersion() < 22) {
-            fields.erase("runtime_parameters");
+            attributes.erase("runtime_parameters");
         }
         // Ignoring memory_usage in archive.
-        fields.erase("memory_usage");
+        attributes.erase("memory_usage");
+
+        auto fieldsVector = MakeArchiveOperationAttributes(attributes);
+        THashSet<TString> fields(fieldsVector.begin(), fieldsVector.end());
 
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
@@ -4626,10 +4634,10 @@ private:
     {
         std::vector<TString> textFactors;
 
-        textFactors.push_back(ToString(operation.OperationId));
+        textFactors.push_back(ToString(operation.Id));
         textFactors.push_back(operation.AuthenticatedUser);
-        textFactors.push_back(ToString(operation.OperationState));
-        textFactors.push_back(ToString(operation.OperationType));
+        textFactors.push_back(ToString(operation.State));
+        textFactors.push_back(ToString(operation.Type));
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
@@ -4674,45 +4682,107 @@ private:
         return result;
     }
 
-
-    TListOperationsResult DoListOperations(
-        const TListOperationsOptions& options)
+    struct TCountingFilter
     {
-        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultListOperationsTimeout);
-        auto deadline = timeout.ToDeadLine();
+        THashMap<TString, i64> PoolCounts;
+        THashMap<TString, i64> UserCounts;
+        TEnumIndexedVector<i64, NScheduler::EOperationState> StateCounts;
+        TEnumIndexedVector<i64, NScheduler::EOperationType> TypeCounts;
+        i64 FailedJobsCount = 0;
 
-        TListOperationsResult result;
-        THashMap<TString, i64> poolCounts;
-        THashMap<TString, i64> userCounts;
-        TEnumIndexedVector<i64, NScheduler::EOperationState> stateCounts;
-        TEnumIndexedVector<i64, NScheduler::EOperationType> typeCounts;
-        i64 failedJobsCount = 0;
+        const TListOperationsOptions& Options;
 
-        if (options.IncludeArchive) {
-            if (!options.FromTime) {
-                THROW_ERROR_EXCEPTION("Missing required parameter \"from_time\"");
+        TCountingFilter(const TListOperationsOptions& options)
+            : Options(options)
+        { }
+
+        bool Filter(
+            TNullable<std::vector<TString>> pools,
+            TStringBuf user,
+            const EOperationState& state,
+            const EOperationType& type,
+            i64 count)
+        {
+            if (pools) {
+                for (const auto& pool : *pools) {
+                    PoolCounts[pool] += count;
+                }
             }
-            if (!options.ToTime) {
-                THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
+
+            if (Options.Pool && (!pools || std::find(pools->begin(), pools->end(), *Options.Pool) == pools->end())) {
+                return false;
             }
+
+            UserCounts[user] += count;
+
+            if (Options.UserFilter && *Options.UserFilter != user) {
+                return false;
+            }
+
+            StateCounts[state] += count;
+
+            if (Options.StateFilter && *Options.StateFilter != state) {
+                return false;
+            }
+
+            TypeCounts[type] += count;
+
+            if (Options.TypeFilter && *Options.TypeFilter != type) {
+                return false;
+            }
+
+            return true;
         }
 
-        TNullable<TString> substrFilter = options.SubstrFilter;
+        bool FilterByFailedJobs(const TYsonString& briefProgress)
+        {
+            if (briefProgress) {
+                auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
+                auto jobsNode = briefProgressMapNode->FindChild("jobs");
+                bool hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
 
-        if (options.CursorTime && (
-            options.ToTime && *options.CursorTime > *options.ToTime ||
-            options.FromTime && *options.CursorTime < *options.FromTime)) {
-            THROW_ERROR_EXCEPTION("Time cursor is out of range");
+                FailedJobsCount += hasFailedJobs;
+                if (Options.WithFailedJobs && *Options.WithFailedJobs != hasFailedJobs) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    };
+
+    TOperation CreateOperationFromNode(const INodePtr& node) {
+        const auto& attributes = node->Attributes();
+
+        TOperation operation;
+        operation.Id = TGuid::FromString(node->AsString()->GetValue());
+        operation.Type = ParseEnum<NScheduler::EOperationType>(attributes.Get<TString>("operation_type"));
+        operation.State = ParseEnum<NScheduler::EOperationState>(attributes.Get<TString>("state"));
+        operation.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
+        if (attributes.Find<INodePtr>("finish_time")) {
+            operation.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
+        }
+        operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
+        operation.BriefSpec = attributes.FindYson("brief_spec");
+        operation.BriefProgress = attributes.FindYson("brief_progress");
+        operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
+
+        if (operation.RuntimeParameters) {
+            operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
         }
 
-        if (substrFilter) {
-            *substrFilter = to_lower(*substrFilter);
-        }
+        operation.Suspended = attributes.Get<bool>("suspended");
+        return operation;
+    };
 
-        if (options.Limit > 100) {
-            THROW_ERROR_EXCEPTION("Maximum result size exceeds allowed limit");
-        }
-
+    // Searches in cypress for operations satisfying given filters.
+    // Adds found operations to |idToOperation| map.
+    void DoListOperationsFromCypress(
+        TInstant deadline,
+        TCountingFilter& countingFilter,
+        const TListOperationsOptions& options,
+        THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
+    {
         std::vector<TString> attributes = {
             "authenticated_user",
             "brief_progress",
@@ -4724,43 +4794,11 @@ private:
             "state",
             "suspended",
             "title",
-            "weight"
-        };
-
-        auto createOperationFromNode = [&] (const INodePtr& node) {
-            const auto& attributes = node->Attributes();
-
-            TOperation operation;
-            operation.OperationId = TGuid::FromString(node->AsString()->GetValue());
-            operation.OperationType = ParseEnum<NScheduler::EOperationType>(attributes.Get<TString>("operation_type"));
-            operation.OperationState = ParseEnum<NScheduler::EOperationState>(attributes.Get<TString>("state"));
-            operation.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
-            if (attributes.Find<INodePtr>("finish_time")) {
-                operation.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
-            }
-            operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
-            operation.BriefSpec = attributes.FindYson("brief_spec");
-            operation.BriefProgress = attributes.FindYson("brief_progress");
-            operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
-
-            if (operation.RuntimeParameters) {
-                operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
-            }
-
-            operation.Suspended = attributes.Get<bool>("suspended");
-            return operation;
         };
 
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
         auto batchReq = proxy.ExecuteBatch();
         SetBalancingHeader(batchReq, options);
-
-        {
-            auto req = TYPathProxy::List(GetOperationsPath());
-            SetCachingHeader(req, options);
-            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-            batchReq->AddRequest(req, "list_operations");
-        }
 
         for (int hash = 0x0; hash <= 0xFF; ++hash) {
             auto hashStr = Format("%02x", hash);
@@ -4773,420 +4811,356 @@ private:
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
 
-        std::vector<TOperation> cypressOperations;
-        THashMap<TOperationId, INodePtr> rootOperations;
-
-        auto rootOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
-            .ValueOrThrow();
-        auto rootOperationsList = ConvertToNode(TYsonString(rootOperationsRsp->value()))->AsList();
-
-        for (const auto& item : rootOperationsList->GetChildren()) {
-            auto idStr = item->AsString()->GetValue();
-
-            // Hash-bucket case
-            if (idStr.size() == 2) {
-                continue;
-            }
-
-            auto operationId = TGuid::FromString(idStr);
-            YCHECK(rootOperations.emplace(operationId, item).second);
+        auto substrFilter = options.SubstrFilter;
+        if (substrFilter) {
+            *substrFilter = to_lower(*substrFilter);
         }
 
         for (int hash = 0x0; hash <= 0xFF; ++hash) {
-            auto hashStr = Format("%02x", hash);
-            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations_" + hashStr);
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(Format("list_operations_%02x", hash));
 
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 continue;
             }
 
             auto rsp = rspOrError.ValueOrThrow();
-            auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
+            auto operationNodes = ConvertToNode(TYsonString(rsp->value()))->AsList();
 
-            for (const auto& item : items->GetChildren()) {
-                auto operationId = TGuid::FromString(item->AsString()->GetValue());
-                if (item->Attributes().Contains("state")) {
-                    cypressOperations.push_back(createOperationFromNode(item));
-                    rootOperations.erase(operationId);
-                } else {
-                    auto it = rootOperations.find(operationId);
-                    if (it != rootOperations.end()) {
-                        cypressOperations.push_back(createOperationFromNode(it->second));
-                        rootOperations.erase(it);
-                    }
-                }
-            }
-        }
+            for (const auto& operationNode : operationNodes->GetChildren()) {
+                auto operation = CreateOperationFromNode(operationNode);
 
-        for (const auto& pair : rootOperations) {
-            cypressOperations.push_back(createOperationFromNode(pair.second));
-            YCHECK(cypressOperations.back().OperationId == pair.first);
-        }
-
-        auto filterAndCount =
-            [&] (const TNullable<std::vector<TString>>& pools, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
-                if (pools) {
-                    for (const auto& pool : *pools) {
-                        poolCounts[pool] += count;
-                    }
-                }
-
-                if (options.Pool && (!pools || std::find(pools->begin(), pools->end(), *options.Pool) == pools->end())) {
-                    return false;
-                }
-
-                userCounts[user] += count;
-
-                if (options.UserFilter && *options.UserFilter != user) {
-                    return false;
-                }
-
-                stateCounts[state] += count;
-
-                if (options.StateFilter && *options.StateFilter != state) {
-                    return false;
-                }
-
-                typeCounts[type] += count;
-
-                if (options.TypeFilter && *options.TypeFilter != type) {
-                    return false;
-                }
-
-                return true;
-            };
-
-        std::vector<TOperation> cypressData;
-        for (const auto& operation : cypressOperations) {
-            if (options.FromTime && operation.StartTime < *options.FromTime ||
-                options.ToTime && operation.StartTime >= *options.ToTime) {
-                continue;
-            }
-
-            auto user = operation.AuthenticatedUser;
-
-            EOperationState state = operation.OperationState;
-            if (state != EOperationState::Pending && IsOperationInProgress(state)) {
-                state = EOperationState::Running;
-            }
-
-            auto type = operation.OperationType;
-
-            auto textFactor = ExtractTextFactorForCypressItem(operation);
-            if (substrFilter && textFactor.find(*substrFilter) == -1) {
-                continue;
-            }
-
-            if (!filterAndCount(operation.Pools, user, state, type, 1)) {
-                continue;
-            }
-
-            bool hasFailedJobs = false;
-            if (operation.BriefProgress) {
-                auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-                auto jobsNode = briefProgressMapNode->FindChild("jobs");
-                hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
-            }
-
-            failedJobsCount += hasFailedJobs;
-
-            if (options.WithFailedJobs && *options.WithFailedJobs != (hasFailedJobs > 0)) {
-                continue;
-            }
-
-            if (options.CursorTime) {
-                if (options.CursorDirection == EOperationSortDirection::Past && operation.StartTime >= *options.CursorTime) {
-                    continue;
-                } else if (options.CursorDirection == EOperationSortDirection::Future && operation.StartTime <= *options.CursorTime) {
+                if (options.FromTime && operation.StartTime < *options.FromTime ||
+                    options.ToTime && operation.StartTime >= *options.ToTime) {
                     continue;
                 }
-            }
 
-            cypressData.push_back(operation);
+                auto textFactor = ExtractTextFactorForCypressItem(operation);
+                if (substrFilter && textFactor.find(*substrFilter) == std::string::npos) {
+                    continue;
+                }
+
+                EOperationState state = operation.State;
+                if (state != EOperationState::Pending && IsOperationInProgress(state)) {
+                    state = EOperationState::Running;
+                }
+
+                if (!countingFilter.Filter(operation.Pools, operation.AuthenticatedUser, state, operation.Type, 1)) {
+                    continue;
+                }
+
+                if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
+                    continue;
+                }
+
+                if (options.CursorTime) {
+                    if (options.CursorDirection == EOperationSortDirection::Past && operation.StartTime >= *options.CursorTime) {
+                        continue;
+                    } else if (options.CursorDirection == EOperationSortDirection::Future && operation.StartTime <= *options.CursorTime) {
+                        continue;
+                    }
+                }
+
+                (*idToOperation)[operation.Id] = std::move(operation);
+            }
+        }
+    }
+
+    // Searches in archive for operations satisfying given filters.
+    THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
+        TInstant deadline,
+        TCountingFilter& countingFilter,
+        const TListOperationsOptions& options)
+    {
+        if (!options.FromTime) {
+            THROW_ERROR_EXCEPTION("Missing required parameter \"from_time\"");
         }
 
-        std::vector<TOperation> archiveData;
+        if (!options.ToTime) {
+            THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
+        }
 
-        if (options.IncludeArchive && DoesOperationsArchiveExist()) {
-            std::vector<TString> itemsConditions;
-            std::vector<TString> countsConditions;
-            TString itemsSortDirection;
+        int version = DoGetOperationsArchiveVersion();
 
-            itemsConditions.push_back(Format("%v > %v AND %v <= %v", "start_time", (*options.FromTime).MicroSeconds(), "start_time", (*options.ToTime).MicroSeconds()));
-            countsConditions.push_back(itemsConditions.back());
+        if (options.Pool && version < 15) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to get operation's pool: operations archive version is too old: expected >= 15, got %v",
+                version);
+        }
+
+        if (version < 9) {
+            THROW_ERROR_EXCEPTION("Operations archive version is too old: expected >= 9, got %v",
+                version);
+        }
+
+        const auto archiveHasPools = (DoGetOperationsArchiveVersion() >= 24);
+
+        if (options.IncludeCounters) {
+            TQueryBuilder builder;
+            builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
+
+            for (const auto selectExpr : {"pool_or_pools", "authenticated_user", "state", "operation_type", "sum(1) AS count"}) {
+                builder.AddSelectExpression(selectExpr);
+            }
+
+            builder.AddWhereExpression(Format("start_time > %v AND start_time <= %v",
+                (*options.FromTime).MicroSeconds(),
+                (*options.ToTime).MicroSeconds()));
 
             if (options.SubstrFilter) {
-                itemsConditions.push_back(Format("is_substr(%Qv, filter_factors)", substrFilter));
-                countsConditions.push_back(itemsConditions.back());
+                builder.AddWhereExpression(
+                    Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
             }
 
-            if (options.CursorDirection == EOperationSortDirection::Past) {
-                if (options.CursorTime) {
-                    itemsConditions.push_back(Format("%v <= %v", "start_time", (*options.CursorTime).MicroSeconds()));
-                }
-                itemsSortDirection = "DESC";
-            }
+            const TString poolQueryExpression = archiveHasPools ? "any_to_yson_string(pools)" : "pool";
+            builder.SetGroupByExpression(poolQueryExpression + " AS pool_or_pools, authenticated_user, state, operation_type");
 
-            if (options.CursorDirection == EOperationSortDirection::Future) {
-                if (options.CursorTime) {
-                    itemsConditions.push_back(Format("%v > %v", "start_time", (*options.CursorTime).MicroSeconds()));
-                }
-                itemsSortDirection = "ASC";
-            }
+            TSelectRowsOptions selectOptions;
+            selectOptions.Timeout = deadline - Now();
 
-            if (options.Pool) {
-                itemsConditions.push_back(Format("list_contains(pools, %Qv)", *options.Pool));
-            }
-
-            if (options.StateFilter) {
-                itemsConditions.push_back(Format("state = %Qv", FormatEnum(*options.StateFilter)));
-            }
-
-            if (options.TypeFilter) {
-                itemsConditions.push_back(Format("operation_type = %Qv", FormatEnum(*options.TypeFilter)));
-            }
-
-            if (options.UserFilter) {
-                itemsConditions.push_back(Format("authenticated_user = %Qv", *options.UserFilter));
-            }
-
-            auto queryForItemsIds = Format(
-                "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v",
-                GetOperationsArchivePathOrderedByStartTime(),
-                JoinSeq(" AND ", itemsConditions),
-                itemsSortDirection,
-                1 + options.Limit);
-
-            const auto archiveHasPools = (DoGetOperationsArchiveVersion() >= 24);
-            const auto poolQueryExpression = archiveHasPools ? "any_to_yson_string(pools)" : "pool";
-            auto queryForCounts = Format(
-                "pool_or_pools, user, state, type, sum(1) AS count FROM [%v] WHERE %v "
-                "GROUP BY %v AS pool_or_pools, authenticated_user AS user, state AS state, operation_type AS type",
-                GetOperationsArchivePathOrderedByStartTime(),
-                JoinSeq(" AND ", countsConditions),
-                poolQueryExpression);
-
-            TSelectRowsOptions selectRowsOptions;
-            selectRowsOptions.Timeout = deadline - Now();
-
-            auto runResultCounts = SelectRows(queryForCounts, selectRowsOptions);
-            auto runRowsItemsId = SelectRows(queryForItemsIds, selectRowsOptions);
-
-            auto resultCounts = WaitFor(runResultCounts)
+            auto resultCounts = WaitFor(SelectRows(builder.Build(), selectOptions))
                 .ValueOrThrow();
 
-            const auto& rowsCounts = resultCounts.Rowset->GetRows();
-
-            for (auto row : rowsCounts) {
+            for (auto row : resultCounts.Rowset->GetRows()) {
                 TNullable<std::vector<TString>> pools;
                 if (row[0].Type != EValueType::Null) {
                     pools = archiveHasPools
                         ? ConvertTo<std::vector<TString>>(TYsonString(row[0].Data.String, row[0].Length))
                         : std::vector<TString>{FromUnversionedValue<TString>(row[0])};
                 }
-                auto user = TString(row[1].Data.String, row[1].Length);
-                auto state = ParseEnum<EOperationState>(TString(row[2].Data.String, row[2].Length));
-                auto type = ParseEnum<EOperationType>(TString(row[3].Data.String, row[3].Length));
-                i64 count = row[4].Data.Int64;
+                auto user = TStringBuf(row[1].Data.String, row[1].Length);
+                auto state = ParseEnum<EOperationState>(TStringBuf(row[2].Data.String, row[2].Length));
+                auto type = ParseEnum<EOperationType>(TStringBuf(row[3].Data.String, row[3].Length));
+                auto count = row[4].Data.Int64;
 
-                filterAndCount(pools, user, state, type, count);
-            }
-
-            auto nameTable = New<TNameTable>();
-
-            TOrderedByIdTableDescriptor tableDescriptor;
-            auto rowBuffer = New<TRowBuffer>();
-
-            std::vector<TUnversionedRow> keys;
-
-            auto rowsItemsId = WaitFor(runRowsItemsId)
-                .ValueOrThrow();
-
-            auto resultItemsIds = rowsItemsId.Rowset->GetRows();
-
-            for (auto row : resultItemsIds) {
-                auto key = rowBuffer->AllocateUnversioned(2);
-                key[0] = MakeUnversionedUint64Value(row[0].Data.Uint64, tableDescriptor.Index.IdHi);
-                key[1] = MakeUnversionedUint64Value(row[1].Data.Uint64, tableDescriptor.Index.IdLo);
-                keys.push_back(key);
-            }
-
-            std::vector<int> columns = {
-                tableDescriptor.Index.IdHi,
-                tableDescriptor.Index.IdLo,
-                tableDescriptor.Index.OperationType,
-                tableDescriptor.Index.State,
-                tableDescriptor.Index.AuthenticatedUser,
-                tableDescriptor.Index.BriefProgress,
-                tableDescriptor.Index.BriefSpec,
-                tableDescriptor.Index.StartTime,
-                tableDescriptor.Index.FinishTime,
-            };
-            if (DoGetOperationsArchiveVersion() >= 22) {
-                columns.push_back(tableDescriptor.Index.RuntimeParameters);
-            }
-            TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columns);
-            lookupOptions.KeepMissingRows = true;
-            lookupOptions.Timeout = deadline - Now();
-
-            auto rowset = WaitFor(LookupRows(
-                GetOperationsArchivePathOrderedById(),
-                tableDescriptor.NameTable,
-                MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-                lookupOptions))
-                .ValueOrThrow();
-
-            auto rows = rowset->GetRows();
-
-            auto getYson = [&] (const TUnversionedValue& value) {
-                return value.Type == EValueType::Null
-                    ? TYsonString()
-                    : TYsonString(value.Data.String, value.Length);
-            };
-            auto getString = [&] (const TUnversionedValue& value, TStringBuf name) {
-                if (value.Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
-                }
-                return TStringBuf(value.Data.String, value.Length);
-            };
-
-            auto& columnFilter = lookupOptions.ColumnFilter;
-            auto& tableIndex = tableDescriptor.Index;
-            for (auto row : rows) {
-                if (!row) {
-                    continue;
-                }
-
-                TOperation operation;
-
-                operation.BriefProgress = getYson(row[columnFilter.GetIndex(tableIndex.BriefProgress)]);
-                bool hasFailedJobs = false;
-                if (operation.BriefProgress) {
-                    auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-                    hasFailedJobs =
-                        briefProgressMapNode->FindChild("jobs") &&
-                        briefProgressMapNode->GetChild("jobs")->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
-
-                    if (options.WithFailedJobs.HasValue() && *options.WithFailedJobs != hasFailedJobs) {
-                        continue;
-                    }
-                }
-
-                TGuid operationId(
-                    row[columnFilter.GetIndex(tableIndex.IdHi)].Data.Uint64,
-                    row[columnFilter.GetIndex(tableIndex.IdLo)].Data.Uint64);
-
-                operation.OperationId = operationId;
-
-                auto value = row[columnFilter.GetIndex(tableIndex.OperationType)];
-                operation.OperationType = ParseEnum<EOperationType>(getString(value, "operation_type"));
-
-                value = row[columnFilter.GetIndex(tableIndex.State)];
-                operation.OperationState = ParseEnum<EOperationState>(getString(value, "state"));
-
-                value = row[columnFilter.GetIndex(tableIndex.AuthenticatedUser)];
-                operation.AuthenticatedUser = getString(value, "authenticated_user");
-
-                failedJobsCount += hasFailedJobs;
-
-                operation.BriefSpec = getYson(row[columnFilter.GetIndex(tableIndex.BriefSpec)]);
-
-                if (row[columnFilter.GetIndex(tableIndex.StartTime)].Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in job archive");
-                }
-                operation.StartTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.StartTime)].Data.Int64);
-
-                if (row[columnFilter.GetIndex(tableIndex.FinishTime)].Type != EValueType::Null) {
-                    operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
-                }
-
-                if (DoGetOperationsArchiveVersion() >= 22) {
-                    operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
-
-                    if (operation.RuntimeParameters) {
-                        operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
-                    }
-                }
-
-                archiveData.push_back(operation);
+                countingFilter.Filter(pools, user, state, type, count);
             }
         }
 
-        std::sort(
-            archiveData.begin(),
-            archiveData.end(),
-            [] (const TOperation& lhs, const TOperation& rhs) {
-                return lhs.OperationId < rhs.OperationId;
-            });
+        TQueryBuilder builder;
+        builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
 
-        std::sort(
-            cypressData.begin(),
-            cypressData.end(),
-            [] (const TOperation& lhs, const TOperation& rhs) {
-                return lhs.OperationId < rhs.OperationId;
-            });
+        builder.AddSelectExpression("id_hi");
+        builder.AddSelectExpression("id_lo");
 
-        auto mergeOperations = [&] (const std::vector<TOperation>& source1, const std::vector<TOperation>& source2) {
-            auto it1 = source1.begin();
-            auto end1 = source1.end();
+        builder.AddWhereExpression(Format("start_time > %v AND start_time <= %v",
+            (*options.FromTime).MicroSeconds(),
+            (*options.ToTime).MicroSeconds()));
 
-            auto it2 = source2.begin();
-            auto end2 = source2.end();
+        if (options.SubstrFilter) {
+            builder.AddWhereExpression(
+                Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
+        }
 
-            std::vector<TOperation> merged;
-            while (it1 != end1 && it2 != end2) {
-                if (it1->OperationId == it2->OperationId) {
-                    merged.push_back(*it1);
+        builder.SetOrderByExpression("start_time");
 
-                    filterAndCount(it1->Pools, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
+        if (options.CursorDirection == EOperationSortDirection::Past) {
+            if (options.CursorTime) {
+                builder.AddWhereExpression(Format("start_time <= %v", (*options.CursorTime).MicroSeconds()));
+            }
+            builder.SetOrderByDirection("DESC");
+        }
 
-                    ++it1;
-                    ++it2;
-                } else if (it1->OperationId < it2->OperationId) {
-                    merged.push_back(*it1);
-                    ++it1;
-                } else {
-                    merged.push_back(*it2);
-                    ++it2;
+        if (options.CursorDirection == EOperationSortDirection::Future) {
+            if (options.CursorTime) {
+                builder.AddWhereExpression(Format("start_time > %v", (*options.CursorTime).MicroSeconds()));
+            }
+            builder.SetOrderByDirection("ASC");
+        }
+
+        if (options.Pool) {
+            auto expression = archiveHasPools ? "list_contains(pools, %Qv)" : "pool = %Qv";
+            builder.AddWhereExpression(Format(expression, *options.Pool));
+        }
+
+        if (options.StateFilter) {
+            builder.AddWhereExpression(Format("state = %Qv", FormatEnum(*options.StateFilter)));
+        }
+
+        if (options.TypeFilter) {
+            builder.AddWhereExpression(Format("operation_type = %Qv", FormatEnum(*options.TypeFilter)));
+        }
+
+        if (options.UserFilter) {
+            builder.AddWhereExpression(Format("authenticated_user = %Qv", *options.UserFilter));
+        }
+
+        builder.SetLimit(1 + options.Limit);
+
+        TSelectRowsOptions selectOptions;
+        selectOptions.Timeout = deadline - Now();
+
+        auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
+            .ValueOrThrow();
+
+        TOrderedByIdTableDescriptor tableDescriptor;
+        auto rowBuffer = New<TRowBuffer>();
+        std::vector<TUnversionedRow> keys;
+
+        keys.reserve(rowsItemsId.Rowset->GetRows().Size());
+        for (auto row : rowsItemsId.Rowset->GetRows()) {
+            auto key = rowBuffer->AllocateUnversioned(2);
+            key[0] = MakeUnversionedUint64Value(row[0].Data.Uint64, tableDescriptor.Index.IdHi);
+            key[1] = MakeUnversionedUint64Value(row[1].Data.Uint64, tableDescriptor.Index.IdLo);
+            keys.push_back(key);
+        }
+
+        std::vector<int> columns = {
+            tableDescriptor.Index.IdHi,
+            tableDescriptor.Index.IdLo,
+            tableDescriptor.Index.OperationType,
+            tableDescriptor.Index.State,
+            tableDescriptor.Index.AuthenticatedUser,
+            tableDescriptor.Index.BriefProgress,
+            tableDescriptor.Index.BriefSpec,
+            tableDescriptor.Index.StartTime,
+            tableDescriptor.Index.FinishTime,
+        };
+        if (DoGetOperationsArchiveVersion() >= 22) {
+            columns.push_back(tableDescriptor.Index.RuntimeParameters);
+        }
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columns);
+        lookupOptions.KeepMissingRows = true;
+        lookupOptions.Timeout = deadline - Now();
+
+        auto rowset = WaitFor(LookupRows(
+            GetOperationsArchivePathOrderedById(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+
+        auto getYson = [&] (const TUnversionedValue& value) {
+            return value.Type == EValueType::Null
+                ? TYsonString()
+                : TYsonString(value.Data.String, value.Length);
+        };
+        auto getString = [&] (const TUnversionedValue& value, TStringBuf name) {
+            if (value.Type == EValueType::Null) {
+                THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
+            }
+            return TStringBuf(value.Data.String, value.Length);
+        };
+
+        THashMap<NScheduler::TOperationId, TOperation> idToOperation;
+
+        auto& columnFilter = lookupOptions.ColumnFilter;
+        auto& tableIndex = tableDescriptor.Index;
+        for (auto row : rows) {
+            if (!row) {
+                continue;
+            }
+
+            TOperation operation;
+
+            operation.BriefProgress = getYson(row[columnFilter.GetIndex(tableIndex.BriefProgress)]);
+            if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
+                continue;
+            }
+
+            TGuid operationId(
+                row[columnFilter.GetIndex(tableIndex.IdHi)].Data.Uint64,
+                row[columnFilter.GetIndex(tableIndex.IdLo)].Data.Uint64);
+
+            operation.Id = operationId;
+
+            auto value = row[columnFilter.GetIndex(tableIndex.OperationType)];
+            operation.Type = ParseEnum<EOperationType>(getString(value, "operation_type"));
+
+            value = row[columnFilter.GetIndex(tableIndex.State)];
+            operation.State = ParseEnum<EOperationState>(getString(value, "state"));
+
+            value = row[columnFilter.GetIndex(tableIndex.AuthenticatedUser)];
+            operation.AuthenticatedUser = getString(value, "authenticated_user");
+
+            operation.BriefSpec = getYson(row[columnFilter.GetIndex(tableIndex.BriefSpec)]);
+
+            if (row[columnFilter.GetIndex(tableIndex.StartTime)].Type == EValueType::Null) {
+                THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in job archive");
+            }
+            operation.StartTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.StartTime)].Data.Int64);
+
+            if (row[columnFilter.GetIndex(tableIndex.FinishTime)].Type != EValueType::Null) {
+                operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
+            }
+
+            if (DoGetOperationsArchiveVersion() >= 22) {
+                operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+
+                if (operation.RuntimeParameters) {
+                    operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
                 }
             }
 
-            merged.insert(merged.end(), it1, end1);
-            merged.insert(merged.end(), it2, end2);
+            idToOperation.emplace(operation.Id, std::move(operation));
+        }
 
-            return merged;
-        };
+        return idToOperation;
+    }
 
-        std::vector<TOperation> mergedData = mergeOperations(cypressData, archiveData);
+    TListOperationsResult DoListOperations(
+        const TListOperationsOptions& options)
+    {
+        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultListOperationsTimeout);
+        auto deadline = timeout.ToDeadLine();
 
-        auto startTimeComparer = [] (const EOperationSortDirection& direction) -> std::function<bool (const TOperation&, const TOperation&)> {
-            if (direction == EOperationSortDirection::Future) {
-                return [] (const TOperation& lhs, const TOperation& rhs) { return static_cast<bool>(lhs.StartTime < rhs.StartTime); };
+        if (options.CursorTime && (
+            options.ToTime && *options.CursorTime > *options.ToTime ||
+            options.FromTime && *options.CursorTime < *options.FromTime))
+        {
+            THROW_ERROR_EXCEPTION("Time cursor (%v) is out of range [from_time (%v), to_time (%v)]",
+                *options.CursorTime,
+                *options.FromTime,
+                *options.ToTime);
+        }
+
+        constexpr ui64 MaxLimit = 100;
+        if (options.Limit > MaxLimit) {
+            THROW_ERROR_EXCEPTION("Requested result limit (%v) exceeds maximum allowed limit (%v)",
+                options.Limit,
+                MaxLimit);
+        }
+
+        TCountingFilter countingFilter(options);
+
+        THashMap<NScheduler::TOperationId, TOperation> idToOperation;
+        if (options.IncludeArchive && DoesOperationsArchiveExist()) {
+            idToOperation = DoListOperationsFromArchive(deadline, countingFilter, options);
+        }
+
+        DoListOperationsFromCypress(deadline, countingFilter, options, &idToOperation);
+
+        std::vector<TOperation> operations;
+        operations.reserve(idToOperation.size());
+        for (auto& item : idToOperation) {
+            operations.push_back(std::move(item.second));
+        }
+
+        std::sort(operations.begin(), operations.end(), [&] (const TOperation& lhs, const TOperation& rhs) {
+            // Reverse order: most recent first.
+            return lhs.StartTime > rhs.StartTime;
+        });
+
+        TListOperationsResult result;
+
+        result.Operations = std::move(operations);
+        if (result.Operations.size() > options.Limit) {
+            if (options.CursorDirection == EOperationSortDirection::Past) {
+                result.Operations.resize(options.Limit);
             } else {
-                return [] (const TOperation& lhs, const TOperation& rhs) { return static_cast<bool>(lhs.StartTime > rhs.StartTime); };
+                result.Operations.erase(result.Operations.begin(), result.Operations.end() - options.Limit);
             }
-        };
-
-        std::sort(mergedData.begin(), mergedData.end(), startTimeComparer(options.CursorDirection));
-
-        if (mergedData.size() > options.Limit) {
             result.Incomplete = true;
         }
 
-        result.Operations = std::move(mergedData);
-        if (result.Operations.size() >= options.Limit) {
-            result.Operations.resize(options.Limit);
-        }
-
-        std::sort(result.Operations.begin(), result.Operations.end(), startTimeComparer(EOperationSortDirection::Past));
-
         if (options.IncludeCounters) {
-            result.PoolCounts = std::move(poolCounts);
-            result.UserCounts = std::move(userCounts);
-            result.StateCounts = std::move(stateCounts);
-            result.TypeCounts = std::move(typeCounts);
-            result.FailedJobsCount = failedJobsCount;
+            result.PoolCounts = std::move(countingFilter.PoolCounts);
+            result.UserCounts = std::move(countingFilter.UserCounts);
+            result.StateCounts = std::move(countingFilter.StateCounts);
+            result.TypeCounts = std::move(countingFilter.TypeCounts);
+            result.FailedJobsCount = countingFilter.FailedJobsCount;;
         }
 
         return result;

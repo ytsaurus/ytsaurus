@@ -34,7 +34,7 @@ DECLARE_REFCOUNTED_STRUCT(IPrioritizedInvoker)
 DECLARE_REFCOUNTED_STRUCT(ISuspendableInvoker)
 
 template <class TInvoker>
-struct IGenericInvokerPool;
+class IGenericInvokerPool;
 
 using IInvokerPool = IGenericInvokerPool<IInvoker>;
 using IPrioritizedInvokerPool = IGenericInvokerPool<IPrioritizedInvoker>;
