@@ -41,10 +41,10 @@ public:
     TPoolName();
     TPoolName(TString pool, TNullable<TString> parent);
 
+    static const char DELIMITER;
+
     TString ToString() const;
     static TPoolName FromString(const TString& value);
-
-    static const char DELIMITER = '|';
 
     const TString& GetPool() const;
     const TNullable<TString>& GetParentPool() const;

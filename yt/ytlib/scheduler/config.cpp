@@ -22,6 +22,8 @@ TPoolName::TPoolName(TString pool, TNullable<TString> parent)
     }
 }
 
+const char TPoolName::DELIMITER = '$';
+
 const TString& TPoolName::GetPool() const
 {
     return Pool;
@@ -41,7 +43,8 @@ TPoolName TPoolName::FromString(const TString& value) {
         case 2:
             return TPoolName(parts[1], parts[0]);
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse PoolName from string: %Qv", value);
+            THROW_ERROR_EXCEPTION("Cannot parse PoolName from string:"
+                "delimiter found more than once (Delimiter: %Qv, RawValue: %Qv)", TPoolName::DELIMITER, value);
     }
 }
 

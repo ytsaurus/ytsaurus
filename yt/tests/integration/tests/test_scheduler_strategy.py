@@ -1352,7 +1352,7 @@ class TestSchedulerPools(YTEnvSetup):
 
         wait_breakpoint()
 
-        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool|root")
+        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
 
         remove("//sys/pools/custom_pool")
