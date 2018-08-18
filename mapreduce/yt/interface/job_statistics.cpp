@@ -295,7 +295,6 @@ void WriteCustomStatisticsAny(TStringBuf path, const T& value)
 {
     TYsonWriter writer(GetStatisticsStream(), YF_BINARY, YT_LIST_FRAGMENT);
     int depth = 0;
-    TStringBuf pathPart;
     size_t begin = 0;
     size_t end = 0;
     TVector<TString> items;
