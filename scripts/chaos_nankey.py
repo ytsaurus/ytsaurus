@@ -151,7 +151,7 @@ class ServiceGroup:
         self._nanny = nanny
         description = yson.loads(yson_description)
         self._services = [nanny.get_service(service) for service in description["services"]]
-        self._max_offline = description.get("max_offline", 1)
+        self._max_offline = description.get("offline", 1)
         self._sleep = description.get("sleep", 120)
         self._last_run_time = 0
 
@@ -192,7 +192,8 @@ class ServiceGroup:
 
         online = len(per_state.get("ACTIVE", []))
         offline = len(per_state.get("PREPARED", []))
-        activate = random.uniform(0, max(0, self._max_offline - offline)) == 0
+        activate = random.randint(0, max(0, self._max_offline - offline)) == 0
+        print "Current offline instances: {0}".format(offline)
 
         if activate and offline > 0:
             instance = random.choice(per_state["PREPARED"])
