@@ -171,7 +171,7 @@ public:
             userIP);
 
         TString path;
-        if (Config_->Secure) {
+        if (!Config_->Secure) {
             path = Config_->RootPath + "/" + ToYPathLiteral(credentials.Token);
         } else {
             path = Config_->RootPath + "/" + TSHA1Hasher()
