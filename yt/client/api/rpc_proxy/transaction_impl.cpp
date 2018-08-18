@@ -8,6 +8,8 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/core/concurrency/async_semaphore.h>
+
 namespace NYT {
 namespace NApi {
 namespace NRpcProxy {
@@ -51,7 +53,8 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingPeriod_(pingPeriod)
     , Sticky_(sticky)
-    , BatchModifyRowsRequest_(CreateBatchModifyRowsRequest())
+    , InFlightModifyRowsRequestCount_(New<TAsyncSemaphore>(MaxInFlightModifyRowsRequestCount))
+    , ModifyRowsRequestSequenceCounter_(0)
 {
     // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
     LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "
@@ -173,7 +176,7 @@ void TTransaction::UnsubscribeAborted(const TCallback<void()>& handler)
     Aborted_.Unsubscribe(handler);
 }
 
-TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
+TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
 {
     LOG_DEBUG("Committing transaction (TransactionId: %v)",
         Id_);
@@ -205,43 +208,48 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         }
     }
 
-    {
-        auto guard = Guard(BatchModifyRowsRequestLock_);
-        auto asyncResult = InvokeBatchModifyRowsRequest();
+    // Acquire the semaphore N-1 times. This will overcommit it and make it so that
+    // the semaphore will become "ready" when the last actual request has finished.
+    InFlightModifyRowsRequestCount_->Acquire(MaxInFlightModifyRowsRequestCount - 1);
+    return InFlightModifyRowsRequestCount_->GetReadyEvent().Apply(
+        BIND([this, this_ = MakeStrong(this)] () {
+            {
+                auto guard = Guard(SpinLock_);
+                if (!Error_.IsOK()) {
+                    return MakeFuture<TTransactionCommitResult>(Error_);
+                }
+            }
 
-        return asyncResult.Apply(
-            BIND([this, this_ = MakeStrong(this), options] () {
-                const auto& config = Connection_->GetConfig();
+            const auto& config = Connection_->GetConfig();
 
-                TApiServiceProxy proxy(Channel_);
+            TApiServiceProxy proxy(Channel_);
 
-                auto req = proxy.CommitTransaction();
-                req->SetTimeout(config->RpcTimeout);
+            auto req = proxy.CommitTransaction();
+            req->SetTimeout(config->RpcTimeout);
 
-                ToProto(req->mutable_transaction_id(), Id_);
-                req->set_sticky(Sticky_);
+            ToProto(req->mutable_transaction_id(), Id_);
+            req->set_sticky(Sticky_);
 
-                return req->Invoke().Apply(
-                    BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TErrorOr<TTransactionCommitResult> {
-                        if (rspOrError.IsOK()) {
-                            const auto& rsp = rspOrError.Value();
-                            TTransactionCommitResult result{
-                                FromProto<NHiveClient::TTimestampMap>(rsp->commit_timestamps())
-                            };
-                            auto error = SetCommitted(result);
-                            if (!error.IsOK()) {
-                                return error;
-                            }
-                            return result;
-                        } else {
-                            auto error = TError("Error committing transaction %v ",
-                                Id_) << rspOrError;
-                            OnFailure(error);
+            return req->Invoke().Apply(
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TErrorOr<TTransactionCommitResult> {
+                    if (rspOrError.IsOK()) {
+                        const auto& rsp = rspOrError.Value();
+                        TTransactionCommitResult result{
+                            FromProto<NHiveClient::TTimestampMap>(rsp->commit_timestamps())
+                        };
+                        auto error = SetCommitted(result);
+                        if (!error.IsOK()) {
                             return error;
                         }
-                    }));
-            }));
-    }
+                        return result;
+                    } else {
+                        auto error = TError("Error committing transaction %v ",
+                            Id_) << rspOrError;
+                        OnFailure(error);
+                        return error;
+                    }
+                }));
+        }));
 }
 
 TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& /*options*/)
@@ -309,16 +317,19 @@ void TTransaction::ModifyRows(
     TSharedRange<TRowModification> modifications,
     const TModifyRowsOptions& options)
 {
-    ValidateActive();
+    const auto& config = Connection_->GetConfig();
 
     TApiServiceProxy proxy(Channel_);
-    NProto::TReqModifyRows req;
+    auto req = proxy.ModifyRows();
+    req->SetTimeout(config->RpcTimeout);
 
-    ToProto(req.mutable_transaction_id(), Id_);
-    req.set_path(path);
+    req->set_sequence_number(ModifyRowsRequestSequenceCounter_++);
 
-    req.set_require_sync_replica(options.RequireSyncReplica);
-    ToProto(req.mutable_upstream_replica_id(), options.UpstreamReplicaId);
+    ToProto(req->mutable_transaction_id(), Id_);
+    req->set_path(path);
+
+    req->set_require_sync_replica(options.RequireSyncReplica);
+    ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(modifications.Size());
@@ -328,40 +339,27 @@ void TTransaction::ModifyRows(
             modification.Type == ERowModificationType::Write ||
             modification.Type == ERowModificationType::Delete);
         rows.emplace_back(modification.Row);
-        req.add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
+        req->add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
     }
 
-    auto attachments = SerializeRowset(
+    req->Attachments() = SerializeRowset(
         nameTable,
         MakeRange(rows),
-        req.mutable_rowset_descriptor());
+        req->mutable_rowset_descriptor());
 
-    auto reqBody = SerializeProtoToRef(req);
-
-    TFuture<void> asyncResult;
-    {
-        auto guard = Guard(BatchModifyRowsRequestLock_);
-
-        BatchModifyRowsRequest_->Attachments().push_back(reqBody);
-        BatchModifyRowsRequest_->Attachments().insert(
-            BatchModifyRowsRequest_->Attachments().end(),
-            attachments.begin(), attachments.end());
-        BatchModifyRowsRequest_->add_part_counts(attachments.size());
-
-        LOG_DEBUG("Added subrequest into a BatchMofifyRows rows request (TransactionId: %v,  SubrequestSize: %v, TotalSubrequestCount: %v)",
-            Id_,
-            attachments.size(),
-            BatchModifyRowsRequest_->part_counts_size());
-
-        if (BatchModifyRowsRequest_->part_counts_size() == MaxBatchModifyRowsSize_) {
-            asyncResult = InvokeBatchModifyRowsRequest();
-        }
+    // Wait until we're allowed to send another request.
+    while (!InFlightModifyRowsRequestCount_->TryAcquire()) {
+        WaitFor(InFlightModifyRowsRequestCount_->GetReadyEvent());
     }
 
-    if (asyncResult) {
-        WaitFor(asyncResult)
-            .ThrowOnError();
-    }
+    req->Invoke().As<void>()
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            InFlightModifyRowsRequestCount_->Release();
+
+            if (!error.IsOK()) {
+                OnFailure(error);
+            }
+        }));
 }
 
 TFuture<ITransactionPtr> TTransaction::StartTransaction(
@@ -639,25 +637,29 @@ TError TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
     return TError();
 }
 
-void TTransaction::SetAborted(const TError& error)
+bool TTransaction::SetAborted(const TError& error)
 {
     {
         auto guard = Guard(SpinLock_);
         if (State_ == ETransactionState::Aborted) {
-            return;
+            return false;
         }
         State_ = ETransactionState::Aborted;
         Error_ = error;
     }
 
     FireAborted();
+
+    return true;
 }
 
 void TTransaction::OnFailure(const TError& error)
 {
-    SetAborted(error);
-    // Best-effort, fire-and-forget.
-    SendAbort();
+    // Send abort request just once.
+    if (SetAborted(error)) {
+        // Best-effort, fire-and-forget.
+        SendAbort();
+    }
 }
 
 TFuture<void> TTransaction::SendAbort()
@@ -674,8 +676,6 @@ TFuture<void> TTransaction::SendAbort()
 
     ToProto(req->mutable_transaction_id(), Id_);
     req->set_sticky(Sticky_);
-
-    FireAborted();
 
     return req->Invoke().Apply(
         BIND([id = Id_, Logger = Logger] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
@@ -788,42 +788,6 @@ void TTransaction::ValidateActive(TGuard<TSpinLock>&)
     if (State_ != ETransactionState::Active) {
         THROW_ERROR_EXCEPTION("Transaction %v is not active",
             Id_);
-    }
-}
-
-NRpcProxy::TApiServiceProxy::TReqBatchModifyRowsPtr TTransaction::CreateBatchModifyRowsRequest() {
-    const auto &config = Connection_->GetConfig();
-
-    TApiServiceProxy proxy(Channel_);
-
-    auto req = proxy.BatchModifyRows();
-    ToProto(req->mutable_transaction_id(), Id_);
-    req->SetTimeout(config->RpcTimeout);
-    return req;
-}
-
-TFuture<void> TTransaction::InvokeBatchModifyRowsRequest()
-{
-    VERIFY_SPINLOCK_AFFINITY(BatchModifyRowsRequestLock_);
-    auto movedBatchRequest = CreateBatchModifyRowsRequest();
-    movedBatchRequest.Swap(BatchModifyRowsRequest_);
-
-    if (movedBatchRequest->part_counts_size() == 0) {
-        BatchModifyRowsInvokeLock_.Release();
-        return VoidFuture;
-    }
-    LOG_DEBUG("Invoking a batch modify rows request (Subrequests: %v)",
-        movedBatchRequest->part_counts_size());
-
-    {
-        BatchModifyRowsInvokeLock_.Acquire();
-
-        auto result = movedBatchRequest->Invoke().As<void>();
-        result
-            .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError&) {
-                BatchModifyRowsInvokeLock_.Release();
-            }));
-        return result;
     }
 }
 
