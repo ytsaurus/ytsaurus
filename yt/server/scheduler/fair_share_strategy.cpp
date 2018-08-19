@@ -613,7 +613,7 @@ public:
         {
             return TError("Operation has no successfull scheduled jobs for a long period")
                 << TErrorAttribute("period", safeTimeout)
-                << TErrorAttribute("unsuccessfull_schedule_job_calls", deactivationCount);
+                << TErrorAttribute("deactivationCount", deactivationCount);
         }
 
         return TError();
