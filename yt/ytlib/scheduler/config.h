@@ -536,10 +536,10 @@ class TOperationWithUserJobSpec
 {
 public:
     TNullable<NYPath::TRichYPath> StderrTablePath;
-    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
+    NTableClient::TBlobTableWriterConfigPtr StderrTableWriter;
 
     TNullable<NYPath::TRichYPath> CoreTablePath;
-    NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
+    NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
 
     TOperationWithUserJobSpec();
 };
