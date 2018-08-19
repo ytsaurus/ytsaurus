@@ -451,12 +451,16 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
 {
     RegisterParameter("stderr_table_path", StderrTablePath)
         .Default();
-    RegisterParameter("stderr_table_writer_config", StderrTableWriterConfig)
+    RegisterParameter("stderr_table_writer", StderrTableWriter)
+        // TODO(babenko): deprecate this
+        .Alias("stderr_table_writer_config")
         .DefaultNew();
 
     RegisterParameter("core_table_path", CoreTablePath)
         .Default();
-    RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
+    RegisterParameter("core_table_writer", CoreTableWriter)
+        // TODO(babenko): deprecate this
+        .Alias("core_table_writer_config")
         .DefaultNew();
 
     RegisterPostprocessor([&] {

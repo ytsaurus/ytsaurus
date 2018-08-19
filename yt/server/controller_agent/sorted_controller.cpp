@@ -951,7 +951,7 @@ public:
 
     virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
-        return Spec_->StderrTableWriterConfig;
+        return Spec_->StderrTableWriter;
     }
 
     virtual TNullable<TRichYPath> GetCoreTablePath() const override
@@ -961,7 +961,7 @@ public:
 
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
-        return Spec_->CoreTableWriterConfig;
+        return Spec_->CoreTableWriter;
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
