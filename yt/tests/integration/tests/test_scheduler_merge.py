@@ -1313,3 +1313,43 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "1": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}},
                 "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}
             })
+
+    def test_teleporting_chunks_dont_disappear(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        chunk_id = get("//tmp/t1/@chunk_ids/0")
+
+        #external_requisition_indexes/2
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+
+        tx = start_transaction()
+        merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2", tx=tx)
+
+        assert get("//tmp/t2/@chunk_count", tx=tx) == 1
+        assert get("//tmp/t2/@chunk_ids/0", tx=tx) == chunk_id
+
+        assert get("#{0}/@exports/2/ref_counter".format(chunk_id)) == 1
+
+        # The point of this test is to make sure snatching chunks from
+        # under an uncommitted transaction interoperates well with
+        # multicell well. Replace the following two lines with this:
+        #     copy("//tmp/t2", "//tmp/t2_copy", source_transaction_id=tx)
+        # to get a horrific situation when a chunk is destroyed in its cell
+        # yet is still referenced from another cell.
+        create("table", "//tmp/t2_copy", attributes={"external_cell_tag": 2})
+        merge(mode="ordered", in_=['<transaction_id="{0}">//tmp/t2'.format(tx)], out="//tmp/t2_copy")
+
+        abort_transaction(tx)
+
+        remove("//tmp/t1")
+
+        # Give replicator a chance to remove a chunk (in case there's a bug).
+        sleep(0.3)
+
+        assert exists("//tmp/t2")
+        assert get("//tmp/t2/@chunk_count") == 0
+        assert exists("//tmp/t2_copy")
+        assert get("//tmp/t2_copy/@chunk_count") == 1
+        assert get("//tmp/t2_copy/@chunk_ids/0") == chunk_id
+        assert exists("#{0}".format(chunk_id))
