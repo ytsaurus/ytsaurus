@@ -9,16 +9,18 @@
 #          "services" - list of nanny service names
 #          "offline" - maximum number of offline instances
 #          "sleep" - number of seconds between instance activation/deactivation
+#          "regexp" - regular expression which will be applied to instance slot
 #     }
 #
 #  Example:
-#  ./chaos_nankey.py '{maters={services=[man_yt_socrates_nodes_tablet;man_yt_socrates_nodes;man_yt_socrates_nodes_rootfs];sleep=60;offline=2}; nodes={services=[man_yt_socrates_masters];offline=1;sleep=300}}'
+#  ./chaos_nankey.py '{maters={services=[man_yt_socrates_nodes_tablet;man_yt_socrates_nodes;man_yt_socrates_nodes_rootfs];sleep=60;offline=2}; nodes={services=[man_yt_socrates_masters];offline=1;sleep=300;regexp="m[0][1-3]"}}'
 #
 
 import yt.yson as yson
 import requests
 import argparse
 import json
+import re
 from urlparse import urljoin
 
 import sys
@@ -75,26 +77,8 @@ class NannySerivce:
     def __repr__(self):
         return "<NannySerivce {0}>".format(self._service_url)
 
-    def get_instances(self):
-        return self._nanny.get_instances(self._service_url, self._logger)
-
-    def wait_for_instances(self):
-        def _check():
-            transitions = {}
-            instances = self.get_instances()
-            for instance in instances:
-                currnet = instance.get_current_state()
-                target = instance.get_target_state()
-                if currnet != target:
-                    transitions[instance.get_slot()] = {
-                        "current_state": currnet,
-                        "target_state": target}
-            if len(transitions) == 0:
-                return True
-            self._logger.info("Waiting for {0}".format(transitions))
-            return False
-
-        wait(_check)
+    def get_instances(self, regexp=None):
+        return self._nanny.get_instances(self._service_url, regexp, self._logger)
 
 class Nanny:
     def __init__(self, token):
@@ -123,7 +107,7 @@ class Nanny:
 
         raise Exception("No active snapshots found")
 
-    def get_instances(self, service_url, logger):
+    def get_instances(self, service_url, regexp, logger):
         logger.debug("Getting instances of {0}".format(service_url))
         url = urljoin(self._nanny_url, "services/instances/{0}/".format(service_url))
         session = self._get_session()
@@ -136,6 +120,8 @@ class Nanny:
         result = json.loads(result.text)
         for descr in result["instances"]:
             url = "{0}/engines/{1}/slots/{2}".format(service_url, descr["engine"], descr["slot"])
+            if regexp and not re.search(regexp, descr["slot"]):
+                continue
             instances.append(NannyInstance(self, url, descr, logger))
 
         return instances
@@ -159,41 +145,50 @@ class ServiceGroup:
         self._max_offline = description.get("offline", 1)
         self._sleep = description.get("sleep", 120)
         self._last_run_time = 0
+        self._regexp = description.get("regexp", None)
+
+    def get_instances(self):
+        return sum([service.get_instances(self._regexp) for service in self._services], [])
 
     def cleanup(self):
-        for service in self._services:
-            instances = service.get_instances()
-            for instance in instances:
-                if instance.get_target_state() != "ACTIVE":
-                    instance.up()
+        for instance in self.get_instances():
+            if instance.get_target_state() != "ACTIVE":
+                instance.up()
 
     def wait_for_instances(self):
-        for service in self._services:
-            service.wait_for_instances()
+        def _check():
+            transitions = {}
+            instances = self.get_instances()
+            for instance in instances:
+                currnet = instance.get_current_state()
+                target = instance.get_target_state()
+                if currnet not in ["PREPARED", "ACTIVE"]:
+                    continue
+                if currnet != target:
+                    transitions[instance.get_slot()] = {
+                        "current_state": currnet,
+                        "target_state": target}
+            if len(transitions) == 0:
+                return True
+            self._logger.info("Waiting for {0}".format(transitions))
+            return False
+
+        wait(_check)
+
 
     def chaos_step(self):
         if time.time() - self._last_run_time < self._sleep:
             return
 
-        def _wait():
-            for service in self._services:
-                service.wait_for_instances()
-        def _get_instances():
-            instances = []
-            for service in self._services:
-                instances += service.get_instances()
-            return instances
-
-        def _split_statistics(instances):
+        def _get_instances_per_state():
             result = {}
-            for instance in instances:
+            for instance in self.get_instances():
                 state = instance.get_current_state()
                 result.setdefault(state, []).append(instance)
             return result
 
-        _wait()
-        instances = _get_instances()
-        per_state = _split_statistics(instances)
+        self.wait_for_instances()
+        per_state = _get_instances_per_state()
 
         online = len(per_state.get("ACTIVE", []))
         offline = len(per_state.get("PREPARED", []))
