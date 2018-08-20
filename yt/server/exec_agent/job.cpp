@@ -1000,7 +1000,7 @@ private:
         FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
         Statistics_ = ConvertToYsonString(deserializedStatistics);
 
-        LOG_INFO("Job finalized (Error: %v, JobState: %v)",
+        LOG_INFO(error, "Job finalized (JobState: %v)",
             error,
             GetState());
 
