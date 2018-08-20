@@ -297,6 +297,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                       attributes={"forbid_immediate_operations": True},
                       ignore_existing=True)
         client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
+        client.create("map_node", "//sys/pool_trees/physical/transfer_manager", ignore_existing=True)
+        add_acl("//sys/pool_trees/physical/transfer_manager", 
+                {"subjects": ["transfer_manager"], "permissions": ["write", "remove"], "action": "allow"},
+                client)
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")
