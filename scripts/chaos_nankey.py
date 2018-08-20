@@ -13,7 +13,7 @@
 #     }
 #
 #  Example:
-#  ./chaos_nankey.py '{maters={services=[man_yt_socrates_nodes_tablet;man_yt_socrates_nodes;man_yt_socrates_nodes_rootfs];sleep=60;offline=2}; nodes={services=[man_yt_socrates_masters];offline=1;sleep=300;regexp="m[0][1-3]"}}'
+#  ./chaos_nankey.py '{nodes={services=[man_yt_socrates_nodes_tablet;man_yt_socrates_nodes;man_yt_socrates_nodes_rootfs];sleep=60;offline=2};masters={services=[man_yt_socrates_masters];offline=1;sleep=300;regexp="m[0][1-3]"}}'
 #
 
 import yt.yson as yson
@@ -158,8 +158,7 @@ class ServiceGroup:
     def wait_for_instances(self):
         def _check():
             transitions = {}
-            instances = self.get_instances()
-            for instance in instances:
+            for instance in self.get_instances():
                 currnet = instance.get_current_state()
                 target = instance.get_target_state()
                 if currnet not in ["PREPARED", "ACTIVE"]:
