@@ -349,7 +349,8 @@ void TTransaction::ModifyRows(
 
     // Wait until we're allowed to send another request.
     while (!InFlightModifyRowsRequestCount_->TryAcquire()) {
-        WaitFor(InFlightModifyRowsRequestCount_->GetReadyEvent());
+        WaitFor(InFlightModifyRowsRequestCount_->GetReadyEvent())
+            .ThrowOnError(); // should never actually throw
     }
 
     req->Invoke().As<void>()
