@@ -828,6 +828,44 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert len(select_rows("* from [//tmp/t]")) == 1
 
+    @skip_if_rpc_driver_backend
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_column_selector_dynamic_tables(self, is_sorted):
+        sync_create_cells(1)
+
+        key_schema = {"name": "key", "type": "int64"}
+        value_schema = {"name": "value", "type": "int64"}
+        if is_sorted:
+            key_schema["sort_order"] = "ascending"
+
+        schema = make_schema(
+            [key_schema, value_schema],
+            strict=True,
+            unique_keys=True if is_sorted else False)
+        create("table", "//tmp/t", attributes={"schema": schema, "external": False})
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+
+        def check_reads(is_dynamic_sorted):
+            assert read_table("//tmp/t{key}") == [{"key": 0}]
+            assert read_table("//tmp/t{value}") == [{"value": 1}]
+            assert read_table("//tmp/t{key,value}") == [{"key": 0, "value": 1}]
+            assert read_table("//tmp/t") == [{"key": 0, "value": 1}]
+            if is_dynamic_sorted:
+                with pytest.raises(YtError):
+                    read_table("//tmp/t{zzzzz}")
+            else:
+                assert read_table("//tmp/t{zzzzz}") == [{}]
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+        check_reads(False)
+        alter_table("//tmp/t", dynamic=True, schema=schema)
+        check_reads(is_sorted)
+
+        if is_sorted:
+            sync_mount_table("//tmp/t")
+            sync_compact_table("//tmp/t")
+            check_reads(True)
 
 ##################################################################
 

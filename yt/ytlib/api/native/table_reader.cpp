@@ -316,6 +316,11 @@ private:
 
             auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
+            const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+            auto columnFilter = ColumnFilter_.All
+                ? CreateColumnFilter(dataSource.Columns(), NameTable_)
+                : ColumnFilter_;
+
             UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
                 Config_,
                 options,
@@ -328,7 +333,7 @@ private:
                 dataSliceDescriptor,
                 NameTable_,
                 BlockReadOptions_,
-                ColumnFilter_,
+                columnFilter,
                 /* trafficMeter */ nullptr,
                 Throttler_);
         } else {
