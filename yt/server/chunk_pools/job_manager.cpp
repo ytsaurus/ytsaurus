@@ -122,6 +122,35 @@ int TJobStub::GetPreliminarySliceCount() const
     return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
 }
 
+TString TJobStub::GetDebugString() const
+{
+    TStringBuilder builder;
+    builder.AppendString("{");
+    bool isFirst = true;
+    for (const auto& stripe : StripeList_->Stripes) {
+        for (const auto& dataSlice : stripe->DataSlices) {
+            if (isFirst) {
+                isFirst = false;
+            } else {
+                builder.AppendString(", ");
+            }
+            std::vector<TChunkId> chunkIds;
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
+            }
+            builder.AppendFormat("{DataWeight: %v, LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v, ChunkIds: %v}",
+                dataSlice->GetDataWeight(),
+                dataSlice->LowerLimit(),
+                dataSlice->UpperLimit(),
+                dataSlice->InputStreamIndex,
+                chunkIds);
+        }
+    }
+    builder.AppendString("}");
+
+    return builder.Flush();
+}
+
 void TJobStub::SetUnsplittable()
 {
     StripeList_->IsSplittable = false;
