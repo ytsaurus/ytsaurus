@@ -94,6 +94,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
+    branchedNode->SetForeign(originatingNode->IsForeign());
     branchedNode->SetOpaque(originatingNode->GetOpaque());
 
     // Branch user attributes.
