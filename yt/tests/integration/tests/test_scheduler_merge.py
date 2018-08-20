@@ -1332,7 +1332,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("#{0}/@exports/2/ref_counter".format(chunk_id)) == 1
 
         # The point of this test is to make sure snatching chunks from
-        # under an uncommitted transaction interoperates well with
+        # under an uncommitted transaction interoperates with
         # multicell well. Replace the following two lines with this:
         #     copy("//tmp/t2", "//tmp/t2_copy", source_transaction_id=tx)
         # to get a horrific situation when a chunk is destroyed in its cell
