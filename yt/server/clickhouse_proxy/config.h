@@ -17,7 +17,16 @@ namespace NClickHouseProxy {
 
 class TClickHouseProxyConfig
     : public NYTree::TYsonSerializable
-{ };
+{
+public:
+    TString DiscoveryPath;
+
+    TClickHouseProxyConfig()
+    {
+        RegisterParameter("discovery_path", DiscoveryPath)
+            .Default("//sys/clickhouse/cliques");
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseProxyConfig)
 
