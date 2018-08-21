@@ -1,10 +1,10 @@
 #include "schemaful_table_reader.h"
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
-
-#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/api/native/table_reader.h>
+
+#include <yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
