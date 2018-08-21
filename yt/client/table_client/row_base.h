@@ -1,7 +1,9 @@
 #pragma once
 
 #include "public.h"
+
 #include <yt/core/misc/dense_map.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -149,6 +151,7 @@ struct TColumnFilter
 
     bool Contains(int index) const;
     int GetIndex(int originalColumnIndex) const;
+    TNullable<int> FindIndex(int originalColumnIndex) const;
 
     bool All;
     SmallDenseMap<int, int, TypicalColumnCount> InvertedIndexMap;

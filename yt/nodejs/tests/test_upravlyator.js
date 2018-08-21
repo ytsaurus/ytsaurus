@@ -23,8 +23,12 @@ function stubRegistry()
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
-    YtRegistry.set("driver", { executeSimple: function(){ return Q.resolve(); } });
+    YtRegistry.set("driver", {
+        executeSimpleWithUser: function(){ return Q.resolve(); },
+        executeSimple: function(){ return Q.resolve(); },
+    });
     YtRegistry.set("authority", { ensureUser: function(){ return Q.resolve(); } });
+    YtRegistry.set("robot_yt_idm", "root");
 }
 
 function map(object, iterator, context)
@@ -100,9 +104,9 @@ function mockGetUser(mock, name)
         result = Q.resolve(FIXTURE_USERS[name]);
     }
     return mock
-        .expects("executeSimple")
+        .expects("executeSimpleWithUser")
         .once()
-        .withExactArgs("get", sinon.match({
+        .withExactArgs("get", "root", sinon.match({
             path: "//sys/users/" + name + "/@"
         }))
         .returns(result);
@@ -117,9 +121,9 @@ function mockGetGroup(mock, name)
         result = Q.resolve(FIXTURE_GROUPS[name]);
     }
     return mock
-        .expects("executeSimple")
+        .expects("executeSimpleWithUser")
         .once()
-        .withExactArgs("get", sinon.match({
+        .withExactArgs("get", "root", sinon.match({
             path: "//sys/groups/" + name + "/@"
         }))
         .returns(result);
@@ -131,9 +135,9 @@ function mockListUsers(mock)
         return { $value: value, $attributes: attributes };
     }));
     return mock
-        .expects("executeSimple")
+        .expects("executeSimpleWithUser")
         .once()
-        .withExactArgs("list", sinon.match({
+        .withExactArgs("list", "root", sinon.match({
             path: "//sys/users",
             attributes: [
                 "upravlyator_managed",
@@ -149,9 +153,9 @@ function mockListGroups(mock)
         return { $value: value, $attributes: attributes };
     }));
     return mock
-        .expects("executeSimple")
+        .expects("executeSimpleWithUser")
         .once()
-        .withExactArgs("list", sinon.match({
+        .withExactArgs("list", "root", sinon.match({
             path: "//sys/groups",
             attributes: [
                 "upravlyator_managed",
@@ -166,7 +170,7 @@ function mockListGroups(mock)
 function mockMetaStateFailure(mock)
 {
     return mock
-        .expects("executeSimple")
+        .expects("executeSimpleWithUser")
         .returns(Q.reject(new YtError("Something is broken")));
 }
 
@@ -255,8 +259,8 @@ describe("ApplicationUpravlyator", function() {
             mockGetUser(mock, "sandello");
             mockGetGroup(mock, "managed2");
             mock
-                .expects("executeSimple").once()
-                .withExactArgs("add_member", sinon.match({
+                .expects("executeSimpleWithUser").once()
+                .withExactArgs("add_member", "root", sinon.match({
                     member: "sandello",
                     group: "managed2"
                 }));
@@ -264,10 +268,10 @@ describe("ApplicationUpravlyator", function() {
             mockUserExists(mock2, "sandello", true);
             ask("POST", "/add-role", {}, function(rsp) {
                 rsp.should.be.http2xx;
+                expect(rsp.json).to.have.keys([ "code" ]);
+                expect(rsp.json.code).to.eql(0);
                 mock.verify();
                 mock2.verify();
-                expect(rsp.json.code).to.eql(0);
-                expect(rsp.json).to.have.keys([ "code" ]);
             }, done).end(querystring.stringify({
                 login: "sandello",
                 role: JSON.stringify({ group: "managed2" })
@@ -281,8 +285,8 @@ describe("ApplicationUpravlyator", function() {
             mockGetUser(mock, "sandello");
             mockGetGroup(mock, "managed1");
             mock
-                .expects("executeSimple").once()
-                .withExactArgs("remove_member", sinon.match({
+                .expects("executeSimpleWithUser").once()
+                .withExactArgs("remove_member", "root", sinon.match({
                     member: "sandello",
                     group: "managed1"
                 }));
@@ -290,10 +294,10 @@ describe("ApplicationUpravlyator", function() {
             mockUserExists(mock2, "sandello", true);
             ask("POST", "/remove-role", {}, function(rsp) {
                 rsp.should.be.http2xx;
+                expect(rsp.json).to.have.keys([ "code" ]);
+                expect(rsp.json.code).to.eql(0);
                 mock.verify();
                 mock2.verify();
-                expect(rsp.json.code).to.eql(0);
-                expect(rsp.json).to.have.keys([ "code" ]);
             }, done).end(querystring.stringify({
                 login: "sandello",
                 role: JSON.stringify({ group: "managed1" })
@@ -310,8 +314,8 @@ describe("ApplicationUpravlyator", function() {
                 rsp.should.be.http2xx;
                 mock.verify();
                 mock2.verify();
-                expect(rsp.json.code).to.eql(0);
                 expect(rsp.json.warning).to.be.a("string");
+                expect(rsp.json.code).to.eql(0);
                 rsp.json.warning.should.match(/\bsandello\b/);
                 rsp.json.warning.should.match(/\bmanaged2\b/);
             }, done).end(querystring.stringify({

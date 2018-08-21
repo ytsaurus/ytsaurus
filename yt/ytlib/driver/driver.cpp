@@ -292,6 +292,9 @@ public:
             if (request.UserToken) {
                 options.Token = request.UserToken;
             }
+            if (Config_->Token) {
+                options.Token = Config_->Token;
+            }
             cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
 
             TryInsert(cachedClient, &cachedClient);

@@ -197,6 +197,7 @@ yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     yt.YtRegistry.get("fqdn"),
     yt.YtRegistry.get("port")));
 yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, buffered_profiler, config));
+yt.YtRegistry.set("robot_yt_idm", "robot-yt-idm")
 
 // Hoist variable declaration.
 var application;

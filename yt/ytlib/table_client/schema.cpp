@@ -430,12 +430,12 @@ TError ValidateTableSchemaCompatibility(
     // If output schema is strict, check that input columns are subset of output columns.
     if (outputSchema.GetStrict()) {
         if (!inputSchema.GetStrict()) {
-            return addAttributes(TError("Input schema is not strict"));
+            return addAttributes(TError("Incompatible strictness: input schema is not strict while output schema is not"));
         }
 
         for (const auto& inputColumn : inputSchema.Columns()) {
             if (!outputSchema.FindColumn(inputColumn.Name())) {
-                return addAttributes(TError("Unexpected column %Qv in input schema",
+                return addAttributes(TError("Column %Qv is found in input schema but is missing in output schema",
                     inputColumn.Name()));
             }
         }

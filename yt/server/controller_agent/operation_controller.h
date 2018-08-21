@@ -32,6 +32,13 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EOperationControllerQueue,
+    (Default)
+    (GetJobSpec)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TControllerTransactionIds
 {
     NTransactionClient::TTransactionId AsyncId;
@@ -359,10 +366,10 @@ struct IOperationControllerSchedulerHost
     virtual void Complete() = 0;
 
     /*!
-     *  Returns the operation controller invoker.
-     *  Most of const controller methods are expected to be run in this invoker.
+     *  Returns the operation controller invoker with index #queue.
+     *  Most of const controller methods are expected to be run in the provided invokers.
      */
-    virtual IInvokerPtr GetInvoker() const = 0;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
     /*!
@@ -419,16 +426,16 @@ struct IOperationControllerSnapshotBuilderHost
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
     /*!
-     *  Returns the operation controller invoker.
-     *  Most of const controller methods are expected to be run in this invoker.
+     *  Returns the operation controller invoker with index #queue.
+     *  Most of const controller methods are expected to be run in the provided invokers.
      */
-    virtual IInvokerPtr GetInvoker() const = 0;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     /*!
-     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
-     *  Most of non-const controller methods are expected to be run in this invoker.
+     *  Returns the operation controller invoker with index #queue wrapped by the context provided by #GetCancelableContext.
+     *  Most of non-const controller methods are expected to be run in the provided invokers.
      */
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called right before the controller is suspended and snapshot builder forks.
     //! Returns a certain opaque cookie.
@@ -487,8 +494,8 @@ struct IOperationController
     : public IOperationControllerSchedulerHost
     , public IOperationControllerSnapshotBuilderHost
 {
-    virtual IInvokerPtr GetInvoker() const = 0;
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
@@ -578,7 +585,7 @@ struct IOperationController
     //! Extracts the job spec proto blob, which is being built at background.
     //! After this call, the reference to this blob is released.
     /*!
-     *  \note Invoker affinity: cancelable Controller invoker
+     *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 

@@ -408,6 +408,19 @@ if(YT_CAN_BUILD_PACKAGE)
     DEPENDS changelog proto-changelog driver-rpc-changelog
   )
 
+  add_custom_target(python-yp-changelog
+    COMMAND ${CMAKE_SOURCE_DIR}/yp/python/yandex-yp-python/resign.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/yp/python/yandex-yp-python
+    COMMENT "Signing YP Python..."
+  )
+  
+  add_custom_target(python-yp-package touch python-yp-package-stamp
+    COMMAND ${CMAKE_SOURCE_DIR}/yp/python/build_yandex_yp.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/yp/python
+    COMMENT "Packaging YP Python..."
+    DEPENDS python-yp-changelog
+  )
+
   function(HOOK_FOR_DEBIAN package component)
     add_custom_target(
       install-debian-${package}
@@ -445,6 +458,9 @@ else()
     COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
   )
   add_custom_target(python-package touch python-package-stamp
+    COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
+  )
+  add_custom_target(python-yp-package touch python-yp-package-stamp
     COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
   )
 endif()

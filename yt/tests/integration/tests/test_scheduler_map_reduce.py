@@ -397,9 +397,13 @@ print "x={0}\ty={1}".format(x, y)
         intermediate_chunk_ids = []
         for c in chunks:
             if "staging_transaction_id" in c.attributes:
-              tx_id = c.attributes["staging_transaction_id"]
-              if "Scheduler \"output\" transaction" in get("#{}/@title".format(tx_id)):
-                  intermediate_chunk_ids.append(str(c))
+                tx_id = c.attributes["staging_transaction_id"]
+                try:
+                    if "Scheduler \"output\" transaction" in get("#{}/@title".format(tx_id)):
+                        intermediate_chunk_ids.append(str(c))
+                except:
+                    # Transaction may vanish
+                    pass
 
         assert len(intermediate_chunk_ids) == 1
         intermediate_chunk_id = intermediate_chunk_ids[0]

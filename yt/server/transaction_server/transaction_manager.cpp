@@ -1068,19 +1068,15 @@ void TTransactionManager::ImportObject(
     Impl_->ImportObject(transaction, object);
 }
 
-void TTransactionManager::RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor)
+void TTransactionManager::RegisterTransactionActionHandlers(
+    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor)
 {
-    Impl_->RegisterPrepareActionHandler(descriptor);
-}
-
-void TTransactionManager::RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor)
-{
-    Impl_->RegisterCommitActionHandler(descriptor);
-}
-
-void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor)
-{
-    Impl_->RegisterAbortActionHandler(descriptor);
+    Impl_->RegisterTransactionActionHandlers(
+        prepareActionDescriptor,
+        commitActionDescriptor,
+        abortActionDescriptor);
 }
 
 std::unique_ptr<TMutation> TTransactionManager::CreateStartTransactionMutation(

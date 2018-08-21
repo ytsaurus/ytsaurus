@@ -15,6 +15,7 @@
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
 
+#include <yt/client/api/rpc_proxy/public.h>
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/client/api/rpc_proxy/helpers.h>
 
@@ -60,6 +61,179 @@ using NYT::ToProto;
 
 struct TApiServiceBufferTag
 { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A classic sliding window implementation.
+/*!
+ *  Can defer up to #windowSize "packets" (abstract movable objects) and reorder
+ *  them according to their sequence numbers.
+ *
+ *  Once a packet is received from the outside world, the user should call
+ *  #SetPacket, providing packet's sequence number.
+ *
+ *  The #callback is called once for each packet when it's about to be popped
+ *  out of the window. Specifically, the packets leaves the window when no
+ *  packets preceding it are missing.
+ *
+ *  #callback mustn't throw.
+ */
+template <typename T>
+class TSlidingWindow
+{
+public:
+    using TOnPacket = TCallback<void(T&&)>;
+
+    TSlidingWindow(
+        int windowSize,
+        const TOnPacket& callback)
+        : Callback_(callback)
+        , Window_(windowSize)
+    { }
+
+    //! Informs the window that the packet has been received.
+    /*!
+     *  May cause the #callback to be called for deferred packets (up to
+     *  #windowSize times).
+     *
+     *  Throws if a packet with the specified sequence number has already been
+     *  set.
+     *  Throws if the sequence number was already slid over (e.g. it's too
+     *  small).
+     *  Throws if setting this packet would exceed the window size (e.g. the
+     *  sequence number is too large).
+     */
+    void SetPacket(i64 sequenceNumber, T&& packet)
+    {
+        DoSetPacket(sequenceNumber, std::move(packet));
+        MaybeSlideWindow();
+    }
+
+private:
+    TOnPacket Callback_;
+    std::vector<TNullable<T>> Window_;
+    size_t NextPacketSequenceNumber_ = 0;
+    size_t NextPacketIndex_ = 0;
+    int DeferredPacketCount_ = 0;
+
+    void DoSetPacket(i64 sequenceNumber, T&& packet)
+    {
+        if (sequenceNumber < NextPacketSequenceNumber_) {
+            THROW_ERROR_EXCEPTION("Received a packet with an unexpectedly small sequence number")
+                << TErrorAttribute("sequence_number", sequenceNumber)
+                << TErrorAttribute("min_sequence_number", NextPacketSequenceNumber_)
+                << TErrorAttribute("max_sequence_number", NextPacketSequenceNumber_ + Window_.size() - 1);
+        }
+
+        if (sequenceNumber - NextPacketSequenceNumber_ >= Window_.size()) {
+            THROW_ERROR_EXCEPTION("Received a packet with an unexpectedly large sequence number")
+                << TErrorAttribute("sequence_number", sequenceNumber)
+                << TErrorAttribute("min_sequence_number", NextPacketSequenceNumber_)
+                << TErrorAttribute("max_sequence_number", NextPacketSequenceNumber_ + Window_.size() - 1);
+        }
+
+        const auto packetSlotIndex = (NextPacketIndex_ + sequenceNumber - NextPacketSequenceNumber_) % Window_.size();
+        auto& packetSlot = Window_[packetSlotIndex];
+
+        if (packetSlot) {
+            THROW_ERROR_EXCEPTION("Received a packet with same sequence number twice")
+                << TErrorAttribute("sequence_number", sequenceNumber);
+        }
+
+        packetSlot = std::move(packet);
+        ++DeferredPacketCount_;
+    }
+
+    void MaybeSlideWindow()
+    {
+        while (DeferredPacketCount_ > 0) {
+            auto& nextSlot = Window_[NextPacketIndex_];
+            if (!nextSlot) {
+                break;
+            }
+
+            Callback_(std::move(*nextSlot));
+            nextSlot.Reset();
+            ++NextPacketSequenceNumber_;
+            if (++NextPacketIndex_ == Window_.size()) {
+                NextPacketIndex_ = 0;
+            }
+            --DeferredPacketCount_;
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TWrappedTransaction)
+
+// A transaction accompanied by a sliding window "modify rows" calls.
+class TWrappedTransaction
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    explicit TWrappedTransaction(const ITransactionPtr& transaction)
+        : Transaction_(transaction)
+        , ModifyRowsCallWindow(
+            NApi::NRpcProxy::MaxInFlightModifyRowsRequestCount,
+            BIND(&TWrappedTransaction::DoModifyRows, Unretained(this)))
+    {
+        YCHECK(Transaction_);
+    }
+
+    const ITransactionPtr& Unwrap() const
+    {
+        return Transaction_;
+    }
+
+    void ModifyRows(
+        TNullable<i64> sequenceNumber,
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<TRowModification> modifications,
+        const TModifyRowsOptions& options)
+    {
+        YCHECK(Transaction_);
+
+        TModifyRows modifyRows{
+            std::move(path),
+            std::move(nameTable),
+            std::move(modifications),
+            std::move(options)};
+
+        if (sequenceNumber) {
+            auto guard = Guard(SpinLock_);
+            ModifyRowsCallWindow.SetPacket(*sequenceNumber, std::move(modifyRows));
+        } else {
+            // Old clients don't send us the sequence number.
+            DoModifyRows(std::move(modifyRows));
+        }
+    }
+
+private:
+    struct TModifyRows
+    {
+        TString Path;
+        TNameTablePtr NameTable;
+        TSharedRange<TRowModification> Modifications;
+        TModifyRowsOptions Options;
+    };
+
+    TSpinLock SpinLock_;
+    ITransactionPtr Transaction_;
+    TSlidingWindow<TModifyRows> ModifyRowsCallWindow;
+
+    void DoModifyRows(TModifyRows&& modifyRows)
+    {
+        Transaction_->ModifyRows(
+            std::move(modifyRows.Path),
+            std::move(modifyRows.NameTable),
+            std::move(modifyRows.Modifications),
+            std::move(modifyRows.Options));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TWrappedTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,6 +434,8 @@ private:
     // TODO(sandello): Introduce expiration times for clients.
     THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
 
+    THashMap<TTransactionId, TWrappedTransactionPtr> Transactions_;
+
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
         auto guard = Guard(SpinLock_);
@@ -317,7 +493,7 @@ private:
         return GetOrCreateClient(user);
     }
 
-    ITransactionPtr GetTransactionOrAbortContext(
+    TWrappedTransactionPtr GetWrappedTransactionOrAbortContext(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request,
         const TTransactionId& transactionId,
@@ -328,8 +504,17 @@ private:
             return nullptr;
         }
 
-        auto transaction = client->AttachTransaction(transactionId, options);
+        {
+            // Fast path.
+            auto guard = Guard(SpinLock_);
+            auto it = Transactions_.find(transactionId);
+            if (it != Transactions_.end()) {
+                return it->second;
+            }
+        }
 
+        // Slow path.
+        auto transaction = client->AttachTransaction(transactionId, options);
         if (!transaction) {
             context->Reply(TError(
                 NTransactionClient::EErrorCode::NoSuchTransaction,
@@ -338,7 +523,48 @@ private:
             return nullptr;
         }
 
-        return transaction;
+        auto newTransaction = false;
+        TWrappedTransactionPtr result;
+        {
+            auto guard = Guard(SpinLock_);
+            // The transaction may have appeared while we were attaching.
+            auto it = Transactions_.find(transactionId);
+            if (it == Transactions_.end()) {
+                newTransaction = true;
+                auto insertResult = Transactions_.emplace(transactionId, New<TWrappedTransaction>(transaction));
+                YCHECK(insertResult.second);
+                result = insertResult.first->second;
+            } else {
+                // Discard local (newly attached) transaction object, reuse the original.
+                result = it->second;
+            }
+        }
+
+        // Clean up Transactions_. Subscribe outside of the lock to avoid deadlocking
+        // in case the callback is called (synchronously) right away.
+        if (newTransaction) {
+            const auto& transaction = result->Unwrap();
+            transaction->SubscribeCommitted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+            transaction->SubscribeAborted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+        }
+
+        return result;
+    }
+
+    ITransactionPtr GetTransactionOrAbortContext(
+        const IServiceContextPtr& context,
+        const google::protobuf::Message* request,
+        const TTransactionId& transactionId,
+        const TTransactionAttachOptions& options)
+    {
+        auto wrappedTransaction = GetWrappedTransactionOrAbortContext(context, request, transactionId, options);
+        return wrappedTransaction ? wrappedTransaction->Unwrap() : nullptr;
+    }
+
+    void OnStickyTransactionFinished(const TTransactionId& transactionId)
+    {
+        auto guard = Guard(SpinLock_);
+        Transactions_.erase(transactionId);
     }
 
     template <class T>
@@ -440,7 +666,7 @@ private:
             options.PingAncestors,
             options.Atomicity,
             options.Durability);
-        
+
         CompleteCallWith(
             context,
             client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
@@ -1628,8 +1854,8 @@ private:
             client->SelectRows(query, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                // TODO(sandello): Statistics?
                 AttachRowset(response, result.Rowset);
+                ToProto(response->mutable_statistics(), result.Statistics);
 
                 context->SetResponseInfo("RowCount: %v",
                     result.Rowset->GetRows().Size());
@@ -1713,14 +1939,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
     {
-        const auto& path = request->path();
-
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
         attachOptions.Sticky = true; // XXX(sandello): Fix me!
 
-        auto transaction = GetTransactionOrAbortContext(
+        auto transaction = GetWrappedTransactionOrAbortContext(
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
@@ -1728,6 +1952,8 @@ private:
         if (!transaction) {
             return;
         }
+
+        const auto& path = request->path();
 
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
@@ -1739,9 +1965,9 @@ private:
         auto rowsetSize = rowset->GetRows().Size();
 
         if (rowsetSize != request->row_modification_types_size()) {
-            THROW_ERROR_EXCEPTION("Row count mismatch: %v != %v",
-                rowsetSize,
-                request->row_modification_types_size());
+            THROW_ERROR_EXCEPTION("Row count mismatch")
+                << TErrorAttribute("rowset_size", rowsetSize)
+                << TErrorAttribute("row_modification_types_size", request->row_modification_types_size());
         }
 
         std::vector<TRowModification> modifications;
@@ -1761,17 +1987,17 @@ private:
             FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
 
-        context->SetRequestInfo("Path: %v, ModificationCount: %v, RequireSyncReplica: %v, UpstreamReplicaId: %v",
-            path,
-            rowsetSize,
-            options.RequireSyncReplica,
-            options.UpstreamReplicaId);
-
         transaction->ModifyRows(
+            MakeNullable(request->has_sequence_number(), request->sequence_number()),
             path,
             std::move(nameTable),
             MakeSharedRange(std::move(modifications), rowset),
             options);
+
+        context->SetRequestInfo(
+            "Path: %v, ModificationCount: %v",
+            request->path(),
+            request->row_modification_types_size());
 
         context->Reply();
     }

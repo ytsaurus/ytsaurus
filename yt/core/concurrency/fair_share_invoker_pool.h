@@ -3,8 +3,11 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/core/actions/invoker_pool.h>
 #include <yt/core/actions/public.h>
+
 #include <yt/core/misc/public.h>
+
 #include <yt/core/profiling/public.h>
 
 #include <functional>

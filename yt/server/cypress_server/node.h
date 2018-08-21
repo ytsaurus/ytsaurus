@@ -191,6 +191,9 @@ public:
     //! These values are exposed via |resource_usage| attribute.
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const;
 
+    //! Returns |true| if object is being created.
+    bool IsBeingCreated() const;
+
     // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;

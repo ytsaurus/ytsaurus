@@ -40,6 +40,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
+            "alerts_update_period": 100,
         }
     }
 
@@ -73,10 +74,24 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
         create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
-        create("map_node", "//sys/pools/small_pool/subpool_3", attributes={"min_share_ratio": 1.0})
-        create("map_node", "//sys/pools/small_pool/subpool_4", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/small_pool/subpool_3")
+        create("map_node", "//sys/pools/small_pool/subpool_4")
 
         total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+
+        # Wait for fair share update.
+        time.sleep(1)
+
+        assert not get("//sys/scheduler/@alerts")
+
+        set("//sys/pools/small_pool/subpool_3/@min_share_resources", {"cpu": 1})
+
+        # Wait for fair share update.
+        time.sleep(1)
+
+        assert get("//sys/scheduler/@alerts")
+
+        remove("//sys/pools/small_pool/subpool_3/@min_share_resources")
 
         # Wait for fair share update.
         time.sleep(1)
@@ -759,7 +774,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "fair_share_update_period": 100
+            "fair_share_update_period": 100,
         }
     }
 
@@ -1004,6 +1019,50 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         wait(lambda: len(op.get_running_jobs()) == 0)
+
+class TestSchedulerUnschedulableOperations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "operation_unschedulable_check_period": 100,
+            "operation_unschedulable_safe_timeout": 5000,
+            "operation_unschedulable_min_schedule_job_attempts": 10,
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
+        config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
+
+    def test_unschedulable_operations(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        ops = []
+        for i in xrange(5):
+            table = "//tmp/t_out" + str(i)
+            create("table", table)
+            op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out=table,
+                     spec={"pool": "fake_pool", "locality_timeout": 0, "mapper": {"cpu_limit": 0.8}})
+            ops.append(op)
+
+        for op in ops:
+            wait(lambda: len(op.get_running_jobs()) == 1)
+
+        table = "//tmp/t_out_other"
+        create("table", table)
+        op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out=table,
+                 spec={"pool": "fake_pool", "locality_timeout": 0, "mapper": {"cpu_limit": 1.5}})
+
+        wait(lambda: op.get_state() == "failed")
+
+        assert "unschedulable" in str(get(get_operation_cypress_path(op.id) + "/@result"))
+
 
 ##################################################################
 
@@ -1276,6 +1335,28 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
+    def test_ephemeral_pool_in_custom_pool(self):
+        create_test_tables()
+
+        create("map_node", "//sys/pools/custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+
+        time.sleep(0.2)
+
+        map(
+            dont_track=True,
+            command=(with_breakpoint("cat ; BREAKPOINT")),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "custom_pool"})
+
+        wait_breakpoint()
+
+        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool$root")
+        assert pool["parent"] == "custom_pool"
+
+        remove("//sys/pools/custom_pool")
+
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1324,8 +1405,8 @@ class TestSchedulerPools(YTEnvSetup):
     def test_event_log(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/custom_pool", attributes={"min_share_resources": {"cpu": 1}})
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "custom_pool"})
+        create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
 
         time.sleep(2.0)
 
@@ -1339,9 +1420,9 @@ class TestSchedulerPools(YTEnvSetup):
 
         assert events == ["operation_started", "operation_completed"]
         pools_info = [row for row in read_table("//sys/scheduler/event_log")
-                      if row["event_type"] == "pools_info" and "custom_pool" in row["pools"]["default"]]
+                      if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
         assert len(pools_info) == 1
-        custom_pool_info = pools_info[-1]["pools"]["default"]["custom_pool"]
+        custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
         assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
         assert custom_pool_info["mode"] == "fair_share"
 
