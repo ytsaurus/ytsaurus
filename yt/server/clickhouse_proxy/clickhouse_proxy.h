@@ -1,6 +1,8 @@
 #include "private.h"
 
-#include <yt/core/http/public.h>
+#include <yt/client/api/public.h>
+
+#include <yt/core/http/http.h>
 
 namespace NYT {
 namespace NClickHouseProxy {
@@ -13,7 +15,11 @@ class TClickHouseProxy
 public:
     TClickHouseProxy(const TClickHouseProxyConfigPtr& config);
 
-    void HandleHttpRequest(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);
+    void HandleHttpRequest(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp) const;
+
+    void ReplyWithError(const NHttp::IResponseWriterPtr& rsp, NHttp::EStatusCode statusCode, TError error) const;
+
+    NApi::IClientPtr PrepareClient(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp) const;
 
 private:
     TClickHouseProxyConfigPtr Config_;
