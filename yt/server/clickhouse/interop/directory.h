@@ -3,6 +3,7 @@
 #include "auth_token.h"
 
 #include <util/generic/string.h>
+#include <util/generic/hash.h>
 
 #include <memory>
 #include <vector>
@@ -18,7 +19,7 @@ using TNodeRevision = i64; // -1 means non-existing node
 struct TChildNode
 {
     TString Name;
-    TString Content;
+    THashMap<TString, TString> Attributes;
 
     bool operator <(const TChildNode& that) const
     {
@@ -39,7 +40,7 @@ struct TNode
 {
     TString Path;
     TNodeRevision Revision;
-    TString Content;
+    THashMap<TString, TString> Attributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,8 +99,8 @@ public:
     /// Ephemeral nodes
 
     virtual IEphemeralNodeKeeperPtr CreateAndKeepEphemeralNode(
-        const TString& nameHint,
-        const TString& content) = 0;
+        const TString& name,
+        const THashMap<TString, TString>& attributes) = 0;
 
     /// One-shot subscriptions
 

@@ -28,6 +28,7 @@ private:
     const TConfigPtr Config;
     const NYTree::INodePtr ConfigNode;
     const TString XmlConfig;
+    TString InstanceId_;
     TString CliqueId_;
     ui16 RpcPort_;
     ui16 MonitoringPort_;
@@ -56,6 +57,7 @@ public:
     TBootstrap(TConfigPtr config,
                NYTree::INodePtr configNode,
                TString xmlConfig,
+               TString instanceId,
                TString cliqueId,
                ui16 rpcPort,
                ui16 monitoringPort,

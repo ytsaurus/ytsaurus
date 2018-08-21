@@ -57,6 +57,7 @@ const NLogging::TLogger BootstrapLogger("Bootstrap");
 TBootstrap::TBootstrap(TConfigPtr config,
                        INodePtr configNode,
                        TString xmlConfig,
+                       TString instanceId,
                        TString cliqueId,
                        ui16 rpcPort,
                        ui16 monitoringPort,
@@ -65,6 +66,7 @@ TBootstrap::TBootstrap(TConfigPtr config,
     : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , XmlConfig(std::move(xmlConfig))
+    , InstanceId_(std::move(instanceId))
     , CliqueId_(std::move(cliqueId))
     , RpcPort_(rpcPort)
     , MonitoringPort_(monitoringPort)
@@ -175,6 +177,7 @@ void TBootstrap::DoInitialize()
         Storage,
         CoordinationService,
         XmlConfig,
+        InstanceId_,
         TcpPort_,
         HttpPort_);
 }

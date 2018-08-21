@@ -65,22 +65,9 @@ using TClusterDirectoryEventHandlerPtr = std::shared_ptr<TClusterDirectoryEventH
 
 namespace NEphemeralNodes {
 
-static TString ToNodeNameHint(const std::string& host, ui16 port)
+static TClusterNodeName ToClusterNodeName(const THashMap<TString, TString>& attributes)
 {
-    return ToString(host) + ':' + ::ToString(port);
-}
-
-static TString ToNodeContent(const std::string& host, ui16 port)
-{
-    return ToString(host) + ':' + ::ToString(port);
-}
-
-static TClusterNodeName ToClusterNodeName(const TString& content)
-{
-    TStringBuf host;
-    TStringBuf port;
-    TStringBuf(content).RSplit(':', host, port);
-    return {.Host = ToStdString(host), .Port = FromString<ui16>(port)};
+    return {.Host = attributes.at("host"), .Port = FromString<uint64_t>(attributes.at("tcp_port"))  };
 }
 
 }   // namespace NEphemeralNodes
@@ -112,7 +99,7 @@ public:
     void StartTrack(const Context& context) override;
     void StopTrack() override;
 
-    TClusterNodeTicket EnterCluster(const std::string& host, ui16 port) override;
+    TClusterNodeTicket EnterCluster(const std::string& id, const std::string& host, ui16 tcpPort, ui16 httpPort) override;
 
     TClusterNodeNames ListAvailableNodes() override;
     TClusterNodes GetAvailableNodes() override;
@@ -152,14 +139,14 @@ void TClusterNodeTracker::StopTrack()
     EventHandler->Detach();
 }
 
-TClusterNodeTicket TClusterNodeTracker::EnterCluster(const std::string& host, ui16 port)
+TClusterNodeTicket TClusterNodeTracker::EnterCluster(const std::string& id, const std::string& host, ui16 tcpPort, ui16 httpPort)
 {
-    auto nameHint = NEphemeralNodes::ToNodeNameHint(host, port);
-    auto content = NEphemeralNodes::ToNodeContent(host, port);
+    THashMap<TString, TString> attributes;
+    attributes["host"] = host;
+    attributes["tcp_port"] = ::ToString(tcpPort);
+    attributes["http_port"] = ::ToString(httpPort);
 
-    auto result = Directory->CreateAndKeepEphemeralNode(
-        nameHint,
-        content);
+    auto result = Directory->CreateAndKeepEphemeralNode(TString(id), attributes);
 
     // Synchronously update cluster directory.
     LOG_DEBUG(Logger, "Forcing cluster directory update");
@@ -237,17 +224,17 @@ TClusterNodeNames TClusterNodeTracker::ProcessNodeList(NInterop::TDirectoryListi
 {
     LOG_INFO(
         Logger,
-        "Discover " << listing.Children.size() <<
+        "Discovered " << listing.Children.size() <<
         " node(s) in cluster directory at revision " << listing.Revision);
 
     TClusterNodeNames nodeNames;
 
     for (const auto& node : listing.Children) {
-        auto name = NEphemeralNodes::ToClusterNodeName(node.Content);
+        auto name = NEphemeralNodes::ToClusterNodeName(node.Attributes);
 
         LOG_DEBUG(
             Logger,
-            "Discover cluster node: " << name.ToString() <<
+            "Discovered cluster node: " << name.ToString() <<
             ", ephemeral node name = " << ToStdString(node.Name));
 
         nodeNames.insert(name);

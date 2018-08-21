@@ -94,6 +94,7 @@ private:
     const NInterop::IStoragePtr Storage;
     const NInterop::ICoordinationServicePtr CoordinationService;
     const std::string ConfigFile;
+    const std::string InstanceId_;
     ui16 TcpPort_;
     ui16 HttpPort_;
 
@@ -127,12 +128,14 @@ public:
             NInterop::IStoragePtr storage,
             NInterop::ICoordinationServicePtr coordinationService,
             std::string configFile,
+            std::string instanceId,
             ui16 tcpPort,
             ui16 httpPort)
         : AppLogger(std::move(logger))
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
         , ConfigFile(std::move(configFile))
+        , InstanceId_(std::move(instanceId))
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
     {}
@@ -452,10 +455,11 @@ void TServer::SetupHandlers()
 
 void TServer::EnterExecutionCluster()
 {
-    // TODO(max42): consider specifying two adresses, interconnect and external.
     ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
-        /*host=*/ Config->getString("interconnect_hostname", GetFQDNHostName()),
-        /*port=*/ TcpPort_);
+        InstanceId_,
+        Config->getString("interconnect_hostname", GetFQDNHostName()),
+        TcpPort_,
+        HttpPort_);
 
     ExecutionClusterNodeTracker->StartTrack(*Context);
 }
@@ -504,6 +508,7 @@ NInterop::IServerPtr CreateServer(
     NInterop::IStoragePtr storage,
     NInterop::ICoordinationServicePtr coordinationService,
     std::string configFile,
+    std::string instanceId,
     ui16 tcpPort,
     ui16 httpPort)
 {
@@ -512,6 +517,7 @@ NInterop::IServerPtr CreateServer(
         std::move(storage),
         std::move(coordinationService),
         std::move(configFile),
+        std::move(instanceId),
         tcpPort,
         httpPort);
 }
