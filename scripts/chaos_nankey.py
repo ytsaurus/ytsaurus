@@ -26,6 +26,7 @@ from urlparse import urljoin
 import sys
 import os
 import random
+import functools
 
 import logging
 import time
@@ -39,6 +40,22 @@ logging.basicConfig(format='%(asctime)s %(name)s: %(message)s', level=logging.IN
 def wait(predicate):
     while not predicate():
         time.sleep(2)
+
+def retry(func=None, tries=12, delay=5):
+    if func is None:
+        return functools.partial(retry, tries=tries, delay=delay)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        exception = None
+        for i in range(tries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as ex:
+                time.sleep(delay)
+                exception = ex
+        raise exception
+
+    return wrapper
 
 class NannyInstance:
     def __init__(self, nanny, instance_url, descr, logger):
@@ -107,6 +124,7 @@ class Nanny:
 
         raise Exception("No active snapshots found")
 
+    @retry
     def get_instances(self, service_url, regexp, logger):
         logger.debug("Getting instances of {0}".format(service_url))
         url = urljoin(self._nanny_url, "services/instances/{0}/".format(service_url))
@@ -126,6 +144,7 @@ class Nanny:
 
         return instances
 
+    @retry
     def set_instance_state(self, instance_url, target_state, logger):
         url = urljoin(self._nanny_url, "services/instances/{0}/set_target_state/".format(instance_url))
         session = self._get_session()
