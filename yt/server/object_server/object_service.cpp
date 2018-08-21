@@ -273,6 +273,7 @@ private:
             {
                 mutating = false;
                 ypathExt->set_mutating(false);
+                SetSuppressAccessTracking(&subrequestHeader, true);
             }
 
             auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
