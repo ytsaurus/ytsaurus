@@ -37,6 +37,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/http_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/invoker_pool_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lexer_ut.cpp

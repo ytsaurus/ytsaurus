@@ -138,7 +138,6 @@ struct TTabletTracker::TImpl::TAction
 
     TAction() = default;
 
-    //TODO(savrus) really?
     TAction(const TTabletCell* cell, int peerId, const TNode* source, const TNode* target)
         : Cell(cell)
         , PeerId(peerId)
@@ -151,6 +150,16 @@ struct TTabletTracker::TImpl::TAction
         return Cell == other.Cell
             ? PeerId < other.PeerId
             : Cell < other.Cell;
+    }
+
+    bool operator==(const TAction& other) const
+    {
+        return Cell == other.Cell && PeerId == other.PeerId;
+    }
+
+    bool operator!=(const TAction& other) const
+    {
+        return !(*this == other);
     }
 };
 
@@ -646,7 +655,7 @@ private:
 
         int last = -1;
         for (int index = 0; index < Actions_.size() ; ++index) {
-            if (last < 0 || Actions_[last].Cell != Actions_[index].Cell) {
+            if (last < 0 || Actions_[last] != Actions_[index]) {
                 if (last >= 0 && Actions_[last].Source == Actions_[last].Target && Actions_[last].Target) {
                     --last;
                 }
@@ -656,7 +665,7 @@ private:
                     Actions_[last] = Actions_[index];
                 }
             }
-            if (Actions_[last].Cell == Actions_[index].Cell) {
+            if (Actions_[last] == Actions_[index]) {
                 Actions_[last].Target = Actions_[index].Target;
             }
         }

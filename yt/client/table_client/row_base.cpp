@@ -40,13 +40,22 @@ TColumnFilter::TColumnFilter(int schemaColumnCount)
     }
 }
 
-int TColumnFilter::GetIndex(int originalColumnIndex) const
+TNullable<int> TColumnFilter::FindIndex(int originalColumnIndex) const
 {
     auto it = InvertedIndexMap.find(originalColumnIndex);
     if (it == InvertedIndexMap.end()) {
-        THROW_ERROR_EXCEPTION("Column filter does not contain column index %Qv", originalColumnIndex);
+        return Null;
     }
     return it->second;
+}
+
+int TColumnFilter::GetIndex(int originalColumnIndex) const
+{
+    if (auto indexOrNull = FindIndex(originalColumnIndex)) {
+        return *indexOrNull;
+    }
+
+    THROW_ERROR_EXCEPTION("Column filter does not contain column index %Qv", originalColumnIndex);
 }
 
 bool TColumnFilter::Contains(int index) const

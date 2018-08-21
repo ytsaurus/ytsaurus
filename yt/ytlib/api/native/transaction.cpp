@@ -11,6 +11,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/tablet_client/helpers.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/client/table_client/wire_protocol.h>
@@ -364,7 +365,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        ValidateTabletTransaction();
+        ValidateTabletTransaction(GetId());
 
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION("Cannot modify rows since transaction %v is already in %Qlv state",
@@ -860,6 +861,7 @@ private:
             , TabletInfo_(std::move(tabletInfo))
             , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
+            , UserName_(transaction->Client_->GetOptions().GetUser())
             , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
@@ -928,6 +930,7 @@ private:
         const TTabletInfoPtr TabletInfo_;
         const TTableCommitSessionPtr TableSession_;
         const TConnectionConfigPtr Config_;
+        const TString UserName_;
         const TColumnEvaluatorPtr ColumnEvaluator_;
         const ITableMountCachePtr TableMountCache_;
         const int ColumnCount_;
@@ -1054,7 +1057,10 @@ private:
         template <typename TRow>
         void WriteRow(const TRow& submittedRow)
         {
-            if (++TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction) {
+            ++TotalBatchedRowCount_;
+            if (UserName_ != NSecurityClient::ReplicatorUserName &&
+                TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction)
+            {
                 THROW_ERROR_EXCEPTION("Transaction affects too many rows")
                     << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
             }
@@ -1614,14 +1620,6 @@ private:
                 Y_UNREACHABLE();
         }
     }
-
-    void ValidateTabletTransaction()
-    {
-        if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
-            THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
-        }
-    }
-
 
     void RegisterForeignTransaction(NApi::ITransactionPtr transaction)
     {

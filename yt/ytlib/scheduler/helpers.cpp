@@ -270,7 +270,7 @@ const TYPath& GetOperationsArchiveJobsPath()
 
 const TYPath& GetOperationsArchiveJobSpecsPath()
 {
-    static TYPath path =  "//sys/operations_archive/job_specs";
+    static TYPath path = "//sys/operations_archive/job_specs";
     return path;
 }
 

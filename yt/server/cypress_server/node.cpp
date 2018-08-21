@@ -127,6 +127,11 @@ TClusterResources TCypressNodeBase::GetTotalResourceUsage() const
     return result;
 }
 
+bool TCypressNodeBase::IsBeingCreated() const
+{
+    return GetRevision() == NHydra::GetCurrentMutationContext()->GetVersion().ToRevision();
+}
+
 void TCypressNodeBase::Save(TSaveContext& context) const
 {
     TObjectBase::Save(context);

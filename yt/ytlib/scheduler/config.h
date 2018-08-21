@@ -36,6 +36,29 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPoolName {
+public:
+    TPoolName();
+    TPoolName(TString pool, TNullable<TString> parent);
+
+    static const char DELIMITER;
+
+    TString ToString() const;
+    static TPoolName FromString(const TString& value);
+
+    const TString& GetPool() const;
+    const TNullable<TString>& GetParentPool() const;
+
+private:
+    TString Pool;
+    TNullable<TString> ParentPool;
+};
+
+void Deserialize(TPoolName& value, NYTree::INodePtr node);
+void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSupportsSchedulingTagsConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -124,6 +147,8 @@ public:
     bool EnableAggressiveStarvation;
 
     bool ForbidImmediateOperations;
+
+    bool CreateEphemeralSubpools;
 
     TPoolConfig();
 
@@ -511,10 +536,10 @@ class TOperationWithUserJobSpec
 {
 public:
     TNullable<NYPath::TRichYPath> StderrTablePath;
-    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
+    NTableClient::TBlobTableWriterConfigPtr StderrTableWriter;
 
     TNullable<NYPath::TRichYPath> CoreTablePath;
-    NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
+    NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
 
     TOperationWithUserJobSpec();
 };
@@ -941,7 +966,7 @@ class TOperationFairShareTreeRuntimeParameters
 public:
     TNullable<double> Weight;
 
-    TNullable<TString> Pool;
+    TNullable<TPoolName> Pool;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -961,8 +986,6 @@ public:
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParameters();
-
-    void FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)

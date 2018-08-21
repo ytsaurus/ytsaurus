@@ -68,6 +68,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TransactionSupervisor)
     (GarbageCollector)
     (JobTrackerService)
+    (ReplicatedTableTracker)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

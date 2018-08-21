@@ -543,7 +543,6 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    #@flaky(max_runs=5) # TODO(savrus) Disable flacky for testing new code
     @pytest.mark.parametrize("enable_tablet_cell_balancer", [True, False])
     def test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
@@ -561,40 +560,37 @@ class TestDynamicTables(TestDynamicTablesBase):
         wait_for_cells(cell_ids.keys())
 
         def _check(nodes, floor, ceil):
-            for node in nodes:
-                slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
-                count = Counter([cell_ids[slot["cell_id"]] for slot in slots if slot["state"] != "none"])
-                for bundle in bundles:
-                    assert floor <= count[bundle] <= ceil
+            def predicate():
+                for node in nodes:
+                    slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
+                    count = Counter([cell_ids[slot["cell_id"]] for slot in slots if slot["state"] != "none"])
+                    for bundle in bundles:
+                        if not floor <= count[bundle] <= ceil:
+                            return False
+                return True
+            wait(predicate)
+            wait_for_cells(cell_ids.keys())
+
         _check(nodes, 1, 1)
 
         nodes = list(get("//sys/nodes").keys())
 
         set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), True)
-        sleep(0.2)
-        wait_for_cells(cell_ids.keys())
-        slots = get("//sys/nodes/{0}/@tablet_slots".format(nodes[0]))
-        assert len([slot for slot in slots if slot["state"] != "none"]) == 0
+        _check(nodes[:1], 0, 0)
         _check(nodes[1:], 1, 2)
 
         if not enable_tablet_cell_balancer:
             return
 
         set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
-        sleep(0.2)
-        wait_for_cells(cell_ids.keys())
         _check(nodes, 1, 1)
 
         for node in nodes[:len(nodes)/2]:
             set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
-        sleep(0.2)
-        wait_for_cells(cell_ids.keys())
         _check(nodes[len(nodes)/2:], 2, 2)
 
         for node in nodes[:len(nodes)/2]:
             set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
-        sleep(0.2)
-        wait_for_cells(cell_ids.keys())
         _check(nodes, 1, 1)
 
     def test_cell_bundle_options(self):
@@ -710,9 +706,19 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+        remount_table("//tmp/t")
 
         # Compaction fails with "Versioned row data weight is too large".
-        wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+        #  wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+
+        # Temporary debug output by ifsmirnov
+        def wait_func():
+            get("//tmp/t/@tablets")
+            get("//tmp/t/@chunk_ids")
+            get("//tmp/t/@tablet_statistics")
+            return bool(get("//tmp/t/@tablet_errors"))
+        wait(wait_func)
+
         assert len(get("//tmp/t/@tablet_errors")) == 1
         assert get("//tmp/t/@tablet_error_count") == 1
 
@@ -827,6 +833,44 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert len(select_rows("* from [//tmp/t]")) == 1
 
+    @skip_if_rpc_driver_backend
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_column_selector_dynamic_tables(self, is_sorted):
+        sync_create_cells(1)
+
+        key_schema = {"name": "key", "type": "int64"}
+        value_schema = {"name": "value", "type": "int64"}
+        if is_sorted:
+            key_schema["sort_order"] = "ascending"
+
+        schema = make_schema(
+            [key_schema, value_schema],
+            strict=True,
+            unique_keys=True if is_sorted else False)
+        create("table", "//tmp/t", attributes={"schema": schema, "external": False})
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+
+        def check_reads(is_dynamic_sorted):
+            assert read_table("//tmp/t{key}") == [{"key": 0}]
+            assert read_table("//tmp/t{value}") == [{"value": 1}]
+            assert read_table("//tmp/t{key,value}") == [{"key": 0, "value": 1}]
+            assert read_table("//tmp/t") == [{"key": 0, "value": 1}]
+            if is_dynamic_sorted:
+                with pytest.raises(YtError):
+                    read_table("//tmp/t{zzzzz}")
+            else:
+                assert read_table("//tmp/t{zzzzz}") == [{}]
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+        check_reads(False)
+        alter_table("//tmp/t", dynamic=True, schema=schema)
+        check_reads(is_sorted)
+
+        if is_sorted:
+            sync_mount_table("//tmp/t")
+            sync_compact_table("//tmp/t")
+            check_reads(True)
 
 ##################################################################
 

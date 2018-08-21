@@ -544,7 +544,7 @@ public:
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParams = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user);
+        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user, type);
 
         auto operation = New<TOperation>(
             operationId,

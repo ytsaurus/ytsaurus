@@ -807,9 +807,9 @@ struct TClusterMeta
 
 struct TOperation
 {
-    NScheduler::TOperationId OperationId;
-    NScheduler::EOperationType OperationType;
-    NScheduler::EOperationState OperationState;
+    NScheduler::TOperationId Id;
+    NScheduler::EOperationType Type;
+    NScheduler::EOperationState State;
     TNullable<std::vector<TString>> Pools;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;

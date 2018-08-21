@@ -4,7 +4,11 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/client/tablet_client/helpers.h>
+
 #include <yt/client/api/transaction.h>
+
+#include <yt/core/concurrency/async_semaphore.h>
 
 namespace NYT {
 namespace NApi {
@@ -49,6 +53,8 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingPeriod_(pingPeriod)
     , Sticky_(sticky)
+    , InFlightModifyRowsRequestCount_(New<TAsyncSemaphore>(MaxInFlightModifyRowsRequestCount))
+    , ModifyRowsRequestSequenceCounter_(0)
 {
     // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
     LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "
@@ -170,12 +176,11 @@ void TTransaction::UnsubscribeAborted(const TCallback<void()>& handler)
     Aborted_.Unsubscribe(handler);
 }
 
-TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
+TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
 {
     LOG_DEBUG("Committing transaction (TransactionId: %v)",
         Id_);
 
-    decltype(AsyncResults_) asyncResults;
     {
         auto guard = Guard(SpinLock_);
         if (!Error_.IsOK()) {
@@ -196,7 +201,6 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
             case ETransactionState::Active:
                 State_ = ETransactionState::Committing;
-                asyncResults = std::move(AsyncResults_);
                 break;
 
             default:
@@ -204,8 +208,18 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         }
     }
 
-    return Combine(asyncResults).Apply(
-        BIND([this, this_ = MakeStrong(this), options] () {
+    // Acquire the semaphore N-1 times. This will overcommit it and make it so that
+    // the semaphore will become "ready" when the last actual request has finished.
+    InFlightModifyRowsRequestCount_->Acquire(MaxInFlightModifyRowsRequestCount - 1);
+    return InFlightModifyRowsRequestCount_->GetReadyEvent().Apply(
+        BIND([this, this_ = MakeStrong(this)] () {
+            {
+                auto guard = Guard(SpinLock_);
+                if (!Error_.IsOK()) {
+                    return MakeFuture<TTransactionCommitResult>(Error_);
+                }
+            }
+
             const auto& config = Connection_->GetConfig();
 
             TApiServiceProxy proxy(Channel_);
@@ -230,8 +244,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                         return result;
                     } else {
                         auto error = TError("Error committing transaction %v ",
-                            Id_)
-                            << rspOrError;
+                            Id_) << rspOrError;
                         OnFailure(error);
                         return error;
                     }
@@ -255,6 +268,8 @@ void TTransaction::WriteRows(
     TSharedRange<TUnversionedRow> rows,
     const TModifyRowsOptions& options)
 {
+    ValidateTabletTransaction(Id_);
+
     std::vector<TRowModification> modifications;
     modifications.reserve(rows.Size());
     for (auto row : rows) {
@@ -305,9 +320,10 @@ void TTransaction::ModifyRows(
     const auto& config = Connection_->GetConfig();
 
     TApiServiceProxy proxy(Channel_);
-
     auto req = proxy.ModifyRows();
     req->SetTimeout(config->RpcTimeout);
+
+    req->set_sequence_number(ModifyRowsRequestSequenceCounter_++);
 
     ToProto(req->mutable_transaction_id(), Id_);
     req->set_path(path);
@@ -331,13 +347,20 @@ void TTransaction::ModifyRows(
         MakeRange(rows),
         req->mutable_rowset_descriptor());
 
-    auto asyncRequest = req->Invoke().As<void>();
-
-    {
-        auto guard = Guard(SpinLock_);
-        ValidateActive(guard);
-        AsyncResults_.emplace_back(std::move(asyncRequest));
+    // Wait until we're allowed to send another request.
+    while (!InFlightModifyRowsRequestCount_->TryAcquire()) {
+        WaitFor(InFlightModifyRowsRequestCount_->GetReadyEvent())
+            .ThrowOnError(); // should never actually throw
     }
+
+    req->Invoke().As<void>()
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            InFlightModifyRowsRequestCount_->Release();
+
+            if (!error.IsOK()) {
+                OnFailure(error);
+            }
+        }));
 }
 
 TFuture<ITransactionPtr> TTransaction::StartTransaction(
@@ -615,25 +638,29 @@ TError TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
     return TError();
 }
 
-void TTransaction::SetAborted(const TError& error)
+bool TTransaction::SetAborted(const TError& error)
 {
     {
         auto guard = Guard(SpinLock_);
         if (State_ == ETransactionState::Aborted) {
-            return;
+            return false;
         }
         State_ = ETransactionState::Aborted;
         Error_ = error;
     }
 
     FireAborted();
+
+    return true;
 }
 
 void TTransaction::OnFailure(const TError& error)
 {
-    SetAborted(error);
-    // Best-effort, fire-and-forget.
-    SendAbort();
+    // Send abort request just once.
+    if (SetAborted(error)) {
+        // Best-effort, fire-and-forget.
+        SendAbort();
+    }
 }
 
 TFuture<void> TTransaction::SendAbort()
@@ -650,8 +677,6 @@ TFuture<void> TTransaction::SendAbort()
 
     ToProto(req->mutable_transaction_id(), Id_);
     req->set_sticky(Sticky_);
-
-    FireAborted();
 
     return req->Invoke().Apply(
         BIND([id = Id_, Logger = Logger] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {

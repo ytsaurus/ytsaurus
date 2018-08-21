@@ -1155,6 +1155,8 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
+        .SetReplicated(true)
+        .SetWritable(true)
         .SetOpaque(true));
 }
 

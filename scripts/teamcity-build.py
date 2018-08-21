@@ -421,6 +421,7 @@ def package(options, build_context):
         if options.build_system == "cmake":
             run(["make", "-j", "8", "package"])
             run(["make", "-j", "8", "python-package"])
+            run(["make", "-j", "8", "python-yp-package"])
             run(["make", "version"])
 
             teamcity_message("We have built a package")

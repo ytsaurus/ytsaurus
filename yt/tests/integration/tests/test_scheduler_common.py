@@ -1121,6 +1121,31 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert read_table("//tmp/sorted_table") == [{"key": YsonEntity()}]
 
+    def test_append_to_sorted_table_exclusive_lock(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/sorted_table", [{"key": 5}])
+        write_table("//tmp/t1", [{"key": 6}, {"key":10}])
+        write_table("//tmp/t2", [{"key": 8}, {"key": 12}])
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="<append=%true>//tmp/sorted_table",
+            command="sleep 10; cat")
+
+        time.sleep(5)
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t2",
+                out="<append=%true>//tmp/sorted_table",
+                command="cat")
+
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 
