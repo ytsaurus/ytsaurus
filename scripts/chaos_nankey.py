@@ -236,6 +236,13 @@ def chaos(serivce_groups):
             serivce_group.chaos_step()
         time.sleep(1)
 
+def chaos_and_cleanup(serivce_groups):
+    try:
+        chaos(serivce_groups)
+    except KeyboardInterrupt:
+        logging.info("Interrupted, quitting")
+        cleanup(serivce_groups)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Randomly restart service instances.")
     parser.add_argument("--cleanup", action="store_true", default=False, help="Activate all instances (restore state from previous chaos runs)")
@@ -257,5 +264,5 @@ if __name__ == "__main__":
     if args.cleanup:
         cleanup(service_gropus)
     else:
-        chaos(service_gropus)
+        chaos_and_cleanup(service_gropus)
 
