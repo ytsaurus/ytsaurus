@@ -3007,7 +3007,7 @@ private:
 
     virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
-        return Spec->StderrTableWriterConfig;
+        return Spec->StderrTableWriter;
     }
 
     virtual TNullable<TRichYPath> GetCoreTablePath() const override
@@ -3017,7 +3017,7 @@ private:
 
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
-        return Spec->CoreTableWriterConfig;
+        return Spec->CoreTableWriter;
     }
 
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
