@@ -295,7 +295,7 @@ YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
 
         tagged_logger.debug("Adding Upravlyator role");
         var membership = self.driver.executeSimpleWithUser(
-            "add_member", this.robot_yt_idm,
+            "add_member", self.robot_yt_idm,
             { member: user_name, group: group_name });
         return Q.all([ tagged_logger, membership ]);
     })
@@ -332,7 +332,7 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
 
         tagged_logger.debug("Removing Upravlyator role");
         var membership = self.driver.executeSimpleWithUser(
-            "remove_member", this.robot_yt_idm,
+            "remove_member", self.robot_yt_idm,
             { member: user_name, group: group_name });
         return Q.all([ tagged_logger, membership ]);
     })
