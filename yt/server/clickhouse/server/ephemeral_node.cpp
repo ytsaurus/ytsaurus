@@ -38,168 +38,131 @@ class TEphemeralNodeKeeper
     : public TRefCounted
 {
 private:
-    TString DirectoryPath;
-    TString NameHint;
-    TString Content;
-    TDuration SessionTimeout;
+    TString DirectoryPath_;
+    TString Name_;
+    THashMap<TString, TString> Attributes_;
+    TDuration SessionTimeout_;
 
-    IClientPtr Client;
+    IClientPtr Client_;
 
-    TString NodePath;
+    TString Path_;
 
-    TBackoff Backoff;
+    TBackoff Backoff_;
 
-    const NLogging::TLogger& Logger = ServerLogger;
+    NLogging::TLogger Logger;
 
 public:
     TEphemeralNodeKeeper(
         TString directoryPath,
-        TString nameHint,
-        TString content,
-        TDuration lifetime,
-        IClientPtr client);
+        TString name,
+        THashMap<TString, TString> attributes,
+        TDuration sessionTimeout,
+        IClientPtr client)
+        : DirectoryPath_(std::move(directoryPath))
+        , Name_(std::move(name))
+        , Attributes_(std::move(attributes))
+        , SessionTimeout_(sessionTimeout)
+        , Client_(std::move(client))
+        , Path_(TString::Join(DirectoryPath_, '/', Name_))
+        , Logger(NLogging::TLogger(ServerLogger).AddTag("Path: %v", Path_))
+    {
+        CreateNode();
+    }
 
 private:
-    void CreateNode();
-    TString GenerateUniqueNodeName() const;
-    TErrorOr<void> TryCreateNode(const TString& nodePath);
-    void CreateNodeLater(const TDuration& delay);
+    void CreateNode()
+    {
+        auto result = TryCreateNode(Path_);
+        if (result.IsOK()) {
+            Backoff_.Reset();
+            LOG_DEBUG("Ephemeral node created");
+            TouchNodeLater(GetNextTouchDelay());
+        } else {
+            LOG_WARNING("Cannot create ephemeral node, scheduling retry");
+            CreateNodeLater(Backoff_.GetNextPause());
+        }
+    }
 
-    void TouchNode();
-    TErrorOr<void> TryTouchNode();
-    void TouchNodeLater(const TDuration& delay);
+    TErrorOr<void> TryCreateNode(const TString& nodePath)
+    {
+        auto startTxResult = WaitFor(Client_->StartTransaction(
+            NTransactionClient::ETransactionType::Master));
 
-    TInstant GetExpirationTimeFromNow() const;
+        if (!startTxResult.IsOK()) {
+            return startTxResult;
+        }
 
-    TDuration GetNextTouchDelay() const;
+        auto txClient = startTxResult.ValueOrThrow();
+
+        TCreateNodeOptions createOptions;
+        createOptions.Recursive = false;
+        createOptions.IgnoreExisting = false;
+
+        auto nodeAttributes = ConvertToAttributes(Attributes_);
+        nodeAttributes->Set("expiration_time", GetExpirationTimeFromNow());
+        createOptions.Attributes = std::move(nodeAttributes);
+
+        auto createResult = WaitFor(txClient->CreateNode(
+            nodePath,
+            NObjectClient::EObjectType::StringNode,
+            createOptions));
+
+        if (!createResult.IsOK()) {
+            return createResult;
+        }
+
+        return WaitFor(txClient->Commit());
+    }
+
+    void CreateNodeLater(const TDuration& delay)
+    {
+        TDelayedExecutor::Submit(
+            BIND(&TEphemeralNodeKeeper::CreateNode, MakeWeak(this)),
+            delay);
+    }
+
+    void TouchNode()
+    {
+        auto result = TryTouchNode();
+        if (result.IsOK()) {
+            Backoff_.Reset();
+            LOG_DEBUG("Ephemeral node touched");
+            TouchNodeLater(GetNextTouchDelay());
+        } else if (IsNodeNotFound(result)) {
+            LOG_WARNING("Ephemeral node lost, recreating it");
+            CreateNode();
+        } else {
+            LOG_WARNING(result, "Error while touching node");
+            TouchNodeLater(Backoff_.GetNextPause());
+        }
+    }
+
+    TErrorOr<void> TryTouchNode()
+    {
+        return WaitFor(Client_->SetNode(
+            TString::Join(Path_, "/@expiration_time"),
+            ConvertToYsonString(GetExpirationTimeFromNow())));
+    }
+
+    void TouchNodeLater(const TDuration& delay)
+    {
+        TDelayedExecutor::Submit(
+            BIND(&TEphemeralNodeKeeper::TouchNode, MakeWeak(this)),
+            delay);
+    }
+
+    TInstant GetExpirationTimeFromNow() const
+    {
+        return Now() + SessionTimeout_;
+    }
+
+    TDuration GetNextTouchDelay() const
+    {
+        return AddJitter(SessionTimeout_ * 0.5, /*jitter=*/ 0.2);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TEphemeralNodeKeeper);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEphemeralNodeKeeper::TEphemeralNodeKeeper(
-    TString directoryPath,
-    TString nameHint,
-    TString content,
-    TDuration sessionTimeout,
-    IClientPtr client)
-    : DirectoryPath(std::move(directoryPath))
-    , NameHint(std::move(nameHint))
-    , Content(std::move(content))
-    , SessionTimeout(sessionTimeout)
-    , Client(std::move(client))
-{
-    CreateNode();
-}
-
-void TEphemeralNodeKeeper::CreateNode()
-{
-    auto nodeName = GenerateUniqueNodeName();
-    auto nodePath = TString::Join(DirectoryPath, '/', nodeName);
-
-    auto result = TryCreateNode(nodePath);
-    if (result.IsOK()) {
-        Backoff.Reset();
-        NodePath = nodePath;
-        LOG_DEBUG("Ephemeral node %Qv created", nodePath);
-        TouchNodeLater(GetNextTouchDelay());
-    } else {
-        LOG_WARNING("Cannot create ephemeral node %Qv in %Qv, retry later...", NameHint, DirectoryPath);
-        CreateNodeLater(Backoff.GetNextPause());
-    }
-}
-
-TString TEphemeralNodeKeeper::GenerateUniqueNodeName() const
-{
-    return TString::Join(NameHint, '-', CreateGuidAsString());
-}
-
-TErrorOr<void> TEphemeralNodeKeeper::TryCreateNode(const TString& nodePath)
-{
-    auto startTxResult = WaitFor(Client->StartTransaction(
-        NTransactionClient::ETransactionType::Master));
-
-    if (!startTxResult.IsOK()) {
-        return TError(startTxResult);
-    }
-
-    auto txClient = startTxResult.ValueOrThrow();
-
-    TCreateNodeOptions createOptions;
-    createOptions.Recursive = false;
-    createOptions.IgnoreExisting = false;
-
-    auto nodeAttributes = CreateEphemeralAttributes();
-    nodeAttributes->Set("expiration_time", GetExpirationTimeFromNow());
-    createOptions.Attributes = std::move(nodeAttributes);
-
-    auto createResult = WaitFor(txClient->CreateNode(
-        nodePath,
-        NObjectClient::EObjectType::StringNode,
-        createOptions));
-
-    if (!createResult.IsOK()) {
-        return TError(createResult);
-    }
-
-    auto setResult = WaitFor(txClient->SetNode(
-        nodePath,
-        ConvertToYsonString(Content)));
-
-    if (!setResult.IsOK()) {
-        return TError(setResult);
-    }
-
-    return WaitFor(txClient->Commit());
-}
-
-void TEphemeralNodeKeeper::CreateNodeLater(const TDuration& delay)
-{
-    TDelayedExecutor::Submit(
-        BIND(&TEphemeralNodeKeeper::CreateNode, MakeWeak(this)),
-        delay);
-}
-
-void TEphemeralNodeKeeper::TouchNode()
-{
-    auto result = TryTouchNode();
-    if (result.IsOK()) {
-        Backoff.Reset();
-        LOG_DEBUG("Ephemeral node %Qv touched", NodePath);
-        TouchNodeLater(GetNextTouchDelay());
-    } else if (IsNodeNotFound(result)) {
-        LOG_WARNING("Ephemeral node %Qv (%Qv) lost, recreate it", NodePath, NameHint);
-        CreateNode();
-    } else {
-        LOG_WARNING(result);
-        TouchNodeLater(Backoff.GetNextPause());
-    }
-}
-
-TErrorOr<void> TEphemeralNodeKeeper::TryTouchNode()
-{
-    return WaitFor(Client->SetNode(
-        TString::Join(NodePath, "/@expiration_time"),
-        ConvertToYsonString(GetExpirationTimeFromNow())));
-}
-
-void TEphemeralNodeKeeper::TouchNodeLater(const TDuration& delay)
-{
-    TDelayedExecutor::Submit(
-        BIND(&TEphemeralNodeKeeper::TouchNode, MakeWeak(this)),
-        delay);
-}
-
-TInstant TEphemeralNodeKeeper::GetExpirationTimeFromNow() const
-{
-    return Now() + SessionTimeout;
-}
-
-TDuration TEphemeralNodeKeeper::GetNextTouchDelay() const
-{
-    return AddJitter(SessionTimeout * 0.5, /*jitter=*/ 0.2);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,14 +189,14 @@ private:
 NInterop::IEphemeralNodeKeeperPtr CreateEphemeralNodeKeeper(
     NApi::IClientPtr client,
     TString directoryPath,
-    TString nameHint,
-    TString content,
+    TString name,
+    THashMap<TString, TString> attributes,
     TDuration sessionTimeout)
 {
     auto nodeKeeper = New<TEphemeralNodeKeeper>(
         std::move(directoryPath),
-        std::move(nameHint),
-        std::move(content),
+        std::move(name),
+        std::move(attributes),
         sessionTimeout,
         std::move(client));
 

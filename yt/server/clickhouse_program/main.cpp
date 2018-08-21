@@ -21,6 +21,7 @@ class TProgram
 {
 private:
     TString XmlConfig;
+    TString InstanceId_;
     TString CliqueId_;
     ui16 RpcPort_;
     ui16 MonitoringPort_;
@@ -45,6 +46,9 @@ TProgram::TProgram()
         .Required()
         .DefaultValue("config.xml")
         .StoreResult(&XmlConfig);
+    Opts_.AddLongOption("instance-id", "ClickHouse instance id")
+        .Required()
+        .StoreResult(&InstanceId_);
     Opts_.AddLongOption("clique-id", "ClickHouse clique id")
         .Required()
         .StoreResult(&CliqueId_);
@@ -86,6 +90,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
         std::move(config),
         std::move(configNode),
         XmlConfig,
+        InstanceId_,
         CliqueId_,
         RpcPort_,
         MonitoringPort_,

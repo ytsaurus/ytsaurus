@@ -65,7 +65,7 @@ public:
             .Run();
     }
 
-    TFuture<NInterop::TNode> GetNode(const TString& name)
+    /* TFuture<NInterop::TNode> GetNode(const TString& name)
     {
         return BIND(&TSelf::DoGetNode, MakeStrong(this))
             .AsyncVia(Invoker)
@@ -77,15 +77,15 @@ public:
         return BIND(&TSelf::DoNodeExists, MakeStrong(this))
             .AsyncVia(Invoker)
             .Run(name);
-    }
+    } */
 
     TFuture<NInterop::IEphemeralNodeKeeperPtr> CreateAndKeepEphemeralNode(
         const TString& nameHint,
-        const TString& content)
+        const THashMap<TString, TString>& attributes)
     {
         return BIND(&TSelf::DoCreateAndKeepEphemeralNode, MakeStrong(this))
             .AsyncVia(Invoker)
-            .Run(nameHint, content);
+            .Run(nameHint, attributes);
     }
 
     TFuture<void> SubscribeToUpdate(
@@ -111,7 +111,7 @@ private:
 
     NInterop::IEphemeralNodeKeeperPtr DoCreateAndKeepEphemeralNode(
         const TString& nameHint,
-        const TString& content);
+        const THashMap<TString, TString>& attributes);
 
     void DoSubscribeToUpdate(
         NInterop::TNodeRevision expectedRevision,
@@ -153,13 +153,16 @@ void TDirectory::DoCreateIfNotExists()
 
 NInterop::TDirectoryListing TDirectory::DoListNodes()
 {
-    LOG_INFO("List nodes in coordination directory %Qv", Path);
+    LOG_INFO("Listing nodes in coordination directory (Path: %v)", Path);
 
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Follower;
     options.SuppressAccessTracking = true;
     options.Attributes = {
         "key",
+        "host",
+        "tcp_port",
+        "http_port",
         "revision",
     };
 
@@ -177,9 +180,13 @@ NInterop::TDirectoryListing TDirectory::DoListNodes()
     for (const auto& child : children) {
         auto childNode = child.second;
         const auto childName = GetAttribute<TString>(childNode, "key");
-        const TString content = childNode->AsString()->GetValue();
-        listing.Children.push_back(NInterop::TChildNode{.Name = childName, .Content = content});
-        LOG_DEBUG("Read node with name = %Qv, content = %Qv", childName, content);
+        auto* attributes = childNode->MutableAttributes();
+        attributes->Remove("revision");
+        LOG_DEBUG("Node listed (Path: %v, Name: %v, Attributes: %v)", Path, childName, NYTree::ConvertToYsonString(attributes, NYson::EYsonFormat::Text));
+        listing.Children.push_back(NInterop::TChildNode{
+            .Name = childName,
+            .Attributes = ConvertTo<THashMap<TString, TString>>(*attributes)
+        });
     }
 
     Sort(listing.Children.begin(), listing.Children.end());
@@ -187,7 +194,7 @@ NInterop::TDirectoryListing TDirectory::DoListNodes()
     return listing;
 }
 
-NInterop::TNode TDirectory::DoGetNode(const TString& name)
+/* NInterop::TNode TDirectory::DoGetNode(const TString& name)
 {
     LOG_INFO("Reading child node %Qlv in coordination directory %Qlv", name, Path);
 
@@ -223,17 +230,17 @@ bool TDirectory::DoNodeExists(const TString& name)
 
     return WaitFor(Client->NodeExists(GetChildNodePath(name), options))
         .ValueOrThrow();
-}
+} */
 
 NInterop::IEphemeralNodeKeeperPtr TDirectory::DoCreateAndKeepEphemeralNode(
-    const TString& nameHint,
-    const TString& content)
+    const TString& name,
+    const THashMap<TString, TString>& attributes)
 {
     return CreateEphemeralNodeKeeper(
         Client,
         Path,
-        nameHint,
-        content,
+        name,
+        attributes,
         DEFAULT_EPHEMERAL_NODE_TIMEOUT);
 }
 
@@ -277,23 +284,25 @@ public:
             .ValueOrThrow();
     }
 
-    NInterop::TNode GetNode(const TString& name) override
+    NInterop::TNode GetNode(const TString& /* name */) override
     {
-        return WaitFor(Impl->GetNode(name))
-            .ValueOrThrow();
+        YCHECK(false);
+        /* return WaitFor(Impl->GetNode(name))
+            .ValueOrThrow(); */
     }
 
-    bool NodeExists(const TString& name) override
+    bool NodeExists(const TString& /* name */) override
     {
-        return WaitFor(Impl->NodeExists(name))
-            .ValueOrThrow();
+        YCHECK(false);
+        /* return WaitFor(Impl->NodeExists(name))
+            .ValueOrThrow(); */
     }
 
     NInterop::IEphemeralNodeKeeperPtr CreateAndKeepEphemeralNode(
         const TString& nameHint,
-        const TString& content) override
+        const THashMap<TString, TString>& attributes) override
     {
-        return WaitFor(Impl->CreateAndKeepEphemeralNode(nameHint, content))
+        return WaitFor(Impl->CreateAndKeepEphemeralNode(nameHint, attributes))
             .ValueOrThrow();
     }
 

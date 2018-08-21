@@ -31,7 +31,11 @@ public:
     virtual void StartTrack(const DB::Context& context) = 0;
     virtual void StopTrack() = 0;
 
-    virtual TClusterNodeTicket EnterCluster(const std::string& host, ui16 port) = 0;
+    virtual TClusterNodeTicket EnterCluster(
+        const std::string& instanceId,
+        const std::string& host,
+        ui16 tcpPort,
+        ui16 httpPort) = 0;
 
     virtual TClusterNodeNames ListAvailableNodes() = 0;
 
