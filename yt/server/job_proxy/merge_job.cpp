@@ -38,9 +38,9 @@ class TMergeJob
     : public TSimpleJobBase
 {
 public:
-    TMergeJob(IJobHostPtr host, bool userParallelReader)
+    TMergeJob(IJobHostPtr host, bool useParallelReader)
         : TSimpleJobBase(host)
-        , UseParallelReader_(userParallelReader)
+        , UseParallelReader_(useParallelReader)
     {
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
     }
