@@ -1,7 +1,7 @@
 var querystring = require("querystring");
 var Q = require("bluebird");
 
-var YtApplicationUpravlyator = require("../lib/middleware/appli cation_upravlyator").that;
+var YtApplicationUpravlyator = require("../lib/middleware/application_upravlyator").that;
 var YtError = require("../lib/error").that;
 var YtRegistry = require("../lib/registry").that;
 
