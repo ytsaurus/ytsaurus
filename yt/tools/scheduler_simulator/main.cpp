@@ -433,10 +433,11 @@ public:
     void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user)
+        const TString& user,
+        EOperationType type)
     {
         // No locking needed.
-        SchedulerStrategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user);
+        SchedulerStrategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user, type);
     }
 
 private:
@@ -801,7 +802,8 @@ public:
                 SchedulingStrategy_->InitOperationRuntimeParameters(
                     runtimeParameters,
                     NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(description.Spec),
-                    description.AuthenticatedUser);
+                    description.AuthenticatedUser,
+                    description.Type);
                 auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
 
                 auto operationController = New<NSchedulerSimulator::TOperationController>(operation.Get(), &description);

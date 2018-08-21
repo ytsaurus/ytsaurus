@@ -1335,6 +1335,28 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
+    def test_ephemeral_pool_in_custom_pool(self):
+        create_test_tables()
+
+        create("map_node", "//sys/pools/custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+
+        time.sleep(0.2)
+
+        map(
+            dont_track=True,
+            command=(with_breakpoint("cat ; BREAKPOINT")),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "custom_pool"})
+
+        wait_breakpoint()
+
+        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool$root")
+        assert pool["parent"] == "custom_pool"
+
+        remove("//sys/pools/custom_pool")
+
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1383,8 +1405,8 @@ class TestSchedulerPools(YTEnvSetup):
     def test_event_log(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/custom_pool", attributes={"min_share_resources": {"cpu": 1}})
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "custom_pool"})
+        create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
 
         time.sleep(2.0)
 
@@ -1398,9 +1420,9 @@ class TestSchedulerPools(YTEnvSetup):
 
         assert events == ["operation_started", "operation_completed"]
         pools_info = [row for row in read_table("//sys/scheduler/event_log")
-                      if row["event_type"] == "pools_info" and "custom_pool" in row["pools"]["default"]]
+                      if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
         assert len(pools_info) == 1
-        custom_pool_info = pools_info[-1]["pools"]["default"]["custom_pool"]
+        custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
         assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
         assert custom_pool_info["mode"] == "fair_share"
 
