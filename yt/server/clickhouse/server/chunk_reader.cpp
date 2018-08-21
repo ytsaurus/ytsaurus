@@ -9,7 +9,6 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/config.h>
 
@@ -17,6 +16,7 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_reader_adapter.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
