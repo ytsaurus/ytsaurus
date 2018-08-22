@@ -1118,12 +1118,23 @@ class YTInstance(object):
 
     def _prepare_rpc_proxy(self, rpc_proxy_config, rpc_client_config, rpc_proxy_dir):
         config_path = os.path.join(self.configs_path, "rpc-proxy.yson")
-        write_config(rpc_proxy_config, config_path)
+        if self._load_existing_environment:
+            if not os.path.isfile(config_path):
+                raise YtError("Rpc proxy config {0} not found".format(config_path))
+            config = read_config(config_path)
+        else:
+            config = rpc_proxy_config
+            write_config(config, config_path)
+
         self.configs["rpc_proxy"].append(rpc_proxy_config)
         self.config_paths["rpc_proxy"].append(config_path)
 
         rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
-        write_config(rpc_client_config, rpc_client_config_path)
+        if self._load_existing_environment:
+            if not os.path.isfile(rpc_client_config_path):
+                raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
+        else:
+            write_config(rpc_client_config, rpc_client_config_path)
 
     def _prepare_skynet_managers(self, skynet_manager_configs, skynet_manager_dirs):
         self.configs["skynet_manager"] = []
@@ -1196,7 +1207,8 @@ class YTInstance(object):
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
 
-            return len(native_client.list("//sys/rpc_proxies")) == 1
+            proxies = native_client.get("//sys/rpc_proxies")
+            return len(proxies) == 1 and "alive" in proxies.values()[0]
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
 
