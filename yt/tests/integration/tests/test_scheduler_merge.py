@@ -1332,10 +1332,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         # The point of this test is to make sure snatching chunks from
         # under an uncommitted transaction interoperates with
-        # multicell well. Replace the following two lines with this:
+        # multicell well. Replacing the following two lines with this:
         #     copy("//tmp/t2", "//tmp/t2_copy", source_transaction_id=tx)
-        # to get a horrific situation when a chunk is destroyed in its cell
-        # yet is still referenced from another cell.
+        # used to produce (it's no longer supported) a horrific situation
+        # when a chunk is destroyed in its cell yet is still
+        # referenced from another cell.
         create("table", "//tmp/t2_copy", attributes={"external_cell_tag": 2})
         merge(mode="ordered", in_=['<transaction_id="{0}">//tmp/t2'.format(tx)], out="//tmp/t2_copy")
 
