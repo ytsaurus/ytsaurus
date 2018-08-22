@@ -10,6 +10,28 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStringBuf ToHttpString(EMethod method)
+{
+    switch(method) {
+#define XX(num, name, string) case EMethod::name: return AsStringBuf(#string);
+    YT_HTTP_METHOD_MAP(XX)
+#undef XX
+    default: THROW_ERROR_EXCEPTION("Invalid method %v", method);
+    }
+}
+
+TStringBuf ToHttpString(EStatusCode code)
+{
+    switch(code) {
+#define XX(num, name, string) case EStatusCode::name: return AsStringBuf(#string);
+    YT_HTTP_STATUS_MAP(XX)
+#undef XX
+    default: THROW_ERROR_EXCEPTION("Invalid status code %d", code);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUrlRef ParseUrl(TStringBuf url)
 {
     TUrlRef urlRef;
@@ -45,7 +67,7 @@ TUrlRef ParseUrl(TStringBuf url)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void THeaders::Add(const TString& header, const TString& value)
+void THeaders::Add(const TString& header, TString value)
 {
     ValidateValue(header, value);
 
@@ -53,16 +75,22 @@ void THeaders::Add(const TString& header, const TString& value)
 
     auto& entry = Raw_[lower];
     entry.OriginalHeaderName = header;
-    entry.Values.push_back(value);
+    entry.Values.push_back(std::move(value));
 }
 
-void THeaders::Set(const TString& header, const TString& value)
+void THeaders::Remove(const TString& header)
+{
+    auto lower = to_lower(header);
+    Raw_.erase(lower);
+}
+
+void THeaders::Set(const TString& header, TString value)
 {
     ValidateValue(header, value);
 
     auto lower = to_lower(header);
 
-    Raw_[lower] = {header, {value}};
+    Raw_[lower] = {header, {std::move(value)}};
 }
 
 const TString* THeaders::Find(const TString& header) const
@@ -91,7 +119,7 @@ TString THeaders::GetOrThrow(const TString& header) const
     return *value;
 }
 
-const std::vector<TString>& THeaders::GetAll(const TString& header) const
+const SmallVector<TString, 1>& THeaders::GetAll(const TString& header) const
 {
     auto lower = to_lower(header);
 

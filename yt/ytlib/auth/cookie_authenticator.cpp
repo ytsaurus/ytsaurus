@@ -24,6 +24,36 @@ static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString SignCsrfToken(const TString& userId, const TString& key, TInstant now)
+{
+    auto msg = userId + ":" + ToString(now.TimeT());
+    return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
+}
+
+bool CheckCsrfToken(
+    const TString& csrfToken,
+    const TString& userId,
+    const TString& key,
+    TInstant expirationTime)
+{
+    std::vector<TString> parts;
+    SplitStringTo(csrfToken, ':', &parts);
+    if (parts.size() != 2) {
+        return false;
+    }
+
+    auto signTime = TInstant::Seconds(FromString<time_t>(parts[1]));
+    if (signTime < expirationTime) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::CsrfTokenExpired, "CSRF token expired")
+            << TErrorAttribute("sign_time", signTime);
+    }
+
+    auto expectedToken = SignCsrfToken(userId, key, signTime);
+    return ConstantTimeCompare(expectedToken, parts[0]);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(sandello): Indicate to end-used that cookie must be resigned.
 class TBlackboxCookieAuthenticator
     : public ICookieAuthenticator

@@ -57,6 +57,10 @@ struct TDriverRequest
     //! Must be filled before writing data to output stream.
     NYson::IYsonConsumer* ResponseParametersConsumer;
 
+    //! Invoked after driver is done producing response parameters and
+    //! before first write to output stream.
+    std::function<void()> ParametersFinishedCallback;
+
     void Reset();
 
 private:
@@ -87,6 +91,8 @@ struct TCommandDescriptor
     //! Whether the execution of a command is lengthly and/or causes a heavy load.
     bool Heavy;
 };
+
+void Serialize(const TCommandDescriptor& descriptor, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

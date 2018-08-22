@@ -362,31 +362,31 @@ YtCommand.prototype._parseRequest = function() {
     this.req.parsedQuery = qs.parse(this.req.parsedUrl.query);
 
     // Do not care about 'null' or 'undefined' in code below.
-    var ua = this.req.headers["user-agent"] + "";
-    var is_ie = ua.indexOf("Trident") !== -1;
+    var ua = this.req.headers["user-agent"] + ""; //@
+    var is_ie = ua.indexOf("Trident") !== -1; //@
 
     // XXX(sandello): IE is bugged; it fails to parse request with trailing
     // headers that include colons. Remarkable.
-    this.omit_trailers = is_ie;
+    this.omit_trailers = is_ie; //@
 
-    var has_omit_trailers_option = typeof(this.req.headers["x-yt-omit-trailers"]) !== "undefined";
+    var has_omit_trailers_option = typeof(this.req.headers["x-yt-omit-trailers"]) !== "undefined"; //@
 
-    if (has_omit_trailers_option) {
-        this.omit_trailers = true;
-    }
+    if (has_omit_trailers_option) { //@
+        this.omit_trailers = true; //@
+    } //@
 };
 
 YtCommand.prototype._getName = function() {
     this.__DBG("_getName");
 
-    var versioned_name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
+    var versioned_name = this.req.parsedUrl.pathname.slice(1).toLowerCase(); //@
 
     var version;
     var name;
     var facade;
     var driver;
 
-    if (!versioned_name.length) {
+    if (!versioned_name.length) { //@
         utils.dispatchJson(this.rsp, Object.keys(_VERSION_TO_FACADE).map(function(version) {
             return "v" + version;
         }));
@@ -397,20 +397,20 @@ YtCommand.prototype._getName = function() {
     version = parts[0];
     name = parts[1] || "";
 
-    if (!/^v[0-9]+$/.test(version)) {
+    if (!/^v[0-9]+$/.test(version)) { //@
         throw new YtError("Malformed API version " + JSON.stringify(version));
     }
 
     version = parseInt(version.slice(1), 10);
 
-    if (!_VERSION_TO_FACADE.hasOwnProperty(version)) {
+    if (!_VERSION_TO_FACADE.hasOwnProperty(version)) { //@
         throw new YtError("Unsupported API version " + JSON.stringify(version));
     }
 
     facade = _VERSION_TO_FACADE[version];
     driver = facade(this.logger, this.driver);
 
-    if (!name.length) {
+    if (!name.length) { //@
         // Bail out to API description.
         utils.dispatchJson(
             this.rsp,
@@ -418,16 +418,16 @@ YtCommand.prototype._getName = function() {
         throw new YtError();
     }
 
-    if (!/^[a-z_]+$/.test(name)) {
+    if (!/^[a-z_]+$/.test(name)) { //@
         throw new YtError("Malformed command name " + JSON.stringify(name));
     }
 
     this.req.tags.api_version = version;
     this.req.tags.api_command = name;
 
-    this.api_version = version;
-    this.command = name;
-    this.driver = driver;
+    this.api_version = version; //@
+    this.command = name; //@
+    this.driver = driver; //@
 };
 
 YtCommand.prototype._getUser = function() {
@@ -441,31 +441,31 @@ YtCommand.prototype._getUser = function() {
 
     this.req.tags.user = this.user;
 
-    if (this.command === "ping_tx" || this.command === "parse_ypath") {
+    if (this.command === "ping_tx" || this.command === "parse_ypath") { //@
         // Do not check stickness for `ping_tx` command.
         return;
     }
 
-    var sticky_result = this.sticky_cache.get(this.user);
-    if (typeof(sticky_result) !== "undefined") {
-        this.rsp.statusCode = sticky_result.code;
-        utils.dispatchAs(this.rsp, sticky_result.body, "application/json");
-        throw new YtError();
+    var sticky_result = this.sticky_cache.get(this.user); //@
+    if (typeof(sticky_result) !== "undefined") { //@
+        this.rsp.statusCode = sticky_result.code; //@
+        utils.dispatchAs(this.rsp, sticky_result.body, "application/json"); //@
+        throw new YtError(); //@
     }
 };
 
 YtCommand.prototype._getDescriptor = function() {
     this.__DBG("_getDescriptor");
 
-    this.descriptor = this.driver.find_command_descriptor(this.api_version, this.command);
+    this.descriptor = this.driver.find_command_descriptor(this.api_version, this.command); //@
 
-    if (!this.descriptor) {
+    if (!this.descriptor) { //@
         this.rsp.statusCode = 404;
         throw new YtError("Command '" + this.command + "' is not registered");
     }
 };
 
-YtCommand.prototype._checkHttpMethod = function() {
+YtCommand.prototype._checkHttpMethod = function() { //@
     this.__DBG("_checkHttpMethod");
 
     var expected_http_method, actual_http_method = this.req.method;
@@ -480,7 +480,7 @@ YtCommand.prototype._checkHttpMethod = function() {
         }
     }
 
-    if (actual_http_method !== expected_http_method) {
+    if (actual_http_method !== expected_http_method) { //@
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
         throw new YtError(
@@ -495,7 +495,7 @@ YtCommand.prototype._checkHttpMethod = function() {
 YtCommand.prototype._checkAvailability = function() {
     this.__DBG("_checkAvailability");
 
-    if (this.coordinator.getSelf().banned) {
+    if (this.coordinator.getSelf().banned) { //@
         this.rsp.statusCode = 503;
         this.rsp.setHeader("Retry-After", "60");
         throw new YtError(
@@ -528,7 +528,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
             throw new YtError(
                 "Control proxy may not serve heavy requests with input data");
         }
-        var target = this.coordinator.allocateProxy("data");
+        var target = this.coordinator.allocateProxy("data"); //@
         if (target) {
             var proto = "http://";
             if (this.req.connection.getCipher && this.req.connection.getCipher()) {
@@ -813,11 +813,11 @@ YtCommand.prototype._captureParameters = function() {
     var from_formats, from_url, from_header, from_body;
 
     try {
-        from_formats = {
-            input_format: this.input_format,
-            output_format: this.output_format
-        };
-        from_formats = binding.CreateV8Node(from_formats);
+        from_formats = { //@
+            input_format: this.input_format, //@
+            output_format: this.output_format //@
+        }; //@
+        from_formats = binding.CreateV8Node(from_formats); //@
     } catch (err) {
         throw new YtError("Unable to parse formats", err);
     }

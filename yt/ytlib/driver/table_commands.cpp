@@ -85,12 +85,16 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     if (reader->GetTotalRowCount() > 0) {
-        BuildYsonMapFragmentFluently(context->Request().ResponseParametersConsumer)
-            .Item("start_row_index").Value(reader->GetTableRowIndex())
-            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
+            BuildYsonMapFragmentFluently(consumer)
+                .Item("start_row_index").Value(reader->GetTableRowIndex())
+                .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        });
     } else {
-        BuildYsonMapFragmentFluently(context->Request().ResponseParametersConsumer)
-            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
+            BuildYsonMapFragmentFluently(consumer)
+                .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        });
     }
 
     if (StartRowIndexOnly) {

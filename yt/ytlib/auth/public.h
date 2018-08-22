@@ -57,13 +57,16 @@ struct TCookieCredentials
     TString SessionId;
     TString SslSessionId;
     TString Domain;
+
     NNet::TNetworkAddress UserIP;
+    TNullable<TString> CsrfToken;
 };
 
 struct TAuthenticationResult
 {
     TString Login;
     TString Realm;
+    TNullable<TString> CsrfToken;
 };
 
 inline bool operator ==(

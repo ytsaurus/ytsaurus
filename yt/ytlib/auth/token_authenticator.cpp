@@ -174,7 +174,7 @@ public:
         if (!Config_->Secure) {
             path = Config_->RootPath + "/" + ToYPathLiteral(credentials.Token);
         } else {
-            path = Config_->RootPath + "/" + TSHA1Hasher()
+            path = Config_->RootPath + "/" + TSha1Hasher()
                 .Append(credentials.Token)
                 .GetHexDigestLower();
         }

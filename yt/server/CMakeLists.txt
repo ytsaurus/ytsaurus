@@ -16,8 +16,11 @@ target_link_libraries(yt-library-server
   yt-core-rpc-grpc
   deps-arcadia-library-http
   deps-arcadia-contrib-libs-msgpack
+  deps-arcadia-library-streams-lzop
+  deps-arcadia-library-string_utils-base64
 )
 
+add_subdirectory(http_proxy)
 
 ################################################################################
 
@@ -93,6 +96,21 @@ target_link_libraries(ytserver-proxy
 )
 
 set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+################################################################################
+
+add_executable(ytserver-http-proxy
+  ${CMAKE_CURRENT_LIST_DIR}/http_proxy_program/main.cpp
+)
+
+target_link_libraries(ytserver-http-proxy
+  yt-library-server
+  yt-library-server-http-proxy
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-http-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 
 ################################################################################
 
@@ -207,7 +225,7 @@ install(
 
 install(
   TARGETS
-    ytserver-proxy
+    ytserver-proxy ytserver-http-proxy
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
   COMPONENT cell_proxy
@@ -217,7 +235,7 @@ install(
   TARGETS
     ytserver-master ytserver-scheduler ytserver-node ytserver-proxy ytserver-controller-agent
     ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
-    ytserver-skynet-manager
+    ytserver-skynet-manager ytserver-http-proxy
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
   COMPONENT all_binaries

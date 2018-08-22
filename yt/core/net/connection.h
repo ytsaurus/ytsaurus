@@ -74,6 +74,9 @@ struct IConnection
     // active IO operations.
     virtual bool IsIdle() const = 0;
 
+    virtual bool SetNoDelay() = 0;
+    virtual bool SetKeepAlive() = 0;
+
     virtual TFuture<void> Abort() override = 0;
 };
 

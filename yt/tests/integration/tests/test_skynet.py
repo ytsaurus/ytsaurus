@@ -2,10 +2,10 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 import yt.yson as yson
+import yt.packages.requests as requests
 
 import json
 import random
-import requests
 import hashlib
 import pytest
 import subprocess

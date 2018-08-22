@@ -15,6 +15,57 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::tuple<ITokenAuthenticatorPtr, ICookieAuthenticatorPtr> CreateAuthenticators(
+    TAuthenticationManagerConfigPtr config,
+    IInvokerPtr invoker,
+    NApi::IClientPtr client)
+{
+    NAuth::ICookieAuthenticatorPtr cookieAuthenticator;
+    NAuth::ITokenAuthenticatorPtr tokenAuthenticator;
+    std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
+
+    IBlackboxServicePtr blackboxService;
+    if (config->BlackboxService && invoker) {
+        blackboxService = CreateDefaultBlackboxService(
+            config->BlackboxService,
+            invoker);
+    }
+
+    if (config->BlackboxTokenAuthenticator && blackboxService) {
+        tokenAuthenticators.push_back(
+            CreateCachingTokenAuthenticator(
+                config->BlackboxTokenAuthenticator,
+                CreateBlackboxTokenAuthenticator(
+                    config->BlackboxTokenAuthenticator,
+                    blackboxService)));
+    }
+
+    if (config->CypressTokenAuthenticator && client) {
+        tokenAuthenticators.push_back(
+            CreateCachingTokenAuthenticator(
+                config->CypressTokenAuthenticator,
+                CreateCypressTokenAuthenticator(
+                    config->CypressTokenAuthenticator,
+                    client)));
+    }
+
+    if (!tokenAuthenticators.empty()) {
+        tokenAuthenticator = CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators));
+    }
+
+    if (config->BlackboxCookieAuthenticator && blackboxService) {
+        cookieAuthenticator = CreateCachingCookieAuthenticator(
+            config->BlackboxCookieAuthenticator,
+            CreateBlackboxCookieAuthenticator(
+                config->BlackboxCookieAuthenticator,
+                std::move(blackboxService)));
+    }
+
+    return std::make_pair(tokenAuthenticator, cookieAuthenticator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAuthenticationManager::TImpl
 {
 public:
@@ -24,48 +75,13 @@ public:
         IClientPtr client)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
-        std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
-        IBlackboxServicePtr blackboxService;
-        if (config->BlackboxService && invoker) {
-            blackboxService = CreateDefaultBlackboxService(
-                config->BlackboxService,
-                invoker);
+        auto authenticators = CreateAuthenticators(config, invoker, client);
+        if (std::get<0>(authenticators)) {
+            rpcAuthenticators.push_back(CreateTokenAuthenticatorWrapper(std::get<0>(authenticators)));
         }
-
-        if (config->BlackboxTokenAuthenticator && blackboxService) {
-            tokenAuthenticators.push_back(
-                CreateCachingTokenAuthenticator(
-                    config->BlackboxTokenAuthenticator,
-                    CreateBlackboxTokenAuthenticator(
-                        config->BlackboxTokenAuthenticator,
-                        std::move(blackboxService))));
-        }
-
-        if (config->CypressTokenAuthenticator && client) {
-            tokenAuthenticators.push_back(
-                CreateCachingTokenAuthenticator(
-                    config->CypressTokenAuthenticator,
-                    CreateCypressTokenAuthenticator(
-                        config->CypressTokenAuthenticator,
-                        client)));
-        }
-
-        if (!tokenAuthenticators.empty()) {
-            rpcAuthenticators.push_back(
-                CreateTokenAuthenticatorWrapper(
-                    CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators))));
-
-        }
-
-        if (config->BlackboxCookieAuthenticator && blackboxService) {
-            rpcAuthenticators.push_back(
-                CreateCookieAuthenticatorWrapper(
-                    CreateCachingCookieAuthenticator(
-                    config->BlackboxCookieAuthenticator,
-                        CreateBlackboxCookieAuthenticator(
-                            config->BlackboxCookieAuthenticator,
-                            std::move(blackboxService)))));
+        if (std::get<1>(authenticators)) {
+            rpcAuthenticators.push_back(CreateCookieAuthenticatorWrapper(std::get<1>(authenticators)));
         }
 
         if (!config->RequireAuthentication) {
@@ -105,4 +121,3 @@ const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() con
 
 } // namespace NAuth
 } // namespace NYT
-
