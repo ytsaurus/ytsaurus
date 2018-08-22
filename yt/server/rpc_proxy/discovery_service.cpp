@@ -57,6 +57,7 @@ using NYT::ToProto;
 static const TString BanMessageAttributeName = "ban_message";
 static const TString ExpirationTimeAttributeName = "expiration_time";
 static const TString VersionAttributeName = "version";
+static const TString StartTimeAttributeName = "start_time";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,6 +175,11 @@ private:
             {
                 auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
                 req->set_value(ConvertToYsonString(GetVersion()).GetData());
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TYPathProxy::Set(path + "/@" + StartTimeAttributeName);
+                req->set_value(ConvertToYsonString(TInstant::Now().ToString()).GetData());
                 batchReq->AddRequest(req);
             }
             {

@@ -42,24 +42,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::array<char, 20> TSHA1Hash;
+typedef std::array<char, 20> TSha1Hash;
 
-TSHA1Hash SHA1FromString(TStringBuf data);
+TSha1Hash Sha1FromString(TStringBuf data);
 
-class TSHA1Hasher
+class TSha1Hasher
 {
 public:
-    TSHA1Hasher();
+    TSha1Hasher();
 
-    TSHA1Hasher& Append(TStringBuf data);
+    TSha1Hasher& Append(TStringBuf data);
 
-    TSHA1Hash GetDigest();
+    TSha1Hash GetDigest();
     TString GetHexDigestLower();
     TString GetHexDigestUpper();
 
 private:
     std::array<char, 96> CtxStorage_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString CreateSha256Hmac(const TString& key, const TString& message);
+bool ConstantTimeCompare(const TString& trusted, const TString& untrusted);
 
 ////////////////////////////////////////////////////////////////////////////////
 

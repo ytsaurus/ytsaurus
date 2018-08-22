@@ -127,7 +127,9 @@ private:
                 continue;
             }
 
-            LOG_DEBUG("Client accepted (RemoteAddress: %v)", client->RemoteAddress());
+            LOG_DEBUG("Client accepted (RemoteAddress: %v, LocalAddress: %v)",
+                client->RemoteAddress(),
+                client->LocalAddress());
             Poller_->GetInvoker()->Invoke(
                 BIND(&TServer::HandleClient, MakeStrong(this), std::move(client)));
         }

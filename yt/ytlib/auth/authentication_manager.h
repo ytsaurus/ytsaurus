@@ -13,6 +13,13 @@ namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::tuple<ITokenAuthenticatorPtr, ICookieAuthenticatorPtr> CreateAuthenticators(
+    TAuthenticationManagerConfigPtr config,
+    IInvokerPtr invoker,
+    NApi::IClientPtr client);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAuthenticationManager
     : public TRefCounted
 {

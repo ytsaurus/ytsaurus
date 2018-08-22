@@ -16,7 +16,7 @@ static constexpr i64 SkynetPartSize = 4_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Compute SHA1 of each block and rolling MD5.
+//! Compute Sha1 of each block and rolling MD5.
 class TSkynetHashState
 {
 public:
@@ -24,8 +24,8 @@ public:
     {
         MD5_.Append(data);
 
-        SHA1_ = TSHA1Hasher();
-        SHA1_.Append(data);
+        Sha1_ = TSha1Hasher();
+        Sha1_.Append(data);
     }
 
     TMD5Hash GetMD5()
@@ -34,14 +34,14 @@ public:
         return md5Copy.GetDigest();
     }
 
-    TSHA1Hash GetSHA1()
+    TSha1Hash GetSha1()
     {
-        return SHA1_.GetDigest();
+        return Sha1_.GetDigest();
     }
 
 private:
     TMD5Hasher MD5_;
-    TSHA1Hasher SHA1_;
+    TSha1Hasher Sha1_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +154,7 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
 
     HashState_->Update(data);
 
-    auto sha1Hash = HashState_->GetSHA1();
+    auto sha1Hash = HashState_->GetSha1();
     auto md5Hash = HashState_->GetMD5();
 
     *sha1 = MakeUnversionedStringValue(TStringBuf(sha1Hash.data(), sha1Hash.size()), Sha1Id_);

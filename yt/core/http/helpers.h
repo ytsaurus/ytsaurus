@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/yson/public.h>
+
 namespace NYT {
 namespace NHttp {
 
@@ -20,6 +22,10 @@ IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying);
 bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp);
 
 THashMap<TString, TString> ParseCookies(TStringBuf cookies);
+
+void ProtectCsrfToken(const IResponseWriterPtr& rsp);
+
+void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,14 +12,17 @@ THttpIOConfig::THttpIOConfig()
     RegisterParameter("read_buffer_size", ReadBufferSize)
         .Default(128_KB);
 
+    RegisterParameter("connection_idle_timeout", ConnectionIdleTimeout)
+        .Default(TDuration::Minutes(5));
+
     RegisterParameter("header_read_timeout", HeaderReadTimeout)
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("body_read_idle_timeout", BodyReadIdleTimeout)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Minutes(5));
 
     RegisterParameter("write_idle_timeout", WriteIdleTimeout)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

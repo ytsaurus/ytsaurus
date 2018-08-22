@@ -463,7 +463,7 @@ class YTEnvSetup(object):
         yt_commands.path_to_run_tests = cls.path_to_run
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
-        cls.Env.start(use_proxy_from_package=False, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+        cls.Env.start(use_proxy_from_package=False, use_new_proxy=True, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
         for index, env in enumerate(cls.remote_envs):
             env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 

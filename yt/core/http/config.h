@@ -17,6 +17,8 @@ class THttpIOConfig
 public:
     int ReadBufferSize;
 
+    TDuration ConnectionIdleTimeout;
+
     TDuration HeaderReadTimeout;
     TDuration BodyReadIdleTimeout;
 
