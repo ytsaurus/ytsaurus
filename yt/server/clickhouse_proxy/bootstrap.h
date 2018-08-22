@@ -28,6 +28,7 @@ public:
     const TClickHouseProxyServerConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetWorkerInvoker() const;
+    const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager() const;
 
     void Run();
 

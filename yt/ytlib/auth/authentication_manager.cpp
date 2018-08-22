@@ -70,9 +70,11 @@ public:
 
         if (!config->RequireAuthentication) {
             rpcAuthenticators.push_back(CreateNoopAuthenticator());
+            tokenAuthenticators.push_back(CreateNoopTokenAuthenticator());
         }
 
         RpcAuthenticator_ = CreateCompositeAuthenticator(std::move(rpcAuthenticators));
+        TokenAuthenticator_ = CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators));
     }
     
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const
@@ -80,8 +82,14 @@ public:
         return RpcAuthenticator_;
     }
 
+    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const
+    {
+        return TokenAuthenticator_;
+    }
+
 private:
-    NRpc::IAuthenticatorPtr RpcAuthenticator_;    
+    NRpc::IAuthenticatorPtr RpcAuthenticator_;
+    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +107,11 @@ TAuthenticationManager::TAuthenticationManager(
 const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() const
 {
     return Impl_->GetRpcAuthenticator();
+}
+
+const NAuth::ITokenAuthenticatorPtr& TAuthenticationManager::GetTokenAuthenticator() const
+{
+    return Impl_->GetTokenAuthenticator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

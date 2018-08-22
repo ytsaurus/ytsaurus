@@ -1046,5 +1046,25 @@ IAsyncZeroCopyInputStreamPtr CreateConcurrentAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PipeInputToOutput(
+    NConcurrency::IAsyncZeroCopyInputStreamPtr input,
+    NConcurrency::IAsyncOutputStreamPtr output)
+{
+    while (true) {
+        auto asyncBlock = input->Read();
+        auto block = WaitFor(asyncBlock)
+            .ValueOrThrow();
+        if (!block || block.Empty()) {
+            break;
+        }
+        WaitFor(output->Write(block))
+            .ThrowOnError();
+    }
+
+    WaitFor(output->Close());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NConcurrency
 } // namespace NYT

@@ -190,5 +190,11 @@ IAsyncZeroCopyInputStreamPtr CreateConcurrentAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PipeInputToOutput(
+    NConcurrency::IAsyncZeroCopyInputStreamPtr input,
+    NConcurrency::IAsyncOutputStreamPtr output);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NConcurrency
 } // namespace NYT
