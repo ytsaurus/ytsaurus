@@ -13,16 +13,16 @@ class TClickHouseProxy
     : public TRefCounted
 {
 public:
-    TClickHouseProxy(const TClickHouseProxyConfigPtr& config);
+    TClickHouseProxy(
+        const TClickHouseProxyConfigPtr& config,
+        TBootstrap* bootstrap);
 
     void HandleHttpRequest(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp) const;
 
-    void ReplyWithError(const NHttp::IResponseWriterPtr& rsp, NHttp::EStatusCode statusCode, TError error) const;
-
-    NApi::IClientPtr PrepareClient(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp) const;
-
 private:
     TClickHouseProxyConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+    NHttp::IClientPtr HttpClient_;
 
     // TODO(max42): implement rpc client cache.
     // TODO(max42): implement caching in discovery.

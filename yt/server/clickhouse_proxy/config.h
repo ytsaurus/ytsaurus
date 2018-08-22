@@ -20,11 +20,14 @@ class TClickHouseProxyConfig
 {
 public:
     TString DiscoveryPath;
+    NHttp::TClientConfigPtr HttpClient;
 
     TClickHouseProxyConfig()
     {
         RegisterParameter("discovery_path", DiscoveryPath)
             .Default("//sys/clickhouse/cliques");
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
     }
 };
 
@@ -34,7 +37,6 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseProxyConfig)
 
 class TClickHouseProxyServerConfig
     : public TServerConfig
-    , public NAuth::TAuthenticationManagerConfig
 {
 public:
     //! Proxy-to-master connection.
@@ -43,6 +45,8 @@ public:
     NHttp::TServerConfigPtr ClickHouseProxyHttpServer;
 
     TClickHouseProxyConfigPtr ClickHouseProxy;
+
+    NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
 
     TClickHouseProxyServerConfig()
     {
@@ -56,6 +60,8 @@ public:
         RegisterParameter("clickhouse_proxy", ClickHouseProxy)
             .DefaultNew();
 
+        RegisterParameter("authentication_manager", AuthenticationManager)
+            .DefaultNew();
 
         RegisterPreprocessor([&] {
             // Default for clickhouse.
@@ -63,11 +69,8 @@ public:
         });
 
         RegisterPostprocessor([&] {
-            if (BlackboxCookieAuthenticator) {
+            if (AuthenticationManager->BlackboxCookieAuthenticator) {
                 THROW_ERROR_EXCEPTION("Blackbox cookie authenticator is not supported in clickhouse proxy");
-            }
-            if (CypressTokenAuthenticator) {
-                THROW_ERROR_EXCEPTION("Cypress token authenticator is not supported in clickhouse proxy");
             }
         });
     }

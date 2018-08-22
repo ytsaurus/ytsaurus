@@ -81,7 +81,7 @@ void TBootstrap::DoRun()
     LOG_INFO("Starting clickhouse proxy");
 
     AuthenticationManager_ = New<TAuthenticationManager>(
-        Config_,
+        Config_->AuthenticationManager,
         GetControlInvoker(),
         nullptr /* client */);
 
@@ -122,7 +122,7 @@ void TBootstrap::DoRun()
     LOG_INFO("Listening for monitoring HTTP requests on port %v", Config_->MonitoringPort);
     MonitoringHttpServer_->Start();
 
-    ClickHouseProxy_ = New<TClickHouseProxy>(Config_->ClickHouseProxy);
+    ClickHouseProxy_ = New<TClickHouseProxy>(Config_->ClickHouseProxy, this /* bootstrap */);
 
     LOG_INFO("Listening for clickhouse HTTP requests on port %v", Config_->ClickHouseProxyHttpServer->Port);
     ClickHouseProxyServer_ = NHttp::CreateServer(Config_->ClickHouseProxyHttpServer);
@@ -146,6 +146,10 @@ const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
     return WorkerPool_->GetInvoker();
 }
 
+const TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager() const
+{
+    return AuthenticationManager_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

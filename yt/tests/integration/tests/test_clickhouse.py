@@ -17,10 +17,6 @@ class TestClickhouse(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    def __init__(self, *args, **kwargs):
-        self._is_set_up = False
-        super(TestClickhouse, self).__init__(*args, **kwargs)
-
     def _start_clique(self, instance_count, max_failed_job_count=1, **kwargs):
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           host_ytserver_clickhouse_path=self._ytserver_clickhouse_binary,
@@ -53,11 +49,11 @@ class TestClickhouse(YTEnvSetup):
         return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
 
     def setup(self):
-        if self._is_set_up:
-            return
-        self._is_set_up = True
         self._clickhouse_client_binary = find_executable("clickhouse")
         self._ytserver_clickhouse_binary = find_executable("ytserver-clickhouse")
+
+        if exists("//sys/clickhouse"):
+            return
 
         create("map_node", "//sys/clickhouse")
         if self._clickhouse_client_binary is None or self._ytserver_clickhouse_binary is None:
@@ -135,4 +131,4 @@ class TestClickhouse(YTEnvSetup):
             self._make_query(clique, 'select avg(b) from "//tmp/t"')
         #assert abs(float(self._make_query(clique, 'select avg(a) from "//tmp/t[#2:#9]"')) - 5.0) < 1e-6
 
-
+        raw_input()
