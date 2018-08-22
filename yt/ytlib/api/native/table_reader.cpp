@@ -317,7 +317,7 @@ private:
             auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
             const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
-            auto columnFilter = ColumnFilter_.All
+            auto columnFilter = ColumnFilter_.IsUniversal()
                 ? CreateColumnFilter(dataSource.Columns(), NameTable_)
                 : ColumnFilter_;
 

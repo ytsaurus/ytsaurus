@@ -453,8 +453,8 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
 
-    if (!options.ColumnFilter.All) {
-        for (auto id : options.ColumnFilter.Indexes) {
+    if (!options.ColumnFilter.IsUniversal()) {
+        for (auto id : options.ColumnFilter.GetIndexes()) {
             req->add_columns(TString(nameTable->GetName(id)));
         }
     }
@@ -485,8 +485,8 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
 
-    if (!options.ColumnFilter.All) {
-        for (auto id : options.ColumnFilter.Indexes) {
+    if (!options.ColumnFilter.IsUniversal()) {
+        for (auto id : options.ColumnFilter.GetIndexes()) {
             req->add_columns(TString(nameTable->GetName(id)));
         }
     }

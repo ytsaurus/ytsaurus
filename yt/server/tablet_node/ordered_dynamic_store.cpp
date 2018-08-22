@@ -78,13 +78,13 @@ public:
             return;
         }
 
-        if (MaybeColumnFilter_->All) {
-            MaybeColumnFilter_->All = false;
-            MaybeColumnFilter_->Indexes.clear();
+        if (MaybeColumnFilter_->IsUniversal()) {
+            TColumnFilter::TIndexes columnFilterIndexes;
             // +2 is for (tablet_index, row_index).
             for (int id = 0; id < static_cast<int>(Store_->Schema_.Columns().size()) + 2; ++id) {
-                MaybeColumnFilter_->Indexes.push_back(id);
+                columnFilterIndexes.push_back(id);
             }
+            MaybeColumnFilter_.Emplace(std::move(columnFilterIndexes));
         }
 
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
@@ -140,10 +140,10 @@ private:
             return dynamicRow;
         }
 
-        int columnCount = static_cast<int>(MaybeColumnFilter_->Indexes.size());
+        ui32 columnCount = static_cast<ui32>(MaybeColumnFilter_->GetIndexes().size());
         auto row = TMutableUnversionedRow::Allocate(Pool_.get(), columnCount);
         for (int index = 0; index < columnCount; ++index) {
-            int id = MaybeColumnFilter_->Indexes[index];
+            ui16 id = static_cast<ui16>(MaybeColumnFilter_->GetIndexes()[index]);
             auto& dstValue = row[index];
             if (id == 0) {
                 dstValue = MakeUnversionedInt64Value(TabletIndex_, id);

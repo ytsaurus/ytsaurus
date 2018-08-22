@@ -1212,22 +1212,23 @@ private:
         const TNameTableToSchemaIdMapping& idMapping,
         const TNameTablePtr& nameTable)
     {
-        NTableClient::TColumnFilter remappedColumnFilter(columnFilter);
-        if (!remappedColumnFilter.All) {
-            for (auto& index : remappedColumnFilter.Indexes) {
-                if (index < 0 || index >= idMapping.size()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Column filter contains invalid index: actual %v, expected in range [0, %v]",
-                        index,
-                        idMapping.size() - 1);
-                }
-                if (idMapping[index] == -1) {
-                    THROW_ERROR_EXCEPTION("Invalid column %Qv in column filter", nameTable->GetName(index));
-                }
-                index = idMapping[index];
-            }
+        if (columnFilter.IsUniversal()) {
+            return columnFilter;
         }
-        return remappedColumnFilter;
+        auto remappedFilterIndexes = columnFilter.GetIndexes();
+        for (auto& index : remappedFilterIndexes) {
+            if (index < 0 || index >= idMapping.size()) {
+                THROW_ERROR_EXCEPTION(
+                    "Column filter contains invalid index: actual %v, expected in range [0, %v]",
+                    index,
+                    idMapping.size() - 1);
+            }
+            if (idMapping[index] == -1) {
+                THROW_ERROR_EXCEPTION("Invalid column %Qv in column filter", nameTable->GetName(index));
+            }
+            index = idMapping[index];
+        }
+        return NTableClient::TColumnFilter(std::move(remappedFilterIndexes));
     }
 
     IUnversionedRowsetPtr DoLookupRows(
@@ -1241,10 +1242,10 @@ private:
             const std::vector<TUnversionedRow>& remappedKeys) -> std::vector<TSharedRef>
         {
             TReqLookupRows req;
-            if (remappedColumnFilter.All) {
+            if (remappedColumnFilter.IsUniversal()) {
                 req.clear_column_filter();
             } else {
-                ToProto(req.mutable_column_filter()->mutable_indexes(), remappedColumnFilter.Indexes);
+                ToProto(req.mutable_column_filter()->mutable_indexes(), remappedColumnFilter.GetIndexes());
             }
             TWireProtocolWriter writer;
             writer.WriteCommand(EWireProtocolCommand::LookupRows);
@@ -1291,10 +1292,10 @@ private:
             const std::vector<TUnversionedRow>& remappedKeys) -> std::vector<TSharedRef>
         {
             TReqVersionedLookupRows req;
-            if (remappedColumnFilter.All) {
+            if (remappedColumnFilter.IsUniversal()) {
                 req.clear_column_filter();
             } else {
-                ToProto(req.mutable_column_filter()->mutable_indexes(), remappedColumnFilter.Indexes);
+                ToProto(req.mutable_column_filter()->mutable_indexes(), remappedColumnFilter.GetIndexes());
             }
             TWireProtocolWriter writer;
             writer.WriteCommand(EWireProtocolCommand::VersionedLookupRows);
@@ -1589,11 +1590,11 @@ private:
         }
     }
 
-    std::vector<int> BuildResponseIdMaping(const NTableClient::TColumnFilter& remappedColumnFilter)
+    std::vector<int> BuildResponseIdMapping(const NTableClient::TColumnFilter& remappedColumnFilter)
     {
         std::vector<int> mapping;
-        for (int index = 0; index < remappedColumnFilter.Indexes.size(); ++index) {
-            int id = remappedColumnFilter.Indexes[index];
+        for (int index = 0; index < remappedColumnFilter.GetIndexes().size(); ++index) {
+            int id = remappedColumnFilter.GetIndexes()[index];
             if (id >= mapping.size()) {
                 mapping.resize(id + 1, -1);
             }
@@ -1884,9 +1885,8 @@ private:
             }
         }
 
-        if (!remappedColumnFilter.All) {
-            auto mapping = BuildResponseIdMaping(remappedColumnFilter);
-            RemapValueIds(TRow(), uniqueResultRows, mapping);
+        if (!remappedColumnFilter.IsUniversal()) {
+            RemapValueIds(TRow(), uniqueResultRows, BuildResponseIdMapping(remappedColumnFilter));
         }
 
         std::vector<TTypeErasedRow> resultRows;
@@ -4916,7 +4916,7 @@ private:
                 continue;
             }
 
-            auto briefProgress = getYson(row[columnFilter.GetIndex(tableIndex.BriefProgress)]);
+            auto briefProgress = getYson(row[columnFilter.GetPosition(tableIndex.BriefProgress)]);
             if (!countingFilter.FilterByFailedJobs(briefProgress)) {
                 continue;
             }
@@ -4924,24 +4924,24 @@ private:
             TOperation operation;
 
             TGuid operationId(
-                row[columnFilter.GetIndex(tableIndex.IdHi)].Data.Uint64,
-                row[columnFilter.GetIndex(tableIndex.IdLo)].Data.Uint64);
+                row[columnFilter.GetPosition(tableIndex.IdHi)].Data.Uint64,
+                row[columnFilter.GetPosition(tableIndex.IdLo)].Data.Uint64);
 
             operation.Id = operationId;
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.OperationType)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.OperationType)) {
                 operation.Type = ParseEnum<EOperationType>(getString(row[*indexOrNull], "operation_type"));
             }
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.State)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.State)) {
                 operation.State = ParseEnum<EOperationState>(getString(row[*indexOrNull], "state"));
             }
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.AuthenticatedUser)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.AuthenticatedUser)) {
                 operation.AuthenticatedUser = TString(getString(row[*indexOrNull], "authenticated_user"));
             }
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.StartTime)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.StartTime)) {
                 auto value = row[*indexOrNull];
                 if (value.Type == EValueType::Null) {
                     THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in operations archive");
@@ -4949,34 +4949,34 @@ private:
                 operation.StartTime = TInstant::MicroSeconds(value.Data.Int64);
             }
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.FinishTime)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.FinishTime)) {
                 if (row[*indexOrNull].Type != EValueType::Null) {
                     operation.FinishTime = TInstant::MicroSeconds(row[*indexOrNull].Data.Int64);
                 }
             }
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.BriefSpec)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.BriefSpec)) {
                 operation.BriefSpec = getYson(row[*indexOrNull]);
             }
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.FullSpec)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.FullSpec)) {
                 operation.FullSpec = getYson(row[*indexOrNull]);
             }
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.Spec)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Spec)) {
                 operation.Spec = getYson(row[*indexOrNull]);
             }
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.UnrecognizedSpec)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.UnrecognizedSpec)) {
                 operation.UnrecognizedSpec = getYson(row[*indexOrNull]);
             }
 
             if (needBriefProgress) {
                 operation.BriefProgress = std::move(briefProgress);
             }
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.Progress)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Progress)) {
                 operation.Progress = getYson(row[*indexOrNull]);
             }
 
             if (DoGetOperationsArchiveVersion() >= 22) {
-                if (auto indexOrNull = columnFilter.FindIndex(tableIndex.RuntimeParameters)) {
+                if (auto indexOrNull = columnFilter.FindPosition(tableIndex.RuntimeParameters)) {
                     operation.RuntimeParameters = getYson(row[*indexOrNull]);
                 }
 
@@ -4985,10 +4985,10 @@ private:
                 }
             }
 
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.Events)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Events)) {
                 operation.Events = getYson(row[*indexOrNull]);
             }
-            if (auto indexOrNull = columnFilter.FindIndex(tableIndex.Result)) {
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Result)) {
                 operation.Result = getYson(row[*indexOrNull]);
             }
 
@@ -5981,7 +5981,7 @@ private:
         const NTableClient::TColumnFilter& columnFilter,
         int columnIndex)
     {
-        auto valueIndexOrNull = columnFilter.FindIndex(columnIndex);
+        auto valueIndexOrNull = columnFilter.FindPosition(columnIndex);
         if (valueIndexOrNull && row[*valueIndexOrNull].Type != EValueType::Null) {
             fluent.Item(key).Value(FromUnversionedValue<TValue>(row[*valueIndexOrNull]));
         }
@@ -6056,21 +6056,21 @@ private:
         const auto& columnFilter = lookupOptions.ColumnFilter;
 
         auto resultOperationId = TGuid(
-            row[columnFilter.GetIndex(table.Index.OperationIdHi)].Data.Uint64,
-            row[columnFilter.GetIndex(table.Index.OperationIdLo)].Data.Uint64);
+            row[columnFilter.GetPosition(table.Index.OperationIdHi)].Data.Uint64,
+            row[columnFilter.GetPosition(table.Index.OperationIdLo)].Data.Uint64);
         auto resultJobId = TGuid(
-            row[columnFilter.GetIndex(table.Index.JobIdHi)].Data.Uint64,
-            row[columnFilter.GetIndex(table.Index.JobIdLo)].Data.Uint64);
+            row[columnFilter.GetPosition(table.Index.JobIdHi)].Data.Uint64,
+            row[columnFilter.GetPosition(table.Index.JobIdLo)].Data.Uint64);
 
         TStringBuf state;
         {
-            auto value = row[columnFilter.GetIndex(table.Index.State)];
+            auto value = row[columnFilter.GetPosition(table.Index.State)];
             if (value.Type != EValueType::Null) {
                 state = FromUnversionedValue<TStringBuf>(value);
             }
         }
         if (!state.IsInited() && archiveVersion >= 16) {
-            auto value = row[columnFilter.GetIndex(table.Index.TransientState)];
+            auto value = row[columnFilter.GetPosition(table.Index.TransientState)];
             if (value.Type != EValueType::Null) {
                 state = FromUnversionedValue<TStringBuf>(value);
             }
@@ -6079,7 +6079,7 @@ private:
         // NB: We need a separate function for |TInstant| because it has type "int64" in table
         // but |FromUnversionedValue<TInstant>| expects it to be "uint64".
         auto tryAddInstantFluentItem = [&] (TFluentMap fluent, TStringBuf key, int columnIndex) {
-            auto valueIndexOrNull = columnFilter.FindIndex(columnIndex);
+            auto valueIndexOrNull = columnFilter.FindPosition(columnIndex);
             if (valueIndexOrNull && row[*valueIndexOrNull].Type != EValueType::Null) {
                 fluent.Item(key).Value(TInstant::MicroSeconds(row[*valueIndexOrNull].Data.Int64));
             }
