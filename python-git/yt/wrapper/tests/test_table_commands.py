@@ -8,10 +8,11 @@ from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
 
-from yt.local import start, stop
 from yt.yson import YsonMap
 
 from yt.packages.six.moves import xrange, map as imap
+
+from yt.local import start, stop
 
 import yt.wrapper as yt
 
@@ -105,20 +106,6 @@ class TestTableCommands(object):
             path = yt.TablePath("to/table", attributes={"my_attr": 10})
             assert path.attributes["my_attr"] == 10
             assert str(path) == "//path/to/table"
-
-        if yt_env.version.startswith("18.5"):
-            def mapper(rec):
-                yield {"x": 1, "y": 2}
-
-            table = TEST_DIR + "/table"
-            yt.write_table(table, [{"key": "value"}])
-
-            schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
-            output_path = yt.TablePath(TEST_DIR + "/output", schema=schema)
-            yt.run_map(mapper, table, output_path, format="yson")
-
-            assert sorted([column["name"] for column in yt.get(TEST_DIR + "/output/@schema")]) == ["x", "y"]
-            assert parse_bool(yt.get(TEST_DIR + "/output/@schema").attributes["strict"]) == True
 
         path = yt.TablePath("//path/to/table", exact_key="test_key")
         path.canonize_exact_ranges()
@@ -693,7 +680,7 @@ class TestTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_proxy_from_yt_source=True)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_new_proxy=True)
             second_cluster_client = instance.create_client()
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             yt.set("//sys/clusters", {"second_cluster": second_cluster_connection})
@@ -870,7 +857,7 @@ class TestTableCommands(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True, use_proxy_from_yt_source=True)
+            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True, use_new_proxy=True)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["driver"]
             client.config["backend"] = yt.config["backend"]

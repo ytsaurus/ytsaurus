@@ -446,7 +446,7 @@ class YTInstance(object):
         else:
             self._wait_functions.append(function)
 
-    def start(self, use_proxy_from_package=True, start_secondary_master_cells=False, on_masters_started_func=None):
+    def start(self, use_proxy_from_package=True, use_new_proxy=False, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
         self._all_processes.clear()
 
@@ -457,7 +457,7 @@ class YTInstance(object):
         self.pids_file = open(self.pids_filename, "wt")
         try:
             if self.has_proxy:
-                self.start_proxy(use_proxy_from_package=use_proxy_from_package, sync=False)
+                self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
 
             self.start_master_cell(sync=False)
 
@@ -1160,10 +1160,12 @@ class YTInstance(object):
                    "-c", self.config_paths["proxy"]],
                    "proxy")
 
-    def start_proxy(self, use_proxy_from_package, sync=True):
+    def start_proxy(self, use_proxy_from_package, use_new_proxy=False, sync=True):
         logger.info("Starting proxy")
         if use_proxy_from_package:
             self._start_proxy_from_package()
+        elif use_new_proxy:
+            self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["proxy"]], "proxy")
         else:
             if not which("run_proxy.sh"):
                 raise YtError("Failed to start proxy from source tree. "
