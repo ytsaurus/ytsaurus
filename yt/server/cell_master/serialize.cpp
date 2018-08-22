@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 803;
+    return 804;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -81,7 +81,8 @@ bool ValidateSnapshotVersion(int version)
         version == 800 || // savrus: Multicell for dynamic tables
         version == 801 || // savrus: Make tablet_state backward-compatible
         version == 802 || // aozeritsky: Add replica options
-        version == 803;   // savrus: Add primary last mount transaction id
+        version == 803 || // savrus: Add primary last mount transaction id
+        version == 804;   // shakurov: Remove TTransaction::System
 }
 
 ////////////////////////////////////////////////////////////////////////////////

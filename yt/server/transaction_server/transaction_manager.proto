@@ -16,7 +16,6 @@ message TReqStartTransaction
 
     required int64 timeout = 4;
     required string user_name = 5;
-    optional bool system = 7;
 
     repeated int32 replicate_to_cell_tags = 9;
 }

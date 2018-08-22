@@ -131,11 +131,6 @@ void ThrowCannotMoveFromAnotherTransaction()
     THROW_ERROR_EXCEPTION("Moving nodes of other transactions is not allowed");
 }
 
-void ThrowCannotCopyFromSystemTransaction()
-{
-    THROW_ERROR_EXCEPTION("Copying nodes of system transactions is not allowed");
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

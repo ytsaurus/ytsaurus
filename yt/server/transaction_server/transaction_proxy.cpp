@@ -85,7 +85,6 @@ private:
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::ResourceUsage);
         descriptors->push_back(EInternedAttributeKey::MulticellResourceUsage);
-        descriptors->push_back(EInternedAttributeKey::System);
         descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
     }
@@ -164,11 +163,6 @@ private:
                     .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
                         fluent.Item().Value(lock->GetId());
                     });
-                return true;
-
-            case EInternedAttributeKey::System:
-                BuildYsonFluently(consumer)
-                    .Value(transaction->GetSystem());
                 return true;
 
             case EInternedAttributeKey::PrerequisiteTransactionIds:
