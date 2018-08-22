@@ -53,12 +53,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObjectBase*>, ImportedObjects);
 
-    // A flag marking special transactions that directly mutate chunk
-    // lists. Exposing such nodes (e.g. via copying them to outside
-    // transactions) would lead to inconsistencies and is therefore prohibited.
-    // In particular, upload transactions are marked as system.
-    DEFINE_BYVAL_RW_PROPERTY(bool, System);
-
     // Cypress stuff
     typedef THashSet<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);

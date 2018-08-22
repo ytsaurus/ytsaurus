@@ -226,7 +226,6 @@
     XX(StoredReplicas, stored_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \
-    XX(System, system) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \

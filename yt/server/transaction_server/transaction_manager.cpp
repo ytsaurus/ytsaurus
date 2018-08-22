@@ -187,8 +187,7 @@ public:
         TNullable<TDuration> timeout,
         const TNullable<TString>& title,
         const IAttributeDictionary& attributes,
-        const TTransactionId& hintId,
-        bool system)
+        const TTransactionId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -217,7 +216,6 @@ public:
 
         transaction->SetState(ETransactionState::Active);
         transaction->SecondaryCellTags() = secondaryCellTags;
-        transaction->SetSystem(system || parent && parent->GetSystem());
 
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -266,14 +264,13 @@ public:
             if (title) {
                 startRequest.set_title(*title);
             }
-            startRequest.set_system(transaction->GetSystem());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(startRequest, replicateToCellTags);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "SecondaryCellTags: %v, Timeout: %v, Title: %v, System: %v)",
+            "SecondaryCellTags: %v, Timeout: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableRange(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
@@ -281,8 +278,7 @@ public:
             }),
             transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
-            title,
-            transaction->GetSystem());
+            title);
 
         return transaction;
     }
@@ -693,8 +689,6 @@ private:
 
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
-        auto system = request->has_system() && request->system();
-
         auto timeout = FromProto<TDuration>(request->timeout());
 
         TCellTagList secondaryCellTags;
@@ -716,8 +710,7 @@ private:
             timeout,
             title,
             *attributes,
-            hintId,
-            system);
+            hintId);
         const auto& id = transaction->GetId();
 
         if (response) {
@@ -1004,8 +997,7 @@ TTransaction* TTransactionManager::StartTransaction(
     TNullable<TDuration> timeout,
     const TNullable<TString>& title,
     const IAttributeDictionary& attributes,
-    const TTransactionId& hintId,
-    bool isSystem)
+    const TTransactionId& hintId)
 {
     return Impl_->StartTransaction(
         parent,
@@ -1015,8 +1007,7 @@ TTransaction* TTransactionManager::StartTransaction(
         timeout,
         title,
         attributes,
-        hintId,
-        isSystem);
+        hintId);
 }
 
 void TTransactionManager::CommitTransaction(

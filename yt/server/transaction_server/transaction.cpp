@@ -61,7 +61,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, StagedNodes_);
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
-    Save(context, System_);
     Save(context, PrerequisiteTransactions_);
     Save(context, DependentTransactions_);
 }
@@ -96,8 +95,8 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 702) {
-        Load(context, System_);
+    if (context.GetVersion() >= 702 && context.GetVersion() < 804) {
+        Load<bool>(context); // drop System_
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 706) {
