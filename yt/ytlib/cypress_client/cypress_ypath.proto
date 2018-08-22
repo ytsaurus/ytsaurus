@@ -43,7 +43,6 @@ message TRspCreate
 message TReqCopy
 {
     required string source_path = 1;
-    optional NYT.NProto.TGuid source_transaction_id = 8;
     optional bool preserve_account = 2 [default = false];
     // "move" is actually "copy" with "remove_source" set to true.
     optional bool remove_source = 3 [default = false];
