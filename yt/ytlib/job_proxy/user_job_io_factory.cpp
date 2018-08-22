@@ -274,7 +274,7 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        YCHECK(nameTable->GetSize() == 0 && columnFilter.All);
+        YCHECK(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
@@ -494,7 +494,7 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        YCHECK(nameTable->GetSize() == 0 && columnFilter.All);
+        YCHECK(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
 
