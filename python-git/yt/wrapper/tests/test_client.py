@@ -26,7 +26,6 @@ class TestClient(object):
         client = yt.YtClient(config=yt.config.config)
 
         other_client = yt.YtClient(config=yt.config.config)
-        other_client.config["proxy"]["force_ipv4"] = True
         other_client.config["tabular_data_format"] = yt.JsonFormat()
 
         deepcopy(client)

@@ -18,12 +18,13 @@ from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, Vanil
 from yt.wrapper.skiff import convert_to_skiff_schema
 
 from yt.test_helpers import are_almost_equal
-from yt.local import start, stop
 
 from yt.yson import YsonMap, YsonList
 from yt.skiff import SkiffTableSwitch
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
+
+from yt.local import start, stop
 
 from yt.packages.six import b
 from yt.packages.six.moves import xrange, zip as izip
@@ -1161,7 +1162,7 @@ print(op.id)
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_new_proxy=True)
             second_cluster_client = instance.create_client()
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             second_cluster_client.create("map_node", TEST_DIR)
