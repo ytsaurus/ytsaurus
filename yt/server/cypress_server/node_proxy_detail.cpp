@@ -1335,34 +1335,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto recursive = request->recursive();
     auto force = request->force();
     auto targetPath = GetRequestYPath(context->RequestHeader());
-    auto* sourceTransaction = Transaction;
-    auto hasSourceTransactionId = request->has_source_transaction_id();
-    if (hasSourceTransactionId) {
-        auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        sourceTransaction = transactionManager->GetTransactionOrThrow(sourceTransactionId);
-    }
 
-    context->SetRequestInfo("SourcePath: %v, SourceTransactionId: %v (%v), "
+    context->SetRequestInfo("SourcePath: %v, SourceTransactionId: % "
         "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
         "RemoveSource: %v, Recursive: %v, Force: %v",
         sourcePath,
-        sourceTransaction ? sourceTransaction->GetId() : TTransactionId(),
-        hasSourceTransactionId ? "explicit" : "implicit",
+        Transaction ? Transaction->GetId() : TTransactionId(),
         preserveAccount,
         preserveExpirationTime,
         preserveCreationTime,
         removeSource,
         recursive,
         force);
-
-    if (hasSourceTransactionId && removeSource && sourceTransaction != Transaction) {
-        ThrowCannotMoveFromAnotherTransaction();
-    }
-
-    if (sourceTransaction && sourceTransaction->GetSystem()) {
-        ThrowCannotCopyFromSystemTransaction();
-    }
 
     bool replace = targetPath.empty();
     if (replace && !force) {
@@ -1382,12 +1366,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, sourceTransaction);
+    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction);
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
         ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
-        : cypressManager->GetVersionedNode(trunkSourceImpl, sourceTransaction);
+        : cypressManager->GetVersionedNode(trunkSourceImpl, Transaction);
 
     if (IsAncestorOf(trunkSourceImpl, TrunkNode)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
