@@ -104,7 +104,7 @@ TEST(TChunkRequisitionTest, SelfAggregate)
     TChunkRequisition requisition(account1.get(), 0, TReplicationPolicy(3, false), true);
     requisition |= TChunkRequisition(account3.get(), 5, TReplicationPolicy(4, false), false);
     auto requisitionCopy = requisition;
-    requisition |= requisition;
+    requisition |= static_cast<TChunkRequisition&>(requisition);
     ASSERT_EQ(requisition, requisitionCopy);
 }
 
