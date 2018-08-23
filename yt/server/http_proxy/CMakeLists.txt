@@ -7,4 +7,9 @@ add_library(yt-library-server-http-proxy ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-server-http-proxy
   yt-core-https
-  yt-library-server)
+  yt-library-ytlib
+  yt-library-ytlib-auth
+  yt-library-server-misc
+  deps-arcadia-library-string_utils-base64
+  deps-arcadia-library-streams-lzop
+)

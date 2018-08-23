@@ -57,7 +57,7 @@
 #include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
-namespace NCellProxy {
+namespace NRpcProxy {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -241,5 +241,5 @@ const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellProxy
+} // namespace NRpcProxy
 } // namespace NYT

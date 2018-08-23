@@ -12,4 +12,5 @@ target_link_libraries(unittester-ytserver
   yt-core-test-framework
   yt-library-ytlib
   yt-library-server
+  yt-library-server-rpc-proxy
 )
