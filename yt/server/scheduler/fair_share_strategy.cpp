@@ -838,8 +838,10 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operationId);
-        for (const auto& job : jobs) {
-            element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
+        if (element) {
+            for (const auto& job : jobs) {
+                element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
+            }
         }
     }
 
