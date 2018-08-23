@@ -1208,7 +1208,7 @@ class YTInstance(object):
             self._validate_processes_are_running("rpc_proxy")
 
             proxies = native_client.get("//sys/rpc_proxies")
-            return len(proxies) == 1 and "alive" in proxies.values()[0]
+            return len(proxies) == 1 and all("alive" in proxy for proxy in proxies.values())
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
 
