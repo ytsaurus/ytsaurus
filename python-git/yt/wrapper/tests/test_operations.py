@@ -1162,7 +1162,7 @@ print(op.id)
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_new_proxy=True)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_new_proxy=False)
             second_cluster_client = instance.create_client()
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             second_cluster_client.create("map_node", TEST_DIR)
