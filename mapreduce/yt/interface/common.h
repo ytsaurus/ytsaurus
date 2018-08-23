@@ -273,6 +273,10 @@ struct TRichYPath
     // (instead it's transaction timestamp, that is more complex structure).
     FLUENT_FIELD_OPTION(i64, Timestamp);
 
+    // Specifiy transaction that should be used to access this path.
+    // Allows to start cross-transactional operations.
+    FLUENT_FIELD_OPTION(TTransactionId, TransactionId);
+
     TRichYPath()
     { }
 
