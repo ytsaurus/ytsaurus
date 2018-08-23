@@ -63,7 +63,7 @@ message TPodAgentStatus {
 
     repeated TVolumeStatus Volumes = 4;
 
-    repeated TLayerStatus Layers = 5;
+    TResourceGangStatus ResourceGang = 5;
 
     repeated TWorkloadStatus Workloads = 6;
 
@@ -397,7 +397,7 @@ message TResourceGang {
     //окружение для своего сервиса. По сути это аналог деплоя готовых docker образов.
     repeated TLayer Layers = 2;
 
-    repeated TResource Resources = 3;
+    repeated TResource StaticResources = 3;
 }
 
 // ======================  STATUS ===================
@@ -638,6 +638,29 @@ enum ELayerState {
     ELayerState_INVALID = 7 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
+//Статический ресурс при скачивании и проверке проиходит через несколько стадий
+enum EStaticResourceState {
+    EStaticResourceState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    //в процессе скачивания
+    EStaticResourceState_DOWNLOADING = 1 [(NYT.NYson.NProto.enum_value_name) = "downloading"];
+
+    //Проверка контрольной суммы
+    EStaticResourceState_VERIFYING = 2 [(NYT.NYson.NProto.enum_value_name) = "verifying"];
+
+    // Соотвествует процессу удаления ресурса
+    EStaticResourceState_REMOVING = 3 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+
+    // Соотвествует удалённому ресурсу
+    EStaticResourceState_REMOVED = 4 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    //готов к использованию
+    EStaticResourceState_READY = 5 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+
+    // Ресурс находится в невалидном состоянии
+    EStaticResourceState_INVALID = 7 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+}
+
 //TODO: нужно придумать как сделать прогресс скачивания
 message TLayerStatus {
     string Id = 1;
@@ -663,6 +686,38 @@ message TLayerStatus {
 
     // Ревизия к которой относится layer
     uint32 Revision = 9;
+}
+
+message TStaticResourceStatus {
+    string Id = 1;
+
+    EStaticResourceState State = 2;
+
+    //NOTE: нет гарантии монотонно растущих счётчиков, т.к. их значения могут быть удалены на хосте
+    //Количество попыток скачать ресурс
+    uint32 DownloadAttemptsCounter = 3;
+
+    //Количество попыток проверить контрольную сумму
+    uint32 VerificationAttemptsCounter = 4;
+
+    //Общее количество ошибок связанное с ресурсом
+    uint32 FailCounter = 5;
+
+    //Неструктурированное описание последней ошибки связанной с ресурсом
+    string FailReason = 6;
+
+    TCondition Ready = 7;
+
+    TCondition InProgress = 8;
+
+    // Ревизия к которой относится layer
+    uint32 Revision = 9;
+}
+
+message TResourceGangStatus {
+    repeated TLayerStatus Layers = 1;
+
+    repeated TStaticResourceStatus StaticResources = 2;
 }
 
 enum EVolumeState {
