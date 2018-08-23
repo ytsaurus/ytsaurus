@@ -1,6 +1,8 @@
 #include <yt/build/build.h>
 
-#include <yt/core/ya_version/ya_version.h>
+#if defined(YT_IN_ARCADIA)
+#include <yt/build/ya_version.h>
+#endif
 
 #include <util/system/compiler.h>
 
