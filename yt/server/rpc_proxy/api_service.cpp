@@ -504,7 +504,7 @@ private:
             return nullptr;
         }
 
-        {
+        if (options.Sticky) {
             // Fast path.
             auto guard = Guard(SpinLock_);
             auto it = Transactions_.find(transactionId);
@@ -521,6 +521,10 @@ private:
                 "No such transaction %v",
                 transactionId));
             return nullptr;
+        }
+
+        if (!options.Sticky) {
+            return New<TWrappedTransaction>(transaction);
         }
 
         auto newTransaction = false;
@@ -1232,9 +1236,6 @@ private:
         }
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
-        }
-        if (request->has_source_transaction_id()) {
-            options.SourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

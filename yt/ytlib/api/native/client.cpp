@@ -2658,9 +2658,6 @@ private:
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
         req->set_source_path(srcPath);
-        if (!options.SourceTransactionId.IsEmpty()) {
-            ToProto(req->mutable_source_transaction_id(), options.SourceTransactionId);
-        }
         req->set_preserve_account(options.PreserveAccount);
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_preserve_creation_time(options.PreserveCreationTime);

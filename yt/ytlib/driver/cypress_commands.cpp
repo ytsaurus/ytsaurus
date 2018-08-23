@@ -241,8 +241,6 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
 TCopyCommand::TCopyCommand()
 {
     RegisterParameter("source_path", SourcePath);
-    RegisterParameter("source_transaction_id", Options.SourceTransactionId)
-        .Optional();
     RegisterParameter("destination_path", DestinationPath);
     RegisterParameter("recursive", Options.Recursive)
         .Optional();
