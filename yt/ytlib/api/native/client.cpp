@@ -4895,7 +4895,7 @@ private:
             TQueryBuilder builder;
             builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
 
-            for (const auto selectExpr : {"pool_or_pools", "authenticated_user", "state", "operation_type", "sum(1) AS count"}) {
+            for (const auto selectExpr : {"pool_or_pools", "authenticated_user", "state", "operation_type", "pool", "sum(1) AS count"}) {
                 builder.AddSelectExpression(selectExpr);
             }
 
@@ -4909,7 +4909,7 @@ private:
             }
 
             const TString poolQueryExpression = archiveHasPools ? "any_to_yson_string(pools)" : "pool";
-            builder.SetGroupByExpression(poolQueryExpression + " AS pool_or_pools, authenticated_user, state, operation_type");
+            builder.SetGroupByExpression(poolQueryExpression + " AS pool_or_pools, authenticated_user, state, operation_type, pool");
 
             TSelectRowsOptions selectOptions;
             selectOptions.Timeout = deadline - Now();
@@ -4927,7 +4927,13 @@ private:
                 auto user = TStringBuf(row[1].Data.String, row[1].Length);
                 auto state = ParseEnum<EOperationState>(TStringBuf(row[2].Data.String, row[2].Length));
                 auto type = ParseEnum<EOperationType>(TStringBuf(row[3].Data.String, row[3].Length));
-                auto count = row[4].Data.Int64;
+                if (row[4].Type != EValueType::Null) {
+                    if (!pools) {
+                        pools.Emplace();
+                    }
+                    pools->push_back(FromUnversionedValue<TString>(row[4]));
+                }
+                auto count = row[5].Data.Int64;
 
                 countingFilter.Filter(pools, user, state, type, count);
             }
@@ -4965,8 +4971,9 @@ private:
         }
 
         if (options.Pool) {
-            auto expression = archiveHasPools ? "list_contains(pools, %Qv)" : "pool = %Qv";
-            builder.AddWhereExpression(Format(expression, *options.Pool));
+            builder.AddWhereExpression(archiveHasPools
+                ? Format("list_contains(pools, %Qv) or pool = %Qv", *options.Pool, *options.Pool)
+                : Format("pool = %Qv", *options.Pool));
         }
 
         if (options.StateFilter) {

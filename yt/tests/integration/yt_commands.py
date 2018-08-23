@@ -14,7 +14,7 @@ import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
 ###########################################################################
@@ -118,6 +118,17 @@ def prepare_parameters(parameters):
     change(parameters, "tx", "transaction_id")
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
+
+def retry(func, retry_timeout=timedelta(seconds=10), retry_interval=timedelta(milliseconds=100)):
+    now = datetime.now()
+    deadline = now + retry_timeout
+    while now < deadline:
+        try:
+            return func()
+        except:
+            time.sleep(retry_interval.total_seconds())
+            now = datetime.now()
+    return func()
 
 def execute_command(command_name, parameters, input_stream=None, output_stream=None,
                     verbose=None, verbose_error=None, ignore_result=False, return_response=False):

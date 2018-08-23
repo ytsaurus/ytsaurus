@@ -725,7 +725,16 @@ class TestDynamicTables(TestDynamicTablesBase):
         remount_table("//tmp/t")
 
         # Compaction fails with "Versioned row data weight is too large".
-        wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+        #  wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+
+        # Temporary debug output by ifsmirnov
+        def wait_func():
+            get("//tmp/t/@tablets")
+            get("//tmp/t/@chunk_ids")
+            get("//tmp/t/@tablet_statistics")
+            return bool(get("//tmp/t/@tablet_errors"))
+        wait(wait_func)
+
         assert len(get("//tmp/t/@tablet_errors")) == 1
         assert get("//tmp/t/@tablet_error_count") == 1
 

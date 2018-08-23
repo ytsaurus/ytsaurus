@@ -273,3 +273,10 @@ class TestConcatenate(YTEnvSetup):
 
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "x"}]
         assert get("//tmp/union/@schema/@unique_keys", "false")
+
+    def test_empty_concatenate(self):
+        create("table", "//tmp/union")
+        orig_schema = get("//tmp/union/@schema")
+        concatenate([], "//tmp/union")
+        assert get("//tmp/union/@schema_mode") == "weak"
+        assert get("//tmp/union/@schema") == orig_schema
