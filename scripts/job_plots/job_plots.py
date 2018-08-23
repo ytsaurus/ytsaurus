@@ -190,8 +190,13 @@ def data_is_correct(jobsets, data_type=None, table_num=0):
         if not jobset:
             print("One of JobSets is empty!")
             return False
-        if data_type and not aggregate(jobset, all, data_type, table_num):
-            print("There is no such statistics in one of JobSets!")
+        if data_type and not aggregate(
+            jobset, 
+            lambda data: all(x is not None for x in data),
+            data_type,
+            table_num,
+        ):
+            print("There is no statistics '{}' in one of JobSets!".format(data_type))
             return False
         if data_type and not aggregate(
             jobset,
