@@ -566,7 +566,7 @@ void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, c
 void ValidateOperationPermission(
     const TString& user,
     const TOperationId& operationId,
-    const NNative::IClientPtr& client,
+    const IClientPtr& client,
     EPermission permission,
     const TLogger& logger,
     const TString& subnodePath)

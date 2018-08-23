@@ -139,8 +139,12 @@ class TSecurityManager
 {
 private:
     mutable TUserRegistry Users;
+    std::string CliqueId;
+    NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
 
 public:
+    TSecurityManager(std::string cliqueId, NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+
     void loadFromConfig(Poco::Util::AbstractConfiguration& config) override;
 
     UserPtr authorizeAndGetUser(
@@ -162,6 +166,11 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TSecurityManager::TSecurityManager(std::string cliqueId, NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+    : CliqueId(std::move(cliqueId))
+    , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
+{ }
 
 void TSecurityManager::loadFromConfig(Poco::Util::AbstractConfiguration& config)
 {
@@ -188,10 +197,9 @@ bool TSecurityManager::hasAccessToDatabase(
     const String& userName,
     const String& databaseName) const
 {
-    // Storage layer is responsible for access control
-    Y_UNUSED(userName);
-    Y_UNUSED(databaseName);
-    return true;
+    // At this point we only check if the user has access to current clique.
+    // Storage layer is responsible for access control for specific tables.
+    return CliqueAuthorizationManager_->HasAccess(userName);
 }
 
 void TSecurityManager::Authorize(
@@ -212,9 +220,11 @@ void TSecurityManager::Authorize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::ISecurityManager> CreateSecurityManager()
+std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
+    std::string cliqueId,
+    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
 {
-    return std::make_unique<TSecurityManager>();
+    return std::make_unique<TSecurityManager>(std::move(cliqueId), std::move(cliqueAuthorizationManager));
 }
 
 } // namespace NClickHouse

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "auth_clique.h"
 #include "auth_token.h"
 #include "column_builder.h"
 #include "directory.h"

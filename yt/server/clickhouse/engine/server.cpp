@@ -93,6 +93,7 @@ private:
     const NInterop::ILoggerPtr AppLogger;
     const NInterop::IStoragePtr Storage;
     const NInterop::ICoordinationServicePtr CoordinationService;
+    const NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
     const std::string ConfigFile;
     const std::string CliqueId_;
     const std::string InstanceId_;
@@ -128,6 +129,7 @@ public:
     TServer(NInterop::ILoggerPtr logger,
             NInterop::IStoragePtr storage,
             NInterop::ICoordinationServicePtr coordinationService,
+            NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
             std::string configFile,
             std::string cliqueId,
             std::string instanceId,
@@ -136,6 +138,7 @@ public:
         : AppLogger(std::move(logger))
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
+        , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
         , ConfigFile(std::move(configFile))
         , CliqueId_(std::move(cliqueId))
         , InstanceId_(std::move(instanceId))
@@ -259,7 +262,12 @@ void TServer::SetupContext()
 
     // Context contains all that query execution is dependent:
     // settings, available functions, data types, aggregate functions, databases...
-    auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(Storage, ServerAuthToken, storageHomePath);
+    auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
+        Storage,
+        CliqueId_,
+        ServerAuthToken,
+        storageHomePath,
+        CliqueAuthorizationManager_);
     Context = std::make_unique<DB::Context>(
         Context::createGlobal(std::move(runtimeComponentsFactory)));
     Context->setGlobalContext(*Context);
@@ -512,6 +520,7 @@ NInterop::IServerPtr CreateServer(
     NInterop::ILoggerPtr logger,
     NInterop::IStoragePtr storage,
     NInterop::ICoordinationServicePtr coordinationService,
+    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
     std::string configFile,
     std::string cliqueId,
     std::string instanceId,
@@ -522,6 +531,7 @@ NInterop::IServerPtr CreateServer(
         std::move(logger),
         std::move(storage),
         std::move(coordinationService),
+        std::move(cliqueAuthorizationManager),
         std::move(configFile),
         std::move(cliqueId),
         std::move(instanceId),
