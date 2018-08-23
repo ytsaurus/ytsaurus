@@ -2,9 +2,8 @@
 #include "proxy_coordinator.h"
 #include "public.h"
 #include "private.h"
-
-#include <yt/server/cell_proxy/bootstrap.h>
-#include <yt/server/cell_proxy/config.h>
+#include "bootstrap.h"
+#include "config.h"
 
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/token_authenticator.h>
@@ -367,7 +366,7 @@ class TApiService
 {
 public:
     explicit TApiService(
-        NCellProxy::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
             GetDescriptor(),
@@ -427,7 +426,7 @@ public:
     }
 
 private:
-    const NCellProxy::TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
     const IProxyCoordinatorPtr Coordinator_;
 
     TSpinLock SpinLock_;
@@ -2074,7 +2073,7 @@ private:
     }
 };
 
-IServicePtr CreateApiService(NCellProxy::TBootstrap* bootstrap)
+IServicePtr CreateApiService(TBootstrap* bootstrap)
 {
     return New<TApiService>(bootstrap);
 }
