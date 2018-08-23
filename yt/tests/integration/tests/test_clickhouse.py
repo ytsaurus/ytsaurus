@@ -129,6 +129,5 @@ class TestClickhouse(YTEnvSetup):
         assert abs(float(self._make_query(clique, 'select avg(a) from "//tmp/t"')) - 4.5) < 1e-6
         with pytest.raises(YtError):
             self._make_query(clique, 'select avg(b) from "//tmp/t"')
+        # TODO(max42): support range selectors.
         #assert abs(float(self._make_query(clique, 'select avg(a) from "//tmp/t[#2:#9]"')) - 5.0) < 1e-6
-
-        raw_input()
