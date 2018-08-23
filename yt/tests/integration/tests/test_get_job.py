@@ -2,7 +2,6 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.test_helpers import wait
 
 from operations_archive import clean_operations
 
@@ -11,6 +10,25 @@ class TestGetJob(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        }
+    }
 
     def setup(self):
         sync_create_cells(1)
@@ -31,7 +49,7 @@ class TestGetJob(YTEnvSetup):
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("echo $JOB_ID > {0} ; cat ; BREAKPOINT".format(job_id_file)),
+            command=with_breakpoint("echo $YT_JOB_ID > {0} ; cat ; BREAKPOINT".format(job_id_file)),
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -40,10 +58,10 @@ class TestGetJob(YTEnvSetup):
             })
 
         wait_breakpoint()
-        wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
         with open(job_id_file) as inf:
             job_id = inf.read().strip()
-        job_info = get_operation(op.id, job_id)
+
+        job_info = retry(lambda: get_job(op.id, job_id))
 
         assert job_info["type"] == "map"

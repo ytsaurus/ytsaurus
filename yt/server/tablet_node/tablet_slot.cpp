@@ -137,7 +137,12 @@ public:
     void SetEpochId(const TEpochId& epochId)
     {
         YCHECK(epochId);
+        if (EpochId_ == epochId) {
+            return;
+        }
+
         EpochId_ = epochId;
+        DoAbandon();
     }
 
 private:
@@ -184,10 +189,12 @@ private:
 
     void OnPeerReconfigured(TPeerId peerId)
     {
-        if (!EpochContext_)
+        if (!EpochContext_) {
             return;
+        }
 
-        if (peerId == CellManager_->GetSelfPeerId() || EpochContext_->LeaderId == peerId) {
+        auto selfId = CellManager_->GetSelfPeerId();
+        if (peerId == selfId || EpochContext_->LeaderId == selfId || EpochContext_->LeaderId == peerId) {
             DoAbandon();
         }
     }
@@ -499,8 +506,6 @@ public:
 
             LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
-
-            ElectionManager_->Abandon();
         } else {
             auto channelFactory = Bootstrap_
                 ->GetMasterClient()

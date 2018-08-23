@@ -179,7 +179,16 @@ TErrorOr<T>& TErrorOr<T>::operator = (TErrorOr<T>&& other) noexcept
 }
 
 template <class T>
-T& TErrorOr<T>::ValueOrThrow()
+T&& TErrorOr<T>::ValueOrThrow() &&
+{
+    if (!IsOK()) {
+        THROW_ERROR std::move(*this);
+    }
+    return std::move(*Value_);
+}
+
+template <class T>
+T& TErrorOr<T>::ValueOrThrow() &
 {
     if (!IsOK()) {
         THROW_ERROR *this;
@@ -188,7 +197,7 @@ T& TErrorOr<T>::ValueOrThrow()
 }
 
 template <class T>
-const T& TErrorOr<T>::ValueOrThrow() const
+const T& TErrorOr<T>::ValueOrThrow() const &
 {
     if (!IsOK()) {
         THROW_ERROR *this;
@@ -197,14 +206,21 @@ const T& TErrorOr<T>::ValueOrThrow() const
 }
 
 template <class T>
-T& TErrorOr<T>::Value()
+T&& TErrorOr<T>::Value() &&
+{
+    Y_ASSERT(IsOK());
+    return std::move(*Value_);
+}
+
+template <class T>
+T& TErrorOr<T>::Value() &
 {
     Y_ASSERT(IsOK());
     return *Value_;
 }
 
 template <class T>
-const T& TErrorOr<T>::Value() const
+const T& TErrorOr<T>::Value() const &
 {
     Y_ASSERT(IsOK());
     return *Value_;

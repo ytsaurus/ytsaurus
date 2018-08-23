@@ -482,7 +482,6 @@ struct TCopyNodeOptions
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
     bool PreserveCreationTime = false;
-    NObjectClient::TTransactionId SourceTransactionId;
 };
 
 struct TMoveNodeOptions

@@ -42,6 +42,8 @@ urllib3.disable_warnings()
 import requests
 
 NODEJS_RESOURCE = "sbr:629132696"
+INTEGRATION_TESTS_PARALLELISM = 4
+PYTHON_TESTS_PARALLELISM = 16
 
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
@@ -798,7 +800,7 @@ def run_yt_integration_tests(options, build_context):
 
     pytest_args = []
     if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", "6"])
+        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM)])
 
     run_pytest(options, "integration", "{0}/yt/tests/integration".format(options.checkout_directory),
                pytest_args=pytest_args)
@@ -838,7 +840,7 @@ def run_python_libraries_tests(options, build_context):
 
     pytest_args = []
     if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", "15"])
+        pytest_args.extend(["--process-count", str(PYTHON_TESTS_PARALLELISM)])
 
     node_path = get_node_modules_dir(options)
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
