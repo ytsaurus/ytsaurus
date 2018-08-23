@@ -291,7 +291,7 @@ class PrintOperationInfo(object):
                 self.log(
                     "operation %s: %s",
                     self.operation,
-                    "\t".join("{0}={1}".format(k, v) for k, v in order_progress(progress)))
+                    " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(progress)))
             self.progress = progress
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
