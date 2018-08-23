@@ -5973,6 +5973,20 @@ private:
         return result;
     }
 
+    template <typename TValue>
+    static void TryAddFluentItem(
+        TFluentMap fluent,
+        TStringBuf key,
+        TUnversionedRow row,
+        const NTableClient::TColumnFilter& columnFilter,
+        int columnIndex)
+    {
+        auto valueIndexOrNull = columnFilter.FindIndex(columnIndex);
+        if (valueIndexOrNull && row[*valueIndexOrNull].Type != EValueType::Null) {
+            fluent.Item(key).Value(FromUnversionedValue<TValue>(row[*valueIndexOrNull]));
+        }
+    }
+
     TYsonString DoGetJob(
         const TOperationId& operationId,
         const TJobId& jobId,
@@ -6016,12 +6030,8 @@ private:
         }
 
         std::vector<int> columnIndexes;
-        THashMap<TString, int> fieldToIndex;
-
-        int index = 0;
         for (const auto& field : fields) {
             columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
-            fieldToIndex[field] = index++;
         }
 
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
@@ -6037,66 +6047,60 @@ private:
 
         auto rows = rowset->GetRows();
         YCHECK(!rows.Empty());
+        auto row = rows[0];
 
-        if (rows[0]) {
-#define SET_ITEM_STRING_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_INSTANT_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(rows[0][index].Data.Int64))
-#define SET_ITEM_VALUE(itemKey, operation) \
-            .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
-                auto index = GET_INDEX(itemKey); \
-                fluent.Item(itemKey).Value(operation); \
-            })
-#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
-
-            auto resultOperationId = TGuid(
-                rows[0][GET_INDEX("operation_id_hi")].Data.Uint64,
-                rows[0][GET_INDEX("operation_id_lo")].Data.Uint64);
-            auto resultJobId = TGuid(
-                rows[0][GET_INDEX("job_id_hi")].Data.Uint64,
-                rows[0][GET_INDEX("job_id_lo")].Data.Uint64);
-            auto resultState = TString();
-            if (resultState.empty()) {
-                auto index = GET_INDEX("state");
-                if (rows[0][index].Type != EValueType::Null) {
-                    resultState = TString(rows[0][index].Data.String, rows[0][index].Length);
-                }
-            }
-            if (resultState.empty() && archiveVersion >= 16) {
-                auto index = GET_INDEX("transient_state");
-                if (rows[0][index].Type != EValueType::Null) {
-                    resultState = TString(rows[0][index].Data.String, rows[0][index].Length);
-                }
-            }
-            auto ysonResult = BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("operation_id").Value(resultOperationId)
-                    .Item("job_id").Value(resultJobId)
-                    .DoIf(!resultState.empty(), [&] (TFluentMap fluent) {
-                        fluent.Item("state").Value(resultState);
-                    })
-                    SET_ITEM_INSTANT_VALUE("start_time")
-                    SET_ITEM_INSTANT_VALUE("finish_time")
-                    SET_ITEM_STRING_VALUE("address")
-                    SET_ITEM_STRING_VALUE("type")
-                    SET_ITEM_YSON_STRING_VALUE("error")
-                    SET_ITEM_YSON_STRING_VALUE("statistics")
-                    SET_ITEM_YSON_STRING_VALUE("events")
-                .EndMap();
-#undef SET_ITEM_STRING_VALUE
-#undef SET_ITEM_YSON_STRING_VALUE
-#undef SET_ITEM_INSTANT_VALUE
-#undef SET_ITEM_VALUE
-#undef GET_INDEX
-            return ysonResult;
+        if (!row) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
         }
 
-        THROW_ERROR_EXCEPTION("No such job %v", jobId);
-    }
+        const auto& columnFilter = lookupOptions.ColumnFilter;
 
+        auto resultOperationId = TGuid(
+            row[columnFilter.GetIndex(table.Index.OperationIdHi)].Data.Uint64,
+            row[columnFilter.GetIndex(table.Index.OperationIdLo)].Data.Uint64);
+        auto resultJobId = TGuid(
+            row[columnFilter.GetIndex(table.Index.JobIdHi)].Data.Uint64,
+            row[columnFilter.GetIndex(table.Index.JobIdLo)].Data.Uint64);
+
+        TStringBuf state;
+        {
+            auto value = row[columnFilter.GetIndex(table.Index.State)];
+            if (value.Type != EValueType::Null) {
+                state = FromUnversionedValue<TStringBuf>(value);
+            }
+        }
+        if (!state.IsInited() && archiveVersion >= 16) {
+            auto value = row[columnFilter.GetIndex(table.Index.TransientState)];
+            if (value.Type != EValueType::Null) {
+                state = FromUnversionedValue<TStringBuf>(value);
+            }
+        }
+
+        // NB: We need a separate function for |TInstant| because it has type "int64" in table
+        // but |FromUnversionedValue<TInstant>| expects it to be "uint64".
+        auto tryAddInstantFluentItem = [&] (TFluentMap fluent, TStringBuf key, int columnIndex) {
+            auto valueIndexOrNull = columnFilter.FindIndex(columnIndex);
+            if (valueIndexOrNull && row[*valueIndexOrNull].Type != EValueType::Null) {
+                fluent.Item(key).Value(TInstant::MicroSeconds(row[*valueIndexOrNull].Data.Int64));
+            }
+        };
+
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item("operation_id").Value(resultOperationId)
+                .Item("job_id").Value(resultJobId)
+                .DoIf(state.IsInited(), [&] (TFluentMap fluent) {
+                    fluent.Item("state").Value(state);
+                })
+                .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "start_time", table.Index.StartTime))
+                .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "finish_time", table.Index.FinishTime))
+                .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "address",     row, columnFilter, table.Index.Address))
+                .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "type",        row, columnFilter, table.Index.Type))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "error",       row, columnFilter, table.Index.Error))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "statistics",  row, columnFilter, table.Index.Statistics))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "events",      row, columnFilter, table.Index.Events))
+            .EndMap();
+    }
 
     TYsonString DoStraceJob(
         const TJobId& jobId,
