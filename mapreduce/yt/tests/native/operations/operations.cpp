@@ -2055,6 +2055,42 @@ Y_UNIT_TEST_SUITE(Operations)
             e.GetError().ContainsErrorCode(1915); // TODO: need named error code
         }
     }
+
+    Y_UNIT_TEST(CrossTransactionMerge)
+    {
+        auto client = CreateTestClient();
+        auto tx1 = client->StartTransaction();
+        auto tx2 = client->StartTransaction();
+
+        {
+            auto writer = tx1->CreateTableWriter<TNode>("//testing/input1");
+            writer->AddRow(TNode()("row", "foo"));
+            writer->Finish();
+        }
+        {
+            auto writer = tx2->CreateTableWriter<TNode>("//testing/input2");
+            writer->AddRow(TNode()("row", "bar"));
+            writer->Finish();
+        }
+        client->Merge(
+            TMergeOperationSpec()
+            .AddInput(
+                TRichYPath("//testing/input1")
+                .TransactionId(tx1->GetId()))
+            .AddInput(
+                TRichYPath("//testing/input2")
+                .TransactionId(tx2->GetId()))
+            .Output("//testing/output"));
+        tx1->Abort();
+        tx2->Abort();
+
+        TVector<TNode> expected = {
+            TNode()("row", "foo"),
+            TNode()("row", "bar"),
+        };
+        auto actual = ReadTable(client, "//testing/output");
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

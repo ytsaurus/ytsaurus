@@ -26,6 +26,9 @@ void Deserialize(TTableSchema& tableSchema, const TNode& node);
 void Deserialize(TColumnSchema& columnSchema, const TNode& node);
 void Deserialize(TTableColumnarStatistics& statistics, const TNode& node);
 
+void Serialize(const TGUID& path, IYsonConsumer* consumer);
+void Deserialize(TGUID& value, const TNode& node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

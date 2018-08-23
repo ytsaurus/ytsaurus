@@ -4,6 +4,8 @@
 
 #include <mapreduce/yt/node/serialize.h>
 
+#include <util/generic/string.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,6 +267,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.OptimizeFor_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("optimize_for").Value(::ToString(*path.OptimizeFor_));
         })
+        .DoIf(path.TransactionId_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("transaction_id").Value(GetGuidAsString(*path.TransactionId_));
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
@@ -288,6 +293,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("compression_codec", path.CompressionCodec_);
     DESERIALIZE_ATTR("erasure_codec", path.ErasureCodec_);
     DESERIALIZE_ATTR("optimize_for", path.OptimizeFor_);
+    DESERIALIZE_ATTR("transaction_id", path.TransactionId_);
     Deserialize(path.Path_, node);
 }
 
@@ -302,6 +308,16 @@ void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
     DESERIALIZE_ITEM("column_data_weights", statistics.ColumnDataWeight);
     DESERIALIZE_ITEM("legacy_chunks_data_weight", statistics.LegacyChunksDataWeight);
     DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
+}
+
+void Serialize(const TGUID& value, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).Value(GetGuidAsString(value));
+}
+
+void Deserialize(TGUID& value, const TNode& node)
+{
+    value = GetGuid(node.AsString());
 }
 
 #undef DESERIALIZE_ITEM

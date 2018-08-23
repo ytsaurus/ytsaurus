@@ -1341,7 +1341,8 @@ void CheckInputTablesExist(
 {
     Y_ENSURE(!paths.empty(), "Input tables are not set");
     for (auto& path : paths) {
-        Y_ENSURE_EX(NYT::NDetail::Exists(auth, transactionId, path.Path_),
+        auto curTransactionId =  path.TransactionId_.GetOrElse(transactionId);
+        Y_ENSURE_EX(NYT::NDetail::Exists(auth, curTransactionId, path.Path_),
             TApiUsageError() << "Input table '" << path.Path_ << "' doesn't exist");
     }
 }
