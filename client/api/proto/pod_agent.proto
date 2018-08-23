@@ -593,6 +593,7 @@ message TTcpCheckStatus {
 
 message THttpGetStatus {
     ECheckResult CheckResult = 1;
+    google.protobuf.Timestamp LastRequestTime = 2;
 }
 
 message TReadinessStatus {
