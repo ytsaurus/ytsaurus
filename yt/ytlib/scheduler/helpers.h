@@ -100,7 +100,7 @@ void SaveJobFiles(NApi::NNative::IClientPtr client, const TOperationId& operatio
 void ValidateOperationPermission(
     const TString& user,
     const TOperationId& operationId,
-    const NApi::NNative::IClientPtr& client,
+    const NApi::IClientPtr& client,
     NYTree::EPermission permission,
     const NLogging::TLogger& logger,
     const TString& subnodePath = "");

@@ -6,17 +6,21 @@
 #include <yt/server/clickhouse/server/directory.h>
 #include <yt/server/clickhouse/server/logger.h>
 #include <yt/server/clickhouse/server/storage.h>
+#include <yt/server/clickhouse/server/clique_authorization_manager.h>
 
 #include <yt/server/admin_server/admin_service.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/configure_singletons.h>
 #include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/orchid/orchid_service.h>
 #include <yt/ytlib/core_dump/core_dumper.h>
+
+#include <yt/client/api/client.h>
 
 #include <yt/core/bus/tcp/server.h>
 #include <yt/core/concurrency/action_queue.h>
@@ -172,10 +176,14 @@ void TBootstrap::DoInitialize()
 
     CoordinationService = CreateCoordinationService(Connection, CliqueId_);
 
+    auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
+    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_);
+
     Server = CreateServer(
         logger,
         Storage,
         CoordinationService,
+        CliqueAuthorizationManager,
         XmlConfig,
         CliqueId_,
         InstanceId_,

@@ -13,6 +13,7 @@ NInterop::IServerPtr CreateServer(
     NInterop::ILoggerPtr logger,
     NInterop::IStoragePtr storage,
     NInterop::ICoordinationServicePtr coordinationService,
+    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
     std::string configFile,
     std::string cliqueId,
     std::string instanceId,

@@ -51,6 +51,7 @@ private:
 
     NInterop::IStoragePtr Storage;
     NInterop::ICoordinationServicePtr CoordinationService;
+    NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
     NInterop::IServerPtr Server;
 
 public:

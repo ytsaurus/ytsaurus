@@ -15,22 +15,28 @@ class TRuntimeComponentsFactory
 {
 private:
     NInterop::IStoragePtr Storage;
+    std::string CliqueId;
     NInterop::IAuthorizationTokenPtr AuthToken;
     std::string HomePath;
+    NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
 
 public:
     TRuntimeComponentsFactory(
         NInterop::IStoragePtr storage,
+        std::string cliqueId,
         NInterop::IAuthorizationTokenPtr authToken,
-        std::string homePath)
+        std::string homePath,
+        NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
         : Storage(std::move(storage))
+        , CliqueId(std::move(cliqueId))
         , AuthToken(std::move(authToken))
         , HomePath(std::move(homePath))
+        , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
     {}
 
     std::unique_ptr<DB::ISecurityManager> createSecurityManager() override
     {
-        return CreateSecurityManager();
+        return CreateSecurityManager(CliqueId, CliqueAuthorizationManager_);
     }
 
     std::unique_ptr<DB::IExternalLoaderConfigRepository> createExternalDictionariesConfigRepository() override
@@ -74,13 +80,17 @@ public:
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
     NInterop::IStoragePtr storage,
+    std::string cliqueId,
     NInterop::IAuthorizationTokenPtr authToken,
-    std::string homePath)
+    std::string homePath,
+    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
 {
     return std::make_unique<TRuntimeComponentsFactory>(
         std::move(storage),
+        std::move(cliqueId),
         std::move(authToken),
-        std::move(homePath));
+        std::move(homePath),
+        std::move(cliqueAuthorizationManager));
 }
 
 } // namespace NClickHouse

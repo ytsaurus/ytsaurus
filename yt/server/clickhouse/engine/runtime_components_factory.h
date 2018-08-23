@@ -11,8 +11,10 @@ namespace NClickHouse {
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
     NInterop::IStoragePtr storage,
+    std::string cliqueId,
     NInterop::IAuthorizationTokenPtr authToken,
-    std::string homePath);
+    std::string homePath,
+    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
 } // namespace NClickHouse
 } // namespace NYT
