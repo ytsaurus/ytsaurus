@@ -504,7 +504,7 @@ private:
             return nullptr;
         }
 
-        {
+        if (options.Sticky) {
             // Fast path.
             auto guard = Guard(SpinLock_);
             auto it = Transactions_.find(transactionId);
@@ -521,6 +521,10 @@ private:
                 "No such transaction %v",
                 transactionId));
             return nullptr;
+        }
+
+        if (!options.Sticky) {
+            return New<TWrappedTransaction>(transaction);
         }
 
         auto newTransaction = false;
