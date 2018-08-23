@@ -417,6 +417,7 @@ def get_proxy_config():
 
     "coordination" : {
         "enable" : true,
+        "announce" : true,
         "heartbeat_interval" : 500
     },
 
