@@ -1329,7 +1329,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto force = request->force();
     auto targetPath = GetRequestYPath(context->RequestHeader());
 
-    context->SetRequestInfo("SourcePath: %v, SourceTransactionId: % "
+    context->SetRequestInfo("SourcePath: %v, TransactionId: %v "
         "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
         "RemoveSource: %v, Recursive: %v, Force: %v",
         sourcePath,
