@@ -94,6 +94,7 @@ private:
     const NInterop::IStoragePtr Storage;
     const NInterop::ICoordinationServicePtr CoordinationService;
     const std::string ConfigFile;
+    const std::string CliqueId_;
     const std::string InstanceId_;
     ui16 TcpPort_;
     ui16 HttpPort_;
@@ -128,6 +129,7 @@ public:
             NInterop::IStoragePtr storage,
             NInterop::ICoordinationServicePtr coordinationService,
             std::string configFile,
+            std::string cliqueId,
             std::string instanceId,
             ui16 tcpPort,
             ui16 httpPort)
@@ -135,6 +137,7 @@ public:
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
         , ConfigFile(std::move(configFile))
+        , CliqueId_(std::move(cliqueId))
         , InstanceId_(std::move(instanceId))
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
@@ -339,7 +342,9 @@ void TServer::SetupContext()
     // Default database that wraps connection to YT cluster.
     {
         auto defaultDatabase = CreateDatabase(Storage, ExecutionClusterNodeTracker);
+        LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
         Context->addDatabase("default", defaultDatabase);
+        Context->addDatabase(CliqueId_, defaultDatabase);
     }
 
     std::string defaultDatabase = Config->getString("default_database", "default");
@@ -508,6 +513,7 @@ NInterop::IServerPtr CreateServer(
     NInterop::IStoragePtr storage,
     NInterop::ICoordinationServicePtr coordinationService,
     std::string configFile,
+    std::string cliqueId,
     std::string instanceId,
     ui16 tcpPort,
     ui16 httpPort)
@@ -517,6 +523,7 @@ NInterop::IServerPtr CreateServer(
         std::move(storage),
         std::move(coordinationService),
         std::move(configFile),
+        std::move(cliqueId),
         std::move(instanceId),
         tcpPort,
         httpPort);
