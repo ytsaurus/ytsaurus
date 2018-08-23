@@ -90,8 +90,11 @@ public:
             auto headers = Req_->GetHeaders()->Duplicate();
             headers->RemoveOrThrow("Authorization");
             headers->Add("X-Yt-User", User_);
+            headers->Add("X-Clickhouse-User", User_);
 
-            response = WaitFor(HttpClient_->Post("http://" + host + ":" + httpPort + "/", body, headers))
+            auto url = "http://" + host + ":" + httpPort + Req_->GetUrl().Path + "?" + Req_->GetUrl().RawQuery;
+            LOG_INFO("Querying instance (Url: %v)", url);
+            response = WaitFor(HttpClient_->Post(url, body, headers))
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Caught exception during preparation")
