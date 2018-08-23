@@ -177,6 +177,7 @@ void TBootstrap::DoInitialize()
         Storage,
         CoordinationService,
         XmlConfig,
+        CliqueId_,
         InstanceId_,
         TcpPort_,
         HttpPort_);

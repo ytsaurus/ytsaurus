@@ -22,6 +22,7 @@
 
 #include <library/string_utils/base64/base64.h>
 
+#include <util/string/cgiparam.h>
 #include <util/string/vector.h>
 
 #include <util/random/random.h>
@@ -67,19 +68,14 @@ public:
 
             Authenticate();
 
-            NApi::TListNodeOptions listOptions;
-            listOptions.Attributes = {"http_port", "host"};
-            auto listingYson = WaitFor(Client_->ListNode(Config_->DiscoveryPath + "/" + CliqueId_, listOptions))
-                .ValueOrThrow();
-            auto listingVector = ConvertTo<std::vector<IStringNodePtr>>(listingYson);
-            const auto& randomEntry = listingVector[RandomNumber(listingVector.size())];
-            const auto& attributes = randomEntry->Attributes();
-            auto host = attributes.Get<TString>("host");
-            auto httpPort = attributes.Get<TString>("http_port");
+            CliqueId_ = TCgiParameters(Req_->GetUrl().RawQuery).Get("database");
+            LOG_INFO("Clique id parsed (CliqueId: %v)");
+
+            PickRandomInstance();
             LOG_INFO("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
-                randomEntry->GetValue(),
-                host,
-                httpPort);
+                InstanceId_,
+                InstanceHost_,
+                InstanceHttpPort_);
 
             auto body = Req_->ReadBody();
             if (!body) {
@@ -92,7 +88,11 @@ public:
             headers->Add("X-Yt-User", User_);
             headers->Add("X-Clickhouse-User", User_);
 
-            auto url = "http://" + host + ":" + httpPort + Req_->GetUrl().Path + "?" + Req_->GetUrl().RawQuery;
+            auto url = Format("http://%v:%v%v?%v",
+                InstanceHost_,
+                InstanceHttpPort_,
+                Req_->GetUrl().Path,
+                Req_->GetUrl().RawQuery);
             LOG_INFO("Querying instance (Url: %v)", url);
             response = WaitFor(HttpClient_->Post(url, body, headers))
                 .ValueOrThrow();
@@ -121,6 +121,9 @@ private:
     TString CliqueId_;
     TString Token_;
     TString User_;
+    TString InstanceId_;
+    TString InstanceHost_;
+    TString InstanceHttpPort_;
 
     void ReplyWithError(EStatusCode statusCode, TError error) const
     {
@@ -151,15 +154,15 @@ private:
         const auto& authorizationType = authorizationTypeAndCredentials[0];
         if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
             const auto& credentials = authorizationTypeAndCredentials[1];
-            auto cliqueIdAndToken = SplitStroku(Base64Decode(credentials), ":", 2);
-            if (cliqueIdAndToken.size() == 2) {
-                CliqueId_ = cliqueIdAndToken[0];
-                Token_ = cliqueIdAndToken[1];
-                LOG_INFO("Clique id and token parsed (CliqueId: %v)", CliqueId_);
+            auto fooAndToken = SplitStroku(Base64Decode(credentials), ":", 2);
+            if (fooAndToken.size() == 2) {
+                // First component (that should be username) is ignored.
+                Token_ = fooAndToken[1];
+                LOG_INFO("Token parsed");
             } else {
                 ReplyWithError(
                     EStatusCode::Unauthorized,
-                    TError("Wrong 'Basic' authorization header format; 'clique-id:oauth-token' encoded with base64 expected"));
+                    TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
                 return;
             }
         } else {
@@ -184,8 +187,6 @@ private:
             return;
         }
 
-
-
         LOG_INFO("Handling HTTP request (Host: %v)", *host);
 
         auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
@@ -206,6 +207,20 @@ private:
             .ValueOrThrow()
             .Login;
         LOG_INFO("User authenticated (User: %v)", User_);
+    }
+
+    void PickRandomInstance()
+    {
+        NApi::TListNodeOptions listOptions;
+        listOptions.Attributes = {"http_port", "host"};
+        auto listingYson = WaitFor(Client_->ListNode(Config_->DiscoveryPath + "/" + CliqueId_, listOptions))
+            .ValueOrThrow();
+        auto listingVector = ConvertTo<std::vector<IStringNodePtr>>(listingYson);
+        const auto& randomEntry = listingVector[RandomNumber(listingVector.size())];
+        const auto& attributes = randomEntry->Attributes();
+        InstanceId_ = randomEntry->GetValue();
+        InstanceHost_ = attributes.Get<TString>("host");
+        InstanceHttpPort_ = attributes.Get<TString>("http_port");
     }
 };
 

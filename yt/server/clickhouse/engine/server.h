@@ -14,6 +14,7 @@ NInterop::IServerPtr CreateServer(
     NInterop::IStoragePtr storage,
     NInterop::ICoordinationServicePtr coordinationService,
     std::string configFile,
+    std::string cliqueId,
     std::string instanceId,
     ui16 rpcPort,
     ui16 tcpPort);
