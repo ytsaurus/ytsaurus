@@ -529,6 +529,7 @@ def run_sandbox_upload(options, build_context):
         "ytserver-tools",
         "ypserver-master",
         "ytserver-skynet-manager",
+        "ytserver-http-proxy",
     ))
     if yt_binary_upload_list - processed_files:
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
