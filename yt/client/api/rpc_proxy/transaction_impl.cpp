@@ -8,8 +8,6 @@
 
 #include <yt/client/api/transaction.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-
 namespace NYT {
 namespace NApi {
 namespace NRpcProxy {
@@ -53,7 +51,6 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingPeriod_(pingPeriod)
     , Sticky_(sticky)
-    , InFlightModifyRowsRequestCount_(New<TAsyncSemaphore>(MaxInFlightModifyRowsRequestCount))
     , ModifyRowsRequestSequenceCounter_(0)
 {
     // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
@@ -208,10 +205,20 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         }
     }
 
-    // Acquire the semaphore N-1 times. This will overcommit it and make it so that
-    // the semaphore will become "ready" when the last actual request has finished.
-    InFlightModifyRowsRequestCount_->Acquire(MaxInFlightModifyRowsRequestCount - 1);
-    return InFlightModifyRowsRequestCount_->GetReadyEvent().Apply(
+    std::vector<TFuture<void>> asyncResults;
+    {
+        auto guard = Guard(InFlightModifyRowsRequestsLock_);
+        asyncResults.reserve(InFlightModifyRowsRequests_.size());
+        std::transform(
+            InFlightModifyRowsRequests_.begin(),
+            InFlightModifyRowsRequests_.end(),
+            std::back_inserter(asyncResults),
+            [] (decltype(InFlightModifyRowsRequests_)::const_reference pair) {
+                return pair.second;
+            });
+    }
+
+    return Combine(asyncResults).Apply(
         BIND([this, this_ = MakeStrong(this)] () {
             {
                 auto guard = Guard(SpinLock_);
@@ -323,7 +330,29 @@ void TTransaction::ModifyRows(
     auto req = proxy.ModifyRows();
     req->SetTimeout(config->RpcTimeout);
 
-    req->set_sequence_number(ModifyRowsRequestSequenceCounter_++);
+    auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_++;
+
+    while (true) {
+        TFuture<void> readyEvent;
+        {
+            auto guard = Guard(InFlightModifyRowsRequestsLock_);
+            if (InFlightModifyRowsRequestMinimalSequenceNumber_ == std::numeric_limits<size_t>::max() ||
+                reqSequenceNumber < InFlightModifyRowsRequestMinimalSequenceNumber_ + MaxInFlightModifyRowsRequestCount)
+            {
+                break;
+            }
+            readyEvent = InFlightModifyRowsRequests_[InFlightModifyRowsRequestMinimalSequenceNumber_];
+        }
+
+        if (readyEvent) {
+            // Sending this request would exceed proxy's window size.
+            // Wait until that window has been slid.
+            auto result = WaitFor(readyEvent);
+            Y_UNUSED(result); // to chunk clang up
+        }
+    }
+
+    req->set_sequence_number(reqSequenceNumber);
 
     ToProto(req->mutable_transaction_id(), Id_);
     req->set_path(path);
@@ -347,15 +376,27 @@ void TTransaction::ModifyRows(
         MakeRange(rows),
         req->mutable_rowset_descriptor());
 
-    // Wait until we're allowed to send another request.
-    while (!InFlightModifyRowsRequestCount_->TryAcquire()) {
-        WaitFor(InFlightModifyRowsRequestCount_->GetReadyEvent())
-            .ThrowOnError(); // should never actually throw
+    auto asyncResult = req->Invoke().As<void>();
+
+    {
+        auto guard = Guard(InFlightModifyRowsRequestsLock_);
+        InFlightModifyRowsRequests_.emplace(reqSequenceNumber, asyncResult);
     }
 
-    req->Invoke().As<void>()
+    asyncResult
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            InFlightModifyRowsRequestCount_->Release();
+            {
+                auto guard = Guard(InFlightModifyRowsRequestsLock_);
+                InFlightModifyRowsRequests_.erase(reqSequenceNumber);
+
+                InFlightModifyRowsRequestMinimalSequenceNumber_ = std::numeric_limits<size_t>::max();
+                for (const auto& pair : InFlightModifyRowsRequests_) {
+                    if (pair.first < InFlightModifyRowsRequestMinimalSequenceNumber_)
+                    {
+                        InFlightModifyRowsRequestMinimalSequenceNumber_ = pair.first;
+                    }
+                }
+            }
 
             if (!error.IsOK()) {
                 OnFailure(error);

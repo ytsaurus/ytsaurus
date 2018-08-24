@@ -1,6 +1,6 @@
 #include "ya_version.h"
 
-#include <yt/core/ya_version/ya_version_data.h>
+#include <yt/build/ya_version_data.h>
 
 #include <util/stream/str.h>
 
