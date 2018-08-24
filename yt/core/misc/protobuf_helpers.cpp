@@ -175,7 +175,7 @@ bool TryDeserializeProtoWithEnvelope(
     }
 
     auto codecId = NCompression::ECodec(envelope.codec());
-    if (fixedHeader->MessageSize + fixedHeader->EnvelopeSize + sizeof (*fixedHeader) > data.size()) {
+    if (fixedHeader->MessageSize + fixedHeader->EnvelopeSize + sizeof (*fixedHeader) > data.Size()) {
         return false;
     }
 
