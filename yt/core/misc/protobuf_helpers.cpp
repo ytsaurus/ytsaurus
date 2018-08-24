@@ -163,6 +163,10 @@ bool TryDeserializeProtoWithEnvelope(
 
     const auto* fixedHeader = reinterpret_cast<const TEnvelopeFixedHeader*>(data.Begin());
     const char* sourceHeader = data.Begin() + sizeof (TEnvelopeFixedHeader);
+    if (fixedHeader->EnvelopeSize + sizeof (*fixedHeader) > data.Size()) {
+        return false;
+    }
+
     const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
     NProto::TSerializedMessageEnvelope envelope;
@@ -171,6 +175,10 @@ bool TryDeserializeProtoWithEnvelope(
     }
 
     auto codecId = NCompression::ECodec(envelope.codec());
+    if (fixedHeader->MessageSize + fixedHeader->EnvelopeSize + sizeof (*fixedHeader) > data.size()) {
+        return false;
+    }
+
     auto compressedMessage = TSharedRef(sourceMessage, fixedHeader->MessageSize, nullptr);
 
     auto* codec = NCompression::GetCodec(codecId);
