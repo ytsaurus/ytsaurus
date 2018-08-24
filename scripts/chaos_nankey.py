@@ -31,11 +31,9 @@ import functools
 import logging
 import time
 
-import urllib3
-urllib3.disable_warnings()
+#import urllib3
+#urllib3.disable_warnings()
 VERIFY_SSL=False
-#logging.basicConfig(level=logging.DEBUG)
-logging.basicConfig(format='%(asctime)s %(name)s: %(message)s', level=logging.INFO)
 
 def wait(predicate):
     while not predicate():
@@ -243,18 +241,29 @@ def chaos_and_cleanup(serivce_groups):
         logging.info("Interrupted, quitting")
         cleanup(serivce_groups)
 
+def get_nanny_token(token_path):
+    token_path = os.path.expanduser(token_path if token_path else "~/.nanny/token")
+    if os.path.exists(token_path):
+        with open(token_path, "rb") as f:
+            return f.read().strip()
+
+    if "YT_SECURE_VAULT" in os.environ:
+        vault = yson.loads(os.environ.get("YT_SECURE_VAULT"))
+        return vault.get("nanny_token", None)
+
+    return None
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Randomly restart service instances.")
     parser.add_argument("--cleanup", action="store_true", default=False, help="Activate all instances (restore state from previous chaos runs)")
     parser.add_argument("--token", type=str, help="Nanny token path")
+    parser.add_argument("--log", type=str, help="File to print log to")
     parser.add_argument("services", type=str, help="Yson description of service groups {masters={services=[service1;service2;...];offline=1;sleep=120};nodes={...}}")
     args = parser.parse_args()
 
-    token_path = os.path.expanduser(args.token if args.token else "~/.nanny/token")
-    with open(token_path, "rb") as f:
-        token = f.read().strip()
+    logging.basicConfig(format='%(asctime)s %(name)s: %(message)s', level=logging.INFO, filename=args.log)
 
-    nanny = Nanny(token)
+    nanny = Nanny(get_nanny_token(args.token))
 
     services = yson.loads(args.services)
     service_gropus = []
