@@ -1785,6 +1785,8 @@ private:
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
 
+            Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
+
             EventLogWriter_->UpdateConfig(Config_->EventLog);
         }
     }
