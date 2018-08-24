@@ -44,6 +44,11 @@ init_vars() {
     fi
     export SKIP_WHEEL
 
+    if [ -z "$SKIP_DUPLOAD" ]; then
+        SKIP_DUPLOAD=""
+    fi
+    export SKIP_DUPLOAD
+
     if [ -z "$CREATE_CONDUCTOR_TICKET" ]; then
         CREATE_CONDUCTOR_TICKET=""
     fi
@@ -113,14 +118,16 @@ if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
     # NB: Never strip binaries and so-libraries.
     DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
-    # Upload debian package
-    for REPO in $REPOS_TO_UPLOAD; do
-        if [ "$REPO" = "common" ]; then
-            # NB: used in postptocess.sh by some packages.
-            export CREATE_CONDUCTOR_TICKET="true"
-        fi
-        dupload "../${PACKAGE}_${VERSION}_amd64.changes" --force --to $REPO
-    done
+    if [ -z "$SKIP_DUPLOAD" ]; then
+        # Upload debian package
+        for REPO in $REPOS_TO_UPLOAD; do
+            if [ "$REPO" = "common" ]; then
+                # NB: used in postptocess.sh by some packages.
+                export CREATE_CONDUCTOR_TICKET="true"
+            fi
+            dupload "../${PACKAGE}_${VERSION}_amd64.changes" --force --to $REPO
+        done
+    fi
 fi
 
 # Upload python wheel
