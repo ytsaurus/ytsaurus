@@ -224,11 +224,14 @@ def wait_record_in_job_archive(operation_id, job_id):
     wait(lambda: any(yt.lookup_rows("//sys/operations_archive/job_specs", [key], column_names=["spec_version"])))
 
 _ASAN_WARNING_PATTERN = re.compile(
-    r"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " +
-    r"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" +
-    r"False positive error reports may follow\n" +
-    r"For details see https://github.com/google/sanitizers/issues/189\n")
+    br"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " \
+    br"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" \
+    br"False positive error reports may follow\n" \
+    br"For details see https://github.com/google/sanitizers/issues/189\n")
 
-def remove_asan_warning(string):
+def remove_asan_warning(str_or_bytes):
     """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
-    return re.sub(_ASAN_WARNING_PATTERN, '', string)
+    if isinstance(str_or_bytes, str):
+        return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes.encode("utf-8")).decode("utf-8")
+    assert isinstance(str_or_bytes, bytes)
+    return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes)
