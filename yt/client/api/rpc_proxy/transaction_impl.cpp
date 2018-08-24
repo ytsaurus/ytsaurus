@@ -347,7 +347,8 @@ void TTransaction::ModifyRows(
         if (readyEvent) {
             // Sending this request would exceed proxy's window size.
             // Wait until that window has been slid.
-            WaitFor(readyEvent);
+            auto result = WaitFor(readyEvent);
+            Y_UNUSED(result); // to chunk clang up
         }
     }
 
