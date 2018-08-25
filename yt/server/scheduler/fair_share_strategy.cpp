@@ -2786,6 +2786,7 @@ public:
         }
 
         THashSet<TJobId> jobsToSave;
+        THashMap<TOperationId, bool> registeredOperationsCache;
 
         for (const auto& job : jobUpdates) {
             if (job.Status == EJobUpdateStatus::Running) {
@@ -2809,8 +2810,18 @@ public:
                     snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
                 } else {
                     // If operation is not yet in snapshot let's push it back to finished jobs.
-                    TReaderGuard guard(RegisteredOperationsLock_);
-                    if (RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end()) {
+                    auto registeredOperationsCacheIt = registeredOperationsCache.find(job.OperationId);
+                    if (registeredOperationsCacheIt == registeredOperationsCache.end()) {
+                        TReaderGuard guard(RegisteredOperationsLock_);
+                        bool operationRegistered = RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end();
+                        guard.Release();
+
+                        registeredOperationsCacheIt = registeredOperationsCache.insert(std::make_pair(
+                            job.OperationId,
+                            operationRegistered)).first;
+                    }
+
+                    if (registeredOperationsCacheIt->second) {
                         jobsToSave.insert(job.JobId);
                     }
                 }
