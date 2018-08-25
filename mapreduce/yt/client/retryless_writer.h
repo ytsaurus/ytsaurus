@@ -35,6 +35,7 @@ public:
         header.MergeParameters(FormIORequestParameters(path, options));
         header.AddTransactionId(parentId);
         header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
+        header.SetToken(auth.Token);
 
         Request_.Connect();
         auto* outputStream = Request_.StartRequest(header);
