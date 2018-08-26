@@ -387,10 +387,15 @@ TRANSFORMS[7] = [
         use_default_mapper=True)
 ]
 
-def set_table_ttl(client, path, ttl, auto_compaction_period):
+def set_table_ttl(client, path, ttl=None, auto_compaction_period=None, drow_stale_rows=False):
     table = "{0}/{1}".format(BASE_PATH, path)
-    client.set(table + "/@max_data_ttl", ttl)
-    client.set(table + "/@auto_compaction_period", auto_compaction_period)
+    if ttl is not None:
+        client.set(table + "/@max_data_ttl", ttl)
+    if auto_compaction_period is not None:
+        client.set(table + "/@auto_compaction_period", auto_compaction_period)
+    if drow_stale_rows:
+        client.set(table + "/@max_data_versions", 1)
+        client.set(table + "/@min_data_ttl", 0)
     client.set(table + "/@min_data_versions", 0)
     client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
     client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
@@ -407,6 +412,40 @@ def set_table_ttl_2years(path):
     def action(client):
         logging.info("Setting %s archive TTL: 2 years", path)
         set_table_ttl(client, path, ttl=1000*3600*24*365*2, auto_compaction_period=1000*3600*24*30)
+
+    return action
+
+def set_ttl_disallowing_obsolete_rows(path):
+    def action(client):
+        logging.info("Disallowing obsolete rows in %s archive", path)
+        set_table_ttl(client, path, drow_stale_rows=True)
+
+    return action
+
+def remove_partition_size_options(path):
+    def action(client):
+        logging.info("Unsetting *_partition_data_size options in %s archive", path)
+        table = "{0}/{1}".format(BASE_PATH, path)
+        client.remove(table + "/@min_partition_data_size")
+        client.remove(table + "/@desired_partition_data_size")
+        client.remove(table + "/@max_partition_data_size")
+        client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
+        client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
+        client.remount_table(table)
+
+    return action
+
+def reshard_with_fixed_pivots(path):
+    def action(client):
+        logging.info("Resharding %s archive with fixed pivots and disabling tablet balancer", path)
+        table = "{0}/{1}".format(BASE_PATH, path)
+        shard_count = 5 * client.get("//sys/tablet_cell_bundles/sys/@tablet_cell_count")
+        client.set(table + "/@disable_tablet_balancer", True)
+        unmount_table(client, table)
+        client.reshard_table(table, get_default_pivots(shard_count))
+        client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
+        client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
+        mount_table(client, table)
 
     return action
 
@@ -841,6 +880,25 @@ TRANSFORMS[24] = [
                 ("has_failed_jobs", "boolean"),
             ],
             in_memory=True)),
+]
+
+ACTIONS[25] = [
+    set_ttl_disallowing_obsolete_rows("fail_contexts"),
+    set_ttl_disallowing_obsolete_rows("job_specs"),
+    set_ttl_disallowing_obsolete_rows("jobs"),
+    set_ttl_disallowing_obsolete_rows("ordered_by_id"),
+    set_ttl_disallowing_obsolete_rows("ordered_by_start_time"),
+    set_ttl_disallowing_obsolete_rows("stderrs"),
+
+    remove_partition_size_options("fail_contexts"),
+    remove_partition_size_options("job_specs"),
+    remove_partition_size_options("jobs"),
+    remove_partition_size_options("ordered_by_id"),
+    remove_partition_size_options("ordered_by_start_time"),
+    remove_partition_size_options("stderrs"),
+
+    reshard_with_fixed_pivots("jobs"),
+    reshard_with_fixed_pivots("ordered_by_id"),
 ]
 
 def swap_table(client, target, source, version):
