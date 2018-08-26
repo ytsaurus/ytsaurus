@@ -2913,11 +2913,6 @@ private:
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
-    std::array<EOperationType, 3> OperationTypesWithShuffle = {
-        EOperationType::Sort,
-        EOperationType::MapReduce,
-        EOperationType::RemoteCopy
-    };
 
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
     {
@@ -2957,7 +2952,8 @@ private:
         }
 
         // Data shuffling shouldn't be launched in tentative trees.
-        if (FindIndex(OperationTypesWithShuffle, operationType) == NPOS) {
+        const auto& noTentativePoolsOperations = Config->OperationsWithoutTentativePoolTrees;
+        if (noTentativePoolsOperations.find(operationType) == noTentativePoolsOperations.end()) {
             std::vector<TString> presentedTentativePoolTrees;
             for (const auto& treeId : spec->TentativePoolTrees) {
                 if (FindTree(treeId)) {
