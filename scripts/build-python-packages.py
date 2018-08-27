@@ -107,7 +107,7 @@ def main(args):
             message="Proto package release.",
             create_package="yandex-yt-python-proto")
 
-    with symlinked(driver_lib_file, os.path.join("python/yt_driver_bindings")), \
+    with symlinked(driver_lib_file, os.path.join(source_directory, "python/yt_driver_bindings")), \
             symlinked(yson_lib_file, os.path.join(source_directory, "python/yt_yson_bindings")):
         subprocess.check_call(["./build_driver.sh"], cwd=os.path.join(source_directory, "python"))
         subprocess.check_call(["./build_proto.sh"], cwd=os.path.join(source_directory, "python"))
