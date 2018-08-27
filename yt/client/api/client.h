@@ -788,7 +788,7 @@ struct TGetOperationOptions
 struct TGetJobOptions
     : public TTimeoutOptions
 {
-    // TODO(sandello): Support attributes filter.
+    TNullable<THashSet<TString>> Attributes;
 };
 
 struct TSelectRowsResult
