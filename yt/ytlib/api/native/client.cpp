@@ -3756,7 +3756,7 @@ private:
     }
 
     // Attribute names allowed for 'get_operation' and 'list_operation' commands.
-    const THashSet<TString> AllowedOperationAttributes = {
+    const THashSet<TString> SupportedOperationAttributes = {
         "id",
         "state",
         "authenticated_user",
@@ -3785,7 +3785,7 @@ private:
         std::vector<TString> result;
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
-            if (!AllowedOperationAttributes.has(attribute)) {
+            if (!SupportedOperationAttributes.has(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
@@ -3807,7 +3807,7 @@ private:
         std::vector<TString> result;
         result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
-            if (!AllowedOperationAttributes.has(attribute)) {
+            if (!SupportedOperationAttributes.has(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
@@ -3989,7 +3989,7 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options)
     {
-        auto attributes = options.Attributes.Get(AllowedOperationAttributes);
+        auto attributes = options.Attributes.Get(SupportedOperationAttributes);
 
         if (DoGetOperationsArchiveVersion() < 22) {
             attributes.erase("runtime_parameters");
@@ -6225,6 +6225,41 @@ private:
         }
     }
 
+    // Attribute names allowed for 'get_job' and 'list_jobs' commands.
+    const THashSet<TString> SupportedJobAttributes = {
+        "operation_id",
+        "job_id",
+        "type",
+        "state",
+        "start_time",
+        "finish_time",
+        "address",
+        "error",
+        "statistics",
+        "events",
+    };
+
+    std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
+    {
+        std::vector<TString> result;
+        result.reserve(attributes.size() + 2); // Plus 2 as operation_id and job_id are split into hi and lo.
+        for (const auto& attribute : attributes) {
+            if (!SupportedJobAttributes.has(attribute)) {
+                THROW_ERROR_EXCEPTION("Job attribute %Qv is not allowed", attribute);
+            }
+            if (attribute.EndsWith("_id")) {
+                result.push_back(attribute + "_hi");
+                result.push_back(attribute + "_lo");
+            } else {
+                result.push_back(attribute);
+                if (attribute == "state" && archiveVersion > 16) {
+                    result.push_back("transient_state");
+                }
+            }
+        }
+        return result;
+    }
+
     TYsonString DoGetJob(
         const TOperationId& operationId,
         const TJobId& jobId,
@@ -6248,11 +6283,9 @@ private:
 
         TLookupRowsOptions lookupOptions;
 
-        THashSet<TString> fields = {
-            "operation_id_hi",
-            "operation_id_lo",
-            "job_id_hi",
-            "job_id_lo",
+        const THashSet<TString> DefaultAttributes = {
+            "operation_id",
+            "job_id",
             "type",
             "state",
             "start_time",
@@ -6260,14 +6293,11 @@ private:
             "address",
             "error",
             "statistics",
-            "events"
+            "events",
         };
 
-        if (archiveVersion >= 16) {
-            fields.insert("transient_state");
-        }
-
         std::vector<int> columnIndexes;
+        auto fields = MakeJobArchiveAttributes(options.Attributes.Get(DefaultAttributes), archiveVersion);
         for (const auto& field : fields) {
             columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
         }
@@ -6288,29 +6318,22 @@ private:
         auto row = rows[0];
 
         if (!row) {
-            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+            THROW_ERROR_EXCEPTION("No such job %v or operation %v", jobId, operationId);
         }
 
         const auto& columnFilter = lookupOptions.ColumnFilter;
 
-        auto resultOperationId = TGuid(
-            row[columnFilter.GetPosition(table.Index.OperationIdHi)].Data.Uint64,
-            row[columnFilter.GetPosition(table.Index.OperationIdLo)].Data.Uint64);
-        auto resultJobId = TGuid(
-            row[columnFilter.GetPosition(table.Index.JobIdHi)].Data.Uint64,
-            row[columnFilter.GetPosition(table.Index.JobIdLo)].Data.Uint64);
-
         TStringBuf state;
         {
-            auto value = row[columnFilter.GetPosition(table.Index.State)];
-            if (value.Type != EValueType::Null) {
-                state = FromUnversionedValue<TStringBuf>(value);
+            auto indexOrNull = columnFilter.FindPosition(table.Index.State);
+            if (indexOrNull && row[*indexOrNull].Type != EValueType::Null) {
+                state = FromUnversionedValue<TStringBuf>(row[*indexOrNull]);
             }
         }
         if (!state.IsInited() && archiveVersion >= 16) {
-            auto value = row[columnFilter.GetPosition(table.Index.TransientState)];
-            if (value.Type != EValueType::Null) {
-                state = FromUnversionedValue<TStringBuf>(value);
+            auto indexOrNull = columnFilter.FindPosition(table.Index.TransientState);
+            if (indexOrNull && row[*indexOrNull].Type != EValueType::Null) {
+                state = FromUnversionedValue<TStringBuf>(row[*indexOrNull]);
             }
         }
 
@@ -6325,13 +6348,19 @@ private:
 
         return BuildYsonStringFluently()
             .BeginMap()
-                .Item("operation_id").Value(resultOperationId)
-                .Item("job_id").Value(resultJobId)
+                .DoIf(columnFilter.ContainsIndex(table.Index.OperationIdHi), [&] (TFluentMap fluent) {
+                    fluent.Item("operation_id").Value(operationId);
+                })
+                .DoIf(columnFilter.ContainsIndex(table.Index.JobIdHi), [&] (TFluentMap fluent) {
+                    fluent.Item("job_id").Value(jobId);
+                })
                 .DoIf(state.IsInited(), [&] (TFluentMap fluent) {
                     fluent.Item("state").Value(state);
                 })
+
                 .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "start_time", table.Index.StartTime))
                 .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "finish_time", table.Index.FinishTime))
+
                 .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "address",     row, columnFilter, table.Index.Address))
                 .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "type",        row, columnFilter, table.Index.Type))
                 .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "error",       row, columnFilter, table.Index.Error))

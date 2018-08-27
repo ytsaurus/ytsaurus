@@ -398,6 +398,8 @@ TGetJobCommand::TGetJobCommand()
 {
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("job_id", JobId);
+    RegisterParameter("attributes", Options.Attributes)
+        .Optional();
 }
 
 void TGetJobCommand::DoExecute(ICommandContextPtr context)

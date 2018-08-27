@@ -3,7 +3,10 @@ from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from operations_archive import clean_operations
+from yt.common import date_string_to_datetime
+
+import __builtin__
+import datetime
 
 class TestGetJob(YTEnvSetup):
     NUM_MASTERS = 1
@@ -44,18 +47,14 @@ class TestGetJob(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         job_id_file = os.path.join(self._tmpdir, "jobids")
+        before_start_time = datetime.datetime.utcnow()
         op = map(
             dont_track=True,
-            label="get_job_stderr",
+            label="get_job",
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("echo $YT_JOB_ID > {0} ; cat ; BREAKPOINT".format(job_id_file)),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+        )
 
         wait_breakpoint()
 
@@ -64,4 +63,13 @@ class TestGetJob(YTEnvSetup):
 
         job_info = retry(lambda: get_job(op.id, job_id))
 
+        assert job_info["job_id"] == job_id
+        assert job_info["operation_id"] == op.id
         assert job_info["type"] == "map"
+        assert job_info["state"] == "running"
+        start_time = date_string_to_datetime(job_info["start_time"])
+        assert before_start_time < start_time < datetime.datetime.utcnow()
+
+        attributes = ["job_id", "state", "start_time"]
+        job_info = retry(lambda: get_job(op.id, job_id, attributes=attributes))
+        assert __builtin__.set(job_info.keys()) == __builtin__.set(attributes)
