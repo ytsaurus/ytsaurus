@@ -674,8 +674,8 @@ class YTInstance(object):
 
             stderr = open(path).read()
             if stderr:
-                stderr.write("{0}{1} stderr:\n{2}"
-                             .format(name.capitalize(), number_suffix, stderr))
+                sys.stderr.write("{0}{1} stderr:\n{2}"
+                                 .format(name.capitalize(), number_suffix, stderr))
                 if "Address already in use" in stderr:
                     return True
             return False
