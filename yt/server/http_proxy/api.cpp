@@ -14,12 +14,13 @@ namespace NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NHttp;
+using namespace NProfiling;
 
 static auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSemaphoreGuard::TSemaphoreGuard(TApi* api, const TSemaphoreKey& key)
+TSemaphoreGuard::TSemaphoreGuard(TApi* api, const TUserCommandPair& key)
     : Api_(api)
     , Key_(key)
 { }
@@ -89,41 +90,93 @@ TNullable<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TSt
     } while (!GlobalSemaphore_.compare_exchange_weak(value, value + 1));
 
     auto key = std::make_pair(user, command);
-    auto semaphore = GetSemaphore(key);
+    auto counters = GetProfilingCounters(key);
 
-    HttpProxyProfiler.Increment(semaphore->Value);
+    HttpProxyProfiler.Increment(counters->ConcurrencySemaphore);
 
     return TSemaphoreGuard(this, key);
 }
 
-void TApi::ReleaseSemaphore(const TSemaphoreKey& key)
+void TApi::ReleaseSemaphore(const TUserCommandPair& key)
 {
-    auto semaphore = GetSemaphore(key);
+    auto counters = GetProfilingCounters(key);
     GlobalSemaphore_.fetch_add(-1);
-    HttpProxyProfiler.Increment(semaphore->Value, -1);
+    HttpProxyProfiler.Increment(counters->ConcurrencySemaphore, -1);
 }
 
-TApi::TSemaphore* TApi::GetSemaphore(const TSemaphoreKey& key)
+TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key)
 {
     {
-        TReaderGuard guard(SemaphoresLock_);
-        auto semaphore = Semaphores_.find(key);
-        if (semaphore != Semaphores_.end()) {
-            return semaphore->second.get();
+        TReaderGuard guard(CountersLock_);
+        auto counter = Counters_.find(key);
+        if (counter != Counters_.end()) {
+            return counter->second.get();
         }
     }
 
-    auto semaphore = std::make_unique<TSemaphore>();
-    semaphore->Value = {
-        "/concurrency_semaphore", {
-            NProfiling::TProfileManager::Get()->RegisterTag("user", key.first),
-            NProfiling::TProfileManager::Get()->RegisterTag("command", key.second),
-        }
+    auto counters = std::make_unique<TProfilingCounters>();
+    counters->Tags = {
+        TProfileManager::Get()->RegisterTag("user", key.first),
+        TProfileManager::Get()->RegisterTag("command", key.second),
     };
+    
+    counters->ConcurrencySemaphore = { "/concurrency_semaphore", counters->Tags };
+    counters->RequestCount = { "/request_count", counters->Tags };
+    counters->BytesIn = { "/bytes_in", counters->Tags };
+    counters->BytesOut = { "/bytes_out", counters->Tags };
 
-    TWriterGuard guard(SemaphoresLock_);
-    auto result = Semaphores_.emplace(key, std::move(semaphore));
+    TWriterGuard guard(CountersLock_);
+    auto result = Counters_.emplace(key, std::move(counters));
     return result.first->second.get();
+}
+
+void TApi::IncrementProfilingCounters(
+    const TString& user,
+    const TString& command,
+    TNullable<EStatusCode> httpStatusCode,
+    TErrorCode apiErrorCode,
+    TDuration duration,
+    i64 bytesIn,
+    i64 bytesOut)
+{
+    auto counters = GetProfilingCounters({user, command});
+
+    HttpProxyProfiler.Increment(counters->RequestCount);
+    HttpProxyProfiler.Increment(counters->BytesIn, bytesIn);
+    HttpProxyProfiler.Increment(counters->BytesOut, bytesOut);
+
+    HttpProxyProfiler.Update(counters->RequestDuration, duration.MilliSeconds());
+
+    auto guard = Guard(counters->Lock);
+    if (httpStatusCode) {
+        auto it = counters->HttpCodes.find(*httpStatusCode);
+        
+        if (it == counters->HttpCodes.end()) {
+            auto tags = counters->Tags;
+            tags.push_back(TProfileManager::Get()->RegisterTag("http_code", *httpStatusCode));
+
+            it = counters->HttpCodes.emplace(
+                *httpStatusCode,
+                TMonotonicCounter{"/http_code_count", tags}).first;
+        }
+
+        HttpProxyProfiler.Increment(it->second);
+    }
+
+    if (apiErrorCode) {
+        auto it = counters->ApiErrors.find(apiErrorCode);
+
+        if (it == counters->ApiErrors.end()) {
+            auto tags = counters->Tags;
+            tags.push_back(TProfileManager::Get()->RegisterTag("error_code", *httpStatusCode));
+
+            it = counters->ApiErrors.emplace(
+                *httpStatusCode,
+                TMonotonicCounter{"/api_error_count", tags}).first;
+        }
+
+        HttpProxyProfiler.Increment(it->second);
+    }
 }
 
 void TApi::HandleRequest(
@@ -136,6 +189,7 @@ void TApi::HandleRequest(
 
     auto context = New<TContext>(MakeStrong(this), req, rsp);
     if (!context->TryPrepare()) {
+        HttpProxyProfiler.Increment(PrepareErrorCount_);
         return;
     }
     try {

@@ -790,6 +790,15 @@ void TContext::Finalize()
         // TODO(prime@): Fill trailers.
         LOG_DEBUG("Error is not sent to client since response headers are already flushed");
     }
+
+    Api_->IncrementProfilingCounters(
+        DriverRequest_.AuthenticatedUser,
+        DriverRequest_.CommandName,
+        Response_->GetStatus(),
+        Error_.GetCode(),
+        TInstant::Now() - StartTime_,
+        0,
+        0);
 }
 
 template <class TJsonProducer>
