@@ -7,12 +7,29 @@
 
 #include <yt/core/http/helpers.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 namespace NYT {
 namespace NHttpProxy {
 
+using namespace NConcurrency;
 using namespace NHttp;
 
 static auto& Logger = HttpProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSemaphoreGuard::TSemaphoreGuard(TApi* api, const TSemaphoreKey& key)
+    : Api_(api)
+    , Key_(key)
+{ }
+
+TSemaphoreGuard::~TSemaphoreGuard()
+{
+    if (Api_) {
+        Api_->ReleaseSemaphore(Key_);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +64,7 @@ const TCoordinatorPtr& TApi::GetCoordinator() const
 bool TApi::IsUserBannedInCache(const TString& user)
 {
     auto now = TInstant::Now();
-    auto guard = Guard(Lock_);
+    TReaderGuard guard(BanCacheLock_);
     auto it = BanCache_.find(user);
     if (it != BanCache_.end()) {
         return now < it->second;
@@ -58,8 +75,55 @@ bool TApi::IsUserBannedInCache(const TString& user)
 
 void TApi::PutUserIntoBanCache(const TString& user)
 {
-    auto guard = Guard(Lock_);
+    TWriterGuard guard(BanCacheLock_);
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
+}
+
+TNullable<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
+{
+    auto value = GlobalSemaphore_.load();
+    do {
+        if (value >= Config_->ConcurrencyLimit) {
+            return {};
+        }
+    } while (!GlobalSemaphore_.compare_exchange_weak(value, value + 1));
+
+    auto key = std::make_pair(user, command);
+    auto semaphore = GetSemaphore(key);
+
+    HttpProxyProfiler.Increment(semaphore->Value);
+
+    return TSemaphoreGuard(this, key);
+}
+
+void TApi::ReleaseSemaphore(const TSemaphoreKey& key)
+{
+    auto semaphore = GetSemaphore(key);
+    GlobalSemaphore_.fetch_add(-1);
+    HttpProxyProfiler.Increment(semaphore->Value, -1);
+}
+
+TApi::TSemaphore* TApi::GetSemaphore(const TSemaphoreKey& key)
+{
+    {
+        TReaderGuard guard(SemaphoresLock_);
+        auto semaphore = Semaphores_.find(key);
+        if (semaphore != Semaphores_.end()) {
+            return semaphore->second.get();
+        }
+    }
+
+    auto semaphore = std::make_unique<TSemaphore>();
+    semaphore->Value = {
+        "/concurrency_semaphore", {
+            NProfiling::TProfileManager::Get()->RegisterTag("user", key.first),
+            NProfiling::TProfileManager::Get()->RegisterTag("command", key.second),
+        }
+    };
+
+    TWriterGuard guard(SemaphoresLock_);
+    auto result = Semaphores_.emplace(key, std::move(semaphore));
+    return result.first->second.get();
 }
 
 void TApi::HandleRequest(
