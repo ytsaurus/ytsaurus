@@ -468,7 +468,7 @@ def package(options, build_context):
             run(
                 [
                     build_python_packages,
-                    "--install-dir", get_bin_dir(options))
+                    "--install-dir", get_bin_dir(options)),
                     "--output-dir", artifacts_dir
                 ],
                 env={
