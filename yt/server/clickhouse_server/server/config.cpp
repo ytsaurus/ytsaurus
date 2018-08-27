@@ -16,6 +16,9 @@ TConfig::TConfig()
 
     RegisterParameter("scan_throttler", ScanThrottler)
         .Default();
+
+    RegisterParameter("validate_operation_permission", ValidateOperationPermission)
+        .Default(true);
 }
 
 }   // namespace NClickHouse

@@ -19,13 +19,19 @@ class TCliqueAuthorizationManager
 public:
     TCliqueAuthorizationManager(
         IClientPtr client,
-        TString cliqueId)
+        TString cliqueId,
+        bool validateOperationPermission)
         : Client_(std::move(client))
         , CliqueId_(std::move(cliqueId))
+        , ValidateOperationPermission_(validateOperationPermission)
     { }
 
     virtual bool HasAccess(const std::string& user) override
     {
+        if (!ValidateOperationPermission_) {
+            return true;
+        }
+
         try {
             NScheduler::ValidateOperationPermission(
                 TString(user),
@@ -45,12 +51,16 @@ public:
 private:
     IClientPtr Client_;
     TString CliqueId_;
+    bool ValidateOperationPermission_ = false;
     const NLogging::TLogger& Logger = ServerLogger;
 };
 
-NInterop::ICliqueAuthorizationManagerPtr CreateCliqueAuthorizationManager(IClientPtr client, TString cliqueId)
+NInterop::ICliqueAuthorizationManagerPtr CreateCliqueAuthorizationManager(
+    IClientPtr client,
+    TString cliqueId,
+    bool validateOperationPermission)
 {
-    return std::make_shared<TCliqueAuthorizationManager>(std::move(client), std::move(cliqueId));
+    return std::make_shared<TCliqueAuthorizationManager>(std::move(client), std::move(cliqueId), validateOperationPermission);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
