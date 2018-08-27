@@ -11,5 +11,4 @@ message TReadJobSpec
     required NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
     required NScheduler.NProto.TTableInputSpec table_spec = 2;
     optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
-    optional string yql_schema = 4;
 };

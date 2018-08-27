@@ -48,18 +48,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool CompareYqlSchemasAsStrings(const TYsonString& lhs, const TYsonString& rhs)
-{
-    if (lhs && rhs) {
-        // both strings are non-empty
-        return lhs == rhs;
-    }
-    // true if both strings are empty otherwise false
-    return !lhs && !rhs;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO: remove copy-paste
 
 struct TTableObject
@@ -68,7 +56,6 @@ struct TTableObject
     int ChunkCount = 0;
     bool IsDynamic = false;
     TTableSchema Schema;
-    NYson::TYsonString YqlSchema;
 };
 
 using TTables = std::vector<TTableObject>;
@@ -185,7 +172,6 @@ void TMultiTablesPartitioner::CollectTableSpecificAttributes()
                 "dynamic",
                 "chunk_count",
                 "schema",
-                "_yql_row_spec",
             };
             NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
             SetTransactionId(req, TransactionId);
@@ -208,7 +194,6 @@ void TMultiTablesPartitioner::CollectTableSpecificAttributes()
             table.ChunkCount = attributes->Get<int>("chunk_count");
             table.IsDynamic = attributes->Get<bool>("dynamic");
             table.Schema = attributes->Get<TTableSchema>("schema");
-            table.YqlSchema = attributes->FindYson("_yql_row_spec");
         }
     }
 }
@@ -233,10 +218,6 @@ void TMultiTablesPartitioner::VerifySchemasAndTypesAreIdentical()
         if (table.Schema != representativeTable.Schema) {
             THROW_ERROR_EXCEPTION(
                 "YT schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
-        }
-        if (!CompareYqlSchemasAsStrings(table.YqlSchema, representativeTable.YqlSchema)) {
-            THROW_ERROR_EXCEPTION(
-                "YQL schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
         }
         if (table.IsDynamic != representativeTable.IsDynamic) {
             THROW_ERROR_EXCEPTION(
@@ -357,10 +338,6 @@ NInterop::TTablePartList TMultiTablesPartitioner::PartitionChunks()
             readJobSpec.DataSourceDirectory = DataSourceDirectory;
             readJobSpec.DataSliceDescriptors = std::move(dataSliceDescriptors);
             readJobSpec.NodeDirectory = NodeDirectory;
-
-            // TODO
-            auto representativeTable = Tables.front();
-            readJobSpec.YqlSchema = representativeTable.YqlSchema;
         }
 
         NInterop::TTablePart tablePart;

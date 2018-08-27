@@ -150,7 +150,6 @@ struct TTableObject
     int ChunkCount = 0;
     bool Dynamic = false;
     TTableSchema Schema;
-    NYson::TYsonString YqlSchema;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,7 +444,6 @@ std::unique_ptr<TTableObject> TStorage::GetTableAttributes(
             "chunk_count",
             "dynamic",
             "schema",
-            "_yql_row_spec",
         };
         NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -461,7 +459,6 @@ std::unique_ptr<TTableObject> TStorage::GetTableAttributes(
         userObject->ChunkCount = attributes->Get<int>("chunk_count");
         userObject->Dynamic = attributes->Get<bool>("dynamic");
         userObject->Schema = attributes->Get<TTableSchema>("schema");
-        userObject->YqlSchema = attributes->FindYson("_yql_row_spec");
     }
 
     return userObject;
@@ -513,8 +510,7 @@ NInterop::TTablePtr TStorage::DoGetTable(
 
     return CreateTableSchema(
         path.GetPath(),
-        userObject->Schema,
-        userObject->YqlSchema);
+        userObject->Schema);
 }
 
 NInterop::TTablePartList TStorage::DoGetTablesParts(
@@ -575,7 +571,8 @@ NInterop::ITableReaderPtr TStorage::DoCreateTableReader(
         tableObject->Schema,
         readerOptions);
 
-    auto readerTable = NClickHouse::CreateTableSchema(name, tableObject->Schema, tableObject->YqlSchema);
+    // TODO(max42): rename?
+    auto readerTable = NClickHouse::CreateTableSchema(name, tableObject->Schema);
     return NClickHouse::CreateTableReader(readerTable, std::move(chunkReader));
 }
 

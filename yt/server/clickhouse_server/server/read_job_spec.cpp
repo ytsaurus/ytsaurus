@@ -95,7 +95,7 @@ NInterop::TTableList TReadJobSpec::GetTables() const
     tables.reserve(dataSources.size());
     for (auto dataSource : dataSources) {
         tables.push_back(
-            CreateTableSchema(*dataSource.GetPath(), nativeSchema, YqlSchema));
+            CreateTableSchema(*dataSource.GetPath(), nativeSchema));
     }
     return tables;
 }
@@ -115,10 +115,6 @@ void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec)
     if (spec.NodeDirectory) {
         spec.NodeDirectory->DumpTo(protoSpec->mutable_node_directory());
     }
-
-    if (spec.YqlSchema) {
-        protoSpec->set_yql_schema(spec.YqlSchema.GetData());
-    }
 }
 
 void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec)
@@ -135,10 +131,6 @@ void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec)
         spec->NodeDirectory = New<TNodeDirectory>();
         spec->NodeDirectory->MergeFrom(protoSpec.node_directory());
     }
-
-    if (protoSpec.has_yql_schema()) {
-        spec->YqlSchema = TYsonString(protoSpec.yql_schema());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,9 +143,6 @@ void Serialize(const TReadJobSpec& spec, IYsonConsumer* consumer)
             .Item("table_spec").List(spec.DataSliceDescriptors)
             .DoIf(bool(spec.NodeDirectory), [&] (TFluentMap fluent) {
                 fluent.Item("node_directory").Value(spec.NodeDirectory);
-            })
-            .DoIf(bool(spec.YqlSchema), [&] (TFluentMap fluent) {
-                fluent.Item("yql_schema").Value(spec.YqlSchema);
             })
         .EndMap();
 }
@@ -168,10 +157,6 @@ void Deserialize(TReadJobSpec& spec, INodePtr node)
 
     if (auto node = mapNode->FindChild("node_directory")) {
         spec.NodeDirectory = ConvertTo<TNodeDirectoryPtr>(node);
-    }
-
-    if (auto node = mapNode->FindChild("yql_schema")) {
-        spec.YqlSchema = ConvertToYsonStringStable(node);
     }
 }
 

@@ -27,7 +27,6 @@ public:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
     std::vector<NChunkClient::TDataSliceDescriptor> DataSliceDescriptors;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-    NYson::TYsonString YqlSchema;
 
 public:
     void Validate() const;
