@@ -141,7 +141,8 @@ bool TContext::TryPrepare()
         TryGetInputFormat() &&
         TryGetInputCompression() &&
         TryGetOutputFormat() &&
-        TryGetOutputCompression();
+        TryGetOutputCompression() &&
+        TryAcquireConcurrencySemaphore();
 }
 
 bool TContext::TryParseRequest()
@@ -499,6 +500,20 @@ bool TContext::TryGetOutputCompression()
     if (!OutputCompression_) {
         OutputCompression_ = EContentEncoding::None;
         OutputContentEncoding_ = "identity";
+    }
+
+    return true;
+}
+
+bool TContext::TryAcquireConcurrencySemaphore()
+{
+    SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, DriverRequest_.CommandName);
+    if (!SemaphoreGuard_) {
+        DispatchLater(
+            "60",
+            "There are too many concurrent requests being served at the moment; "
+            "please try another proxy or try again later");
+        return false;
     }
 
     return true;

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "api.h"
+
 #include <yt/core/http/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -43,6 +45,7 @@ public:
     bool TryGetInputCompression();
     bool TryGetOutputFormat();
     bool TryGetOutputCompression();
+    bool TryAcquireConcurrencySemaphore();
 
     void CaptureParameters();
 
@@ -65,6 +68,8 @@ private:
     const TApiPtr Api_;
     const NHttp::IRequestPtr Request_;
     const NHttp::IResponseWriterPtr Response_;
+
+    TNullable<TSemaphoreGuard> SemaphoreGuard_;
 
     NDriver::TDriverRequest DriverRequest_;
     TNullable<NDriver::TCommandDescriptor> Descriptor_;

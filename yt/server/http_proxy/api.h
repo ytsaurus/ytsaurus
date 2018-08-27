@@ -4,6 +4,8 @@
 
 #include <yt/core/http/http.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/ytlib/driver/driver.h>
 
 namespace NYT {
@@ -11,8 +13,28 @@ namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Key is a (user, command) pair.
+typedef std::pair<TString, TString> TSemaphoreKey;
+
 class TSemaphoreGuard
-{ };
+{
+public:
+    TSemaphoreGuard(TSemaphoreGuard&&) = default;
+    TSemaphoreGuard& operator = (TSemaphoreGuard&&) = default;
+    
+    TSemaphoreGuard(TApi* api, const TSemaphoreKey& key);
+    ~TSemaphoreGuard();
+
+private:
+    struct TEmptyDeleter
+    {
+        void operator () (TApi* api)
+        { }
+    };
+
+    std::unique_ptr<TApi, TEmptyDeleter> Api_;
+    TSemaphoreKey Key_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +57,7 @@ public:
     void PutUserIntoBanCache(const TString& user);
 
     TNullable<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
+    void ReleaseSemaphore(const TSemaphoreKey& key);
 
 private:
     const TApiConfigPtr Config_;
@@ -45,8 +68,20 @@ private:
     const THttpAuthenticatorPtr HttpAuthenticator_;
     const TCoordinatorPtr Coordinator_;
 
-    TSpinLock Lock_;
+    NConcurrency::TReaderWriterSpinLock BanCacheLock_;
     THashMap<TString, TInstant> BanCache_;
+
+    struct TSemaphore
+    {
+        NProfiling::TSimpleGauge Value;
+    };
+
+    std::atomic<int> GlobalSemaphore_{0};
+
+    NConcurrency::TReaderWriterSpinLock SemaphoresLock_;
+    THashMap<TSemaphoreKey, std::unique_ptr<TSemaphore>> Semaphores_;
+
+    TSemaphore* GetSemaphore(const TSemaphoreKey& key);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApi)

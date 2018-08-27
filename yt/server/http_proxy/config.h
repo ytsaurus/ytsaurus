@@ -71,11 +71,15 @@ class TApiConfig
 {
 public:
     TDuration BanCacheExpirationTime;
+    int ConcurrencyLimit;
 
     TApiConfig()
     {
         RegisterParameter("ban_cache_expiration_time", BanCacheExpirationTime)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("concurrency_limit", ConcurrencyLimit)
+            .Default(1024);
     }
 };
 
