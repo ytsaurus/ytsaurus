@@ -9,7 +9,10 @@ namespace NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::ICliqueAuthorizationManagerPtr CreateCliqueAuthorizationManager(NApi::IClientPtr client, TString cliqueId);
+NInterop::ICliqueAuthorizationManagerPtr CreateCliqueAuthorizationManager(
+    NApi::IClientPtr client,
+    TString cliqueId,
+    bool validateOperationPermission);
 
 ////////////////////////////////////////////////////////////////////////////////
 

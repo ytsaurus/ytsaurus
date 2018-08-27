@@ -14,8 +14,7 @@ namespace NClickHouse {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNativeClientCacheConfig
-    : public virtual NYTree::TYsonSerializable
-    , public TAsyncExpiringCacheConfig
+    : public TAsyncExpiringCacheConfig
 {
 public:
     TNativeClientCacheConfig() = default;
@@ -33,8 +32,10 @@ public:
 
     TNativeClientCacheConfigPtr ClientCache;
 
-    // Controls incoming bandwidth used by scan jobs
+    //! Controls incoming bandwidth used by scan jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ScanThrottler;
+
+    bool ValidateOperationPermission;
 
     TConfig();
 };

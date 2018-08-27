@@ -177,7 +177,7 @@ void TBootstrap::DoInitialize()
     CoordinationService = CreateCoordinationService(Connection, CliqueId_);
 
     auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
-    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_);
+    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config->ValidateOperationPermission);
 
     Server = CreateServer(
         logger,
