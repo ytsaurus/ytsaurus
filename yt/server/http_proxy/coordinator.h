@@ -74,6 +74,7 @@ public:
 
 private:
     TCoordinatorConfigPtr Config_;
+    const TBootstrap* Bootstrap_;
     NApi::IClientPtr Client_;
     NConcurrency::TPeriodicExecutorPtr Periodic_;
 
@@ -147,9 +148,9 @@ private:
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::IClientPtr Client_;
 
-    NYson::TYsonString ListComponent(const TString& component, const std::vector<TString>& attributes);
+    NYson::TYsonString ListComponent(const TString& component, bool isDataNode);
     std::vector<TString> GetInstances(const TString& path, bool fromSubdirectories = false);
-    NYson::TYsonString GetAttributes(const TString& path, const std::vector<TString>& instances, const std::vector<TString>& attributes);
+    NYson::TYsonString GetAttributes(const TString& path, const std::vector<TString>& instances);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)

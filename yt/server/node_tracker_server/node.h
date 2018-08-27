@@ -102,6 +102,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, Annotations);
+    DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
     void SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics);

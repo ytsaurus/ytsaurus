@@ -47,8 +47,6 @@ class TestHttpProxy(YTEnvSetup):
         assert len(rsp["nodes"]) == 5
         assert len(rsp["schedulers"]) == 1
         for component in rsp:
-            if component == "nodes": # we don't support nodes
-                continue
             for instant in rsp[component]:
                 assert "version" in rsp[component][instant]
                 assert "start_time" in rsp[component][instant]

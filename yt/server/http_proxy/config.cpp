@@ -77,6 +77,10 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
             })
         .EndMap();
 
+    if (auto node = legacyConfig->AsMap()->FindChild("cypress_annotations")) {
+        config->AsMap()->AddChild("cypress_annotations", CloneNode(node));
+    }
+
     if (auto node = proxy->FindChild("address_resolver")) {
         config->AsMap()->AddChild("address_resolver", CloneNode(node));
     }

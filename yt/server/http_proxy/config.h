@@ -14,6 +14,8 @@
 
 #include <yt/core/https/config.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NHttpProxy {
 
@@ -105,6 +107,8 @@ public:
 
     TString UIRedirectUrl;
 
+    NYTree::IMapNodePtr CypressAnnotations;
+
     TProxyConfig()
     {
         RegisterParameter("port", Port)
@@ -132,6 +136,12 @@ public:
             .DefaultNew();
         RegisterParameter("api", Api)
             .DefaultNew();
+
+        RegisterParameter("cypress_annotations", CypressAnnotations)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                .EndMap()
+            ->AsMap());
     }
 };
 

@@ -347,6 +347,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
     Save(context, Annotations_);
+    Save(context, Version_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -416,6 +417,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(psushin, prime)
     if (context.GetVersion() >= 805) {
         Load(context, Annotations_);
+        Load(context, Version_);
     }
 
     ComputeDefaultAddress();
