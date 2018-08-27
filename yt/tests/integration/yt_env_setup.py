@@ -352,6 +352,8 @@ class YTEnvSetup(object):
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    DELTA_PROXY_CONFIG = {}
+    DELTA_RPC_PROXY_CONFIG = {}
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
@@ -376,6 +378,14 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_node_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_proxy_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_rpc_proxy_config(cls, config):
         pass
 
     @classmethod
@@ -527,6 +537,13 @@ class YTEnvSetup(object):
         for index, config in enumerate(configs["node"]):
             configs["node"][index] = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             cls.modify_node_config(configs["node"][index])
+
+        configs["proxy"] = update_inplace(configs["proxy"], cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+        cls.modify_proxy_config(configs["proxy"])
+
+        configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
+        cls.modify_rpc_proxy_config(configs["rpc_proxy"])
+
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 

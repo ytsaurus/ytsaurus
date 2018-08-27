@@ -59,6 +59,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/build/build.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -418,6 +420,7 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     ToProto(req->mutable_tags(), NodeTags_);
 
     req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
+    req->set_build_version(GetVersion());
 
     LOG_INFO("Registering at primary master (%v)",
         *req->mutable_statistics());

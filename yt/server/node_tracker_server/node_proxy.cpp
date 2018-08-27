@@ -78,6 +78,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Tags);
         descriptors->push_back(EInternedAttributeKey::LastSeenTime);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Annotations));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Version));
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RegisterTime)
             .SetPresent(isGood));
@@ -168,6 +169,12 @@ private:
             case EInternedAttributeKey::Annotations: {
                 BuildYsonFluently(consumer)
                     .Value(node->GetAnnotations());
+                return true;
+            }
+
+            case EInternedAttributeKey::Version: {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetVersion());
                 return true;
             }
 

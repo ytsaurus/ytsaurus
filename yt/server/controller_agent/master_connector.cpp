@@ -396,6 +396,12 @@ private:
             batchReq->AddRequest(req);
         }
         {
+            auto req = TCypressYPathProxy::Set(path + "/@annotations");
+            req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+        {
             auto req = TCypressYPathProxy::Create(path + "/orchid");
             req->set_ignore_existing(true);
             req->set_recursive(true);

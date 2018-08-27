@@ -16,6 +16,7 @@ message TReqRegisterNode
     optional int32 node_id = 4;
     repeated string tags = 5;
     optional string cypress_annotations = 6;
+    optional string build_version = 7;
 }
 
 message TRspRegisterNode

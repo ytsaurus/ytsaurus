@@ -167,16 +167,19 @@ private:
                 req->set_type(static_cast<int>(EObjectType::MapNode));
                 req->set_recursive(true);
                 req->set_ignore_existing(true);
+                GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
                 req->set_value(ConvertToYsonString(GetVersion()).GetData());
+                GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set(path + "/@" + StartTimeAttributeName);
                 req->set_value(ConvertToYsonString(TInstant::Now().ToString()).GetData());
+                GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {

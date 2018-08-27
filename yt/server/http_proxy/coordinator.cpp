@@ -76,6 +76,7 @@ TCoordinator::TCoordinator(
     const TProxyConfigPtr& config,
     TBootstrap* bootstrap)
     : Config_(config->Coordinator)
+    , Bootstrap_(bootstrap)
     , Client_(bootstrap->GetRootClient())
     , Periodic_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
@@ -226,6 +227,10 @@ void TCoordinator::Update()
             WaitFor(Client_->SetNode(selfPath + "/@version", ConvertToYsonString(NYT::GetVersion())))
                 .ThrowOnError();
             WaitFor(Client_->SetNode(selfPath + "/@start_time", ConvertToYsonString(TInstant::Now().ToString())))
+                .ThrowOnError();
+
+            auto annotations = ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations);
+            WaitFor(Client_->SetNode(selfPath + "/@annotations", annotations))
                 .ThrowOnError();
 
             IsInitialized_ = true;
@@ -430,58 +435,58 @@ void TDiscoverVersionsHandler::HandleRequest(
         return;
     }
 
-    const std::vector<TString> requiredAttributes = {
-        "start_time",
-        "version",
-    };
-
     rsp->SetStatus(EStatusCode::OK);
 
-    ReplyJson(rsp, [&requiredAttributes, this] (IYsonConsumer* consumer) {
+    ReplyJson(rsp, [this] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("primary_masters")  .Value(GetAttributes("//sys/primary_masters",             GetInstances("//sys/primary_masters"),             requiredAttributes))
-                .Item("secondary_masters").Value(GetAttributes("//sys/secondary_masters",           GetInstances("//sys/secondary_masters", true),     requiredAttributes))
-                .Item("schedulers")       .Value(GetAttributes("//sys/scheduler/instances",         GetInstances("//sys/scheduler/instances"),         requiredAttributes))
-                .Item("controller_agents").Value(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), requiredAttributes))
-                .Item("nodes")            .Value(ListComponent("nodes", requiredAttributes))
-                .Item("proxies")          .Value(ListComponent("proxies", requiredAttributes))
-                .Item("rpc_proxies")      .Value(ListComponent("rpc_proxies", requiredAttributes))
+                .Item("primary_masters").Value(GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters")))
+                .Item("secondary_masters").Value(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true)))
+                .Item("schedulers").Value(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances")))
+                .Item("controller_agents").Value(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances")))
+                .Item("nodes").Value(ListComponent("nodes", true))
+                .Item("proxies").Value(ListComponent("proxies", false))
+                .Item("rpc_proxies").Value(ListComponent("rpc_proxies", false))
             .EndMap();
     });
 }
 
-TYsonString TDiscoverVersionsHandler::ListComponent(const TString& component, const std::vector<TString>& attributes)
+TYsonString TDiscoverVersionsHandler::ListComponent(const TString& component, bool isDataNode)
 {
     TListNodeOptions options;
-    options.Attributes = attributes;
+    if (isDataNode) {
+        options.Attributes = {
+            "register_time",
+            "version",
+        };
+    } else {
+        options.Attributes = {
+            "start_time",
+            "version",
+        };
+    }
     auto rsp = WaitFor(Client_->ListNode("//sys/" + component, options))
         .ValueOrThrow();
     auto rspList = ConvertToNode(rsp)->AsList();
     return BuildYsonStringFluently()
-        .DoMapFor(rspList->GetChildren(), [&] (TFluentMap fluent, const INodePtr& node) {
-            std::vector<std::pair<TString, TString>> rspAttributes;
-            rspAttributes.reserve(attributes.size());
-            for (const auto& attribute : attributes) {
-                auto value = node->Attributes().Find<TString>(attribute);
-                if (value) {
-                    rspAttributes.emplace_back(attribute, std::move(value.Get()));
-                }
-            }
-            if (rspAttributes.size() == attributes.size()) {
+        .DoMapFor(rspList->GetChildren(), [isDataNode] (TFluentMap fluent, const INodePtr& node) {
+            auto version = node->Attributes().Find<TString>("version");
+            auto startTime = node->Attributes().Find<TString>(isDataNode ? "register_time" : "start_time");
+            if (version && startTime) {
                 fluent
                     .Item(node->GetValue<TString>())
-                    .DoMapFor(rspAttributes, [] (TFluentMap fluent, const auto& attribute) {
-                        fluent.Item(attribute.first).Value(attribute.second);
-                    });
+                    .BeginMap()
+                        .Item("start_time").Value(startTime)
+                        .Item("version").Value(version)
+                    .EndMap();
             } else {
                 fluent
                     .Item(node->GetValue<TString>())
                     .BeginMap()
                         .Item("error")
                         .Value(TError("Cannot find all attribute in response")
-                                    << TErrorAttribute("required_attributes", attributes)
-                                    << TErrorAttribute("found_attributes", rspAttributes))
+                                    << TErrorAttribute("version", version)
+                                    << TErrorAttribute("start_time", startTime))
                     .EndMap();
             }
         });
@@ -510,8 +515,7 @@ std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TString& path,
 
 TYsonString TDiscoverVersionsHandler::GetAttributes(
     const TString& path,
-    const std::vector<TString>& instances,
-    const std::vector<TString>& attributes)
+    const std::vector<TString>& instances)
 {
     auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
     TObjectServiceProxy proxy(channel);
@@ -532,31 +536,15 @@ TYsonString TDiscoverVersionsHandler::GetAttributes(
             if (rspOrError.IsOK()) {
                 auto rsp = rspOrError.Value();
                 auto rspMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
-                std::vector<std::pair<TString, TString>> rspAttributes;
-                rspAttributes.reserve(attributes.size());
-                for (const auto& attribute : attributes) {
-                    auto node = rspMap->FindChild(attribute);
-                    if (node && node->GetType() == ENodeType::String) {
-                        rspAttributes.emplace_back(attribute, node->GetValue<TString>());
-                    }
-                }
-                if (rspAttributes.size() == attributes.size()) {
-                    fluent
-                        .Item(instance)
-                        .DoMapFor(rspAttributes, [] (TFluentMap fluent, const auto& attribute) {
-                            fluent.Item(attribute.first).Value(attribute.second);
-                        });
-                } else {
-                    fluent
-                        .Item(instance)
-                        .BeginMap()
-                            .Item("error")
-                            .Value(TError("Cannot find all attribute in response")
-                                        << TErrorAttribute("required_attributes", attributes)
-                                        << TErrorAttribute("found_attributes", rspAttributes)
-                                        << TErrorAttribute("response", rsp->value()))
-                        .EndMap();
-                }
+
+                auto version = ConvertTo<TString>(rspMap->GetChild("version"));
+                auto startTime = ConvertTo<TString>(rspMap->GetChild("start_time"));
+                fluent
+                    .Item(instance)
+                    .BeginMap()
+                        .Item("start_time").Value(startTime)
+                        .Item("version").Value(version)
+                    .EndMap();
             } else {
                 fluent
                     .Item(instance)

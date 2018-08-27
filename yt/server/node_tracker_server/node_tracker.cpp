@@ -1008,7 +1008,13 @@ private:
 
         node->SetStatistics(std::move(statistics));
 
-        node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
+        if (request->has_cypress_annotations()) {
+            node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
+        }
+
+        if (request->has_build_version()) {
+            node->SetVersion(request->build_version());
+        }
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);

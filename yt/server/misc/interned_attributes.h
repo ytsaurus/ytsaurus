@@ -15,6 +15,7 @@
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
     XX(Annotations, annotations) \
+    XX(Version, version) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
     XX(Available, available) \
