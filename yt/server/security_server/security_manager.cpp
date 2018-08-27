@@ -1729,6 +1729,10 @@ private:
         for (const auto& pair : AccountMap_) {
             auto* account = pair.second;
 
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
             // Reconstruct account name map.
             YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
@@ -1742,6 +1746,10 @@ private:
             auto* user = pair.second;
 
             // Reconstruct user name map.
+            if (!IsObjectAlive(user)) {
+                continue;
+            }
+
             YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
             // Initialize statistics for this cell.
@@ -1752,6 +1760,10 @@ private:
         GroupNameMap_.clear();
         for (const auto& pair : GroupMap_) {
             auto* group = pair.second;
+
+            if (!IsObjectAlive(group)) {
+                continue;
+            }
 
             // Reconstruct group name map.
             YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
