@@ -165,25 +165,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TWrappedTransaction)
+DECLARE_REFCOUNTED_CLASS(TModifyRowsSlidingWindow)
 
-// A transaction accompanied by a sliding window "modify rows" calls.
-class TWrappedTransaction
-    : public virtual NYTree::TYsonSerializable
+// "Modify rows" calls deferred in a sliding window to restore their ordering.
+class TModifyRowsSlidingWindow
+    : public TRefCounted
 {
 public:
-    explicit TWrappedTransaction(const ITransactionPtr& transaction)
+    TModifyRowsSlidingWindow(ITransaction* transaction)
         : Transaction_(transaction)
-        , ModifyRowsCallWindow(
+        , Window_(
             NApi::NRpcProxy::MaxInFlightModifyRowsRequestCount,
-            BIND(&TWrappedTransaction::DoModifyRows, Unretained(this)))
+            BIND(&TModifyRowsSlidingWindow::DoModifyRows, Unretained(this)))
     {
-        YCHECK(Transaction_);
-    }
-
-    const ITransactionPtr& Unwrap() const
-    {
-        return Transaction_;
+        YCHECK(transaction);
     }
 
     void ModifyRows(
@@ -193,8 +188,6 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options)
     {
-        YCHECK(Transaction_);
-
         TModifyRows modifyRows{
             std::move(path),
             std::move(nameTable),
@@ -203,7 +196,7 @@ public:
 
         if (sequenceNumber) {
             auto guard = Guard(SpinLock_);
-            ModifyRowsCallWindow.SetPacket(*sequenceNumber, std::move(modifyRows));
+            Window_.SetPacket(*sequenceNumber, std::move(modifyRows));
         } else {
             // Old clients don't send us the sequence number.
             DoModifyRows(std::move(modifyRows));
@@ -220,8 +213,9 @@ private:
     };
 
     TSpinLock SpinLock_;
-    ITransactionPtr Transaction_;
-    TSlidingWindow<TModifyRows> ModifyRowsCallWindow;
+    // The transaction is supposed to outlive this window; no ownership is required.
+    ITransaction* Transaction_;
+    TSlidingWindow<TModifyRows> Window_;
 
     void DoModifyRows(TModifyRows&& modifyRows)
     {
@@ -233,7 +227,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TWrappedTransaction)
+DEFINE_REFCOUNTED_TYPE(TModifyRowsSlidingWindow)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -434,7 +428,7 @@ private:
     // TODO(sandello): Introduce expiration times for clients.
     THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
 
-    THashMap<TTransactionId, TWrappedTransactionPtr> Transactions_;
+    THashMap<TTransactionId, TModifyRowsSlidingWindowPtr> TransactionToModifyRowsSlidingWindow_;
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
@@ -493,64 +487,27 @@ private:
         return GetOrCreateClient(user);
     }
 
-    TWrappedTransactionPtr GetWrappedTransactionOrAbortContext(
-        const IServiceContextPtr& context,
-        const google::protobuf::Message* request,
-        const TTransactionId& transactionId,
-        const TTransactionAttachOptions& options)
+    TModifyRowsSlidingWindowPtr GetOrCreateTransactionModifyRowsSlidingWindow(const ITransactionPtr& transaction)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context, request);
-        if (!client) {
-            return nullptr;
-        }
-
-        if (options.Sticky) {
-            // Fast path.
-            auto guard = Guard(SpinLock_);
-            auto it = Transactions_.find(transactionId);
-            if (it != Transactions_.end()) {
-                return it->second;
-            }
-        }
-
-        // Slow path.
-        auto transaction = client->AttachTransaction(transactionId, options);
-        if (!transaction) {
-            context->Reply(TError(
-                NTransactionClient::EErrorCode::NoSuchTransaction,
-                "No such transaction %v",
-                transactionId));
-            return nullptr;
-        }
-
-        if (!options.Sticky) {
-            return New<TWrappedTransaction>(transaction);
-        }
-
-        auto newTransaction = false;
-        TWrappedTransactionPtr result;
+        TModifyRowsSlidingWindowPtr result;
         {
             auto guard = Guard(SpinLock_);
-            // The transaction may have appeared while we were attaching.
-            auto it = Transactions_.find(transactionId);
-            if (it == Transactions_.end()) {
-                newTransaction = true;
-                auto insertResult = Transactions_.emplace(transactionId, New<TWrappedTransaction>(transaction));
-                YCHECK(insertResult.second);
-                result = insertResult.first->second;
-            } else {
-                // Discard local (newly attached) transaction object, reuse the original.
-                result = it->second;
+            auto it = TransactionToModifyRowsSlidingWindow_.find(transaction->GetId());
+            if (it != TransactionToModifyRowsSlidingWindow_.end()) {
+                return it->second;
             }
+
+            auto insertResult = TransactionToModifyRowsSlidingWindow_.emplace(
+                transaction->GetId(),
+                New<TModifyRowsSlidingWindow>(transaction.Get()));
+            YCHECK(insertResult.second);
+            result = insertResult.first->second;
         }
 
-        // Clean up Transactions_. Subscribe outside of the lock to avoid deadlocking
-        // in case the callback is called (synchronously) right away.
-        if (newTransaction) {
-            const auto& transaction = result->Unwrap();
-            transaction->SubscribeCommitted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transactionId));
-            transaction->SubscribeAborted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transactionId));
-        }
+        // Clean up TransactionToModifyRowsSlidingWindow_. Subscribe outside of the lock
+        // to avoid deadlocking in case the callback is called (synchronously) right away.
+        transaction->SubscribeCommitted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transaction->GetId()));
+        transaction->SubscribeAborted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transaction->GetId()));
 
         return result;
     }
@@ -561,14 +518,28 @@ private:
         const TTransactionId& transactionId,
         const TTransactionAttachOptions& options)
     {
-        auto wrappedTransaction = GetWrappedTransactionOrAbortContext(context, request, transactionId, options);
-        return wrappedTransaction ? wrappedTransaction->Unwrap() : nullptr;
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return nullptr;
+        }
+
+        auto transaction = client->AttachTransaction(transactionId, options);
+
+        if (!transaction) {
+            context->Reply(TError(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
+                transactionId));
+            return nullptr;
+        }
+
+        return transaction;
     }
 
     void OnStickyTransactionFinished(const TTransactionId& transactionId)
     {
         auto guard = Guard(SpinLock_);
-        Transactions_.erase(transactionId);
+        TransactionToModifyRowsSlidingWindow_.erase(transactionId);
     }
 
     template <class T>
@@ -1945,7 +1916,7 @@ private:
         attachOptions.PingAncestors = false;
         attachOptions.Sticky = true; // XXX(sandello): Fix me!
 
-        auto transaction = GetWrappedTransactionOrAbortContext(
+        auto transaction = GetTransactionOrAbortContext(
             context,
             request,
             FromProto<TTransactionId>(request->transaction_id()),
@@ -1953,6 +1924,8 @@ private:
         if (!transaction) {
             return;
         }
+
+        auto modifyRowsWindow = GetOrCreateTransactionModifyRowsSlidingWindow(transaction);
 
         const auto& path = request->path();
 
@@ -1988,7 +1961,7 @@ private:
             FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
 
-        transaction->ModifyRows(
+        modifyRowsWindow->ModifyRows(
             MakeNullable(request->has_sequence_number(), request->sequence_number()),
             path,
             std::move(nameTable),
