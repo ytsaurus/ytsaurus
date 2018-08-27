@@ -160,6 +160,7 @@ public:
     virtual const THeadersPtr& GetTrailers() override;
 
     void WriteRequest(EMethod method, const TString& path);
+    TNullable<EStatusCode> GetStatus() const override;
     virtual void SetStatus(EStatusCode status) override;
 
     virtual TFuture<void> Write(const TSharedRef& data) override;

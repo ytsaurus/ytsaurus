@@ -13,8 +13,7 @@ namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Key is a (user, command) pair.
-typedef std::pair<TString, TString> TSemaphoreKey;
+typedef std::pair<TString, TString> TUserCommandPair;
 
 class TSemaphoreGuard
 {
@@ -22,7 +21,7 @@ public:
     TSemaphoreGuard(TSemaphoreGuard&&) = default;
     TSemaphoreGuard& operator = (TSemaphoreGuard&&) = default;
     
-    TSemaphoreGuard(TApi* api, const TSemaphoreKey& key);
+    TSemaphoreGuard(TApi* api, const TUserCommandPair& key);
     ~TSemaphoreGuard();
 
 private:
@@ -33,7 +32,7 @@ private:
     };
 
     std::unique_ptr<TApi, TEmptyDeleter> Api_;
-    TSemaphoreKey Key_;
+    TUserCommandPair Key_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +56,16 @@ public:
     void PutUserIntoBanCache(const TString& user);
 
     TNullable<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
-    void ReleaseSemaphore(const TSemaphoreKey& key);
+    void ReleaseSemaphore(const TUserCommandPair& key);
+
+    void IncrementProfilingCounters(
+        const TString& user,
+        const TString& command,
+        TNullable<NHttp::EStatusCode> httpStatusCode,
+        TErrorCode apiErrorCode,
+        TDuration duration,
+        i64 bytesIn,
+        i64 bytesOut);
 
 private:
     const TApiConfigPtr Config_;
@@ -71,17 +79,29 @@ private:
     NConcurrency::TReaderWriterSpinLock BanCacheLock_;
     THashMap<TString, TInstant> BanCache_;
 
-    struct TSemaphore
+    struct TProfilingCounters
     {
-        NProfiling::TSimpleGauge Value;
+        NProfiling::TTagIdList Tags;
+
+        NProfiling::TAggregateGauge ConcurrencySemaphore;
+        NProfiling::TMonotonicCounter RequestCount;
+        NProfiling::TMonotonicCounter BytesIn;
+        NProfiling::TMonotonicCounter BytesOut;
+        NProfiling::TAggregateGauge RequestDuration;
+
+        TSpinLock Lock;
+        THashMap<NHttp::EStatusCode, NProfiling::TMonotonicCounter> HttpCodes;
+        THashMap<TErrorCode, NProfiling::TMonotonicCounter> ApiErrors;
     };
 
     std::atomic<int> GlobalSemaphore_{0};
 
-    NConcurrency::TReaderWriterSpinLock SemaphoresLock_;
-    THashMap<TSemaphoreKey, std::unique_ptr<TSemaphore>> Semaphores_;
+    NConcurrency::TReaderWriterSpinLock CountersLock_;
+    THashMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
 
-    TSemaphore* GetSemaphore(const TSemaphoreKey& key);
+    TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
+
+    NProfiling::TMonotonicCounter PrepareErrorCount_{"/request_prepare_error_count"};
 };
 
 DEFINE_REFCOUNTED_TYPE(TApi)

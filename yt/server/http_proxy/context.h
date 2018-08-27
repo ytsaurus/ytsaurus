@@ -69,6 +69,8 @@ private:
     const NHttp::IRequestPtr Request_;
     const NHttp::IResponseWriterPtr Response_;
 
+    TInstant StartTime_ = TInstant::Now();
+
     TNullable<TSemaphoreGuard> SemaphoreGuard_;
 
     NDriver::TDriverRequest DriverRequest_;

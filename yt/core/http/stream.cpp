@@ -502,6 +502,11 @@ void THttpOutput::WriteRequest(EMethod method, const TString& path)
     Path_ = path;
 }
 
+TNullable<EStatusCode> THttpOutput::GetStatus() const
+{
+    return Status_;
+}
+
 void THttpOutput::SetStatus(EStatusCode status)
 {
     YCHECK(MessageType_ == EMessageType::Response);
