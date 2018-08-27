@@ -583,8 +583,18 @@ message TWorkloadStatus {
 }
 
 enum ECheckResult {
-    ECheckResult_PENDING = 0 [(NYT.NYson.NProto.enum_value_name) = "pending"];
-    ECheckResult_SUCCESS = 1 [(NYT.NYson.NProto.enum_value_name) = "success"];
+    ECheckResult_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    // Ошибка во время выполнения(превышен таймаут, ошибка соединения, ...)
+    ECheckResult_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
+    // Ответ не равен THttpGet::ExpectedAnswer
+    ECheckResult_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
+
+    ECheckResult_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
+    // Ожидание истечения InitialDelayMs
+    ECheckResult_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
+    // Ожидание истечения restart period - см. TTimeLimit
+    ECheckResult_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
 }
 
 message TTcpCheckStatus {
