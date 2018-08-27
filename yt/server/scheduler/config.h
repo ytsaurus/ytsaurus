@@ -151,6 +151,9 @@ public:
     //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
     int OperationUnschedulableMinScheduleJobAttempts;
 
+    //! List of operation types, which have disabled tentative pool trees option.
+    THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
+
     TFairShareStrategyConfig();
 };
 

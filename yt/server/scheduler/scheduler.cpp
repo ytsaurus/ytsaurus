@@ -703,6 +703,11 @@ public:
             operation->GetId(),
             operation->GetState());
 
+        operation->SetAlert(
+            EOperationAlertType::OperationCompletedByUserRequest,
+            TError("Operation completed by user request")
+                << TErrorAttribute("user", user));
+
         const auto& controller = operation->GetController();
         auto completeError = WaitFor(controller->Complete());
         if (!completeError.IsOK()) {
