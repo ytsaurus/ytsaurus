@@ -17,8 +17,7 @@ namespace NClickHouse {
 
 NInterop::TTablePtr CreateTableSchema(
     const TString& name,
-    const NTableClient::TTableSchema& schema,
-    const NYson::TYsonString& yqlSchema);
+    const NTableClient::TTableSchema& schema);
 
 }   // namespace NClickHouse
 }   // namespace NYT

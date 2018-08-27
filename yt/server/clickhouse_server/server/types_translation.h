@@ -11,16 +11,6 @@ namespace NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// YQL types
-
-bool IsYqlTypeSupported(TStringBuf typeName);
-
-NInterop::EColumnType RepresentYqlType(TStringBuf typeName);
-
-NTableClient::EValueType GetYqlUnderlyingYtType(TStringBuf typeName);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // YT native types
 
 bool IsYtTypeSupported(NTableClient::EValueType valueType);
