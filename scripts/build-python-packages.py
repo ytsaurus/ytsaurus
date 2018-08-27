@@ -43,6 +43,11 @@ def symlinked(src, dstdir):
     finally:
         os.remove(dst)
 
+def reset_debian_changelog():
+    if not os.path.exists("debian"):
+        os.mkdir("debian")
+    if os.path.lexists("debian/changelog"):
+        os.remove("debian/changelog")
 
 def dch(version, message, create_package=None):
     global _DCH_VENDOR_FLAG
@@ -80,7 +85,8 @@ def main(args):
 
     config = json.loads(subprocess.check_output([config_generator]))
     yt_version = config["yt_version"]
-    yt_rpc_proxy_version = config["yt_rpc_proxy_version"]
+    yt_rpc_proxy_protocol_version = config["yt_rpc_proxy_protocol_version"]
+    yt_rpc_python_bindings_version = config["yt_rpc_python_bindings_version"]
     source_directory = config["source_directory"]
     output_directory = os.path.realpath(args.output_dir)
 
@@ -98,14 +104,16 @@ def main(args):
             outf.write(text.replace("yandex-yt", "yandex-yt-python-driver"))
 
     with cwd(os.path.join(source_directory, "python/yandex-yt-python-proto")):
-        print os.getcwd()
-        if not os.path.exists("debian"):
-            os.mkdir("debian")
-        if os.path.lexists("debian/changelog"):
-            os.remove("debian/changelog")
-        dch(version=yt_rpc_proxy_version,
+        reset_debian_changelog()
+        dch(version=yt_rpc_proxy_protocol_version,
             message="Proto package release.",
             create_package="yandex-yt-python-proto")
+
+    with cwd(os.path.join(source_directory, "python/yandex-yt-python-driver-rpc")):
+        reset_debian_changelog()
+        dch(version=yt_rpc_python_bindings_version,
+            message="Rpc driver release",
+            create_package="yandex-yt-python-driver-rpc")
 
     with symlinked(driver_lib_file, os.path.join(source_directory, "python/yt_driver_bindings")), \
             symlinked(yson_lib_file, os.path.join(source_directory, "python/yt_yson_bindings")):
