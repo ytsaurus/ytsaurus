@@ -16,12 +16,12 @@ void TUserJobSynchronizer::NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOr
 
 void TUserJobSynchronizer::NotifyExecutorPrepared()
 {
-   ExecutorPreparedPromise_.TrySet(TError());
+    ExecutorPreparedPromise_.TrySet(TError());
 }
 
 void TUserJobSynchronizer::NotifyUserJobFinished(const TError& error)
 {
-    UserJobFinishedPromise_.Set(error);
+    UserJobFinishedPromise_.TrySet(error);
 }
 
 void TUserJobSynchronizer::Wait()
