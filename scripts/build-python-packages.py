@@ -68,7 +68,7 @@ def dch(version, message, create_package=None):
 
 def main(args):
     args.install_dir = os.path.realpath(args.install_dir)
-    config_file = os.path.join(args.install_dir, "build_python_packages_config.json")
+    config_generator = os.path.join(args.install_dir, "build_python_packages_config_generator")
     driver_lib_file = os.path.join(args.install_dir, "driver_lib.so")
     yson_lib_file = os.path.join(args.install_dir, "yson_lib.so")
     for fname in [driver_lib_file, yson_lib_file]:
@@ -78,12 +78,14 @@ def main(args):
                 installdir=args.install_dir
             ))
 
-    with open(config_file) as inf:
-        config = json.load(inf)
+    config = json.loads(subprocess.check_output([config_generator]))
     yt_version = config["yt_version"]
     yt_rpc_proxy_version = config["yt_rpc_proxy_version"]
     source_directory = config["source_directory"]
     output_directory = os.path.realpath(args.output_dir)
+
+    if not os.path.exists(output_directory):
+        os.mkdir(output_directory)
 
     # Create changelog for yandex-yt-python-driver
     with inside_temporary_directory():
