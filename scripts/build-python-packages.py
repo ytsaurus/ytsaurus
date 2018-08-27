@@ -122,7 +122,7 @@ def main(args):
 
     os.chdir(source_directory)
     for file in glob.glob("yandex-yt-python*"):
-        os.rename(file, os.path.join(output_directory, file))
+        shutil.move(file, os.path.join(output_directory, file))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
