@@ -75,8 +75,9 @@ private:
     {
         auto connection = Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to get table mount info: сonnection terminated")
+            auto error = TError("Unable to get table mount info: сonnection terminated")
                 << TErrorAttribute("table_path", key.Path);
+            return MakeFuture<TTableMountInfoPtr>(error);
         }
 
         return BIND(&TTableMountCache::DoDoGet, MakeStrong(this), connection, key)
