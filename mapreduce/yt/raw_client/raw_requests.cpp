@@ -268,6 +268,52 @@ TOperationAttributes GetOperation(
     return ParseOperationAttributes(NodeFromYsonString(RetryRequest(auth, header)));
 }
 
+template <typename TKey>
+static THashMap<TKey, i64> GetCounts(const TNode& countsNode)
+{
+    THashMap<TKey, i64> counts;
+    for (const auto& entry : countsNode.AsMap()) {
+        counts.emplace(FromString<TKey>(entry.first), entry.second.AsInt64());
+    }
+    return counts;
+}
+
+TListOperationsResult ListOperations(
+    const TAuth& auth,
+    const TListOperationsOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("GET", "list_operations");
+    header.MergeParameters(NDetail::SerializeParamsForListOperations(options));
+    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
+    auto resultNode = NodeFromYsonString(responseInfo.Response);
+
+    TListOperationsResult result;
+    for (const auto operationNode : resultNode["operations"].AsList()) {
+        result.Operations.push_back(ParseOperationAttributes(operationNode));
+    }
+
+    if (resultNode.HasKey("pool_counts")) {
+        result.PoolCounts = GetCounts<TString>(resultNode["pool_counts"]);
+    }
+    if (resultNode.HasKey("user_counts")) {
+        result.UserCounts = GetCounts<TString>(resultNode["user_counts"]);
+    }
+    if (resultNode.HasKey("type_counts")) {
+        result.TypeCounts = GetCounts<EOperationType>(resultNode["type_counts"]);
+    }
+    if (resultNode.HasKey("state_counts")) {
+        result.StateCounts = GetCounts<TString>(resultNode["state_counts"]);
+    }
+    if (resultNode.HasKey("failed_jobs_count")) {
+        result.WithFailedJobsCount = resultNode["failed_jobs_count"].AsInt64();
+    }
+
+    result.Incomplete = resultNode["incomplete"].AsBool();
+
+    return result;
+}
+
 void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,

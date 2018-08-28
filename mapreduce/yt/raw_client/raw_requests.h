@@ -90,6 +90,11 @@ TOperationAttributes GetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options = TGetOperationOptions());
 
+TListOperationsResult ListOperations(
+    const TAuth& auth,
+    const TListOperationsOptions& options = TListOperationsOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
+
 void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,

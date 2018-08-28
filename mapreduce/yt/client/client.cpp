@@ -460,6 +460,12 @@ TOperationAttributes TClientBase::GetOperation(
     return NYT::NDetail::GetOperation(Auth_, operationId, options);
 }
 
+TListOperationsResult TClientBase::ListOperations(
+    const TListOperationsOptions& options)
+{
+    return NYT::NDetail::ListOperations(Auth_, options);
+}
+
 void TClientBase::UpdateOperationParameters(
     const TOperationId& operationId,
     const TNode& newParameters)

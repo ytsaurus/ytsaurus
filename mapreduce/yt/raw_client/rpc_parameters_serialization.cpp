@@ -218,6 +218,52 @@ TNode SerializeParamsForLock(
     return result;
 }
 
+TNode SerializeParamsForListOperations(
+    const TListOperationsOptions& options)
+{
+    TNode result;
+    if (options.FromTime_) {
+        result["from_time"] = ::ToString(*options.FromTime_);
+    }
+    if (options.ToTime_) {
+        result["to_time"] = ::ToString(*options.ToTime_);
+    }
+    if (options.CursorTime_) {
+        result["cursor_time"] = ::ToString(*options.CursorTime_);
+    }
+    if (options.CursorDirection_) {
+        result["cursor_direction"] = ::ToString(*options.CursorDirection_);
+    }
+    if (options.Pool_) {
+        result["pool"] = *options.Pool_;
+    }
+    if (options.Filter_) {
+        result["filter"] = *options.Filter_;
+    }
+    if (options.User_) {
+        result["user"] = *options.User_;
+    }
+    if (options.State_) {
+        result["state"] = *options.State_;
+    }
+    if (options.Type_) {
+        result["type"] = ::ToString(*options.Type_);
+    }
+    if (options.WithFailedJobs_) {
+        result["with_failed_jobs"] = *options.WithFailedJobs_;
+    }
+    if (options.IncludeCounters_) {
+        result["include_counters"] = *options.IncludeCounters_;
+    }
+    if (options.IncludeArchive_) {
+        result["include_archive"] = *options.IncludeArchive_;
+    }
+    if (options.Limit_) {
+        result["limit"] = *options.Limit_;
+    }
+    return result;
+}
+
 TNode SerializeParamsForGetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options)
