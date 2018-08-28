@@ -29,6 +29,8 @@ public:
             .Default(TDuration::Seconds(10));
         RegisterParameter("backoff_timeout", BackoffTimeout)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("use_lowercase_login", UseLowercaseLogin)
+            .Default(false);
     }
 
     TString Host;
@@ -38,6 +40,7 @@ public:
     TDuration RequestTimeout;
     TDuration AttemptTimeout;
     TDuration BackoffTimeout;
+    bool UseLowercaseLogin;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)

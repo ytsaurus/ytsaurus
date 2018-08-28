@@ -100,7 +100,7 @@ private:
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = GetByYPath<TString>(data, "/login");
+        auto login = Blackbox_->GetLogin(data);
         auto oauthClientId = GetByYPath<TString>(data, "/oauth/client_id");
         auto oauthClientName = GetByYPath<TString>(data, "/oauth/client_name");
         auto oauthScope = GetByYPath<TString>(data, "/oauth/scope");

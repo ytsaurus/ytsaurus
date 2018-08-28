@@ -5,6 +5,7 @@
 #include <yt/ytlib/auth/blackbox_service.h>
 #include <yt/ytlib/auth/default_blackbox_service.h>
 #include <yt/ytlib/auth/config.h>
+#include <yt/ytlib/auth/helpers.h>
 
 #include <library/http/server/http.h>
 
@@ -258,6 +259,11 @@ class TMockBlackboxService
 {
 public:
     MOCK_METHOD2(Call, TFuture<INodePtr>(const TString&, const THashMap<TString, TString>&));
+
+    virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    {
+        return GetByYPath<TString>(reply, "/login");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

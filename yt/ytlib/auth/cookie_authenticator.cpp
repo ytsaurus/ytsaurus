@@ -128,7 +128,7 @@ private:
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = GetByYPath<TString>(data, "/login");
+        auto login = Blackbox_->GetLogin(data);
 
         // Sanity checks.
         if (!login.IsOK()) {
