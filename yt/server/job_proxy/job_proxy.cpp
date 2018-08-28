@@ -466,9 +466,7 @@ TJobResult TJobProxy::DoRun()
         RpcServer_->Start();
 
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-        auto supervisorChannel = CreateRetryingChannel(
-            Config_->SupervisorChannel,
-            NRpc::NBus::CreateBusChannel(supervisorClient));
+        auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
 
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);

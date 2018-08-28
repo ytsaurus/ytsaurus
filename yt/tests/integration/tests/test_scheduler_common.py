@@ -1272,6 +1272,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get(path) == "completed"
         op.track()
         assert len(read_table("//tmp/t2")) == 3
+        assert "operation_completed_by_user_request" in ls("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_abort_op(self):
         create("table", "//tmp/t")

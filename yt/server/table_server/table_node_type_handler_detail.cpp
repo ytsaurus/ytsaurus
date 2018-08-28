@@ -193,9 +193,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
 {
     branchedNode->SharedTableSchema() = originatingNode->SharedTableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
+    branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
+
+    // Save current retained and unflushed timestamps in locked node.
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
-    branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
 
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }
@@ -240,22 +242,21 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     clonedNode->SharedTableSchema() = sourceNode->SharedTableSchema();
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
-    clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
-    clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
-    clonedNode->SetAtomicity(sourceNode->GetAtomicity());
-    clonedNode->SetCommitOrdering(sourceNode->GetCommitOrdering());
-    clonedNode->SetInMemoryMode(sourceNode->GetInMemoryMode());
-    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
-    clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
-    clonedNode->SetEnableTabletBalancer(sourceNode->GetEnableTabletBalancer());
-    clonedNode->SetMinTabletSize(sourceNode->GetMinTabletSize());
-    clonedNode->SetMaxTabletSize(sourceNode->GetMaxTabletSize());
-    clonedNode->SetDesiredTabletSize(sourceNode->GetDesiredTabletSize());
-    clonedNode->SetDesiredTabletCount(sourceNode->GetDesiredTabletCount());
-    clonedNode->SetDynamic(sourceNode->IsDynamic());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
+    clonedNode->SetDynamic(trunkSourceNode->IsDynamic());
+    clonedNode->SetAtomicity(trunkSourceNode->GetAtomicity());
+    clonedNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
+    clonedNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
+    clonedNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
+    clonedNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
+    clonedNode->SetEnableTabletBalancer(trunkSourceNode->GetEnableTabletBalancer());
+    clonedNode->SetMinTabletSize(trunkSourceNode->GetMinTabletSize());
+    clonedNode->SetMaxTabletSize(trunkSourceNode->GetMaxTabletSize());
+    clonedNode->SetDesiredTabletSize(trunkSourceNode->GetDesiredTabletSize());
+    clonedNode->SetDesiredTabletCount(trunkSourceNode->GetDesiredTabletCount());
+
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
 }
 

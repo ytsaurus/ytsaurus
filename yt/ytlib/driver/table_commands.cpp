@@ -681,7 +681,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     auto nameTable = valueConsumer.GetNameTable();
 
     if (ColumnNames) {
-        Options.ColumnFilter.All = false;
+        TColumnFilter::TIndexes columnFilterIndexes;
         for (const auto& name : *ColumnNames) {
             auto maybeIndex = nameTable->FindId(name);
             if (!maybeIndex) {
@@ -691,8 +691,9 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
                 }
                 maybeIndex = nameTable->GetIdOrRegisterName(name);
             }
-            Options.ColumnFilter.Indexes.push_back(*maybeIndex);
+            columnFilterIndexes.push_back(*maybeIndex);
         }
+        Options.ColumnFilter = TColumnFilter(std::move(columnFilterIndexes));
     }
 
     // Run lookup.

@@ -268,7 +268,7 @@ TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
         BIND([promise, requestId] () mutable {
             LOG_WARNING("Resolve timed out (RequestId: %v)",
                 requestId);
-            promise.TrySet(TError("Resolve timed out"));
+            promise.TrySet(TError(EErrorCode::ResolveTimedOut, "Resolve timed out"));
         }),
         MaxResolveTimeout_);
 

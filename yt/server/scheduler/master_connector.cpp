@@ -597,7 +597,7 @@ private:
     {
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
-            : Owner_(owner)
+            : Owner_(std::move(owner))
             , ServiceAddresses_(Owner_->Bootstrap_->GetLocalAddresses())
         { }
 
@@ -903,7 +903,7 @@ private:
         void UpdateGlobalWatchers()
         {
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : Owner_->GlobalWatcherRequesters_) {
+            for (const auto& requester : Owner_->GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
@@ -913,7 +913,7 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             auto watcherResponses = batchRspOrError.ValueOrThrow();
 
-            for (auto handler : Owner_->GlobalWatcherHandlers_) {
+            for (const auto& handler : Owner_->GlobalWatcherHandlers_) {
                 handler.Run(watcherResponses);
             }
             for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
@@ -1466,7 +1466,7 @@ private:
         // Global watchers.
         {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : GlobalWatcherRequesters_) {
+            for (const auto& requester : GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
@@ -1514,7 +1514,7 @@ private:
         }
 
         const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : GlobalWatcherHandlers_) {
+        for (const auto& handler : GlobalWatcherHandlers_) {
             handler.Run(batchRsp);
         }
 

@@ -703,6 +703,11 @@ public:
             operation->GetId(),
             operation->GetState());
 
+        operation->SetAlert(
+            EOperationAlertType::OperationCompletedByUserRequest,
+            TError("Operation completed by user request")
+                << TErrorAttribute("user", user));
+
         const auto& controller = operation->GetController();
         auto completeError = WaitFor(controller->Complete());
         if (!completeError.IsOK()) {
@@ -1784,6 +1789,8 @@ private:
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
+
+            Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
         }
