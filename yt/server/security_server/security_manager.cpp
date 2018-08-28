@@ -1729,12 +1729,11 @@ private:
         for (const auto& pair : AccountMap_) {
             auto* account = pair.second;
 
-            if (!IsObjectAlive(account)) {
-                continue;
+            // Reconstruct account name map.
+            if (IsObjectAlive(account)) {
+                YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
             }
 
-            // Reconstruct account name map.
-            YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
@@ -1746,11 +1745,9 @@ private:
             auto* user = pair.second;
 
             // Reconstruct user name map.
-            if (!IsObjectAlive(user)) {
-                continue;
+            if (IsObjectAlive(user)) {
+                YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
             }
-
-            YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
@@ -1761,12 +1758,10 @@ private:
         for (const auto& pair : GroupMap_) {
             auto* group = pair.second;
 
-            if (!IsObjectAlive(group)) {
-                continue;
-            }
-
             // Reconstruct group name map.
-            YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+            if (IsObjectAlive(group)) {
+                YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+            }
         }
 
         InitBuiltins();
