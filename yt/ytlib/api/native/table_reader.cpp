@@ -550,6 +550,11 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
 
         auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
+        const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+        auto adjustedColumnFilter = columnFilter.All
+            ? CreateColumnFilter(dataSource.Columns(), nameTable)
+            : columnFilter;
+
         reader = CreateSchemalessMergingMultiChunkReader(
             config,
             internalOptions,
@@ -562,7 +567,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             dataSliceDescriptor,
             nameTable,
             blockReadOptions,
-            columnFilter,
+            adjustedColumnFilter,
             /* trafficMeter */ nullptr,
             throttler);
     } else {
