@@ -1920,6 +1920,138 @@ Y_UNIT_TEST_SUITE(Operations)
         TestGetOperation_Failed(false);
     }
 
+    Y_UNIT_TEST(ListOperations)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TVector<IOperationPtr> operations;
+        TVector<TInstant> beforeStartTimes;
+        TVector<TInstant> afterFinishTimes;
+
+        beforeStartTimes.push_back(TInstant::Now());
+        auto mapOp = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .MaxFailedJobCount(1),
+            new TAlwaysFailingMapper,
+            TOperationOptions()
+                .Wait(false));
+        UNIT_ASSERT_EXCEPTION(mapOp->Watch().GetValueSync(), TOperationFailedError);
+        operations.push_back(mapOp);
+        afterFinishTimes.push_back(TInstant::Now());
+
+        beforeStartTimes.push_back(TInstant::Now());
+        operations.push_back(client->Sort(
+            TSortOperationSpec()
+                .AddInput("//testing/input")
+                .Output("//testing/input")
+                .SortBy({"foo"})));
+        afterFinishTimes.push_back(TInstant::Now());
+
+        beforeStartTimes.push_back(TInstant::Now());
+        operations.push_back(client->Reduce(
+            TReduceOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output-with-great-name")
+                .ReduceBy({"foo"}),
+            new TIdReducer));
+        afterFinishTimes.push_back(TInstant::Now());
+
+        {
+            auto result = client->ListOperations(
+                TListOperationsOptions()
+                .FromTime(beforeStartTimes.front())
+                .ToTime(afterFinishTimes.back())
+                .Limit(1)
+                .IncludeCounters(true));
+
+            UNIT_ASSERT_VALUES_EQUAL(result.Operations.size(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(*result.Operations.front().Id, operations[2]->GetId());
+        }
+        {
+            auto result = client->ListOperations(
+                TListOperationsOptions()
+                .FromTime(beforeStartTimes.front())
+                .ToTime(afterFinishTimes.back())
+                .Filter("output-with-great-name")
+                .IncludeCounters(true));
+
+            UNIT_ASSERT_VALUES_EQUAL(result.Operations.size(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(*result.Operations.front().Id, operations[2]->GetId());
+        }
+        {
+            auto result = client->ListOperations(
+                TListOperationsOptions()
+                .FromTime(beforeStartTimes.front())
+                .ToTime(afterFinishTimes.back())
+                .State("completed")
+                .Type(EOperationType::Sort)
+                .IncludeCounters(true));
+
+            UNIT_ASSERT_VALUES_EQUAL(result.Operations.size(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(*result.Operations.front().Id, operations[1]->GetId());
+        }
+        {
+            auto result = client->ListOperations(
+                TListOperationsOptions()
+                .FromTime(beforeStartTimes.front())
+                .ToTime(afterFinishTimes.back())
+                .IncludeCounters(true));
+
+            UNIT_ASSERT_VALUES_EQUAL(result.Operations.size(), 3);
+            const auto& attrs = result.Operations.front();
+
+            UNIT_ASSERT(attrs.Id);
+            // The order must be reversed: from newest to oldest.
+            UNIT_ASSERT_VALUES_EQUAL(*attrs.Id, operations.back()->GetId());
+
+            UNIT_ASSERT(attrs.BriefState);
+            UNIT_ASSERT_VALUES_EQUAL(*attrs.BriefState, EOperationBriefState::Completed);
+
+            UNIT_ASSERT(attrs.AuthenticatedUser);
+            UNIT_ASSERT_VALUES_EQUAL(*attrs.AuthenticatedUser, "root");
+
+            UNIT_ASSERT(result.PoolCounts);
+            // TODO(levysotsky) Uncomment this check after YT-Arcadia sync.
+            // UNIT_ASSERT_VALUES_EQUAL(*result.PoolCounts, (THashMap<TString, i64>{{"root", 3}}));
+
+            UNIT_ASSERT(result.UserCounts);
+            UNIT_ASSERT_VALUES_EQUAL(*result.UserCounts, (THashMap<TString, i64>{{"root", 3}}));
+
+            UNIT_ASSERT(result.StateCounts);
+            UNIT_ASSERT_VALUES_EQUAL(*result.StateCounts, (THashMap<TString, i64>{{"completed", 2}, {"failed", 1}}));
+
+            UNIT_ASSERT(result.TypeCounts);
+            THashMap<EOperationType, i64> expectedTypeCounts = {
+                    {EOperationType::Map, 1},
+                    {EOperationType::Sort, 1},
+                    {EOperationType::Reduce, 1}};
+            UNIT_ASSERT_VALUES_EQUAL(*result.TypeCounts, expectedTypeCounts);
+
+            UNIT_ASSERT(result.WithFailedJobsCount);
+            UNIT_ASSERT_VALUES_EQUAL(*result.WithFailedJobsCount, 1);
+        }
+
+        {
+            auto result = client->ListOperations(
+                TListOperationsOptions()
+                .FromTime(beforeStartTimes.front())
+                .ToTime(afterFinishTimes.back())
+                .CursorTime(afterFinishTimes[1])
+                .CursorDirection(ECursorDirection::Past));
+
+            UNIT_ASSERT_VALUES_EQUAL(result.Operations.size(), 2);
+
+            UNIT_ASSERT(result.Operations[0].Id && result.Operations[1].Id);
+            // The order must be reversed: from newest to oldest.
+            UNIT_ASSERT_VALUES_EQUAL(*result.Operations[0].Id, operations[1]->GetId());
+            UNIT_ASSERT_VALUES_EQUAL(*result.Operations[1].Id, operations[0]->GetId());
+        }
+    }
+
     Y_UNIT_TEST(UpdateOperationParameters)
     {
         auto client = CreateTestClient();

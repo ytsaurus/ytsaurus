@@ -66,6 +66,9 @@ TNode SerializeParamsForGetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options);
 
+TNode SerializeParamsForListOperations(
+    const TListOperationsOptions& options);
+
 TNode SerializeParamsForUpdateOperationParameters(
     const TOperationId& operationId,
     const TNode& newParameters);

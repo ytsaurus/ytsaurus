@@ -188,6 +188,9 @@ public:
         const TOperationId& operationId,
         const TGetOperationOptions& options) override;
 
+    TListOperationsResult ListOperations(
+        const TListOperationsOptions& options) override;
+
     void UpdateOperationParameters(
         const TOperationId& operationId,
         const TNode& newParameters) override;

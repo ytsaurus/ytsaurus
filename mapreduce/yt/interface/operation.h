@@ -807,6 +807,76 @@ struct TOperationAttributes
     TMaybe<TVector<TOperationEvent>> Events;
 };
 
+enum class ECursorDirection
+{
+    Past /* "past" */,
+    Future /* "future" */,
+};
+
+// https://wiki.yandex-team.ru/yt/userdoc/api/#listoperations
+struct TListOperationsOptions
+{
+    using TSelf = TListOperationsOptions;
+
+    // Search for operations with start time in half-closed interval
+    // [CursorTime, ToTime) if CursorDirection == Future or
+    // [FromTime, CursorTime) if CursorDirection == Past.
+    FLUENT_FIELD_OPTION(TInstant, FromTime);
+    FLUENT_FIELD_OPTION(TInstant, ToTime);
+    FLUENT_FIELD_OPTION(TInstant, CursorTime);
+    FLUENT_FIELD_OPTION(ECursorDirection, CursorDirection);
+
+    // Choose operations satisfying given filters.
+    //
+    // Search for Filter as a substring in operation text factors
+    // (e.g. title or input/output table paths).
+    FLUENT_FIELD_OPTION(TString, Filter);
+    // Choose operations whose pools include Pool.
+    FLUENT_FIELD_OPTION(TString, Pool);
+    // Choose operations with given user, state and type.
+    FLUENT_FIELD_OPTION(TString, User);
+    FLUENT_FIELD_OPTION(TString, State);
+    FLUENT_FIELD_OPTION(EOperationType, Type);
+    // Choose operations having (or not having) any failed jobs.
+    FLUENT_FIELD_OPTION(bool, WithFailedJobs);
+
+    // Search for operations in the archive in addition to Cypress.
+    FLUENT_FIELD_OPTION(bool, IncludeArchive);
+
+    // If set to true, include the number of operations for each pool, user, state and type
+    // and the number of operations having failed jobs.
+    FLUENT_FIELD_OPTION(bool, IncludeCounters);
+
+    // Return no more than Limit operations (current default and maximum value is 100).
+    FLUENT_FIELD_OPTION(i64, Limit);
+};
+
+struct TListOperationsResult
+{
+    TVector<TOperationAttributes> Operations;
+
+    // If counters were requested (IncludeCounters == true)
+    // the maps contain the number of operations found for each pool, user, state and type.
+    // NOTE:
+    //  1) Counters ignore CursorTime and CursorDirection,
+    //     they always are collected in the whole [FromTime, ToTime) interval.
+    //  2) Each next counter in the sequence [pool, user, state, type, with_failed_jobs]
+    //     takes into account all the previous filters (i.e. if you set User filter to "some-user"
+    //     type counts describe only operations with user "some-user").
+    TMaybe<THashMap<TString, i64>> PoolCounts;
+    TMaybe<THashMap<TString, i64>> UserCounts;
+    TMaybe<THashMap<TString, i64>> StateCounts;
+    TMaybe<THashMap<EOperationType, i64>> TypeCounts;
+    // Number of operations having failed jobs (subject to all previous filters).
+    TMaybe<i64> WithFailedJobsCount;
+
+    // Incomplete == true means that not all operations satisisfying filters
+    // were returned (limit exceeded) and you need to repeat the request with new StartTime
+    // (e.g. StartTime == *Operations.back().StartTime, but don't forget to
+    // remove the duplicates).
+    bool Incomplete;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class EJobSortField : int
@@ -1164,6 +1234,11 @@ struct IOperationClient
     virtual TOperationAttributes GetOperation(
         const TOperationId& operationId,
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
+
+    //
+    // List operations satisfying given filters.
+    virtual TListOperationsResult ListOperations(
+        const TListOperationsOptions& options = TListOperationsOptions()) = 0;
 
     //
     // Update operation runtime parameters.
