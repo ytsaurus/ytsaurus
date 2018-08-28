@@ -1964,8 +1964,15 @@ private:
             FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
 
+        TNullable<size_t> sequenceNumber;
+        if (Bootstrap_->GetConfig()->ApiService->EnableModifyRowsRequestReordering &&
+            request->has_sequence_number())
+        {
+            sequenceNumber = request->sequence_number();
+        }
+
         modifyRowsWindow->ModifyRows(
-            MakeNullable(request->has_sequence_number(), request->sequence_number()),
+            sequenceNumber,
             path,
             std::move(nameTable),
             MakeSharedRange(std::move(modifications), rowset),
