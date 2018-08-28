@@ -345,6 +345,7 @@ class YTEnvSetup(object):
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    DELTA_RPC_PROXY_CONFIG = {}
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
@@ -520,6 +521,7 @@ class YTEnvSetup(object):
             cls.modify_node_config(configs["node"][index])
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+        configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
