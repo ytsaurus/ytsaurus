@@ -64,7 +64,7 @@ def get_event_time(phase, events):
 
 def get_data_from_output_tables(data_type, output):
     """Get particular data type from all output tabels as a list."""
-    return list(output[table_num][data_type] for table_num in output.keys())
+    return list(table[data_type] for table in output.itervalues())
 
 
 def trim_statistics_tree(tree):
@@ -76,6 +76,16 @@ def trim_statistics_tree(tree):
             tree[key] = branch["sum"]
         else:
             trim_statistics_tree(branch)
+            
+
+def nested_dict_find(data, path):
+    cur_data = data
+    path_segments = path.split("/")
+    for segment in path_segments:
+        if not isinstance(cur_data, Iterable) or not segment in cur_data:
+            return 0
+        cur_data = cur_data[segment]
+    return cur_data
 
 
 class JobInfo(object):
@@ -91,6 +101,7 @@ class JobInfo(object):
         self.rel_start_running = self.abs_start_running - operation_start
         self.rel_end_time = self.abs_end_time - operation_start
         self.length = self.abs_end_time - self.abs_start_time
+        self.exec_time = self.abs_end_time - self.abs_start_running
         
         self.state = job_info["state"] or job_info["transient_state"]
         self.type = job_info["type"]
@@ -114,6 +125,29 @@ class JobInfo(object):
         self.output_row_count = get_data_from_output_tables(
             "row_count", job_info["statistics"]["data"]["output"]
         )
+        
+        self.user_job_cpu = float(
+            nested_dict_find(job_info["statistics"], "user_job/cpu/sys") + 
+            nested_dict_find(job_info["statistics"], "user_job/cpu/user")
+        ) / 1000
+        self.job_proxy_cpu = float(
+            nested_dict_find(job_info["statistics"], "job_proxy/cpu/sys") + 
+            nested_dict_find(job_info["statistics"], "job_proxy/cpu/user")
+        ) / 1000
+        self.codec_decode = float(sum(
+            alg for alg in job_info["statistics"]["codec"]["cpu"]["decode"].itervalues()
+        )) / 1000
+        self.codec_encode = float(sum(
+            alg for table in job_info["statistics"]["codec"]["cpu"]["encode"].itervalues()
+                for alg in table.itervalues() 
+        )) / 1000
+        self.idle_time = float(nested_dict_find(
+            job_info["statistics"], "user_job/pipes/input/idle_time"
+        )) / 1000
+        self.busy_time = float(nested_dict_find(
+            job_info["statistics"], "user_job/pipes/input/busy_time"
+        )) / 1000
+        
     
     def __str__(self):
         return "{}: {} [{} - {}]\n".format(
@@ -124,12 +158,18 @@ class JobInfo(object):
         )
 
 
+# In[167]:
+
+
 def get_jobs(op_id, cluster_name):
     """
     Get set of all jobs in operation as a list of JobInfo objects by operation id and a name of the cluster.
     """
     client = yt.client.Yt(proxy = cluster_name)
     operation_info = get_operation_info(op_id, client)
+    if not operation_info:
+        print("There is no such operation in the operation archive!")
+        return
     jobset = []
     
     # For calculation of relative time i.e. time from the operation start:
@@ -209,7 +249,7 @@ def data_is_correct(jobsets, data_type=None, table_num=0):
     return True
 
 
-def prepare_plot(title="", xlabel="", ylabel="", xaxis=True, yaxis=True, hovermode="x"):
+def prepare_plot(title="", xlabel="", ylabel="", xaxis=True, yaxis=True, hovermode="x", bargap=0.1):
     """Set plot properties."""
     init_notebook_mode(connected=True)
     layout = dict(
@@ -217,7 +257,7 @@ def prepare_plot(title="", xlabel="", ylabel="", xaxis=True, yaxis=True, hovermo
         xaxis = dict(title = xlabel, visible = xaxis),
         yaxis = dict(title = ylabel, visible = yaxis),
         barmode = "group",
-        bargap = 0.1,
+        bargap = bargap,
         hovermode = hovermode,
     )
     return layout
@@ -302,6 +342,10 @@ def draw_comparative_hist(jobsets, data_type="length", table_num=0):
                     start = min_val,
                     end = max_val + bin_size,
                     size = bin_size,
+                ),
+                hoverinfo="name+y",
+                hoverlabel=dict(
+                    namelength=-1,
                 ),
             ))
     iplot(dict(
@@ -398,12 +442,46 @@ def draw_comparative_scatter_plot(
     ))
 
 
+def draw_time_statistics_bar_chart(jobset):
+    """
+    Draw duration of different job stages as a bar chart for every job.
+    """
+    if not data_is_correct([jobset]):
+        return
+    statistics = [
+        "exec_time", "user_job_cpu", "job_proxy_cpu",
+        "codec_decode", "codec_encode", "idle_time", "busy_time",
+    ]
+    for job_type, job_info_per_type in groupby(jobset, key=lambda x: x.type):
+        jobs_info = list(job_info_per_type)
+        job_ids = ["Job #{}".format(i) for i in range(len(jobs_info))]
+        traces = []
+        for statistic in statistics:
+            values = [getattr(job_info, statistic) for job_info in jobs_info]
+            traces.append(go.Bar(
+                x=job_ids,
+                y=values,
+                name=statistic,
+                hoverinfo="name+y",
+                hoverlabel=dict(
+                    namelength=-1,
+                ),
+            ))
+        iplot(dict(
+            data = traces,
+            layout = prepare_plot(
+                title="{} jobs".format(job_type), xlabel="jobs", ylabel="statistics values",
+                hovermode="closest", bargap=0.3,
+            ),
+        ))
+            
+    
 def print_text_data(jobset):
     """
     Print node id, job id and running time for every job.
     """
     for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
         sys.stdout.write("{} jobs:\n".format(job_type))
-        for job_info in jobs_info:
-            sys.stdout.write("\t{}".format(job_info))
+        for i, job_info in enumerate(jobs_info):
+            sys.stdout.write("#{} \t{}".format(i, job_info))
 
