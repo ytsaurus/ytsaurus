@@ -28,6 +28,7 @@ ARCUP_WORKING_PATH = os.path.join(PROJECT_PATH, ".arcup")
 ARGV0 = sys.argv[0]
 
 YALL_BUILD_MODES = [
+    ["--target-platform=linux", "-DYT_ENABLE_GDB_INDEX"],
     ["--target-platform=linux"],
     ["--target-platform=darwin"],
     ["--target-platform=linux", "--yall-asan-build"],
