@@ -55,7 +55,11 @@ class ExecutableItem(pytest.Item):
         config_patches = {}
         for key, value in self.extract_attrs(str(self.fspath)):
             if key == "DELTA_MASTER_CONFIG":
-                config_patches['master'] = value
+                config_patches["master"] = value
+                continue
+
+            if key == "DELTA_RPC_PROXY_CONFIG":
+                config_patches["rpc_proxy"] = value
                 continue
 
             param_key = params_map[key]
@@ -64,10 +68,14 @@ class ExecutableItem(pytest.Item):
                 kwargs[param_key] = value
 
         def modify_configs(configs, abi_version):
-            if 'master' in config_patches:
+            if "master" in config_patches:
                 for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
                     for index, config in enumerate(configs["master"][tag]):
-                        configs["master"][tag][index] = update_inplace(config, config_patches['master'])
+                        configs["master"][tag][index] = update_inplace(config, config_patches["master"])
+
+            if "rpc_proxy" in config_patches:
+                configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], config_patches["rpc_proxy"])
+
         kwargs['modify_configs_func'] = modify_configs
 
         env = YTInstance(self.environment_path, **kwargs)
