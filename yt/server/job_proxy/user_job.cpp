@@ -1,4 +1,6 @@
 #include "user_job.h"
+
+#include "asan_warning_filter.h"
 #include "private.h"
 #include "config.h"
 #include "job_detail.h"
@@ -79,14 +81,14 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-#include <util/system/fs.h>
+#include <util/generic/guid.h>
 
 #include <util/stream/null.h>
-
-#include <util/system/execpath.h>
-
-#include <util/generic/guid.h>
 #include <util/stream/tee.h>
+
+#include <util/system/compiler.h>
+#include <util/system/execpath.h>
+#include <util/system/fs.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -434,6 +436,10 @@ private:
     // It redirects data to both ErrorOutput_ and stderr table writer.
     std::unique_ptr<TTeeOutput> StderrCombined_;
 
+#ifdef _asan_enabled_
+    std::unique_ptr<TAsanWarningFilter> AsanWarningFilter_;
+#endif
+
     std::unique_ptr<TTableOutput> StatisticsOutput_;
     std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
@@ -567,16 +573,25 @@ private:
 
     IOutputStream* CreateErrorOutput()
     {
+        IOutputStream* result;
+
         ErrorOutput_.reset(new TStderrWriter(
             UserJobSpec_.max_stderr_size()));
 
         auto* stderrTableWriter = UserJobWriteController_->GetStderrTableWriter();
         if (stderrTableWriter) {
             StderrCombined_.reset(new TTeeOutput(ErrorOutput_.get(), stderrTableWriter));
-            return StderrCombined_.get();
+            result = StderrCombined_.get();
         } else {
-            return ErrorOutput_.get();
+            result = ErrorOutput_.get();
         }
+
+#ifdef _asan_enabled_
+        AsanWarningFilter_.reset(new TAsanWarningFilter(result));
+        result = AsanWarningFilter_.get();
+#endif
+
+        return result;
     }
 
     void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
