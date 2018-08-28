@@ -26,6 +26,7 @@ namespace NTabletServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NTabletClient;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NTransactionClient;
@@ -58,7 +59,9 @@ private:
     {
         attributes->push_back(EInternedAttributeKey::ClusterName);
         attributes->push_back(EInternedAttributeKey::ReplicaPath);
-        attributes->push_back(EInternedAttributeKey::TablePath);
+        attributes->push_back(EInternedAttributeKey::TableId);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePath)
+            .SetOpaque(true));
         attributes->push_back(EInternedAttributeKey::StartReplicationTimestamp);
         attributes->push_back(EInternedAttributeKey::State);
         attributes->push_back(EInternedAttributeKey::Mode);
@@ -68,6 +71,8 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableTracker)
             .SetWritable(true));
+        attributes->push_back(EInternedAttributeKey::PreserveTimestamps);
+        attributes->push_back(EInternedAttributeKey::Atomicity);
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -77,6 +82,7 @@ private:
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
         const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         switch (key) {
             case EInternedAttributeKey::ClusterName:
@@ -94,10 +100,20 @@ private:
                     .Value(replica->GetStartReplicationTimestamp());
                 return true;
 
-            case EInternedAttributeKey::TablePath: {
-                const auto& cypressManager = Bootstrap_->GetCypressManager();
+            case EInternedAttributeKey::TableId: {
                 BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(replica->GetTable(), nullptr));
+                    .Value(table->GetId());
+                return true;
+            }
+
+            case EInternedAttributeKey::TablePath: {
+                if (table->IsForeign()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(cypressManager->GetNodePath(
+                        table->GetTrunkNode(),
+                        nullptr));
                 return true;
             }
 
@@ -143,11 +159,38 @@ private:
                     .Value(replica->GetEnableReplicatedTableTracker());
                 return true;
 
+            case EInternedAttributeKey::PreserveTimestamps:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetPreserveTimestamps());
+                return true;
+
+            case EInternedAttributeKey::Atomicity:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetAtomicity());
+                return true;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    {
+        auto* replica = GetThisImpl();
+        auto* table = replica->GetTable();
+
+        switch (key) {
+            case EInternedAttributeKey::TablePath: {
+                return FetchFromShepherd(FromObjectId(table->GetId()) + "/@path");
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
@@ -180,6 +223,8 @@ private:
 
         auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
         auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
+        auto atomicity = request->has_atomicity() ? MakeNullable(NTransactionClient::EAtomicity(request->atomicity())) : Null;
+        auto preserveTimestamps = request->has_preserve_timestamps() ? MakeNullable(request->preserve_timestamps()) : Null;
 
         context->SetRequestInfo("Enabled: %v, Mode: %v",
             enabled,
@@ -188,11 +233,13 @@ private:
         auto* replica = GetThisImpl();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (enabled) {
-            tabletManager->SetTableReplicaEnabled(replica, *enabled);
-        }
-        if (mode) {
-            tabletManager->SetTableReplicaMode(replica, *mode);
+        if (enabled || mode || atomicity || preserveTimestamps) {
+            tabletManager->AlterTableReplica(
+                replica,
+                std::move(enabled),
+                std::move(mode),
+                std::move(atomicity),
+                std::move(preserveTimestamps));
         }
 
         context->Reply();

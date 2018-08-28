@@ -74,15 +74,19 @@ class TCommandBase
     : public NYTree::TYsonSerializableLite
     , public ICommand
 {
-    protected:
-        NLogging::TLogger Logger = DriverLogger;
+protected:
+    NLogging::TLogger Logger = DriverLogger;
 
-        virtual void DoExecute(ICommandContextPtr context) = 0;
+    virtual void DoExecute(ICommandContextPtr context) = 0;
 
-        TCommandBase();
+    TCommandBase();
 
-    public:
-        virtual void Execute(ICommandContextPtr context) override;
+    void ProduceResponseParameters(
+        ICommandContextPtr context,
+        std::function<void(NYson::IYsonConsumer*)> producer);
+
+public:
+    virtual void Execute(ICommandContextPtr context) override;
 };
 
 template <class TOptions>

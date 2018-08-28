@@ -1,5 +1,5 @@
-#include <yt/server/cell_proxy/bootstrap.h>
-#include <yt/server/cell_proxy/config.h>
+#include <yt/server/rpc_proxy/bootstrap.h>
+#include <yt/server/rpc_proxy/config.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -17,7 +17,7 @@ namespace NYT {
 class TCellProxyProgram
     : public TProgram
     , public TProgramPdeathsigMixin
-    , public TProgramConfigMixin<NCellProxy::TCellProxyConfig>
+    , public TProgramConfigMixin<NRpcProxy::TCellProxyConfig>
 {
 public:
     TCellProxyProgram()
@@ -57,7 +57,7 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellProxy::TBootstrap(std::move(config), std::move(configNode));
+        auto* bootstrap = new NRpcProxy::TBootstrap(std::move(config), std::move(configNode));
         bootstrap->Run();
     }
 };

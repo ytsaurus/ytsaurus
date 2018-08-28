@@ -122,6 +122,11 @@ public:
         return Length_;
     }
 
+    size_t size() const
+    {
+        return Size();
+    }
+
     const T& operator[](size_t index) const
     {
         Y_ASSERT(index < Size());

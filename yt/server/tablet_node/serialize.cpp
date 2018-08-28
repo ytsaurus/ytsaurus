@@ -7,17 +7,14 @@ namespace NTabletNode {
 
 int GetCurrentSnapshotVersion()
 {
-    return 100008;
+    return 100009;
 }
 
 bool ValidateSnapshotVersion(int version)
 {
     return
-        version == 100004 ||
-        version == 100005 ||
-        version == 100006 ||
-        version == 100007 ||
-        version == 100008; // aozeritsky
+        version == 100008 || // aozeritsky
+        version == 100009;   // savrus: Save last commit timestamps for all cells.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

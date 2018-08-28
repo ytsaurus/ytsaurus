@@ -46,6 +46,11 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual i64 TryAcquireAvailable(i64 count) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual void Acquire(i64 count) override
     {
         Y_UNIMPLEMENTED();

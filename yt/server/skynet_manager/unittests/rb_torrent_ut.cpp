@@ -30,7 +30,7 @@ TEST(TRbTorrentTest, Sample)
 
     auto md5 = TMD5Hasher().Append(file1Content).GetDigest();
     file1.set_md5sum(TString(md5.data(), md5.size()));
-    auto sha1 = TSHA1Hasher().Append(file1Content).GetDigest();
+    auto sha1 = TSha1Hasher().Append(file1Content).GetDigest();
     file1.set_sha1sum(TString(sha1.data(), sha1.size()));
 
     auto& file2 = *resource.add_files();
@@ -40,7 +40,7 @@ TEST(TRbTorrentTest, Sample)
     file2.set_md5sum(TString(md5.data(), md5.size()));
     
     for (int i = 0; i < file2Content.Size(); i += 4 * 1024 * 1024) {
-        auto sha1 = TSHA1Hasher()
+        auto sha1 = TSha1Hasher()
             .Append(TStringBuf(file2Content).SubStr(i, 4 * 1024 * 1024))
             .GetDigest();
         *file2.mutable_sha1sum() += TString(sha1.data(), sha1.size());

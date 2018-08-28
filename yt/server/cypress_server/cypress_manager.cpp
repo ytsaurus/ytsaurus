@@ -194,12 +194,6 @@ public:
             inheritedAttributes = inheritedAttributeHolder.get();
         }
 
-        // TODO(babenko): this is a temporary workaround until dynamic tables become fully supported in
-        // multicell mode
-        if (explicitAttributes->Get<bool>("dynamic", false)) {
-            explicitAttributes->Set("external", false);
-        }
-
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = GetNewNodeAccount();
         auto maybeAccount = explicitAttributes->FindAndRemove<TString>("account");
@@ -1403,9 +1397,6 @@ private:
         node->SetModificationTime(mutationContext->GetTimestamp());
         node->SetAccessTime(mutationContext->GetTimestamp());
         node->SetRevision(mutationContext->GetVersion().ToRevision());
-        if (CellTagFromId(nodeId) != Bootstrap_->GetCellTag()) {
-            node->SetForeign();
-        }
 
         if (node->IsExternal()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",

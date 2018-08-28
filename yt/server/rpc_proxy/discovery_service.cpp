@@ -3,9 +3,7 @@
 #include "config.h"
 #include "public.h"
 #include "private.h"
-
-#include <yt/server/cell_proxy/bootstrap.h>
-#include <yt/server/cell_proxy/config.h>
+#include "bootstrap.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -46,7 +44,6 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NRpc;
 using namespace NNet;
-using namespace NCellProxy;
 using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
@@ -57,6 +54,7 @@ using NYT::ToProto;
 static const TString BanMessageAttributeName = "ban_message";
 static const TString ExpirationTimeAttributeName = "expiration_time";
 static const TString VersionAttributeName = "version";
+static const TString StartTimeAttributeName = "start_time";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +76,7 @@ class TDiscoveryService
 {
 public:
     TDiscoveryService(
-        NCellProxy::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
             GetDescriptor(),
@@ -115,7 +113,7 @@ public:
     }
 
 private:
-    const NCellProxy::TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
 
     const TDiscoveryServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
@@ -174,6 +172,11 @@ private:
             {
                 auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
                 req->set_value(ConvertToYsonString(GetVersion()).GetData());
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TYPathProxy::Set(path + "/@" + StartTimeAttributeName);
+                req->set_value(ConvertToYsonString(TInstant::Now().ToString()).GetData());
                 batchReq->AddRequest(req);
             }
             {

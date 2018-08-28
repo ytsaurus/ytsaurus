@@ -815,6 +815,7 @@ private:
                 LOG_INFO("Creating Eden partitioning transaction");
 
                 TTransactionStartOptions options;
+                options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
@@ -904,7 +905,8 @@ private:
                 endInstant - beginInstant);
 
             auto actionData = MakeTransactionActionData(actionRequest);
-            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
+            transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
             WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
@@ -976,7 +978,7 @@ private:
                 writerOptions,
                 tabletSnapshot->PhysicalSchema,
                 Bootstrap_->GetMasterClient(),
-                Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
+                CellTagFromId(tabletSnapshot->TabletId),
                 transaction->GetId(),
                 NullChunkListId,
                 GetUnlimitedThrottler(),
@@ -1213,6 +1215,7 @@ private:
                 LOG_INFO("Creating partition compaction transaction");
 
                 TTransactionStartOptions options;
+                options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Partition compaction: table %v, tablet %v",
@@ -1301,7 +1304,8 @@ private:
                 endInstant - beginInstant);
 
             auto actionData = MakeTransactionActionData(actionRequest);
-            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
+            transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
             WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
@@ -1352,7 +1356,7 @@ private:
             writerOptions,
             tabletSnapshot->PhysicalSchema,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
+            CellTagFromId(tabletSnapshot->TabletId),
             transaction->GetId(),
             NullChunkListId,
             GetUnlimitedThrottler(),

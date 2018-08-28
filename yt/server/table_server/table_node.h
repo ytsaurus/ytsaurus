@@ -44,6 +44,7 @@ private:
         NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
         TTabletStateIndexedVector TabletCountByState;
+        TTabletStateIndexedVector TabletCountByExpectedState;
         TTabletList Tablets;
         TNullable<bool> EnableTabletBalancer;
         TNullable<i64> MinTabletSize;
@@ -51,6 +52,14 @@ private:
         TNullable<i64> DesiredTabletSize;
         TNullable<int> DesiredTabletCount;
         int TabletErrorCount = 0;
+        TNullable<i64> ForcedCompactionRevision;
+        bool Dynamic = false;
+        TString MountPath;
+        NSecurityServer::TClusterResources ExternalTabletResourceUsage;
+        NTabletClient::ETabletState ActualTabletState = NTabletClient::ETabletState::Unmounted;
+        NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
+        NTransactionClient::TTransactionId LastMountTransactionId;
+        NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -73,6 +82,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCellBundle);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByExpectedState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableTabletBalancer);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MinTabletSize);
@@ -80,6 +90,14 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletCount);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletErrorCount);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Dynamic);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountPath);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExternalTabletResourceUsage);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ActualTabletState);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExpectedTabletState);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, PrimaryLastMountTransactionId);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
@@ -123,16 +141,26 @@ public:
 
     NTabletClient::ETabletState GetTabletState() const;
 
+    NTabletClient::ETabletState ComputeActualTabletState() const;
+
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
 
     const NTableClient::TTableSchema& GetTableSchema() const;
 
+    void UpdateExpectedTabletState(NTabletClient::ETabletState state);
+
+    void ValidateTabletStateFixed(TStringBuf message) const;
+    void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
+    void ValidateAllTabletsUnmounted(TStringBuf message) const;
+
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
+
+    void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

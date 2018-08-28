@@ -1,11 +1,12 @@
-#include "tablet_slot.h"
-#include "private.h"
 #include "automaton.h"
 #include "config.h"
+#include "private.h"
+#include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
 #include "tablet_manager.h"
 #include "tablet_service.h"
+#include "tablet_slot.h"
 #include "transaction_manager.h"
 
 #include <yt/server/data_node/config.h>
@@ -427,6 +428,15 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(CanConfigure());
 
+        auto updateVersion = updateInfo.dynamic_config_version();
+
+        if (DynamicConfigVersion_ >= updateVersion) {
+            LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
+                DynamicConfigVersion_,
+                updateVersion);
+            return;
+        }
+
         try {
             TDynamicTabletCellOptionsPtr dynamicOptions;
 
@@ -604,6 +614,7 @@ public:
                 Automaton_,
                 GetResponseKeeper(),
                 TransactionManager_,
+                Bootstrap_->GetSecurityManager(),
                 GetCellId(),
                 connection->GetTimestampProvider(),
                 std::vector<ITransactionParticipantProviderPtr>{

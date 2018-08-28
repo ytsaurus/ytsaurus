@@ -1158,7 +1158,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             minShareRatioSum,
             Attributes_.RecursiveMinShareRatio);
 
-        double fitFactor = 1.0 / minShareRatioSum;
+        double fitFactor = Attributes_.RecursiveMinShareRatio / minShareRatioSum;
         for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             childAttributes.RecursiveMinShareRatio *= fitFactor;

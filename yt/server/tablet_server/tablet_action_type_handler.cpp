@@ -47,7 +47,6 @@ public:
         auto kind = attributes->GetAndRemove<ETabletActionKind>("kind");
         auto tabletCount = attributes->FindAndRemove<int>("tablet_count");
         auto skipFreezing = attributes->GetAndRemove<bool>("skip_freezing", false);
-        auto freeze = attributes->FindAndRemove<bool>("freeze");
         auto keepFinished = attributes->GetAndRemove<bool>("keep_finished", false);
         auto tabletIds = attributes->GetAndRemove<std::vector<TTabletId>>("tablet_ids");
         auto cellIds = attributes->GetAndRemove<std::vector<TTabletCellId>>(
@@ -57,6 +56,10 @@ public:
             "pivot_keys",
             std::vector<TOwningKey>());
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        if (attributes->Find<bool>("freeze")) {
+            THROW_ERROR_EXCEPTION("Attribute \"freeze\" cannot be specified by user");
+        }
 
         std::vector<TTablet*> tablets;
         std::vector<TTabletCell*> cells;
@@ -76,7 +79,6 @@ public:
             pivotKeys,
             tabletCount,
             skipFreezing,
-            freeze,
             keepFinished);
     }
 

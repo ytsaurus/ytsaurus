@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/cell_proxy/public.h>
-
 #include <yt/client/api/rpc_proxy/public.h>
 
 #include <yt/core/rpc/public.h>
@@ -14,7 +12,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateDiscoveryService(
-    NCellProxy::TBootstrap* bootstrap);
+    NRpcProxy::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

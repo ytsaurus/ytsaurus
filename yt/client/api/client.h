@@ -195,6 +195,8 @@ struct TAlterTableReplicaOptions
 {
     TNullable<bool> Enabled;
     TNullable<NTabletClient::ETableReplicaMode> Mode;
+    TNullable<bool> PreserveTimestamps;
+    TNullable<NTransactionClient::EAtomicity> Atomicity;
 };
 
 struct TGetInSyncReplicasOptions
@@ -284,6 +286,11 @@ struct TTransactionStartOptions
     //! If not null then the transaction must use this externally provided start timestamp.
     //! Only applicable to tablet transactions.
     NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
+
+    //! Only for master transactions at secondary cell.
+    NObjectClient::TCellTag CellTag = NObjectClient::PrimaryMasterCellTag;
+
+    bool Multicell = false;
 };
 
 struct TTransactionAttachOptions
@@ -482,7 +489,6 @@ struct TCopyNodeOptions
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
     bool PreserveCreationTime = false;
-    NObjectClient::TTransactionId SourceTransactionId;
 };
 
 struct TMoveNodeOptions
@@ -678,6 +684,8 @@ struct TListOperationsOptions
     bool IncludeCounters = true;
     ui64 Limit = 100;
 
+    TNullable<THashSet<TString>> Attributes;
+
     // TODO(ignat): Remove this mode when UI migrate to list_operations without enabled UI mode.
     // See st/YTFRONT-1360.
     bool EnableUIMode = false;
@@ -807,17 +815,32 @@ struct TClusterMeta
 
 struct TOperation
 {
-    NScheduler::TOperationId Id;
-    NScheduler::EOperationType Type;
-    NScheduler::EOperationState State;
-    TNullable<std::vector<TString>> Pools;
-    TString AuthenticatedUser;
-    NYson::TYsonString BriefProgress;
-    NYson::TYsonString BriefSpec;
-    NYson::TYsonString RuntimeParameters;
-    TInstant StartTime;
+    TNullable<NScheduler::TOperationId> Id;
+
+    TNullable<NScheduler::EOperationType> Type;
+    TNullable<NScheduler::EOperationState> State;
+
+    TNullable<TInstant> StartTime;
     TNullable<TInstant> FinishTime;
+
+    TNullable<TString> AuthenticatedUser;
+
+    TNullable<std::vector<TString>> Pools;
+
+    NYson::TYsonString BriefSpec;
+    NYson::TYsonString Spec;
+    NYson::TYsonString FullSpec;
+    NYson::TYsonString UnrecognizedSpec;
+
+    NYson::TYsonString BriefProgress;
+    NYson::TYsonString Progress;
+
+    NYson::TYsonString RuntimeParameters;
+
     TNullable<bool> Suspended;
+
+    NYson::TYsonString Events;
+    NYson::TYsonString Result;
 };
 
 struct TListOperationsResult

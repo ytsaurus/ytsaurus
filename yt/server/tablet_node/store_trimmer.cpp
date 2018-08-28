@@ -30,13 +30,14 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NObjectClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
-using namespace NApi;
-using namespace NYTree;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,7 +195,8 @@ private:
             }
 
             auto actionData = MakeTransactionActionData(actionRequest);
-            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
+            transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
             const auto& tabletManager = slot->GetTabletManager();

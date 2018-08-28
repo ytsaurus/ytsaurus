@@ -26,7 +26,8 @@ DECLARE_REFCOUNTED_CLASS(TDialerConfig)
 DECLARE_REFCOUNTED_CLASS(TAddressResolverConfig)
 
 DEFINE_ENUM(EErrorCode,
-    ((Aborted) (1500))
+    ((Aborted)         (1500))
+    ((ResolveTimedOut) (1501))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

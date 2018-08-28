@@ -85,12 +85,16 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     if (reader->GetTotalRowCount() > 0) {
-        BuildYsonMapFragmentFluently(context->Request().ResponseParametersConsumer)
-            .Item("start_row_index").Value(reader->GetTableRowIndex())
-            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
+            BuildYsonMapFragmentFluently(consumer)
+                .Item("start_row_index").Value(reader->GetTableRowIndex())
+                .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        });
     } else {
-        BuildYsonMapFragmentFluently(context->Request().ResponseParametersConsumer)
-            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
+            BuildYsonMapFragmentFluently(consumer)
+                .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+        });
     }
 
     if (StartRowIndexOnly) {
@@ -677,7 +681,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     auto nameTable = valueConsumer.GetNameTable();
 
     if (ColumnNames) {
-        Options.ColumnFilter.All = false;
+        TColumnFilter::TIndexes columnFilterIndexes;
         for (const auto& name : *ColumnNames) {
             auto maybeIndex = nameTable->FindId(name);
             if (!maybeIndex) {
@@ -687,8 +691,9 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
                 }
                 maybeIndex = nameTable->GetIdOrRegisterName(name);
             }
-            Options.ColumnFilter.Indexes.push_back(*maybeIndex);
+            columnFilterIndexes.push_back(*maybeIndex);
         }
+        Options.ColumnFilter = TColumnFilter(std::move(columnFilterIndexes));
     }
 
     // Run lookup.
@@ -893,6 +898,10 @@ TAlterTableReplicaCommand::TAlterTableReplicaCommand()
     RegisterParameter("enabled", Options.Enabled)
         .Optional();
     RegisterParameter("mode", Options.Mode)
+        .Optional();
+    RegisterParameter("preserve_timestamps", Options.PreserveTimestamps)
+        .Optional();
+    RegisterParameter("atomicity", Options.Atomicity)
         .Optional();
 }
 

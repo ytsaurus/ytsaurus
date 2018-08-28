@@ -219,6 +219,13 @@ TException&& operator <<= (TException&& ex, const TError& error)
     return std::move(ex);
 }
 
+template <class TException>
+TException&& operator <<= (TException&& ex, TError&& error)
+{
+    ex.Error() = std::move(error);
+    return std::move(ex);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define THROW_ERROR \
@@ -261,11 +268,14 @@ public:
     TErrorOr<T>& operator = (const TErrorOr<T>& other);
     TErrorOr<T>& operator = (TErrorOr<T>&& other) noexcept;
 
-    const T& Value() const;
-    T& Value();
+    const T& Value() const &;
+    T& Value() &;
+    T&& Value() &&;
 
-    const T& ValueOrThrow() const;
-    T& ValueOrThrow();
+
+    const T& ValueOrThrow() const &;
+    T& ValueOrThrow() &;
+    T&& ValueOrThrow() &&;
 
 private:
     TNullable<T> Value_;

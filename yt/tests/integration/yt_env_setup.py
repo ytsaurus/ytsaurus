@@ -123,11 +123,7 @@ def _remove_groups(driver=None):
 
 def _remove_tablet_cells(driver=None):
     cells = yt_commands.get_tablet_cells(driver=driver)
-    for id in cells:
-        try:
-            yt_commands.remove_tablet_cell(id, driver=driver)
-        except:
-            pass
+    yt_commands.sync_remove_tablet_cells(cells, driver=driver)
 
 def _remove_tablet_cell_bundles(driver=None):
     bundles = yt_commands.ls("//sys/tablet_cell_bundles", attributes=["builtin"], driver=driver)
@@ -282,6 +278,17 @@ def skip_if_rpc_driver_backend(func):
 
     return decorator.decorate(func, wrapper)
 
+def parametrize_external(func):
+    spec = decorator.getfullargspec(func)
+    index = spec.args.index("external")
+
+    def wrapper(func, self, *args, **kwargs):
+        if self.NUM_SECONDARY_MASTER_CELLS == 0 and args[index - 1] == True:
+            pytest.skip("No secondary cells")
+        return func(self, *args, **kwargs)
+
+    return pytest.mark.parametrize("external", [False, True])(
+        decorator.decorate(func, wrapper))
 
 def require_enabled_core_dump(func):
     def wrapped_func(self, *args, **kwargs):
@@ -348,6 +355,7 @@ class YTEnvSetup(object):
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
+    USE_MASTER_CACHE = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -407,6 +415,7 @@ class YTEnvSetup(object):
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
+            enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
             enable_structured_master_logging=True)
@@ -454,7 +463,7 @@ class YTEnvSetup(object):
         yt_commands.path_to_run_tests = cls.path_to_run
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
-        cls.Env.start(use_proxy_from_package=False, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+        cls.Env.start(use_proxy_from_package=False, use_new_proxy=True, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
         for index, env in enumerate(cls.remote_envs):
             env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 
@@ -581,12 +590,13 @@ class YTEnvSetup(object):
     @classmethod
     def _setup_method(cls):
         for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-            if cls.USE_DYNAMIC_TABLES:
-                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1")
-
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
             if driver is None:
                 continue
+
+            if cls.USE_DYNAMIC_TABLES:
+                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
+                yt_commands.set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True, driver=driver)
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)

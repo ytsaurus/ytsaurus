@@ -2,6 +2,8 @@
 #include "shared_table_schema.h"
 #include "private.h"
 
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
@@ -57,6 +59,15 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, InMemoryMode);
     Save(context, DesiredTabletCount);
     Save(context, TabletErrorCount);
+    Save(context, ForcedCompactionRevision);
+    Save(context, Dynamic);
+    Save(context, MountPath);
+    Save(context, ExternalTabletResourceUsage);
+    Save(context, ExpectedTabletState);
+    Save(context, LastMountTransactionId);
+    Save(context, TabletCountByExpectedState);
+    Save(context, ActualTabletState);
+    Save(context, PrimaryLastMountTransactionId);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -69,24 +80,47 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, LastCommitTimestamp);
     Load(context, TabletCountByState);
     Load(context, Tablets);
-    //COMPAT(savrus)
+    // COMPAT(savrus)
     if (context.GetVersion() >= 614) {
         Load(context, EnableTabletBalancer);
         Load(context, MinTabletSize);
         Load(context, MaxTabletSize);
         Load(context, DesiredTabletSize);
     }
-    //COMPAT(savrus)
+    // COMPAT(savrus)
     if (context.GetVersion() >= 621) {
         Load(context, InMemoryMode);
     }
-    //COMPAT(savrus)
+    // COMPAT(savrus)
     if (context.GetVersion() >= 622) {
         Load(context, DesiredTabletCount);
     }
-    //COMPAT(iskhakovt)
+    // COMPAT(iskhakovt)
     if (context.GetVersion() >= 628) {
         Load(context, TabletErrorCount);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 800) {
+        Load(context, ForcedCompactionRevision);
+        Load(context, Dynamic);
+        Load(context, MountPath);
+        Load(context, ExternalTabletResourceUsage);
+        Load(context, ExpectedTabletState);
+        Load(context, LastMountTransactionId);
+        Load(context, TabletCountByExpectedState);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 801) {
+        Load(context, ActualTabletState);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 803) {
+        Load(context, PrimaryLastMountTransactionId);
+    }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() < 800) {
+        Dynamic = !Tablets.empty();
     }
 }
 
@@ -154,9 +188,11 @@ TClusterResources TTableNode::GetTabletResourceUsage() const
         }
     }
 
-    return TClusterResources()
+    auto resourceUsage = TClusterResources()
         .SetTabletCount(tabletCount)
         .SetTabletStaticMemory(memorySize);
+
+    return resourceUsage + GetExternalTabletResourceUsage();
 }
 
 bool TTableNode::IsSorted() const
@@ -180,6 +216,19 @@ bool TTableNode::IsPhysicallySorted() const
 }
 
 ETabletState TTableNode::GetTabletState() const
+{
+    if (GetLastMountTransactionId()) {
+        return ETabletState::Transient;
+    }
+
+    if (!IsDynamic()) {
+        return ETabletState::None;
+    }
+
+    return GetActualTabletState();
+}
+
+ETabletState TTableNode::ComputeActualTabletState() const
 {
     auto* trunkNode = GetTrunkNode();
     if (trunkNode->Tablets().empty()) {
@@ -365,7 +414,7 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 {
     //COMPAT(savrus)
-    if (context.GetVersion() < 622) {
+    if (context.GetVersion() < 800) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
@@ -386,33 +435,29 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
                     attributes.erase(it);
                 }
             };
-            static const TString disableTabletBalancerAttributeName("disable_tablet_balancer");
-            static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
-            static const TString minTabletSizeAttributeName("min_tablet_size");
-            static const TString maxTabletSizeAttributeName("max_tablet_size");
-            static const TString desiredTabletSizeAttributeName("desired_tablet_size");
-            static const TString desiredTabletCountAttributeName("desired_tablet_count");
-            static const TString inMemoryModeAttributeName("in_memory_mode");
-            processAttribute(disableTabletBalancerAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::DisableTabletBalancer), [&] (const TYsonString& val) {
                 SetEnableTabletBalancer(!ConvertTo<bool>(val));
             });
-            processAttribute(enableTabletBalancerAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::EnableTabletBalancer), [&] (const TYsonString& val) {
                 SetEnableTabletBalancer(ConvertTo<bool>(val));
             });
-            processAttribute(minTabletSizeAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::MinTabletSize), [&] (const TYsonString& val) {
                 SetMinTabletSize(ConvertTo<i64>(val));
             });
-            processAttribute(maxTabletSizeAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::MaxTabletSize), [&] (const TYsonString& val) {
                 SetMaxTabletSize(ConvertTo<i64>(val));
             });
-            processAttribute(desiredTabletSizeAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::DesiredTabletSize), [&] (const TYsonString& val) {
                 SetDesiredTabletSize(ConvertTo<i64>(val));
             });
-            processAttribute(desiredTabletCountAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::DesiredTabletCount), [&] (const TYsonString& val) {
                 SetDesiredTabletCount(ConvertTo<int>(val));
             });
-            processAttribute(inMemoryModeAttributeName, [&] (const TYsonString& val) {
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::InMemoryMode), [&] (const TYsonString& val) {
                 SetInMemoryMode(ConvertTo<EInMemoryMode>(val));
+            });
+            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::ForcedCompactionRevision), [&] (const TYsonString& val) {
+                SetForcedCompactionRevision(ConvertTo<i64>(val));
             });
 
             if (attributes.empty()) {
@@ -450,7 +495,7 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
 
 bool TTableNode::IsDynamic() const
 {
-    return !GetTrunkNode()->Tablets().empty();
+    return GetTrunkNode()->GetDynamic();
 }
 
 bool TTableNode::IsEmpty() const
@@ -461,14 +506,16 @@ bool TTableNode::IsEmpty() const
 TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
     TTimestamp latestTimestamp) const
 {
-    return UnflushedTimestamp_ != NullTimestamp
+    // COMPAT(savrus) Consider saved value only for non-trunk nodes.
+    return !IsTrunk() && UnflushedTimestamp_ != NullTimestamp
         ? UnflushedTimestamp_
         : CalculateUnflushedTimestamp(latestTimestamp);
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
 {
-    return RetainedTimestamp_ != NullTimestamp
+    // COMPAT(savrus) Consider saved value only for non-trunk nodes.
+    return !IsTrunk() && RetainedTimestamp_ != NullTimestamp
         ? RetainedTimestamp_
         : CalculateRetainedTimestamp();
 }
@@ -509,6 +556,59 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
 const NTableClient::TTableSchema& TTableNode::GetTableSchema() const
 {
     return SharedTableSchema() ? SharedTableSchema()->GetTableSchema() : TSharedTableSchemaRegistry::EmptyTableSchema;
+}
+
+void TTableNode::UpdateExpectedTabletState(ETabletState state)
+{
+    auto current = GetExpectedTabletState();
+
+    Y_ASSERT(current == ETabletState::Frozen ||
+        current == ETabletState::Mounted ||
+        current == ETabletState::Unmounted);
+    Y_ASSERT(state == ETabletState::Frozen ||
+        state == ETabletState::Mounted);
+
+    if (state == ETabletState::Mounted ||
+        (state == ETabletState::Frozen && current != ETabletState::Mounted))
+    {
+        SetExpectedTabletState(state);
+    }
+}
+
+void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
+{
+    const auto* trunkTable = GetTrunkNode();
+    const auto& transactionId = trunkTable->GetLastMountTransactionId();
+    if (transactionId) {
+        THROW_ERROR_EXCEPTION("%v since some tablets are in transient state", message)
+            << TErrorAttribute("last_mount_transaction_id", transactionId)
+            << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
+    }
+}
+
+void TTableNode::ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const
+{
+    ValidateTabletStateFixed(message);
+
+    const auto* trunkTable = GetTrunkNode();
+    auto state = trunkTable->GetExpectedTabletState();
+    if (!(state == ETabletState::Unmounted || (allowFrozen && state == ETabletState::Frozen))) {
+        THROW_ERROR_EXCEPTION("%v since not all tablets are %v",
+            message,
+            allowFrozen ? "frozen or unmounted" : "unmounted")
+            << TErrorAttribute("actual_tablet_state", trunkTable->GetActualTabletState())
+            << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
+    }
+}
+
+void TTableNode::ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const
+{
+    ValidateExpectedTabletState(message, true);
+}
+
+void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
+{
+    ValidateExpectedTabletState(message, false);
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

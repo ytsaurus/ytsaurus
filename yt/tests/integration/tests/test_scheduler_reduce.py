@@ -3,7 +3,7 @@ import itertools
 import pytest
 
 from yt.environment.helpers import assert_items_equal, wait
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, parametrize_external
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -40,13 +40,13 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
         }
     }
 
-    def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
-        create("table", path,
-            attributes = {
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
-                "dynamic": True,
-                "optimize_for": optimize_for
+    def _create_simple_dynamic_table(self, path, **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
             })
+        create_dynamic_table(path, **attributes)
 
     # TODO(max42): eventually remove this test as it duplicates unittest TSortedChunkPoolTest/SortedReduceSimple.
     @unix_only
@@ -1078,10 +1078,11 @@ echo {v = 2} >&7
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
     @unix_only
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_reduce_on_dynamic_table(self, optimize_for):
+    def test_reduce_on_dynamic_table(self, optimize_for, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", optimize_for)
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -1111,10 +1112,11 @@ echo {v = 2} >&7
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
     @unix_only
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_reduce_with_foreign_dynamic(self, optimize_for):
+    def test_reduce_with_foreign_dynamic(self, optimize_for, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t2", optimize_for)
+        self._create_simple_dynamic_table("//tmp/t2", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t1")
         create("table", "//tmp/t_out")
 
@@ -1142,11 +1144,12 @@ echo {v = 2} >&7
 
         assert_items_equal(read_table("//tmp/t_out"), expected)
 
-    def test_dynamic_table_index(self):
+    @parametrize_external
+    def test_dynamic_table_index(self, external):
         sync_create_cells(1)
         create("table", "//tmp/t1")
-        self._create_simple_dynamic_table("//tmp/t2")
-        self._create_simple_dynamic_table("//tmp/t3")
+        self._create_simple_dynamic_table("//tmp/t2", external=external)
+        self._create_simple_dynamic_table("//tmp/t3", external=external)
         create("table", "//tmp/t_out")
 
         sync_mount_table("//tmp/t2")

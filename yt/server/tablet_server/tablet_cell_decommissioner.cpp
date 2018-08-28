@@ -17,7 +17,9 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NConcurrency;
+using namespace NSecurityClient;
 using namespace NTabletServer::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +136,9 @@ private:
             }
         }
 
+        LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
+            retiringCells.size());
+
         for (const auto& pair : tabletManager->TabletCells()) {
             const auto* cell = pair.second;
 
@@ -141,7 +146,7 @@ private:
                 cell->GetDecommissioned() &&
                 !retiringCells.has(cell))
             {
-                 for (auto* tablet : cell->Tablets()) {
+                for (auto* tablet : cell->Tablets()) {
                     if (!DecommissionThrottler_->TryAcquire(1)) {
                         auto result = WaitFor(DecommissionThrottler_->Throttle(1));
                         if (!result.IsOK()) {
@@ -156,6 +161,16 @@ private:
                     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
                     CreateMutation(hydraManager, request)
                         ->CommitAndLog(Logger);
+                }
+
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    const auto& statistics = cell->ClusterStatistics();
+                    if (statistics.Decommissioned && statistics.TabletCount == 0) {
+                        const auto& objectManager = Bootstrap_->GetObjectManager();
+                        auto rootService = objectManager->GetRootService();
+                        auto req = TYPathProxy::Remove(NObjectClient::FromObjectId(cell->GetId()));
+                        ExecuteVerb(rootService, req);
+                    }
                 }
             }
         }

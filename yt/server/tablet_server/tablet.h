@@ -30,7 +30,7 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletCellStatistics
+struct TTabletCellStatisticsBase
 {
     i64 UnmergedRowCount = 0;
     i64 UncompressedDataSize = 0;
@@ -44,8 +44,23 @@ struct TTabletCellStatistics
     int PreloadPendingStoreCount = 0;
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
+    int TabletCount = 0;
     TEnumIndexedVector<int, NTabletClient::EInMemoryMode> TabletCountPerMemoryMode;
 
+    void Persist(NCellMaster::TPersistenceContext& context);
+};
+
+struct TUncountableTabletCellStatisticsBase
+{
+    bool Decommissioned = false;
+
+    void Persist(NCellMaster::TPersistenceContext& context);
+};
+
+struct TTabletCellStatistics
+    : public TTabletCellStatisticsBase
+    , public TUncountableTabletCellStatisticsBase
+{
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
@@ -57,39 +72,60 @@ struct TTabletStatisticsBase
 };
 
 struct TTabletStatistics
-    : public TTabletCellStatistics
+    : public TTabletCellStatisticsBase
     , public TTabletStatisticsBase
 {
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
+TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
+TTabletCellStatisticsBase  operator +  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
+
+TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
+TTabletCellStatisticsBase  operator -  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
+
 TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 TTabletCellStatistics  operator +  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-
-TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
-TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
 TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 
+TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
+TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
+
+void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
+void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializableTabletCellStatistics
+class TSerializableTabletCellStatisticsBase
     : public virtual NYTree::TYsonSerializable
-    , public TTabletCellStatistics
+    , public TTabletCellStatisticsBase
 {
 public:
-    TSerializableTabletCellStatistics();
+    TSerializableTabletCellStatisticsBase();
 
-    TSerializableTabletCellStatistics(
-        const TTabletCellStatistics& statistics,
+    TSerializableTabletCellStatisticsBase(
+        const TTabletCellStatisticsBase& statistics,
         const NChunkServer::TChunkManagerPtr& chunkManager);
 
 private:
-    int TabletCount_ = 0;
     i64 DiskSpace_ = 0;
     THashMap<TString, i64> DiskSpacePerMediumMap_;
 
+    void InitParameters();
+};
+
+class TSerializableUncountableTabletCellStatisticsBase
+    : public virtual NYTree::TYsonSerializable
+    , public TUncountableTabletCellStatisticsBase
+{
+public:
+    TSerializableUncountableTabletCellStatisticsBase();
+
+    explicit TSerializableUncountableTabletCellStatisticsBase(const TUncountableTabletCellStatisticsBase& statistics);
+
+private:
     void InitParameters();
 };
 
@@ -106,8 +142,20 @@ private:
     void InitParameters();
 };
 
+class TSerializableTabletCellStatistics
+    : public TSerializableTabletCellStatisticsBase
+    , public TSerializableUncountableTabletCellStatisticsBase
+{
+public:
+    TSerializableTabletCellStatistics();
+
+    TSerializableTabletCellStatistics(
+        const TTabletCellStatistics& statistics,
+        const NChunkServer::TChunkManagerPtr& chunkManager);
+};
+
 class TSerializableTabletStatistics
-    : public TSerializableTabletCellStatistics
+    : public TSerializableTabletCellStatisticsBase
     , public TSerializableTabletStatisticsBase
 {
 public:
@@ -177,6 +225,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTabletErrors = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TTablet>
@@ -203,8 +255,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
-    DECLARE_BYVAL_RW_PROPERTY(std::vector<TError>, Errors);
+
+    void SetErrors(const TTabletErrors& errors);
+    std::vector<TError> GetErrors() const;
 
 public:
     explicit TTablet(const TTabletId& id);
@@ -231,11 +286,11 @@ public:
     i64 GetTabletStaticMemorySize() const;
 
 private:
-    using TErrorVector = TEnumIndexedVector<TError, NTabletClient::ETabletBackgroundActivity>;
 
     ETabletState State_ = ETabletState::Unmounted;
+    ETabletState ExpectedState_ = ETabletState::Unmounted;
     NTableServer::TTableNode* Table_ = nullptr;
-    TErrorVector Errors_;
+    TTabletErrors Errors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

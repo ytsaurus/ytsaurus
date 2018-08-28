@@ -35,20 +35,8 @@ static const auto& Logger = TabletNodeLogger;
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
     const TNullable<TString>& maybeUser)
-    : SecurityManager_(std::move(securityManager))
-    , IsNull_(!maybeUser)
-{
-    if (!IsNull_) {
-        SecurityManager_->SetAuthenticatedUser(*maybeUser);
-    }
-}
-
-TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
-{
-    if (!IsNull_) {
-        SecurityManager_->ResetAuthenticatedUser();
-    }
-}
+    : TAuthenticatedUserGuardBase(std::move(securityManager), maybeUser)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +250,7 @@ public:
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
     { }
 
-    void SetAuthenticatedUser(const TString& user)
+    void SetAuthenticatedUserByNameOrThrow(const TString& user)
     {
         Y_ASSERT(!*AuthenticatedUser_);
         *AuthenticatedUser_ = user;
@@ -274,7 +262,7 @@ public:
         AuthenticatedUser_->Reset();
     }
 
-    TNullable<TString> GetAuthenticatedUser()
+    TNullable<TString> GetAuthenticatedUserName()
     {
         return *AuthenticatedUser_;
     }
@@ -283,7 +271,7 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         EPermission permission)
     {
-        auto maybeUser = GetAuthenticatedUser();
+        auto maybeUser = GetAuthenticatedUserName();
         if (!maybeUser) {
             return VoidFuture;
         }
@@ -351,9 +339,9 @@ TSecurityManager::TSecurityManager(
 
 TSecurityManager::~TSecurityManager() = default;
 
-void TSecurityManager::SetAuthenticatedUser(const TString& user)
+void TSecurityManager::SetAuthenticatedUserByNameOrThrow(const TString& user)
 {
-    Impl_->SetAuthenticatedUser(user);
+    Impl_->SetAuthenticatedUserByNameOrThrow(user);
 }
 
 void TSecurityManager::ResetAuthenticatedUser()
@@ -361,9 +349,9 @@ void TSecurityManager::ResetAuthenticatedUser()
     Impl_->ResetAuthenticatedUser();
 }
 
-TNullable<TString> TSecurityManager::GetAuthenticatedUser()
+TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
 {
-    return Impl_->GetAuthenticatedUser();
+    return Impl_->GetAuthenticatedUserName();
 }
 
 TFuture<void> TSecurityManager::CheckPermission(

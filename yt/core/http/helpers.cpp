@@ -11,6 +11,12 @@
 #include <yt/core/json/json_parser.h>
 #include <yt/core/json/config.h>
 
+#include <util/stream/buffer.h>
+#include <util/generic/buffer.h>
+
+#include <util/string/strip.h>
+#include <util/string/join.h>
+
 namespace NYT {
 namespace NHttp {
 
@@ -108,17 +114,38 @@ IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying)
     return New<TErrorWrappingHttpHandler>(underlying);
 }
 
+static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
+    "Authorization",
+    "Origin",
+    "Content-Type",
+    "Accept",
+    "X-Csrf-Token",
+    "X-YT-Parameters",
+    "X-YT-Parameters0",
+    "X-YT-Parameters-0",
+    "X-YT-Parameters1",
+    "X-YT-Parameters-1",
+    "X-YT-Input-Format",
+    "X-YT-Input-Format0",
+    "X-YT-Input-Format-0",
+    "X-YT-Output-Format",
+    "X-YT-Output-Format0",
+    "X-YT-Output-Format-0",
+    "X-YT-Header-Format",
+    "X-YT-Suppress-Redirect",
+    "X-YT-Omit-Trailers",
+});
+
 bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
-    static const auto HeadersWhitelist = "Content-Type, Accept, X-YT-Error, X-YT-Response-Code, X-YT-Response-Message";
-
     auto origin = req->GetHeaders()->Find("Origin");
     if (origin) {
         auto url = ParseUrl(*origin);
         bool allow = url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
         if (allow) {
+            rsp->GetHeaders()->Add("Access-Control-Allow-Credentials", "true");
             rsp->GetHeaders()->Add("Access-Control-Allow-Origin", *origin);
-            rsp->GetHeaders()->Add("Access-Control-Allow-Methods", "POST, OPTIONS");
+            rsp->GetHeaders()->Add("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
             rsp->GetHeaders()->Add("Access-Control-Max-Age", "3600");
 
             if (req->GetMethod() == EMethod::Options) {
@@ -148,16 +175,44 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies)
         }
         auto name = cookies.substr(nameStartIndex, nameEndIndex - nameStartIndex);
         auto valueStartIndex = nameEndIndex + 1;
-        const auto Delimiter = AsStringBuf("; ");
+        const auto Delimiter = AsStringBuf(";");
         auto valueEndIndex = cookies.find(Delimiter, index);
         if (valueEndIndex == TString::npos) {
             valueEndIndex = cookies.size();
         }
-        auto value = cookies.substr(valueStartIndex, valueEndIndex);
-        map[name] = std::move(value);
+        auto value = StripString(cookies.substr(valueStartIndex, valueEndIndex - valueStartIndex));
+        map[StripString(name)] = std::move(value);
         index = valueEndIndex + Delimiter.length();
     }
     return map;
+}
+
+void ProtectCsrfToken(const IResponseWriterPtr& rsp)
+{
+    auto headers = rsp->GetHeaders();
+
+    headers->Set("Pragma", "nocache");
+    headers->Set("Expires", "Thu, 01 Jan 1970 00:00:01 GMT");
+    headers->Set("Cache-Control", "max-age=0, must-revalidate, proxy-revalidate, no-cache, no-store, private");
+    headers->Set("X-Content-Type-Options", "nosniff");
+    headers->Set("X-Frame-Options", "SAMEORIGIN");
+    headers->Set("X-DNS-Prefetch-Control", "off");
+}
+
+void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer)
+{
+    rsp->GetHeaders()->Set("Content-Type", "application/json");
+
+    TBufferOutput out;
+
+    auto json = NJson::CreateJsonConsumer(&out);
+    producer(json.get());
+    json->Flush();
+
+    TString body;
+    out.Buffer().AsString(body);
+    WaitFor(rsp->WriteBody(TSharedRef::FromString(body)))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

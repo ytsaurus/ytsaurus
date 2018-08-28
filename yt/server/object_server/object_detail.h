@@ -211,6 +211,11 @@ protected:
     {
         return Object_->As<TObject>();
     }
+
+    TFuture<NYson::TYsonString> FetchFromShepherd(const NYPath::TYPath& path);
+
+    template <class T>
+    TFuture<std::vector<T>> FetchFromSwarm(NYTree::TInternedAttributeKey key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,3 +223,6 @@ protected:
 } // namespace NObjectServer
 } // namespace NYT
 
+#define OBJECT_DETAIL_INL_H_
+#include "object_detail-inl.h"
+#undef OBJECT_DETAIL_INL_H_

@@ -1282,14 +1282,22 @@ private:
 
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
+        auto resultError = FromProto<TError>(jobResult.error());
+
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
             const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+            if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
+                !resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) &&
+                schedulerResultExt.failed_chunk_ids_size() > 0)
+            {
+
+            }
+
             if (schedulerResultExt.failed_chunk_ids_size() > 0) {
                 return EAbortReason::FailedChunks;
             }
         }
-
-        auto resultError = FromProto<TError>(jobResult.error());
 
         auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
         if (abortReason) {

@@ -1,7 +1,7 @@
 import pytest
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, parametrize_external
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -75,6 +75,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.v2 = v2
 
         create("table", "//tmp/t_out")
+
+    def _create_simple_dynamic_table(self, path, **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+            })
+        create_dynamic_table(path, **attributes)
 
     # usual cases
     def test_unordered(self):
@@ -956,20 +964,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_sorted_merge_on_dynamic_table(self, optimize_for):
-        def _create_dynamic_table(path):
-            create("table", path,
-                attributes = {
-                    "schema": [
-                        {"name": "key", "type": "int64", "sort_order": "ascending"},
-                        {"name": "value", "type": "string"}],
-                    "dynamic": True,
-                    "optimize_for": optimize_for
-                })
-
+    def test_sorted_merge_on_dynamic_table(self, external, optimize_for):
         sync_create_cells(1)
-        _create_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
 
         create("table", "//tmp/t_out")
 
@@ -1333,10 +1332,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         # The point of this test is to make sure snatching chunks from
         # under an uncommitted transaction interoperates with
-        # multicell well. Replace the following two lines with this:
+        # multicell well. Replacing the following two lines with this:
         #     copy("//tmp/t2", "//tmp/t2_copy", source_transaction_id=tx)
-        # to get a horrific situation when a chunk is destroyed in its cell
-        # yet is still referenced from another cell.
+        # used to produce (it's no longer supported) a horrific situation
+        # when a chunk is destroyed in its cell yet is still
+        # referenced from another cell.
         create("table", "//tmp/t2_copy", attributes={"external_cell_tag": 2})
         merge(mode="ordered", in_=['<transaction_id="{0}">//tmp/t2'.format(tx)], out="//tmp/t2_copy")
 

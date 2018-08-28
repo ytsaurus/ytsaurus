@@ -208,6 +208,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaMode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
     }
 
     void Initialize()
@@ -936,7 +937,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            PostMasterMutation(response);
+            PostMasterMutation(tabletId, response);
         }
 
         if (!IsRecovery()) {
@@ -1082,7 +1083,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        PostMasterMutation(response);
+        PostMasterMutation(tabletId, response);
     }
 
     void HydraSetTabletState(TReqSetTabletState* request)
@@ -1152,7 +1153,7 @@ private:
 
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
-                PostMasterMutation(response);
+                PostMasterMutation(tabletId, response);
                 break;
             }
 
@@ -1179,7 +1180,7 @@ private:
 
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
-                PostMasterMutation(response);
+                PostMasterMutation(tabletId, response);
                 break;
             }
 
@@ -1802,7 +1803,7 @@ private:
         RemoveTableReplica(tablet, replicaId);
     }
 
-
+    // COMPAT(aozeritsky)
     void HydraSetTableReplicaEnabled(TReqSetTableReplicaEnabled* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1825,6 +1826,7 @@ private:
         }
     }
 
+    // COMPAT(aozeritsky)
     void HydraSetTableReplicaMode(TReqSetTableReplicaMode* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1847,6 +1849,59 @@ private:
             mode);
 
         replicaInfo->SetMode(mode);
+    }
+
+    void HydraAlterTableReplica(TReqAlterTableReplica* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
+        auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
+        auto atomicity = request->has_atomicity()
+            ? MakeNullable(NTransactionClient::EAtomicity(request->atomicity()))
+            : Null;
+        auto preserveTimestamps = request->has_preserve_timestamps()
+            ? MakeNullable(request->preserve_timestamps())
+            : Null;
+
+
+        if (enabled) {
+            if (*enabled) {
+                EnableTableReplica(tablet, replicaInfo);
+            } else {
+                DisableTableReplica(tablet, replicaInfo);
+            }
+        }
+
+        if (mode) {
+            replicaInfo->SetMode(*mode);
+        }
+
+        if (atomicity) {
+            replicaInfo->SetAtomicity(*atomicity);
+        }
+
+        if (preserveTimestamps) {
+            replicaInfo->SetPreserveTimestamps(*preserveTimestamps);
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica updated (TabletId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+            tablet->GetId(),
+            replicaInfo->GetId(),
+            enabled,
+            mode,
+            atomicity,
+            preserveTimestamps);
     }
 
     void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
@@ -2643,7 +2698,6 @@ private:
         CommitTabletMutation(request);
     }
 
-
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
@@ -2652,10 +2706,14 @@ private:
         }));
     }
 
-    void PostMasterMutation(const ::google::protobuf::MessageLite& message)
+    void PostMasterMutation(TTabletId tabletId, const ::google::protobuf::MessageLite& message)
     {
         const auto& hiveManager = Slot_->GetHiveManager();
-        hiveManager->PostMessage(Slot_->GetMasterMailbox(), message);
+        auto* mailbox = hiveManager->GetOrCreateMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
+        if (!mailbox) {
+            mailbox = Slot_->GetMasterMailbox();
+        }
+        hiveManager->PostMessage(mailbox, message);
     }
 
 
@@ -3142,6 +3200,12 @@ private:
         replicaInfo.SetStartReplicationTimestamp(descriptor.start_replication_timestamp());
         replicaInfo.SetState(ETableReplicaState::Disabled);
         replicaInfo.SetMode(ETableReplicaMode(descriptor.mode()));
+        if (descriptor.has_atomicity()) {
+            replicaInfo.SetAtomicity(NTransactionClient::EAtomicity(descriptor.atomicity()));
+        }
+        if (descriptor.has_preserve_timestamps()) {
+            replicaInfo.SetPreserveTimestamps(descriptor.preserve_timestamps());
+        }
         replicaInfo.MergeFromStatistics(descriptor.statistics());
 
         tablet->UpdateReplicaCounters();
@@ -3224,7 +3288,7 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMutation(response);
+            PostMasterMutation(tablet->GetId(), response);
         }
     }
 
@@ -3235,7 +3299,7 @@ private:
         ToProto(request.mutable_replica_id(), replicaInfo.GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         replicaInfo.PopulateStatistics(request.mutable_statistics());
-        PostMasterMutation(request);
+        PostMasterMutation(tablet->GetId(), request);
     }
 
 
@@ -3247,15 +3311,12 @@ private:
         }
         tablet->SetTrimmedRowCount(trimmedRowCount);
 
-        const auto& hiveManager = Slot_->GetHiveManager();
-        auto* masterMailbox = Slot_->GetMasterMailbox();
-
         {
             TReqUpdateTabletTrimmedRowCount masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
             masterRequest.set_mount_revision(tablet->GetMountRevision());
             masterRequest.set_trimmed_row_count(trimmedRowCount);
-            hiveManager->PostMessage(masterMailbox, masterRequest);
+            PostMasterMutation(tablet->GetId(), masterRequest);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",

@@ -21,14 +21,6 @@ DEFINE_ENUM(EMessageType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! YT enum doesn't support specifying custom string conversion, so we
-//! define our own.
-
-TStringBuf ToHttpString(EMethod method);
-TStringBuf ToHttpString(EStatusCode code);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EParserState,
     (Initialized)
     (HeadersFinished)
@@ -163,11 +155,12 @@ public:
     virtual const THeadersPtr& GetHeaders() override;
     void SetHeaders(const THeadersPtr& headers);
     void SetHost(TStringBuf host, TStringBuf port);
-    bool IsHeadersFlushed() const;
+    virtual bool IsHeadersFlushed() const override;
 
     virtual const THeadersPtr& GetTrailers() override;
 
     void WriteRequest(EMethod method, const TString& path);
+    TNullable<EStatusCode> GetStatus() const override;
     virtual void SetStatus(EStatusCode status) override;
 
     virtual TFuture<void> Write(const TSharedRef& data) override;
@@ -175,7 +168,7 @@ public:
 
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) override;
 
-    void AddConnectionCloseHeader();
+    virtual void AddConnectionCloseHeader() override;
 
     bool IsSafeToReuse() const;
     void Reset();

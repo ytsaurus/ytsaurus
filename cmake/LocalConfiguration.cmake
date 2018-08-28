@@ -112,6 +112,8 @@ if(_is_gcc)
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-parentheses")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-local-typedefs")
 
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -frecord-gcc-switches")
+
     if(CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
       set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fdiagnostics-color=always")
     endif()

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external
 from yt_commands import *
 
 from yt.test_helpers import assert_items_equal, are_almost_equal
@@ -1241,23 +1241,21 @@ class TestMapOnDynamicTables(YTEnvSetup):
         }
     }
 
-    def _create_simple_dynamic_table(self, path, sort_order="ascending", optimize_for="lookup"):
-        create("table", path,
-            attributes={
-                "schema": [
-                    {"name": "key", "type": "int64", "sort_order": sort_order},
-                    {"name": "value", "type": "string"}
-                ],
-                "dynamic": True,
-                "optimize_for": optimize_for
+    def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "value", "type": "string"}]
             })
+        create_dynamic_table(path, **attributes)
 
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_on_dynamic_table(self, ordered, sort_order, optimize_for):
+    def test_map_on_dynamic_table(self, external, ordered, sort_order, optimize_for):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for)
+        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for, external=external)
         set("//tmp/t/@min_compaction_store_count", 5)
         create("table", "//tmp/t_out")
 
@@ -1314,10 +1312,11 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_sorted_dynamic_table_as_user_file(self, optimize_for):
+    def test_sorted_dynamic_table_as_user_file(self, external, optimize_for):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -1358,9 +1357,10 @@ class TestMapOnDynamicTables(YTEnvSetup):
         rows = sorted(rows, key=lambda r: r["key"])
         assert read_table("//tmp/t_out") == rows
 
-    def test_ordered_dynamic_table_as_user_file(self):
+    @parametrize_external
+    def test_ordered_dynamic_table_as_user_file(self, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order=None)
+        self._create_simple_dynamic_table("//tmp/t", sort_order=None, external=external)
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -1389,9 +1389,10 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == rows + rows1
 
-    def test_dynamic_table_timestamp(self):
+    @parametrize_external
+    def test_dynamic_table_timestamp(self, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", external=external)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
@@ -1427,10 +1428,11 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 out="//tmp/t_out",
                 command="cat")
 
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_dynamic_table_input_data_statistics(self, optimize_for):
+    def test_dynamic_table_input_data_statistics(self, external, optimize_for):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
@@ -1450,18 +1452,15 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
 
-    def test_dynamic_table_column_filter(self):
+    @parametrize_external
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_dynamic_table_column_filter(self, optimize_for, external):
         sync_create_cells(1)
-        create("table", "//tmp/t",
-            attributes={
-                "schema": make_schema([
-                    {"name": "k", "type": "int64", "sort_order": "ascending"},
-                    {"name": "u", "type": "int64"},
-                    {"name": "v", "type": "int64"}],
-                    unique_keys=True),
-                "optimize_for": "scan",
-                "external": False
-            })
+        create_table_with_attributes("//tmp/t", external=external, optimize_for=optimize_for, schema=make_schema([
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "u", "type": "int64"},
+            {"name": "v", "type": "int64"}],
+            unique_keys=True))
         create("table", "//tmp/t_out")
 
         row = {"k": 0, "u": 1, "v": 2}
@@ -1492,16 +1491,17 @@ class TestMapOnDynamicTables(YTEnvSetup):
             stat2 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
             assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
 
-            if columns == ["u", "v"]:
+            if columns == ["u", "v"] or optimize_for == "lookup":
                 assert stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] == stat2["compressed_data_size"]
             else:
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
-    def test_output_to_dynamic_table_fails(self):
+    @parametrize_external
+    def test_output_to_dynamic_table_fails(self, external):
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
+        self._create_simple_dynamic_table("//tmp/t_output", external=external)
 
         with pytest.raises(YtError):
             map(

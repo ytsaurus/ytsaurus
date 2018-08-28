@@ -27,6 +27,7 @@ message TCachingHeaderExt
 
     required int32 success_expiration_time = 1;
     required int32 failure_expiration_time = 2;
+    optional int64 refresh_revision = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

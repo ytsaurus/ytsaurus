@@ -456,7 +456,7 @@ private:
         i64 total = 0;
         memoryUsage.reserve(cells.size());
         for (const auto* cell : cells) {
-            i64 size = cell->TotalStatistics().MemorySize;
+            i64 size = cell->LocalStatistics().MemorySize;
             total += size;
             memoryUsage.emplace_back(size, cell);
         }
@@ -848,10 +848,6 @@ private:
 
     void OnCheckConfig()
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
-            return;
-        }
-
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         if (!hydraFacade->GetHydraManager()->IsActiveLeader()) {
             return;

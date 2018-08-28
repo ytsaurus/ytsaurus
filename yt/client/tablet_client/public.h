@@ -22,9 +22,10 @@ DEFINE_ENUM(ETabletState,
     ((Unfreezing)      (6))
     ((FrozenMounting)  (7))
 
-    // Aggregated states
+    // Special states
     ((None)          (100))
     ((Mixed)         (101))
+    ((Transient)     (102))
 );
 
 constexpr ETabletState MinValidTabletState = ETabletState::Mounting;

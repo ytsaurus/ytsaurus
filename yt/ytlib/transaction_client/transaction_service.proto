@@ -12,7 +12,9 @@ message TReqStartTransaction
     optional string title = 4;
 
     optional NYT.NProto.TGuid parent_id = 2;
-    repeated NYT.NProto.TGuid  prerequisite_transaction_ids = 5;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 5;
+    optional NYT.NProto.TGuid hint_id = 6;
+    repeated int32 replicate_to_cell_tags = 7;
 
     required int64 timeout = 3;
 }

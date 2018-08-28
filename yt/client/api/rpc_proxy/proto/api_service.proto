@@ -663,7 +663,6 @@ message TReqCopyNode
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
     optional bool preserve_creation_time = 7 [default = false];
-    optional NYT.NProto.TGuid source_transaction_id = 8;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
@@ -899,6 +898,8 @@ message TReqAlterTableReplica
 
     optional bool enabled = 2;
     optional ETableReplicaMode mode = 3;
+    optional bool preserve_timestamps = 4;
+    optional EAtomicity atomicity = 5;
 }
 
 message TRspAlterTableReplica

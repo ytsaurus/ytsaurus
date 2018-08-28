@@ -744,8 +744,7 @@ private:
 
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
-        // TODO(savrus) Save whole map in 19.4.
-        Save(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
+        Save(context, LastSerializedCommitTimestamps_);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -782,7 +781,12 @@ private:
 
         using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
-        Load(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 100009) {
+            Load(context, LastSerializedCommitTimestamps_);
+        } else {
+            Load(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
+        }
     }
 
     void LoadAsync(TLoadContext& context)

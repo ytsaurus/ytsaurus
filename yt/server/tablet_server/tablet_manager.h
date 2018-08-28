@@ -50,11 +50,59 @@ public:
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
 
-    void MountTable(
+    void PrepareMountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell,
+        TTabletCellId hintCellId,
+        bool freeze,
+        NTransactionClient::TTimestamp mountTimestamp);
+
+    void PrepareUnmountTable(
+        NTableServer::TTableNode* table,
+        bool force,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void PrepareRemountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void PrepareFreezeTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex);
+
+    void PrepareUnfreezeTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void PrepareReshardTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        bool create = false);
+
+    void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
+    void ValidateMakeTableStatic(NTableServer::TTableNode* table);
+
+    void ValidateCloneTable(
+        NTableServer::TTableNode* sourceTable,
+        NTableServer::TTableNode* clonedTable,
+        NTransactionServer::TTransaction* transaction,
+        NCypressServer::ENodeCloneMode mode,
+        NSecurityServer::TAccount* account);
+
+    void MountTable(
+        NTableServer::TTableNode* table,
+        const TString& path,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        TTabletCellId hintCellId,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
 
@@ -89,14 +137,17 @@ public:
     void CloneTable(
         NTableServer::TTableNode* sourceTable,
         NTableServer::TTableNode* clonedTable,
-        NTransactionServer::TTransaction* transaction,
         NCypressServer::ENodeCloneMode mode);
 
     void MakeTableDynamic(NTableServer::TTableNode* table);
     void MakeTableStatic(NTableServer::TTableNode* table);
 
-    void SetTableReplicaEnabled(TTableReplica* replica, bool enabled);
-    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode);
+    void AlterTableReplica(
+        TTableReplica* replica,
+        TNullable<bool> enabled,
+        TNullable<ETableReplicaMode> mode,
+        TNullable<NTransactionClient::EAtomicity> atomicity,
+        TNullable<bool> preserveTimestamps);
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
@@ -151,6 +202,8 @@ private:
         const TString& clusterName,
         const NYPath::TYPath& replicaPath,
         ETableReplicaMode mode,
+        bool preserveTimestamps,
+        NTransactionClient::EAtomicity atomicity,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const TNullable<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);
@@ -163,7 +216,6 @@ private:
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TNullable<int>& tabletCount,
         bool skipFreezing,
-        const TNullable<bool>& freeze,
         bool preserve);
 
     void DestroyTabletAction(TTabletAction* action);

@@ -759,6 +759,13 @@ public:
             operation->GetId());
     }
 
+    void UpdateConfig(TSchedulerConfigPtr config)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        SchedulerConfig_ = std::move(config);
+        Config_ = SchedulerConfig_->ControllerAgentTracker;
+    }
 
     TControllerAgentPtr FindAgent(const TAgentId& id)
     {
@@ -899,7 +906,7 @@ public:
             agent->SetState(EControllerAgentState::Registered);
         }
 
-        TLeaseManager::RenewLease(agent->GetLease());
+        TLeaseManager::RenewLease(agent->GetLease(), Config_->HeartbeatTimeout);
 
         SwitchTo(agent->GetCancelableInvoker());
 
@@ -1109,8 +1116,8 @@ public:
     }
 
 private:
-    const TSchedulerConfigPtr SchedulerConfig_;
-    const TControllerAgentTrackerConfigPtr Config_;
+    TSchedulerConfigPtr SchedulerConfig_;
+    TControllerAgentTrackerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     const TActionQueuePtr MessageOffloadQueue_ = New<TActionQueue>("MessageOffload");
@@ -1305,6 +1312,11 @@ void TControllerAgentTracker::HandleAgentFailure(
 void TControllerAgentTracker::UnregisterOperationFromAgent(const TOperationPtr& operation)
 {
     Impl_->UnregisterOperationFromAgent(operation);
+}
+
+void TControllerAgentTracker::UpdateConfig(TSchedulerConfigPtr config)
+{
+    Impl_->UpdateConfig(std::move(config));
 }
 
 void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)

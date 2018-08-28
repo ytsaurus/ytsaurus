@@ -6,35 +6,13 @@
 #include <yt/core/misc/finally.h>
 
 #include <util/generic/buffer.h>
+#include <util/string/escape.h>
 
 namespace NYT {
 namespace NHttp {
 
 using namespace NConcurrency;
 using namespace NNet;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TStringBuf ToHttpString(EMethod method)
-{
-    switch(method) {
-#define XX(num, name, string) case EMethod::name: return AsStringBuf(#string);
-    YT_HTTP_METHOD_MAP(XX)
-#undef XX
-    default: THROW_ERROR_EXCEPTION("Invalid method %v", method);
-    }
-}
-
-TStringBuf ToHttpString(EStatusCode code)
-{
-    switch(code) {
-#define XX(num, name, string) case EStatusCode::name: return AsStringBuf(#string);
-    YT_HTTP_STATUS_MAP(XX)
-#undef XX
-    default: THROW_ERROR_EXCEPTION("Invalid status code %d", code);
-    }
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +82,7 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
     
         THROW_ERROR_EXCEPTION("HTTP parse error: %s", yt_http_errno_description(http_errno))
             << TErrorAttribute("parser_error_name", yt_http_errno_name(http_errno))
-            << TErrorAttribute("error_context", errorContext);
+            << TErrorAttribute("error_context", EscapeC(errorContext));
     }
 
     if (http_errno == HPE_PAUSED) {
@@ -208,7 +186,6 @@ int THttpParser::OnHeadersComplete(http_parser* parser)
     that->MaybeFlushHeader(that->State_ == EParserState::HeadersFinished);
 
     that->State_ = EParserState::HeadersFinished;
-    yt_http_parser_pause(parser, 1);
 
     return 0;
 }
@@ -337,7 +314,15 @@ void THttpInput::EnsureHeadersReceived()
         return;
     }
 
-    Connection_->SetReadDeadline(TInstant::Now() + Config_->HeaderReadTimeout);
+    bool idleConnection = MessageType_ == EMessageType::Request;
+    auto start = TInstant::Now();
+
+    if (idleConnection) {
+        Connection_->SetReadDeadline(start + Config_->ConnectionIdleTimeout);
+    } else {
+        Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
+    }
+
     while (true) {
         bool eof = false;
         if (UnconsumedData_.Empty()) {
@@ -347,8 +332,11 @@ void THttpInput::EnsureHeadersReceived()
         }
 
         UnconsumedData_ = Parser_.Feed(UnconsumedData_);
-        if (Parser_.GetState() == EParserState::HeadersFinished) {
+        if (Parser_.GetState() != EParserState::Initialized) {
             FinishHeaders();
+            if (Parser_.GetState() == EParserState::MessageFinished) {
+                SafeToReuse_ = Parser_.ShouldKeepAlive();
+            }
             Connection_->SetReadDeadline({});
             return;
         }
@@ -356,6 +344,11 @@ void THttpInput::EnsureHeadersReceived()
         // HTTP parser does not treat EOF at message start as error.
         if (eof) {
             THROW_ERROR_EXCEPTION("Unexpected EOF while parsing HTTP message");
+        }
+
+        if (idleConnection) {
+            idleConnection = false;
+            Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
         }
     }
 }
@@ -507,6 +500,11 @@ void THttpOutput::WriteRequest(EMethod method, const TString& path)
 
     Method_ = method;
     Path_ = path;
+}
+
+TNullable<EStatusCode> THttpOutput::GetStatus() const
+{
+    return Status_;
 }
 
 void THttpOutput::SetStatus(EStatusCode status)

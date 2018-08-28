@@ -56,6 +56,9 @@ private:
         hydraRequest.mutable_prerequisite_transaction_ids()->Swap(request->mutable_prerequisite_transaction_ids());
         hydraRequest.set_timeout(request->timeout());
         hydraRequest.set_user_name(context->GetUser());
+        hydraRequest.mutable_hint_id()->Swap(request->mutable_hint_id());
+        hydraRequest.mutable_replicate_to_cell_tags()->Swap(request->mutable_replicate_to_cell_tags());
+
         if (title) {
             hydraRequest.set_title(*title);
         }
@@ -69,6 +72,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RegisterTransactionActions)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        SyncWithUpstream();
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 

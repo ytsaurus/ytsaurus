@@ -91,30 +91,10 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityMan
     }
 }
 
-TAuthenticatedUserGuard::TAuthenticatedUserGuard(TAuthenticatedUserGuard&& other)
-{
-    std::swap(SecurityManager_, other.SecurityManager_);
-}
-
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
     if (SecurityManager_) {
         SecurityManager_->ResetAuthenticatedUser();
-    }
-}
-
-TAuthenticatedUserGuard& TAuthenticatedUserGuard::operator=(TAuthenticatedUserGuard&& other)
-{
-    Release();
-    std::swap(SecurityManager_, other.SecurityManager_);
-    return *this;
-}
-
-void TAuthenticatedUserGuard::Release()
-{
-    if (SecurityManager_) {
-        SecurityManager_->ResetAuthenticatedUser();
-        SecurityManager_.Reset();
     }
 }
 
@@ -914,6 +894,11 @@ public:
         AuthenticatedUser_ = user;
     }
 
+    void SetAuthenticatedUserByNameOrThrow(const TString& userName)
+    {
+        SetAuthenticatedUser(GetUserByNameOrThrow(userName));
+    }
+
     void ResetAuthenticatedUser()
     {
         AuthenticatedUser_ = nullptr;
@@ -922,6 +907,14 @@ public:
     TUser* GetAuthenticatedUser()
     {
         return AuthenticatedUser_ ? AuthenticatedUser_ : RootUser_;
+    }
+
+    TNullable<TString> GetAuthenticatedUserName()
+    {
+        if (auto* user = GetAuthenticatedUser()) {
+            return user->GetName();
+        }
+        return Null;
     }
 
     static TNullable<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
@@ -1730,7 +1723,10 @@ private:
             auto* account = pair.second;
 
             // Reconstruct account name map.
-            YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+            if (IsObjectAlive(account)) {
+                YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+            }
+
 
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
@@ -1742,7 +1738,9 @@ private:
             auto* user = pair.second;
 
             // Reconstruct user name map.
-            YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+            if (IsObjectAlive(user)) {
+                YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+            }
 
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
@@ -1754,7 +1752,9 @@ private:
             auto* group = pair.second;
 
             // Reconstruct group name map.
-            YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+            if (IsObjectAlive(group)) {
+                YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+            }
         }
 
         InitBuiltins();
@@ -2786,6 +2786,11 @@ void TSecurityManager::SetAuthenticatedUser(TUser* user)
     Impl_->SetAuthenticatedUser(user);
 }
 
+void TSecurityManager::SetAuthenticatedUserByNameOrThrow(const TString& userName)
+{
+    Impl_->SetAuthenticatedUserByNameOrThrow(userName);
+}
+
 void TSecurityManager::ResetAuthenticatedUser()
 {
     Impl_->ResetAuthenticatedUser();
@@ -2794,6 +2799,11 @@ void TSecurityManager::ResetAuthenticatedUser()
 TUser* TSecurityManager::GetAuthenticatedUser()
 {
     return Impl_->GetAuthenticatedUser();
+}
+
+TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
+{
+    return Impl_->GetAuthenticatedUserName();
 }
 
 TPermissionCheckResult TSecurityManager::CheckPermission(

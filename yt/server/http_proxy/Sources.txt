@@ -1,0 +1,13 @@
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bootstrap.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/coordinator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/http_authenticator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/config.cpp
+)

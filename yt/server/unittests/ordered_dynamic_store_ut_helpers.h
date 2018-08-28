@@ -31,11 +31,11 @@ protected:
     TUnversionedOwningRow GetRow(IOrderedStorePtr store, i64 index)
     {
         // NB: Ordered reader accepts extended schema.
-        TColumnFilter columnFilter;
-        columnFilter.All = false;
+        TColumnFilter::TIndexes columnFilterIndexes;
         for (int id = 0; id < GetSchema().Columns().size(); ++id) {
-            columnFilter.Indexes.push_back(id + 2);
+            columnFilterIndexes.push_back(id + 2);
         }
+        auto columnFilter = TColumnFilter(std::move(columnFilterIndexes));
         auto reader = store->CreateReader(
             Tablet_->BuildSnapshot(nullptr),
             -1,

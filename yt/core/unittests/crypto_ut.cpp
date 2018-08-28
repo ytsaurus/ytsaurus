@@ -10,12 +10,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSHA1Test, Simple)
+TEST(TSha1Test, Simple)
 {
-    EXPECT_EQ("da39a3ee5e6b4b0d3255bfef95601890afd80709", TSHA1Hasher().GetHexDigestLower());
-    EXPECT_EQ("da39a3ee5e6b4b0d3255bfef95601890afd80709", TSHA1Hasher().Append("").GetHexDigestLower());
+    EXPECT_EQ("da39a3ee5e6b4b0d3255bfef95601890afd80709", TSha1Hasher().GetHexDigestLower());
+    EXPECT_EQ("da39a3ee5e6b4b0d3255bfef95601890afd80709", TSha1Hasher().Append("").GetHexDigestLower());
 
-    EXPECT_EQ("a9993e364706816aba3e25717850c26c9cd0d89d", TSHA1Hasher().Append("abc").GetHexDigestLower());
+    EXPECT_EQ("a9993e364706816aba3e25717850c26c9cd0d89d", TSha1Hasher().Append("abc").GetHexDigestLower());
 }
 
 TEST(TMD5Test, Simple)

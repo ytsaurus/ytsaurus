@@ -51,7 +51,8 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, ConfigVersion_);
     Save(context, *Config_);
     Save(context, Tablets_);
-    Save(context, TotalStatistics_);
+    Save(context, ClusterStatistics_);
+    Save(context, MulticellStatistics_);
     Save(context, PrerequisiteTransaction_);
     Save(context, CellBundle_);
     Save(context, Decommissioned_);
@@ -76,7 +77,11 @@ void TTabletCell::Load(TLoadContext& context)
         Load(context, *options);
     }
     Load(context, Tablets_);
-    Load(context, TotalStatistics_);
+    Load(context, ClusterStatistics_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 800) {
+        Load(context, MulticellStatistics_);
+    }
     Load(context, PrerequisiteTransaction_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
@@ -206,6 +211,32 @@ TCellDescriptor TTabletCell::GetDescriptor() const
     return descriptor;
 }
 
+TTabletCellStatistics& TTabletCell::LocalStatistics()
+{
+    return *LocalStatisticsPtr_;
+}
+
+const TTabletCellStatistics& TTabletCell::LocalStatistics() const
+{
+    return *LocalStatisticsPtr_;
+}
+
+TTabletCellStatistics* TTabletCell::GetCellStatistics(NObjectClient::TCellTag cellTag)
+{
+    auto it = MulticellStatistics_.find(cellTag);
+    YCHECK(it != MulticellStatistics_.end());
+    return &it->second;
+}
+
+void TTabletCell::RecomputeClusterStatistics()
+{
+    ClusterStatistics_ = TTabletCellStatistics();
+    ClusterStatistics_.Decommissioned = true;
+    for (const auto& pair : MulticellStatistics_) {
+        ClusterStatistics_ += pair.second;
+        ClusterStatistics_.Decommissioned &= pair.second.Decommissioned;
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletServer

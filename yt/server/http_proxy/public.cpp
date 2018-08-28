@@ -1,17 +1,11 @@
-#pragma once
-
-#include <yt/core/misc/public.h>
+#include "public.h"
 
 namespace NYT {
-namespace NCellProxy {
+namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
-
-DECLARE_REFCOUNTED_CLASS(TCellProxyConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellProxy
+} // namespace NHttpProxy
 } // namespace NYT

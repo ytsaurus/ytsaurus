@@ -78,8 +78,7 @@ public:
         , ClusterDirectory_(New<TClusterDirectory>())
         , ClusterDirectorySynchronizer_(New<NHiveServer::TClusterDirectorySynchronizer>(
             New<NHiveServer::TClusterDirectorySynchronizerConfig>(),
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            Bootstrap_->GetObjectManager(),
+            Bootstrap_,
             ClusterDirectory_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
@@ -331,11 +330,6 @@ private:
 
     void CheckEnabled()
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
-            Enabled_ = false;
-            return;
-        }
-
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         if (!hydraFacade->GetHydraManager()->IsActiveLeader()) {
             Enabled_ = false;
@@ -444,7 +438,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (Config_->EnableReplicatedTableTracker && Bootstrap_->IsPrimaryMaster()) {
+        if (Config_->EnableReplicatedTableTracker) {
             ClusterDirectorySynchronizer_->Start();
 
             UpdaterExecutor_ = New<TPeriodicExecutor>(
@@ -496,6 +490,10 @@ private:
     void ProcessReplicatedTable(NTableServer::TReplicatedTableNode* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (object->IsExternal()) {
+            return;
+        }
 
         const auto& id = object->GetId();
         const auto& config = object->GetReplicatedTableOptions();

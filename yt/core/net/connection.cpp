@@ -460,6 +460,22 @@ public:
         error.ThrowOnError();
     }
 
+    bool SetNoDelay()
+    {
+        EnterSychronousIO();
+        bool ok = TrySetSocketNoDelay(FD_);
+        ExitSynchronousIO();
+        return ok;
+    }
+
+    bool SetKeepAlive()
+    {
+        EnterSychronousIO();
+        bool ok = TrySetSocketKeepAlive(FD_);
+        ExitSynchronousIO();
+        return ok;
+    }
+
     TFuture<void> Write(const TSharedRef& data)
     {
         auto write = std::make_unique<TWriteOperation>(data);
@@ -933,6 +949,16 @@ public:
     virtual void SetWriteDeadline(TInstant deadline) override
     {
         Impl_->SetWriteDeadline(deadline);
+    }
+
+    virtual bool SetNoDelay() override
+    {
+        return Impl_->SetNoDelay();
+    }
+
+    virtual bool SetKeepAlive() override
+    {
+        return Impl_->SetKeepAlive();
     }
 
 private:

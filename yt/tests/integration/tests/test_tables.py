@@ -1180,6 +1180,11 @@ class TestTables(YTEnvSetup):
         for k, v in attributes.iteritems():
             assert get("//tmp/t/@" + k, tx=tx) == v
 
+        copy("//tmp/t", "//tmp/t2", tx=tx)
+        commit_transaction(tx)
+        for k, v in attributes.iteritems():
+            assert get("//tmp/t2/@" + k) == v
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):

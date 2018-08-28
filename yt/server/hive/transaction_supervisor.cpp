@@ -14,6 +14,8 @@
 #include <yt/server/hydra/hydra_service.h>
 #include <yt/server/hydra/mutation.h>
 
+#include <yt/server/security_server/security_manager_base.h>
+
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
@@ -41,15 +43,16 @@
 namespace NYT {
 namespace NHiveServer {
 
-using namespace NRpc;
-using namespace NRpc::NProto;
-using namespace NHydra;
-using namespace NHiveClient;
-using namespace NTransactionClient;
-using namespace NObjectClient;
 using namespace NApi;
-using namespace NYTree;
 using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NHydra;
+using namespace NObjectClient;
+using namespace NRpc::NProto;
+using namespace NRpc;
+using namespace NSecurityServer;
+using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +72,7 @@ public:
         TCompositeAutomatonPtr automaton,
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
+        ISecurityManagerPtr securityManager,
         const TCellId& selfCellId,
         ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
@@ -81,6 +85,7 @@ public:
         , HydraManager_(hydraManager)
         , ResponseKeeper_(responseKeeper)
         , TransactionManager_(transactionManager)
+        , SecurityManager_(securityManager)
         , SelfCellId_(selfCellId)
         , TimestampProvider_(timestampProvider)
         , ParticipantProviders_(participantProviders)
@@ -132,6 +137,7 @@ public:
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
+        const TString& user,
         const std::vector<TCellId>& participantCellIds)
     {
         return MessageToError(
@@ -142,7 +148,8 @@ public:
                 true,
                 false,
                 ETransactionCoordinatorCommitMode::Eager,
-                NullMutationId));
+                NullMutationId,
+                user));
     }
 
     TFuture<void> AbortTransaction(
@@ -153,7 +160,8 @@ public:
             CoordinatorAbortTransaction(
                 transactionId,
                 NullMutationId,
-                force));
+                force,
+                RootUserName));
     }
 
 private:
@@ -162,6 +170,7 @@ private:
     const IHydraManagerPtr HydraManager_;
     const TResponseKeeperPtr ResponseKeeper_;
     const ITransactionManagerPtr TransactionManager_;
+    const ISecurityManagerPtr SecurityManager_;
     const TCellId SelfCellId_;
     const ITimestampProviderPtr TimestampProvider_;
     const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
@@ -241,14 +250,15 @@ private:
                     this_ = MakeStrong(this),
                     transactionId = commit->GetTransactionId(),
                     generatePrepareTimestamp = commit->GetGeneratePrepareTimestamp(),
-                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp()
+                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
+                    user = commit->GetUser()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
                         participant,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp);
-                    return participant->PrepareTransaction(transactionId, prepareTimestamp);
+                    return participant->PrepareTransaction(transactionId, prepareTimestamp, user);
                 });
         }
 
@@ -541,7 +551,8 @@ private:
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 coordinatorCommitMode,
-                context->GetMutationId());
+                context->GetMutationId(),
+                context->GetUser());
             context->ReplyFrom(asyncResponseMessage);
         }
 
@@ -565,7 +576,8 @@ private:
             auto asyncResponseMessage = owner->CoordinatorAbortTransaction(
                 transactionId,
                 context->GetMutationId(),
-                force);
+                force,
+                context->GetUser());
             context->ReplyFrom(asyncResponseMessage);
         }
 
@@ -639,6 +651,7 @@ private:
             NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
+            hydraRequest.set_user_name(context->GetUser());
 
             CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
@@ -659,6 +672,7 @@ private:
             NHiveServer::NProto::TReqParticipantCommitTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(commitTimestamp);
+            hydraRequest.set_user_name(context->GetUser());
 
             CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
@@ -676,6 +690,7 @@ private:
             auto owner = GetOwnerOrThrow();
             NHiveServer::NProto::TReqParticipantAbortTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            hydraRequest.set_user_name(context->GetUser());
 
             CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
@@ -694,7 +709,8 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const TMutationId& mutationId)
+        const TMutationId& mutationId,
+        const TString& user)
     {
         YCHECK(!HasMutationContext());
 
@@ -711,7 +727,8 @@ private:
             force2PC || !participantCellIds.empty(),
             generatePrepareTimestamp,
             inheritCommitTimestamp,
-            coordinatorCommitMode);
+            coordinatorCommitMode,
+            user);
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -730,6 +747,8 @@ private:
         YCHECK(!commit->GetPersistent());
 
         const auto& transactionId = commit->GetTransactionId();
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
 
         try {
             // Any exception thrown here is replied to the client.
@@ -764,6 +783,7 @@ private:
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         request.set_coordinator_commit_mode(static_cast<int>(commit->GetCoordinatorCommitMode()));
         request.set_prepare_timestamp(prepareTimestamp);
+        request.set_user_name(commit->GetUser());
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
     }
@@ -771,7 +791,8 @@ private:
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
-        bool force)
+        bool force,
+        const TString& user)
     {
         YCHECK(!HasMutationContext());
 
@@ -785,6 +806,8 @@ private:
 
         // Abort instance may die below.
         auto asyncResponseMessage = abort->GetAsyncResponseMessage();
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
         try {
             // Any exception thrown here is caught below..
@@ -856,6 +879,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
+        const auto& user = request->user_name();
 
         auto* commit = FindCommit(transactionId);
 
@@ -869,6 +893,8 @@ private:
         if (commit) {
             commit->CommitTimestamps() = commitTimestamps;
         }
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
         try {
             // Any exception thrown here is caught below.
@@ -894,7 +920,8 @@ private:
                 false,
                 true,
                 false,
-                ETransactionCoordinatorCommitMode::Eager);
+                ETransactionCoordinatorCommitMode::Eager,
+                user);
             commit->CommitTimestamps() = commitTimestamps;
         }
 
@@ -911,6 +938,7 @@ private:
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
+        const auto& user = request->user_name();
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
@@ -920,7 +948,8 @@ private:
             true,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
-            coordindatorCommitMode);
+            coordindatorCommitMode,
+            user);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
@@ -930,10 +959,13 @@ private:
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(),
-            "Distributed commit phase one started (TransactionId: %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
+            "Distributed commit phase one started (TransactionId: %v, User: %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
             transactionId,
+            commit->GetUser(),
             participantCellIds,
             prepareTimestamp);
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
 
         // Prepare at coordinator.
         try {
@@ -992,6 +1024,8 @@ private:
             return;
         }
 
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
+
         commit->CommitTimestamps() = commitTimestamps;
         ChangeCommitPersistentState(commit, ECommitState::Commit);
         ChangeCommitTransientState(commit, ECommitState::Commit);
@@ -1024,6 +1058,8 @@ private:
                 commit->GetPersistentState());
             return;
         }
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
 
         try {
             // Any exception thrown here is caught below.
@@ -1092,6 +1128,8 @@ private:
             return;
         }
 
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
+
         // TODO(babenko): think about a better way of distinguishing between successful and failed commits
         if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy &&
             !commit->CommitTimestamps().Timestamps.empty())
@@ -1109,6 +1147,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
+        const auto& user = request->user_name();
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
         try {
             // Any exception thrown here is caught below.
@@ -1129,6 +1170,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
+        const auto& user = request->user_name();
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
         try {
             // Any exception thrown here is caught below.
@@ -1148,6 +1192,9 @@ private:
     void HydraParticipantAbortTransaction(NHiveServer::NProto::TReqParticipantAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& user = request->user_name();
+
+        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
 
         try {
             // Any exception thrown here is caught below.
@@ -1193,7 +1240,8 @@ private:
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
-        ETransactionCoordinatorCommitMode coordinatorCommitMode)
+        ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        const TString& user)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
@@ -1202,7 +1250,8 @@ private:
             distributed,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
-            coordinatorCommitMode);
+            coordinatorCommitMode,
+            user);
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
@@ -1213,7 +1262,8 @@ private:
         bool distributed,
         bool generatePrepareTimstamp,
         bool inheritCommitTimstamp,
-        ETransactionCoordinatorCommitMode coordinatorCommitMode)
+        ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        const TString& user)
     {
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
@@ -1228,7 +1278,8 @@ private:
                 distributed,
                 generatePrepareTimstamp,
                 inheritCommitTimstamp,
-                coordinatorCommitMode);
+                coordinatorCommitMode,
+                user);
         }
         commitHolder->SetPersistent(true);
         return PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1442,6 +1493,7 @@ private:
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
+            request.set_user_name(commit->GetUser());
             CreateMutation(HydraManager_, request)
                 ->CommitAndLog(Logger);
         }
@@ -1732,12 +1784,13 @@ private:
         return
             version == 3 ||
             version == 4 ||
-            version == 5;   // babenko
+            version == 5 || // babenko
+            version == 6;   // savrus: Add User to TCommit
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 5;
+        return 6;
     }
 
 
@@ -1827,6 +1880,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     TCompositeAutomatonPtr automaton,
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
+    ISecurityManagerPtr securityManager,
     const TCellId& selfCellId,
     ITimestampProviderPtr timestampProvider,
     const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
@@ -1838,6 +1892,7 @@ TTransactionSupervisor::TTransactionSupervisor(
         automaton,
         responseKeeper,
         transactionManager,
+        securityManager,
         selfCellId,
         timestampProvider,
         participantProviders))
@@ -1852,10 +1907,12 @@ std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(
     const TTransactionId& transactionId,
+    const TString& user,
     const std::vector<TCellId>& participantCellIds)
 {
     return Impl_->CommitTransaction(
         transactionId,
+        user,
         participantCellIds);
 }
 
