@@ -2,6 +2,7 @@
 #include "blackbox_service.h"
 #include "config.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/core/json/json_parser.h>
 
@@ -40,6 +41,15 @@ public:
         return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, deadline)
             .AsyncVia(Invoker_)
             .Run();
+    }
+
+    virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    {
+        if (Config_->UseLowercaseLogin) {
+            return GetByYPath<TString>(reply, "/attributes/1008");
+        } else {
+            return GetByYPath<TString>(reply, "/login");
+        }
     }
 
 private:
@@ -96,6 +106,8 @@ private:
             appendChar('&');
             appendParam(param.first, param.second);
         }
+        appendChar('&');
+        appendParam("attributes", "1008");
         appendChar('&');
         appendParam("format", "json");
 
