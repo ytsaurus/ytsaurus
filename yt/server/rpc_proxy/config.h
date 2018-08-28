@@ -14,10 +14,13 @@ class TApiServiceConfig
 {
 public:
     bool VerboseLogging;
+    bool EnableModifyRowsRequestReordering;
 
     TApiServiceConfig()
     {
         RegisterParameter("verbose_logging", VerboseLogging)
+            .Default(false);
+        RegisterParameter("enable_modify_rows_request_reordering", EnableModifyRowsRequestReordering)
             .Default(false);
     }
 };
