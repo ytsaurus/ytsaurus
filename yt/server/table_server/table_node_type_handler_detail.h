@@ -62,6 +62,8 @@ protected:
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
+    virtual bool IsExternalizable() const override;
+
 private:
     NSecurityServer::TClusterResources GetTabletResourceUsage(
         const NCypressServer::TCypressNodeBase* table);
@@ -78,7 +80,6 @@ public:
     explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
-    virtual bool IsExternalizable() const override;
 
 protected:
     virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(

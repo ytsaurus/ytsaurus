@@ -187,8 +187,7 @@ public:
         TNullable<TDuration> timeout,
         const TNullable<TString>& title,
         const IAttributeDictionary& attributes,
-        const TTransactionId& hintId,
-        bool system)
+        const TTransactionId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -217,7 +216,6 @@ public:
 
         transaction->SetState(ETransactionState::Active);
         transaction->SecondaryCellTags() = secondaryCellTags;
-        transaction->SetSystem(system || parent && parent->GetSystem());
 
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -266,14 +264,13 @@ public:
             if (title) {
                 startRequest.set_title(*title);
             }
-            startRequest.set_system(transaction->GetSystem());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(startRequest, replicateToCellTags);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "SecondaryCellTags: %v, Timeout: %v, Title: %v, System: %v)",
+            "SecondaryCellTags: %v, Timeout: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableRange(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
@@ -281,8 +278,7 @@ public:
             }),
             transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
-            title,
-            transaction->GetSystem());
+            title);
 
         return transaction;
     }
@@ -569,11 +565,11 @@ public:
 
         auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (oldState == ETransactionState::Active) {
+            RunPrepareTransactionActions(transaction, persistent);
+
             transaction->SetState(persistent
                 ? ETransactionState::PersistentCommitPrepared
                 : ETransactionState::TransientCommitPrepared);
-
-            RunPrepareTransactionActions(transaction, persistent);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
                 transactionId,
@@ -585,6 +581,7 @@ public:
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);
+            request.set_user_name(*securityManager->GetAuthenticatedUserName());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
@@ -692,26 +689,28 @@ private:
 
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
-        auto system = request->has_system() && request->system();
-
         auto timeout = FromProto<TDuration>(request->timeout());
 
         TCellTagList secondaryCellTags;
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+
+        if (replicateToCellTags.empty()) {
+            if (Bootstrap_->IsPrimaryMaster()) {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+                replicateToCellTags = secondaryCellTags;
+            }
         }
 
         auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
             secondaryCellTags,
-            secondaryCellTags,
+            replicateToCellTags,
             timeout,
             title,
             *attributes,
-            hintId,
-            system);
+            hintId);
         const auto& id = transaction->GetId();
 
         if (response) {
@@ -753,6 +752,12 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
+        auto userName = request->user_name();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetUserByNameOrThrow(userName);
+        TAuthenticatedUserGuard(securityManager, user);
+
         PrepareTransactionCommit(transactionId, true, prepareTimestamp);
     }
 
@@ -992,8 +997,7 @@ TTransaction* TTransactionManager::StartTransaction(
     TNullable<TDuration> timeout,
     const TNullable<TString>& title,
     const IAttributeDictionary& attributes,
-    const TTransactionId& hintId,
-    bool isSystem)
+    const TTransactionId& hintId)
 {
     return Impl_->StartTransaction(
         parent,
@@ -1003,8 +1007,7 @@ TTransaction* TTransactionManager::StartTransaction(
         timeout,
         title,
         attributes,
-        hintId,
-        isSystem);
+        hintId);
 }
 
 void TTransactionManager::CommitTransaction(

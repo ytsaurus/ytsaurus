@@ -6,6 +6,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/server/object_server/public.h>
+#include <yt/server/cell_master/public.h>
 
 namespace NYT {
 namespace NHiveServer {
@@ -18,8 +19,7 @@ class TClusterDirectorySynchronizer
 public:
     TClusterDirectorySynchronizer(
         const TClusterDirectorySynchronizerConfigPtr& config,
-        const IInvokerPtr& automatonInvoker,
-        const NObjectServer::TObjectManagerPtr& objectManager,
+        NCellMaster::TBootstrap* bootstrap,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory);
 
     //! Starts periodic syncs.

@@ -29,4 +29,20 @@ T TAtomicObject<T>::Load() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TOriginal, class TSerialized>
+void ToProto(TSerialized* serialized, const TAtomicObject<TOriginal>& original)
+{
+    ToProto(serialized, original.Load());
+}
+
+template <class TOriginal, class TSerialized>
+void FromProto(TAtomicObject<TOriginal>* original, const TSerialized& serialized)
+{
+    TOriginal data;
+    FromProto(&data, serialized);
+    original->Store(std::move(data));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

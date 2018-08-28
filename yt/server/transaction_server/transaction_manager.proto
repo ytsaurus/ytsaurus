@@ -16,13 +16,15 @@ message TReqStartTransaction
 
     required int64 timeout = 4;
     required string user_name = 5;
-    optional bool system = 7;
+
+    repeated int32 replicate_to_cell_tags = 9;
 }
 
 message TReqPrepareTransactionCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 prepare_timestamp = 2;
+    optional string user_name = 3 [default = "root"];
 }
 
 message TReqCommitTransaction

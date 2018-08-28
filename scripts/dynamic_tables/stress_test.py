@@ -12,6 +12,7 @@ import random
 from time import sleep
 import sys
 import traceback
+import itertools
 
 LOCAL_FILES=["driver.conf"]
 
@@ -335,7 +336,6 @@ def create_dynamic_table_from_data(data_table, table, schema, attributes, tablet
     yschema.attributes["unique_keys"] = True
     # TODO: chunk_writer config here
     attributes["schema"] = yschema
-    attributes["external"] = False
     yt.create_table(table, attributes=attributes)
     yt.run_merge(data_table, table, mode="ordered", spec={"job_io": {"table_writer": {"block_size": 256 * 2**10}}})
     yt.alter_table(table, dynamic=True)
@@ -848,12 +848,13 @@ def single_execution(table, schema, attributes, args):
 
 def variate_modes(table, args):
     schema = Schema()
+    externals = [False] if args.noexternal else [True, False]
 
-    for optimize_for in ["scan", "lookup"]:
-        single_execution(table + "." + optimize_for + ".none", schema, {"optimize_for": optimize_for}, args)
-        single_execution(table + "." + optimize_for + ".compressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "compressed"}, args)
-        single_execution(table + "." + optimize_for + ".uncompressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed"}, args)
-        single_execution(table + "." + optimize_for + ".uncompressed.lookuptable", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args)
+    for external, optimize_for in itertools.product(externals, ["scan", "lookup"]):
+        single_execution(table + ".ext" + str(external) + "." + optimize_for + ".none", schema, {"external": external, "optimize_for": optimize_for}, args)
+        single_execution(table + ".ext" + str(external) + "." + optimize_for + ".compressed", schema, {"external": external, "optimize_for": optimize_for, "in_memory_mode": "compressed"}, args)
+        single_execution(table + ".ext" + str(external) + "." + optimize_for + ".uncompressed", schema, {"external": external, "optimize_for": optimize_for, "in_memory_mode": "uncompressed"}, args)
+        single_execution(table + ".ext" + str(external) + "." + optimize_for + ".uncompressed.lookuptable", schema, {"external": external, "optimize_for": optimize_for, "in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args)
 
 def run_test(args):
     #module_filter = lambda module: hasattr(module, "__file__") and \
@@ -877,6 +878,7 @@ def main():
     parser.add_argument("--iterations", type=int, default=2, help="Nuber of iterations")
     parser.add_argument("--generations", type=int, default=100, help="Number of generations")
     parser.add_argument("--nomapreduce", action="store_true", default=False, help="Test map-reduce over dynamic tables")
+    parser.add_argument("--noexternal", action="store_true", default=False, help="Do not create external tables")
     args = parser.parse_args()
 
     run_test(args)

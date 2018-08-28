@@ -337,9 +337,6 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_preserve_creation_time(options.PreserveCreationTime);
-    if (options.SourceTransactionId) {
-        ToProto(req->mutable_source_transaction_id(), options.SourceTransactionId);
-    }
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
@@ -456,8 +453,8 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
 
-    if (!options.ColumnFilter.All) {
-        for (auto id : options.ColumnFilter.Indexes) {
+    if (!options.ColumnFilter.IsUniversal()) {
+        for (auto id : options.ColumnFilter.GetIndexes()) {
             req->add_columns(TString(nameTable->GetName(id)));
         }
     }
@@ -488,8 +485,8 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
 
-    if (!options.ColumnFilter.All) {
-        for (auto id : options.ColumnFilter.Indexes) {
+    if (!options.ColumnFilter.IsUniversal()) {
+        for (auto id : options.ColumnFilter.GetIndexes()) {
             req->add_columns(TString(nameTable->GetName(id)));
         }
     }

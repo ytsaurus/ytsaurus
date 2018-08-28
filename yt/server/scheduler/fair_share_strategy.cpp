@@ -838,8 +838,10 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operationId);
-        for (const auto& job : jobs) {
-            element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
+        if (element) {
+            for (const auto& job : jobs) {
+                element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
+            }
         }
     }
 
@@ -2784,6 +2786,7 @@ public:
         }
 
         THashSet<TJobId> jobsToSave;
+        THashMap<TOperationId, bool> registeredOperationsCache;
 
         for (const auto& job : jobUpdates) {
             if (job.Status == EJobUpdateStatus::Running) {
@@ -2807,8 +2810,18 @@ public:
                     snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
                 } else {
                     // If operation is not yet in snapshot let's push it back to finished jobs.
-                    TReaderGuard guard(RegisteredOperationsLock_);
-                    if (RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end()) {
+                    auto registeredOperationsCacheIt = registeredOperationsCache.find(job.OperationId);
+                    if (registeredOperationsCacheIt == registeredOperationsCache.end()) {
+                        TReaderGuard guard(RegisteredOperationsLock_);
+                        bool operationRegistered = RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end();
+                        guard.Release();
+
+                        registeredOperationsCacheIt = registeredOperationsCache.insert(std::make_pair(
+                            job.OperationId,
+                            operationRegistered)).first;
+                    }
+
+                    if (registeredOperationsCacheIt->second) {
                         jobsToSave.insert(job.JobId);
                     }
                 }
@@ -2900,11 +2913,6 @@ private:
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
-    std::array<EOperationType, 3> OperationTypesWithShuffle = {
-        EOperationType::Sort,
-        EOperationType::MapReduce,
-        EOperationType::RemoteCopy
-    };
 
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
     {
@@ -2944,7 +2952,8 @@ private:
         }
 
         // Data shuffling shouldn't be launched in tentative trees.
-        if (FindIndex(OperationTypesWithShuffle, operationType) == NPOS) {
+        const auto& noTentativePoolsOperations = Config->OperationsWithoutTentativePoolTrees;
+        if (noTentativePoolsOperations.find(operationType) == noTentativePoolsOperations.end()) {
             std::vector<TString> presentedTentativePoolTrees;
             for (const auto& treeId : spec->TentativePoolTrees) {
                 if (FindTree(treeId)) {

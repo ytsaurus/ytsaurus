@@ -6,9 +6,14 @@
 
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/multicell_manager.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/object_server/object_manager.h>
 
@@ -30,11 +35,16 @@ class TClusterDirectorySynchronizer::TImpl
 public:
     TImpl(
         TDuration syncPeriod,
-        const IInvokerPtr& invoker,
-        const NObjectServer::TObjectManagerPtr& objectManager,
+        NCellMaster::TBootstrap* bootstrap,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
-        : SyncExecutor_(New<TPeriodicExecutor>(invoker, BIND(&TImpl::OnSync, MakeWeak(this)), syncPeriod))
-        , ObjectManager_(objectManager)
+        : Bootstrap_(bootstrap)
+        , SyncExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnSync, MakeWeak(this)),
+            syncPeriod))
+        , ObjectManager_(Bootstrap_->GetObjectManager())
+        , MulticellManager_(Bootstrap_->GetMulticellManager())
+        , CellTag_(Bootstrap_->GetPrimaryCellTag())
         , ClusterDirectory_(clusterDirectory)
     { }
 
@@ -63,8 +73,11 @@ public:
     DEFINE_SIGNAL(void(const TError&), Synchronized);
 
 private:
+    NCellMaster::TBootstrap* Bootstrap_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const NObjectServer::TObjectManagerPtr ObjectManager_;
+    const NCellMaster::TMulticellManagerPtr MulticellManager_;
+    const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
 
     TSpinLock SpinLock_;
@@ -99,10 +112,25 @@ private:
         try {
             auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
             req->set_populate_cluster_directory(true);
-            auto res = WaitFor(ExecuteVerb(ObjectManager_->GetMasterProxy(), req))
-                .ValueOrThrow();
 
-            ClusterDirectory_->UpdateDirectory(res->cluster_directory());
+            if (Bootstrap_->IsSecondaryMaster()) {
+                auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
+                NObjectClient::TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
+                batchReq->AddRequest(req, "get_cluster_meta");
+                auto batchRes = WaitFor(batchReq->Invoke())
+                    .ValueOrThrow();
+
+                auto res = batchRes->GetResponse<NObjectClient::TMasterYPathProxy::TRspGetClusterMeta>(0)
+                    .ValueOrThrow();
+
+                ClusterDirectory_->UpdateDirectory(res->cluster_directory());
+            } else {
+                auto res = WaitFor(ExecuteVerb(ObjectManager_->GetMasterProxy(), req))
+                    .ValueOrThrow();
+
+                ClusterDirectory_->UpdateDirectory(res->cluster_directory());
+            }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating cluster directory")
                 << ex;
@@ -131,10 +159,9 @@ private:
 
 TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
     const TClusterDirectorySynchronizerConfigPtr& config,
-    const IInvokerPtr& invoker,
-    const NObjectServer::TObjectManagerPtr& objectManager,
+    NCellMaster::TBootstrap* bootstrap,
     const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
-    : Impl_(New<TImpl>(config->SyncPeriod, invoker, objectManager, clusterDirectory))
+    : Impl_(New<TImpl>(config->SyncPeriod, bootstrap, clusterDirectory))
 { }
 
 void TClusterDirectorySynchronizer::Start()

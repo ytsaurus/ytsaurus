@@ -41,6 +41,20 @@ static const auto& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TCommandDescriptor& descriptor, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("name").Value(descriptor.CommandName)
+            .Item("input_type").Value(descriptor.InputType)
+            .Item("output_type").Value(descriptor.OutputType)
+            .Item("is_volatile").Value(descriptor.Volatile)
+            .Item("is_heavy").Value(descriptor.Heavy)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDriverRequest::TDriverRequest()
     : ResponseParametersConsumer(GetNullYsonConsumer())
 { }

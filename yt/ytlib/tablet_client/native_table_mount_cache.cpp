@@ -75,8 +75,9 @@ private:
     {
         auto connection = Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to get table mount info: сonnection terminated")
+            auto error = TError("Unable to get table mount info: сonnection terminated")
                 << TErrorAttribute("table_path", key.Path);
+            return MakeFuture<TTableMountInfoPtr>(error);
         }
 
         return BIND(&TTableMountCache::DoDoGet, MakeStrong(this), connection, key)
@@ -90,9 +91,6 @@ private:
 
     TFuture<TTableMountInfoPtr> DoDoGet(IConnectionPtr connection, const TTableMountCacheKey& key)
     {
-        // NB: This code is back-ported from 19.4. However object cache invalidation is not supported in 19.3.
-        // Revisions are set to Null which is safe in 19.3. The 19.4 code is mostly untouched to prevent merge hell.
-
         const auto& path = key.Path;
         const auto& refreshPrimaryRevision = key.RefreshPrimaryRevision;
         const auto& refreshSecondaryRevision = key.RefreshSecondaryRevision;
@@ -121,6 +119,9 @@ private:
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            if (refreshPrimaryRevision) {
+                cachingHeaderExt->set_refresh_revision(*refreshPrimaryRevision);
+            }
 
             batchReq->AddRequest(req, "get_attributes");
         }
@@ -130,7 +131,7 @@ private:
         const auto& batchRsp = batchRspOrError.Value();
         auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         auto& rsp = getAttributesRspOrError.Value();
-        auto primaryRevision = Null;
+        auto primaryRevision = batchRsp->GetRevision(0);
 
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
         auto cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
@@ -146,6 +147,9 @@ private:
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            if (refreshSecondaryRevision) {
+                cachingHeaderExt->set_refresh_revision(*refreshSecondaryRevision);
+            }
 
             batchReq->AddRequest(req, "get_mount_info");
         }
@@ -168,7 +172,7 @@ private:
                 auto tableInfo = New<TTableMountInfo>();
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-                tableInfo->SecondaryRevision = Null;
+                tableInfo->SecondaryRevision = batchRsp->GetRevision(0);
                 tableInfo->PrimaryRevision = primaryRevision;
 
                 auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];

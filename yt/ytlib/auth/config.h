@@ -78,7 +78,8 @@ class TCypressTokenAuthenticatorConfig
 public:
     TCypressTokenAuthenticatorConfig()
     {
-        RegisterParameter("root_path", RootPath);
+        RegisterParameter("root_path", RootPath)
+            .Default("//sys/tokens");
         RegisterParameter("realm", Realm)
             .Default("cypress");
 

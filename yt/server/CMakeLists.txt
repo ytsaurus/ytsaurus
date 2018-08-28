@@ -9,15 +9,20 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
+add_subdirectory(misc)
+
 target_link_libraries(yt-library-server
   yt-library-ytlib
   yt-library-ytlib-auth
+  yt-library-server-misc
   yt-core-re2
   yt-core-rpc-grpc
   deps-arcadia-library-http
-  deps-arcadia-contrib-libs-msgpack
 )
 
+add_subdirectory(http_proxy)
+add_subdirectory(rpc_proxy)
+add_subdirectory(skynet_manager)
 
 ################################################################################
 
@@ -87,12 +92,26 @@ add_executable(ytserver-proxy
 
 target_link_libraries(ytserver-proxy
   yt-core-phdr-cache
-  yt-library-server
+  yt-library-server-rpc-proxy
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+################################################################################
+
+add_executable(ytserver-http-proxy
+  ${CMAKE_CURRENT_LIST_DIR}/http_proxy_program/main.cpp
+)
+
+target_link_libraries(ytserver-http-proxy
+  yt-library-server-http-proxy
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-http-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 
 ################################################################################
 
@@ -158,7 +177,7 @@ add_executable(ytserver-skynet-manager
 
 target_link_libraries(ytserver-skynet-manager
   yt-core-phdr-cache
-  yt-library-server
+  yt-library-server-skynet-manager
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
 )
@@ -207,7 +226,7 @@ install(
 
 install(
   TARGETS
-    ytserver-proxy
+    ytserver-proxy ytserver-http-proxy
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
   COMPONENT cell_proxy
@@ -217,7 +236,7 @@ install(
   TARGETS
     ytserver-master ytserver-scheduler ytserver-node ytserver-proxy ytserver-controller-agent
     ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
-    ytserver-skynet-manager
+    ytserver-skynet-manager ytserver-http-proxy
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
   COMPONENT all_binaries

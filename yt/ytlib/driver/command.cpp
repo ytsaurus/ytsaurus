@@ -74,6 +74,17 @@ void TCommandBase::Execute(ICommandContextPtr context)
     DoExecute(context);
 }
 
+void TCommandBase::ProduceResponseParameters(
+    ICommandContextPtr context,
+    std::function<void(NYson::IYsonConsumer*)> producer)
+{
+    producer(context->Request().ResponseParametersConsumer);
+    if (context->Request().ParametersFinishedCallback) {
+        context->Request().ParametersFinishedCallback();
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

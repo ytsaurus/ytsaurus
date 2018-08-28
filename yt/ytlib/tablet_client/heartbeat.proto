@@ -66,11 +66,18 @@ message TTableReplicaInfo
 
 message TTabletInfo
 {
+    message TErrorEntry
+    {
+        required int32 key = 1;
+        required NYT.NProto.TError value = 2;
+    }
+
     required NYT.NProto.TGuid tablet_id = 1;
     required TTabletStatistics statistics = 2;
     repeated TTableReplicaInfo replicas = 3;
     required TTabletPerformanceCounters performance_counters = 4;
-    repeated NYT.NProto.TError errors = 5;
+    // repeated NYT.NProto.TError errors = 5; deprecated
+    repeated TErrorEntry errors = 6;
 }
 
 message TCreateTabletSlotInfo

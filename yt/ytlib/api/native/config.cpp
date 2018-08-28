@@ -140,6 +140,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
 
+    RegisterParameter("use_tablet_service", UseTabletService)
+        .Default(false);
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
     });

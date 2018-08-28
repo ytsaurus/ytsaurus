@@ -142,6 +142,12 @@ DEFINE_ENUM(EStatusCode,
 );
 #undef XX
 
+//! YT enum doesn't support specifying custom string conversion, so we
+//! define our own.
+
+TStringBuf ToHttpString(EMethod method);
+TStringBuf ToHttpString(EStatusCode code);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! {Protocol}://{User}@{Host}:{Port}{Path}?{RawQuery}
@@ -167,8 +173,9 @@ class THeaders
     : public virtual TRefCounted
 {
 public:
-    void Add(const TString& header, const TString& value);
-    void Set(const TString& header, const TString& value);
+    void Add(const TString& header, TString value);
+    void Set(const TString& header, TString value);
+    void Remove(const TString& header);
 
     const TString* Find(const TString& header) const;
 
@@ -177,7 +184,7 @@ public:
     //! Returns first header value, if any. Throws otherwise.
     TString GetOrThrow(const TString& header) const;
 
-    const std::vector<TString>& GetAll(const TString& header) const;
+    const SmallVector<TString, 1>& GetAll(const TString& header) const;
 
     void WriteTo(IOutputStream* out, const THashSet<TString>* filtered = nullptr) const;
 
@@ -189,7 +196,7 @@ private:
     struct TEntry
     {
         TString OriginalHeaderName;
-        std::vector<TString> Values;
+        SmallVector<TString, 1> Values;
     };
 
     THashMap<TString, TEntry> Raw_;
@@ -228,8 +235,11 @@ struct IResponseWriter
 {
     virtual const THeadersPtr& GetHeaders() = 0;
     virtual const THeadersPtr& GetTrailers() = 0;
+    virtual bool IsHeadersFlushed() const = 0;
 
+    virtual TNullable<EStatusCode> GetStatus() const = 0;
     virtual void SetStatus(EStatusCode status) = 0;
+    virtual void AddConnectionCloseHeader() = 0;
 
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) = 0;
 };

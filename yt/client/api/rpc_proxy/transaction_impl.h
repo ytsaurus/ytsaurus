@@ -4,8 +4,6 @@
 
 #include <yt/client/api/transaction.h>
 
-#include <yt/core/concurrency/public.h>
-
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
@@ -198,7 +196,9 @@ private:
     const TNullable<TDuration> PingPeriod_;
     const bool Sticky_;
 
-    NConcurrency::TAsyncSemaphorePtr InFlightModifyRowsRequestCount_;
+    TSpinLock InFlightModifyRowsRequestsLock_;
+    THashMap<size_t, TFuture<void>> InFlightModifyRowsRequests_;
+    size_t InFlightModifyRowsRequestMinimalSequenceNumber_ = std::numeric_limits<size_t>::max();
 
     std::atomic<i64> ModifyRowsRequestSequenceCounter_;
 

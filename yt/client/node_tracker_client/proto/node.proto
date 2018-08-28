@@ -98,8 +98,7 @@ message TDiskResources
 // Limits overrides pushed from master to node.
 message TNodeResourceLimitsOverrides
 {
-    // TODO(ignat): migrate to double
-    optional int32 cpu = 1;
+    optional double cpu = 1;
     optional int32 network = 2;
     optional int32 replication_slots = 3;
     optional int64 replication_data_size = 4;

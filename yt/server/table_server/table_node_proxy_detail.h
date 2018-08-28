@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/client/api/public.h>
+
 #include <yt/core/yson/string.h>
 
 namespace NYT {
@@ -48,6 +50,7 @@ protected:
 
     virtual void ValidateBeginUpload() override;
     virtual void ValidateStorageParametersUpdate() override;
+    virtual void ValidateLockPossible() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);
@@ -57,6 +60,9 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
+
+private:
+    void CallViaNativeClient(const TString& user, std::function<TFuture<void>(const NApi::IClientPtr&)> callback);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

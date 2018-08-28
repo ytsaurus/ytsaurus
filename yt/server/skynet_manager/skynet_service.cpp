@@ -414,28 +414,20 @@ void TSkynetService::WriteShareReply(
             WaitFor(rsp->WriteBody(TSharedRef::FromString(rbTorrentId)))
                 .ThrowOnError();
         } else {
-            rsp->GetHeaders()->Add("Content-Type", "application/json");
             rsp->SetStatus(EStatusCode::OK);
-
-            auto output = CreateBufferedSyncAdapter(rsp);
-            auto json = NJson::CreateJsonConsumer(output.get());
-
-            BuildYsonFluently(json.get())
-                .BeginMap()
-                    .Item("torrents")
-                        .DoListFor(*state.Resources, [&] (auto fluent, auto&& link) {
-                            fluent.Item()
-                                .BeginMap()
-                                    .Item("key").Value(link->Key)
-                                    .Item("rbtorrent").Value("rbtorrent:" + link->ResourceId)
-                                .EndMap();
-                        })
-                .EndMap();
-
-            json->Flush();
-            output->Finish();
-            WaitFor(rsp->Close())
-                .ThrowOnError();
+            ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
+                BuildYsonFluently(json)
+                    .BeginMap()
+                        .Item("torrents")
+                            .DoListFor(*state.Resources, [&] (auto fluent, auto&& link) {
+                                fluent.Item()
+                                    .BeginMap()
+                                        .Item("key").Value(link->Key)
+                                        .Item("rbtorrent").Value("rbtorrent:" + link->ResourceId)
+                                    .EndMap();
+                            })
+                    .EndMap();
+            });
         }
     } else if (state.State == ERequestState::Failed) {
         state.Error.Get(TError{}).ThrowOnError();
@@ -477,20 +469,11 @@ void TSkynetService::HandleDebugLinks(const IRequestPtr& req, const IResponseWri
 
     auto locations = clusterConnection->FetchSkynetPartsLocations(tableRange);
 
-    rsp->SetStatus(EStatusCode::OK);
-    rsp->GetHeaders()->Add("Content-Type", "application/json");
-
-    auto output = CreateBufferedSyncAdapter(rsp);
-    auto json = NJson::CreateJsonConsumer(output.get());
-
     auto links = MakeLinks(resource, locations);
-
-    Serialize(links, json.get());
-
-    json->Flush();
-    output->Finish();
-    WaitFor(rsp->Close())
-        .ThrowOnError();
+    rsp->SetStatus(EStatusCode::OK);
+    ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
+        Serialize(links, json);
+    });
 }
 
 TClusterConnectionPtr TSkynetService::GetCluster(const TString& clusterName) const

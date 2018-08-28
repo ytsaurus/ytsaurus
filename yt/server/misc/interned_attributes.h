@@ -10,6 +10,7 @@
     XX(Acl, acl) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
+    XX(ActualTabletState, actual_tablet_state) \
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
@@ -34,6 +35,7 @@
     XX(ChunkCount, chunk_count) \
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \
+    XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \
     XX(ChunkReplicatorEnabled, chunk_replicator_enabled) \
     XX(ChunkRowCount, chunk_row_count) \
@@ -77,6 +79,8 @@
     XX(Error, error) \
     XX(Errors, errors) \
     XX(Executable, executable) \
+    XX(ExpectedState, expected_state) \
+    XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
     XX(ExportedObjectCount, exported_object_count) \
     XX(ExportedObjects, exported_objects) \
@@ -88,6 +92,7 @@
     XX(FileName, file_name) \
     XX(FlushLagTime, flush_lag_time) \
     XX(FlushedRowCount, flushed_row_count) \
+    XX(ForcedCompactionRevision, forced_compaction_revision) \
     XX(Foreign, foreign) \
     XX(Freeze, freeze) \
     XX(Full, full) \
@@ -108,6 +113,7 @@
     XX(KeyColumns, key_columns) \
     XX(Kind, kind) \
     XX(LastCommitTimestamp, last_commit_timestamp) \
+    XX(LastMountTransaction, last_mount_transaction_id) \
     XX(LastPingTime, last_ping_time) \
     XX(LastSeenReplicas, last_seen_replicas) \
     XX(LastSeenTime, last_seen_time) \
@@ -169,6 +175,7 @@
     XX(PivotKeys, pivot_keys) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
     XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \
+    XX(PreserveTimestamps, preserve_timestamps) \
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
@@ -219,7 +226,6 @@
     XX(StoredReplicas, stored_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \
-    XX(System, system) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \
@@ -230,6 +236,7 @@
     XX(TabletCellIds, tablet_cell_ids) \
     XX(TabletCount, tablet_count) \
     XX(TabletCountByState, tablet_count_by_state) \
+    XX(TabletCountByExpectedState, tablet_count_by_expected_state) \
     XX(TabletErrorCount, tablet_error_count) \
     XX(TabletErrors, tablet_errors) \
     XX(TabletIds, tablet_ids) \

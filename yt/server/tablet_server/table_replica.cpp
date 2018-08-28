@@ -31,6 +31,8 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
     Save(context, Mode_);
     Save(context, DisablingTablets_);
     Save(context, EnableReplicatedTableTracker_);
+    Save(context, PreserveTimestamps_);
+    Save(context, Atomicity_);
 }
 
 void TTableReplica::Load(NCellMaster::TLoadContext& context)
@@ -53,6 +55,10 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aozeritsky)
     if (context.GetVersion() >= 717) {
         Load(context, EnableReplicatedTableTracker_);
+    }
+    if (context.GetVersion() >= 802) {
+        Load(context, PreserveTimestamps_);
+        Load(context, Atomicity_);
     }
 }
 

@@ -63,7 +63,7 @@ case $CLUSTER in
     ;;
     freud)
     MASTERS="m0[1-3]i.freud.yt.yandex.net"
-    NODES="n0[001-773]i.freud.yt.yandex.net"
+    NODES="n0[001-786]i.freud.yt.yandex.net"
     SCHEDULERS="s0[1-2]i.freud.yt.yandex.net"
     PROXIES="c0[1-2]i.freud.yt.yandex.net"
     ;;

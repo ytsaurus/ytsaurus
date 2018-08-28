@@ -11,6 +11,7 @@ message TReqCoordinatorCommitSimpleTransaction
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 3;
+    required string user_name = 4;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseOne
@@ -22,6 +23,7 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     required bool inherit_commit_timestamp = 5;
     optional int32 coordinator_commit_mode = 6; // ETransactionCoordinatorCommitMode
     required uint64 prepare_timestamp = 4;
+    required string user_name = 8;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseTwo
@@ -46,23 +48,27 @@ message TReqCoordinatorAbortTransaction
     optional NYT.NProto.TGuid mutation_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
     optional bool force = 3;
+    required string user_name = 4;
 }
 
 message TReqParticipantPrepareTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 prepare_timestamp = 2;
+    required string user_name = 3;
 }
 
 message TReqParticipantCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 commit_timestamp = 2;
+    required string user_name = 3;
 }
 
 message TReqParticipantAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
+    required string user_name = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

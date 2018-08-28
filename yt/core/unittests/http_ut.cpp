@@ -8,6 +8,7 @@
 #include <yt/core/http/http.h>
 #include <yt/core/http/stream.h>
 #include <yt/core/http/config.h>
+#include <yt/core/http/helpers.h>
 
 #include <yt/core/https/server.h>
 #include <yt/core/https/client.h>
@@ -78,7 +79,23 @@ TEST(THttpUrlParse, IPv6)
     ASSERT_EQ(*url.Port, 12345);
 }
 
+TEST(THttpCookie, ParseCookie)
+{
+    TString cookieString = "yandexuid=706216621492423338; yandex_login=prime; _ym_d=1529669659; Cookie_check=1; _ym_isad=1";
+    auto cookie = ParseCookies(cookieString);
+
+    ASSERT_EQ("706216621492423338", cookie["yandexuid"]);
+    ASSERT_EQ("prime", cookie["yandex_login"]);
+    ASSERT_EQ("1529669659", cookie["_ym_d"]);
+    ASSERT_EQ("1", cookie["_ym_isad"]);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> ToVector(const SmallVector<TString, 1>& v)
+{
+    return std::vector<TString>(v.begin(), v.end());
+}
 
 TEST(THttpHeaders, Simple)
 {
@@ -86,7 +103,7 @@ TEST(THttpHeaders, Simple)
 
     headers->Set("X-Test", "F");
 
-    ASSERT_EQ(std::vector<TString>{{"F"}}, headers->GetAll("X-Test"));
+    ASSERT_EQ(std::vector<TString>{{"F"}}, ToVector(headers->GetAll("X-Test")));
     ASSERT_EQ(TString{"F"}, headers->GetOrThrow("X-Test"));
     ASSERT_EQ(TString{"F"}, *headers->Find("X-Test"));
 
@@ -96,10 +113,10 @@ TEST(THttpHeaders, Simple)
 
     headers->Add("X-Test", "H");
     std::vector<TString> expected = {"F", "H"};
-    ASSERT_EQ(expected, headers->GetAll("X-Test"));
+    ASSERT_EQ(expected, ToVector(headers->GetAll("X-Test")));
 
     headers->Set("X-Test", "J");
-    ASSERT_EQ(std::vector<TString>{{"J"}}, headers->GetAll("X-Test"));
+    ASSERT_EQ(std::vector<TString>{{"J"}}, ToVector(headers->GetAll("X-Test")));
 }
 
 TEST(THttpHeaders, HeaderCaseIsIrrelevant)
@@ -134,6 +151,16 @@ struct TFakeConnection
 {
     TString Input;
     TString Output;
+
+    virtual bool SetNoDelay() override
+    {
+        return true;
+    }
+
+    virtual bool SetKeepAlive() override
+    {
+        return true;
+    }
 
     virtual TFuture<size_t> Read(const TSharedMutableRef& ref) override
     {

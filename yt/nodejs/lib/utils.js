@@ -71,25 +71,25 @@ exports.dispatchAs = function(rsp, body, type)
 
 exports.dispatchJson = function(rsp, object)
 {
-    exports.dispatchAs(rsp, JSON.stringify(object), "application/json");
+    exports.dispatchAs(rsp, JSON.stringify(object), "application/json"); //@
 };
 
 // Dispatches a 401.
 exports.dispatchUnauthorized = function(rsp, scope, message)
 {
-    rsp.statusCode = 401;
-    rsp.setHeader("WWW-Authenticate", scope);
+    rsp.statusCode = 401; //@
+    rsp.setHeader("WWW-Authenticate", scope); //@
     // Mimic to YtError.
-    exports.dispatchJson(rsp, {code: 1, message: message, attributes: {}, inner_errors: []});
+    exports.dispatchJson(rsp, {code: 1, message: message, attributes: {}, inner_errors: []}); //@
 };
 
 // Dispatches a 503.
 exports.dispatchLater = function(rsp, after, message)
 {
-    rsp.statusCode = 503;
-    rsp.setHeader("Retry-After", after);
+    rsp.statusCode = 503; //@
+    rsp.setHeader("Retry-After", after); //@
     // Mimic to YtError.
-    exports.dispatchJson(rsp, {code: 1, message: message, attributes: {}, inner_errors: []});
+    exports.dispatchJson(rsp, {code: 1, message: message, attributes: {}, inner_errors: []}); //@
 };
 
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.

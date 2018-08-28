@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 717; // This version is fixed in 19.3. Please do master development in branch 19.4.
+    return 804;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -77,7 +77,12 @@ bool ValidateSnapshotVersion(int version)
         version == 714 || // savrus: Change TReqKickOrphanedTabletActions
         version == 715 || // ifsmirnov: Fix tablet_error_count lag
         version == 716 || // savrus: Add dynamic tablet cell options
-        version == 717;   // aozeritsky: Add replicated table options
+        version == 717 || // aozeritsky: Add replicated table options
+        version == 800 || // savrus: Multicell for dynamic tables
+        version == 801 || // savrus: Make tablet_state backward-compatible
+        version == 802 || // aozeritsky: Add replica options
+        version == 803 || // savrus: Add primary last mount transaction id
+        version == 804;   // shakurov: Remove TTransaction::System
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 //%NUM_MASTERS=1
 //%NUM_NODES=3
 //%NUM_SCHEDULERS=0
-//%DELTA_MASTER_CONFIG={ "object_service": { "timeout_backoff_lead_time": 100 } }
+//%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100},"tablet_manager":{"tablet_cell_decommissioner":{"decommission_check_period":100,"orphans_check_period":100}}}
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>
@@ -58,6 +58,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -392,7 +393,8 @@ public:
         WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
             .ThrowOnError();
 
-        RemoveSystemObjects("//sys/tablet_cells");
+        RemoveTabletCells();
+
         RemoveSystemObjects("//sys/tablet_cell_bundles", [] (const TString& name) {
             return name != "default";
         });
@@ -412,7 +414,7 @@ protected:
 
         auto cellId = WaitFor(Client_->CreateObject(EObjectType::TabletCell))
             .ValueOrThrow();
-        WaitUntil(TYPath("#") + ToString(cellId) + "/@health", "good");
+        WaitUntilEqual(TYPath("#") + ToString(cellId) + "/@health", "good");
 
         WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(1000)))
             .ThrowOnError();
@@ -445,25 +447,35 @@ protected:
     {
         WaitFor(Client_->MountTable(path))
             .ThrowOnError();
-        WaitUntil(path + "/@tablet_state", "mounted");
+        WaitUntilEqual(path + "/@tablet_state", "mounted");
     }
 
     static void SyncUnmountTable(const TYPath& path)
     {
         WaitFor(Client_->UnmountTable(path))
             .ThrowOnError();
-        WaitUntil(path + "/@tablet_state", "unmounted");
+        WaitUntilEqual(path + "/@tablet_state", "unmounted");
     }
 
-    static void WaitUntil(const TYPath& path, const TString& expected)
+    static void WaitUntilEqual(const TYPath& path, const TString& expected)
+    {
+        WaitUntil(
+            [&] {
+                auto value = WaitFor(Client_->GetNode(path))
+                    .ValueOrThrow();
+                return ConvertTo<IStringNodePtr>(value)->GetValue() == expected;
+            },
+            Format("%Qv is not %Qv", path, expected));
+    }
+
+    static void WaitUntil(
+        std::function<bool()> predicate,
+        const TString& errorMessage)
     {
         auto start = Now();
         bool reached = false;
         for (int attempt = 0; attempt < 2*30; ++attempt) {
-            auto state = WaitFor(Client_->GetNode(path))
-                .ValueOrThrow();
-            auto value = ConvertTo<IStringNodePtr>(state)->GetValue();
-            if (value == expected) {
+            if (predicate()) {
                 reached = true;
                 break;
             }
@@ -471,9 +483,8 @@ protected:
         }
 
         if (!reached) {
-            THROW_ERROR_EXCEPTION("%Qv is not %Qv after %v seconds",
-                path,
-                expected,
+            THROW_ERROR_EXCEPTION("%v after %v seconds",
+                errorMessage,
                 (Now() - start).Seconds());
         }
     }
@@ -585,6 +596,42 @@ private:
         WaitFor(Combine(asyncWait))
             .ThrowOnError();
     }
+
+    static void RemoveTabletCells(
+        std::function<bool(const TString&)> filter = [] (const TString&) { return true; })
+    {
+        TYPath path = "//sys/tablet_cells";
+        auto items = WaitFor(Client_->ListNode(path))
+            .ValueOrThrow();
+        auto itemsList = ConvertTo<IListNodePtr>(items);
+
+        std::vector<TTabletCellId> removedCells;
+        std::vector<TFuture<void>> asyncWait;
+        for (const auto& item : itemsList->GetChildren()) {
+            const auto& name = item->AsString()->GetValue();
+            if (filter(name)) {
+                removedCells.push_back(TTabletCellId::FromString(name));
+                asyncWait.push_back(Client_->RemoveNode(path + "/" + name));
+            }
+        }
+
+        WaitFor(Combine(asyncWait))
+            .ThrowOnError();
+
+        WaitUntil(
+            [&] {
+                auto value = WaitFor(Client_->ListNode(path))
+                    .ValueOrThrow();
+                auto cells = ConvertTo<THashSet<TTabletCellId>>(value);
+                for (const auto& cell : removedCells) {
+                    if (cells.find(cell) != cells.end()) {
+                        return false;
+                    }
+                }
+                return true;
+            },
+            "Tablet cells are not removed");
+    }
 };
 
 TYPath TDynamicTablesTestBase::Table_;
@@ -594,7 +641,7 @@ TYPath TDynamicTablesTestBase::Table_;
 using TLookupFilterTestParam = std::tuple<
     std::vector<TString>,
     TString,
-    SmallVector<int, TypicalColumnCount>,
+    TColumnFilter::TIndexes,
     TString,
     TString,
     TString>;
@@ -796,7 +843,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
     const auto& param = GetParam();
     const auto& namedColumns = std::get<0>(param);
     const auto& keyString = std::get<1>(param);
-    const auto& columnFilter = std::get<2>(param);
+    auto columnFilter = std::get<2>(param);
     const auto& resultKeyString = std::get<3>(param);
     const auto& resultValueString = std::get<4>(param);
     const auto& schemaString = std::get<5>(param);
@@ -807,8 +854,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         keyString);
 
     TLookupRowsOptions options;
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = columnFilter;
+    options.ColumnFilter = TColumnFilter(std::move(columnFilter));
 
     auto res = WaitFor(Client_->LookupRows(
         Table_,
@@ -844,7 +890,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     const auto& param = GetParam();
     const auto& namedColumns = std::get<0>(param);
     const auto& keyString = std::get<1>(param);
-    const auto& columnFilter = std::get<2>(param);
+    auto columnFilter = std::get<2>(param);
     const auto& resultKeyString = std::get<3>(param);
     const auto& resultValueString = std::get<4>(param);
     const auto& schemaString = std::get<5>(param);
@@ -861,8 +907,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         keyString);
 
     TVersionedLookupRowsOptions options;
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = columnFilter;
+    options.ColumnFilter = TColumnFilter(std::move(columnFilter));
 
     auto res = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -1010,8 +1055,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         "<id=3;ts=2> 21;"));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = {0,1,2,3};
+    options.ColumnFilter = TColumnFilter({0,1,2,3});
 
     res = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -1029,7 +1073,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         {2}));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.Indexes = {3};
+    options.ColumnFilter = TColumnFilter({3});
 
     preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2", "v3"},
@@ -1087,7 +1131,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 3;",
         3);
 
-    options.ColumnFilter.All = true;
+    options.ColumnFilter = TColumnFilter();
     options.RetentionConfig = New<TRetentionConfig>();
     options.RetentionConfig->MinDataTtl = TDuration::MilliSeconds(0);
     options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(1800000);
@@ -1102,8 +1146,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         {2}));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = {0, 1, 2, 4};
+    options.ColumnFilter = TColumnFilter({0, 1, 2, 4});
 
     actual = executeLookup();
     expected = ToString(BuildVersionedRow(
@@ -1134,7 +1177,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 6;",
         6);
 
-    options.ColumnFilter.Indexes = {0, 1, 2, 4, 5};
+    options.ColumnFilter = TColumnFilter({0, 1, 2, 4, 5});
     options.RetentionConfig->MinDataVersions = 2;
     options.RetentionConfig->MaxDataVersions = 2;
 

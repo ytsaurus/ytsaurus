@@ -140,12 +140,26 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         if (dynamic) {
+            if (!node->IsForeign()) {
+                tabletManager->ValidateMakeTableDynamic(node);
+            }
+
             tabletManager->MakeTableDynamic(node);
 
-            if (maybeTabletCount) {
-                tabletManager->ReshardTable(node, 0, 0, *maybeTabletCount, {});
-            } else if (maybePivotKeys) {
-                tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
+            if (!node->IsForeign()) {
+                if (maybeTabletCount) {
+                    tabletManager->PrepareReshardTable(node, 0, 0, *maybeTabletCount, {}, true);
+                } else if (maybePivotKeys) {
+                    tabletManager->PrepareReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys, true);
+                }
+            }
+
+            if (!node->IsExternal()) {
+                if (maybeTabletCount) {
+                    tabletManager->ReshardTable(node, 0, 0, *maybeTabletCount, {});
+                } else if (maybePivotKeys) {
+                    tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
+                }
             }
 
             node->SetUpstreamReplicaId(upstreamReplicaId);
@@ -179,9 +193,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
 {
     branchedNode->SharedTableSchema() = originatingNode->SharedTableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
+    branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
+
+    // Save current retained and unflushed timestamps in locked node.
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
-    branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
 
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }
@@ -206,12 +222,14 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-    securityManager->ValidateResourceUsageIncrease(
-        account,
-        TClusterResources().SetTabletCount(sourceNode->GetTrunkNode()->Tablets().size()));
-
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+
+    tabletManager->ValidateCloneTable(
+        sourceNode,
+        clonedNode,
+        factory->GetTransaction(),
+        mode,
+        account);
 
     TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
@@ -219,28 +237,33 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         tabletManager->CloneTable(
             sourceNode,
             clonedNode,
-            factory->GetTransaction(),
             mode);
     }
 
     clonedNode->SharedTableSchema() = sourceNode->SharedTableSchema();
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
-    clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
-    clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
-    clonedNode->SetAtomicity(sourceNode->GetAtomicity());
-    clonedNode->SetCommitOrdering(sourceNode->GetCommitOrdering());
-    clonedNode->SetInMemoryMode(sourceNode->GetInMemoryMode());
-    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
-    clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
-    clonedNode->SetEnableTabletBalancer(sourceNode->GetEnableTabletBalancer());
-    clonedNode->SetMinTabletSize(sourceNode->GetMinTabletSize());
-    clonedNode->SetMaxTabletSize(sourceNode->GetMaxTabletSize());
-    clonedNode->SetDesiredTabletSize(sourceNode->GetDesiredTabletSize());
-    clonedNode->SetDesiredTabletCount(sourceNode->GetDesiredTabletCount());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
+    clonedNode->SetDynamic(trunkSourceNode->IsDynamic());
+    clonedNode->SetAtomicity(trunkSourceNode->GetAtomicity());
+    clonedNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
+    clonedNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
+    clonedNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
+    clonedNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
+    clonedNode->SetEnableTabletBalancer(trunkSourceNode->GetEnableTabletBalancer());
+    clonedNode->SetMinTabletSize(trunkSourceNode->GetMinTabletSize());
+    clonedNode->SetMaxTabletSize(trunkSourceNode->GetMaxTabletSize());
+    clonedNode->SetDesiredTabletSize(trunkSourceNode->GetDesiredTabletSize());
+    clonedNode->SetDesiredTabletCount(trunkSourceNode->GetDesiredTabletCount());
+
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
+}
+
+template <class TImpl>
+bool TTableNodeTypeHandlerBase<TImpl>::IsExternalizable() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,11 +275,6 @@ TTableNodeTypeHandler::TTableNodeTypeHandler(TBootstrap* bootstrap)
 EObjectType TTableNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::Table;
-}
-
-bool TTableNodeTypeHandler::IsExternalizable() const
-{
-    return true;
 }
 
 ICypressNodeProxyPtr TTableNodeTypeHandler::DoGetProxy(

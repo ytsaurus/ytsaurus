@@ -27,6 +27,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TOriginal, class TSerialized>
+void ToProto(TSerialized* serialized, const TAtomicObject<TOriginal>& original);
+
+template <class TOriginal, class TSerialized>
+void FromProto(TAtomicObject<TOriginal>* original, const TSerialized& serialized);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define ATOMIC_OBJECT_INL_H_

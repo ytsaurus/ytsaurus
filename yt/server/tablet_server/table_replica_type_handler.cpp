@@ -55,6 +55,8 @@ public:
         auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
         auto startReplicationRowIndexes = attributes->FindAndRemove<std::vector<i64>>("start_replication_row_indexes");
         auto mode = attributes->GetAndRemove<ETableReplicaMode>("mode", ETableReplicaMode::Async);
+        auto preserveTimestamps = attributes->GetAndRemove<bool>("preserve_timestamps", true);
+        auto atomicity = attributes->GetAndRemove<NTransactionClient::EAtomicity>("atomicity", NTransactionClient::EAtomicity::Full);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->ResolvePathToTrunkNode(tablePath);
@@ -78,6 +80,8 @@ public:
             clusterName,
             replicaPath,
             mode,
+            preserveTimestamps,
+            atomicity,
             startReplicationTimestamp,
             startReplicationRowIndexes);
     }

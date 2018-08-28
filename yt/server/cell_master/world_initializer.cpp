@@ -42,18 +42,19 @@ namespace NYT {
 namespace NCellMaster {
 
 using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYson;
-using namespace NYPath;
-using namespace NCypressServer;
 using namespace NCypressClient;
-using namespace NTransactionClient;
-using namespace NHiveClient;
+using namespace NCypressServer;
 using namespace NHiveClient::NProto;
+using namespace NHiveClient;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NRpc;
 using namespace NSecurityServer;
-using namespace NHydra;
+using namespace NTransactionClient;
+using namespace NYPath;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::ToProto;
 
@@ -557,7 +558,7 @@ private:
     void CommitTransaction(const TTransactionId& transactionId)
     {
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->CommitTransaction(transactionId))
+        WaitFor(transactionSupervisor->CommitTransaction(transactionId, RootUserName))
             .ThrowOnError();
     }
 

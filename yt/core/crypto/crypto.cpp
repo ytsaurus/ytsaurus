@@ -4,7 +4,9 @@
 
 #include <util/string/hex.h>
 
+#include <contrib/libs/openssl/crypto/hmac/hmac.h>
 #include <contrib/libs/openssl/crypto/md5/md5.h>
+#include <contrib/libs/openssl/crypto/evp/evp.h>
 #include <contrib/libs/openssl/crypto/sha/sha.h>
 
 namespace NYT {
@@ -85,11 +87,11 @@ const TMD5State& TMD5Hasher::GetState() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSHA1Hash SHA1FromString(TStringBuf data)
+TSha1Hash Sha1FromString(TStringBuf data)
 {
-    TSHA1Hash hash;
+    TSha1Hash hash;
     if (data.Size() != hash.size()) {
-        THROW_ERROR_EXCEPTION("Invalid SHA1 hash size")
+        THROW_ERROR_EXCEPTION("Invalid Sha1 hash size")
             << TErrorAttribute("expected", hash.size())
             << TErrorAttribute("actual", data.Size());
     }
@@ -99,38 +101,82 @@ TSHA1Hash SHA1FromString(TStringBuf data)
 }
 
 static_assert(
-    sizeof(SHA_CTX) == sizeof(TSHA1Hasher),
-    "TSHA1Hasher size must be exaclty equal to that of SHA1_CTX");
+    sizeof(SHA_CTX) == sizeof(TSha1Hasher),
+    "TSha1Hasher size must be exaclty equal to that of SHA1_CTX");
 
-TSHA1Hasher::TSHA1Hasher()
+TSha1Hasher::TSha1Hasher()
 {
     SHA1_Init(reinterpret_cast<SHA_CTX*>(CtxStorage_.data()));
 }
 
-TSHA1Hasher& TSHA1Hasher::Append(TStringBuf data)
+TSha1Hasher& TSha1Hasher::Append(TStringBuf data)
 {
     SHA1_Update(reinterpret_cast<SHA_CTX*>(CtxStorage_.data()), data.Data(), data.Size());
     return *this;
 }
 
-TSHA1Hash TSHA1Hasher::GetDigest()
+TSha1Hash TSha1Hasher::GetDigest()
 {
-    TSHA1Hash hash;
+    TSha1Hash hash;
     SHA1_Final(
         reinterpret_cast<unsigned char*>(hash.data()),
         reinterpret_cast<SHA_CTX*>(CtxStorage_.data()));
     return hash;
 }
 
-TString TSHA1Hasher::GetHexDigestUpper()
+TString TSha1Hasher::GetHexDigestUpper()
 {
     auto sha1 = GetDigest();
     return HexEncode(sha1.data(), sha1.size());
 }
 
-TString TSHA1Hasher::GetHexDigestLower()
+TString TSha1Hasher::GetHexDigestLower()
 {
     return to_lower(GetHexDigestUpper());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString CreateSha256Hmac(const TString& key, const TString& message)
+{
+    std::array<char, 256 / 8> hmac;
+    unsigned int opensslIsInsane;
+    auto result = HMAC(
+        EVP_sha256(),
+        key.data(),
+        key.size(),
+        reinterpret_cast<const unsigned char*>(message.data()),
+        message.size(),
+        reinterpret_cast<unsigned char*>(hmac.data()),
+        &opensslIsInsane);
+    YCHECK(nullptr != result);
+    return to_lower(HexEncode(hmac.data(), hmac.size()));
+}
+
+bool ConstantTimeCompare(const TString& trusted, const TString& untrusted)
+{
+    int total = 0;
+
+    size_t i = 0;
+    size_t j = 0;
+    while (true) {
+        total |= trusted[i] ^ untrusted[j];
+
+        if (i == untrusted.size()) {
+            break;
+        }
+
+        ++i;
+
+        if (j < trusted.size()) {
+            ++j;
+        } else {
+            total |= 1;
+        }
+
+    }
+
+    return total == 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -216,6 +216,8 @@ private:
     // NB: only TryAcquire() is called on this lock, never Acquire().
     TSpinLock CurrentSubrequestLock_;
 
+    std::vector<i64> Revisions_;
+
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
@@ -229,6 +231,7 @@ private:
         const auto& request = Context_->Request();
         const auto& attachments = Context_->RequestAttachments();
         Subrequests_.resize(SubrequestCount_);
+        Revisions_.resize(SubrequestCount_);
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < SubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -256,11 +259,24 @@ private:
             subrequestHeader.set_retry(subrequestHeader.retry() || Context_->IsRetry());
             subrequestHeader.set_user(UserName_);
 
-            auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
+            auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
+            const auto& path = ypathExt->path();
+            bool mutating = ypathExt->mutating();
 
-            const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
-            const auto& path = ypathExt.path();
-            bool mutating = ypathExt.mutating();
+            // COMPAT(savrus) Support old mount/unmoun/etc interface.
+            if (mutating && (subrequestHeader.method() == "Mount" ||
+                subrequestHeader.method() == "Unmount" ||
+                subrequestHeader.method() == "Freeze" ||
+                subrequestHeader.method() == "Unfreeze" ||
+                subrequestHeader.method() == "Remount" ||
+                subrequestHeader.method() == "Reshard"))
+            {
+                mutating = false;
+                ypathExt->set_mutating(false);
+                SetSuppressAccessTracking(&subrequestHeader, true);
+            }
+
+            auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
             auto loggingInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
                 RequestId_,
@@ -422,6 +438,8 @@ private:
             subrequest.RequestHeader.method(),
             NTracing::ServerReceiveAnnotation);
 
+        Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
+
         if (subrequest.Mutation) {
             ExecuteWriteSubrequest(&subrequest, user);
             LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
@@ -581,6 +599,8 @@ private:
                 } else {
                     response.add_part_counts(0);
                 }
+
+                response.add_revisions(Revisions_[i]);
             }
         }
 

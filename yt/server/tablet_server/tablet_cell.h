@@ -52,7 +52,11 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, Tablets);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, Actions);
-    DEFINE_BYREF_RW_PROPERTY(TTabletCellStatistics, TotalStatistics);
+
+    using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TTabletCellStatistics>;
+    DEFINE_BYREF_RW_PROPERTY(TTabletCellStatistics, ClusterStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellStatistics*, LocalStatisticsPtr);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
 
@@ -83,6 +87,15 @@ public:
 
     NHiveClient::TCellDescriptor GetDescriptor() const;
 
+    //! Dereferences the local statistics pointer.
+    TTabletCellStatistics& LocalStatistics();
+    const TTabletCellStatistics& LocalStatistics() const;
+
+    //! Returns statistics for a given cell tag.
+    TTabletCellStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
+
+    //! Recompute cluster statistics from multicell statistics.
+    void RecomputeClusterStatistics();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

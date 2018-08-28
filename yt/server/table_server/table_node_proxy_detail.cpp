@@ -4,6 +4,7 @@
 #include "replicated_table_node.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
@@ -23,6 +24,10 @@
 #include <yt/server/object_server/object_manager.h>
 
 #include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/table_client/schema.h>
 
@@ -48,8 +53,10 @@
 namespace NYT {
 namespace NTableServer {
 
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectServer;
@@ -83,8 +90,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     TBase::ListSystemAttributes(descriptors);
 
     const auto* table = GetThisImpl();
+    const auto* trunkTable = table->GetTrunkNode();
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
+    bool isExternal = table->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
@@ -102,80 +111,120 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isSorted));
     descriptors->push_back(EInternedAttributeKey::Dynamic);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletState)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActualTabletState)
+        .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpectedTabletState)
+        .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastMountTransaction)
+        .SetPresent(isDynamic && trunkTable->GetLastMountTransactionId()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastCommitTimestamp)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCountByState)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCountByExpectedState)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKeys)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RetainedTimestamp)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnflushedTimestamp)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletStatistics)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrors)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic)
+        .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorCount)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetWritable(true)
-        .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
+        .SetPresent(trunkTable->GetTabletCellBundle())
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
+        .SetReplicated(true)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommitOrdering)
         .SetWritable(true)
-        .SetPresent(!isSorted));
+        .SetPresent(!isSorted)
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
+        .SetReplicated(true)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
+        .SetReplicated(true)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeForStatistics)
-        .SetExternal(table->IsExternal())
+        .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaMode));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkWriter)
-        .SetCustom(true));
+        .SetCustom(true)
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UpstreamReplicaId)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
-        .SetExternal(table->IsExternal())
+        .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableTabletBalancer)
         .SetWritable(true)
         .SetRemovable(true)
+        .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableTabletBalancer)
         .SetWritable(true)
         .SetRemovable(true)
+        .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MinTabletSize)
         .SetWritable(true)
         .SetRemovable(true)
+        .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetMinTabletSize())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxTabletSize)
         .SetWritable(true)
         .SetRemovable(true)
+        .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetMaxTabletSize())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DesiredTabletSize)
         .SetWritable(true)
         .SetRemovable(true)
+        .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DesiredTabletCount)
         .SetWritable(true)
         .SetRemovable(true)
+        .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletCount())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ForcedCompactionRevision)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetReplicated(true)
+        .SetPresent(static_cast<bool>(table->GetForcedCompactionRevision())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushLagTime)
+        .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
 }
 
@@ -186,6 +235,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     auto statistics = table->ComputeTotalStatistics();
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
+    bool isExternal = table->IsExternal();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
@@ -251,11 +301,11 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::Dynamic:
             BuildYsonFluently(consumer)
-                .Value(table->IsDynamic());
+                .Value(trunkTable->IsDynamic());
             return true;
 
         case EInternedAttributeKey::TabletCount:
-            if (!isDynamic) {
+            if (!isDynamic || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -263,11 +313,19 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::TabletCountByState:
-            if (!isDynamic) {
+            if (!isDynamic || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
                 .Value(trunkTable->TabletCountByState());
+            return true;
+
+        case EInternedAttributeKey::TabletCountByExpectedState:
+            if (!isDynamic || isExternal) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->TabletCountByExpectedState());
             return true;
 
         case EInternedAttributeKey::TabletState:
@@ -278,8 +336,32 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->GetTabletState());
             return true;
 
+        case EInternedAttributeKey::ActualTabletState:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetActualTabletState());
+            return true;
+
+        case EInternedAttributeKey::ExpectedTabletState:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetExpectedTabletState());
+            return true;
+
+        case EInternedAttributeKey::LastMountTransaction:
+            if (!isDynamic || !trunkTable->GetLastMountTransactionId()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetLastMountTransactionId());
+            return true;
+
         case EInternedAttributeKey::LastCommitTimestamp:
-            if (!isDynamic || !isSorted) {
+            if (!isDynamic || !isSorted || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -287,7 +369,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::Tablets:
-            if (!isDynamic) {
+            if (!isDynamic || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -322,7 +404,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::PivotKeys:
-            if (!isDynamic || !isSorted) {
+            if (!isDynamic || !isSorted || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -333,7 +415,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::RetainedTimestamp:
-            if (!isDynamic || !isSorted) {
+            if (!isDynamic || !isSorted || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -341,7 +423,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::UnflushedTimestamp:
-            if (!isDynamic || !isSorted) {
+            if (!isDynamic || !isSorted || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -349,7 +431,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::TabletStatistics: {
-            if (!isDynamic) {
+            if (!isDynamic || isExternal) {
                 break;
             }
             TTabletStatistics tabletStatistics;
@@ -364,7 +446,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::TabletErrors: {
-            if (!isDynamic) {
+            if (!isDynamic || isExternal) {
                 break;
             }
             std::vector<TError> errors;
@@ -378,7 +460,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::TabletErrorCount:
-            if (!isDynamic) {
+            if (!isDynamic || isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -469,8 +551,16 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(*trunkTable->GetDesiredTabletCount());
             return true;
 
+        case EInternedAttributeKey::ForcedCompactionRevision:
+            if (!trunkTable->GetForcedCompactionRevision()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetForcedCompactionRevision());
+            return true;
+
         case EInternedAttributeKey::FlushLagTime: {
-            if (!isSorted || !isDynamic) {
+            if (!isSorted || !isDynamic || isExternal) {
                 break;
             }
             auto unflushedTimestamp = table->GetCurrentUnflushedTimestamp(
@@ -584,6 +674,12 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             return true;
         }
 
+        case EInternedAttributeKey::ForcedCompactionRevision: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedCompactionRevision(Null);
+            return true;
+        }
+
         default:
             break;
     }
@@ -613,11 +709,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            auto tabletState = table->GetTabletState();
-            if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-                THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
-                    ETabletState::Unmounted);
-            }
+            lockedTable->ValidateAllTabletsUnmounted("Cannot change table atomicity mode");
 
             auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
             lockedTable->SetAtomicity(atomicity);
@@ -631,13 +723,9 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
             ValidateNoTransaction();
 
-            auto tabletState = table->GetTabletState();
-            if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-                THROW_ERROR_EXCEPTION("Cannot change table commit ordering mode since not all of its tablets are in %Qlv state",
-                    ETabletState::Unmounted);
-            }
-
             auto* lockedTable = LockThisImpl();
+            lockedTable->ValidateAllTabletsUnmounted("Cannot change table commit ordering mode");
+
             auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
             lockedTable->SetCommitOrdering(ordering);
 
@@ -658,11 +746,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            auto tabletState = table->GetTabletState();
-            if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-                THROW_ERROR_EXCEPTION("Cannot change table memory mode since not all of its tablets are in %Qlv state",
-                    ETabletState::Unmounted);
-            }
+            lockedTable->ValidateAllTabletsUnmounted("Cannot change table memory mode");
 
             auto inMemoryMode = ConvertTo<EInMemoryMode>(value);
             lockedTable->SetInMemoryMode(inMemoryMode);
@@ -718,6 +802,14 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::ForcedCompactionRevision: {
+            auto* lockedTable = LockThisImpl();
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            auto revision = hydraManager->GetAutomatonVersion().ToRevision();
+            lockedTable->SetForcedCompactionRevision(revision);
+            return true;
+        }
+
         default:
             break;
     }
@@ -737,7 +829,14 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
             if (!newValue) {
                 break;
             }
-            ConvertTo<TTableWriterConfigPtr>(newValue);
+            ConvertTo<NTabletNode::TTabletChunkWriterConfigPtr>(newValue);
+            return;
+
+        case EInternedAttributeKey::ChunkReader:
+            if (!newValue) {
+                break;
+            }
+            ConvertTo<NTabletNode::TTabletChunkReaderConfigPtr>(newValue);
             return;
 
         default:
@@ -795,86 +894,97 @@ void TTableNodeProxy::ValidateStorageParametersUpdate()
 {
     TChunkOwnerNodeProxy::ValidateStorageParametersUpdate();
 
-    const auto* node = GetThisImpl();
-    auto state = node->GetTabletState();
-    if (state != ETabletState::None && state != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change storage parameters since not all tablets are unmounted");
-    }
+    const auto* table = GetThisImpl();
+    table->ValidateAllTabletsUnmounted("Cannot change storage parameters");
+}
+
+void TTableNodeProxy::ValidateLockPossible()
+{
+    TChunkOwnerNodeProxy::ValidateLockPossible();
+
+    const auto* table = GetThisImpl();
+    table->ValidateTabletStateFixed("Cannot lock table");
+}
+
+void TTableNodeProxy::CallViaNativeClient(const TString& user, std::function<TFuture<void>(const IClientPtr&)> callback)
+{
+    const auto& connection = Bootstrap_->GetClusterConnection();
+    auto asyncPair = BIND([&] {
+            auto client = connection->CreateNativeClient(TClientOptions(user));
+            return std::make_pair(client, callback(client));
+        })
+        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Run();
+
+    auto pair = WaitFor(asyncPair)
+        .ValueOrThrow();
+    WaitFor(pair.second)
+        .ThrowOnError();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 {
-    DeclareMutating();
+    DeclareNonMutating();
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->last_tablet_index();
     auto cellId = FromProto<TTabletCellId>(request->cell_id());
     bool freeze = request->freeze();
-    auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
 
     context->SetRequestInfo(
-        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v, MountTimestamp: %v",
+        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v",
         firstTabletIndex,
         lastTabletIndex,
         cellId,
-        freeze,
-        mountTimestamp);
+        freeze);
 
-    ValidateNotExternal();
-    ValidateNoTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    TMountTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+    options.CellId = cellId;
+    options.Freeze = freeze;
 
-    TTabletCell* cell = nullptr;
-    if (cellId) {
-        cell = tabletManager->GetTabletCellOrThrow(cellId);
-    }
-
-    auto* table = LockThisImpl();
-
-    tabletManager->MountTable(
-        table,
-        firstTabletIndex,
-        lastTabletIndex,
-        cell,
-        freeze,
-        mountTimestamp);
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->MountTable(path, options);
+    });
 
     context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 {
-    DeclareMutating();
+    DeclareNonMutating();
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->last_tablet_index();
     bool force = request->force();
+
     context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %v",
         firstTabletIndex,
         lastTabletIndex,
         force);
 
-    ValidateNotExternal();
-    ValidateNoTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
 
-    auto* table = LockThisImpl();
+    TUnmountTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
+    options.Force = force;
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    tabletManager->UnmountTable(
-        table,
-        force,
-        firstTabletIndex,
-        lastTabletIndex);
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->UnmountTable(path, options);
+    });
 
     context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Freeze)
 {
-    DeclareMutating();
+    DeclareNonMutating();
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->last_tablet_index();
@@ -884,97 +994,98 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Freeze)
         firstTabletIndex,
         lastTabletIndex);
 
-    ValidateNotExternal();
-    ValidateNoTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    auto* table = LockThisImpl();
+    TFreezeTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
 
-    tabletManager->FreezeTable(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->FreezeTable(path, options);
+    });
 
     context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unfreeze)
 {
-    DeclareMutating();
+    DeclareNonMutating();
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->last_tablet_index();
+
     context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
         firstTabletIndex,
         lastTabletIndex);
 
-    ValidateNotExternal();
-    ValidateNoTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
 
-    auto* table = LockThisImpl();
+    TUnfreezeTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    tabletManager->UnfreezeTable(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->UnfreezeTable(path, options);
+    });
 
     context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Remount)
 {
-    DeclareMutating();
+    DeclareNonMutating();
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->first_tablet_index();
+
     context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
         firstTabletIndex,
         lastTabletIndex);
 
-    ValidateNotExternal();
-    ValidateNoTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
 
-    auto* table = LockThisImpl();
+    TRemountTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    tabletManager->RemountTable(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        return client->RemountTable(path, options);
+    });
 
     context->Reply();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Reshard)
 {
-    DeclareMutating();
+    DeclareNonMutating();
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->last_tablet_index();
     int tabletCount = request->tablet_count();
     auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+
     context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount: %v",
         firstTabletIndex,
         lastTabletIndex,
         tabletCount);
 
-    ValidateNotExternal();
-    ValidateNoTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto path = cypressManager->GetNodePath(this);
 
-    auto* table = LockThisImpl();
+    TReshardTableOptions options;
+    options.FirstTabletIndex = firstTabletIndex;
+    options.LastTabletIndex = lastTabletIndex;
 
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    tabletManager->ReshardTable(
-        table,
-        firstTabletIndex,
-        lastTabletIndex,
-        tabletCount,
-        pivotKeys);
+    CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {
+        if (pivotKeys.empty()) {
+            return client->ReshardTable(path, tabletCount, options);
+        } else {
+            return client->ReshardTable(path, pivotKeys, options);
+        }
+    });
 
     context->Reply();
 }
@@ -1054,57 +1165,58 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.Dynamic,
         options.UpstreamReplicaId);
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
-
-    if (table->IsReplicated()) {
-        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
-    }
-
-    if (options.Dynamic) {
-        ValidateNoTransaction();
-
-        if (*options.Dynamic && table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
-        }
-    }
-    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
-            ETabletState::Unmounted);
-    }
-
     auto dynamic = options.Dynamic.Get(table->IsDynamic());
     auto schema = options.Schema.Get(table->GetTableSchema());
-
-    if (options.UpstreamReplicaId) {
-        ValidateNoTransaction();
-
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
-        }
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
-        }
-    }
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
         schema = schema.ToUniqueKeys();
     }
 
-    ValidateTableSchemaUpdate(
-        table->GetTableSchema(),
-        schema,
-        dynamic,
-        table->IsEmpty() && !table->IsDynamic());
+    if (Bootstrap_->IsPrimaryMaster()) {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-    auto oldSharedSchema = table->SharedTableSchema();
-    auto oldSchemaMode = table->GetSchemaMode();
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+        }
+
+        if (options.Dynamic) {
+            ValidateNoTransaction();
+        }
+
+        if (options.Schema && table->IsDynamic()) {
+            table->ValidateAllTabletsUnmounted("Cannot change table schema");
+        }
+
+        if (options.UpstreamReplicaId) {
+            ValidateNoTransaction();
+
+            if (!dynamic) {
+                THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
+            }
+            if (table->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
+            }
+
+            table->ValidateAllTabletsUnmounted("Cannot change upstream replica");
+        }
+
+        ValidateTableSchemaUpdate(
+            table->GetTableSchema(),
+            schema,
+            dynamic,
+            table->IsEmpty() && !table->IsDynamic());
+
+        if (options.Dynamic) {
+            if (*options.Dynamic) {
+                tabletManager->ValidateMakeTableDynamic(table);
+            } else {
+                tabletManager->ValidateMakeTableStatic(table);
+            }
+        }
+    }
 
     if (options.Schema) {
         table->SharedTableSchema() = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry()->GetSchema(
@@ -1112,23 +1224,20 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 
-    try {
-        if (options.Dynamic) {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            if (*options.Dynamic) {
-                tabletManager->MakeTableDynamic(table);
-            } else {
-                tabletManager->MakeTableStatic(table);
-            }
+    if (options.Dynamic) {
+        if (*options.Dynamic) {
+            tabletManager->MakeTableDynamic(table);
+        } else {
+            tabletManager->MakeTableStatic(table);
         }
-    } catch (const std::exception&) {
-        table->SharedTableSchema() = std::move(oldSharedSchema);
-        table->SetSchemaMode(oldSchemaMode);
-        throw;
     }
 
     if (options.UpstreamReplicaId) {
         table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
+    }
+
+    if (table->IsExternal()) {
+        PostToMaster(context, table->GetExternalCellTag());
     }
 
     context->Reply();
@@ -1152,7 +1261,10 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 {
     TTableNodeProxy::ListSystemAttributes(descriptors);
 
+    const auto* table = GetThisImpl();
+
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
+        .SetExternal(table->IsExternal())
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
         .SetReplicated(true)
@@ -1164,9 +1276,14 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
 {
     const auto* table = GetThisImpl<TReplicatedTableNode>();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+    auto isExternal = table->IsExternal();
 
     switch (key) {
         case EInternedAttributeKey::Replicas: {
+            if (isExternal) {
+                break;
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
             BuildYsonFluently(consumer)
                 .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {

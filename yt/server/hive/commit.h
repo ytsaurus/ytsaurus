@@ -48,6 +48,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState, ECommitState::Start);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState, ECommitState::Start);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
+    DEFINE_BYVAL_RW_PROPERTY(TString, User);
 
 public:
     explicit TCommit(const TTransactionId& transactionId);
@@ -58,7 +59,8 @@ public:
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
-        NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode);
+        NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        const TString& user);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);

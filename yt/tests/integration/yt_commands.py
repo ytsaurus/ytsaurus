@@ -14,7 +14,7 @@ import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
 ###########################################################################
@@ -118,6 +118,17 @@ def prepare_parameters(parameters):
     change(parameters, "tx", "transaction_id")
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
+
+def retry(func, retry_timeout=timedelta(seconds=10), retry_interval=timedelta(milliseconds=100)):
+    now = datetime.now()
+    deadline = now + retry_timeout
+    while now < deadline:
+        try:
+            return func()
+        except:
+            time.sleep(retry_interval.total_seconds())
+            now = datetime.now()
+    return func()
 
 def execute_command(command_name, parameters, input_stream=None, output_stream=None,
                     verbose=None, verbose_error=None, ignore_result=False, return_response=False):
@@ -925,10 +936,16 @@ def remove_tablet_cell_bundle(name, driver=None):
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)
 
 def remove_tablet_cell(id, driver=None):
-    remove("//sys/tablet_cells/" + id, driver=driver)
+    remove("//sys/tablet_cells/" + id, driver=driver, force=True)
+
+def sync_remove_tablet_cells(cells, driver=None):
+    cells = __builtin__.set(cells)
+    for id in cells:
+        remove_tablet_cell(id, driver=driver)
+    wait(lambda: len(cells.intersection(__builtin__.set(get("//sys/tablet_cells", driver=driver)))) == 0)
 
 def remove_tablet_action(id, driver=None):
-    remove("//sys/tablet_actions/" + id, driver=driver)
+    remove("#" + id, driver=driver)
 
 def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["type"] = "table_replica"
@@ -1214,15 +1231,18 @@ def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
 def wait_until_sealed(path, driver=None):
     wait(lambda: get(path + "/@sealed", driver=driver))
 
-def wait_for_tablet_state(path, state_or_states, **kwargs):
-    states = [state_or_states] if isinstance(state_or_states, str) else state_or_states
-    print >>sys.stderr, "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
+def wait_for_tablet_state(path, state, **kwargs):
+    print >>sys.stderr, "Waiting for tablets to become %s..." % (state)
     driver = kwargs.pop("driver", None)
-    tablet_count = get(path + '/@tablet_count', driver=driver)
-    first_tablet_index = kwargs.get("first_tablet_index", 0)
-    last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
-    wait(lambda: all(x["state"] in states for x in
-         get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
+    if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
+        wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
+    else:
+        tablet_count = get(path + "/@tablet_count", driver=driver)
+        first_tablet_index = kwargs.get("first_tablet_index", 0)
+        last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
+        wait(lambda: all(x["state"] == state for x in
+             get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
+        wait(lambda: get(path + "/@tablet_state") != "transient")
 
 def sync_mount_table(path, freeze=False, **kwargs):
     mount_table(path, freeze=freeze, **kwargs)
@@ -1240,6 +1260,10 @@ def sync_unfreeze_table(path, **kwargs):
     unfreeze_table(path, **kwargs)
     wait_for_tablet_state(path, "mounted", **kwargs)
 
+def sync_reshard_table(path, *args, **kwargs):
+    reshard_table(path, *args, **kwargs)
+    wait(lambda: get(path + "/@tablet_state") != "transient")
+
 def sync_flush_table(path, driver=None):
     sync_freeze_table(path, driver=driver)
     sync_unfreeze_table(path, driver=driver)
@@ -1247,8 +1271,7 @@ def sync_flush_table(path, driver=None):
 def sync_compact_table(path, driver=None):
     chunk_ids = __builtin__.set(get(path + "/@chunk_ids", driver=driver))
     sync_unmount_table(path, driver=driver)
-    revision = get("//sys/@current_commit_revision", driver=driver)
-    set(path + "/@forced_compaction_revision", revision, driver=driver)
+    set(path + "/@forced_compaction_revision", 1, driver=driver)
     sync_mount_table(path, driver=driver)
 
     print >>sys.stderr, "Waiting for tablets to become compacted..."
@@ -1273,3 +1296,12 @@ def sync_disable_table_replica(replica_id, driver=None):
 
     print >>sys.stderr, "Waiting for replica to become disabled..."
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
+
+def create_table_with_attributes(path, **attributes):
+    create("table", path, attributes=attributes)
+
+def create_dynamic_table(path, **attributes):
+    if "dynamic" not in attributes:
+        attributes.update({"dynamic": True})
+    create_table_with_attributes(path, **attributes)
+

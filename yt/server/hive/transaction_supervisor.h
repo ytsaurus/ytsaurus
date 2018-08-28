@@ -4,6 +4,8 @@
 
 #include <yt/server/hydra/public.h>
 
+#include <yt/server/security_server/public.h>
+
 #include <yt/core/actions/public.h>
 
 #include <yt/core/rpc/public.h>
@@ -25,6 +27,7 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
+        NSecurityServer::ISecurityManagerPtr securityManager,
         const TCellId& selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders);
@@ -35,6 +38,7 @@ public:
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
+        const TString& user,
         const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
 
     TFuture<void> AbortTransaction(

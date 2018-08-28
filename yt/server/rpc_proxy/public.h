@@ -10,6 +10,10 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBootstrap;
+
+DECLARE_REFCOUNTED_CLASS(TCellProxyConfig)
+
 DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 
 DECLARE_REFCOUNTED_CLASS(TApiServiceConfig)

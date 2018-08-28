@@ -175,6 +175,16 @@ public:
         Underlying_->SetWriteDeadline(deadline);
     }
 
+    virtual bool SetNoDelay() override
+    {
+        return Underlying_->SetNoDelay();
+    }
+
+    virtual bool SetKeepAlive() override
+    {
+        return Underlying_->SetKeepAlive();
+    }
+
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         auto promise = NewPromise<size_t>();
