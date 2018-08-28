@@ -15,7 +15,6 @@
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
     XX(Annotations, annotations) \
-    XX(Version, version) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
     XX(Available, available) \
@@ -270,6 +269,7 @@
     XX(UserTags, user_tags) \
     XX(Value, value) \
     XX(ValueCount, value_count) \
+    XX(Version, version) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
     XX(WeakRefCounter, weak_ref_counter) \
