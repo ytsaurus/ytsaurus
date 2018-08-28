@@ -273,7 +273,7 @@ public:
     // Agent must have at least #MinAgentAvailableMemory free memory to serve new operation.
     i64 MinAgentAvailableMemory;
 
-    // Must be at least #MinAgentCount controller agent for successfull assignment agent to waiting operation.
+    // Must be at least #MinAgentCount controller agent for successful assignment agent to waiting operation.
     int MinAgentCount;
 
     TControllerAgentTrackerConfig();
