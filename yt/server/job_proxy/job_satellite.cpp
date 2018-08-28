@@ -534,13 +534,16 @@ void RunJobSatellite(
 
         siginfo_t processInfo;
         memset(&processInfo, 0, sizeof(siginfo_t));
-        {
+        try {
             auto jobSatellite = New<TJobSatellite>(config, pid, uid, env, TJobId::FromString(jobId));
             jobSatellite->Run();
 
             YCHECK(HandleEintr(::waitid, P_PID, pid, &processInfo, WEXITED) == 0);
 
             jobSatellite->Stop(ProcessInfoToError(processInfo));
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Exception thrown during job satellite functioning");
+            _exit(1);
         }
         LOG_DEBUG("User process finished (Pid: %v, Status: %v)",
             pid,
