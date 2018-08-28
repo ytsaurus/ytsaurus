@@ -465,17 +465,11 @@ def package(options, build_context):
 
 
             build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
-            run(
-                [
+            run([
                     build_python_packages,
                     "--install-dir", get_bin_dir(options),
                     "--output-dir", artifacts_dir
-                ],
-                env={
-                    "SKIP_WHEEL": "1",
-                    "SKIP_DUPLOAD": "1",
-                }
-            )
+            ])
 
 
 @build_step
