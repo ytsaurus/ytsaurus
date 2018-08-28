@@ -91,7 +91,7 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     for (int i = 0; i < maxCurrentIndexRecords; ++i) {
         Index_[i].FilePosition = -1;
         Index_[i].RecordId = -1;
-        Index_[i].Padding = -1;
+        Index_[i].Padding = 0;
     }
 }
 

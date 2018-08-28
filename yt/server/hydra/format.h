@@ -13,7 +13,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 4)
+#pragma pack(push, 1)
 
 struct TChangelogHeader
 {
@@ -29,12 +29,13 @@ struct TChangelogHeader
     i32 HeaderSize; // with padding
     i32 MetaSize;
     i32 TruncatedRecordCount;
-    i32 Padding = 0;
+    i32 PaddingSize;
 
     TChangelogHeader()
         : Signature(-1)
         , HeaderSize(-1)
         , MetaSize(-1)
+        , PaddingSize(-1)
     { }
 
     TChangelogHeader(
@@ -45,7 +46,7 @@ struct TChangelogHeader
         , HeaderSize(::AlignUp<size_t>(sizeof(TChangelogHeader) + metaSize, alignment))
         , MetaSize(metaSize)
         , TruncatedRecordCount(sealedRecordCount)
-        , Padding(HeaderSize - sizeof(TChangelogHeader) - metaSize)
+        , PaddingSize(HeaderSize - sizeof(TChangelogHeader) - metaSize)
     { }
 };
 
@@ -58,24 +59,24 @@ struct TChangelogRecordHeader
     i32 RecordId;
     i32 DataSize;
     TChecksum Checksum;
-    i32 Padding;
+    i32 PaddingSize;
 
     TChangelogRecordHeader()
         : RecordId(-1)
         , DataSize(-1)
         , Checksum(0)
-        , Padding(0)
+        , PaddingSize(-1)
     { }
 
     TChangelogRecordHeader(
         int recordIndex,
         int dataLength,
         TChecksum checksum,
-        int padding)
+        int paddingSize)
         : RecordId(recordIndex)
         , DataSize(dataLength)
         , Checksum(checksum)
-        , Padding(padding)
+        , PaddingSize(paddingSize)
     { }
 };
 
@@ -92,7 +93,7 @@ struct TChangelogIndexHeader
 
     ui64 Signature;
     i32 IndexRecordCount;
-    i32 Padding;
+    ui32 Padding = 0;
 
     TChangelogIndexHeader()
         : Signature(0)
@@ -113,19 +114,17 @@ struct TChangelogIndexRecord
 {
     i64 FilePosition;
     i32 RecordId;
-    i32 Padding;
+    ui32 Padding = 0;
 
     //! This initializer is only needed to read TLogIndexRecord.
     TChangelogIndexRecord()
         : FilePosition(-1)
         , RecordId(-1)
-        , Padding(0)
     { }
 
     TChangelogIndexRecord(int recordIndex, i64 filePosition)
         : FilePosition(filePosition)
         , RecordId(recordIndex)
-        , Padding(0)
     { }
 };
 
@@ -143,6 +142,7 @@ struct TSnapshotHeader
     ui64 UncompressedLength = 0;
     ui64 Checksum = 0;
     NCompression::ECodec Codec = NCompression::ECodec::None;
+    ui8 Padding[3] = {};
     i32 MetaSize = 0;
 };
 
