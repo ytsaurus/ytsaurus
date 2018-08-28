@@ -135,7 +135,7 @@ union TUnversionedValueData;
 
 enum class EValueType : ui8;
 
-struct TColumnFilter;
+class TColumnFilter;
 
 struct TUnversionedValue;
 struct TVersionedValue;

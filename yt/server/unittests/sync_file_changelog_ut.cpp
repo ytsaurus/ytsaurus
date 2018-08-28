@@ -350,7 +350,7 @@ TEST_F(TSyncFileChangelogTest, Padding)
         EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
         EXPECT_EQ(header.RecordId, 0);
         EXPECT_EQ(header.DataSize, record.Size());
-        EXPECT_EQ(header.Padding, paddingSize);
+        EXPECT_EQ(header.PaddingSize, paddingSize);
 
         record = TSharedMutableRef::Allocate(alignment - 2 * sizeof(header), false);
         changelog->Append(1, {record});
@@ -363,7 +363,7 @@ TEST_F(TSyncFileChangelogTest, Padding)
         EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
         EXPECT_EQ(header.RecordId, 1);
         EXPECT_EQ(header.DataSize, record.Size());
-        EXPECT_EQ(header.Padding, paddingSize);
+        EXPECT_EQ(header.PaddingSize, paddingSize);
 
         changelog->Append(2, {record});
         changelog->Flush();

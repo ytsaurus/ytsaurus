@@ -463,6 +463,15 @@ def package(options, build_context):
                     args += ya_make_args(options)
                     run(args, env=ya_make_env(options))
 
+
+            build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
+            run([
+                    build_python_packages,
+                    "--install-dir", get_bin_dir(options),
+                    "--output-dir", artifacts_dir
+            ])
+
+
 @build_step
 def run_prepare_node_modules(options, build_context):
     nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")

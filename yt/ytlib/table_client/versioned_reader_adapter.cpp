@@ -133,15 +133,18 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
     TTimestamp timestamp)
 {
     TColumnFilter filter;
+    if (!columnFilter.IsUniversal()) {
+        TColumnFilter::TIndexes columnFilterIndexes;
 
-    if (!columnFilter.All) {
-        filter = TColumnFilter(schema.GetKeyColumnCount());
-
-        for (int index : columnFilter.Indexes) {
+        for (int i = 0; i < schema.GetKeyColumnCount(); ++i) {
+            columnFilterIndexes.push_back(i);
+        }
+        for (int index : columnFilter.GetIndexes()) {
             if (index >= schema.GetKeyColumnCount()) {
-                filter.Indexes.push_back(index);
+                columnFilterIndexes.push_back(index);
             }
         }
+        filter = TColumnFilter(std::move(columnFilterIndexes));
     }
 
     auto reader = createReader(schema, filter);

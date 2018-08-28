@@ -301,7 +301,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::Dynamic:
             BuildYsonFluently(consumer)
-                .Value(table->IsDynamic());
+                .Value(trunkTable->IsDynamic());
             return true;
 
         case EInternedAttributeKey::TabletCount:

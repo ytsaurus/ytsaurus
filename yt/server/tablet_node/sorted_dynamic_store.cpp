@@ -180,13 +180,13 @@ public:
         , ColumnLockCount_(Store_->ColumnLockCount_)
         , Pool_(TSortedDynamicStoreReaderPoolTag(), ReaderPoolSize)
     {
-        YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
+        YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.IsUniversal());
 
-        if (columnFilter.All) {
+        if (columnFilter.IsUniversal()) {
             LockMask_ = TSortedDynamicRow::AllLocksMask;
         } else {
             LockMask_ = TSortedDynamicRow::PrimaryLockMask;
-            for (int columnIndex : columnFilter.Indexes) {
+            for (int columnIndex : columnFilter.GetIndexes()) {
                 int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
                 LockMask_ |= (1U << lockIndex);
             }
@@ -288,12 +288,12 @@ protected:
             }
         };
 
-        if (ColumnFilter_.All) {
+        if (ColumnFilter_.IsUniversal()) {
             for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
                 fillValue(index);
             }
         } else {
-            for (int index : ColumnFilter_.Indexes) {
+            for (int index : ColumnFilter_.GetIndexes()) {
                 if (index >= KeyColumnCount_) {
                     fillValue(index);
                 }

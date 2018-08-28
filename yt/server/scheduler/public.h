@@ -114,6 +114,7 @@ DEFINE_ENUM(EOperationAlertType,
     (LowCpuUsage)
     (OperationTooLong)
     (OperationPending)
+    (OperationCompletedByUserRequest)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

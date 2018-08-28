@@ -100,7 +100,7 @@ public:
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
-    //! If update of preemtable lists of operation takes more than that duration
+    //! If update of preemptable lists of operation takes more than that duration
     //! then this event will be logged.
     TDuration UpdatePreemptableListDurationLoggingThreshold;
 
@@ -150,6 +150,9 @@ public:
 
     //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
     int OperationUnschedulableMinScheduleJobAttempts;
+
+    //! List of operation types, which have disabled tentative pool trees option.
+    THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
 
     TFairShareStrategyConfig();
 };
