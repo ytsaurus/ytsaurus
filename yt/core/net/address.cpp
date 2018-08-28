@@ -980,28 +980,30 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
         return CachedLocalAddresses_;
     }
 
+    std::vector<TNetworkAddress> localAddresses;
+
     struct ifaddrs* ifAddresses;
     if (getifaddrs(&ifAddresses) == -1) {
-         THROW_ERROR_EXCEPTION("getifaddrs failed")
-             << TError::FromSystem();
-    }
+        auto error = TError("getifaddrs failed")
+            << TError::FromSystem();
+        LOG_WARNING(error, "Failed to initialize local addresses");
+    } else {
+        auto holder = std::unique_ptr<ifaddrs, decltype(&freeifaddrs)>(ifAddresses, &freeifaddrs);
 
-    auto holder = std::unique_ptr<ifaddrs, decltype(&freeifaddrs)>(ifAddresses, &freeifaddrs);
+        for (const auto* currentAddress = ifAddresses;
+            currentAddress;
+            currentAddress = currentAddress->ifa_next)
+        {
+            if (currentAddress->ifa_addr == nullptr) {
+                continue;
+            }
 
-    std::vector<TNetworkAddress> localAddresses;
-    for (const auto* currentAddress = ifAddresses;
-        currentAddress;
-        currentAddress = currentAddress->ifa_next)
-    {
-        if (currentAddress->ifa_addr == nullptr) {
-            continue;
+            auto family = currentAddress->ifa_addr->sa_family;
+            if (family != AF_INET && family != AF_INET6) {
+                continue;
+            }
+            localAddresses.push_back(TNetworkAddress(*currentAddress->ifa_addr));
         }
-
-        auto family = currentAddress->ifa_addr->sa_family;
-        if (family != AF_INET && family != AF_INET6) {
-            continue;
-        }
-        localAddresses.push_back(TNetworkAddress(*currentAddress->ifa_addr));
     }
 
     {
