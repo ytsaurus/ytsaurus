@@ -118,6 +118,7 @@ def ya_make_env(options):
 def ya_make_definition_args(options):
     # This args cannot be passed to ya package.
     return [
+        "-DYT_ENABLE_GDB_INDEX",
         "-DYT_VERSION_PATCH={0}".format(options.patch_number),
         "-DYT_VERSION_BRANCH={0}".format(options.branch),
     ]
