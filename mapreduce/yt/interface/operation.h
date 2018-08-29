@@ -1071,10 +1071,15 @@ struct IOperation
 
     //
     // Abort operation.
+    // Operation will be finished immediately.
+    // All results of completed/running jobs will be lost.
     virtual void AbortOperation() = 0;
 
     //
     // Complete operation.
+    // Operation will be finished immediately.
+    // All results of completed jobs will appear in output tables.
+    // All results of running (not completed) jobs will be lost.
     virtual void CompleteOperation() = 0;
 
     //
