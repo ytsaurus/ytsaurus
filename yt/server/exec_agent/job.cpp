@@ -1291,10 +1291,6 @@ private:
                 !resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) &&
                 schedulerResultExt.failed_chunk_ids_size() > 0)
             {
-
-            }
-
-            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
                 return EAbortReason::FailedChunks;
             }
         }
