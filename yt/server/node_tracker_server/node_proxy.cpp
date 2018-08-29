@@ -77,7 +77,8 @@ private:
             .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::Tags);
         descriptors->push_back(EInternedAttributeKey::LastSeenTime);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Annotations));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Annotations)
+            .SetPresent(static_cast<bool>(node->GetAnnotations())));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Version));
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RegisterTime)
@@ -167,12 +168,12 @@ private:
             }
 
             case EInternedAttributeKey::Annotations: {
-                if (node->GetAnnotations()) {
-                    BuildYsonFluently(consumer)
-                        .Value(node->GetAnnotations());
-                } else {
-                    consumer->OnEntity();
+                if (!node->GetAnnotations()) {
+                    break;
                 }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->GetAnnotations());
                 return true;
             }
 
