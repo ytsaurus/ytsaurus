@@ -137,7 +137,7 @@ public:
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
-        const TString& user,
+        const TString& userName,
         const std::vector<TCellId>& participantCellIds)
     {
         return MessageToError(
@@ -149,7 +149,7 @@ public:
                 false,
                 ETransactionCoordinatorCommitMode::Eager,
                 NullMutationId,
-                user));
+                userName));
     }
 
     TFuture<void> AbortTransaction(
@@ -251,14 +251,14 @@ private:
                     transactionId = commit->GetTransactionId(),
                     generatePrepareTimestamp = commit->GetGeneratePrepareTimestamp(),
                     inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
-                    user = commit->GetUser()
+                    userName = commit->GetUserName()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
                         participant,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp);
-                    return participant->PrepareTransaction(transactionId, prepareTimestamp, user);
+                    return participant->PrepareTransaction(transactionId, prepareTimestamp, userName);
                 });
         }
 
@@ -710,7 +710,7 @@ private:
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         const TMutationId& mutationId,
-        const TString& user)
+        const TString& userName)
     {
         YCHECK(!HasMutationContext());
 
@@ -728,7 +728,7 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
-            user);
+            userName);
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -748,15 +748,15 @@ private:
 
         const auto& transactionId = commit->GetTransactionId();
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
-
         try {
             // Any exception thrown here is replied to the client.
             auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUserName());
             TransactionManager_->PrepareTransactionCommit(transactionId, false, prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v)",
-                transactionId);
+            LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, User: %v)",
+                transactionId,
+                commit->GetUserName());
             SetCommitFailed(commit, ex);
             RemoveTransientCommit(commit);
             // Best effort, fire-and-forget.
@@ -783,7 +783,7 @@ private:
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         request.set_coordinator_commit_mode(static_cast<int>(commit->GetCoordinatorCommitMode()));
         request.set_prepare_timestamp(prepareTimestamp);
-        request.set_user_name(commit->GetUser());
+        request.set_user_name(commit->GetUserName());
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
     }
@@ -792,7 +792,7 @@ private:
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
         bool force,
-        const TString& user)
+        const TString& userName)
     {
         YCHECK(!HasMutationContext());
 
@@ -807,15 +807,15 @@ private:
         // Abort instance may die below.
         auto asyncResponseMessage = abort->GetAsyncResponseMessage();
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
-
         try {
             // Any exception thrown here is caught below..
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v)",
+            LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v, User: %v)",
                 transactionId,
-                force);
+                force,
+                userName);
             SetAbortFailed(abort, ex);
             RemoveAbort(abort);
             return asyncResponseMessage;
@@ -879,7 +879,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
-        const auto& user = request->user_name();
+        const auto& userName = request->user_name();
 
         auto* commit = FindCommit(transactionId);
 
@@ -894,11 +894,10 @@ private:
             commit->CommitTimestamps() = commitTimestamps;
         }
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
-
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             if (commit) {
@@ -921,7 +920,7 @@ private:
                 true,
                 false,
                 ETransactionCoordinatorCommitMode::Eager,
-                user);
+                userName);
             commit->CommitTimestamps() = commitTimestamps;
         }
 
@@ -938,7 +937,7 @@ private:
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
-        const auto& user = request->user_name();
+        const auto& userName = request->user_name();
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
@@ -949,7 +948,7 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordindatorCommitMode,
-            user);
+            userName);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
@@ -961,27 +960,29 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase one started (TransactionId: %v, User: %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
             transactionId,
-            commit->GetUser(),
+            commit->GetUserName(),
             participantCellIds,
             prepareTimestamp);
-
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
 
         // Prepare at coordinator.
         try {
             // Any exception thrown here is caught below.
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                ECommitState::Prepare);
+                ECommitState::Prepare,
+                userName);
             SetCommitFailed(commit, ex);
             RemovePersistentCommit(commit);
             try {
+                TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
                 TransactionManager_->AbortTransaction(transactionId, true);
             } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v)",
-                    transactionId);
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, User: %v)",
+                    transactionId,
+                    userName);
             }
             return;
         }
@@ -1024,8 +1025,6 @@ private:
             return;
         }
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
-
         commit->CommitTimestamps() = commitTimestamps;
         ChangeCommitPersistentState(commit, ECommitState::Commit);
         ChangeCommitTransientState(commit, ECommitState::Commit);
@@ -1059,24 +1058,25 @@ private:
             return;
         }
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
-
         try {
             // Any exception thrown here is caught below.
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUserName());
             TransactionManager_->AbortTransaction(transactionId, true);
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                ECommitState::Abort);
+                ECommitState::Abort,
+                commit->GetUserName());
         }
 
         SetCommitFailed(commit, error);
         ChangeCommitPersistentState(commit, ECommitState::Abort);
         ChangeCommitTransientState(commit, ECommitState::Abort);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator aborted (TransactionId: %v, State: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator aborted (TransactionId: %v, State: %v, User: %v)",
             transactionId,
-            ECommitState::Abort);
+            ECommitState::Abort,
+            commit->GetUserName());
     }
 
     void HydraCoordinatorAbortTransaction(NHiveServer::NProto::TReqCoordinatorAbortTransaction* request)
@@ -1128,8 +1128,6 @@ private:
             return;
         }
 
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUser());
-
         // TODO(babenko): think about a better way of distinguishing between successful and failed commits
         if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy &&
             !commit->CommitTimestamps().Timestamps.empty())
@@ -1147,68 +1145,73 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
-        const auto& user = request->user_name();
-
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
+        const auto& userName = request->user_name();
 
         try {
             // Any exception thrown here is caught below.
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                ECommitState::Prepare);
+                ECommitState::Prepare,
+                userName);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
             transactionId,
-            ECommitState::Prepare);
+            ECommitState::Prepare,
+            userName);
     }
 
     void HydraParticipantCommitTransaction(NHiveServer::NProto::TReqParticipantCommitTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
-        const auto& user = request->user_name();
-
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
+        const auto& userName = request->user_name();
 
         try {
             // Any exception thrown here is caught below.
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                ECommitState::Commit);
+                ECommitState::Commit,
+                userName);
             throw;
+            //FIXME
+
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
             transactionId,
-            ECommitState::Commit);
+            ECommitState::Commit,
+            userName);
     }
 
     void HydraParticipantAbortTransaction(NHiveServer::NProto::TReqParticipantAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        const auto& user = request->user_name();
-
-        TAuthenticatedUserGuardBase userGuard(SecurityManager_, user);
+        const auto& userName = request->user_name();
 
         try {
             // Any exception thrown here is caught below.
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->AbortTransaction(transactionId, true);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                ECommitState::Abort);
+                ECommitState::Abort,
+                userName);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
             transactionId,
-            ECommitState::Abort);
+            ECommitState::Abort,
+            userName);
     }
 
 
@@ -1241,7 +1244,7 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const TString& user)
+        const TString& userName)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
@@ -1251,7 +1254,7 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
-            user);
+            userName);
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
@@ -1263,7 +1266,7 @@ private:
         bool generatePrepareTimstamp,
         bool inheritCommitTimstamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const TString& user)
+        const TString& userName)
     {
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
@@ -1279,7 +1282,7 @@ private:
                 generatePrepareTimstamp,
                 inheritCommitTimstamp,
                 coordinatorCommitMode,
-                user);
+                userName);
         }
         commitHolder->SetPersistent(true);
         return PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1334,21 +1337,26 @@ private:
 
     void RunCoordinatorCommit(TCommit* commit)
     {
+        YCHECK(HasMutationContext());
+
         const auto& transactionId = commit->GetTransactionId();
         SetCommitSucceeded(commit);
 
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
+            TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUserName());
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                commit->GetPersistentState());
+                commit->GetPersistentState(),
+                commit->GetUserName());
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
-                commit->GetPersistentState());
+                commit->GetPersistentState(),
+                commit->GetUserName());
         }
     }
 
@@ -1493,7 +1501,7 @@ private:
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
-            request.set_user_name(commit->GetUser());
+            request.set_user_name(commit->GetUserName());
             CreateMutation(HydraManager_, request)
                 ->CommitAndLog(Logger);
         }
@@ -1907,12 +1915,12 @@ std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(
     const TTransactionId& transactionId,
-    const TString& user,
+    const TString& userName,
     const std::vector<TCellId>& participantCellIds)
 {
     return Impl_->CommitTransaction(
         transactionId,
-        user,
+        userName,
         participantCellIds);
 }
 
