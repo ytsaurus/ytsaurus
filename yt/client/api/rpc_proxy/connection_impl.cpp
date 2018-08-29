@@ -92,7 +92,8 @@ std::vector<TString> GetRpcProxiesFromHttp(
     auto rsp = WaitFor(client->Get(path, headers))
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::OK) {
-        THROW_ERROR_EXCEPTION("HTTP proxy discovery failed with code %v", rsp->GetStatusCode())
+        THROW_ERROR_EXCEPTION("HTTP proxy discovery request returned an error")
+            << TErrorAttribute("status_code", rsp->GetStatusCode())
             << ParseYTError(rsp);
     }
 
