@@ -79,7 +79,22 @@ message TReqThrottleBandwidth
 }
 
 message TRspThrottleBandwidth
-{ }
+{
+    // If request_id is not returned, then request is fulfilled immediately.
+    optional NYT.NProto.TGuid throttling_request_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPollThrottlingRequest
+{
+    optional NYT.NProto.TGuid throttling_request_id = 1;
+}
+
+message TRspPollThrottlingRequest
+{
+    required bool completed = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

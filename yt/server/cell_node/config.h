@@ -115,7 +115,7 @@ public:
     TResourceLimitsConfigPtr ResourceLimits;
 
     //! Timeout for RPC query in JobBandwidthThrottler.
-    TDuration JobBandwidthThrottlerRpcTimeout;
+    NJobProxy::TJobThrottlerConfigPtr JobThrottler;
 
     i64 FootprintMemorySize;
 
@@ -148,8 +148,8 @@ public:
             .Default();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
-        RegisterParameter("job_bandwidth_throttler_rpc_timeout", JobBandwidthThrottlerRpcTimeout)
-            .Default(TDuration::Minutes(15));
+        RegisterParameter("job_throttler", JobThrottler)
+            .DefaultNew();
 
         RegisterParameter("footprint_memory_size", FootprintMemorySize)
             .Default(1_GB)

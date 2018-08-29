@@ -12,6 +12,7 @@ namespace NJobProxy {
 class TUserJobWriteController;
 
 DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
+DECLARE_REFCOUNTED_CLASS(TJobThrottlerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IJob)
 DECLARE_REFCOUNTED_STRUCT(IJobHost)
