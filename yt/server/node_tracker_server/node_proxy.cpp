@@ -167,8 +167,12 @@ private:
             }
 
             case EInternedAttributeKey::Annotations: {
-                BuildYsonFluently(consumer)
-                    .Value(node->GetAnnotations());
+                if (node->GetAnnotations()) {
+                    BuildYsonFluently(consumer)
+                        .Value(node->GetAnnotations());
+                } else {
+                    consumer->OnEntity();
+                }
                 return true;
             }
 
