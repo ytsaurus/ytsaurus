@@ -551,7 +551,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
-        auto adjustedColumnFilter = columnFilter.All
+        auto adjustedColumnFilter = columnFilter.IsUniversal()
             ? CreateColumnFilter(dataSource.Columns(), nameTable)
             : columnFilter;
 

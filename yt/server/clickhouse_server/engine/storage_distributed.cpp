@@ -204,7 +204,7 @@ BlockInputStreamPtr TStorageDistributed::CreateRemoteStream(
 {
     std::string query = queryToString(queryAst);
 
-    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, {}, processedStage).getSampleBlock());
+    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, Names{}, processedStage).getSampleBlock());
 
     auto stream = std::make_shared<RemoteBlockInputStream>(
         remoteNode->GetConnection(),

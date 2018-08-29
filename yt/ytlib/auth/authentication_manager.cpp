@@ -75,6 +75,7 @@ public:
         IClientPtr client)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
+        std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
         auto authenticators = CreateAuthenticators(config, invoker, client);
         if (std::get<0>(authenticators)) {
