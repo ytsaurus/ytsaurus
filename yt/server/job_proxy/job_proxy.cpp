@@ -478,20 +478,20 @@ TJobResult TJobProxy::DoRun()
         RetrieveJobSpec();
 
         // Disable throttling when timeout is 0.
-        if (Config_->BandwidthThrottlerRpcTimeout != TDuration::Zero()) {
+        if (Config_->JobThrottler) {
             LOG_DEBUG("Job throttling enabled");
 
             InThrottler_ = CreateInJobBandwidthThrottler(
+                Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
-                JobId_,
-                Config_->BandwidthThrottlerRpcTimeout);
+                JobId_);
 
             OutThrottler_ = CreateOutJobBandwidthThrottler(
+                Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
-                JobId_,
-                Config_->BandwidthThrottlerRpcTimeout);
+                JobId_);
         } else {
             LOG_DEBUG("Job throttling disabled");
 
