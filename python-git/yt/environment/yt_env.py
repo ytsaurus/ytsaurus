@@ -939,7 +939,7 @@ class YTInstance(object):
                         if client.get(orchid_path + "/scheduler/connected"):
                             active_scheduler_orchid_path = orchid_path
                     except YtError as err:
-                        if not err.is_resolve_error():
+                        if not (isinstance(err, YtResponseError) and err.is_resolve_error()):
                             raise
 
                 if active_scheduler_orchid_path is None:
