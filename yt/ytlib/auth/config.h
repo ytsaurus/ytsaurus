@@ -110,7 +110,12 @@ class TBlackboxCookieAuthenticatorConfig
 {
 public:
     TBlackboxCookieAuthenticatorConfig()
-    { }
+    {
+        RegisterParameter("domain", Domain)
+            .Default("yt.yandex-team.ru");
+    }
+
+    TString Domain;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
