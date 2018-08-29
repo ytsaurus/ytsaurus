@@ -4,11 +4,13 @@
 #include "supervisor_service_proxy.h"
 
 #include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
 #include <yt/server/job_agent/job_controller.h>
 #include <yt/server/job_agent/public.h>
 
 #include <yt/server/job_proxy/job_bandwidth_throttler.h>
+#include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -44,6 +46,9 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleBandwidth)
+       .SetMaxQueueSize(5000)
+       .SetMaxConcurrency(5000));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PollThrottlingRequest)
        .SetMaxQueueSize(5000)
        .SetMaxConcurrency(5000));
 }
@@ -195,10 +200,54 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleBandwidth)
             Y_UNREACHABLE();
     }
 
-    WaitFor(throttler->Throttle(byteCount))
-        .ThrowOnError();
+    auto future = throttler->Throttle(byteCount);
+    if (!future.IsSet()) {
+        auto throttlingRequestId = TGuid::Create();
+        OutstandingThrottlingRequests_.insert(std::make_pair(throttlingRequestId, future));
+
+        // Remove future from outstanding requests after it was set + timeout.
+        future.Subscribe(BIND([throttlingRequestId, this, this_ = MakeStrong(this)] (const TError& /* error */) {
+            TDelayedExecutor::Submit(BIND([throttlingRequestId, this, this_] () {
+                    const auto& Logger = ExecAgentLogger;
+
+                    LOG_DEBUG("Evict outstanding throttling request (ThrottlingRequestId: %v)", throttlingRequestId);
+                    YCHECK(this_->OutstandingThrottlingRequests_.erase(throttlingRequestId) == 1);
+                }).Via(this_->Bootstrap->GetControlInvoker()),
+                Bootstrap->GetConfig()->JobThrottler->MaxBackoffTime * 2);
+        }));
+
+        ToProto(response->mutable_throttling_request_id(), throttlingRequestId);
+        context->SetResponseInfo("ThrottlingRequestId: %v", throttlingRequestId);
+    } else {
+        future
+            .Get()
+            .ThrowOnError();
+    }
 
     context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, PollThrottlingRequest)
+{
+    auto throttlingRequestId = FromProto<TGuid>(request->throttling_request_id());
+
+    context->SetRequestInfo("ThrottlingRequestId: %v", throttlingRequestId);
+
+    auto it = OutstandingThrottlingRequests_.find(throttlingRequestId);
+    if (it == OutstandingThrottlingRequests_.end()) {
+        context->Reply(TError("Unknown throttling request") << TErrorAttribute("throttling_request_id", throttlingRequestId));
+    } else {
+        response->set_completed(it->second.IsSet());
+        context->SetResponseInfo("Completed: %v", response->completed());
+        if (response->completed()) {
+            it->second
+                .Get()
+                .ThrowOnError();
+        }
+    }
+
+    context->Reply();
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
