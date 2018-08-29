@@ -354,7 +354,7 @@ class TCookieAuthenticatorTest
 {
 protected:
     TCookieAuthenticatorTest()
-        : Config_(New<TBlackboxCookieAuthenticatorConfig>())
+        : Config_(CreateBlackboxCookieAuthenticatorConfig())
         , Blackbox_(New<TMockBlackboxService>())
         , Authenticator_(CreateBlackboxCookieAuthenticator(Config_, Blackbox_))
     { }
@@ -368,13 +368,11 @@ protected:
     TFuture<TAuthenticationResult> Authenticate(
         const TString& sessionId,
         const TString& sslSessionId,
-        const TString& domain,
         const TString& userIP)
     {
         TCookieCredentials credentials;
         credentials.SessionId = sessionId;
         credentials.SslSessionId = sslSessionId;
-        credentials.Domain = domain;
         credentials.UserIP = NNet::TNetworkAddress::Parse(userIP);
         return Authenticator_->Authenticate(credentials);
     }
@@ -383,13 +381,20 @@ protected:
     TBlackboxCookieAuthenticatorConfigPtr Config_;
     TIntrusivePtr<TMockBlackboxService> Blackbox_;
     TIntrusivePtr<ICookieAuthenticator> Authenticator_;
+
+    static TBlackboxCookieAuthenticatorConfigPtr CreateBlackboxCookieAuthenticatorConfig()
+    {
+        auto config = New<TBlackboxCookieAuthenticatorConfig>();
+        config->Domain = "myhost";
+        return config;
+    }
 };
 
 TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("sessionid", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Underlying failure"));
 }
@@ -397,7 +402,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse1)
 {
     MockCall("{}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("invalid response"));
 }
@@ -405,7 +410,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse1)
 TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse2)
 {
     MockCall("{status={id=0}}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AllOf(
         HasSubstr("invalid response"),
@@ -415,7 +420,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse2)
 TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 {
     MockCall("{status={id=5}}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("rejected session cookie"));
 }
@@ -423,7 +428,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 TEST_F(TCookieAuthenticatorTest, Success)
 {
     MockCall("{status={id=0};login=sandello}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);
