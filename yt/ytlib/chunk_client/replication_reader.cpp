@@ -1119,6 +1119,7 @@ private:
             ToProto(req->mutable_chunk_id(), reader->ChunkId_);
             ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
             ToProto(req->mutable_block_indexes(), blockIndexes);
+            req->SetRequestAck(false);
 
             probePeers.push_back(peer);
             asyncResults.push_back(req->Invoke());
