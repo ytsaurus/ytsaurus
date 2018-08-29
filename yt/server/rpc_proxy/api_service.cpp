@@ -401,6 +401,22 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperation));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StraceJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
@@ -414,6 +430,13 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMember));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
 
         if (!Bootstrap_->GetConfig()->RequireAuthentication) {
             GetOrCreateClient(NSecurityClient::RootUserName);
@@ -1648,6 +1671,351 @@ private:
             client->AlterTableReplica(replicaId, options));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartOperation)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+        auto type = NYT::NApi::NRpcProxy::NProto::ConvertOperationTypeFromProto(request->type());
+        auto spec = TYsonString(request->spec());
+
+        TStartOperationOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("OperationType: %v, Spec: %v",
+            type,
+            spec);
+
+        CompleteCallWith(
+            context,
+            client->StartOperation(type, spec, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                context->SetResponseInfo("OperationId: %v", result);
+                ToProto(response->mutable_operation_id(), result);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortOperation)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        TAbortOperationOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_abort_message()) {
+            options.AbortMessage = request->abort_message();
+        }
+
+        context->SetRequestInfo("OperationId: %v, AbortMessage: %v",
+            operationId,
+            options.AbortMessage);
+
+        CompleteCallWith(
+            context,
+            client->AbortOperation(operationId, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendOperation)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        TSuspendOperationOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_abort_running_jobs()) {
+            options.AbortRunningJobs = request->abort_running_jobs();
+        }
+
+        context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
+            operationId,
+            options.AbortRunningJobs);
+
+        CompleteCallWith(
+            context,
+            client->SuspendOperation(operationId, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeOperation)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TResumeOperationOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v", operationId);
+
+        CompleteCallWith(
+            context,
+            client->ResumeOperation(operationId, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CompleteOperation)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TCompleteOperationOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v", operationId);
+
+        CompleteCallWith(
+            context,
+            client->CompleteOperation(operationId, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UpdateOperationParameters)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto parameters = TYsonString(request->parameters());
+
+        TUpdateOperationParametersOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v, Parameters: %v",
+            operationId,
+            parameters);
+
+        CompleteCallWith(
+            context,
+            client->UpdateOperationParameters(
+                operationId,
+                parameters,
+                options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetOperation)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        TGetOperationOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->attributes_size() != 0) {
+            options.Attributes.Emplace();
+            for (auto attribute_index = 0;
+                attribute_index < request->attributes_size();
+                ++attribute_index)
+            {
+                options.Attributes->insert(request->attributes(attribute_index));
+            }
+        }
+        options.IncludeRuntime = request->include_runtime();
+
+        context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v",
+            operationId,
+            options.IncludeRuntime);
+
+        CompleteCallWith(
+            context,
+            client->GetOperation(operationId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_meta(result.GetData());
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // JOBS
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobContext)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto path = request->path();
+
+        TDumpJobContextOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v, Path: %v",
+            jobId,
+            path);
+
+        CompleteCallWith(
+            context,
+            client->DumpJobContext(jobId, path, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJob)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v, JobId: %v",
+            operationId,
+            jobId);
+
+        CompleteCallWith(
+            context,
+            client->GetJob(operationId, jobId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_info(result.GetData());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StraceJob)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        TStraceJobOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        CompleteCallWith(
+            context,
+            client->StraceJob(jobId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_trace(result.GetData());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SignalJob)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto signalName = request->signal_name();
+
+        TSignalJobOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v, SignalName: %v",
+            jobId,
+            signalName);
+
+        CompleteCallWith(
+            context,
+            client->SignalJob(jobId, signalName, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbandonJob)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        TAbandonJobOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        CompleteCallWith(
+            context,
+            client->AbandonJob(jobId, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PollJobShell)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto parameters = TYsonString(request->parameters());
+
+        TPollJobShellOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v, Parameters: %v",
+            jobId,
+            parameters);
+
+        CompleteCallWith(
+            context,
+            client->PollJobShell(jobId, parameters, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_result(result.GetData());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortJob)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TAbortJobOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_interrupt_timeout()) {
+            options.InterruptTimeout = FromProto<TDuration>(request->interrupt_timeout());
+        }
+
+        context->SetRequestInfo("JobId: %v, InterruptTimeout: %v",
+            jobId,
+            options.InterruptTimeout);
+
+        CompleteCallWith(
+            context,
+            client->AbortJob(jobId, options));
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // TABLES (TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////
@@ -2055,7 +2423,182 @@ private:
 
         CompleteCallWith(context, admin->GCCollect(options));
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // SECURITY
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto group = request->group();
+        auto member = request->member();
+
+        TAddMemberOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("Group: %v, Member: %v, MutationId: %v, Retry: %v",
+            group,
+            member,
+            options.MutationId,
+            options.Retry);
+
+        CompleteCallWith(
+                context,
+                client->AddMember(group, member, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMember)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto group = request->group();
+        auto member = request->member();
+
+        TRemoveMemberOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("Group: %v, Member: %v, MutationId: %v, Retry: %v",
+            group,
+            member,
+            options.MutationId,
+            options.Retry);
+
+        CompleteCallWith(
+            context,
+            client->RemoveMember(group, member, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermission)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto user = request->user();
+        auto path = request->path();
+        auto permission = static_cast<EPermission>(request->permission());
+
+        TCheckPermissionOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo("User: %v, Path: %v, Permission: %v",
+            user,
+            path,
+            FormatPermissions(permission));
+
+        CompleteCallWith(
+            context,
+            client->CheckPermission(user, path, permission, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // FILE CACHING
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFileFromCache)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto md5 = request->md5();
+
+        TGetFileFromCacheOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.CachePath = request->cache_path();
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+
+        context->SetRequestInfo("MD5: %v, CachePath: %v",
+            md5,
+            options.CachePath);
+
+        CompleteCallWith(
+            context,
+            client->GetFileFromCache(md5, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+
+                context->SetResponseInfo("Path: %v",
+                    result.Path);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PutFileToCache)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = request->path();
+        auto md5 = request->md5();
+
+        TPutFileToCacheOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.CachePath = request->cache_path();
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
+                                path,
+                                md5,
+                                options.CachePath);
+
+        CompleteCallWith(
+            context,
+            client->PutFileToCache(path, md5, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+
+                context->SetResponseInfo("Path: %v",
+                    result.Path);
+            });
+    }
 };
+
+
 
 IServicePtr CreateApiService(NCellProxy::TBootstrap* bootstrap)
 {
@@ -2066,4 +2609,3 @@ IServicePtr CreateApiService(NCellProxy::TBootstrap* bootstrap)
 
 } // namespace NRpcProxy
 } // namespace NYT
-

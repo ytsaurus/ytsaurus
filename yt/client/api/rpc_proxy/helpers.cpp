@@ -139,6 +139,47 @@ void FromProto(
     result->Path = proto.path();
 }
 
+void ToProto(
+    NProto::TCheckPermissionResult* proto,
+    const NApi::TCheckPermissionResult& result)
+{
+    proto->set_action(static_cast<NProto::ESecurityAction>(result.Action));
+
+    ToProto(proto->mutable_object_id(), result.ObjectId);
+    if (result.ObjectName) {
+        proto->set_object_name(result.ObjectName.Get());
+    } else {
+        proto->clear_object_name();
+    }
+
+    ToProto(proto->mutable_subject_id(), result.SubjectId);
+    if (result.SubjectName) {
+        proto->set_subject_name(result.SubjectName.Get());
+    } else {
+        proto->clear_subject_name();
+    }
+}
+
+void FromProto(
+    NApi::TCheckPermissionResult* result,
+    const NProto::TCheckPermissionResult& proto)
+{
+    result->Action = static_cast<NSecurityClient::ESecurityAction>(proto.action());
+
+    FromProto(&result->ObjectId, proto.object_id());
+    if (proto.has_object_name()) {
+        result->ObjectName = proto.object_name();
+    } else {
+        result->ObjectName.Reset();
+    }
+
+    FromProto(&result->SubjectId, proto.subject_id());
+    if (proto.has_subject_name()) {
+        result->SubjectName = proto.subject_name();
+    } else {
+        result->SubjectName.Reset();
+    }
+}
 
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema)
 {
@@ -268,6 +309,64 @@ void FromProto(
     statistics->InnerStatistics.resize(protoStatistics.inner_statistics_size());
     for (auto i = 0; i < protoStatistics.inner_statistics_size(); ++i) {
         FromProto(&statistics->InnerStatistics[i], protoStatistics.inner_statistics(i));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ENUMS
+////////////////////////////////////////////////////////////////////////////////
+
+NProto::EOperationType ConvertOperationTypeToProto(
+    const NScheduler::EOperationType& operation_type)
+{
+    switch (operation_type) {
+        case NScheduler::EOperationType::Map:
+            return NProto::EOperationType::OT_MAP;
+        case NScheduler::EOperationType::Merge:
+            return NProto::EOperationType::OT_MERGE;
+        case NScheduler::EOperationType::Erase:
+            return NProto::EOperationType::OT_ERASE;
+        case NScheduler::EOperationType::Sort:
+            return NProto::EOperationType::OT_SORT;
+        case NScheduler::EOperationType::Reduce:
+            return NProto::EOperationType::OT_REDUCE;
+        case NScheduler::EOperationType::MapReduce:
+            return NProto::EOperationType::OT_MAP_REDUCE;
+        case NScheduler::EOperationType::RemoteCopy:
+            return NProto::EOperationType::OT_REMOTE_COPY;
+        case NScheduler::EOperationType::JoinReduce:
+            return NProto::EOperationType::OT_JOIN_REDUCE;
+        case NScheduler::EOperationType::Vanilla:
+            return NProto::EOperationType::OT_VANILLA;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NScheduler::EOperationType ConvertOperationTypeFromProto(
+    const NProto::EOperationType& proto)
+{
+    switch (proto) {
+        case NProto::EOperationType::OT_MAP:
+            return NScheduler::EOperationType::Map;
+        case NProto::EOperationType::OT_MERGE:
+            return NScheduler::EOperationType::Merge;
+        case NProto::EOperationType::OT_ERASE:
+            return NScheduler::EOperationType::Erase;
+        case NProto::EOperationType::OT_SORT:
+            return NScheduler::EOperationType::Sort;
+        case NProto::EOperationType::OT_REDUCE:
+            return NScheduler::EOperationType::Reduce;
+        case NProto::EOperationType::OT_MAP_REDUCE:
+            return NScheduler::EOperationType::MapReduce;
+        case NProto::EOperationType::OT_REMOTE_COPY:
+            return NScheduler::EOperationType::RemoteCopy;
+        case NProto::EOperationType::OT_JOIN_REDUCE:
+            return NScheduler::EOperationType::JoinReduce;
+        case NProto::EOperationType::OT_VANILLA:
+            return NScheduler::EOperationType::Vanilla;
+        default:
+            Y_UNREACHABLE();
     }
 }
 

@@ -65,6 +65,14 @@ void FromProto(
     NApi::TPutFileToCacheResult* result,
     const NProto::TPutFileToCacheResult& proto);
 
+void ToProto(
+    NProto::TCheckPermissionResult* proto,
+    const NApi::TCheckPermissionResult& result);
+
+void FromProto(
+    NApi::TCheckPermissionResult* result,
+    const NProto::TCheckPermissionResult& proto);
+
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema);
 void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
@@ -91,6 +99,12 @@ void ToProto(
 void FromProto(
     NQueryClient::TQueryStatistics* statistics,
     const NProto::TQueryStatistics& protoStatistics);
+
+NProto::EOperationType ConvertOperationTypeToProto(
+    const NScheduler::EOperationType& operation_type);
+
+NScheduler::EOperationType ConvertOperationTypeFromProto(
+    const NProto::EOperationType& proto);
 
 } // namespace NProto
 ////////////////////////////////////////////////////////////////////////////////
