@@ -46,7 +46,7 @@ public:
                  const Names& primarySortColumns,
                  ExpressionActionsPtr pkExpression,
                  DB::DataTypes keyDataTypes)
-        : Condition(queryInfo, context, allColumns, NamesToSortColumnDescriptions(std::move(primarySortColumns)), std::move(pkExpression))
+        : Condition(queryInfo, context, allColumns, std::move(primarySortColumns), std::move(pkExpression))
         , KeyDataTypes(std::move(keyDataTypes))
     {}
 
