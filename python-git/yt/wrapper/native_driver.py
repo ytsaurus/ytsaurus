@@ -227,7 +227,7 @@ def make_request(command_name, params,
             input_stream=input_stream,
             output_stream=output_stream,
             user=driver_user_name,
-            token=get_token())
+            token=get_token(client=client))
     except TypeError:
         request = driver_bindings.Request(
             command_name=command_name,
