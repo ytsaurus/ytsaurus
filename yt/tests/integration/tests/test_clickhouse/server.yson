@@ -1,0 +1,8 @@
+{
+    "logger" = {
+        "level" = "trace";
+    };
+    "cluster_discovery" = {
+        "directory_path" = "//sys/clickhouse/cliques";
+    };
+}

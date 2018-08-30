@@ -39,6 +39,8 @@ ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
     std::vector<ITokenAuthenticatorPtr> authenticators);
 
+ITokenAuthenticatorPtr CreateNoopTokenAuthenticator();
+
 NRpc::IAuthenticatorPtr CreateTokenAuthenticatorWrapper(
     ITokenAuthenticatorPtr underlying);
 

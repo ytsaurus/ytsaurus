@@ -340,6 +340,25 @@ ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNoopTokenAuthenticator
+    : public ITokenAuthenticator
+{
+public:
+    virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
+    {
+        static const auto Realm = TString("noop");
+        TAuthenticationResult result{NRpc::RootUserName, Realm};
+        return MakeFuture<TAuthenticationResult>(result);
+    }
+};
+
+ITokenAuthenticatorPtr CreateNoopTokenAuthenticator()
+{
+    return New<TNoopTokenAuthenticator>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTokenAuthenticatorWrapper
     : public NRpc::IAuthenticator
 {

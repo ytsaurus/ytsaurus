@@ -1,0 +1,53 @@
+{
+    "logging" = {
+        "rules" = [
+            {
+                "min_level" = "debug";
+                "writers" = [
+                    "debug";
+                ];
+            };
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+            {
+                "min_level" = "error";
+                "writers" = [
+                    "stderr";
+                ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "./clickhouse-0.log";
+                "type" = "file";
+            };
+            "debug" = {
+                "file_name" = "./clickhouse-0.debug.log";
+                "type" = "file";
+            };
+            "stderr" = {
+                "type" = "stderr";
+            };
+        };
+    };
+    "addresses" = [
+        [
+            "interconnect";
+            "localhost";
+        ];
+        [
+            "default";
+            "localhost";
+        ];
+    ];
+    "address_resolver" = {
+        "localhost_fqdn" = "localhost";
+    };
+    "rpc_port" = 32236;
+    "monitoring_port" = 32238;
+    "validate_operation_permission" = %false;
+}

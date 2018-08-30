@@ -179,12 +179,18 @@ public:
 
     const TString* Find(const TString& header) const;
 
+    void RemoveOrThrow(const TString& header);
+
     //! Returns first header value, if any. Throws otherwise.
     TString GetOrThrow(const TString& header) const;
 
     const SmallVector<TString, 1>& GetAll(const TString& header) const;
 
     void WriteTo(IOutputStream* out, const THashSet<TString>* filtered = nullptr) const;
+
+    THeadersPtr Duplicate() const;
+
+    void MergeFrom(const THeadersPtr& headers);
 
 private:
     struct TEntry

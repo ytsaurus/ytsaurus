@@ -110,6 +110,17 @@ const TString* THeaders::Find(const TString& header) const
     return &it->second.Values[0];
 }
 
+void THeaders::RemoveOrThrow(const TString& header)
+{
+    auto lower = to_lower(header);
+
+    auto it = Raw_.find(lower);
+    if (it == Raw_.end()) {
+        THROW_ERROR_EXCEPTION("Header %Qv not found", header);
+    }
+    Raw_.erase(it);
+}
+
 TString THeaders::GetOrThrow(const TString& header) const
 {
     auto value = Find(header);
@@ -144,6 +155,22 @@ void THeaders::WriteTo(IOutputStream* out, const THashSet<TString>* filtered) co
 
         for (const auto& value : values) {
             *out << header << ": " << value << "\r\n";
+        }
+    }
+}
+
+THeadersPtr THeaders::Duplicate() const
+{
+    auto headers = New<THeaders>();
+    headers->Raw_ = Raw_;
+    return headers;
+}
+
+void THeaders::MergeFrom(const THeadersPtr& headers)
+{
+    for (const auto& pair : headers->Raw_) {
+        for (const auto& value : pair.second.Values) {
+            Add(pair.second.OriginalHeaderName, value);
         }
     }
 }
