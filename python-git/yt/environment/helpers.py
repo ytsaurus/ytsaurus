@@ -60,6 +60,21 @@ class OpenPortIterator(Iterator):
     def __iter__(self):
         return self
 
+    def _is_port_free_for_inet(self, port, inet):
+        try:
+            sock = socket.socket(inet, socket.SOCK_STREAM)
+            sock.bind(("", port))
+            sock.listen(1)
+            return True
+        except:
+            return False
+        finally:
+            if sock is not None:
+                sock.close()
+
+    def _is_port_free(self, port):
+        return self._is_port_free_for_inet(port, socket.AF_INET) and self._is_port_free_for_inet(port, socket.AF_INET6)
+
     def __next__(self):
         for _ in xrange(self.GEN_PORT_ATTEMPTS):
             port = None
@@ -67,24 +82,19 @@ class OpenPortIterator(Iterator):
                     self.local_port_range[0] - self.START_PORT > 1000:
                 # Generate random port manually and check that it is free.
                 port_value = random.randint(self.START_PORT, self.local_port_range[0] - 1)
-                try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.bind(("", port_value))
-                    sock.listen(1)
+                if self._is_port_free(port_value):
                     port = port_value
-                except Exception:
-                    pass
-                finally:
-                    sock.close()
             else:
-                # Generate random local port by bind to 0 port.
+                # Generate random local port by bind to 0 port and check that it is free.
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.bind(("", 0))
                     sock.listen(1)
-                    port = sock.getsockname()[1]
+                    port_value = sock.getsockname()[1]
                 finally:
                     sock.close()
+                if self._is_port_free(port_value):
+                    port = port_value
 
             if port is None:
                 continue
