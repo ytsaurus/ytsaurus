@@ -102,7 +102,7 @@ set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 ################################################################################
 
 add_executable(ytserver-http-proxy
-  ${CMAKE_CURRENT_LIST_DIR}/http_proxy_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/http_proxy/main.cpp
 )
 
 target_link_libraries(ytserver-http-proxy
