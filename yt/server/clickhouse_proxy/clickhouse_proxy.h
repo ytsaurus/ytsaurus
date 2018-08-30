@@ -9,15 +9,17 @@ namespace NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClickHouseProxy
-    : public TRefCounted
+class TClickHouseProxyHandler
+    : public NHttp::IHttpHandler
 {
 public:
-    TClickHouseProxy(
+    TClickHouseProxyHandler(
         const TClickHouseProxyConfigPtr& config,
         TBootstrap* bootstrap);
 
-    void HandleHttpRequest(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp) const;
+    virtual void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
 
 private:
     TClickHouseProxyConfigPtr Config_;
@@ -28,7 +30,7 @@ private:
     // TODO(max42): implement caching in discovery.
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseProxy)
+DEFINE_REFCOUNTED_TYPE(TClickHouseProxyHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

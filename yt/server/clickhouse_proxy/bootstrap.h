@@ -28,7 +28,7 @@ public:
     const TClickHouseProxyServerConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetWorkerInvoker() const;
-    const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager() const;
+    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
 
     void Run();
 
@@ -43,9 +43,9 @@ private:
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NHttp::IServerPtr MonitoringHttpServer_;
     NHttp::IServerPtr ClickHouseProxyServer_;
-    TClickHouseProxyPtr ClickHouseProxy_;
+    TClickHouseProxyHandlerPtr ClickHouseProxy_;
 
-    NAuth::TAuthenticationManagerPtr AuthenticationManager_;
+    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
 
     void DoRun();
 };

@@ -77,55 +77,12 @@ public:
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
-<<<<<<< HEAD
         auto authenticators = CreateAuthenticators(config, invoker, client);
         if (std::get<0>(authenticators)) {
             rpcAuthenticators.push_back(CreateTokenAuthenticatorWrapper(std::get<0>(authenticators)));
         }
         if (std::get<1>(authenticators)) {
             rpcAuthenticators.push_back(CreateCookieAuthenticatorWrapper(std::get<1>(authenticators)));
-=======
-        IBlackboxServicePtr blackboxService;
-        if (config->BlackboxService && invoker) {
-            blackboxService = CreateDefaultBlackboxService(
-                config->BlackboxService,
-                invoker);
-        }
-
-        if (config->BlackboxTokenAuthenticator && blackboxService) {
-            tokenAuthenticators.push_back(
-                CreateCachingTokenAuthenticator(
-                    config->BlackboxTokenAuthenticator,
-                    CreateBlackboxTokenAuthenticator(
-                        config->BlackboxTokenAuthenticator,
-                        blackboxService)));
-        }
-
-        if (config->CypressTokenAuthenticator && client) {
-            tokenAuthenticators.push_back(
-                CreateCachingTokenAuthenticator(
-                    config->CypressTokenAuthenticator,
-                    CreateCypressTokenAuthenticator(
-                        config->CypressTokenAuthenticator,
-                        client)));
-        }
-
-        if (!tokenAuthenticators.empty()) {
-            rpcAuthenticators.push_back(
-                CreateTokenAuthenticatorWrapper(
-                    CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators))));
-
-        }
-
-        if (config->BlackboxCookieAuthenticator && blackboxService) {
-            rpcAuthenticators.push_back(
-                CreateCookieAuthenticatorWrapper(
-                    CreateCachingCookieAuthenticator(
-                    config->BlackboxCookieAuthenticator,
-                        CreateBlackboxCookieAuthenticator(
-                            config->BlackboxCookieAuthenticator,
-                            blackboxService))));
->>>>>>> prestable/19.3
         }
 
         if (!config->RequireAuthentication) {
@@ -134,17 +91,11 @@ public:
         }
 
         RpcAuthenticator_ = CreateCompositeAuthenticator(std::move(rpcAuthenticators));
-        TokenAuthenticator_ = CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators));
     }
     
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const
     {
         return RpcAuthenticator_;
-    }
-
-    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const
-    {
-        return TokenAuthenticator_;
     }
 
 private:
@@ -167,11 +118,6 @@ TAuthenticationManager::TAuthenticationManager(
 const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() const
 {
     return Impl_->GetRpcAuthenticator();
-}
-
-const NAuth::ITokenAuthenticatorPtr& TAuthenticationManager::GetTokenAuthenticator() const
-{
-    return Impl_->GetTokenAuthenticator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
