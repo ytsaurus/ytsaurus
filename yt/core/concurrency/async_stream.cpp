@@ -1061,7 +1061,8 @@ void PipeInputToOutput(
             .ThrowOnError();
     }
 
-    WaitFor(output->Close());
+    WaitFor(output->Close())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
