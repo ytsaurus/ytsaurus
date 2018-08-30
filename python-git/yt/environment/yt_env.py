@@ -940,8 +940,8 @@ class YTInstance(object):
                         client.set(orchid_path + "/@retry_backoff_time", 100)
                         if client.get(orchid_path + "/scheduler/connected"):
                             active_scheduler_orchid_path = orchid_path
-                    except YtError as err:
-                        if not (isinstance(err, YtResponseError) and err.is_resolve_error()):
+                    except YtResponseError as error:
+                        if not error.is_resolve_error():
                             raise
 
                 if active_scheduler_orchid_path is None:
