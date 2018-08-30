@@ -51,12 +51,17 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
 
-    def _test_decommission(self, path, replica_count):
+    def _test_decommission(self, path, replica_count, node_to_decommission_count=1):
+        assert replica_count >= node_to_decommission_count
+
         def id_to_hash(id):
             return id.split('-')[3]
 
-        def node_has_chunk(node, id):
-            return id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]
+        def nodes_have_chunk(nodes, id):
+            for node in nodes:
+                if not (id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]):
+                    return False
+            return True
 
         chunk_ids = get(path + "/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -64,12 +69,15 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
 
-        node_to_decommission = get("#%s/@stored_replicas/0" % chunk_id)
-        assert node_has_chunk(node_to_decommission, chunk_id)
+        nodes_to_decommission = get("#%s/@stored_replicas" % chunk_id)
+        assert len(nodes_to_decommission) == replica_count
+        nodes_to_decommission = nodes_to_decommission[:node_to_decommission_count]
+        assert nodes_have_chunk(nodes_to_decommission, chunk_id)
 
-        set_node_decommissioned(node_to_decommission, True)
+        for node in nodes_to_decommission:
+            set_node_decommissioned(node, True)
 
-        wait(lambda: not node_has_chunk(node_to_decommission, chunk_id) and
+        wait(lambda: not nodes_have_chunk(nodes_to_decommission, chunk_id) and
                      len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
 
     def test_decommission_regular(self):
@@ -82,6 +90,12 @@ class TestChunkServer(YTEnvSetup):
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 16)
+
+    def test_decommission_erasure2(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        write_table("//tmp/t", {"a" : "b"})
+        self._test_decommission("//tmp/t", 16, 4)
 
     def test_decommission_journal(self):
         create("journal", "//tmp/j")
