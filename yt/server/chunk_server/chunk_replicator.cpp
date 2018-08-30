@@ -1159,16 +1159,35 @@ bool TChunkReplicator::CreateRepairJob(
 
     NErasure::TPartIndexList erasedPartIndexes;
     for (int index = 0; index < totalPartCount; ++index) {
-        if (mediumStatistics.ReplicaCount[index] == 0)
-        {
+        if (mediumStatistics.ReplicaCount[index] == 0) {
             erasedPartIndexes.push_back(index);
         }
     }
 
-    int erasedPartCount = static_cast<int>(erasedPartIndexes.size());
-    if (erasedPartCount == 0) {
+    if (erasedPartIndexes.empty()) {
         return true;
     }
+
+    if (!codec->CanRepair(erasedPartIndexes)) {
+        // Can't repair without decommissioned replicas. Use them.
+        auto guaranteedRepairablePartCount = codec->GetGuaranteedRepairablePartCount();
+        YCHECK(guaranteedRepairablePartCount < static_cast<int>(erasedPartIndexes.size()));
+
+        // Reorder the parts so that the actually erased ones go first and then the decommissioned ones.
+        std::partition(
+            erasedPartIndexes.begin(),
+            erasedPartIndexes.end(),
+            [&] (int index) {
+                return mediumStatistics.DecommissionedReplicaCount[index] == 0;
+            });
+        // Limit the number of parts to attempt repairing at once.
+        erasedPartIndexes.erase(
+            erasedPartIndexes.begin() + guaranteedRepairablePartCount,
+            erasedPartIndexes.end());
+        std::sort(erasedPartIndexes.begin(), erasedPartIndexes.end());
+    }
+
+    auto erasedPartCount = static_cast<int>(erasedPartIndexes.size());
 
     auto targetNodes = ChunkPlacement_->AllocateWriteTargets(
         medium,
