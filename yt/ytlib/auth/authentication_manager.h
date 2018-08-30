@@ -31,8 +31,6 @@ public:
 
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
 
-    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
-
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;

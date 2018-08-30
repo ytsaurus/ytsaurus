@@ -112,6 +112,7 @@ private:
             auto req = TTableYPathProxy::Get(path + "/@");
             std::vector<TString> attributeKeys{
                 "id",
+                "dynamic",
                 "external_cell_tag"
             };
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -136,6 +137,12 @@ private:
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
         auto cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
         auto tableId = attributes->Get<TObjectId>("id");
+        auto dynamic = attributes->Get<bool>("dynamic", false);
+
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Table %v is not dynamic",
+                path);
+        }
 
         channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache, cellTag);
         auto secondaryProxy = TObjectServiceProxy(channel);
