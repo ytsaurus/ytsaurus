@@ -62,14 +62,18 @@ protected:
             return;
         }
 
-        TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
-        if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
-            auto jobProxySocketName = JobProxySocketPath_
-                ? JobProxySocketPath_.Get()
-                : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
-            ForwardCore(jobProxySocketName);
-        } else {
-            WriteCoreToDisk();
+        try {
+            TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
+            if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
+                auto jobProxySocketName = JobProxySocketPath_
+                    ? JobProxySocketPath_.Get()
+                    : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
+                ForwardCore(jobProxySocketName);
+            } else {
+                WriteCoreToDisk();
+            }
+        } catch (const std::exception& ex) {
+            OnError(ex.what());
         }
     }
 
