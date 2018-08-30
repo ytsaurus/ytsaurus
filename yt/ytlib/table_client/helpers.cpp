@@ -54,6 +54,8 @@ using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
 
+using NChunkClient::NProto::TChunkSpec;
+
 using NYPath::TRichYPath;
 using NYT::FromProto;
 
@@ -799,6 +801,48 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
     columnarStatisticsExt.set_timestamp_weight(
         columnarStatisticsExt.timestamp_weight() +
         (row.GetWriteTimestampCount() + row.GetDeleteTimestampCount()) * sizeof(TTimestamp));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChunkSpec>* chunkSpecs)
+{
+    std::vector<TChunkSpec> availableChunkSpecs;
+
+    for (auto& chunkSpec : *chunkSpecs) {
+        if (!IsUnavailable(chunkSpec)) {
+            availableChunkSpecs.push_back(std::move(chunkSpec));
+            continue;
+        }
+
+        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto throwUnavailable = [&] () {
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
+        };
+
+        switch (strategy) {
+            case EUnavailableChunkStrategy::ThrowError:
+                throwUnavailable();
+                break;
+
+            case EUnavailableChunkStrategy::Restore:
+                if (IsErasureChunkId(chunkId)) {
+                    availableChunkSpecs.push_back(std::move(chunkSpec));
+                } else {
+                    throwUnavailable();
+                }
+                break;
+
+            case EUnavailableChunkStrategy::Skip:
+                // Just skip this chunk.
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        };
+    }
+
+    *chunkSpecs = std::move(availableChunkSpecs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

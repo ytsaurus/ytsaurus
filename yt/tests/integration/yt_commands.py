@@ -658,21 +658,39 @@ class Operation(object):
 
         return get(self.get_path() + "/@state", **kwargs)
 
+    def get_error(self):
+        state = self.get_state(verbose=False)
+        if state == "failed":
+            error = get("//sys/operations/{0}/@result/error".format(self.id), verbose=False, is_raw=True)
+
+            jobs_path = "//sys/operations/{0}/jobs".format(self.id)
+            jobs = get(jobs_path, verbose=False)
+            for job in jobs:
+                job_error_path = jobs_path + "/{0}/@error".format(job)
+                job_stderr_path = jobs_path + "/{0}/stderr".format(job)
+                if exists(job_error_path, verbose=False):
+                    error = error + "\n\n" + get(job_error_path, verbose=False, is_raw=True)
+                    if "stderr" in jobs[job]:
+                        error = error + "\n" + read_file(job_stderr_path, verbose=False)
+            return YtError(error)
+        if state == "aborted":
+            return YtError(message = "Operation {0} aborted".format(self.id))
+
+    def build_progress(self):
+        try:
+            progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
+        except YtError:
+            return ""
+
+        result = {}
+        for job_type in progress:
+            if isinstance(progress[job_type], dict):
+                result[job_type] = progress[job_type]["total"]
+            else:
+                result[job_type] = progress[job_type]
+        return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
+
     def track(self):
-        def build_progress():
-            try:
-                progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
-            except YtError:
-                return ""
-
-            result = {}
-            for job_type in progress:
-                if isinstance(progress[job_type], dict):
-                    result[job_type] = progress[job_type]["total"]
-                else:
-                    result[job_type] = progress[job_type]
-            return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
-
         jobs_path = "//sys/operations/{0}/jobs".format(self.id)
 
         counter = 0
@@ -682,22 +700,11 @@ class Operation(object):
             if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
                 print >>sys.stderr, message,
                 if state == "running":
-                    print >>sys.stderr, build_progress()
+                    print >>sys.stderr, self.build_progress()
                 else:
                     print >>sys.stderr
-            if state == "failed":
-                error = get("//sys/operations/{0}/@result/error".format(self.id), verbose=False, is_raw=True)
-                jobs = get(jobs_path, verbose=False)
-                for job in jobs:
-                    job_error_path = jobs_path + "/{0}/@error".format(job)
-                    job_stderr_path = jobs_path + "/{0}/stderr".format(job)
-                    if exists(job_error_path, verbose=False):
-                        error = error + "\n\n" + get(job_error_path, verbose=False, is_raw=True)
-                        if "stderr" in jobs[job]:
-                            error = error + "\n" + read_file(job_stderr_path, verbose=False)
-                raise YtError(error)
-            if state == "aborted":
-                raise YtError(message)
+            if state == "failed" or state == "aborted":
+                raise self.get_error()
             if state == "completed":
                 break
             counter += 1
