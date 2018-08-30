@@ -127,6 +127,30 @@ ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const TString& path, bool 
 {
     return new TFileLogger(cutLevel, path, append);
 }
+////////////////////////////////////////////////////////////////////////////////
+
+class TBufferedFileLogger
+    : public TLoggerBase
+{
+public:
+    TBufferedFileLogger(ELevel cutLevel, const TString& path, bool append)
+        : TLoggerBase(cutLevel)
+        , Stream_(TFile(path, OpenAlways | WrOnly | Seq | (append ? ForAppend : EOpenMode())))
+    { }
+
+    void OutputLine(const TString& line) override
+    {
+        Stream_ << line;
+    }
+
+private:
+    TFileOutput Stream_;
+};
+
+ILoggerPtr CreateBufferedFileLogger(ILogger::ELevel cutLevel, const TString& path, bool append)
+{
+    return new TBufferedFileLogger(cutLevel, path, append);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
