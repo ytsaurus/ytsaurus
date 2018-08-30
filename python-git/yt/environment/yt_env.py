@@ -952,9 +952,9 @@ class YTInstance(object):
                     scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
                     if master_cell_id != scheduler_cell_id:
                         return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
-                except YtResponseError as err:
-                    if err.is_resolve_error():
-                        return False, "Failed to request primary master cell id from master and scheduler" + str(err)
+                except YtResponseError as error:
+                    if error.is_resolve_error():
+                        return False, "Failed to request primary master cell id from master and scheduler" + str(error)
                     else:
                         raise
 
@@ -987,8 +987,8 @@ class YTInstance(object):
                     try:
                         client.set(orchid_path + "/@retry_backoff_time", 100)
                         active_agents_count += client.get(path + "/connected")
-                    except YtError as err:
-                        if not err.is_resolve_error():
+                    except YtResponseError as error:
+                        if not error.is_resolve_error():
                             raise
 
                 if active_agents_count < self.controller_agent_count:
@@ -1040,8 +1040,8 @@ class YTInstance(object):
             if tx_id:
                 client.abort_transaction(tx_id)
                 logger.info("Previous scheduler transaction was aborted")
-        except YtError as err:
-            if not err.is_resolve_error():
+        except YtResponseError as error:
+            if not error.is_resolve_error():
                 raise
 
     def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs, http_proxy_url):
