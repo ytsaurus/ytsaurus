@@ -25,6 +25,8 @@ def get_config_patcher(patches):
             configs["node"][index] = update_inplace(config, patches.get("DELTA_NODE_CONFIG", {}))
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, patches.get("DELTA_DRIVER_CONFIG", {}))
+        configs["proxy"] = update_inplace(configs["proxy"], patches.get("DELTA_PROXY_CONFIG", {}))
+        configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], patches.get("DELTA_RPC_PROXY_CONFIG", {}))
     return apply_config_patches
 
 def extract_attrs(file_path, comment_line_begin):
@@ -74,7 +76,9 @@ class ExecutableItem(pytest.Item):
             "DELTA_SCHEDULER_CONFIG",
             "DELTA_CONTROLLER_AGENT_CONFIG",
             "DELTA_NODE_CONFIG",
-            "DELTA_DRIVER_CONFIG"
+            "DELTA_DRIVER_CONFIG",
+            "DELTA_PROXY_CONFIG",
+            "DELTA_RPC_PROXY_CONFIG",
         }
 
         kwargs = {"driver_backend": self.driver_backend}

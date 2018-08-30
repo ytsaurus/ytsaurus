@@ -38,19 +38,19 @@ const auto& Logger = ClickHouseProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClickHouseProxyHttpHandler
+class TClickHouseRequest
 {
 public:
-    TClickHouseProxyHttpHandler(
+    TClickHouseRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp,
         const TClickHouseProxyConfigPtr& config,
-        const NAuth::TAuthenticationManagerPtr& authenticationManager,
+        const NAuth::ITokenAuthenticatorPtr& tokenAuthenticator,
         const NHttp::IClientPtr& httpClient)
         : Req_(req)
         , Rsp_(rsp)
         , Config_(config)
-        , AuthenticationManager_(authenticationManager)
+        , TokenAuthenticator_(tokenAuthenticator)
         , HttpClient_(httpClient)
     { }
 
@@ -114,7 +114,7 @@ private:
     const IRequestPtr& Req_;
     const IResponseWriterPtr& Rsp_;
     const TClickHouseProxyConfigPtr& Config_;
-    const NAuth::TAuthenticationManagerPtr& AuthenticationManager_;
+    const NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     const NHttp::IClientPtr& HttpClient_;
 
     NApi::IClientPtr Client_;
@@ -203,7 +203,7 @@ private:
     {
         NAuth::TTokenCredentials credentials;
         credentials.Token = Token_;
-        User_ = WaitFor(AuthenticationManager_->GetTokenAuthenticator()->Authenticate(credentials))
+        User_ = WaitFor(TokenAuthenticator_->Authenticate(credentials))
             .ValueOrThrow()
             .Login;
         LOG_INFO("User authenticated (User: %v)", User_);
@@ -226,15 +226,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseProxy::TClickHouseProxy(const TClickHouseProxyConfigPtr& config, TBootstrap* bootstrap)
+TClickHouseProxyHandler::TClickHouseProxyHandler(const TClickHouseProxyConfigPtr& config, TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , HttpClient_(NHttp::CreateClient(Config_->HttpClient, CreateThreadPoolPoller(1, "client")))
 { }
 
-void TClickHouseProxy::HandleHttpRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) const
+void TClickHouseProxyHandler::HandleRequest(
+    const IRequestPtr& req,
+    const IResponseWriterPtr& rsp)
 {
-    TClickHouseProxyHttpHandler(req, rsp, Config_, Bootstrap_->GetAuthenticationManager(), HttpClient_).Handle();
+    TClickHouseRequest(req, rsp, Config_, Bootstrap_->GetTokenAuthenticator(), HttpClient_).Handle();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

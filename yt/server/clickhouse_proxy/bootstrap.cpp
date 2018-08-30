@@ -80,10 +80,11 @@ void TBootstrap::DoRun()
 {
     LOG_INFO("Starting clickhouse proxy");
 
-    AuthenticationManager_ = New<TAuthenticationManager>(
+    auto authenticators = CreateAuthenticators(
         Config_->AuthenticationManager,
         GetControlInvoker(),
         nullptr /* client */);
+    TokenAuthenticator_ = std::get<0>(authenticators);
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
@@ -122,11 +123,11 @@ void TBootstrap::DoRun()
     LOG_INFO("Listening for monitoring HTTP requests on port %v", Config_->MonitoringPort);
     MonitoringHttpServer_->Start();
 
-    ClickHouseProxy_ = New<TClickHouseProxy>(Config_->ClickHouseProxy, this /* bootstrap */);
+    ClickHouseProxy_ = New<TClickHouseProxyHandler>(Config_->ClickHouseProxy, this /* bootstrap */);
 
     LOG_INFO("Listening for clickhouse HTTP requests on port %v", Config_->ClickHouseProxyHttpServer->Port);
     ClickHouseProxyServer_ = NHttp::CreateServer(Config_->ClickHouseProxyHttpServer);
-    ClickHouseProxyServer_->AddHandler("/", BIND(&TClickHouseProxy::HandleHttpRequest, ClickHouseProxy_));
+    ClickHouseProxyServer_->AddHandler("/", ClickHouseProxy_);
 
     ClickHouseProxyServer_->Start();
 }
@@ -146,9 +147,9 @@ const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
     return WorkerPool_->GetInvoker();
 }
 
-const TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager() const
+const NAuth::ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
 {
-    return AuthenticationManager_;
+    return TokenAuthenticator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
