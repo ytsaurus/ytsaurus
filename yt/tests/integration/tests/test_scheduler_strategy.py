@@ -272,6 +272,16 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         op2.track()
         op3.track()
 
+    def test_recursive_fair_share_when_lack_of_resources(self):
+        create("map_node", "//sys/pools/parent_pool", attributes={"min_share_ratio": 0.1})
+        create("map_node", "//sys/pools/parent_pool/subpool1", attributes={"min_share_ratio": 1})
+        create("map_node", "//sys/pools/parent_pool/subpool2", attributes={"min_share_ratio": 1})
+
+        time.sleep(0.2)
+        ratio_path = "//sys/scheduler/orchid/scheduler/pools/{0}/recursive_min_share_ratio"
+
+        assert get(ratio_path.format("subpool1")) == 0.05
+        assert get(ratio_path.format("subpool2")) == 0.05
 
     def test_fractional_cpu_usage(self):
         self._create_table("//tmp/t_in")
