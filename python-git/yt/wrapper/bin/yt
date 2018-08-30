@@ -728,18 +728,7 @@ def add_show_spec_parser(add_parser):
 def add_src_arg(parser, **kwargs):
     parser.add_argument("--src", action="append", nargs="+", required=True, dest="source_table", **kwargs)
 
-def operation_args(parser):
-    add_hybrid_argument(parser, "binary", metavar="command")
-    add_src_arg(parser)
-    parser.add_argument("--dst", action="append", required=True, dest="destination_table")
-    parser.add_argument("--file", action="append", dest="yt_files")
-    parser.add_argument("--local-file", action="append", dest="local_files")
-    parser.add_argument("--job-count", type=int)
-    parser.add_argument("--memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
-    add_structured_argument(parser, "--spec")
-    parser.add_argument("--format", action=ParseFormat)
-    parser.add_argument("--input-format", action=ParseFormat)
-    parser.add_argument("--output-format", action=ParseFormat)
+def add_operation_handler_related_args(parser):
     parser.add_argument("--print-statistics", action="store_true", default=False)
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
@@ -760,11 +749,24 @@ def operation_handler(function):
 
     return handler
 
+def operation_args(parser):
+    add_hybrid_argument(parser, "binary", metavar="command")
+    add_src_arg(parser)
+    parser.add_argument("--dst", action="append", required=True, dest="destination_table")
+    parser.add_argument("--file", action="append", dest="yt_files")
+    parser.add_argument("--local-file", action="append", dest="local_files")
+    parser.add_argument("--job-count", type=int)
+    parser.add_argument("--memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
+    add_structured_argument(parser, "--spec")
+    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--input-format", action=ParseFormat)
+    parser.add_argument("--output-format", action=ParseFormat)
+    add_operation_handler_related_args(parser)
+
 def add_erase_parser(add_parser):
     parser = add_parser("erase", operation_handler(yt.run_erase), epilog="Note you can specify range in table to erase.")
     add_ypath_argument(parser, "table", help="path to table to erase", hybrid=True)
-    parser.add_argument("--print-statistics", action="store_true", default=False)
-    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_operation_handler_related_args(parser)
 
 def add_merge_parser(add_parser):
     parser = add_parser("merge", operation_handler(yt.run_merge))
@@ -774,8 +776,7 @@ def add_merge_parser(add_parser):
     parser.add_argument("--mode", default="auto", choices=["unordered", "ordered", "sorted", "auto"],
         help="use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. "
              "Mode auto chooses from sorted and unordered modes depending on sortedness of source tables.")
-    parser.add_argument("--print-statistics", action="store_true", default=False)
-    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--spec")
 
 def add_sort_parser(add_parser):
@@ -783,8 +784,7 @@ def add_sort_parser(add_parser):
     add_src_arg(parser)
     parser.add_argument("--dst", required=True, dest="destination_table")
     parser.add_argument("--sort-by", action="append", required=True, help="Columns to sort by.")
-    parser.add_argument("--print-statistics", action="store_true", default=False)
-    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--spec")
 
 def add_map_parser(add_parser):
@@ -814,7 +814,7 @@ def add_remote_copy_parser(add_parser):
     parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like smith")
     parser.add_argument("--network", dest="network_name")
     parser.add_argument("--copy-attributes", action="store_true", help="specify this flag to coping node attributes too")
-    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--cluster-connection")
     add_structured_argument(parser, "--spec")
 
@@ -828,6 +828,7 @@ def run_vanilla_operation(sync, tasks, spec):
 
 def add_vanilla_parser(add_parser):
     parser = add_parser("vanilla", operation_handler(run_vanilla_operation))
+    add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--tasks", help="task descriptions")
     add_structured_argument(parser, "--spec")
 
