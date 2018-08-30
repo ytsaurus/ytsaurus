@@ -11,7 +11,7 @@ class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TClickHouseProxyConfig)
 DECLARE_REFCOUNTED_CLASS(TClickHouseProxyServerConfig)
-DECLARE_REFCOUNTED_CLASS(TClickHouseProxy)
+DECLARE_REFCOUNTED_CLASS(TClickHouseProxyHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
