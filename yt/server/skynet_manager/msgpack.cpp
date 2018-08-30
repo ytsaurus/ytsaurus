@@ -107,11 +107,11 @@ INodePtr ParseFromMsgpack(const TSharedRef& buffer)
 void WriteToPacker(msgpack::packer<msgpack::sbuffer>* packer, const INodePtr& node)
 {
     auto packString = [&] (auto value) {
-        // str16 wire type crashes skynet parser. Forcing str32 type.
-        char buf[3];
-        buf[0] = static_cast<char>(0xdau);
-        _msgpack_store16(&buf[1], static_cast<uint16_t>(value.size()));
-        packer->pack_str_body(buf, 3);
+        // str8 wire type crashes skynet parser. Forcing str32 type.
+        char buf[5];
+        buf[0] = static_cast<char>(0xdbu);
+        _msgpack_store32(&buf[1], static_cast<uint32_t>(value.size()));
+        packer->pack_str_body(buf, 5);
         
         packer->pack_str_body(value.data(), value.size());
     };
