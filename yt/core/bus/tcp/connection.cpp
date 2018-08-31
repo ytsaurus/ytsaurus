@@ -139,6 +139,7 @@ void TTcpConnection::Start()
             State_ = EState::Opening;
             SetupNetwork(NetworkName_);
             Open();
+            UpdateConnectionCount(true);
             DoArmPoller();
             break;
         }
