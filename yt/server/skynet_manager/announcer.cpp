@@ -284,6 +284,7 @@ TFuture<void> TAnnouncer::AddOutOfOrderAnnounce(const TString& cluster, const TR
             return;
         }
 
+        SkynetManagerProfiler.Update(ResourceCount_, Resources_.size());
         for (TTrackerId trackerId = 0; trackerId < Trackers_.size(); ++trackerId) {
             auto& tracker = Trackers_[trackerId].second;
             auto result = WaitFor(tracker->Announce(resourceId, EAnnounceState::Seeding));
@@ -323,6 +324,7 @@ void TAnnouncer::SyncResourceList(
             Scheduler_.PutRestored(resourceId, Trackers_.size());
         }
 
+        SkynetManagerProfiler.Update(ResourceCount_, Resources_.size());
         LOG_INFO("Finished synchronizing resource list (Cluster: %s, Added: %d, Removed: %d)",
             cluster,
             updated.size(),
