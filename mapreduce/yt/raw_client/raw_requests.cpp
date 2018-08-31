@@ -169,6 +169,18 @@ TLockId Lock(
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
+void PingTx(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "ping_tx");
+    header.MergeParameters(NDetail::SerializeParamsForPingTx(transactionId));
+    TRequestConfig requestConfig;
+    requestConfig.SocketTimeout = TConfig::Get()->PingTimeout;
+    RetryRequestWithPolicy(auth, header, "", retryPolicy, requestConfig);
+}
+
 TOperationAttributes ParseOperationAttributes(const TNode& node)
 {
     const auto& mapNode = node.AsMap();

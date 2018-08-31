@@ -85,6 +85,11 @@ TLockId Lock(
     ELockMode mode,
     const TLockOptions& options = TLockOptions());
 
+void PingTx(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    IRetryPolicy* retryPolicy = nullptr);
+
 TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,

@@ -658,11 +658,8 @@ void TTransaction::Abort()
 
 void TTransaction::Ping()
 {
-    if (PingableTx_) {
-        PingableTx_->Ping();
-    } else {
-        PingTransaction(Auth_, TransactionId_);
-    }
+    TPingRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
+    PingTx(Auth_, TransactionId_, &retryPolicy);
 }
 
 TClientPtr TTransaction::GetParentClient()

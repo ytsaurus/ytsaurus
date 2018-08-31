@@ -1,5 +1,7 @@
 #include "transaction.h"
 
+#include <mapreduce/yt/interface/error_codes.h>
+
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/wait_proxy.h>
@@ -12,6 +14,49 @@
 #include <util/datetime/base.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPingRetryPolicy::TPingRetryPolicy(ui32 attemptCount)
+    : AttemptCount_(attemptCount)
+{ }
+
+void TPingRetryPolicy::NotifyNewAttempt()
+{
+    ++Attempt_;
+}
+
+TMaybe<TDuration> TPingRetryPolicy::GetRetryInterval(const yexception& /*e*/) const
+{
+    if (AttemptCount_ && Attempt_ >= AttemptCount_) {
+        return Nothing();
+    }
+    return TConfig::Get()->PingTimeout;
+}
+
+TMaybe<TDuration> TPingRetryPolicy::GetRetryInterval(const TErrorResponse& e) const
+{
+    if (AttemptCount_ && Attempt_ >= AttemptCount_) {
+        return Nothing();
+    }
+    if (e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
+        return Nothing();
+    }
+    if (e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::Timeout)) {
+        return TDuration::MilliSeconds(0);
+    }
+    return TConfig::Get()->PingTimeout;
+}
+
+TString TPingRetryPolicy::GetAttemptDescription() const
+{
+    TStringStream s;
+    s << "attempt " << Attempt_;
+    if (AttemptCount_) {
+        s << " of " << AttemptCount_;
+    }
+    return s.Str();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,11 +114,6 @@ void TPingableTransaction::Abort()
     Stop(false);
 }
 
-void TPingableTransaction::Ping()
-{
-    PingTransaction(Auth_, TransactionId_);
-}
-
 void TPingableTransaction::Stop(bool commit)
 {
     if (!Running_) {
@@ -100,9 +140,12 @@ void TPingableTransaction::Pinger()
 {
     while (Running_) {
         try {
-            PingTransaction(Auth_, TransactionId_);
-        } catch (...) {
-            // Ignore errors in auto pings.
+            TPingRetryPolicy retryPolicy;
+            PingTx(Auth_, TransactionId_, &retryPolicy);
+        } catch (const TErrorResponse& e) {
+            // All other errors must be retried by our TPingRetryPolicy.
+            Y_VERIFY(e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction));
+            break;
         }
 
         TInstant t = Now();

@@ -30,10 +30,6 @@ TTransactionId StartTransaction(
     const TMaybe<TString>& title,
     const TMaybe<TNode>& attributes);
 
-void PingTransaction(
-    const TAuth& auth,
-    const TTransactionId& transactionId);
-
 void AbortTransaction(
     const TAuth& auth,
     const TTransactionId& transactionId);

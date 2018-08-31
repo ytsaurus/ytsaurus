@@ -218,6 +218,14 @@ TNode SerializeParamsForLock(
     return result;
 }
 
+TNode SerializeParamsForPingTx(
+    const TTransactionId& transactionId)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    return result;
+}
+
 TNode SerializeParamsForListOperations(
     const TListOperationsOptions& options)
 {

@@ -62,6 +62,9 @@ TNode SerializeParamsForLock(
     ELockMode mode,
     const TLockOptions& options);
 
+TNode SerializeParamsForPingTx(
+    const TTransactionId& transactionId);
+
 TNode SerializeParamsForGetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options);
@@ -74,7 +77,8 @@ TNode SerializeParamsForUpdateOperationParameters(
     const TNode& newParameters);
 
 TNode SerializeParamsForListJobs(
-    const TOperationId& operationId, const TListJobsOptions& options);
+    const TOperationId& operationId,
+    const TListJobsOptions& options);
 
 TNode SerializeParametersForInsertRows(
     const TYPath& path,
@@ -88,9 +92,12 @@ TNode SerializeParametersForTrimRows(
     const TYPath& path,
     const TTrimRowsOptions& options);
 
-TNode SerializeParamsForParseYPath(const TRichYPath& path);
+TNode SerializeParamsForParseYPath(
+    const TRichYPath& path);
 
-TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options);
+TNode SerializeParamsForAlterTableReplica(
+    const TReplicaId& replicaId,
+    const TAlterTableReplicaOptions& options);
 
 TNode SerializeParamsForAlterTable(
     const TTransactionId& transactionId,
