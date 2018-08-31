@@ -160,13 +160,6 @@ static void TransactionRequest(
     RetryRequest(auth, header, Nothing(), false, false);
 }
 
-void PingTransaction(
-    const TAuth& auth,
-    const TTransactionId& transactionId)
-{
-    TransactionRequest(auth, "ping_tx", transactionId);
-}
-
 void AbortTransaction(
     const TAuth& auth,
     const TTransactionId& transactionId)
