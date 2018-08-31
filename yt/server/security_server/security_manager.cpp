@@ -41,6 +41,8 @@
 
 #include <yt/client/security_client/helpers.h>
 
+#include <yt/core/concurrency/fls.h>
+
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/nullable.h>
@@ -891,7 +893,7 @@ public:
 
     void SetAuthenticatedUser(TUser* user)
     {
-        AuthenticatedUser_ = user;
+        *AuthenticatedUser_ = user;
     }
 
     void SetAuthenticatedUserByNameOrThrow(const TString& userName)
@@ -901,12 +903,18 @@ public:
 
     void ResetAuthenticatedUser()
     {
-        AuthenticatedUser_ = nullptr;
+        *AuthenticatedUser_ = nullptr;
     }
 
     TUser* GetAuthenticatedUser()
     {
-        return AuthenticatedUser_ ? AuthenticatedUser_ : RootUser_;
+        TUser* result = nullptr;
+
+        if (AuthenticatedUser_.IsInitialized()) {
+            result = *AuthenticatedUser_;
+        }
+
+        return result ? result : RootUser_;
     }
 
     TNullable<TString> GetAuthenticatedUserName()
@@ -1428,7 +1436,7 @@ private:
     TGroupId SuperusersGroupId_;
     TGroup* SuperusersGroup_ = nullptr;
 
-    TUser* AuthenticatedUser_ = nullptr;
+    TFls<TUser*> AuthenticatedUser_;
 
     // COMPAT(babenko)
     bool RecomputeAccountResourceUsage_ = false;
