@@ -7,6 +7,8 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/http_integration.h>
 
+#include <yt/ytlib/program/build_attributes.h>
+
 #include <yt/client/api/rpc_proxy/connection.h>
 
 #include <yt/client/api/connection.h>
@@ -99,6 +101,7 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
         OrchidRoot_,
         "/profiling",
         CreateVirtualNode(TProfileManager::Get()->GetService()));
+    SetBuildAttributes(OrchidRoot_, "skynet_manager");
 
     if (Config_->MonitoringServer) {
         Config_->MonitoringServer->Port = Config_->MonitoringPort;
