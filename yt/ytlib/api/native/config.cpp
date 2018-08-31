@@ -146,6 +146,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("use_tablet_service", UseTabletService)
         .Default(false);
 
+    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
+        .Default(TDuration::Minutes(30));
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
     });
