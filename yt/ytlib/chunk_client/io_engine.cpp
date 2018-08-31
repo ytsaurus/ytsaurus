@@ -223,8 +223,10 @@ private:
     TNullable<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = { false };
-    i64 SicknessCounter_ = 0;
+    std::atomic<i64> SicknessCounter_ = { 0 };
 
+    NProfiling::TSimpleGauge SickGauge_{"/sick"};
+    NProfiling::TSimpleGauge SickEventsCount_{"/sick_events"};
 
     bool IsDirectAligned(const std::shared_ptr<TFileHandle>& fh)
     {
@@ -446,8 +448,8 @@ private:
 
     void UpdateSicknessProfiling()
     {
-        Profiler_.Enqueue("/sick", static_cast<i64>(Sick_.load()), EMetricType::Gauge);
-        Profiler_.Enqueue("/sickness_counter", SicknessCounter_, EMetricType::Gauge);
+        Profiler_.Update(SickGauge_, Sick_.load());
+        Profiler_.Update(SickEventsCount_, SicknessCounter_.load());
     }
 };
 
