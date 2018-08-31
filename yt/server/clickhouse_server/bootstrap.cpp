@@ -120,7 +120,7 @@ void TBootstrap::DoInitialize()
         "/monitoring",
         CreateVirtualNode(MonitoringManager->GetService()));
 
-    SetBuildAttributes(orchidRoot, "clickhouse-server");
+    SetBuildAttributes(orchidRoot, "clickhouse_server");
 
     LFAllocProfiler = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
