@@ -339,7 +339,7 @@ private:
             }
         }
 
-        // Guards from race with HandleTimout.
+        // Guards from race with HandleTimeout.
         if (RunLatch_.test_and_set()) {
             return;
         }
