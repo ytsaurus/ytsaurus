@@ -68,7 +68,7 @@ struct ITransaction
     virtual NTransactionClient::EDurability GetDurability() const = 0;
     virtual TDuration GetTimeout() const = 0;
 
-    virtual TFuture<void> Ping() = 0;
+    virtual TFuture<void> Ping(bool enableRetries = true) = 0;
     virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
     virtual void Detach() = 0;

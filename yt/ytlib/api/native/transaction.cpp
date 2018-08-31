@@ -117,9 +117,9 @@ public:
     }
 
 
-    virtual TFuture<void> Ping() override
+    virtual TFuture<void> Ping(bool enableRetries = true) override
     {
-        return Transaction_->Ping();
+        return Transaction_->Ping(enableRetries);
     }
 
     virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override

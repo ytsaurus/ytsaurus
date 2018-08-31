@@ -109,7 +109,7 @@ TDuration TTransaction::GetTimeout() const
     return Timeout_;
 }
 
-TFuture<void> TTransaction::Ping()
+TFuture<void> TTransaction::Ping(bool /*enableRetries*/)
 {
     return SendPing();
 }
