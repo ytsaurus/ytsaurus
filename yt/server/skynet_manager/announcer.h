@@ -157,6 +157,8 @@ private:
     TSpinLock Lock_;
     THashSet<TResourceId> LockedResources_;
 
+    NProfiling::TSimpleGauge ResourceCount_{"/resource_count"};
+
     std::vector<std::pair<NNet::TNetworkAddress, TTrackerConnectionPtr>> Trackers_;
 
     void RunReceiveLoop();
