@@ -11,6 +11,25 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        cypress_xml_config_path="//sys/clickhouse/config_files/config.xml",
                                        max_failed_job_count=None,
                                        spec=None):
+    """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
+
+    :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
+    :type instance_count: int
+    :param cypress_ytserver_clickhouse_path: path to the ytserver-clickhouse binary in Cypress or None.
+    :type cypress_ytserver_clickhouse_path: str
+    :param cypress_ytserver_clickhouse_path: path to the ytserver-clickhouse binary on the destination node or None.
+    :type cypress_ytserver_clickhouse_path: str
+    :param cypress_yson_config_path: path to the yson config for ytserver-clickhouse in Cypress.
+    :type cypress_yson_config_path: str
+    :param cypress_xml_config_path: path to the xml config for ytserver-clickhouse in Cypress.
+    :type cypress_xml_config_path: str
+    :param max_failed_job_count: maximum number of failed jobs that is allowed for the underlying vanilla operation.
+    :type max_failed_job_count: int
+    :param spec: other spec options.
+    :type spec: dict
+
+    .. seealso::  :ref:`operation_parameters`.
+    """
     file_paths = [cypress_xml_config_path, cypress_yson_config_path]
     if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
         cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse"
