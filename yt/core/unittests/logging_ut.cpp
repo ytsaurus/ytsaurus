@@ -237,7 +237,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
 
     auto logStartedJson = DeserializeJson(log[0]);
     EXPECT_EQ(logStartedJson->GetChild("message")->AsString()->GetValue(), "Logging started");
-    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "Info");
+    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "info");
     EXPECT_EQ(logStartedJson->GetChild("category")->AsString()->GetValue(), "Logging");
 
     auto contentJson = DeserializeJson(log[1]);
