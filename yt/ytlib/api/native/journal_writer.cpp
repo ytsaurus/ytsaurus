@@ -139,7 +139,7 @@ private:
                 .Run();
 
             if (Transaction_) {
-                ListenTransaction(Transaction_);
+                StartListenTransaction(Transaction_);
             }
         }
 
@@ -489,7 +489,7 @@ private:
                     options.AutoAbort = true;
 
                     UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
-                    ListenTransaction(UploadTransaction_);
+                    StartListenTransaction(UploadTransaction_);
 
                     LOG_INFO("Journal upload started (UploadTransactionId: %v)",
                         uploadTransactionId);
@@ -554,8 +554,7 @@ private:
                 }
             }
 
-            UploadTransaction_->Ping();
-            UploadTransaction_->Detach();
+            StopListenTransaction(UploadTransaction_);
 
             {
                 auto req = TJournalYPathProxy::EndUpload(objectIdPath);
