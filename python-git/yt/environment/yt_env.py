@@ -690,9 +690,7 @@ class YTInstance(object):
                 has_some_bind_failure = has_some_bind_failure or has_bind_failure
 
         if has_some_bind_failure:
-            # TODO(bidzilya): Investigate.
-            # raise YtEnvRetriableError("Process failed to bind on some of ports")
-            pass
+            raise YtEnvRetriableError("Process failed to bind on some of ports")
 
     def _run(self, args, name, number=None, cgroup_paths=None, timeout=0.1):
         if cgroup_paths is None:
