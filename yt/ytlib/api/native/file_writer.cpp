@@ -132,7 +132,7 @@ private:
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
 
         auto writerOptions = New<TMultiChunkWriterOptions>();
@@ -251,7 +251,7 @@ private:
                 options.AutoAbort = true;
 
                 UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
-                ListenTransaction(UploadTransaction_);
+                StartListenTransaction(UploadTransaction_);
 
                 LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
@@ -334,8 +334,7 @@ private:
             }
         }
 
-        UploadTransaction_->Ping();
-        UploadTransaction_->Detach();
+        StopListenTransaction(UploadTransaction_);
 
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);

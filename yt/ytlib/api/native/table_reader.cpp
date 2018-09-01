@@ -373,7 +373,7 @@ private:
             .ThrowOnError();
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
 
         LOG_INFO("Table reader opened");
