@@ -15,7 +15,10 @@ class TTransactionListener
 {
 protected:
     //! Starts listening for transaction abort.
-    void ListenTransaction(const NApi::ITransactionPtr& transaction);
+    void StartListenTransaction(const NApi::ITransactionPtr& transaction);
+
+    //! Stops listening for transaction abort.
+    void StopListenTransaction(const NApi::ITransactionPtr& transaction);
 
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.
@@ -31,6 +34,7 @@ private:
     std::atomic<bool> Aborted_ = {false};
 
     mutable TSpinLock SpinLock_;
+    std::vector<TTransactionId> IgnoredTransactionIds_;
     std::vector<TTransactionId> AbortedTransactionIds_;
 
 private:
