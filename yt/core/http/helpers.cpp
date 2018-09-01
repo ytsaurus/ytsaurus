@@ -157,7 +157,7 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies)
         }
         auto value = StripString(cookies.substr(valueStartIndex, valueEndIndex - valueStartIndex));
 
-        map.emplace(std::move(name), std::move(value));
+        map.emplace(TString(name), TString(value));
 
         index = valueEndIndex + 1;
     }
