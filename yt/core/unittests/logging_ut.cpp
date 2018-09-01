@@ -242,7 +242,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
 
     auto contentJson = DeserializeJson(log[1]);
     EXPECT_EQ(contentJson->GetChild("message")->AsString()->GetValue(), "test_message");
-    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "Debug");
+    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "debug");
     EXPECT_EQ(contentJson->GetChild("category")->AsString()->GetValue(), "category");
 
     NFs::Remove("test.log");
