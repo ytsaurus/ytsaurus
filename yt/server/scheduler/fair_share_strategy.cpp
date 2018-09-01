@@ -2554,35 +2554,6 @@ public:
         ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
     }
 
-    //TODO(renadeen): Remove when YT-8931 is done
-    virtual void UpdateOperationRuntimeParametersOld(IOperationStrategyHost* operation, const IMapNodePtr& parametersNode) override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        const auto& state = GetOperationState(operation->GetId());
-        const auto& pools = state->TreeIdToPoolNameMap();
-
-        if (DefaultTreeId_ && pools.find(*DefaultTreeId_) != pools.end()) {
-            auto params = operation->GetRuntimeParameters();
-            auto defaultTreeOptionsIt = params->SchedulingOptionsPerPoolTree.find(*DefaultTreeId_);
-            YCHECK(defaultTreeOptionsIt != params->SchedulingOptionsPerPoolTree.end());
-
-            auto& treeParams = defaultTreeOptionsIt->second;
-            auto weightNode = parametersNode->FindChild("weight");
-            if (weightNode) {
-                Deserialize(treeParams->Weight, weightNode);
-            }
-            auto resourceLimits = parametersNode->FindChild("resource_limits");
-            if (resourceLimits && resourceLimits->AsMap()->GetKeys().size() > 0) {
-                treeParams->ResourceLimits = ConvertTo<TResourceLimitsConfigPtr>(resourceLimits);
-            }
-
-            GetTree(*DefaultTreeId_)->UpdateOperationRuntimeParameters(
-                operation->GetId(),
-                treeParams);
-        }
-    }
-
     virtual void BuildOrchid(TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);

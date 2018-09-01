@@ -3291,26 +3291,6 @@ fi
         assert not exists("//sys/operations/" + op.id + "/@committed")
         assert exists(get_operation_cypress_path(op.id) + "/@committed")
 
-    def test_runtime_params(self):
-        create("table", "//tmp/t_input")
-        write_table("//tmp/t_input", [{"key": "value"}])
-        create("table", "//tmp/t_output")
-
-        op = map(
-            command="sleep 1000; cat",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            dont_track=True)
-
-        jobs_path = get_operation_cypress_path(op.id) + "/controller_orchid/running_jobs"
-        wait(lambda: exists(jobs_path) and len(ls(jobs_path)) == 1)
-
-        set("//sys/operations/" + op.id + "/@resource_limits", {"user_slots": 1})
-        set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
-
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_limits/user_slots".format(op.id)
-        wait(lambda: get(orchid_path) == 1)
-
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
         write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])

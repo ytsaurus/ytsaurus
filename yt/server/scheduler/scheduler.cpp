@@ -1665,61 +1665,6 @@ private:
         }
     }
 
-    // COMPAT(asaitgalin): Runtime params updates from Cypress will be replaced
-    // with separate command and removed.
-    void RequestOperationRuntimeParams(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
-    {
-        std::vector<TString> keys{"weight", "resource_limits", "owners"};
-
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), keys);
-        batchReq->AddRequest(req, "get_runtime_params");
-    }
-
-    void HandleOperationRuntimeParams(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
-    {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-        // COMPAT(babenko): Nirvana operations have no runtime params
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return;
-        }
-        if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
-                operation->GetId());
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-        auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
-
-        try {
-            auto runtimeParamsMap = runtimeParamsNode->AsMap();
-
-            std::vector<TString> ownerList;
-            auto owners = runtimeParamsMap->FindChild("owners");
-            if (owners) {
-                ownerList = ConvertTo<std::vector<TString>>(owners->AsList());
-            }
-
-            Strategy_->UpdateOperationRuntimeParametersOld(operation.Get(), runtimeParamsMap);
-
-            if (operation->GetOwners() != ownerList) {
-                operation->SetOwners(ownerList);
-            }
-
-            LOG_DEBUG("Operation runtime parameters updated from Cypress (OperationId: %v)",
-                operation->GetId());
-        } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error parsing operation runtime parameters (OperationId: %v)",
-                operation->GetId());
-        }
-    }
-
-
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
         LOG_INFO("Requesting scheduler configuration");
@@ -2216,12 +2161,6 @@ private:
         }
 
         MasterConnector_->RegisterOperation(operation);
-        MasterConnector_->AddOperationWatcherRequester(
-            operation,
-            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
-        MasterConnector_->AddOperationWatcherHandler(
-            operation,
-            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
         auto service = CreateOperationOrchidService(operation);
         YCHECK(IdToOperationService_.emplace(operation->GetId(), service).second);
