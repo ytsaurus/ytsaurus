@@ -12,65 +12,41 @@ class TestRuntimeParameters(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "fair_share_update_period": 100
+            "fair_share_update_period": 100,
+            "operations_update_period": 10,
         }
     }
 
-    def test_runtime_parameters(self):
+    def test_update_owners(self):
         create_user("u")
         create_test_tables()
-
         op = map(
             command="sleep 100",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"weight": 5},
             dont_track=True)
-
-        time.sleep(1.0)
-
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)
+        wait(lambda: op.get_state() == "running", iter=10)
 
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get(progress_path + "/weight") == 5.0
-
-        set("//sys/operations/{0}/@owners/end".format(op.id), "u")
-        set("//sys/operations/{0}/@weight".format(op.id), 3)
-        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 0})
-
-        time.sleep(1.0)
-
+        update_op_parameters(op.id, parameters={"owners": ["u"]})
         assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
-        assert get(progress_path + "/weight") == 3.0
-        assert get(progress_path + "/resource_limits")["user_slots"] == 0
 
-        set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
-
+        update_op_parameters(op.id, parameters={"owners": ["missing_user"]})
         get_alerts = lambda: get("//sys/operations/{0}/@alerts".format(op.id))
         wait(get_alerts)
-        alerts = get_alerts()
-        assert alerts.keys() == ["invalid_acl"]
-
-        get("//sys/operations/{0}/@owners".format(op.id))
+        assert get_alerts().keys() == ["invalid_acl"]
 
         self.Env.kill_schedulers()
-        time.sleep(1)
         self.Env.start_schedulers()
+        time.sleep(0.1)
 
-        time.sleep(1)
+        assert get_alerts().keys() == ["invalid_acl"]
 
-        get("//sys/operations/{0}/@owners".format(op.id))
-
-        alerts = get_alerts()
-        assert alerts.keys() == ["invalid_acl"]
-
-        remove("//sys/operations/{0}/@owners/-1".format(op.id))
-        time.sleep(1.0)
-
+        update_op_parameters(op.id, parameters={"owners": []})
         wait(lambda: not get_alerts())
 
     def test_update_runtime_parameters(self):
-        create_user("u")
         create_test_tables()
 
         op = map(
@@ -79,16 +55,10 @@ class TestRuntimeParameters(YTEnvSetup):
             out="//tmp/t_out",
             spec={"weight": 5},
             dont_track=True)
-
         wait(lambda: op.get_state() == "running", iter=10)
 
         progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
         assert get(progress_path + "/weight") == 5.0
-
-        update_op_parameters(op.id, parameters={"owners": ["u"]})
-        wait(lambda: check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow")
 
         update_op_parameters(op.id, parameters={
             "scheduling_options_per_pool_tree": {

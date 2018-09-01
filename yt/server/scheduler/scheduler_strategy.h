@@ -159,10 +159,6 @@ struct ISchedulerStrategy
         const TString& user,
         EOperationType operationType) = 0;
 
-    virtual void UpdateOperationRuntimeParametersOld(
-        IOperationStrategyHost* operation,
-        const NYTree::IMapNodePtr& parametersNode) = 0;
-
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
 
