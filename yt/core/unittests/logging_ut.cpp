@@ -237,12 +237,12 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
 
     auto logStartedJson = DeserializeJson(log[0]);
     EXPECT_EQ(logStartedJson->GetChild("message")->AsString()->GetValue(), "Logging started");
-    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "Info");
+    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "info");
     EXPECT_EQ(logStartedJson->GetChild("category")->AsString()->GetValue(), "Logging");
 
     auto contentJson = DeserializeJson(log[1]);
     EXPECT_EQ(contentJson->GetChild("message")->AsString()->GetValue(), "test_message");
-    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "Debug");
+    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "debug");
     EXPECT_EQ(contentJson->GetChild("category")->AsString()->GetValue(), "category");
 
     NFs::Remove("test.log");
