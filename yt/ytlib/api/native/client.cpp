@@ -3230,9 +3230,6 @@ private:
                 dataStatistics = rsp.statistics();
             }
 
-            uploadTransaction->Ping();
-            uploadTransaction->Detach();
-
             // End upload.
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();

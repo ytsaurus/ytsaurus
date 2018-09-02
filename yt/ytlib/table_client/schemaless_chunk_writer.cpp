@@ -1504,10 +1504,10 @@ public:
         , TableUploadOptions_(tableUploadOptions)
         , ObjectId_(objectId)
     {
-        ListenTransaction(UploadTransaction_);
+        StartListenTransaction(UploadTransaction_);
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
     }
 
@@ -1570,8 +1570,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
         }
 
-        UploadTransaction_->Ping();
-        UploadTransaction_->Detach();
+        StopListenTransaction(UploadTransaction_);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);

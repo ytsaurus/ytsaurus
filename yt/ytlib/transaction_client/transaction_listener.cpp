@@ -14,13 +14,22 @@ static const auto& Logger = TransactionClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionListener::ListenTransaction(const ITransactionPtr& transaction)
+void TTransactionListener::StartListenTransaction(const ITransactionPtr& transaction)
 {
-    LOG_DEBUG("Listening for transaction (TransactionId: %v)",
+    LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
         transaction->GetId());
 
     transaction->SubscribeAborted(
         BIND(&TTransactionListener::OnTransactionAborted, MakeWeak(this), transaction->GetId()));
+}
+
+void TTransactionListener::StopListenTransaction(const ITransactionPtr& transaction)
+{
+    LOG_DEBUG("Stopped listening for transaction (TransactionId: %v)",
+        transaction->GetId());
+
+    auto guard = Guard(SpinLock_);
+    IgnoredTransactionIds_.push_back(transaction->GetId());
 }
 
 bool TTransactionListener::IsAborted() const
@@ -52,6 +61,9 @@ void TTransactionListener::ValidateAborted() const
 void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
 {
     auto guard = Guard(SpinLock_);
+    if (std::find(IgnoredTransactionIds_.begin(), IgnoredTransactionIds_.end(), id) != IgnoredTransactionIds_.end()) {
+        return;
+    }
     AbortedTransactionIds_.push_back(id);
     Aborted_.store(true);
 }

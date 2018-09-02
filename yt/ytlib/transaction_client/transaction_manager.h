@@ -55,7 +55,7 @@ public:
     void Detach();
 
     //! Sends an asynchronous ping.
-    TFuture<void> Ping();
+    TFuture<void> Ping(bool enableRetries = true);
 
 
     //! Returns the transaction type.

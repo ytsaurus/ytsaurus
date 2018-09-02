@@ -79,15 +79,19 @@ TEST(THttpUrlParse, IPv6)
     ASSERT_EQ(*url.Port, 12345);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(THttpCookie, ParseCookie)
 {
-    TString cookieString = "yandexuid=706216621492423338; yandex_login=prime; _ym_d=1529669659; Cookie_check=1; _ym_isad=1";
+    TString cookieString = "yandexuid=706216621492423338; yandex_login=prime; _ym_d=1529669659; Cookie_check=1; _ym_isad=1;some_cookie_name= some_cookie_value ; abracadabra=";
     auto cookie = ParseCookies(cookieString);
 
-    ASSERT_EQ("706216621492423338", cookie["yandexuid"]);
-    ASSERT_EQ("prime", cookie["yandex_login"]);
-    ASSERT_EQ("1529669659", cookie["_ym_d"]);
-    ASSERT_EQ("1", cookie["_ym_isad"]);
+    ASSERT_EQ("706216621492423338", cookie.at("yandexuid"));
+    ASSERT_EQ("prime", cookie.at("yandex_login"));
+    ASSERT_EQ("1529669659", cookie.at("_ym_d"));
+    ASSERT_EQ("1", cookie.at("_ym_isad"));
+    ASSERT_EQ("some_cookie_value", cookie.at("some_cookie_name"));
+    ASSERT_EQ("", cookie.at("abracadabra"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
