@@ -229,7 +229,7 @@ private:
             std::move(chunkSpecs));
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
 
         LOG_INFO("File reader opened");

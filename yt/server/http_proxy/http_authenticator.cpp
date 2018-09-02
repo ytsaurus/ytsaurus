@@ -88,7 +88,6 @@ TFuture<TAuthenticationResult> THttpAuthenticator::Authenticate(
         }
         credentials.SessionId = cookies["Session_id"];
         credentials.SslSessionId = cookies["sessionid2"];
-        credentials.Domain = "yt.yandex-team.ru";
         return CookieAuthenticator_->Authenticate(credentials);
     }
 

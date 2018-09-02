@@ -680,7 +680,7 @@ private:
         // TODO(sandello): Options!
         CompleteCallWith(
             context,
-            transaction->Ping());
+            transaction->Ping(false));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction)

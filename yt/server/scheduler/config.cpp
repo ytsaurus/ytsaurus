@@ -65,7 +65,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Default(1000)
+        .Default(50000)
         .GreaterThan(0);
 
     RegisterParameter("enable_pool_starvation", EnablePoolStarvation)

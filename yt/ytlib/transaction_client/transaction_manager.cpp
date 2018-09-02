@@ -309,7 +309,7 @@ public:
         return SendAbort(options);
     }
 
-    TFuture<void> Ping()
+    TFuture<void> Ping(bool enableRetries)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -318,7 +318,7 @@ public:
                 Atomicity_));
         }
 
-        return SendPing(true);
+        return SendPing(enableRetries);
     }
 
     void Detach()
@@ -1238,9 +1238,9 @@ void TTransaction::Detach()
     Impl_->Detach();
 }
 
-TFuture<void> TTransaction::Ping()
+TFuture<void> TTransaction::Ping(bool enableRetries)
 {
-    return Impl_->Ping();
+    return Impl_->Ping(enableRetries);
 }
 
 ETransactionType TTransaction::GetType() const

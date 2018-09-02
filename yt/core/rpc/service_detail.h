@@ -566,8 +566,6 @@ private:
     NProfiling::TAggregateGauge AuthenticationTimeCounter_;
     int MaxAuthenticationQueueSize_ = TServiceConfig::DefaultMaxAuthenticationQueueSize;
 
-    TNullable<TString> CookieDomain_;
-
 private:
     struct TAcceptedRequest
     {

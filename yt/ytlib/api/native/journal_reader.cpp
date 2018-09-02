@@ -174,7 +174,7 @@ private:
         }
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
 
         LOG_INFO("Journal reader opened");

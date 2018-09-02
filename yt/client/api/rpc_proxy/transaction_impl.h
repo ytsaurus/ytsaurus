@@ -48,7 +48,7 @@ public:
     virtual NTransactionClient::EDurability GetDurability() const override;
     virtual TDuration GetTimeout() const override;
 
-    virtual TFuture<void> Ping() override;
+    virtual TFuture<void> Ping(bool enableRetries = true) override;
     virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions&) override;
     virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options) override;
     virtual void Detach() override;

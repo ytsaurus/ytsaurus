@@ -12,6 +12,7 @@
 #include <yt/core/json/config.h>
 
 #include <util/stream/buffer.h>
+
 #include <util/generic/buffer.h>
 
 #include <util/string/strip.h>
@@ -173,16 +174,18 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies)
         if (nameEndIndex == TString::npos) {
             THROW_ERROR_EXCEPTION("Malformed cookies");
         }
-        auto name = cookies.substr(nameStartIndex, nameEndIndex - nameStartIndex);
+        auto name = StripString(cookies.substr(nameStartIndex, nameEndIndex - nameStartIndex));
+
         auto valueStartIndex = nameEndIndex + 1;
-        const auto Delimiter = AsStringBuf(";");
-        auto valueEndIndex = cookies.find(Delimiter, index);
+        auto valueEndIndex = cookies.find(';', valueStartIndex);
         if (valueEndIndex == TString::npos) {
             valueEndIndex = cookies.size();
         }
         auto value = StripString(cookies.substr(valueStartIndex, valueEndIndex - valueStartIndex));
-        map[StripString(name)] = std::move(value);
-        index = valueEndIndex + Delimiter.length();
+
+        map.emplace(TString(name), TString(value));
+
+        index = valueEndIndex + 1;
     }
     return map;
 }

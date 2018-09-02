@@ -191,7 +191,7 @@ private:
             .ValueOrThrow();
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
     }
 };
