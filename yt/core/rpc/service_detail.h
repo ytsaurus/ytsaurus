@@ -353,9 +353,6 @@ protected:
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
 
-        const google::protobuf::Descriptor* RequestDescriptor = nullptr;
-        const google::protobuf::Descriptor* ResponseDescriptor = nullptr;
-
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
             Invoker = value;
