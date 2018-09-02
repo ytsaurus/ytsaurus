@@ -90,6 +90,9 @@ DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableTracker)
+DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
+
+struct ITabletCellBalancer;
 
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
@@ -119,6 +122,8 @@ struct TTabletPerformanceCounters;
 extern const TString DefaultTabletCellBundleName;
 
 extern const TTimeFormula DefaultTabletBalancerSchedule;
+
+using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

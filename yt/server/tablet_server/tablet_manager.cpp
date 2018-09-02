@@ -2852,8 +2852,10 @@ public:
 
     void SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula)
     {
-        bundle->NodeTagFilter() = MakeBooleanFormula(formula);
-        TabletCellBundleNodeTagFilterChanged_.Fire(bundle);
+        if (bundle->NodeTagFilter().GetFormula() != formula) {
+            bundle->NodeTagFilter() = MakeBooleanFormula(formula);
+            TabletCellBundleNodeTagFilterChanged_.Fire(bundle);
+        }
     }
 
     TTabletCellBundle* GetDefaultTabletCellBundle()
@@ -3068,9 +3070,10 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
-            for (const auto& peer : cell->Peers()) {
+            for (int peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+                const auto& peer = cell->Peers()[peerId];
                 if (!peer.Descriptor.IsNull()) {
-                    AddToAddressToCellMap(peer.Descriptor, cell);
+                    AddToAddressToCellMap(peer.Descriptor, cell, peerId);
                 }
             }
             auto* transaction = cell->GetPrerequisiteTransaction();
@@ -3771,7 +3774,8 @@ private:
             int availableSlots = node->Statistics().available_tablet_slots();
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end()) {
-                for (auto* cell : it->second) {
+                for (auto& pair : it->second) {
+                    auto* cell = pair.first;
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }
@@ -3855,7 +3859,7 @@ private:
     }
 
 
-    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
+    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell, int peerId)
     {
         const auto& address = descriptor.GetDefaultAddress();
         auto cellsIt = AddressToCell_.find(address);
@@ -3863,8 +3867,11 @@ private:
             cellsIt = AddressToCell_.insert(std::make_pair(address, TTabletCellSet())).first;
         }
         auto& set = cellsIt->second;
-        YCHECK(std::find(set.begin(), set.end(), cell) == set.end());
-        set.push_back(cell);
+        auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
+            return pair.first == cell;
+        });
+        YCHECK(it == set.end());
+        set.emplace_back(cell, peerId);
     }
 
     void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
@@ -3873,7 +3880,9 @@ private:
         auto cellsIt = AddressToCell_.find(address);
         YCHECK(cellsIt != AddressToCell_.end());
         auto& set = cellsIt->second;
-        auto it = std::find(set.begin(), set.end(), cell);
+        auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
+            return pair.first == cell;
+        });
         YCHECK(it != set.end());
         set.erase(it);
         if (set.empty()) {
@@ -3908,7 +3917,7 @@ private:
                 leadingPeerAssigned = true;
             }
 
-            AddToAddressToCellMap(descriptor, cell);
+            AddToAddressToCellMap(descriptor, cell, peerId);
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 

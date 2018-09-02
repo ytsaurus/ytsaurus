@@ -6,6 +6,8 @@
 
 #include <yt/server/node_tracker_server/public.h>
 
+#include <yt/core/actions/signal.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -15,6 +17,8 @@ class TBundleNodeTracker
     : public TRefCounted
 {
 public:
+    using TNodeSet = THashSet<const NNodeTrackerServer::TNode*>;
+
     explicit TBundleNodeTracker(
         NCellMaster::TBootstrap* bootstrap);
     ~TBundleNodeTracker();
@@ -23,7 +27,9 @@ public:
     void OnAfterSnapshotLoaded();
     void Clear();
 
-    const THashSet<NNodeTrackerServer::TNode*>& GetBundleNodes(const TTabletCellBundle* bundle) const;
+    const TNodeSet& GetBundleNodes(const TTabletCellBundle* bundle) const;
+
+    DECLARE_SIGNAL(void(const TTabletCellBundle*), BundleNodesChanged);
 
 private:
     class TImpl;
@@ -31,6 +37,10 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleNodeTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool CheckIfNodeCanHostTabletCells(const NNodeTrackerServer::TNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
