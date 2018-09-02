@@ -546,7 +546,8 @@ private:
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto operation = controllerAgent->GetOperation(operationId);
 
-        auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
+        // NB: these attributes are not necessary at legacy operation location.
+        auto paths = GetOperationPaths(operation->GetId(), /* enableCompatibleStorageMode */ false);
 
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);

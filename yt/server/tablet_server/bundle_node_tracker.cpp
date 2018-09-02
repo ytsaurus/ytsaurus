@@ -50,7 +50,7 @@ public:
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
-            YCHECK(NodeMap_.emplace(pair.second, THashSet<TNode*>()).second);
+            YCHECK(NodeMap_.emplace(pair.second, TNodeSet()).second);
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -59,11 +59,13 @@ public:
         }
     }
 
-    const THashSet<TNode*>& GetBundleNodes(const TTabletCellBundle* bundle) const
+    const TNodeSet& GetBundleNodes(const TTabletCellBundle* bundle) const
     {
-        auto it = NodeMap_.find(bundle);
-        YCHECK(it != NodeMap_.end());
-        return it->second;
+        if (auto it = NodeMap_.find(bundle)) {
+            return it->second;
+        } else {
+            return EmptyNodeSet;
+        }
     }
 
     void Clear()
@@ -71,16 +73,19 @@ public:
         NodeMap_.clear();
     }
 
+    DEFINE_SIGNAL(void(const TTabletCellBundle* bundle), BundleNodesChanged);
+
 private:
     const TBootstrap* const Bootstrap_;
-    THashMap<const TTabletCellBundle*, THashSet<TNode*>> NodeMap_;
+    THashMap<const TTabletCellBundle*, TNodeSet> NodeMap_;
+    static const TNodeSet EmptyNodeSet;
 
     void OnTabletCellBundleCreated(TTabletCellBundle* bundle)
     {
         LOG_DEBUG("Bundle node tracker caught bundle create signal (BundleId: %v)",
             bundle->GetId());
 
-        auto result = NodeMap_.emplace(bundle, THashSet<TNode*>());
+        auto result = NodeMap_.emplace(bundle, TNodeSet());
         YCHECK(result.second);
         RevisitTabletCellBundleNodes(&result.first->second, bundle);
     }
@@ -93,7 +98,7 @@ private:
         RevisitTabletCellBundleNodes(&NodeMap_[bundle], bundle);
     }
 
-    void RevisitTabletCellBundleNodes(THashSet<TNode*>* nodeSet, TTabletCellBundle* bundle)
+    void RevisitTabletCellBundleNodes(TNodeSet* nodeSet, TTabletCellBundle* bundle)
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& pair : nodeTracker->Nodes()) {
@@ -128,9 +133,9 @@ private:
         }
     }
 
-    void AddOrRemoveNode(THashSet<TNode*>* nodeSet, TTabletCellBundle* bundle, TNode* node)
+    void AddOrRemoveNode(TNodeSet* nodeSet, TTabletCellBundle* bundle, TNode* node)
     {
-        bool good = IsGood(node);
+        bool good = CheckIfNodeCanHostTabletCells(node);
         bool satisfy = bundle->NodeTagFilter().IsSatisfiedBy(node->Tags());
 
         LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, BundleId: %v, State: %v, IsGood: %v, Satisfy: %v)",
@@ -146,6 +151,7 @@ private:
                     node->GetDefaultAddress(),
                     bundle->GetId());
                 YCHECK(nodeSet->insert(node).second);
+                BundleNodesChanged_.Fire(bundle);
             }
         } else {
             auto it = nodeSet->find(node);
@@ -154,35 +160,13 @@ private:
                     node->GetDefaultAddress(),
                     bundle->GetId());
                 nodeSet->erase(it);
+                BundleNodesChanged_.Fire(bundle);
             }
         }
     }
-
-    static bool IsGood(const TNode* node)
-    {
-        if (!IsObjectAlive(node)) {
-            return false;
-        }
-
-        if (node->GetLocalState() != ENodeState::Online) {
-            return false;
-        }
-
-        if (node->GetBanned()) {
-            return false;
-        }
-
-        if (node->GetDecommissioned()) {
-            return false;
-        }
-
-        if (node->GetDisableTabletCells()) {
-            return false;
-        }
-
-        return true;
-    }
 };
+
+const TBundleNodeTracker::TNodeSet  TBundleNodeTracker::TImpl::EmptyNodeSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,9 +191,38 @@ void TBundleNodeTracker::Clear()
     Impl_->Clear();
 }
 
-const THashSet<TNode*>& TBundleNodeTracker::GetBundleNodes(const TTabletCellBundle* bundle) const
+const TBundleNodeTracker::TNodeSet& TBundleNodeTracker::GetBundleNodes(const TTabletCellBundle* bundle) const
 {
     return Impl_->GetBundleNodes(bundle);
+}
+
+DELEGATE_SIGNAL(TBundleNodeTracker, void(const TTabletCellBundle*), BundleNodesChanged, *Impl_);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool CheckIfNodeCanHostTabletCells(const TNode* node)
+{
+    if (!IsObjectAlive(node)) {
+        return false;
+    }
+
+    if (node->GetLocalState() != ENodeState::Online) {
+        return false;
+    }
+
+    if (node->GetBanned()) {
+        return false;
+    }
+
+    if (node->GetDecommissioned()) {
+        return false;
+    }
+
+    if (node->GetDisableTabletCells()) {
+        return false;
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
