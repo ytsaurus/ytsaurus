@@ -394,6 +394,8 @@ public:
 
     TDuration JobReporterIssuesCheckPeriod;
 
+    TDuration OperationRegularUpdateProgressDelay;
+
     int JobReporterWriteFailuresAlertThreshold;
     int JobReporterQueueIsTooLargeAlertThreshold;
 
