@@ -278,10 +278,14 @@ public:
 
         auto pool = FindPool(poolName.GetPool());
         if (!pool) {
+            auto poolConfig = New<TPoolConfig>();
+            if (poolName.GetParentPool()) {
+                poolConfig->Mode = GetPool(poolName.GetParentPool().Get())->GetConfig()->EphemeralSubpoolsMode;
+            }
             pool = New<TPool>(
                 Host,
                 poolName.GetPool(),
-                New<TPoolConfig>(),
+                poolConfig,
                 /* defaultConfigured */ true,
                 Config,
                 GetPoolProfilingTag(poolName.GetPool()),

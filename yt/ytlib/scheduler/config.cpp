@@ -1040,6 +1040,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("create_ephemeral_subpools", CreateEphemeralSubpools)
         .Default(false);
+
+    RegisterParameter("ephemeral_subpools_mode", EphemeralSubpoolsMode)
+        .Default(ESchedulingMode::FairShare);
 }
 
 void TPoolConfig::Validate()
