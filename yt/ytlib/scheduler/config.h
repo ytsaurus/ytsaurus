@@ -150,6 +150,8 @@ public:
 
     bool CreateEphemeralSubpools;
 
+    ESchedulingMode EphemeralSubpoolsMode;
+
     TPoolConfig();
 
     void Validate();
