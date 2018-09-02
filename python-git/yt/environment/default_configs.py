@@ -204,8 +204,6 @@ b"""
             enable_snapshot_cycle_after_materialization = %true;
         };
 
-        snapshot_timeout = 1000;
-
         enable_snapshot_loading = %true;
 
         snapshot_period = 100000000;
