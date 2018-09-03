@@ -23,7 +23,7 @@ NTableClient::ISchemafulReaderPtr CreateChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NChunkClient::TDataSourceDirectoryPtr dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
-    NConcurrency::IThroughputThrottlerPtr throttler,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     const NTableClient::TTableSchema& readerSchema,
     bool allowUnorderedRead);
 

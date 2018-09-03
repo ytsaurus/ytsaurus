@@ -87,7 +87,8 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter,
         bool unordered,
-        IThroughputThrottlerPtr throttler)
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
@@ -95,7 +96,9 @@ public:
         , RichPath_(richPath)
         , NameTable_(std::move(nameTable))
         , ColumnFilter_(columnFilter)
-        , Throttler_(std::move(throttler))
+        , BandwidthThrottler_(std::move(bandwidthThrottler))
+        , RpsThrottler_(std::move(rpsThrottler))
+        , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
     {
         YCHECK(Config_);
         YCHECK(Client_);
@@ -173,11 +176,17 @@ private:
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const TColumnFilter ColumnFilter_;
-    const IThroughputThrottlerPtr Throttler_;
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
+    const TTransactionId TransactionId_;
+
+    TClientBlockReadOptions BlockReadOptions_;
 
     TFuture<void> ReadyEvent_;
 
     ISchemalessMultiChunkReaderPtr UnderlyingReader_;
+
+    NLogging::TLogger Logger = ApiLogger;
 
     void DoOpen()
     {
@@ -187,7 +196,8 @@ private:
             Options_,
             NameTable_,
             ColumnFilter_,
-            Throttler_))
+            BandwidthThrottler_,
+            RpsThrottler_))
             .ValueOrThrow();
 
         if (Transaction_) {
@@ -204,7 +214,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
@@ -223,7 +234,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
         nameTable,
         columnFilter,
         options.Unordered,
-        throttler);
+        bandwidthThrottler,
+        rpsThrottler);
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
@@ -415,7 +427,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
 {
     auto Logger = ApiLogger;
 
@@ -569,7 +582,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             blockReadOptions,
             adjustedColumnFilter,
             /* trafficMeter */ nullptr,
-            throttler);
+            bandwidthThrottler,
+            rpsThrottler);
     } else {
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             path,
@@ -600,7 +614,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             schema.GetKeyColumns(),
             /* partitionTag */ Null,
             /* trafficMeter */ nullptr,
-            throttler);
+            bandwidthThrottler,
+            rpsThrottler);
     }
 
     return reader->GetReadyEvent()

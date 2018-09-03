@@ -50,7 +50,8 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     int partCount,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     YCHECK(IsErasureChunkId(chunkId));
 
@@ -88,7 +89,8 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 partReplicas,
                 blockCache,
                 trafficMeter,
-                throttler);
+                bandwidthThrottler,
+                rpsThrottler);
             readers.push_back(reader);
 
             it = jt;
@@ -111,7 +113,8 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     const ICodec* codec,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     return CreateErasurePartsReaders(
         config,
@@ -123,8 +126,9 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
         codec,
         codec->GetTotalPartCount(),
         blockCache,
-        trafficMeter,
-        throttler);
+        std::move(trafficMeter),
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
