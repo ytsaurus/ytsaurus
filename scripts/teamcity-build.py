@@ -92,6 +92,22 @@ def get_node_modules_dir(options):
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
 
+def get_lib_dir_for_python(options, python_version):
+    return os.path.join(
+        options.working_directory,
+        "lib",
+        "pyshared-" + python_version.replace(".", "-"))
+
+def iter_enabled_python_versions(options):
+    if options.build_enable_python_2_6:
+        yield "2.6"
+
+    if options.build_enable_python_2_7:
+        yield "2.7"
+
+    if options.build_enable_python_3_4:
+        yield "3.4"
+
 def get_ya(options):
     return os.path.join(options.checkout_directory, "ya")
 
@@ -135,20 +151,27 @@ def ya_make_args(options):
 
 def run_yall(options):
     assert options.build_system == "ya"
-    yall = os.path.join(options.checkout_directory, "yall")
+    ya = get_ya(options)
 
-    args = [
-        yall,
-    ]
+    common_args = []
+    common_args += ya_make_args(options)
+    common_args += ya_make_definition_args(options)
+
+    args = [ya, "make", "buildall"] + common_args
     args += ["--install", get_bin_dir(options)]
-    args += ya_make_args(options)
-    args += ya_make_definition_args(options)
     if options.use_asan:
-        args += ["--yall-asan-build"]
-
+        args += ["--sanitize=address"]
     run(args,
         cwd=options.checkout_directory,
         env=ya_make_env(options))
+
+    for python_version in iter_enabled_python_versions(options):
+        args = [ya, "make", "buildall/system-python"] + common_args
+        args += ["-DUSE_SYSTEM_PYTHON=" + python_version]
+        args += ["--install", get_lib_dir_for_python(options, python_version)]
+        run(args,
+            cwd=options.checkout_directory,
+            env=ya_make_env(options))
 
 @build_step
 def prepare(options, build_context):
@@ -452,7 +475,7 @@ def package_common_packages(options, build_context):
     build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
     run([
         build_python_packages,
-        "--install-dir", get_bin_dir(options),
+        "--install-dir", get_lib_dir_for_python(options, "2.7"),
         "--output-dir", artifacts_dir
     ])
 
@@ -847,12 +870,8 @@ def run_yp_integration_tests(options, build_context):
         return
 
     node_path = get_node_modules_dir(options)
-    python_versions = (
-        ("2.7", options.build_enable_python_2_7),
-        ("3.4", options.build_enable_python_3_4)
-    )
-    for python_version, enabled in python_versions:
-        if not enabled:
+    for python_version, in iter_enabled_python_versions(options):
+        if python_version not in {"2.7", "3.4"}:
             continue
         run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
            env={
