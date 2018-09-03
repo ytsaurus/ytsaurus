@@ -682,6 +682,7 @@ private:
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
+                1.0, /* compressionRatio */
                 blockReadOptions);
 
             for (int index = 0; index < blockCount; ++index) {
