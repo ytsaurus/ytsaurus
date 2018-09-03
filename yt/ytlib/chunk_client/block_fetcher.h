@@ -55,6 +55,7 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
+        double compressionRatio,
         const TClientBlockReadOptions& blockReadOptions);
 
     //! Returns |true| if there are requested blocks that were not fetched enough times.
@@ -80,33 +81,6 @@ public:
     TCodecDuration GetDecompressionTime() const;
 
 private:
-    std::atomic<i64> UncompressedDataSize_ = {0};
-    std::atomic<i64> CompressedDataSize_ = {0};
-
-    void FetchNextGroup(NConcurrency::TAsyncSemaphoreGuard AsyncSemaphoreGuard);
-
-    void RequestBlocks(
-        const std::vector<int>& windowIndexes,
-        const std::vector<int>& blockIndexes,
-        i64 uncompressedSize);
-
-    void DecompressBlocks(
-        const std::vector<int>& windowIndexes,
-        const std::vector<NChunkClient::TBlock>& compressedBlocks);
-
-    void MarkFailedBlocks(
-        const std::vector<int>& windowIndexes,
-        const TError& error);
-
-    void ReleaseBlock(int windowIndex);
-
-    const TBlockFetcherConfigPtr Config_;
-    std::vector<TBlockInfo> BlockInfos_;
-    const IChunkReaderPtr ChunkReader_;
-    const IBlockCachePtr BlockCache_;
-
-    const IInvokerPtr CompressionInvoker_;
-
     struct TWindowSlot
     {
         TLazyUniquePtr<TPromise<NChunkClient::TBlock>> BlockPromise;
@@ -117,10 +91,21 @@ private:
 
         TWindowSlot()
             : BlockPromise(BIND([] () {
-                return new TPromise<NChunkClient::TBlock>(NewPromise<NChunkClient::TBlock>());
-            }))
+            return new TPromise<NChunkClient::TBlock>(NewPromise<NChunkClient::TBlock>());
+        }))
         { }
     };
+
+    std::atomic<i64> UncompressedDataSize_ = {0};
+    std::atomic<i64> CompressedDataSize_ = {0};
+
+    const TBlockFetcherConfigPtr Config_;
+    std::vector<TBlockInfo> BlockInfos_;
+    const IChunkReaderPtr ChunkReader_;
+    const IBlockCachePtr BlockCache_;
+
+    const IInvokerPtr CompressionInvoker_;
+    const double CompressionRatio_;
 
     THashMap<int, int> BlockIndexToWindowIndex_;
 
@@ -142,6 +127,23 @@ private:
     NLogging::TLogger Logger;
 
     TDuration DecompressionTime;
+
+    void FetchNextGroup(NConcurrency::TAsyncSemaphoreGuard AsyncSemaphoreGuard);
+
+    void RequestBlocks(
+        const std::vector<int>& windowIndexes,
+        const std::vector<int>& blockIndexes,
+        i64 uncompressedSize);
+
+    void DecompressBlocks(
+        const std::vector<int>& windowIndexes,
+        const std::vector<NChunkClient::TBlock>& compressedBlocks);
+
+    void MarkFailedBlocks(
+        const std::vector<int>& windowIndexes,
+        const TError& error);
+
+    void ReleaseBlock(int windowIndex);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
@@ -160,6 +162,7 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
+        double compressionRatio,
         const TClientBlockReadOptions& blockReadOptions);
 
     TFuture<NChunkClient::TBlock> FetchNextBlock();

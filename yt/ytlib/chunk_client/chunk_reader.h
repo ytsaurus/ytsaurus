@@ -27,7 +27,8 @@ struct IChunkReader
     //! Returns a collection of blocks, each corresponding to a single given index.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes) = 0;
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize = Null) = 0;
 
     //! Asynchronously reads a given range of blocks.
     //! The call may return less blocks than requested.
@@ -35,7 +36,8 @@ struct IChunkReader
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount) = 0;
+        int blockCount,
+        const TNullable<i64>& estimatedSize = Null) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<NProto::TChunkMeta> GetMeta(
