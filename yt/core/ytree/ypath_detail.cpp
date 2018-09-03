@@ -1351,7 +1351,7 @@ protected:
         }
 
         if (Timer_) {
-            delimitedBuilder->AppendFormat("WallTime: %v", Timer_->GetElapsedTime().MilliSeconds());
+            delimitedBuilder->AppendFormat("WallTime: %v", Timer_->GetElapsedTime());
         }
 
         delimitedBuilder->AppendFormat("Error: %v", Error_);
