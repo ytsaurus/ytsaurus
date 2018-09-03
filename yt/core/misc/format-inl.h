@@ -460,9 +460,9 @@ void FormatValue(TStringBuilder* builder, T* value, TStringBuf format)
 }
 
 // TDuration (specialize for performance reasons)
-inline void FormatValue(TStringBuilder* builder, const TDuration& value, TStringBuf format)
+inline void FormatValue(TStringBuilder* builder, const TDuration& value, TStringBuf /*format*/)
 {
-    FormatValue(builder, value.MilliSeconds(), format);
+    builder->AppendFormat("%vus", value.MicroSeconds());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
