@@ -54,6 +54,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         UnderlyingReader_,
         BlockCache_,
         ECodec(miscExt.compression_codec()),
+        static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
         BlockReadOptions_);
 
     InitFirstBlockNeeded_ = true;

@@ -22,7 +22,8 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& /*options*/,
-        const std::vector<int>& blockIndexes) override
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& /* estimatedSize */) override
     {
         std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
@@ -40,7 +41,8 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& /*options*/,
         int firstBlockIndex,
-        int blockCount) override
+        int blockCount,
+        const TNullable<i64>& /* estimatedSize */) override
     {
         if (firstBlockIndex >= Blocks_.size()) {
             return MakeFuture(std::vector<TBlock>());
