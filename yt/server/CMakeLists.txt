@@ -9,15 +9,18 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
+add_subdirectory(misc)
+
 target_link_libraries(yt-library-server
   yt-library-ytlib
   yt-library-ytlib-auth
+  yt-library-server-misc
   yt-core-re2
   yt-core-rpc-grpc
   deps-arcadia-library-http
-  deps-arcadia-contrib-libs-msgpack
 )
 
+add_subdirectory(skynet_manager)
 
 ################################################################################
 
@@ -158,7 +161,7 @@ add_executable(ytserver-skynet-manager
 
 target_link_libraries(ytserver-skynet-manager
   yt-core-phdr-cache
-  yt-library-server
+  yt-library-server-skynet-manager
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
 )
