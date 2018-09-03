@@ -314,8 +314,6 @@ describe("YtCommand - command descriptors", function() {
             'write_journal',
             'write_table',
             '_discover_versions',
-            '_list_operations',
-            '_get_operation',
         ];
         ask("GET", "/v3", {},
         function(rsp) {
@@ -332,8 +330,6 @@ describe("YtCommand - command descriptors", function() {
     it("should return proper methods for /v4", function(done) {
         var expected_methods = [
             '_discover_versions',
-            '_get_operation',
-            '_list_operations',
             'abandon_job',
             'abort_job',
             'abort_operation',
