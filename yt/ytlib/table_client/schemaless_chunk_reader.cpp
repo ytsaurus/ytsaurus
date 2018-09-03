@@ -1769,7 +1769,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -1790,7 +1791,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         localDescriptor,
                         blockCache,
                         trafficMeter,
-                        throttler);
+                        bandwidthThrottler,
+                        rpsThrottler);
 
                     TReadRange range = {
                         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
@@ -1846,7 +1848,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         blockReadOptions,
                         columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         trafficMeter,
-                        throttler);
+                        bandwidthThrottler,
+                        rpsThrottler);
                 };
 
                 factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
@@ -1884,7 +1887,8 @@ public:
         const TKeyColumns& keyColumns,
         TNullable<int> partitionTag,
         TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -1939,7 +1943,8 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
     : TBase(
         config,
         options,
@@ -1958,7 +1963,8 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             keyColumns,
             partitionTag,
             trafficMeter,
-            throttler))
+            bandwidthThrottler,
+            rpsThrottler))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
@@ -2088,7 +2094,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
         config,
@@ -2105,7 +2112,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         keyColumns,
         partitionTag,
         trafficMeter,
-        throttler);
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 
     reader->Open();
     return reader;
@@ -2128,7 +2136,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
         config,
@@ -2145,7 +2154,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         keyColumns,
         partitionTag,
         trafficMeter,
-        throttler);
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 
     reader->Open();
     return reader;
@@ -2170,7 +2180,8 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         TColumnFilter columnFilter,
         TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler);
 
     virtual TFuture<void> GetReadyEvent() override
     {
@@ -2468,7 +2479,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TClientBlockReadOptions& blockReadOptions,
     TColumnFilter columnFilter,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto Logger = TableClientLogger;
     if (blockReadOptions.ReadSessionId) {
@@ -2563,7 +2575,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         performanceCounters,
         timestamp,
         trafficMeter,
-        throttler,
+        bandwidthThrottler,
+        rpsThrottler,
         Logger
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
@@ -2603,7 +2616,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             localDescriptor,
             blockCache,
             trafficMeter,
-            throttler);
+            bandwidthThrottler,
+            rpsThrottler);
 
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             remoteReader,
@@ -2682,7 +2696,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     NChunkClient::TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     return TSchemalessMergingMultiChunkReader::Create(
         config,
@@ -2697,7 +2712,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         blockReadOptions,
         columnFilter,
         trafficMeter,
-        throttler);
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

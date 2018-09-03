@@ -23,7 +23,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobPrepared);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobProgress);
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateResourceUsage);
-    DEFINE_RPC_PROXY_METHOD(NProto, ThrottleBandwidth);
+    DEFINE_RPC_PROXY_METHOD(NProto, ThrottleJob);
     DEFINE_RPC_PROXY_METHOD(NProto, PollThrottlingRequest);
 };
 

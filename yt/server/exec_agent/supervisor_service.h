@@ -29,7 +29,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobPrepared);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobProgress);
     DECLARE_RPC_SERVICE_METHOD(NProto, UpdateResourceUsage);
-    DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleBandwidth);
+    DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleJob);
     DECLARE_RPC_SERVICE_METHOD(NProto, PollThrottlingRequest);
 };
 

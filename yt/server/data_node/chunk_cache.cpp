@@ -638,7 +638,8 @@ private:
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
                 trafficMeter,
-                Bootstrap_->GetArtifactCacheInThrottler());
+                Bootstrap_->GetArtifactCacheInThrottler(),
+                Bootstrap_->GetReadRpsOutThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(
@@ -750,7 +751,8 @@ private:
             blockReadOptions,
             chunkSpecs,
             trafficMeter,
-            Bootstrap_->GetArtifactCacheInThrottler());
+            Bootstrap_->GetArtifactCacheInThrottler(),
+            Bootstrap_->GetReadRpsOutThrottler());
 
         try {
             auto producer = [&] (IOutputStream* output) {
@@ -850,7 +852,8 @@ private:
             TKeyColumns(),
             /* partitionTag */ Null,
             trafficMeter,
-            Bootstrap_->GetArtifactCacheInThrottler());
+            Bootstrap_->GetArtifactCacheInThrottler(),
+            Bootstrap_->GetReadRpsOutThrottler());
 
         try {
             auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));

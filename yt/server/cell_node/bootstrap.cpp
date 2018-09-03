@@ -391,6 +391,8 @@ void TBootstrap::DoRun()
         createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
     });
 
+    ReadRpsOutThrottler = createThrottler(Config->DataNode->ReadRpsOutThrottler, "ReadRpsOut");
+
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
@@ -892,6 +894,11 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
         default:
             return TotalOutThrottler;
     }
+}
+
+const IThroughputThrottlerPtr& TBootstrap::GetReadRpsOutThrottler() const
+{
+    return ReadRpsOutThrottler;
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()

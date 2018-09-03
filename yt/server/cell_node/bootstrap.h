@@ -103,6 +103,8 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
     const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
+    const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const;
+
     const NObjectClient::TCellId& GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
@@ -177,10 +179,12 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler;
 
+    NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler;
+
     NTabletNode::TSlotManagerPtr TabletSlotManager;
+    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
     NTabletNode::TSecurityManagerPtr SecurityManager;
     NTabletNode::TInMemoryManagerPtr InMemoryManager;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;

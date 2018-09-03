@@ -114,7 +114,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     int partitionTag,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr throttler);
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

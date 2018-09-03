@@ -350,7 +350,8 @@ IFileReaderPtr CreateFileMultiChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     const std::vector<TChunkSpec>& chunkSpecs,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& chunkSpec : chunkSpecs) {
@@ -365,7 +366,8 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 localDescriptor,
                 blockCache,
                 trafficMeter,
-                throttler);
+                bandwidthThrottler,
+                rpsThrottler);
 
             auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 

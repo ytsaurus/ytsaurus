@@ -70,7 +70,8 @@ public:
             TKeyColumns(),
             /* partitionTag */ Null,
             Host_->GetTrafficMeter(),
-            Host_->GetInThrottler());
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
 
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 
@@ -97,7 +98,7 @@ public:
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
             Host_->GetTrafficMeter(),
-            Host_->GetOutThrottler());
+            Host_->GetOutBandwidthThrottler());
     }
 
 private:

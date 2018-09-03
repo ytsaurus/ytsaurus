@@ -126,7 +126,8 @@ public:
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
-        IThroughputThrottlerPtr throttler,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler,
         TTrafficMeterPtr trafficMeter)
         : Config_(config)
         , Options_(options)
@@ -135,7 +136,8 @@ public:
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
-        , Throttler_(throttler)
+        , BandwidthThrottler_(std::move(bandwidthThrottler))
+        , RpsThrottler_(std::move(rpsThrottler))
         , Networks_(client->GetNativeConnection()->GetNetworks())
         , TrafficMeter_(trafficMeter)
         , LocateChunksInvoker_(CreateFixedPriorityInvoker(
@@ -226,7 +228,8 @@ private:
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
-    const IThroughputThrottlerPtr Throttler_;
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
     const TNetworkPreferenceList Networks_;
     const TTrafficMeterPtr TrafficMeter_;
 
@@ -1104,6 +1107,8 @@ private:
         std::vector<TFuture<TDataNodeServiceProxy::TRspGetBlockSetPtr>> asyncResults;
         std::vector<TPeer> probePeers;
 
+
+
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.Address);
             if (!channel) {
@@ -1265,6 +1270,18 @@ private:
                 return;
             }
 
+            // One extra request for actually getting blocks.
+            auto throttleResult = WaitFor(reader->RpsThrottler_->Throttle(1 + candidates.size()));
+            if (!throttleResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                    "Failed to throttle bandwidth in reader")
+                    << throttleResult;
+                LOG_WARNING(error, "Chunk reader failed");
+                OnSessionFailed(true, error);
+                return;
+            }
+
             maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
 
@@ -1372,7 +1389,7 @@ private:
 
 
         if (peerAddress != GetLocalHostName()) {
-            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(bytesReceived));
             if (!throttleResult.IsOK()) {
                 auto error = TError(
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
@@ -1603,7 +1620,7 @@ private:
             bytesReceived);
         
         if (peerAddress != GetLocalHostName()) {
-            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(bytesReceived));
             if (!throttleResult.IsOK()) {
                 auto error = TError(
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
@@ -1835,7 +1852,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     YCHECK(config);
     YCHECK(blockCache);
@@ -1851,7 +1869,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         chunkId,
         seedReplicas,
         std::move(blockCache),
-        std::move(throttler),
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
         std::move(trafficMeter));
     reader->Initialize();
     return reader;

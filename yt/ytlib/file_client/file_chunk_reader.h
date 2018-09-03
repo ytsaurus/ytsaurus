@@ -54,7 +54,8 @@ IFileReaderPtr CreateFileMultiChunkReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
