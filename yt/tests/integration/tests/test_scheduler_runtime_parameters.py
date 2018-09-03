@@ -88,7 +88,7 @@ class TestRuntimeParameters(YTEnvSetup):
         assert get(progress_path + "/weight") == 5.0
 
         update_op_parameters(op.id, parameters={"owners": ["u"]})
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
+        wait(lambda: check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow")
 
         update_op_parameters(op.id, parameters={
             "scheduling_options_per_pool_tree": {
