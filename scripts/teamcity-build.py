@@ -511,7 +511,6 @@ def package(options, build_context):
 
 
 @build_step
-@only_for_projects("yt")
 def run_prepare_node_modules(options, build_context):
     nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
     nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
@@ -716,6 +715,7 @@ def run_unit_tests(options, build_context):
 
 
 @build_step
+@only_for_projects("yt")
 def run_javascript_tests(options, build_context):
     if not options.build_enable_nodejs or options.disable_tests:
         return

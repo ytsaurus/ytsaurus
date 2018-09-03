@@ -1407,9 +1407,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if ((!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) ||
-            update->Operation->GetStartTime() + Config_->OperationRegularUpdateProgressDelay > TInstant::Now())
-        {
+        if (!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) {
             return {};
         }
 
