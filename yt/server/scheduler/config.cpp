@@ -374,9 +374,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_reporter_issues_check_period", JobReporterIssuesCheckPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("operation_regular_update_progress_delay", OperationRegularUpdateProgressDelay)
-        .Default(TDuration::Seconds(30));
-
     RegisterParameter("job_reporter_write_failures_alert_threshold", JobReporterWriteFailuresAlertThreshold)
         .Default(1000);
     RegisterParameter("job_reporter_queue_is_too_large_alert_threshold", JobReporterQueueIsTooLargeAlertThreshold)
