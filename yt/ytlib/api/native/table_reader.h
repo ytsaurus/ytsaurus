@@ -22,7 +22,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const TTableReaderOptions& options,
     NTableClient::TNameTablePtr nameTable,
     const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
 TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     IClientPtr client,
@@ -30,7 +31,8 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunk
     const TTableReaderOptions& options,
     NTableClient::TNameTablePtr nameTable,
     const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     ITableReaderPtr reader,

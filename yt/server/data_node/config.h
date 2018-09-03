@@ -598,6 +598,8 @@ public:
     //! Controls incoming location bandwidth used by tablet store flush.
     NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
 
+    //! Controls outcoming RPS of GetBlockSet and GetBlockRange requests.
+    NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -759,6 +761,9 @@ public:
         RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
             .DefaultNew();
         RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
+            .DefaultNew();
+
+        RegisterParameter("read_rps_out_throttler", ReadRpsOutThrottler)
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)

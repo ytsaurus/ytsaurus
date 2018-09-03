@@ -49,14 +49,16 @@ struct TUserJobIOFactoryBase
     TUserJobIOFactoryBase(
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NChunkClient::TTrafficMeterPtr trafficMeter,
-        NConcurrency::IThroughputThrottlerPtr inThrottler,
-        NConcurrency::IThroughputThrottlerPtr outThrottler);
+        NConcurrency::IThroughputThrottlerPtr inBandwidthThrottler,
+        NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler,
+        NConcurrency::IThroughputThrottlerPtr outRpsThrottler);
 
 protected:
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
-    const NConcurrency::IThroughputThrottlerPtr InThrottler_;
-    const NConcurrency::IThroughputThrottlerPtr OutThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr InBandwidthThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,8 +67,9 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr inThrottler,
-    NConcurrency::IThroughputThrottlerPtr outThrottler);
+    NConcurrency::IThroughputThrottlerPtr inBandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr outRpsThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -13,9 +13,10 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EJobBandwidthDirection,
-    (In)
-    (Out)
+DEFINE_ENUM(EJobThrottlerType,
+    (InBandwidth)
+    (OutBandwidth)
+    (OutRps)
 );
 
 // These throttlers limit total network bandwidth to/from node,
@@ -29,6 +30,12 @@ NConcurrency::IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
     NJobTrackerClient::TJobId jobId);
 
 NConcurrency::IThroughputThrottlerPtr CreateOutJobBandwidthThrottler(
+    const TJobThrottlerConfigPtr& config,
+    const NRpc::IChannelPtr& channel,
+    const TWorkloadDescriptor& descriptor,
+    NJobTrackerClient::TJobId jobId);
+
+NConcurrency::IThroughputThrottlerPtr CreateOutJobRpsThrottler(
     const TJobThrottlerConfigPtr& config,
     const NRpc::IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,

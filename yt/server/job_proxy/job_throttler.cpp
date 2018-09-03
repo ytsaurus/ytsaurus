@@ -1,4 +1,4 @@
-#include "job_bandwidth_throttler.h"
+#include "job_throttler.h"
 #include "config.h"
 
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -28,11 +28,11 @@ public:
         Proxy_.SetDefaultTimeout(jobThrottlerConfig->RpcTimeout);
     }
 
-    TFuture<void> Throttle(i64 count, EJobBandwidthDirection throttleDirection, TWorkloadDescriptor descriptor, const TJobId& jobId)
+    TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, const TJobId& jobId)
     {
-        auto request = Proxy_.ThrottleBandwidth();
-        request->set_direction(static_cast<i32>(throttleDirection));
-        request->set_byte_count(count);
+        auto request = Proxy_.ThrottleJob();
+        request->set_throttler_type(static_cast<i32>(throttleDirection));
+        request->set_count(count);
         ToProto(request->mutable_workload_descriptor(), descriptor);
         ToProto(request->mutable_job_id(), jobId);
 
@@ -49,7 +49,7 @@ private:
     TGuid PollRequestId_;
     int PollIndex_ = 0;
 
-    void OnThrottlingResponse(const TSupervisorServiceProxy::TErrorOrRspThrottleBandwidthPtr& errorOrRsp)
+    void OnThrottlingResponse(const TSupervisorServiceProxy::TErrorOrRspThrottleJobPtr& errorOrRsp)
     {
         if (!errorOrRsp.IsOK()) {
             // Some error occurred communicating with local node.
@@ -109,12 +109,12 @@ public:
     TJobBandwidthThrottler(
         const TJobThrottlerConfigPtr& config,
         const IChannelPtr& channel,
-        EJobBandwidthDirection direction,
+        EJobThrottlerType throttlerType,
         const TWorkloadDescriptor& descriptor,
         TJobId jobId)
         : Config_(config)
         , Channel_(channel)
-        , Direction_(direction)
+        , ThrottlerType_(throttlerType)
         , Descriptor_(descriptor)
         , JobId_(jobId)
     { }
@@ -122,7 +122,7 @@ public:
     virtual TFuture<void> Throttle(i64 count) override
     {
         auto throttlingSession = New<TThrottlingSession>(Config_, Channel_);
-        return throttlingSession->Throttle(count, Direction_, Descriptor_, JobId_);
+        return throttlingSession->Throttle(count, ThrottlerType_, Descriptor_, JobId_);
     }
 
     virtual bool TryAcquire(i64 count) override
@@ -132,7 +132,7 @@ public:
 
     virtual i64 TryAcquireAvailable(i64 count) override
     {
-        Y_UNIMPLEMENTED();
+        Y_UNIMPLEMENTED();  
     }
 
     virtual void Acquire(i64 count) override
@@ -153,7 +153,7 @@ public:
 private:
     const TJobThrottlerConfigPtr Config_;
     const IChannelPtr Channel_;
-    const EJobBandwidthDirection Direction_;
+    const EJobThrottlerType ThrottlerType_;
     const TWorkloadDescriptor Descriptor_;
     const TJobId JobId_;
 };
@@ -169,7 +169,7 @@ IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
     return New<TJobBandwidthThrottler>(
         config,
         channel,
-        EJobBandwidthDirection::In,
+        EJobThrottlerType::InBandwidth,
         descriptor,
         jobId);
 }
@@ -183,7 +183,21 @@ IThroughputThrottlerPtr CreateOutJobBandwidthThrottler(
     return New<TJobBandwidthThrottler>(
         config,
         channel,
-        EJobBandwidthDirection::Out,
+        EJobThrottlerType::OutBandwidth,
+        descriptor,
+        jobId);
+}
+
+IThroughputThrottlerPtr CreateOutJobRpsThrottler(
+    const TJobThrottlerConfigPtr& config,
+    const IChannelPtr& channel,
+    const TWorkloadDescriptor& descriptor,
+    TJobId jobId)
+{
+    return New<TJobBandwidthThrottler>(
+        config,
+        channel,
+        EJobThrottlerType::OutRps,
         descriptor,
         jobId);
 }

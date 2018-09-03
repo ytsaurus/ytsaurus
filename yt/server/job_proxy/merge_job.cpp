@@ -94,7 +94,8 @@ public:
                 TKeyColumns(),
                 partitionTag,
                 Host_->GetTrafficMeter(),
-                Host_->GetInThrottler());
+                Host_->GetInBandwidthThrottler(),
+                Host_->GetOutRpsThrottler());
             return Reader_;
         };
 
@@ -121,7 +122,7 @@ public:
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},
                 Host_->GetTrafficMeter(),
-                Host_->GetOutThrottler());
+                Host_->GetOutBandwidthThrottler());
             return Writer_;
         };
     }

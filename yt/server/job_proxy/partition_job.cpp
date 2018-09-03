@@ -77,7 +77,8 @@ public:
                 TKeyColumns(),
                 /* partitionTag */ Null,
                 Host_->GetTrafficMeter(),
-                Host_->GetInThrottler());
+                Host_->GetInBandwidthThrottler(),
+                Host_->GetOutRpsThrottler());
             return Reader_;
         };
 
@@ -105,7 +106,7 @@ public:
                 chunkListId,
                 CreatePartitioner(),
                 Host_->GetTrafficMeter(),
-                Host_->GetOutThrottler());
+                Host_->GetOutBandwidthThrottler());
             return Writer_;
         };
     }

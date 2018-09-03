@@ -76,7 +76,7 @@ ISchemafulReaderPtr CreateChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     TDataSourceDirectoryPtr dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
-    IThroughputThrottlerPtr throttler,
+    IThroughputThrottlerPtr bandwidthThrottler,
     const TTableSchema& readerSchema,
     bool allowUnorderedRead)
 {
@@ -114,7 +114,8 @@ ISchemafulReaderPtr CreateChunkReader(
                 TKeyColumns(),
                 Null,
                 nullptr /* trafficMeter */,
-                throttler);
+                bandwidthThrottler,
+                GetUnlimitedThrottler() /* rps throttler */);
         } else if (dataSourceType == EDataSourceType::VersionedTable) {
             YCHECK(dataSliceDescriptors.size() == 1);
 
@@ -135,7 +136,8 @@ ISchemafulReaderPtr CreateChunkReader(
                 blockReadOptions,
                 columnFilter,
                 nullptr /* trafficMeter */,
-                throttler);
+                bandwidthThrottler,
+                GetUnlimitedThrottler() /* rps throttler */);
         } else {
             THROW_ERROR_EXCEPTION(
                 "Invalid job specification: unsupported data source type %Qv", dataSourceType);
