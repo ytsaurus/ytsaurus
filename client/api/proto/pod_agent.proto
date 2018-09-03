@@ -538,8 +538,6 @@ message TContainerStatus {
     uint32 SystemFailureCounter = 11;
     uint32 ConsecutiveFailuresCounter = 12;
     uint32 ConsecutiveSuccessesCounter = 13;
-
-    google.protobuf.Timestamp LastStartTime = 14;
 }
 
 enum EConditionStatus {
