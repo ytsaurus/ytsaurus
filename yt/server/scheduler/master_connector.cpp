@@ -776,7 +776,8 @@ private:
                 "events",
                 "slot_index_per_pool_tree",
                 "runtime_parameters",
-                "output_completion_transaction_id"
+                "output_completion_transaction_id",
+                "suspended",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -886,7 +887,8 @@ private:
                 spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 attributes.Get<EOperationState>("state"),
-                attributes.Get<std::vector<TOperationEvent>>("events", {}));
+                attributes.Get<std::vector<TOperationEvent>>("events", {}),
+                /* suspended */ attributes.Get<bool>("suspended", false));
 
             operation->SetShouldFlushAcl(true);
 
