@@ -130,11 +130,14 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+<<<<<<< HEAD
     virtual i64 TryAcquireAvailable(i64 count) override
     {
         Y_UNIMPLEMENTED();  
     }
 
+=======
+>>>>>>> Add forgotten files
     virtual void Acquire(i64 count) override
     {
         Y_UNIMPLEMENTED();
