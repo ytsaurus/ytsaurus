@@ -4075,7 +4075,8 @@ private:
             Null /* udfDirectory */,
             blockReadOptions,
             nullptr /* trafficMeter */,
-            NConcurrency::GetUnlimitedThrottler());
+            NConcurrency::GetUnlimitedThrottler() /* bandwidthThrottler */,
+            NConcurrency::GetUnlimitedThrottler() /* rpsThrottler */);
 
         auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();

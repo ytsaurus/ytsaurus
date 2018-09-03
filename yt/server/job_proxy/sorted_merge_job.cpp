@@ -73,7 +73,8 @@ public:
                 keyColumns,
                 /* partitionTag */ Null,
                 Host_->GetTrafficMeter(),
-                Host_->GetInThrottler());
+                Host_->GetInBandwidthThrottler(),
+                Host_->GetOutRpsThrottler());
 
             readers.push_back(reader);
         }
@@ -99,7 +100,7 @@ public:
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
             Host_->GetTrafficMeter(),
-            Host_->GetOutThrottler());
+            Host_->GetOutBandwidthThrottler());
     }
 
 private:

@@ -9,7 +9,7 @@
 #include <yt/server/job_agent/job_controller.h>
 #include <yt/server/job_agent/public.h>
 
-#include <yt/server/job_proxy/job_bandwidth_throttler.h>
+#include <yt/server/job_proxy/job_throttler.h>
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
@@ -45,7 +45,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleBandwidth)
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleJob)
        .SetMaxQueueSize(5000)
        .SetMaxConcurrency(5000));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PollThrottlingRequest)
@@ -175,32 +175,35 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleBandwidth)
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleJob)
 {
-    auto direction = static_cast<EJobBandwidthDirection>(request->direction());
-    auto byteCount = request->byte_count();
+    auto throttlerType = static_cast<EJobThrottlerType>(request->throttler_type());
+    auto count = request->count();
     auto descriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
     auto jobId = FromProto<TJobId>(request->job_id());
 
-    context->SetRequestInfo("Direction: %v, Count: %v, JobId: %v, WorkloadDescriptor: %v",
-        direction,
-        byteCount,
+    context->SetRequestInfo("ThrottlerType: %v, Count: %v, JobId: %v, WorkloadDescriptor: %v",
+        throttlerType,
+        count,
         jobId,
         descriptor);
 
     IThroughputThrottlerPtr throttler;
-    switch (direction) {
-        case EJobBandwidthDirection::In:
+    switch (throttlerType) {
+        case EJobThrottlerType::InBandwidth:
             throttler = Bootstrap->GetInThrottler(descriptor);
             break;
-        case EJobBandwidthDirection::Out:
+        case EJobThrottlerType::OutBandwidth:
             throttler = Bootstrap->GetOutThrottler(descriptor);
+            break;
+        case EJobThrottlerType::OutRps:
+            throttler = Bootstrap->GetReadRpsOutThrottler();
             break;
         default:
             Y_UNREACHABLE();
     }
 
-    auto future = throttler->Throttle(byteCount);
+    auto future = throttler->Throttle(count);
     if (!future.IsSet()) {
         auto throttlingRequestId = TGuid::Create();
         OutstandingThrottlingRequests_.insert(std::make_pair(throttlingRequestId, future));

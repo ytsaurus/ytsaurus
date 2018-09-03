@@ -73,7 +73,8 @@ public:
             SortJobSpecExt_.partition_tag(),
             BlockReadOptions_,
             Host_->GetTrafficMeter(),
-            Host_->GetInThrottler());
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
 
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
@@ -101,7 +102,7 @@ public:
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
             Host_->GetTrafficMeter(),
-            Host_->GetOutThrottler());
+            Host_->GetOutBandwidthThrottler());
     }
 
     virtual double GetProgress() const override

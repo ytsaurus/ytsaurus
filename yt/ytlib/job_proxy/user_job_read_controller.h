@@ -67,7 +67,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
         TNullable<TString> udfDirectory,
         NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NChunkClient::TTrafficMeterPtr trafficMeter,
-        NConcurrency::IThroughputThrottlerPtr throttler);
+        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+        NConcurrency::IThroughputThrottlerPtr rpsThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

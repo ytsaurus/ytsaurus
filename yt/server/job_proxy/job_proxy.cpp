@@ -10,7 +10,7 @@
 #include "user_job.h"
 #include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
-#include "job_bandwidth_throttler.h"
+#include "job_throttler.h"
 
 #include <yt/server/containers/public.h>
 
@@ -167,14 +167,19 @@ TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
     return TrafficMeter_;
 }
 
-IThroughputThrottlerPtr TJobProxy::GetInThrottler() const
+IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler() const
 {
-    return InThrottler_;
+    return InBandwidthThrottler_;
 }
 
-IThroughputThrottlerPtr TJobProxy::GetOutThrottler() const
+IThroughputThrottlerPtr TJobProxy::GetOutBandwidthThrottler() const
 {
-    return OutThrottler_;
+    return OutBandwidthThrottler_;
+}
+
+IThroughputThrottlerPtr TJobProxy::GetOutRpsThrottler() const
+{
+    return OutRpsThrottler_;
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)
@@ -481,13 +486,19 @@ TJobResult TJobProxy::DoRun()
         if (Config_->JobThrottler) {
             LOG_DEBUG("Job throttling enabled");
 
-            InThrottler_ = CreateInJobBandwidthThrottler(
+            InBandwidthThrottler_ = CreateInJobBandwidthThrottler(
                 Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
                 JobId_);
 
-            OutThrottler_ = CreateOutJobBandwidthThrottler(
+            OutBandwidthThrottler_ = CreateOutJobBandwidthThrottler(
+                Config_->JobThrottler,
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_);
+
+            OutRpsThrottler_ = CreateOutJobRpsThrottler(
                 Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
@@ -495,8 +506,9 @@ TJobResult TJobProxy::DoRun()
         } else {
             LOG_DEBUG("Job throttling disabled");
 
-            InThrottler_ = GetUnlimitedThrottler();
-            OutThrottler_ = GetUnlimitedThrottler();
+            InBandwidthThrottler_ = GetUnlimitedThrottler();
+            OutBandwidthThrottler_ = GetUnlimitedThrottler();
+            OutRpsThrottler_ = GetUnlimitedThrottler();
         }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to prepare job proxy");

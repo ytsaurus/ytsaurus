@@ -70,15 +70,15 @@ message TRspUpdateResourceUsage
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqThrottleBandwidth
+message TReqThrottleJob
 {
-    required int32 direction = 1; //EJobBandwidthDirection
-    required int64 byte_count = 2;
+    required int32 throttler_type = 1; //EJobThrottlerType
+    required int64 count = 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
     required NYT.NProto.TGuid job_id = 4;
 }
 
-message TRspThrottleBandwidth
+message TRspThrottleJob
 {
     // If request_id is not returned, then request is fulfilled immediately.
     optional NYT.NProto.TGuid throttling_request_id = 1;
