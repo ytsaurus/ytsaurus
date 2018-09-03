@@ -240,6 +240,8 @@ private:
             blockIndex,
             selectedSize);
 
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta.extensions());
+
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,
             std::move(blockSequence),
@@ -247,6 +249,7 @@ private:
             ChunkReader_,
             BlockCache_,
             CodecId_,
+            static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
             BlockReadOptions_);
 
         LOG_INFO("File reader opened");

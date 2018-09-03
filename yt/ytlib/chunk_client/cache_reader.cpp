@@ -24,7 +24,8 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& /*options*/,
-        const std::vector<int>& blockIndexes) override
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& /* estimatedSize */) override
     {
         // NB: Cache-based readers shouldn't report chunk reader statistics.
 
@@ -44,7 +45,8 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& /*options*/,
         int firstBlockIndex,
-        int blockCount) override
+        int blockCount,
+        const TNullable<i64>& /* estimatedSize */) override
     {
         // NB: Cache-based readers shouldn't report chunk reader statistics.
 

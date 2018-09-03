@@ -55,7 +55,8 @@ TFileReader::TFileReader(
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TClientBlockReadOptions& options,
-    const std::vector<int>& blockIndexes)
+    const std::vector<int>& blockIndexes,
+    const TNullable<i64>& /* estimatedSize */)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
     auto count = blockIndexes.size();
@@ -105,7 +106,8 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
-    int blockCount)
+    int blockCount,
+    const TNullable<i64>& /* estimatedSize */)
 {
     YCHECK(firstBlockIndex >= 0);
 
