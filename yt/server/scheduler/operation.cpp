@@ -109,10 +109,12 @@ TOperation::TOperation(
     bool enableCompatibleStorageMode,
     IInvokerPtr controlInvoker,
     EOperationState state,
-    const std::vector<TOperationEvent>& events)
+    const std::vector<TOperationEvent>& events,
+    bool suspended)
     : Type_(type)
     , MutationId_(mutationId)
     , State_(state)
+    , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , RuntimeParameters_(std::move(runtimeParams))
     , RuntimeData_(New<TOperationRuntimeData>())
