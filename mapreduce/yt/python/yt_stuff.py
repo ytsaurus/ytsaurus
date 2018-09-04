@@ -7,6 +7,8 @@ import time
 import uuid
 import signal
 import fcntl
+import random
+import string
 
 import yatest.common
 
@@ -17,6 +19,9 @@ import devtools.swag.ports
 
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
+
+# See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
+FILE_SIZE_LIMIT = 2 * 1024 * 1024
 
 
 def get_value(value, default):
@@ -135,9 +140,50 @@ class YtStuff(object):
             tarfile.open(tgz).extractall(path=where)
 
     @_timing
-    def _pack_tar(self, archive_path, file_path):
-        import subprocess
-        subprocess.check_output(['tar', '-cvzf', archive_path, file_path], stderr=subprocess.STDOUT)
+    def _split_file(self, file_path):
+        import gzip
+
+        def split_on_chunks(stream):
+            size = 0
+            chunk = []
+            for obj in stream:
+                if size + len(obj) > FILE_SIZE_LIMIT and size > 0:
+                    yield chunk
+                    chunk = []
+                    size = 0
+                chunk.append(obj)
+                size += len(obj)
+            if size > 0:
+                yield chunk
+
+        if file_path.endswith(".gz"):
+            file_obj = gzip.open(file_path)
+            gzipped = True
+        else:
+            file_obj = open(file_path)
+            gzipped = False
+
+        for index, chunk in enumerate(split_on_chunks(file_obj)):
+            new_file_path = file_path
+            if gzipped:
+                new_file_path = new_file_path[:-3]
+            new_file_path = new_file_path + "." + str(index + 1)
+            if os.path.exists(new_file_path):
+                random_suffix = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+                new_file_path = new_file_path + "." + random_suffix
+            if gzipped:
+                new_file_path = new_file_path + ".gz"
+
+            if gzipped:
+                fout = gzip.open(new_file_path, "w")
+            else:
+                fout = open(new_file_path, "w")
+
+            for line in chunk:
+                fout.write(line)
+
+        fout.close()
+        file_obj.close()
 
     def _prepare_files(self):
         # build_path = yatest.common.runtime.build_path()
@@ -537,14 +583,12 @@ class YtStuff(object):
         shutil.copytree(src=self.yt_work_dir, dst=yt_output_dir, ignore=_ignore)
         os.system("chmod -R 0775 " + yt_output_dir)
 
-        # Pack huge files, because ya.test cuts them.
-        FILE_SIZE_LIMIT = 2 * 1024 * 1024  # See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
+        # Split huge files, because ya.test cuts them.
         for root, dirs, files in os.walk(yt_output_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
-                    archive_path = "%s.tgz" % file_path
-                    self._pack_tar(archive_path=archive_path, file_path=file_path)
+                    self._split_file(file_path)
                     os.remove(file_path)
 
         cores_dir = os.path.join(yt_output_dir, "cores")
@@ -553,7 +597,7 @@ class YtStuff(object):
 
         for pid in self.get_pids():
             core_file = yatest.common.cores.recover_core_dump_file(
-                os.path.join(self.yt_bins_path, 'ytserver'),
+                os.path.join(self.yt_bins_path, "ytserver"),
                 self.yt_work_dir,
                 pid
             )
