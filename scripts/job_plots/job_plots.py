@@ -420,7 +420,7 @@ def draw_time_statistics_bar_chart(jobset):
         "exec_time", "user_job_cpu", "job_proxy_cpu",
         "codec_decode", "codec_encode", "input_idle_time", "busy_time",
     ]
-    for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
+    for job_type, job_info_per_type in groupby(sorted(jobset), key=lambda x: x.type):
         jobs_info = list(job_info_per_type)
         job_ids = [_add_line_breaks_to_guid(
             parts_to_guid(job_info.job_id_hi, job_info.job_id_lo),
