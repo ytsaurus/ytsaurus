@@ -3,6 +3,7 @@
 #include "private.h"
 #include "operation_description.h"
 
+#include <yt/server/scheduler/public.h>
 #include <yt/server/scheduler/operation.h>
 
 namespace NYT {
@@ -16,7 +17,7 @@ class TOperation
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::EOperationState, State);
-    DEFINE_BYVAL_RW_PROPERTY(TOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(ISimulatorOperationControllerPtr, Controller);
 
 public:
     TOperation(
@@ -50,6 +51,7 @@ private:
     const TString AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParams_;
+    THashMap<TString, int> TreeIdToSlotIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

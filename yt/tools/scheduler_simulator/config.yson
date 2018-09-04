@@ -1,4 +1,6 @@
 {
+    thread_count = 10;
+
     heartbeat_period = 5000;
     pools_file = "pools.yson";
     operations_stats_file = "operations_stats.csv";

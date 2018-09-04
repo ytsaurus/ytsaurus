@@ -17,59 +17,22 @@ namespace NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationController
+class ISimulatorOperationController
     : public NScheduler::IOperationControllerStrategyHost
 {
 public:
-    TOperationController(const TOperation* operation, const TOperationDescription* operationDescription);
+    virtual void OnJobCompleted(std::unique_ptr<NControllerAgent::TCompletedJobSummary> jobSummary) = 0;
 
-    //! Returns the number of jobs the controller still needs to start right away.
-    virtual int GetPendingJobCount() const override;
+    virtual bool IsOperationCompleted() const = 0;
 
-    //! Returns the total resources that are additionally needed.
-    virtual NScheduler::TJobResources GetNeededResources() const override;
-
-    void OnJobCompleted(std::unique_ptr<NControllerAgent::TCompletedJobSummary> jobSummary);
-
-    virtual void OnNonscheduledJobAborted(const NScheduler::TJobId&, NScheduler::EAbortReason) override;
-
-    bool IsOperationCompleted() const;
-
-    //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<NControllerAgent::TScheduleJobResultPtr> ScheduleJob(
-        const NScheduler::ISchedulingContextPtr& context,
-        const NScheduler::TJobResourcesWithQuota& nodeLimits,
-        const TString& /* treeId */) override;
-
-    virtual void UpdateMinNeededJobResources() override;
-    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
-
-    TString GetLoggingProgress() const;
-
-private:
-    const TOperation* Operation_;
-    const TOperationDescription* OperationDescription_;
-    bool OperationCompleted_ = false;
-    int StagePendingJobCount_ = 0;
-    int CompletedJobCount_ = 0;
-    int StageCompletedJobCount_ = 0;
-    int RunningJobCount_ = 0;
-    int CurrentStage_ = 0;
-    int AbortedJobCount_ = 0;
-    NScheduler::TJobResources NeededResources_;
-
-    std::vector<std::deque<TJobDescription>> PendingJobs_;
-    std::vector<int> StageJobCounts_;
-    std::map<TGuid, TJobDescription> IdToDescription_;
-
-    TAdaptiveLock Lock_;
-
-    NLogging::TLogger Logger;
-
-    void SetStage(int stage);
+    virtual TString GetLoggingProgress() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationController)
+DEFINE_REFCOUNTED_TYPE(ISimulatorOperationController)
+
+ISimulatorOperationControllerPtr CreateSimulatorOperationController(
+    const TOperation* operation,
+    const TOperationDescription* operationDescription);
 
 ////////////////////////////////////////////////////////////////////////////////
 
