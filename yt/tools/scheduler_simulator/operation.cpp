@@ -1,8 +1,6 @@
 #include "operation.h"
 #include "operation_controller.h"
 
-#include <yt/ytlib/scheduler/config.h>
-#include <yt/ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NSchedulerSimulator {
@@ -45,18 +43,23 @@ TString TOperation::GetAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
-TNullable<int> TOperation::FindSlotIndex(const TString& /* treeId */) const
+void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
-    return 0;
+    TreeIdToSlotIndex_.emplace(treeId, value);
 }
 
-int TOperation::GetSlotIndex(const TString& /* treeId */) const
+TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
-    return 0;
+    auto it = TreeIdToSlotIndex_.find(treeId);
+    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
 }
 
-void TOperation::SetSlotIndex(const TString& /* treeId */, int /* index */)
-{ }
+int TOperation::GetSlotIndex(const TString& treeId) const
+{
+    auto slotIndex = FindSlotIndex(treeId);
+    YCHECK(slotIndex);
+    return *slotIndex;
+}
 
 NScheduler::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {

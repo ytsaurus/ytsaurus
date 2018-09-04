@@ -12,13 +12,13 @@ static const auto& Logger = SchedulerSimulatorLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerStrategyHost::TSchedulerStrategyHost(
-    const std::vector<TExecNodePtr>& execNodes,
+    std::vector<NScheduler::TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream)
     : ExecNodes_(execNodes)
     , TotalResourceLimits_(ZeroJobResources())
     , Writer_(eventLogOutputStream, NYson::EYsonFormat::Pretty, NYson::EYsonType::ListFragment)
 {
-    for (const auto& execNode : ExecNodes_) {
+    for (const auto& execNode : *ExecNodes_) {
         TotalResourceLimits_ += execNode->GetResourceLimits();
     }
 }
@@ -31,7 +31,7 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     }
 
     TJobResources result;
-    for (const auto& execNode : ExecNodes_) {
+    for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
             result += execNode->GetResourceLimits();
         }
@@ -56,7 +56,7 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     }
 
     TMemoryDistribution distribution;
-    for (const auto& execNode : ExecNodes_) {
+    for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
             auto resourceLimits = execNode->GetResourceLimits();
             ++distribution[RoundUp(resourceLimits.GetMemory(), 1_GB)];
@@ -72,7 +72,7 @@ std::vector<NNodeTrackerClient::TNodeId> TSchedulerStrategyHost::GetExecNodeIds(
     const TSchedulingTagFilter& filter) const
 {
     std::vector<NNodeTrackerClient::TNodeId> result;
-    for (const auto& execNode : ExecNodes_) {
+    for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
             result.push_back(execNode->GetId());
         }
@@ -85,7 +85,7 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
 {
     auto result = New<TRefCountedExecNodeDescriptorMap>();
 
-    for (const auto& execNode : ExecNodes_) {
+    for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
             YCHECK(result->emplace(execNode->GetId(), execNode->BuildExecDescriptor()).second);
         }
@@ -101,16 +101,18 @@ void TSchedulerStrategyHost::ValidatePoolPermission(
 { }
 
 void TSchedulerStrategyHost::ActivateOperation(const TOperationId& operationId)
-{ }
+{
+    // Nothing to do.
+}
 
 void TSchedulerStrategyHost::AbortOperation(const TOperationId& operationId, const TError& error)
-{ }
+{
+    YCHECK(false);
+}
 
 void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
 {
     YCHECK(job->GetNode()->Jobs().erase(job) == 1);
-
-    auto status = JobStatusFromError(TError());
     job->SetState(NJobTrackerClient::EJobState::Aborted);
 
     if (shouldLogEvent) {
