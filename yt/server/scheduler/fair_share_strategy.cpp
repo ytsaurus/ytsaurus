@@ -2952,8 +2952,8 @@ private:
         }
 
         // Data shuffling shouldn't be launched in tentative trees.
-        const auto& noTentativePoolsOperations = Config->OperationsWithoutTentativePoolTrees;
-        if (noTentativePoolsOperations.find(operationType) == noTentativePoolsOperations.end()) {
+        const auto& noTentativePoolOperationTypes = Config->OperationsWithoutTentativePoolTrees;
+        if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
             std::vector<TString> presentedTentativePoolTrees;
             for (const auto& treeId : spec->TentativePoolTrees) {
                 if (FindTree(treeId)) {
