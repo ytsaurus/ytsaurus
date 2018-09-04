@@ -1302,7 +1302,7 @@ private:
         if (peerAddress != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
-            // Still it protects us from busty incoming traffic on the host.
+            // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
 
             BytesThrottled_ = *EstimatedSize_;
@@ -1583,7 +1583,7 @@ private:
         if (peerAddress != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
-            // Still it protects us from busty incoming traffic on the host.
+            // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
 
             BytesThrottled_ = *EstimatedSize_;

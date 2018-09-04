@@ -238,7 +238,8 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, PollThrottlingRequest)
 
     auto it = OutstandingThrottlingRequests_.find(throttlingRequestId);
     if (it == OutstandingThrottlingRequests_.end()) {
-        context->Reply(TError("Unknown throttling request") << TErrorAttribute("throttling_request_id", throttlingRequestId));
+        context->Reply(TError("Unknown throttling request")
+            << TErrorAttribute("throttling_request_id", throttlingRequestId));
     } else {
         response->set_completed(it->second.IsSet());
         context->SetResponseInfo("Completed: %v", response->completed());
@@ -247,10 +248,8 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, PollThrottlingRequest)
                 .Get()
                 .ThrowOnError();
         }
+        context->Reply();
     }
-
-    context->Reply();
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
