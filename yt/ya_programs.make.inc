@@ -4,12 +4,12 @@ DEPENDS(
     ${YT_ROOT}/yt/node_modules
     ${YT_ROOT}/yt/nodejs/targets/bin
     ${YT_ROOT}/yt/nodejs/targets/package
-    ${YT_ROOT}/yt/server/bin/master
-    ${YT_ROOT}/yt/server/bin/node
-    ${YT_ROOT}/yt/server/bin/rpc_proxy
-    ${YT_ROOT}/yt/server/bin/job_proxy
+    ${YT_ROOT}/yt/server/cell_master/bin
+    ${YT_ROOT}/yt/server/cell_node/bin
+    ${YT_ROOT}/yt/server/rpc_proxy/bin
+    ${YT_ROOT}/yt/server/job_proxy/bin
     ${YT_ROOT}/yt/server/bin/exec
     ${YT_ROOT}/yt/server/bin/tools
-    ${YT_ROOT}/yt/server/bin/scheduler
-    ${YT_ROOT}/yt/server/bin/controller_agent
+    ${YT_ROOT}/yt/server/scheduler/bin
+    ${YT_ROOT}/yt/server/controller_agent/bin
 )
