@@ -278,11 +278,13 @@ TChunkSpecList TMultiTablesPartitioner::FetchAndFilterTableChunks(const size_t t
     TChunkSpecList chunkSpecs;
     chunkSpecs.reserve(table.ChunkCount);
 
+    auto objectIdPath = FromObjectId(table.ObjectId);
+
     FetchChunkSpecs(
         Client,
         NodeDirectory,
         table.CellTag,
-        table.Path.GetPath(),
+        objectIdPath,
         table.Path.GetRanges(),
         table.ChunkCount,
         100000, // MaxChunksPerFetch
