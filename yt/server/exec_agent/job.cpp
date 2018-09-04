@@ -1334,7 +1334,8 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
-            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
+            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
+            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut))
         {
             return EAbortReason::Other;
         }
