@@ -871,7 +871,7 @@ def run_yp_integration_tests(options, build_context):
         return
 
     node_path = get_node_modules_dir(options)
-    for python_version in iter_enabled_python_versions(options):
+    for python_version, _ in iter_enabled_python_versions(options):
         if python_version not in {"2.7", "3.4"}:
             continue
         run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
