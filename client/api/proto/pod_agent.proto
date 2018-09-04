@@ -606,6 +606,8 @@ message TTcpCheckStatus {
 message THttpGetStatus {
     ECheckResult CheckResult = 1;
     google.protobuf.Timestamp LastRequestTime = 2;
+    uint32 ConsecutiveSuccessesCounter = 3;
+    uint32 ConsecutiveFailuresCounter = 4;
 }
 
 message TReadinessStatus {
