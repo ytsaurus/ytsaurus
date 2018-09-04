@@ -28,6 +28,7 @@
 
 #include <yt/core/misc/farm_hash.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/hyperloglog.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -58,6 +59,10 @@ namespace NRoutines {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using THLL = NYT::THyperLogLog<14>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1945,6 +1950,33 @@ void ListContains(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result)
+{
+    auto hll = AllocateBytes(context, sizeof(THLL));
+    new (hll) THLL();
+
+    result->Type = EValueType::String;
+    result->Length = sizeof(THLL);
+    result->Data.String = hll;
+}
+
+void HyperLogLogAdd(void* hll, uint64_t value)
+{
+    static_cast<THLL*>(hll)->Add(value);
+}
+
+void HyperLogLogMerge(void* hll1, void* hll2)
+{
+    static_cast<THLL*>(hll1)->Merge(*static_cast<THLL*>(hll2));
+}
+
+ui64 HyperLogLogEstimateCardinality(void* hll)
+{
+    return static_cast<THLL*>(hll)->EstimateCardinality();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2006,6 +2038,10 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_YPATH_GET_ROUTINE(String);
     REGISTER_YPATH_GET_ROUTINE(Any);
     REGISTER_ROUTINE(ListContains);
+    REGISTER_ROUTINE(HyperLogLogAllocate);
+    REGISTER_ROUTINE(HyperLogLogAdd);
+    REGISTER_ROUTINE(HyperLogLogMerge);
+    REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 
