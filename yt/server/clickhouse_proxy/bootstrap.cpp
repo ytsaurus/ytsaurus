@@ -80,11 +80,11 @@ void TBootstrap::DoRun()
 {
     LOG_INFO("Starting clickhouse proxy");
 
-    auto authenticators = CreateAuthenticators(
+    AuthenticationManager_ = New<TAuthenticationManager>(
         Config_->AuthenticationManager,
         GetControlInvoker(),
         nullptr /* client */);
-    TokenAuthenticator_ = std::get<0>(authenticators);
+    TokenAuthenticator_ = AuthenticationManager_->GetTokenAuthenticator();
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;

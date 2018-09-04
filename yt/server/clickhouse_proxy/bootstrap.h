@@ -45,6 +45,7 @@ private:
     NHttp::IServerPtr ClickHouseProxyServer_;
     TClickHouseProxyHandlerPtr ClickHouseProxy_;
 
+    NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
 
     void DoRun();
