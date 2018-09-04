@@ -12,6 +12,7 @@ import plotly.graph_objs as go
 from datetime import datetime
 from collections import defaultdict, Iterable
 from itertools import groupby
+from functools import total_ordering
 import numbers
 
 
@@ -158,6 +159,7 @@ def _get_hline(x0=0, x1=0, y=0, color="green", name="", showlegend=False, visibl
     )
 
 
+@total_ordering
 class JobInfo(object):
     """Object for job representation"""
     def __init__(self, job_info, operation_start=0):
@@ -225,6 +227,12 @@ class JobInfo(object):
             _ts_to_time_str(self.operation_start + self.start_time),
             _ts_to_time_str(self.operation_start + self.end_time)
         )
+    
+    def __eq__(self, other):
+        return (self.type, self.start_time) == (other.type, other.start_time)
+    
+    def __lt__(self, other):
+        return (self.type, self.start_time) < (other.type, other.start_time)
 
 
 def get_jobs(op_id, cluster_name):
@@ -244,7 +252,7 @@ def get_jobs(op_id, cluster_name):
         state = job_info["state"] or job_info["transient_state"]
         if state in ["completed", "failed"]:
             jobset.append(JobInfo(job_info, operation_start))
-    jobset.sort(key=lambda x: (x.type, x.start_time))
+    jobset.sort()
     return jobset
 
 
@@ -252,7 +260,7 @@ def draw_time_gantt(jobset):
     """Draw gantt chart illustrating preparation and execution periods for every job"""
     if not _data_is_correct([jobset]):
         return
-    for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
+    for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
         lines = []
         for y, job_info in enumerate(jobs_info):
             lines.append(_get_hline(
@@ -299,7 +307,7 @@ def draw_comparative_hist(jobsets, statistic="total_time"):
     bin_size = float(max_val - min_val + 1) / bin_count
     traces = []
     for i, jobset in enumerate(jobsets):
-        for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
+        for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             values = [_get_statistics(job_info, statistic) for job_info in jobs_info]
             traces.append(go.Histogram(
                 x=values,
@@ -333,7 +341,7 @@ def draw_comparative_time_plot(jobsets):
     step_count=200
     traces = []
     for i, jobset in enumerate(jobsets):
-        for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
+        for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             min_time = min(job_info.start_time for job_info in jobset if job_info.type == job_type)
             max_time = max(job_info.end_time for job_info in jobset if job_info.type == job_type)
             time_points = numpy.linspace(max(0, min_time - 1), max_time + 1, min(step_count, max_time - min_time + 1))
@@ -377,7 +385,7 @@ def draw_comparative_scatter_plot(jobsets, x_statistic="input_data_weight", y_st
         return
     traces = []
     for i, jobset in enumerate(jobsets):
-        for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
+        for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             xvalues, yvalues = zip(*[(
                 _get_statistics(job_info, x_statistic),
                 _get_statistics(job_info, y_statistic))
@@ -412,7 +420,7 @@ def draw_time_statistics_bar_chart(jobset):
         "exec_time", "user_job_cpu", "job_proxy_cpu",
         "codec_decode", "codec_encode", "input_idle_time", "busy_time",
     ]
-    for job_type, job_info_per_type in groupby(jobset, key=lambda x: x.type):
+    for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
         jobs_info = list(job_info_per_type)
         job_ids = [_add_line_breaks_to_guid(
             parts_to_guid(job_info.job_id_hi, job_info.job_id_lo),
@@ -438,12 +446,13 @@ def draw_time_statistics_bar_chart(jobset):
                 hovermode="closest", bargap=0.3,
             ),
         ))
+
     
 def print_text_data(jobset):
     """
     Print node id, job id and running time for every job
     """
-    for job_type, jobs_info in groupby(jobset, key=lambda x: x.type):
+    for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
         print("{} jobs:\n".format(job_type))
         for job_info in jobs_info:
             print("\t{}".format(job_info))
