@@ -161,7 +161,7 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .LessThan(MaxMemoryTag);
 
     RegisterParameter("operations_without_tentative_pool_trees", OperationsWithoutTentativePoolTrees)
-        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy });
+        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
