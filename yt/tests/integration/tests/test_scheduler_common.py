@@ -3816,3 +3816,23 @@ class TestNewLivePreview(YTEnvSetup):
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+
+
+class TestConnectToMaster(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    def test_scheduler_doesnt_connect_to_master_in_safe_mode(self):
+        set("//sys/@config/enable_safe_mode", True)
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers(sync=False)
+        time.sleep(1)
+
+        wait(lambda: self.has_safe_mode_error_in_log())
+
+    def has_safe_mode_error_in_log(self):
+        for line in open(self.path_to_run + "/logs/scheduler-0.log"):
+            if "Error connecting to master" in line and "Cluster is in safe mode" in line:
+                return True
+        return False

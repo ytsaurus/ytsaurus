@@ -604,6 +604,7 @@ private:
         void Run()
         {
             FireConnecting();
+            EnsureNoSafeMode();
             RegisterInstance();
             StartLockTransaction();
             TakeLock();
@@ -631,6 +632,22 @@ private:
         void FireConnecting()
         {
             Owner_->MasterConnecting_.Fire();
+        }
+
+        void EnsureNoSafeMode()
+        {
+            TObjectServiceProxy proxy(Owner_
+                ->Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+            auto rspOrError = WaitFor(proxy.Execute(TCypressYPathProxy::Get("//sys/@config/enable_safe_mode")));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting \"enable_safe_mode\" from master");
+
+            auto safeMode = ConvertToNode(TYsonString(rspOrError.Value()->value()))->AsBoolean();
+            if (safeMode->GetValue()) {
+                THROW_ERROR_EXCEPTION("Cluster is in safe mode");
+            }
         }
 
         // - Register scheduler instance.
