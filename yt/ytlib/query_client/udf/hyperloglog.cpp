@@ -1,7 +1,5 @@
 #include <yt/client/table_client/unversioned_value.h>
 
-#include <yt/core/misc/hyperloglog.h>
-
 #include "yt_udf_cpp.h"
 
 static uint64_t Hash(TUnversionedValue* v)
@@ -10,18 +8,16 @@ static uint64_t Hash(TUnversionedValue* v)
     return NYT::NTableClient::GetFarmFingerprint(*value);
 }
 
-typedef NYT::THyperLogLog<14> THLL;
+extern "C" void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result);
+extern "C" void HyperLogLogAdd(void* hll1, uint64_t val);
+extern "C" void HyperLogLogMerge(void* hll1, void* hll2);
+extern "C" ui64 HyperLogLogEstimateCardinality(void* hll1);
 
 extern "C" void cardinality_init(
     TExpressionContext* context,
     TUnversionedValue* result)
 {
-    auto hll = AllocateBytes(context, sizeof(THLL));
-    new (hll) THLL();
-
-    result->Type = EValueType::String;
-    result->Length = sizeof(THLL);
-    result->Data.String = hll;
+    HyperLogLogAllocate(context, result);
 }
 
 extern "C" void cardinality_update(
@@ -31,11 +27,10 @@ extern "C" void cardinality_update(
     TUnversionedValue* newValue)
 {
     result->Type = EValueType::String;
-    result->Length = sizeof(THLL);
+    result->Length = state->Length;
     result->Data.String = state->Data.String;
 
-    auto hll = reinterpret_cast<THLL*>(state->Data.String);
-    hll->Add(Hash(newValue));
+    HyperLogLogAdd(result->Data.String, Hash(newValue));
 }
 
 extern "C" void cardinality_merge(
@@ -45,12 +40,10 @@ extern "C" void cardinality_merge(
     TUnversionedValue* state2)
 {
     result->Type = EValueType::String;
-    result->Length = sizeof(THLL);
+    result->Length = state1->Length;
     result->Data.String = state1->Data.String;
 
-    auto hll1 = reinterpret_cast<THLL*>(state1->Data.String);
-    auto hll2 = reinterpret_cast<THLL*>(state2->Data.String);
-    hll1->Merge(*hll2);
+    HyperLogLogMerge(state1->Data.String, state2->Data.String);
 }
 
 extern "C" void cardinality_finalize(
@@ -58,7 +51,6 @@ extern "C" void cardinality_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
-    auto hll = reinterpret_cast<THLL*>(state->Data.String);
     result->Type = EValueType::Uint64;
-    result->Data.Uint64 = hll->EstimateCardinality();
+    result->Data.Uint64 = HyperLogLogEstimateCardinality(state->Data.String);
 }
