@@ -2163,9 +2163,6 @@ private:
 
         std::vector<TFuture<void>> asyncResults;
         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            if (jobsByShardId[shardId].empty()) {
-                continue;
-            }
             auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
                 .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
