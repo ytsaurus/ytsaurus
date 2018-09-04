@@ -1050,7 +1050,7 @@ private:
 
         virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
         {
-            // XXX(ignat): remove before deploy on production clusters.
+            // NB: Should be filtered out on large clusters.
             LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
@@ -1060,7 +1060,7 @@ private:
 
         virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) override
         {
-            // XXX(ignat): remove before deploy on production clusters.
+            // NB: Should be filtered out on large clusters.
             LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
@@ -2116,11 +2116,6 @@ public:
         FairShareUpdateExecutor_->Stop();
         MinNeededJobResourcesUpdateExecutor_->Stop();
 
-        {
-            TWriterGuard guard(RegisteredOperationsLock_);
-            RegisteredOperations_.clear();
-        }
-
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
 
@@ -2187,11 +2182,6 @@ public:
         YCHECK(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
 
-        {
-            TWriterGuard guard(RegisteredOperationsLock_);
-            YCHECK(RegisteredOperations_.insert(operation->GetId()).second);
-        }
-
         auto runtimeParams = operation->GetRuntimeParameters();
 
         for (const auto& pair : state->TreeIdToPoolNameMap()) {
@@ -2215,11 +2205,6 @@ public:
         for (const auto& pair : state->TreeIdToPoolNameMap()) {
             const auto& treeId = pair.first;
             DoUnregisterOperationFromTree(state, treeId);
-        }
-
-        {
-            TWriterGuard guard(RegisteredOperationsLock_);
-            YCHECK(RegisteredOperations_.erase(operation->GetId()) == 1);
         }
 
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
@@ -2339,6 +2324,7 @@ public:
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
             std::swap(TreeIdToSnapshot_, snapshots);
+            ++SnapshotRevision_;
         }
 
         // Setting alerts.
@@ -2697,6 +2683,7 @@ public:
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
             std::swap(TreeIdToSnapshot_, snapshots);
+            ++SnapshotRevision_;
         }
 
         if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now) {
@@ -2741,7 +2728,8 @@ public:
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
-        std::vector<TJobId>* jobsToAbort) override
+        std::vector<TJobId>* jobsToAbort,
+        int* snapshotRevision) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2754,48 +2742,40 @@ public:
         {
             TReaderGuard guard(TreeIdToSnapshotLock_);
             snapshots = TreeIdToSnapshot_;
+            *snapshotRevision = SnapshotRevision_;
         }
 
         THashSet<TJobId> jobsToSave;
-        THashMap<TOperationId, bool> registeredOperationsCache;
 
         for (const auto& job : jobUpdates) {
-            if (job.Status == EJobUpdateStatus::Running) {
-                auto snapshotIt = snapshots.find(job.TreeId);
-                if (snapshotIt == snapshots.end()) {
-                    // Job is orphaned (does not belong to any tree), aborting it.
-                    jobsToAbort->push_back(job.JobId);
-                } else {
-                    // XXX(ignat): check snapshot->HasOperation(job.OperationId) ?
-                    const auto& snapshot = snapshotIt->second;
-                    snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.Delta);
-                }
-            } else { // EJobUpdateStatus::Finished
-                auto snapshotIt = snapshots.find(job.TreeId);
-                if (snapshotIt == snapshots.end()) {
-                    // Job is finished but tree does not exist, nothing to do.
-                    continue;
-                }
-                const auto& snapshot = snapshotIt->second;
-                if (snapshot->HasOperation(job.OperationId)) {
-                    snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
-                } else {
-                    // If operation is not yet in snapshot let's push it back to finished jobs.
-                    auto registeredOperationsCacheIt = registeredOperationsCache.find(job.OperationId);
-                    if (registeredOperationsCacheIt == registeredOperationsCache.end()) {
-                        TReaderGuard guard(RegisteredOperationsLock_);
-                        bool operationRegistered = RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end();
-                        guard.Release();
-
-                        registeredOperationsCacheIt = registeredOperationsCache.insert(std::make_pair(
-                            job.OperationId,
-                            operationRegistered)).first;
+            switch (job.Status) {
+                case EJobUpdateStatus::Running: {
+                    auto snapshotIt = snapshots.find(job.TreeId);
+                    if (snapshotIt == snapshots.end()) {
+                        // Job is orphaned (does not belong to any tree), aborting it.
+                        jobsToAbort->push_back(job.JobId);
+                    } else {
+                        const auto& snapshot = snapshotIt->second;
+                        snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.Delta);
                     }
-
-                    if (registeredOperationsCacheIt->second) {
+                    break;
+                }
+                case EJobUpdateStatus::Finished: {
+                    auto snapshotIt = snapshots.find(job.TreeId);
+                    if (snapshotIt == snapshots.end()) {
+                        // Job is finished but tree does not exist, nothing to do.
+                        continue;
+                    }
+                    const auto& snapshot = snapshotIt->second;
+                    if (snapshot->HasOperation(job.OperationId)) {
+                        snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
+                    } else if (!job.SnapshotRevision || *job.SnapshotRevision == *snapshotRevision) {
                         jobsToSave.insert(job.JobId);
                     }
+                    break;
                 }
+                default:
+                    Y_UNREACHABLE();
             }
         }
 
@@ -2872,9 +2852,6 @@ private:
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    TReaderWriterSpinLock RegisteredOperationsLock_;
-    THashSet<TOperationId> RegisteredOperations_;
-
     TInstant LastProfilingTime_;
 
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
@@ -2884,6 +2861,7 @@ private:
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
+    int SnapshotRevision_ = 0;
 
     TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
     {

@@ -65,6 +65,7 @@ struct TJobUpdate
     TJobId JobId;
     TString TreeId;
     TJobResources Delta;
+    TNullable<int> SnapshotRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +140,8 @@ struct ISchedulerStrategy
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
-        std::vector<TJobId>* jobsToAbort) = 0;
+        std::vector<TJobId>* jobsToAbort,
+        int* snapshotRevision) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
