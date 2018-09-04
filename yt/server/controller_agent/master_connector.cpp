@@ -1249,14 +1249,12 @@ private:
         LOG_INFO("Updating controller agent configuration");
 
         try {
-            auto batchReq = StartObjectBatchRequest();
+            TObjectServiceProxy proxy(Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
             auto req = TYPathProxy::Get("//sys/controller_agents/config");
-            batchReq->AddRequest(req, "get_config");
-
-            auto batchRsp = WaitFor(batchReq->Invoke())
-                .ValueOrThrow();
-
-            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+            auto rspOrError = WaitFor(proxy.Execute(req));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 LOG_INFO("No configuration found in Cypress");
                 SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
