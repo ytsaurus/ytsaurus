@@ -284,11 +284,17 @@ public:
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
 
-        LoggingExecutor_ = New<TPeriodicExecutor>(
+        ClusterInfoLoggingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::OnLogging, MakeWeak(this)),
+            BIND(&TImpl::OnClusterInfoLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
-        LoggingExecutor_->Start();
+        ClusterInfoLoggingExecutor_->Start();
+
+        NodesInfoLoggingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::OnNodesInfoLogging, MakeWeak(this)),
+            Config_->NodesInfoLoggingPeriod);
+        NodesInfoLoggingExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -1212,7 +1218,8 @@ private:
     TEnumIndexedVector<TTagId, EInterruptReason> JobInterruptReasonToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
-    TPeriodicExecutorPtr LoggingExecutor_;
+    TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
+    TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
@@ -1394,7 +1401,7 @@ private:
         }
     }
 
-    void OnLogging()
+    void OnClusterInfoLogging()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1405,6 +1412,35 @@ private:
                 .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
                 .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter));
         }
+    }
+
+    void OnNodesInfoLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!IsConnected()) {
+            return;
+        }
+
+        std::vector<TFuture<TYsonString>> nodeListFutures;
+        for (const auto& nodeShard : NodeShards_) {
+            nodeListFutures.push_back(
+                BIND([nodeShard] () {
+                    return BuildYsonStringFluently<EYsonType::MapFragment>()
+                        .Do(BIND(&TNodeShard::BuildNodesYson, nodeShard))
+                        .Finish();
+                })
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
+        }
+
+        auto nodeLists = WaitFor(Combine(nodeListFutures)).ValueOrThrow();
+
+        LogEventFluently(ELogEventType::NodesInfo)
+            .Item("nodes")
+                .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
+                    fluent.Items(nodeList);
+                });
     }
 
 
@@ -1727,7 +1763,8 @@ private:
             CachedExecNodeMemoryDistributionByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
-            LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
+            ClusterInfoLoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
+            NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
