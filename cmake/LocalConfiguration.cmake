@@ -102,6 +102,10 @@ if(_is_gcc)
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-constant-logical-operand")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-enum-compare-switch")
 
+    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
+      set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-lambda-capture")
+    endif()
+
     if(CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
       set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fcolor-diagnostics")
     endif()
