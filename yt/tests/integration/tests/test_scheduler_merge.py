@@ -305,6 +305,42 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    def test_sorted_row_count_limit(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
+        write_table("//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
+        write_table("//tmp/t3", [{"k": "b", "s": 1}, {"k": "b", "s": 2}], sorted_by=["k", "s"])
+
+        create("table", "//tmp/out")
+        merge(mode="sorted",
+              in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+              out="<row_count_limit=2>//tmp/out",
+              merge_by=["k", "s"])
+
+        assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1},
+                                           {"k": "b", "s": 1}, {"k": "b", "s": 2},
+                                           {"k": "b", "s": 2}, {"k": "c", "s": 0}]
+
+    def test_sorted_row_count_limit_2(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
+        write_table("//tmp/t2", [{"k": "b", "s": 3}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
+        write_table("//tmp/t3", [{"k": "b", "s": 2}, {"k": "b", "s": 4}], sorted_by=["k", "s"])
+
+        create("table", "//tmp/out")
+        merge(mode="sorted",
+              in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+              out="<row_count_limit=2>//tmp/out",
+              merge_by=["k", "s"])
+
+        assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1}]
+
     # TODO(max42): eventually remove this test as it duplicates unittests TSortedChunkPoolTest/SortedMergeTeleport*.
     def test_sorted_passthrough(self):
         create("table", "//tmp/t1")

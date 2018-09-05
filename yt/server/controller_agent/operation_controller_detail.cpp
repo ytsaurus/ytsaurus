@@ -2008,8 +2008,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         jobSummary->ArchiveJobSpec = true;
     }
 
-    // Statistics job state saved from jobSummary before moving jobSummary to ProcessFinishedJobResult.
-    auto statisticsState = GetStatisticsJobState(joblet, jobSummary->State);
+    // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
+    TNullable<i64> maybeRowCount; 
+    if (RowCountLimitTableIndex) {
+        maybeRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
+    }
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
 
@@ -2024,20 +2027,18 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    auto statisticsSuffix = JobHelper.GetStatisticsSuffix(statisticsState, joblet->JobType);
-
-    if (RowCountLimitTableIndex) {
+    if (RowCountLimitTableIndex && maybeRowCount) {
         switch (joblet->JobType) {
             case EJobType::Map:
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
             case EJobType::JoinReduce:
-            case EJobType::PartitionReduce: {
-                auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, statisticsSuffix);
-                i64 count = GetNumericValue(JobStatistics, path);
-                if (count >= RowCountLimit) {
-                    OnOperationCompleted(true /* interrupted */);
-                }
+            case EJobType::PartitionReduce:
+            case EJobType::OrderedMerge:
+            case EJobType::UnorderedMerge:
+            case EJobType::SortedMerge:
+            case EJobType::FinalSort: {
+                RegisterOutputRows(*maybeRowCount, *RowCountLimitTableIndex);
                 break;
             }
             default:
@@ -5961,6 +5962,8 @@ void TOperationControllerBase::RegisterTeleportChunk(
         AttachToLivePreview(chunkSpec->ChunkId(), table.LivePreviewTableId);
     }
 
+    RegisterOutputRows(chunkSpec->GetRowCount(), tableIndex);
+
     LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
         chunkSpec->ChunkId(),
@@ -7522,6 +7525,24 @@ TString TOperationControllerBase::WriteCoreDump() const
         THROW_ERROR_EXCEPTION("Core dumper is not set up");
     }
     return coreDumper->WriteCoreDump(CoreNotes_).Path;
+}
+
+void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
+{
+    if (RowCountLimitTableIndex && *RowCountLimitTableIndex == tableIndex && State != EControllerState::Finished) {
+        CompletedRowCount_ += count;
+        if (CompletedRowCount_ >= RowCountLimit) {
+            LOG_INFO("Row count limit is reached (CompletedRowCount: %v, RowCountLimit: %v).",
+                CompletedRowCount_,
+                RowCountLimit);
+            OnOperationCompleted(true /* interrupted */);
+        }
+    }
+}
+
+TNullable<int> TOperationControllerBase::GetRowCountLimitTableIndex()
+{
+    return RowCountLimitTableIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

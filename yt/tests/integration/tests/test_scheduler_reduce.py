@@ -1084,6 +1084,59 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 3
 
     @unix_only
+    def test_reduce_row_count_limit_teleport(self):
+        create("table", "//tmp/in1", attributes = {
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}])
+            })
+        create("table", "//tmp/in2", attributes = {
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}])
+            })
+        write_table("//tmp/in1", [{"key": 1}, {"key" : 3}])
+        write_table("<append=true>//tmp/in1", [{"key": 5}, {"key" : 7}])
+        write_table("//tmp/in2", [{"key": 6}, {"key" : 10}, {"key" : 11}])
+        create("table", "//tmp/out")
+
+        reduce(
+            in_=["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2"],
+            out="<teleport=true;row_count_limit=1>//tmp/out",
+            command = "cat",
+            reduce_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                }
+            })
+
+        assert read_table("//tmp/out") == [{"key": 1}, {"key": 3}]
+
+    @unix_only
+    def test_reduce_row_count_limit_teleport_2(self):
+        create("table", "//tmp/in1", attributes = {
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}])
+            })
+        create("table", "//tmp/in2", attributes = {
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}])
+            })
+        write_table("//tmp/in1", [{"key": 1}, {"key" : 3}])
+        write_table("<append=true>//tmp/in1", [{"key": 5}, {"key" : 7}])
+        write_table("//tmp/in2", [{"key": 6}, {"key" : 10}, {"key" : 11}])
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+
+        reduce(
+            in_=["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2"],
+            out=["<row_count_limit=1>//tmp/out1", "<teleport=true>//tmp/out2"],
+            command = "cat",
+            reduce_by=["key"])
+
+        assert sorted(read_table("//tmp/out1")) == [{"key": 5}, {"key" : 7}]
+        assert sorted(read_table("//tmp/out2")) == [{"key": 1}, {"key" : 3}, {"key": 6}, {"key" : 10}, {"key" : 11}]
+
+    @unix_only
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     def test_schema_validation(self, sort_order):
         create("table", "//tmp/input")
