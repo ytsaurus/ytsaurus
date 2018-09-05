@@ -64,14 +64,14 @@ def _get_event_time(phase, events):
 
 def _get_statistic_from_output_tables(statistic, output):
     """Get particular statistic from all output tables as a list"""
-    return sum(table[statistic] for table in output.itervalues())
+    return sum(table[statistic] for table in output.values())
 
 
 def _trim_statistics_tree(tree):
     """Remove sum/min/max/count fields on the lower level of statistics tree"""
-    if not hasattr(tree, "iteritems"):
+    if not hasattr(tree, "items"):
         return
-    for key, branch in tree.iteritems():
+    for key, branch in tree.items():
         if isinstance(branch, Iterable) and "sum" in branch:
             tree[key] = branch["sum"]
         else:
@@ -206,11 +206,11 @@ class JobInfo(object):
             _nested_dict_find(job_info["statistics"], "job_proxy/cpu/user")
         ) / 1000
         self.codec_decode = float(sum(
-            alg for alg in job_info["statistics"]["codec"]["cpu"]["decode"].itervalues()
+            alg for alg in job_info["statistics"]["codec"]["cpu"]["decode"].values()
         )) / 1000
         self.codec_encode = float(sum(
-            alg for table in job_info["statistics"]["codec"]["cpu"]["encode"].itervalues()
-                for alg in table.itervalues() 
+            alg for table in job_info["statistics"]["codec"]["cpu"]["encode"].values()
+                for alg in table.values() 
         )) / 1000
         self.input_idle_time = float(_nested_dict_find(
             job_info["statistics"], "user_job/pipes/input/idle_time"
@@ -446,7 +446,6 @@ def draw_time_statistics_bar_chart(jobset):
                 hovermode="closest", bargap=0.3,
             ),
         ))
-
     
 def print_text_data(jobset):
     """
