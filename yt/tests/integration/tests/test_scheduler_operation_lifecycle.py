@@ -647,6 +647,8 @@ class SchedulerReviveBase(YTEnvSetup):
         if self.OP_TYPE == "map":
             assert read_table("//tmp/t_out") == []
 
+    # NB: test rely on timings and can flap if we hang at some point.
+    @flaky(max_runs=3)
     @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
     def test_completing_with_sleep(self, stage):
         self._create_table("//tmp/t_in")
