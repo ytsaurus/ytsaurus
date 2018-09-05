@@ -192,11 +192,15 @@ private:
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     NQueryClient::ISubexecutorPtr QueryExecutor;
 
+    NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor;
+
     void DoRun();
     void PopulateAlerts(std::vector<TError>* alerts);
 
     void OnMasterConnected();
     void OnMasterDisconnected();
+
+    void UpdateFootprintMemoryUsage();
 
 };
 
