@@ -210,7 +210,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleJob)
 
         // Remove future from outstanding requests after it was set + timeout.
         future.Subscribe(BIND([throttlingRequestId, this, this_ = MakeStrong(this)] (const TError& /* error */) {
-            TDelayedExecutor::Submit(BIND([throttlingRequestId, this, this_] () {
+            TDelayedExecutor::Submit(BIND([throttlingRequestId, this_] () {
                     const auto& Logger = ExecAgentLogger;
 
                     LOG_DEBUG("Evict outstanding throttling request (ThrottlingRequestId: %v)", throttlingRequestId);

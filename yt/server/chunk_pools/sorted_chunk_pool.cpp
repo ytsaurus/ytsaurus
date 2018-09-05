@@ -217,7 +217,7 @@ public:
                     job->GetDebugString());
 
                 THROW_ERROR_EXCEPTION(
-                    EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight exceeded for a sorted job: %v > %v",
+                    EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight per sorted job exceeds the limit: %v > %v",
                     job->GetDataWeight(),
                     Options_.MaxDataWeightPerJob)
                     << TErrorAttribute("lower_key", job->LowerPrimaryKey())
