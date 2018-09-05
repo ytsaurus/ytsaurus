@@ -215,7 +215,7 @@ class JobInfo(object):
         self.input_idle_time = float(_nested_dict_find(
             job_info["statistics"], "user_job/pipes/input/idle_time"
         )) / 1000
-        self.busy_time = float(_nested_dict_find(
+        self.input_busy_time = float(_nested_dict_find(
             job_info["statistics"], "user_job/pipes/input/busy_time"
         )) / 1000
         
@@ -418,7 +418,7 @@ def draw_time_statistics_bar_chart(jobset):
         return
     statistics = [
         "exec_time", "user_job_cpu", "job_proxy_cpu",
-        "codec_decode", "codec_encode", "input_idle_time", "busy_time",
+        "codec_decode", "codec_encode", "input_idle_time", "input_busy_time",
     ]
     for job_type, job_info_per_type in groupby(sorted(jobset), key=lambda x: x.type):
         jobs_info = list(job_info_per_type)
