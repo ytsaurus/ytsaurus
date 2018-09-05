@@ -30,7 +30,7 @@ def main():
     scripts = [binary + str(sys.version_info[0]) for binary in binaries]
 
     if "EGG" not in os.environ:
-        data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"]))
+        data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion" + str(sys.version_info[0])]))
     if "DEB" not in os.environ:
         scripts.extend(binaries)
 
