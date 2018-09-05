@@ -167,9 +167,9 @@ class JobInfo(object):
         self.statistics = job_info["statistics"]
         
         self.operation_start = operation_start
-        self.start_time = _get_event_time("created", job_info["events"]) - operation_start
-        self.start_running = _get_event_time("running", job_info["events"]) - operation_start
-        self.end_time = _get_event_time("finished", job_info["events"]) - operation_start
+        self.start_time = float(_get_event_time("created", job_info["events"]) - operation_start)
+        self.start_running = float(_get_event_time("running", job_info["events"]) - operation_start)
+        self.end_time = float(_get_event_time("finished", job_info["events"]) - operation_start)
         self.total_time = self.end_time - self.start_time
         self.exec_time = self.end_time - self.start_running
         self.prepare_time = self.start_running - self.start_time
@@ -178,6 +178,7 @@ class JobInfo(object):
         self.type = job_info["type"]
         self.job_id_hi = job_info["job_id_hi"]
         self.job_id_lo = job_info["job_id_lo"]
+        self.job_id = parts_to_guid(self.job_id_hi, self.job_id_lo)
         self.node = job_info["address"].split(".")[0] if "address" in job_info else ""
         
         self.input_compressed_data_size = job_info["statistics"]["data"]["input"]["compressed_data_size"]
@@ -344,7 +345,11 @@ def draw_comparative_time_plot(jobsets):
         for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             min_time = min(job_info.start_time for job_info in jobset if job_info.type == job_type)
             max_time = max(job_info.end_time for job_info in jobset if job_info.type == job_type)
-            time_points = numpy.linspace(max(0, min_time - 1), max_time + 1, min(step_count, max_time - min_time + 1))
+            time_points = numpy.linspace(
+                max(0, min_time - 1),
+                max_time + 1,
+                min(step_count, int(max_time - min_time + 1))
+            )
 
             job_count = [0] * len(time_points)
             for job_info in jobs_info:
@@ -446,6 +451,7 @@ def draw_time_statistics_bar_chart(jobset):
                 hovermode="closest", bargap=0.3,
             ),
         ))
+
     
 def print_text_data(jobset):
     """
