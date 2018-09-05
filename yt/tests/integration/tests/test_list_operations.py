@@ -90,10 +90,9 @@ class ListOperationsSetup(YTEnvSetup):
 
         # Create a new pool tree.
         tag = "other"
-        create("map_node", "//sys/pool_trees/other", ignore_existing=True)
-        create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
-        set("//sys/pool_trees/other/@nodes_filter", tag)
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
+        create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
         node = ls("//sys/nodes")[0]
         set("//sys/nodes/" + node + "/@user_tags/end", tag)
 
