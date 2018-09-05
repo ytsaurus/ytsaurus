@@ -2210,19 +2210,24 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         non_tentative_job_count = 0
         time_passed = 0
+        completion_time = None
         while not operation_completed():
             time.sleep(0.5)
             time_passed += 0.5
 
-            if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT and \
-                time_passed > 2.0 * TestSchedulingOptionsPerTree.MAX_TENTATIVE_TREE_JOB_DURATION_RATIO:
-                # Tentative jobs should now be "slow" enough, it's time to start completing them.
+            if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+                completion_time = time_passed
                 break
 
             for job_id, tentative in iter_running_jobs():
                 if not tentative:
                     non_tentative_job_count += 1
                     events.notify_event("continue_job_{0}".format(job_id))
+
+        # Tentative jobs should now be "slow" enough, it's time to start completing them.
+        while not operation_completed() and time_passed < 3.0 * completion_time:
+            time.sleep(0.5)
+            time_passed += 0.5
 
         op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
         tentative_job_count = 0
