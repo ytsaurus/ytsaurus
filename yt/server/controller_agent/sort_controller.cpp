@@ -1193,6 +1193,19 @@ protected:
                         << error);
                 InvalidatedJoblets_.insert(joblet);
             }
+            for (const auto& jobOutput : JobOutputs_) {
+                YCHECK(jobOutput.JobSummary.Statistics);
+                auto tableIndex = Controller->GetRowCountLimitTableIndex();
+                if (tableIndex) {
+                    auto maybeCount = FindNumericValue(
+                        *jobOutput.JobSummary.Statistics,
+                        Format("/data/output/%v/row_count", *tableIndex));
+                    if (maybeCount) {
+                        // We have to unregister registered output rows.
+                        Controller->RegisterOutputRows(-(*maybeCount), *tableIndex);
+                    }
+                }
+            }
             JobOutputs_.clear();
         }
 
@@ -1675,6 +1688,17 @@ protected:
             }
 
             YCHECK(CompletedPartitionCount == Partitions.size());
+        } else {
+            if (RowCountLimitTableIndex && CompletedRowCount_ >= RowCountLimit) {
+                // We have to save all output in SortedMergeTask.
+                for (const auto& task : Tasks) {
+                    task->CheckCompleted();
+                    if (!task->IsCompleted() && task->GetJobType() == EJobType::SortedMerge) {
+                        // Dirty hack to save chunks.
+                        task->ForceComplete();
+                    }
+                }
+            }
         }
 
         TOperationControllerBase::OnOperationCompleted(interrupted);

@@ -218,6 +218,15 @@ void TTask::CheckCompleted()
     }
 }
 
+void TTask::ForceComplete()
+{
+    if (!CompletedFired_) {
+        LOG_DEBUG("Task is forcefully completed");
+        CompletedFired_ = true;
+        OnTaskCompleted();
+    }
+}
+
 TUserJobSpecPtr TTask::GetUserJobSpec() const
 {
     return nullptr;
