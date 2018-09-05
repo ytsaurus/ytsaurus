@@ -234,7 +234,7 @@ public:
             &TImpl::HandlePoolTrees,
             Unretained(this)));
 
-        MasterConnector_->AddCustomGlobalWatcher(
+        MasterConnector_->SetCustomGlobalWatcher(
             EWatcherType::NodeAttributes,
             BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
             BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
