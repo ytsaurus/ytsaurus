@@ -584,27 +584,26 @@ message TWorkloadStatus {
     uint32 Revision = 12;
 }
 
-enum ECheckResult {
-    ECheckResult_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+enum EHttpCheckState {
+    EHttpCheckState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
     // Ошибка во время выполнения(превышен таймаут, ошибка соединения, ...)
-    ECheckResult_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
+    EHttpCheckState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
     // Ответ не равен THttpGet::ExpectedAnswer
-    ECheckResult_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
+    EHttpCheckState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
 
-    ECheckResult_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
+    EHttpCheckState_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
     // Ожидание истечения InitialDelayMs
-    ECheckResult_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
+    EHttpCheckState_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
     // Ожидание истечения restart period - см. TTimeLimit
-    ECheckResult_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
+    EHttpCheckState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
 }
 
 message TTcpCheckStatus {
-    ECheckResult CheckResult = 1;
 }
 
 message THttpGetStatus {
-    ECheckResult CheckResult = 1;
+    EHttpCheckState State = 1;
     google.protobuf.Timestamp LastRequestTime = 2;
     uint32 ConsecutiveSuccessesCounter = 3;
     uint32 ConsecutiveFailuresCounter = 4;
