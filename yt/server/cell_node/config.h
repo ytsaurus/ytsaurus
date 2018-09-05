@@ -119,6 +119,8 @@ public:
 
     i64 FootprintMemorySize;
 
+    TDuration FootprintUpdatePeriod;
+
     int SkynetHttpPort;
 
     TCellNodeConfig()
@@ -152,6 +154,9 @@ public:
         RegisterParameter("footprint_memory_size", FootprintMemorySize)
             .Default(1_GB)
             .GreaterThanOrEqual(100 * 1_MB);
+
+        RegisterParameter("footprint_update_period", FootprintUpdatePeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("skynet_http_port", SkynetHttpPort)
             .Default(10080);
