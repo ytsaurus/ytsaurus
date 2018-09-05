@@ -360,11 +360,11 @@ public:
         GlobalWatcherHandlers_.push_back(handler);
     }
 
-    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+    void SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period});
+        CustomGlobalWatcherRecords_[type] = TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period};
     }
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
@@ -402,6 +402,7 @@ public:
         }
         if (CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]) {
             CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]->SetPeriod(Config_->NodesAttributesUpdatePeriod);
+            CustomGlobalWatcherRecords_[EWatcherType::NodeAttributes].Period = Config_->NodesAttributesUpdatePeriod;
         }
 
         ScheduleTestingDisconnect();
@@ -438,7 +439,7 @@ private:
     std::vector<TWatcherRequester> GlobalWatcherRequesters_;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
-    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
+    TEnumIndexedVector<TPeriodicExecutorRecord, EWatcherType> CustomGlobalWatcherRecords_;
     TEnumIndexedVector<TPeriodicExecutorPtr, EWatcherType> CustomGlobalWatcherExecutors_;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
@@ -1692,9 +1693,9 @@ void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
     Impl_->AddGlobalWatcherHandler(handler);
 }
 
-void TMasterConnector::AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+void TMasterConnector::SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
 {
-    Impl_->AddCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
+    Impl_->SetCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
 }
 
 void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
