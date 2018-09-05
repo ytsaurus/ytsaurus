@@ -390,6 +390,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("deterministic", Deterministic)
         .Default(false);
+    RegisterParameter("use_porto_memory_tracking", UsePortoMemoryTracking)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (TmpfsSize && *TmpfsSize > MemoryLimit) {

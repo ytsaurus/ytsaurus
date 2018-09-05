@@ -482,7 +482,6 @@ TJobResult TJobProxy::DoRun()
 
         RetrieveJobSpec();
 
-        // Disable throttling when timeout is 0.
         if (Config_->JobThrottler) {
             LOG_DEBUG("Job throttling enabled");
 
@@ -544,6 +543,11 @@ TJobResult TJobProxy::DoRun()
 
     if (schedulerJobSpecExt.has_user_job_spec()) {
         auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+        if (JobProxyEnvironment_ && userJobSpec.use_porto_memory_tracking()) {
+            JobProxyEnvironment_->EnablePortoMemoryTracking();
+        }
+
         JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
         LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
             JobProxyMemoryReserve_,
