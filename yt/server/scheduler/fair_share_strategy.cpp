@@ -961,6 +961,11 @@ public:
         return TPoolName(poolFromSpec.Get(), Null);
     };
 
+    bool HasOperation(const TOperationId& operationId)
+    {
+        return static_cast<bool>(FindOperationElement(operationId));
+    }
+
 private:
     TFairShareStrategyTreeConfigPtr Config;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
@@ -2797,7 +2802,7 @@ public:
         for (const auto& pair : jobsByTreeId) {
             auto tree = FindTree(pair.first);
             // NB: operation can be missing in tree since ban.
-            if (tree && tree->FindOperationElement(operationId)) {
+            if (tree && tree->HasOperation(operationId)) {
                 tree->RegisterJobs(operationId, pair.second);
             }
         }
