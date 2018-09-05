@@ -492,6 +492,10 @@ public:
     //! Flag showing that user code is guaranteed to be deterministic.
     bool Deterministic;
 
+    //! This flag forces creation of memory cgroup for user job and getting memory usage statistics from this cgroup.
+    //! Makes sense only with porto environment.
+    bool UsePortoMemoryTracking;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

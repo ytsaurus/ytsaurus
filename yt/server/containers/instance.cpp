@@ -290,6 +290,11 @@ public:
         Isolate_ = true;
     }
 
+    virtual void EnableMemoryTracking() override
+    {
+        RequireMemoryController_ = true;
+    }
+
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
     {
         SetProperty("memory_guarantee", ToString(memoryGuarantee));

@@ -6787,6 +6787,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_file_account(fileAccount);
 
     jobSpec->set_port_count(config->PortCount);
+    jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
     if (config->TmpfsPath && Config->EnableTmpfs) {
         auto tmpfsSize = config->TmpfsSize.Get(config->MemoryLimit);

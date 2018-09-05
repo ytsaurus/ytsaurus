@@ -110,6 +110,9 @@ message TUserJobSpec
 
     // Number of requested ports.
     required int32 port_count = 35;
+
+    // Number of requested ports.
+    optional bool use_porto_memory_tracking = 36;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
