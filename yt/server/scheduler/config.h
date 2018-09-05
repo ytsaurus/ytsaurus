@@ -312,6 +312,8 @@ public:
 
     TDuration ClusterInfoLoggingPeriod;
 
+    TDuration NodesInfoLoggingPeriod;
+
     TDuration ExecNodeDescriptorsUpdatePeriod;
 
     //! Jobs running on node are logged periodically or when they change their state.

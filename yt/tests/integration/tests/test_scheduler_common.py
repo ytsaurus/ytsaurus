@@ -3291,26 +3291,6 @@ fi
         assert not exists("//sys/operations/" + op.id + "/@committed")
         assert exists(get_operation_cypress_path(op.id) + "/@committed")
 
-    def test_runtime_params(self):
-        create("table", "//tmp/t_input")
-        write_table("//tmp/t_input", [{"key": "value"}])
-        create("table", "//tmp/t_output")
-
-        op = map(
-            command="sleep 1000; cat",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            dont_track=True)
-
-        jobs_path = get_operation_cypress_path(op.id) + "/controller_orchid/running_jobs"
-        wait(lambda: exists(jobs_path) and len(ls(jobs_path)) == 1)
-
-        set("//sys/operations/" + op.id + "/@resource_limits", {"user_slots": 1})
-        set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
-
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_limits/user_slots".format(op.id)
-        wait(lambda: get(orchid_path) == 1)
-
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
         write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])
@@ -3836,3 +3816,23 @@ class TestNewLivePreview(YTEnvSetup):
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+
+
+class TestConnectToMaster(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    def test_scheduler_doesnt_connect_to_master_in_safe_mode(self):
+        set("//sys/@config/enable_safe_mode", True)
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers(sync=False)
+        time.sleep(1)
+
+        wait(lambda: self.has_safe_mode_error_in_log())
+
+    def has_safe_mode_error_in_log(self):
+        for line in open(self.path_to_run + "/logs/scheduler-0.log"):
+            if "Error connecting to master" in line and "Cluster is in safe mode" in line:
+                return True
+        return False

@@ -378,7 +378,8 @@ void TSharedSchedulingStrategy::ProcessJobUpdates(
     std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
     std::vector<TJobId>* jobsToAbort)
 {
-    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort);
+    int snapshotRevision;
+    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort, &snapshotRevision);
 }
 
 void TSharedSchedulingStrategy::InitOperationRuntimeParameters(

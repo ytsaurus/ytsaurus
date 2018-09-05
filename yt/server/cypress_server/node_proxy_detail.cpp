@@ -2656,6 +2656,7 @@ void TDocumentNodeProxy::SetRecursive(
     TRspSet* response,
     const TCtxSetPtr& context)
 {
+    context->SetRequestInfo();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
     if (DelegateInvocation(impl->GetValue(), request, response, context)) {
