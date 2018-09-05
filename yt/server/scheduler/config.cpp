@@ -287,6 +287,8 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
         .Default(TDuration::Seconds(1));
+    RegisterParameter("nodes_info_logging_period", NodesInfoLoggingPeriod)
+        .Default(TDuration::Seconds(30));
     RegisterParameter("exec_node_descriptors_update_period", ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
     RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
