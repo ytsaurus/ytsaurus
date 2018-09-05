@@ -838,10 +838,8 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operationId);
-        if (element) {
-            for (const auto& job : jobs) {
-                element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
-            }
+        for (const auto& job : jobs) {
+            element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
         }
     }
 
@@ -2798,7 +2796,8 @@ public:
 
         for (const auto& pair : jobsByTreeId) {
             auto tree = FindTree(pair.first);
-            if (tree) {
+            // NB: operation can be missing in tree since ban.
+            if (tree && tree->FindOperationElement(operationId)) {
                 tree->RegisterJobs(operationId, pair.second);
             }
         }
