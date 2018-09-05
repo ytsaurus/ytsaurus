@@ -48,6 +48,8 @@
 #define MADV_FREE 8
 #endif
 
+#define PARANOID_CHECK(condition) YCHECK(condition)
+
 namespace NYT {
 namespace NYTAlloc {
 
@@ -88,9 +90,13 @@ constexpr size_t MaxCachedChunksPerRank = 256;
 
 constexpr uintptr_t UntaggedSmallZonesStart = 0;
 constexpr uintptr_t UntaggedSmallZonesEnd = UntaggedSmallZonesStart + 32 * ZoneSize;
+constexpr uintptr_t MinUntaggedSmallPtr = UntaggedSmallZonesStart + ZoneSize * 1;
+constexpr uintptr_t MaxUntaggedSmallPtr = UntaggedSmallZonesStart + ZoneSize * SmallRankCount;
 
 constexpr uintptr_t TaggedSmallZonesStart = UntaggedSmallZonesEnd;
 constexpr uintptr_t TaggedSmallZonesEnd = TaggedSmallZonesStart + 32 * ZoneSize;
+constexpr uintptr_t MinTaggedSmallPtr = TaggedSmallZonesStart + ZoneSize * 1;
+constexpr uintptr_t MaxTaggedSmallPtr = TaggedSmallZonesStart + ZoneSize * SmallRankCount;
 
 constexpr uintptr_t LargeZoneStart = TaggedSmallZonesEnd;
 constexpr uintptr_t LargeZoneEnd = LargeZoneStart + ZoneSize;
@@ -2086,11 +2092,9 @@ public:
     void* Allocate(size_t size)
     {
         auto* state = TThreadManager::FindThreadState();
-        if (Y_LIKELY(state)) {
-            return DoAllocate(state, size);
-        } else {
-            return DoAllocate(GlobalState.Get(), size);
-        }
+        return Y_LIKELY(state)
+            ? DoAllocate(state, size)
+            : DoAllocate(GlobalState.Get(), size);
     }
 
     void Free(void* ptr)
@@ -2667,9 +2671,13 @@ public:
     {
         InitializeGlobals();
         if (size < HugeSizeThreshold) {
-            return LargeBlobAllocator->Allocate(size);
+            auto* result = LargeBlobAllocator->Allocate(size);
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
+            return result;
         } else {
-            return HugeBlobAllocator->Allocate(size);
+            auto* result = HugeBlobAllocator->Allocate(size);
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= HugeZoneStart && reinterpret_cast<uintptr_t>(result) < HugeZoneEnd);
+            return result;
         }
     }
 
@@ -2677,9 +2685,11 @@ public:
     {
         InitializeGlobals();
         if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
             UnalignPtr<TLargeBlobHeader>(ptr);
             LargeBlobAllocator->Free(ptr);
         } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
             UnalignPtr<THugeBlobHeader>(ptr);
             HugeBlobAllocator->Free(ptr);
         } else {
@@ -2817,14 +2827,18 @@ void* YTAlloc(size_t size)
     auto tag = TThreadManager::GetCurrentMemoryTag();
     if (Y_LIKELY(tag == NullMemoryTag)) {
         XX()
-        return TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
+        auto* result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
+        return result;
     } else {
         size += sizeof (TTaggedSmallChunkHeader);
         XX()
         auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank);
         auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
         new (chunk) TTaggedSmallChunkHeader(tag);
-        return HeaderToPtr(chunk);
+        auto* result = HeaderToPtr(chunk);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxTaggedSmallPtr);
+        return result;
     }
 #undef XX
 }
@@ -2842,8 +2856,10 @@ void YTFree(void* ptr)
     }
 
     if (Y_LIKELY(reinterpret_cast<uintptr_t>(ptr) < UntaggedSmallZonesEnd)) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxUntaggedSmallPtr);
         TSmallAllocator::Free<EAllocationKind::Untagged>(NullMemoryTag, ptr);
     } else if (Y_LIKELY(reinterpret_cast<uintptr_t>(ptr) < TaggedSmallZonesEnd)) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxTaggedSmallPtr);
         auto* chunk = PtrToHeader<TTaggedSmallChunkHeader>(ptr);
         auto tag = chunk->Tag;
         TSmallAllocator::Free<EAllocationKind::Tagged>(tag, chunk);
@@ -2858,11 +2874,17 @@ size_t YTGetSize(void* ptr)
         return 0;
     }
 
-    if (reinterpret_cast<uintptr_t>(ptr) < TaggedSmallZonesEnd) {
+    if (reinterpret_cast<uintptr_t>(ptr) < UntaggedSmallZonesEnd) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxUntaggedSmallPtr);
+        return TSmallAllocator::GetSize(ptr);
+    } else if (reinterpret_cast<uintptr_t>(ptr) < TaggedSmallZonesEnd) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxTaggedSmallPtr);
         return TSmallAllocator::GetSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
         return TLargeBlobAllocator::GetSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
         return THugeBlobAllocator::GetSize(ptr);
     } else {
         Y_UNREACHABLE();
