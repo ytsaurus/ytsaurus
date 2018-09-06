@@ -1036,7 +1036,7 @@ struct TThreadState
     // TThreadManager::EnumerateThreadStates enumerates the registered states and acquires
     // a temporary reference preventing these states from being destructed. This provides
     // for shorter periods of time the global lock needs to be held.
-    std::atomic<int> RefCounter = {1};
+    int RefCounter = 1;
 
     // Per-thread counters.
     TTotalCounters<ssize_t> TotalCounters;
@@ -1602,20 +1602,18 @@ Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
 
 void TThreadManager::DestroyThread(void*)
 {
-    ThreadManager->UnrefThreadState(ThreadState_);
+    {
+        auto guard = Guard(ThreadManager->ThreadRegistryLock_);
+        ThreadManager->UnrefThreadState(ThreadState_);
+    }
     ThreadState_ = nullptr;
     ThreadStateDestroyed_ = true;
 }
 
 void TThreadManager::DestroyThreadState(TThreadState* state)
 {
-
-    {
-        auto guard = Guard(ThreadRegistryLock_);
-        StatisticsManager->AccumulateLocalCounters(state);
-        ThreadRegistry_.Remove(state);
-    }
-
+    StatisticsManager->AccumulateLocalCounters(state);
+    ThreadRegistry_.Remove(state);
     ThreadStatePool_.Free(state);
 }
 
