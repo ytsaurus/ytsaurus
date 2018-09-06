@@ -594,7 +594,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
             AbortAllJobsAtNode(execNode);
             UpdateNodeState(execNode, newState);
             ++nodeChangesCount;
-            return;
+            continue;
         }
 
         if ((oldState != ENodeState::Online && newState == ENodeState::Online) || execNode->Tags() != tags) {
