@@ -341,9 +341,12 @@ def set_suid_bit(options, build_context):
 
 @build_step
 def import_yt_wrapper(options, build_context):
-    sys.path.insert(0, os.path.join(options.checkout_directory, "python"))
-    if options.build_system == "ya":
-        sys.path.insert(0, get_bin_dir(options))
+    python_directory = os.path.join(options.checkout_directory, "python")
+
+    # ya build doesn't install bindings automatically so we install it here
+    # for cmake build this should do no harm
+    prepare_python_bindings(python_directory, options.working_directory, "2.7")
+    sys.path.insert(0, python_directory)
 
     try:
         import yt.wrapper
