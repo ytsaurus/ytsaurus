@@ -32,5 +32,5 @@ setup(
     package_data={
         '': ['*.pyi']
     },
-    install_requires=['pyspark>=2.3.0<2.4.0']
+    install_requires=['pyspark>=2.3.0,<2.4.0']
 )
