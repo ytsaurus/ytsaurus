@@ -1118,10 +1118,10 @@ public:
     {
         TMemoryTagGuard guard(NullMemoryTag);
 
-        std::vector<TThreadState*> states;
+        SmallVector<TThreadState*, 1024> states;
 
         {
-            // Only hold this guard for a small period of time to ref all the states.
+            // Only hold this guard for a small period of time to reference all the states.
             auto guard = Guard(ThreadRegistryLock_);
             auto* current = ThreadRegistry_.GetFront();
             while (current) {
@@ -1133,7 +1133,14 @@ public:
 
         for (auto* state : states) {
             func(state);
-            UnrefThreadState(state);
+        }
+
+        {
+            // Releasing references also requires global lock to be held to avoid getting zombies above.
+            auto guard = Guard(ThreadRegistryLock_);
+            for (auto* state : states) {
+                UnrefThreadState(state);
+            }
         }
     }
 
