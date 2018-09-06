@@ -373,7 +373,10 @@ protected:
     {
         if (IsTeleportationSupported()) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns() &&
+                    InputTables[index].ColumnRenameDescriptors.empty())
+                {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables_[0].TableUploadOptions.TableSchema,

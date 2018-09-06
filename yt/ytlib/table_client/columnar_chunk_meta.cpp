@@ -2,6 +2,7 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/column_rename_descriptor.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -80,6 +81,50 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     }
 
     std::tie(BlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
+}
+
+void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDescriptors)
+{
+    if (!renameDescriptors.empty()) {
+        THashMap<TString, TString> nameMapping;
+        for (const auto& descriptor : renameDescriptors) {
+            nameMapping[descriptor.OriginalName] = descriptor.NewName;
+        }
+        try {
+            // ChunkSchema
+            {
+                auto newColumns = ChunkSchema_.Columns();
+                for (auto& column : newColumns) {
+                    auto it = nameMapping.find(column.Name());
+                    if (it != nameMapping.end()) {
+                        column.SetName(it->second);
+                    }
+                }
+                ChunkSchema_ = TTableSchema(newColumns, ChunkSchema_.GetStrict(), ChunkSchema_.GetUniqueKeys());
+                ValidateColumnUniqueness(ChunkSchema_);
+            }
+            // ChunkNameTable
+            if (ChunkNameTable_) {
+                std::vector<TString> names;
+                names.resize(ChunkNameTable_->GetSize());
+                for (int id = 0; id < names.size(); ++id) {
+                    names[id] = ChunkNameTable_->GetName(id);
+                    auto it = nameMapping.find(names[id]);
+                    if (it != nameMapping.end()) {
+                        names[id] = it->second;
+                    }
+                }
+                ChunkNameTable_ = New<TNameTable>();
+                for (auto& name : names) {
+                    ChunkNameTable_->RegisterNameOrThrow(std::move(name));
+                }
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(EErrorCode::InvalidColumnRenaming, "Error renaming columns in chunk meta")
+                << TErrorAttribute("column_rename_descriptors", renameDescriptors)
+                << ex;
+        }
+    }
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const

@@ -15,6 +15,7 @@ message TDataSource
     repeated string columns = 6;
     //! This field is used when the data source is a part of the user job spec files.
     optional int32 table_schema_id = 7;
+    repeated NTableClient.NProto.TColumnRenameDescriptor column_rename_descriptors = 8;
 }
 
 message TDataSourceDirectoryExt

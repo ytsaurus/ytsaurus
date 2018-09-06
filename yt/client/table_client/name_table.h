@@ -27,6 +27,7 @@ public:
     int GetIdOrThrow(TStringBuf name) const;
     int GetId(TStringBuf name) const;
     int RegisterName(TStringBuf name);
+    int RegisterNameOrThrow(TStringBuf name);
     int GetIdOrRegisterName(TStringBuf name);
 
     TStringBuf GetName(int id) const;
