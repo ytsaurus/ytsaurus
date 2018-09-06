@@ -48,7 +48,13 @@
 #define MADV_FREE 8
 #endif
 
+#define PARANOID
+
+#ifdef PARANOID
 #define PARANOID_CHECK(condition) YCHECK(condition)
+#else
+#define PARANOID_CHECK(condition) (void)(0)
+#endif
 
 namespace NYT {
 namespace NYTAlloc {
@@ -146,7 +152,7 @@ public:
     Y_FORCE_INLINE T* Get()
     {
 #ifndef NDEBUG
-        Y_ASSERT(Constructed_);
+        PARANOID_CHECK(Constructed_);
 #endif
         return reinterpret_cast<T*>(&Storage_);
     }
@@ -154,7 +160,7 @@ public:
     Y_FORCE_INLINE const T* Get() const
     {
 #ifndef NDEBUG
-        Y_ASSERT(Constructed_);
+        PARANOID_CHECK(Constructed_);
 #endif
         return reinterpret_cast<T*>(&Storage_);
     }
@@ -261,7 +267,7 @@ static Y_FORCE_INLINE void UnalignPtr(void*& ptr)
     if (reinterpret_cast<uintptr_t>(ptr) % PageSize == 0) {
         reinterpret_cast<char*&>(ptr) -= PageSize - sizeof (T);
     }
-    Y_ASSERT(reinterpret_cast<uintptr_t>(ptr) % PageSize == sizeof (T));
+    PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) % PageSize == sizeof (T));
 }
 
 template <class T>
@@ -279,6 +285,23 @@ Y_FORCE_INLINE size_t GetLargeRank(size_t size)
     return rank;
 }
 
+Y_FORCE_INLINE void PoisonRange(void* ptr, size_t size, ui32 magic)
+{
+#ifdef PARANOID
+    size = ::AlignUp<size_t>(size, 4);
+    std::fill(static_cast<ui32*>(ptr), static_cast<ui32*>(ptr) + size / 4, magic);
+#endif
+}
+
+Y_FORCE_INLINE void PoisonFreedRange(void* ptr, size_t size)
+{
+    PoisonRange(ptr, size, 0xdeadbeef);
+}
+
+Y_FORCE_INLINE void PoisonUninitializedRange(void* ptr, size_t size)
+{
+    PoisonRange(ptr, size, 0xcafebabe);
+}
 
 // Checks that the header size is divisible by 16 (as needed due to alignment restrictions).
 #define CHECK_HEADER_SIZE(T) static_assert(sizeof(T) % 16 == 0, "sizeof(" #T ") % 16 != 0");
@@ -455,7 +478,7 @@ public:
                 head = item;
             }
             if (tail) {
-                Y_ASSERT(!tail->Next);
+                PARANOID_CHECK(!tail->Next);
                 tail->Next = item;
             } else {
                 tail = item;
@@ -795,6 +818,7 @@ public:
     void Free(T* obj)
     {
         obj->T::~T();
+        PoisonFreedRange(obj, sizeof(T));
         FreeList_.Put(obj);
     }
 
@@ -840,6 +864,7 @@ public:
     void Free(TState* state, T* obj)
     {
         obj->T::~T();
+        PoisonFreedRange(obj, sizeof(T));
         FreeLists_[state->GetInitialShardIndex()].Put(obj);
     }
 
@@ -944,7 +969,7 @@ struct TTotalCounters
     // Access to tagged counters may involve creation of a new tag set.
     // For simplicity, we separate the read-side (TaggedCounterSets) and the write-side (TaggedCounterSetHolders).
     // These arrays contain virtually identical data (up to std::unique_ptr and std::atomic semantic differences).
-    std::array<std::atomic<TTaggedTotalCounterSet<TCounter>*>, MaxTaggedCounterSets> TaggedCounterSets;
+    std::array<std::atomic<TTaggedTotalCounterSet<TCounter>*>, MaxTaggedCounterSets> TaggedCounterSets{};
     std::array<std::unique_ptr<TTaggedTotalCounterSet<TCounter>>, MaxTaggedCounterSets> TaggedCounterSetHolders;
 
     // Protects TaggedCounterSetHolders from concurrent updates.
@@ -1143,12 +1168,15 @@ private:
 
     void RefThreadState(TThreadState* state)
     {
-        ++state->RefCounter;
+        auto result = ++state->RefCounter;
+        YCHECK(result > 1);
     }
 
     void UnrefThreadState(TThreadState* state)
     {
-        if (--state->RefCounter == 0) {
+        auto result = --state->RefCounter;
+        YCHECK(result >= 0);
+        if (result == 0) {
             DestroyThreadState(state);
         }
     }
@@ -1592,7 +1620,9 @@ void* TSystemAllocator::Allocate(size_t size)
     StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesAllocated, rawSize);
     auto* blob = static_cast<TSystemBlobHeader*>(MappedMemoryManager->Map(SystemZoneStart, rawSize, MAP_POPULATE));
     new (blob) TSystemBlobHeader(size);
-    return HeaderToPtr(blob);
+    auto* result = HeaderToPtr(blob);
+    PoisonUninitializedRange(result, size);
+    return result;
 }
 
 void TSystemAllocator::Free(void* ptr)
@@ -1679,7 +1709,8 @@ public:
             }
             PopulateAnotherSegment();
         }
-        Y_ASSERT(PtrToSmallRank(ptr) == Rank_);
+        PARANOID_CHECK(PtrToSmallRank(ptr) == Rank_);
+        PoisonUninitializedRange(ptr, size);
         return ptr;
     }
 
@@ -1770,14 +1801,14 @@ public:
 
     void PutOne(void* ptr)
     {
-        Y_ASSERT(Size_ == 0);
+        PARANOID_CHECK(Size_ == 0);
         Ptrs_[Size_] = ptr;
         Size_ = 1;
     }
 
     void PutAll(void** ptrs)
     {
-        Y_ASSERT(Size_ == 0);
+        PARANOID_CHECK(Size_ == 0);
         ::memcpy(Ptrs_.data(), ptrs, ChunksPerGroup * sizeof(void*));
         Size_ = ChunksPerGroup;
     }
@@ -1802,7 +1833,7 @@ public:
             return false;
         }
 
-        Y_ASSERT(!group->IsEmpty());
+        PARANOID_CHECK(!group->IsEmpty());
 
         auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
         auto chunkCount = group->ExtractAll(chunkPtrPtr + 1);
@@ -1822,7 +1853,7 @@ public:
         ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * ChunksPerGroup);
 
         auto& groups = RankToChunkGroups_[rank];
-        Y_ASSERT(!group->IsEmpty());
+        PARANOID_CHECK(!group->IsEmpty());
         groups.Put(state, group);
     }
 
@@ -1832,7 +1863,7 @@ public:
         group->PutOne(ptr);
 
         auto& groups = RankToChunkGroups_[rank];
-        Y_ASSERT(!group->IsEmpty());
+        PARANOID_CHECK(!group->IsEmpty());
         groups.Put(&GlobalShardedState_, group);
     }
 
@@ -1867,10 +1898,11 @@ public:
             auto& chunkPtr = state->SmallBlobCache[Kind].RankToCachedChunkPtr[rank];
             auto& cachedPtr = *chunkPtr;
             auto* ptr = cachedPtr;
-            Y_ASSERT(ptr);
+            PARANOID_CHECK(ptr);
             if (Y_LIKELY(ptr != reinterpret_cast<void*>(TThreadState::LeftSentinel))) {
                 cachedPtr = nullptr;
                 --chunkPtr;
+                PoisonUninitializedRange(ptr, size);
                 return ptr;
             }
 
@@ -1885,6 +1917,7 @@ public:
     {
         auto rank = PtrToSmallRank(ptr);
         auto size = SmallRankToSize[rank];
+        PoisonFreedRange(ptr, size);
 
         auto* state = TThreadManager::FindThreadState();
         if (Y_UNLIKELY(!state)) {
@@ -2166,7 +2199,7 @@ private:
         if (unlock) {
             UnlockBlob(blob);
         } else {
-            Y_ASSERT(!blob->Locked.load());
+            PARANOID_CHECK(!blob->Locked.load());
         }
         arena->SpareBlobs.Put(state, blob);
     }
@@ -2207,7 +2240,7 @@ private:
         size_t count = 0;
         while (blob) {
             auto* nextBlob = blob->Next;
-            Y_ASSERT(!blob->Locked.load());
+            PARANOID_CHECK(!blob->Locked.load());
             arena->SpareBlobs.Put(state, blob);
             blob = nextBlob;
             ++count;
@@ -2265,7 +2298,7 @@ private:
         size_t spareBlobCount = 0;
         while (blob) {
             auto* nextBlob = blob->Next;
-            Y_ASSERT(blob->BytesAllocated == 0);
+            PARANOID_CHECK(blob->BytesAllocated == 0);
             if (bytesToReclaim > 0) {
                 auto bytesAcquired = blob->BytesAcquired;
                 StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesSpare, -bytesAcquired);
@@ -2350,7 +2383,7 @@ private:
                 if (__atomic_load_n(&currentExtent->DisposedFlags[currentSegment], __ATOMIC_ACQUIRE) == TLargeBlobExtent::DisposedFalse) {
                     auto* ptr = currentExtent->Ptr + currentSegment * arena->SegmentSize;
                     auto* blob = reinterpret_cast<TLargeBlobHeader*>(ptr);
-                    Y_ASSERT(blob->Extent == currentExtent);
+                    PARANOID_CHECK(blob->Extent == currentExtent);
                     if (TryLockBlob(blob)) {
                         if (blob->BytesAllocated > 0) {
                             size_t rawSize = GetRawBlobSize<TLargeBlobHeader>(blob->BytesAllocated);
@@ -2495,7 +2528,7 @@ private:
         auto rawSize = GetRawBlobSize<TLargeBlobHeader>(size);
         auto rank = GetLargeRank(rawSize);
         auto& arena = Arenas_[rank];
-        Y_ASSERT(rawSize <= arena.SegmentSize);
+        PARANOID_CHECK(rawSize <= arena.SegmentSize);
 
         TLargeBlobHeader* blob;
         while (true) {
@@ -2513,7 +2546,7 @@ private:
                     } else {
                         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesOverhead, blob->BytesAcquired - rawSize);
                     }
-                    Y_ASSERT(blob->BytesAllocated == 0);
+                    PARANOID_CHECK(blob->BytesAllocated == 0);
                     blob->BytesAllocated = size;
                     blob->Tag = tag;
                     UnlockBlob(blob);
@@ -2551,22 +2584,25 @@ private:
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesAllocated, size);
         StatisticsManager->IncrementTotalCounter(state, tag, ETotalCounter::BytesAllocated, size);
 
-        auto* ptr = HeaderToPtr(blob);
-        Y_ASSERT(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
-        return ptr;
+        auto* result = HeaderToPtr(blob);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
+        PoisonUninitializedRange(result, size);
+        return result;
     }
 
     template <class TState>
     void DoFree(TState* state, void* ptr)
     {
-        Y_ASSERT(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
 
         auto* blob = PtrToHeader<TLargeBlobHeader>(ptr);
         auto size = blob->BytesAllocated;
+        PoisonFreedRange(ptr, size);
+
         auto rawSize = GetRawBlobSize<TLargeBlobHeader>(size);
         auto rank = GetLargeRank(rawSize);
         auto& arena = Arenas_[rank];
-        Y_ASSERT(blob->BytesAcquired <= arena.SegmentSize);
+        PARANOID_CHECK(blob->BytesAcquired <= arena.SegmentSize);
 
         auto tag = blob->Tag;
 
@@ -2630,7 +2666,9 @@ public:
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BytesAllocated, size);
 
-        return HeaderToPtr(blob);
+        auto* result = HeaderToPtr(blob);
+        PoisonUninitializedRange(result, size);
+        return result;
     }
 
     void Free(void* ptr)
@@ -2640,6 +2678,8 @@ public:
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
+        PoisonFreedRange(ptr, size);
+
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
         ZoneAllocator_.Free(blob, rawSize);
 
@@ -2825,21 +2865,21 @@ void* YTAlloc(size_t size)
     }
 
     auto tag = TThreadManager::GetCurrentMemoryTag();
+    void* result;
     if (Y_LIKELY(tag == NullMemoryTag)) {
         XX()
-        auto* result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
+        result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
-        return result;
     } else {
         size += sizeof (TTaggedSmallChunkHeader);
         XX()
         auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank);
         auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
         new (chunk) TTaggedSmallChunkHeader(tag);
-        auto* result = HeaderToPtr(chunk);
+        result = HeaderToPtr(chunk);
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxTaggedSmallPtr);
-        return result;
     }
+    return result;
 #undef XX
 }
 
