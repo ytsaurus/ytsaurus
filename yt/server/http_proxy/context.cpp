@@ -31,8 +31,7 @@ using namespace NYTree;
 using namespace NHttp;
 using namespace NDriver;
 using namespace NFormats;
-
-static const auto& Logger = HttpProxyLogger;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +122,7 @@ TContext::TContext(
     : Api_(api)
     , Request_(req)
     , Response_(rsp)
+    , Logger(TLogger(HttpProxyLogger).AddTag("RequestId: %v", req->GetRequestId()))
 {
     DriverRequest_.Id = RandomNumber<ui64>();
 }
@@ -787,8 +787,10 @@ void TContext::Finalize()
             });
         }
     } else {
-        // TODO(prime@): Fill trailers.
-        LOG_DEBUG("Error is not sent to client since response headers are already flushed");
+        if (!Error_.IsOK()) {
+            // TODO(prime@): Fill trailers.
+            LOG_DEBUG("Error is not sent to client since response headers are already flushed");
+        }
     }
 
     Api_->IncrementProfilingCounters(
