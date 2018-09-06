@@ -50,8 +50,8 @@ def get_root_path(path=None):
     else:
         return os.environ.get("YT_LOCAL_ROOT_PATH", os.getcwd())
 
-def get_main_process_pid_file_path(path=None):
-    return os.path.join(get_root_path(path), "main_process_pid.txt")
+def get_main_process_pid_file_path(path):
+    return os.path.join(path, "main_process_pid.txt")
 
 def touch(path):
     open(path, 'a').close()
@@ -342,7 +342,7 @@ def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
-    main_process_pid_file = get_main_process_pid_file_path(path)
+    main_process_pid_file = get_main_process_pid_file_path(os.path.join(get_root_path(path), id))
 
     if os.path.exists(main_process_pid_file):
         pid = _read_pids_file(main_process_pid_file)[0]

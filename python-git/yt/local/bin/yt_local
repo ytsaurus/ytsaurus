@@ -96,7 +96,7 @@ def start_func(**kwargs):
     environment = start(**kwargs)
 
     if sync:
-        main_process_pid_file = get_main_process_pid_file_path(kwargs["path"])
+        main_process_pid_file = get_main_process_pid_file_path(environment.path)
 
         try:
             os.setpgid(0, 0)
