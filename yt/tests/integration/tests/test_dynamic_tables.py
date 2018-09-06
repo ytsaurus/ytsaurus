@@ -718,8 +718,14 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         row = [{"key": 0, "value": LARGE_STRING}]
         for i in range(MAX_UNVERSIONED_ROW_WEIGHT / len(LARGE_STRING) + 2):
             insert_rows("//tmp/t", row)
-        sync_flush_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
 
+        chunk_count = get("//tmp/t/@chunk_count")
+        set("//tmp/t/@min_compaction_store_count", chunk_count)
+        set("//tmp/t/@max_compaction_store_count", chunk_count)
+        set("//tmp/t/@compaction_data_size_base", get("//tmp/t/@compressed_data_size") - 100)
+
+        sync_unfreeze_table("//tmp/t")
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         remount_table("//tmp/t")
