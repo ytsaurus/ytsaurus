@@ -125,6 +125,20 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@row_count") == 7
         assert sorted(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
 
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_rename_columns(self, merge_mode):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
+        write_table("//tmp/t2", [{"a2": 3}, {"a2": 4}])
+
+        create("table", "//tmp/t_out")
+        merge(mode=merge_mode,
+              in_=["//tmp/t1", "<rename_columns={a2=a}>//tmp/t2"],
+              out="//tmp/t_out")
+
+        assert sorted(read_table("//tmp/t_out")) == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}]
+
     def test_ordered(self):
         self._prepare_tables()
 

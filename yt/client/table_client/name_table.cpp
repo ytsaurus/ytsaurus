@@ -95,6 +95,16 @@ int TNameTable::RegisterName(TStringBuf name)
     return DoRegisterName(name);
 }
 
+int TNameTable::RegisterNameOrThrow(TStringBuf name)
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    auto maybeId = NameToId_.find(name);
+    if (maybeId != NameToId_.end()) {
+        THROW_ERROR_EXCEPTION("Cannot register column %Qv: column already exists", name);
+    }
+    return DoRegisterName(name);
+}
+
 int TNameTable::GetIdOrRegisterName(TStringBuf name)
 {
     TGuard<TSpinLock> guard(SpinLock_);

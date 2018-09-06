@@ -75,6 +75,7 @@ public:
                 std::move(chunkReader),
                 blockReadOptions,
                 schema,
+                {} /* ColumnRenameDesctiptors */,
                 Bootstrap_->GetMemoryUsageTracker());
 
             asyncMeta.Subscribe(BIND([cookie = std::move(cookie), key] (const TErrorOr<TCachedVersionedChunkMetaPtr>& metaOrError) mutable {

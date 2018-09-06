@@ -20,12 +20,14 @@ TDataSource::TDataSource(
     const TNullable<TString>& path,
     const TNullable<TTableSchema>& schema,
     const TNullable<std::vector<TString>>& columns,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TColumnRenameDescriptors& columnRenameDescriptors)
     : Type_(type)
     , Path_(path)
     , Schema_(schema)
     , Columns_(columns)
     , Timestamp_(timestamp)
+    , ColumnRenameDescriptors_(columnRenameDescriptors)
 { }
 
 void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource, TSchemaDictionary* dictionary)
@@ -55,6 +57,8 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     if (dataSource.GetTimestamp()) {
         protoDataSource->set_timestamp(dataSource.GetTimestamp());
     }
+
+    ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource.ColumnRenameDescriptors());
 }
 
 void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSource, const TSchemaDictionary* dictionary)
@@ -89,28 +93,32 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
     if (protoDataSource.has_timestamp()) {
         dataSource->SetTimestamp(protoDataSource.timestamp());
     }
+
+    dataSource->ColumnRenameDescriptors() = FromProto<TColumnRenameDescriptors>(protoDataSource.column_rename_descriptors());
 }
 
 TDataSource MakeVersionedDataSource(
     const TNullable<TString>& path,
     const NTableClient::TTableSchema& schema,
     const TNullable<std::vector<TString>>& columns,
-    NTransactionClient::TTimestamp timestamp)
+    NTransactionClient::TTimestamp timestamp,
+    const TColumnRenameDescriptors& columnRenameDescriptors)
 {
-    return TDataSource(EDataSourceType::VersionedTable, path, schema, columns, timestamp);
+    return TDataSource(EDataSourceType::VersionedTable, path, schema, columns, timestamp, columnRenameDescriptors);
 }
 
 TDataSource MakeUnversionedDataSource(
     const TNullable<TString>& path,
     const TNullable<NTableClient::TTableSchema>& schema,
-    const TNullable<std::vector<TString>>& columns)
+    const TNullable<std::vector<TString>>& columns,
+    const TColumnRenameDescriptors& columnRenameDescriptors)
 {
-    return TDataSource(EDataSourceType::UnversionedTable, path, schema, columns, NullTimestamp);
+    return TDataSource(EDataSourceType::UnversionedTable, path, schema, columns, NullTimestamp, columnRenameDescriptors);
 }
 
 TDataSource MakeFileDataSource(const TNullable<TString>& path)
 {
-    return TDataSource(EDataSourceType::File, path, Null, Null, NullTimestamp);
+    return TDataSource(EDataSourceType::File, path, Null, Null, NullTimestamp, {});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

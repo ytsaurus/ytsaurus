@@ -142,7 +142,7 @@ private:
         }
 
         TNullable<TPartIndexSet> erasedIndicesOnPreviousIteration;
-        TError error;
+        std::vector<TError> innerErrors;
         while (true) {
             auto reader = Reader_.Lock();
             if (!reader) {
@@ -156,7 +156,7 @@ private:
 
             if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
                 THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not change")
-                    << error;
+                    << innerErrors;
             }
 
             for (size_t i = 0; i < Readers_.size(); ++i) {
@@ -168,7 +168,8 @@ private:
 
             auto maybeRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
             if (!maybeRepairIndices) {
-                THROW_ERROR_EXCEPTION("Not enough parts to read with repair");
+                THROW_ERROR_EXCEPTION("Not enough parts to read with repair")
+                    << innerErrors;
             }
             auto repairIndices = *maybeRepairIndices;
 
@@ -196,7 +197,7 @@ private:
             if (result.IsOK()) {
                 return result.Value();
             } else {
-                error = result;
+                innerErrors.push_back(result);
             }
         }
     }

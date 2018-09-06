@@ -423,7 +423,10 @@ protected:
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns() &&
+                    InputTables[index].ColumnRenameDescriptors.empty())
+                {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables_[*tableIndex].TableUploadOptions.TableSchema,

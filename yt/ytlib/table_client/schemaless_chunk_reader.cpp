@@ -28,14 +28,14 @@
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
+#include <yt/ytlib/query_client/column_evaluator.h>
+
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaful_reader.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -1782,49 +1782,56 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
                 auto createReader = [=] () {
-                    auto remoteReader = CreateRemoteReader(
-                        chunkSpec,
-                        config,
-                        options,
-                        client,
-                        nodeDirectory,
-                        localDescriptor,
-                        blockCache,
-                        trafficMeter,
-                        bandwidthThrottler,
-                        rpsThrottler);
+                    try {
+                        auto remoteReader = CreateRemoteReader(
+                            chunkSpec,
+                            config,
+                            options,
+                            client,
+                            nodeDirectory,
+                            localDescriptor,
+                            blockCache,
+                            trafficMeter,
+                            bandwidthThrottler,
+                            rpsThrottler);
 
-                    TReadRange range = {
-                        chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
-                        chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
-                    };
+                        TReadRange range = {
+                            chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
+                            chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
+                        };
 
-                    auto asyncChunkMeta = BIND(DownloadChunkMeta, remoteReader, blockReadOptions, partitionTag)
-                        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-                        .Run();
-                    auto chunkMeta = WaitFor(asyncChunkMeta)
-                        .ValueOrThrow();
+                        auto asyncChunkMeta = BIND(DownloadChunkMeta, remoteReader, blockReadOptions, partitionTag)
+                            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+                            .Run();
+                        auto chunkMeta = WaitFor(asyncChunkMeta)
+                            .ValueOrThrow();
+                        chunkMeta->RenameColumns(dataSource.ColumnRenameDescriptors());
 
-                    auto chunkState = New<TChunkState>(
-                        blockCache,
-                        chunkSpec,
-                        nullptr,
-                        nullptr,
-                        nullptr,
-                        nullptr);
+                        auto chunkState = New<TChunkState>(
+                            blockCache,
+                            chunkSpec,
+                            nullptr,
+                            nullptr,
+                            nullptr,
+                            nullptr);
 
-                    return CreateSchemalessChunkReader(
-                        std::move(chunkState),
-                        std::move(chunkMeta),
-                        PatchConfig(config, memoryEstimate),
-                        options,
-                        remoteReader,
-                        nameTable,
-                        blockReadOptions,
-                        keyColumns,
-                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
-                        range,
-                        partitionTag);
+                        return CreateSchemalessChunkReader(
+                            std::move(chunkState),
+                            std::move(chunkMeta),
+                            PatchConfig(config, memoryEstimate),
+                            options,
+                            remoteReader,
+                            nameTable,
+                            blockReadOptions,
+                            keyColumns,
+                            columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
+                            range,
+                            partitionTag);
+                    } catch(const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Error creating chunk reader")
+                            << TErrorAttribute("chunk_id", chunkSpec.chunk_id())
+                            << ex;
+                    }
                 };
 
                 factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
@@ -2493,6 +2500,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     YCHECK(dataSource.Schema());
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
+    const auto& renameDescriptors = dataSource.ColumnRenameDescriptors();
 
     if(!columnFilter.IsUniversal()) {
         try {
@@ -2577,6 +2585,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         trafficMeter,
         bandwidthThrottler,
         rpsThrottler,
+        renameDescriptors,
         Logger
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
@@ -2622,7 +2631,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             remoteReader,
             blockReadOptions,
-            versionedReadSchema);
+            versionedReadSchema,
+            renameDescriptors,
+            nullptr /* memoryTracker */);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
         auto chunkState = New<TChunkState>(

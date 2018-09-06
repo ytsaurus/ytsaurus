@@ -108,7 +108,8 @@ void Deserialize(TDataSource& spec, INodePtr node)
         std::move(path),
         std::move(schema),
         std::move(columns),
-        timestamp);
+        timestamp,
+        {});
 }
 
 void Serialize(const TDataSourceDirectory& sourceDirectory, IYsonConsumer* consumer)
