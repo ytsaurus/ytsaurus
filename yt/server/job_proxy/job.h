@@ -63,8 +63,9 @@ struct IJobHost
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler() const = 0;
-    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler() const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const = 0;
 
     virtual TString AdjustPath(const TString& path) const = 0;
 };

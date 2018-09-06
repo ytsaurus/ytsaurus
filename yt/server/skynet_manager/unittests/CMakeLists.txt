@@ -11,5 +11,5 @@ add_executable(unittester-skynet-manager
 target_link_libraries(unittester-skynet-manager
   yt-core-test-framework
   yt-library-ytlib
-  yt-library-server
+  yt-library-server-skynet-manager
 )

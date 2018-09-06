@@ -31,7 +31,9 @@ def main():
     env["PERL5LIB"] = ya_build + ":" + os.environ.get("PERL5LIB", "")
 
     args = sys.argv[1:] + [env]
-    os.execlpe("py.test", "py.test", *args)
+    build_python_version = os.environ.get("YT_BUILD_PYTHON_VERSION", "2.7")
+    python = "python{}".format(build_python_version)
+    os.execlpe(python, python, "-m", "pytest", *args)
 
 if __name__ == "__main__":
     main()

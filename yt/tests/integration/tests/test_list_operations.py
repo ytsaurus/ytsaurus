@@ -90,10 +90,9 @@ class ListOperationsSetup(YTEnvSetup):
 
         # Create a new pool tree.
         tag = "other"
-        create("map_node", "//sys/pool_trees/other", ignore_existing=True)
-        create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
-        set("//sys/pool_trees/other/@nodes_filter", tag)
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
+        create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
         node = ls("//sys/nodes")[0]
         set("//sys/nodes/" + node + "/@user_tags/end", tag)
 
@@ -302,11 +301,10 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=False, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-    @pytest.mark.xfail(run = True, reason = "Attribute filter is not implemented yet")
     def test_attribute_filter(self, read_from):
-        attributes = ["id", "type", "brief_spec", "finish_time"]
+        attributes = ["id", "start_time", "type", "brief_spec", "finish_time", "progress"]
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, attributes=attributes, read_from=read_from)
-        #assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
         assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
         assert res["state_counts"] == {"failed": 1, "completed": 2}
         assert res["type_counts"] == {"map_reduce": 1, "map": 2}

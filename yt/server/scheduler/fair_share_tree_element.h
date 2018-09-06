@@ -689,7 +689,7 @@ private:
             , ResourceUsage(resourceUsage)
         { }
 
-        //! Determines whether job belongs to list of preemptable or aggressively preemtable jobs of operation.
+        //! Determines whether job belongs to list of preemptable or aggressively preemptable jobs of operation.
         bool Preemptable;
 
         //! Determines whether job belongs to list of preemptable (but not aggressively preemptable) jobs of operation.

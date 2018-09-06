@@ -56,7 +56,6 @@ struct TCookieCredentials
 {
     TString SessionId;
     TString SslSessionId;
-    TString Domain;
     NNet::TNetworkAddress UserIP;
 };
 
@@ -77,8 +76,8 @@ inline bool operator ==(
     const TCookieCredentials& lhs,
     const TCookieCredentials& rhs)
 {
-    return std::tie(lhs.SessionId, lhs.SslSessionId, lhs.Domain, lhs.UserIP) ==
-           std::tie(rhs.SessionId, rhs.SslSessionId, rhs.Domain, rhs.UserIP);
+    return std::tie(lhs.SessionId, lhs.SslSessionId, lhs.UserIP) ==
+           std::tie(rhs.SessionId, rhs.SslSessionId, rhs.UserIP);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +104,6 @@ struct hash<NYT::NAuth::TCookieCredentials>
         size_t result = 0;
         NYT::HashCombine(result, credentials.SessionId);
         NYT::HashCombine(result, credentials.SslSessionId);
-        NYT::HashCombine(result, credentials.Domain);
         NYT::HashCombine(result, credentials.UserIP);
         return result;
     }

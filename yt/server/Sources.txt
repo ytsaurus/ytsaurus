@@ -246,7 +246,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/statistics_reporter.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/environment.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_bandwidth_throttler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_throttler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
@@ -272,14 +272,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/public.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/job_table_schema.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/discovery_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/proxy_coordinator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp
@@ -320,11 +316,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_service.cpp
-
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/discovery_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/proxy_coordinator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
@@ -368,18 +359,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/security_server/subject_proxy_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/user.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/user_proxy.cpp
-
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/bootstrap.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/config.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/http.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/rb_torrent.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/announcer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/peer_connection.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/msgpack.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/tables.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/skynet_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager/resource.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/shell/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shell/shell.cpp

@@ -34,12 +34,14 @@ public:
     // IReader implementation.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes) override;
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount) override;
+        int blockCount,
+        const TNullable<i64>& estimatedSize) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TClientBlockReadOptions& options,

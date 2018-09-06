@@ -155,7 +155,7 @@ class TestDynamicTablesBase(YTEnvSetup):
 
 ##################################################################
 
-class TestDynamicTables(TestDynamicTablesBase):
+class TestDynamicTablesSingleCell(TestDynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
@@ -1902,7 +1902,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestDynamicTablesMulticell(TestDynamicTables):
+class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def test_cannot_make_external_table_dynamic(self):
@@ -1911,7 +1911,7 @@ class TestDynamicTablesMulticell(TestDynamicTables):
 
 ##################################################################
 
-class TestDynamicTablesRpcProxy(TestDynamicTables):
+class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True

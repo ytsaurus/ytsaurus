@@ -207,21 +207,22 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     TReadRange readRange(lowerLimit, upperLimit);
 
     TColumnFilter valueColumnFilter;
-    valueColumnFilter.All = columnFilter.All;
-    if (!columnFilter.All) {
-        auto keyCoumnCount = tabletSnapshot->QuerySchema.GetKeyColumnCount();
-        for (auto index : columnFilter.Indexes) {
-            if (index >= keyCoumnCount) {
-                valueColumnFilter.Indexes.push_back(index - keyCoumnCount);
+    if (!columnFilter.IsUniversal()) {
+        TColumnFilter::TIndexes valueColumnFilterIndexes;
+        auto keyColumnCount = tabletSnapshot->QuerySchema.GetKeyColumnCount();
+        for (auto index : columnFilter.GetIndexes()) {
+            if (index >= keyColumnCount) {
+                valueColumnFilterIndexes.push_back(index - keyColumnCount);
             }
         }
+        valueColumnFilter = TColumnFilter(std::move(valueColumnFilterIndexes));
     }
 
     auto querySchema = tabletSnapshot->QuerySchema.Filter(columnFilter);
     auto readSchema = tabletSnapshot->PhysicalSchema.Filter(valueColumnFilter);
 
-    bool enableTabletIndex = columnFilter.Contains(0);
-    bool enableRowIndex = columnFilter.Contains(1);
+    bool enableTabletIndex = columnFilter.ContainsIndex(0);
+    bool enableRowIndex = columnFilter.ContainsIndex(1);
 
     TIdMapping idMapping;
     for (const auto& readColumn : readSchema.Columns()) {

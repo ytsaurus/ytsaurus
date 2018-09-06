@@ -50,9 +50,9 @@ private:
     void ValidateType(const TUnversionedValue& value, EValueType type)
     {
         if (Y_UNLIKELY(value.Type != type)) {
-            THROW_ERROR_EXCEPTION("Invalid protobuf storage type %v, type %v expected",
-                value.Type,
-                type);
+            THROW_ERROR_EXCEPTION("Invalid protobuf storage type: expected %Qlv, got %Qlv",
+                type,
+                value.Type);
         }
     }
 
@@ -75,7 +75,11 @@ private:
 
             int size = 0;
             for (const auto& value : row) {
-                auto fieldDescription = GetFieldDescription(
+                if (value.Type == EValueType::Null) {
+                    continue;
+                }
+
+                const auto* fieldDescription = GetFieldDescription(
                     CurrentTableIndex_,
                     value.Id,
                     NameTable_);
@@ -83,96 +87,97 @@ private:
                     continue;
                 }
 
-                if (value.Type == EValueType::Null) {
-                    continue;
-                }
-
                 size += fieldDescription->TagSize;
 
-                switch (fieldDescription->Type) {
-                    case EProtobufType::String:
-                    case EProtobufType::Bytes:
-                        ValidateType(value, EValueType::String);
-                        size += WireFormatLite::UInt32Size(value.Length);
-                        size += value.Length;
-                        break;
-                    case EProtobufType::Uint64:
-                        ValidateType(value, EValueType::Uint64);
-                        size += WireFormatLite::UInt64Size(value.Data.Uint64);
-                        break;
-                    case EProtobufType::Uint32:
-                        ValidateType(value, EValueType::Uint64);
-                        size += WireFormatLite::UInt32Size(value.Data.Uint64);
-                        break;
-                    case EProtobufType::Int64:
-                        ValidateType(value, EValueType::Int64);
-                        size += WireFormatLite::Int64Size(value.Data.Int64);
-                        break;
-                    case EProtobufType::Int32:
-                        ValidateType(value, EValueType::Int64);
-                        size += WireFormatLite::Int32Size(value.Data.Int64);
-                        break;
-                    case EProtobufType::Sint64:
-                        ValidateType(value, EValueType::Int64);
-                        size += WireFormatLite::SInt64Size(value.Data.Int64);
-                        break;
-                    case EProtobufType::Sint32:
-                        ValidateType(value, EValueType::Int64);
-                        size += WireFormatLite::SInt32Size(value.Data.Int64);
-                        break;
-                    case EProtobufType::Fixed64:
-                        ValidateType(value, EValueType::Uint64);
-                        size += sizeof(ui64);
-                        break;
-                    case EProtobufType::Fixed32:
-                        ValidateType(value, EValueType::Uint64);
-                        size += sizeof(ui32);
-                        break;
-                    case EProtobufType::Sfixed64:
-                        ValidateType(value, EValueType::Int64);
-                        size += sizeof(i64);
-                        break;
-                    case EProtobufType::Sfixed32:
-                        ValidateType(value, EValueType::Int64);
-                        size += sizeof(i32);
-                        break;
-                    case EProtobufType::Double:
-                        ValidateType(value, EValueType::Double);
-                        size += sizeof(double);
-                        break;
-                    case EProtobufType::Float:
-                        ValidateType(value, EValueType::Double);
-                        size += sizeof(float);
-                        break;
-                    case EProtobufType::Bool:
-                        ValidateType(value, EValueType::Boolean);
-                        size += 1;
-                        break;
-                    case EProtobufType::EnumInt:
-                    case EProtobufType::EnumString:
-                        if (value.Type == EValueType::Uint64) {
+                try {
+                    switch (fieldDescription->Type) {
+                        case EProtobufType::String:
+                        case EProtobufType::Bytes:
+                            ValidateType(value, EValueType::String);
+                            size += WireFormatLite::UInt32Size(value.Length);
+                            size += value.Length;
+                            break;
+                        case EProtobufType::Uint64:
+                            ValidateType(value, EValueType::Uint64);
+                            size += WireFormatLite::UInt64Size(value.Data.Uint64);
+                            break;
+                        case EProtobufType::Uint32:
+                            ValidateType(value, EValueType::Uint64);
                             size += WireFormatLite::UInt32Size(value.Data.Uint64);
-                        } else if (value.Type == EValueType::String) {
-                            auto enumString = TStringBuf(value.Data.String, value.Length);
-                            if (!fieldDescription->EnumerationDescription) {
-                                THROW_ERROR_EXCEPTION("Cannot serialize enumeration value %Qv since enumeration description is missing",
-                                    enumString);
-                            }
-                            auto enumValue = fieldDescription->EnumerationDescription->GetValue(enumString);
+                            break;
+                        case EProtobufType::Int64:
+                            ValidateType(value, EValueType::Int64);
+                            size += WireFormatLite::Int64Size(value.Data.Int64);
+                            break;
+                        case EProtobufType::Int32:
+                            ValidateType(value, EValueType::Int64);
+                            size += WireFormatLite::Int32Size(value.Data.Int64);
+                            break;
+                        case EProtobufType::Sint64:
+                            ValidateType(value, EValueType::Int64);
+                            size += WireFormatLite::SInt64Size(value.Data.Int64);
+                            break;
+                        case EProtobufType::Sint32:
+                            ValidateType(value, EValueType::Int64);
+                            size += WireFormatLite::SInt32Size(value.Data.Int64);
+                            break;
+                        case EProtobufType::Fixed64:
+                            ValidateType(value, EValueType::Uint64);
+                            size += sizeof(ui64);
+                            break;
+                        case EProtobufType::Fixed32:
+                            ValidateType(value, EValueType::Uint64);
+                            size += sizeof(ui32);
+                            break;
+                        case EProtobufType::Sfixed64:
+                            ValidateType(value, EValueType::Int64);
+                            size += sizeof(i64);
+                            break;
+                        case EProtobufType::Sfixed32:
+                            ValidateType(value, EValueType::Int64);
+                            size += sizeof(i32);
+                            break;
+                        case EProtobufType::Double:
+                            ValidateType(value, EValueType::Double);
+                            size += sizeof(double);
+                            break;
+                        case EProtobufType::Float:
+                            ValidateType(value, EValueType::Double);
+                            size += sizeof(float);
+                            break;
+                        case EProtobufType::Bool:
+                            ValidateType(value, EValueType::Boolean);
+                            size += 1;
+                            break;
+                        case EProtobufType::EnumInt:
+                        case EProtobufType::EnumString:
+                            if (value.Type == EValueType::Uint64) {
+                                size += WireFormatLite::UInt32Size(value.Data.Uint64);
+                            } else if (value.Type == EValueType::String) {
+                                auto enumString = TStringBuf(value.Data.String, value.Length);
+                                if (!fieldDescription->EnumerationDescription) {
+                                    THROW_ERROR_EXCEPTION("Cannot serialize enumeration value %Qv since enumeration description is missing",
+                                        enumString);
+                                }
+                                auto enumValue = fieldDescription->EnumerationDescription->GetValue(enumString);
 
-                            enumValues.push_back(enumValue);
-                            size += WireFormatLite::Int32Size(enumValue);
-                        } else {
-                            THROW_ERROR_EXCEPTION("Protobuf enums can be stored only in uint64 or string column");
-                        }
-                        break;
-                    case EProtobufType::Message:
-                        ValidateType(value, EValueType::String);
-                        size += WireFormatLite::UInt32Size(value.Length);
-                        size += value.Length;
-                        break;
-                    default:
-                        Y_UNREACHABLE();
+                                enumValues.push_back(enumValue);
+                                size += WireFormatLite::Int32Size(enumValue);
+                            } else {
+                                THROW_ERROR_EXCEPTION("Protobuf enums can be stored only in \"uint64\" or \"string\" column");
+                            }
+                            break;
+                        case EProtobufType::Message:
+                            ValidateType(value, EValueType::String);
+                            size += WireFormatLite::UInt32Size(value.Length);
+                            size += value.Length;
+                            break;
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error writing value of field %Qv",
+                        fieldDescription->Name);
                 }
             }
 
@@ -182,7 +187,8 @@ private:
                 if (value.Type == EValueType::Null) {
                     continue;
                 }
-                auto fieldDescription = GetFieldDescription(
+
+                const auto* fieldDescription = GetFieldDescription(
                     CurrentTableIndex_,
                     value.Id,
                     NameTable_);
@@ -314,7 +320,7 @@ private:
     }
 
 private:
-    TProtobufFormatDescriptionPtr Description_;
+    const TProtobufFormatDescriptionPtr Description_;
     std::vector<std::vector<const TProtobufFieldDescription*>> TableIndexToFieldIndexToDescription_;
 
     int CurrentTableIndex_ = 0;

@@ -66,7 +66,8 @@ public:
         int partitionTag,
         const TClientBlockReadOptions& blockReadOptions,
         TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr throttler)
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
         , OnNetworkReleased_(onNetworkReleased)
@@ -100,7 +101,8 @@ public:
             partitionTag,
             blockReadOptions,
             trafficMeter,
-            throttler);
+            bandwidthThrottler,
+            rpsThrottler);
 
         SortQueue_ = New<TActionQueue>("Sort");
         ReadyEvent_ = BIND(
@@ -571,7 +573,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     int partitionTag,
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     return New<TSchemalessPartitionSortReader>(
         config,
@@ -588,7 +591,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         partitionTag,
         blockReadOptions,
         trafficMeter,
-        throttler);
+        bandwidthThrottler,
+        rpsThrottler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -90,8 +90,7 @@ namespace {
 TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSchema& tabletSchema)
 {
     // Infer column filter.
-    TColumnFilter columnFilter;
-    columnFilter.All = false;
+    TColumnFilter::TIndexes columnFilterIndexes;
     for (const auto& column : desiredSchema.Columns()) {
         const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
         if (tabletColumn.GetPhysicalType() != column.GetPhysicalType()) {
@@ -100,10 +99,10 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
                 tabletColumn.GetPhysicalType(),
                 column.GetPhysicalType());
         }
-        columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
+        columnFilterIndexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
     }
 
-    return columnFilter;
+    return TColumnFilter(std::move(columnFilterIndexes));
 }
 
 struct TRangeFormatter

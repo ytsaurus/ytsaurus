@@ -147,6 +147,32 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
+    def test_suspend_during_revive(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        op = map(dont_track=True,
+            command="sleep 1000",
+            in_=["//tmp/in"],
+            out="//tmp/out")
+        wait(lambda: op.get_state() == "running")
+
+        op.suspend()
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        time.sleep(2)
+        wait(lambda: op.get_state() == "running")
+        wait(lambda: op.get_job_count("running") == 0)
+
+        assert get(op.get_path() + "/@suspended")
+
+        op.resume()
+        wait(lambda: op.get_job_count("running") == 1)
+
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -621,6 +647,8 @@ class SchedulerReviveBase(YTEnvSetup):
         if self.OP_TYPE == "map":
             assert read_table("//tmp/t_out") == []
 
+    # NB: test rely on timings and can flap if we hang at some point.
+    @flaky(max_runs=3)
     @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
     def test_completing_with_sleep(self, stage):
         self._create_table("//tmp/t_in")

@@ -39,7 +39,7 @@ public:
                     config->BlackboxTokenAuthenticator,
                     CreateBlackboxTokenAuthenticator(
                         config->BlackboxTokenAuthenticator,
-                        std::move(blackboxService))));
+                        blackboxService)));
         }
 
         if (config->CypressTokenAuthenticator && client) {
@@ -65,7 +65,7 @@ public:
                     config->BlackboxCookieAuthenticator,
                         CreateBlackboxCookieAuthenticator(
                             config->BlackboxCookieAuthenticator,
-                            std::move(blackboxService)))));
+                            blackboxService))));
         }
 
         if (!config->RequireAuthentication) {

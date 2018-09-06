@@ -37,6 +37,8 @@ public:
     TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation);
     void UnregisterOperationFromAgent(const TOperationPtr& operation);
 
+    void UpdateConfig(TSchedulerConfigPtr config);
+
     /*!
      *  Thread affinity: any
      */

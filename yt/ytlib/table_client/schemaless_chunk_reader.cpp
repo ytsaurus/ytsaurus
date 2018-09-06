@@ -388,7 +388,7 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
     const auto& chunkNameTable = ChunkMeta_->ChunkNameTable();
     IdMapping_.reserve(chunkNameTable->GetSize());
 
-    if (ColumnFilter_.All) {
+    if (ColumnFilter_.IsUniversal()) {
         try {
             for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
                 auto name = chunkNameTable->GetName(chunkNameId);
@@ -405,7 +405,7 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
             IdMapping_.push_back({chunkNameId, -1});
         }
 
-        for (auto id : ColumnFilter_.Indexes) {
+        for (auto id : ColumnFilter_.GetIndexes()) {
             auto name = NameTable_->GetName(id);
             auto chunkNameId = chunkNameTable->FindId(name);
             if (chunkNameId) {
@@ -1174,7 +1174,7 @@ private:
 
         std::vector<int> schemaColumnIndexes;
         bool readSchemalessColumns = false;
-        if (ColumnFilter_.All) {
+        if (ColumnFilter_.IsUniversal()) {
             for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
                 schemaColumnIndexes.push_back(index);
             }
@@ -1190,7 +1190,7 @@ private:
                     chunkNameTable->GetName(chunkColumnId));
             }
         } else {
-            auto filterIndexes = THashSet<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
+            auto filterIndexes = THashSet<int>(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
                 if (filterIndexes.has(nameTableIndex)) {
@@ -1567,7 +1567,7 @@ private:
 
         std::vector<int> schemaColumnIndexes;
         bool readSchemalessColumns = false;
-        if (ColumnFilter_.All) {
+        if (ColumnFilter_.IsUniversal()) {
             for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
                 schemaColumnIndexes.push_back(index);
             }
@@ -1582,7 +1582,7 @@ private:
                     chunkNameTable->GetName(chunkColumnId));
             }
         } else {
-            auto filterIndexes = THashSet<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
+            auto filterIndexes = THashSet<int>(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
                 if (filterIndexes.has(nameTableIndex)) {
@@ -1769,7 +1769,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -1790,7 +1791,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         localDescriptor,
                         blockCache,
                         trafficMeter,
-                        throttler);
+                        bandwidthThrottler,
+                        rpsThrottler);
 
                     TReadRange range = {
                         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
@@ -1820,7 +1822,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         nameTable,
                         blockReadOptions,
                         keyColumns,
-                        columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
+                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         range,
                         partitionTag);
                 };
@@ -1844,9 +1846,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSliceDescriptor,
                         nameTable,
                         blockReadOptions,
-                        columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
+                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         trafficMeter,
-                        throttler);
+                        bandwidthThrottler,
+                        rpsThrottler);
                 };
 
                 factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
@@ -1884,7 +1887,8 @@ public:
         const TKeyColumns& keyColumns,
         TNullable<int> partitionTag,
         TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -1939,7 +1943,8 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
     : TBase(
         config,
         options,
@@ -1958,7 +1963,8 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             keyColumns,
             partitionTag,
             trafficMeter,
-            throttler))
+            bandwidthThrottler,
+            rpsThrottler))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
@@ -2088,7 +2094,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
         config,
@@ -2105,7 +2112,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         keyColumns,
         partitionTag,
         trafficMeter,
-        throttler);
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 
     reader->Open();
     return reader;
@@ -2128,7 +2136,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
         config,
@@ -2145,7 +2154,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         keyColumns,
         partitionTag,
         trafficMeter,
-        throttler);
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 
     reader->Open();
     return reader;
@@ -2170,7 +2180,8 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         TColumnFilter columnFilter,
         TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler);
 
     virtual TFuture<void> GetReadyEvent() override
     {
@@ -2433,7 +2444,7 @@ std::pair<TTableSchema, TColumnFilter> CreateVersionedReadParameters(
     const TTableSchema& schema,
     const TColumnFilter& columnFilter)
 {
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         return std::make_pair(schema, columnFilter);
     }
 
@@ -2442,19 +2453,17 @@ std::pair<TTableSchema, TColumnFilter> CreateVersionedReadParameters(
         columns.push_back(schema.Columns()[index]);
     }
 
-    TColumnFilter newColumnFilter;
-    newColumnFilter.All = false;
-
-    for (int index : columnFilter.Indexes) {
+    TColumnFilter::TIndexes columnFilterIndexes;
+    for (int index : columnFilter.GetIndexes()) {
         if (index >= schema.GetKeyColumnCount()) {
-            newColumnFilter.Indexes.push_back(columns.size());
+            columnFilterIndexes.push_back(columns.size());
             columns.push_back(schema.Columns()[index]);
         } else {
-            newColumnFilter.Indexes.push_back(index);
+            columnFilterIndexes.push_back(index);
         }
     }
 
-    return std::make_pair(TTableSchema(std::move(columns)), std::move(newColumnFilter));
+    return std::make_pair(TTableSchema(std::move(columns)), TColumnFilter(std::move(columnFilterIndexes)));
 }
 
 ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
@@ -2470,7 +2479,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TClientBlockReadOptions& blockReadOptions,
     TColumnFilter columnFilter,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto Logger = TableClientLogger;
     if (blockReadOptions.ReadSessionId) {
@@ -2484,14 +2494,18 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
 
-    try {
-        // Convert name table column filter to schema column filter.
-        for (auto& index : columnFilter.Indexes) {
-            index = tableSchema.GetColumnIndexOrThrow(nameTable->GetName(index));
+    if(!columnFilter.IsUniversal()) {
+        try {
+            // Convert name table column filter to schema column filter.
+            auto columnFilterIndexes = columnFilter.GetIndexes();
+            for (auto& index : columnFilterIndexes) {
+                index = tableSchema.GetColumnIndexOrThrow(nameTable->GetName(index));
+            }
+            columnFilter = TColumnFilter(std::move(columnFilterIndexes));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to apply column filter since column is missing in schema")
+                    << ex;
         }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to apply column filter since column is missing in schema")
-            << ex;
     }
 
     TTableSchema versionedReadSchema;
@@ -2505,7 +2519,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     try {
         for (int columnIndex = 0; columnIndex < versionedReadSchema.Columns().size(); ++columnIndex) {
             const auto& column = versionedReadSchema.Columns()[columnIndex];
-            if (versionedColumnFilter.Contains(columnIndex)) {
+            if (versionedColumnFilter.ContainsIndex(columnIndex)) {
                 idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());
             } else {
                 // We should skip this column in schemaless reading.
@@ -2561,7 +2575,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         performanceCounters,
         timestamp,
         trafficMeter,
-        throttler,
+        bandwidthThrottler,
+        rpsThrottler,
         Logger
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
@@ -2601,7 +2616,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             localDescriptor,
             blockCache,
             trafficMeter,
-            throttler);
+            bandwidthThrottler,
+            rpsThrottler);
 
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             remoteReader,
@@ -2680,7 +2696,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     NChunkClient::TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     return TSchemalessMergingMultiChunkReader::Create(
         config,
@@ -2695,7 +2712,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         blockReadOptions,
         columnFilter,
         trafficMeter,
-        throttler);
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

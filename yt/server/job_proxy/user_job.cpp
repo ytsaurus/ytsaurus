@@ -184,7 +184,8 @@ public:
             SandboxDirectoryNames[ESandboxKind::Udf],
             BlockReadOptions_,
             Host_->GetTrafficMeter(),
-            Host_->GetInThrottler());
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
@@ -645,7 +646,7 @@ private:
                 Host_->GetClient(),
                 transactionId,
                 Host_->GetTrafficMeter(),
-                Host_->GetOutThrottler());
+                Host_->GetOutBandwidthThrottler());
 
             const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
@@ -735,7 +736,7 @@ private:
                 Host_->GetClient(),
                 FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
                 Host_->GetTrafficMeter(),
-                Host_->GetOutThrottler());
+                Host_->GetOutBandwidthThrottler());
         }
     }
 
