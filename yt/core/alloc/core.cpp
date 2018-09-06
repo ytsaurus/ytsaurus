@@ -975,7 +975,7 @@ struct TTotalCounters
     // Protects TaggedCounterSetHolders from concurrent updates.
     NConcurrency::TForkAwareSpinLock TaggedCounterSetsLock;
 
-    // Returns null is the set is not yet constructed.
+    // Returns null if the set is not yet constructed.
     Y_FORCE_INLINE TTaggedTotalCounterSet<TCounter>* FindTaggedCounterSet(size_t index) const
     {
         return TaggedCounterSets[index].load();
@@ -1127,7 +1127,7 @@ public:
             while (current) {
                 RefThreadState(current);
                 states.push_back(current);
-                current = current->RegistryNode.Next;
+                current = current->RegistryNode.Next;9
             }
         }
 
