@@ -9,6 +9,9 @@ import signal
 import fcntl
 import random
 import string
+import gzip
+import contextlib
+
 
 import yatest.common
 
@@ -28,6 +31,21 @@ def get_value(value, default):
     if value is None:
         return default
     return value
+
+
+@contextlib.contextmanager
+def disable_gzip_crc_check():
+    """
+    Context manager that replaces gzip.GzipFile._read_eof with a no-op.
+
+    This is useful when decompressing partial files, something that won't
+    work if GzipFile does it's checksum comparison.
+
+    """
+    _read_eof = gzip.GzipFile._read_eof
+    gzip.GzipFile._read_eof = lambda *args, **kwargs: None
+    yield
+    gzip.GzipFile._read_eof = _read_eof
 
 
 class YtConfig(object):
@@ -141,8 +159,6 @@ class YtStuff(object):
 
     @_timing
     def _split_file(self, file_path):
-        import gzip
-
         def split_on_chunks(stream):
             size = 0
             chunk = []
@@ -156,34 +172,35 @@ class YtStuff(object):
             if size > 0:
                 yield chunk
 
-        if file_path.endswith(".gz"):
-            file_obj = gzip.open(file_path)
-            gzipped = True
-        else:
-            file_obj = open(file_path)
-            gzipped = False
-
-        for index, chunk in enumerate(split_on_chunks(file_obj)):
-            new_file_path = file_path
-            if gzipped:
-                new_file_path = new_file_path[:-3]
-            new_file_path = new_file_path + "." + str(index + 1)
-            if os.path.exists(new_file_path):
-                random_suffix = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
-                new_file_path = new_file_path + "." + random_suffix
-            if gzipped:
-                new_file_path = new_file_path + ".gz"
-
-            if gzipped:
-                fout = gzip.open(new_file_path, "w")
+        with disable_gzip_crc_check():
+            if file_path.endswith(".gz"):
+                file_obj = gzip.open(file_path)
+                gzipped = True
             else:
-                fout = open(new_file_path, "w")
+                file_obj = open(file_path)
+                gzipped = False
 
-            for line in chunk:
-                fout.write(line)
+            for index, chunk in enumerate(split_on_chunks(file_obj)):
+                new_file_path = file_path
+                if gzipped:
+                    new_file_path = new_file_path[:-3]
+                new_file_path = new_file_path + "." + str(index + 1)
+                if os.path.exists(new_file_path):
+                    random_suffix = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+                    new_file_path = new_file_path + "." + random_suffix
+                if gzipped:
+                    new_file_path = new_file_path + ".gz"
 
-        fout.close()
-        file_obj.close()
+                if gzipped:
+                    fout = gzip.open(new_file_path, "w")
+                else:
+                    fout = open(new_file_path, "w")
+
+                for line in chunk:
+                    fout.write(line)
+
+            fout.close()
+            file_obj.close()
 
     def _prepare_files(self):
         # build_path = yatest.common.runtime.build_path()
