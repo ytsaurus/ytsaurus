@@ -142,7 +142,7 @@ def _prepare_plot(title="", xlabel="", ylabel="", xaxis=True, yaxis=True, hoverm
     return layout
 
 
-def _get_hline(x0=0, x1=0, y=0, color="green", name="", showlegend=False, visible=True):
+def _get_hline(x0=0, x1=0, y=0, color="green", name="", showlegend=True, visible=True):
     """For Gantt charts"""
     return go.Scatter(
         x=[x0, x1],
@@ -166,7 +166,7 @@ class JobInfo(object):
         _trim_statistics_tree(job_info["statistics"])
         self.statistics = job_info["statistics"]
         
-        self.operation_start = operation_start
+        self.operation_start = float(operation_start)
         self.start_time = float(_get_event_time("created", job_info["events"]) - operation_start)
         self.start_running = float(_get_event_time("running", job_info["events"]) - operation_start)
         self.end_time = float(_get_event_time("finished", job_info["events"]) - operation_start)
@@ -222,7 +222,7 @@ class JobInfo(object):
         
     
     def __str__(self):
-        return "{}: {} [{} - {}]\n".format(
+        return "{}: {} [{} - {}]".format(
             self.node,
             _format_lohi(self.job_id_lo, self.job_id_hi),
             _ts_to_time_str(self.operation_start + self.start_time),
@@ -268,16 +268,19 @@ def draw_time_gantt(jobset):
                 job_info.start_time, job_info.start_running, y,
                 color="yellow",
                 name="Job {}".format(_format_lohi(job_info.job_id_lo, job_info.job_id_hi)),
+                showlegend=False,
             ))
             lines.append(_get_hline(
                 job_info.start_running, job_info.end_time, y,
                 color=("green" if job_info.state == "completed" else "red"),
                 name="Job {}".format(_format_lohi(job_info.job_id_lo, job_info.job_id_hi)),
+                showlegend=False,
             ))
         #Creating the legend:
-        lines.append(_get_hline(color="red", name="Failed jobs", showlegend=True, visible="legendonly"))
-        lines.append(_get_hline(color="green", name="Completed jobs", showlegend=True, visible="legendonly"))
-        lines.append(_get_hline(color="yellow", name="Preparation", showlegend=True, visible="legendonly"))
+        start = lines[0].x[0]
+        lines.append(_get_hline(start, start, color="red", name="Failed jobs"))
+        lines.append(_get_hline(start, start, color="green", name="Completed jobs"))
+        lines.append(_get_hline(start, start, color="yellow", name="Preparation"))
 
         iplot(dict(
             data = lines,
@@ -326,7 +329,7 @@ def draw_comparative_hist(jobsets, statistic="total_time"):
             ))
     iplot(dict(
         data = traces,
-        layout = _prepare_plot(title="{} histogram".format(statistic), xlabel=statistic, ylabel="jobs count"),
+        layout = _prepare_plot(title="{} histogram".format(statistic), xlabel=statistic, ylabel="job count"),
     ))
 
 
@@ -372,7 +375,7 @@ def draw_comparative_time_plot(jobsets):
             ))
     iplot(dict(
         data = traces,
-        layout = _prepare_plot(xlabel="time", ylabel="jobs count"),
+        layout = _prepare_plot(xlabel="time", ylabel="job count"),
     ))
 
 
@@ -452,13 +455,13 @@ def draw_time_statistics_bar_chart(jobset):
             ),
         ))
 
-    
+
 def print_text_data(jobset):
     """
     Print node id, job id and running time for every job
     """
     for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
-        print("{} jobs:\n".format(job_type))
+        print("{} jobs:".format(job_type))
         for job_info in jobs_info:
             print("\t{}".format(job_info))
 
