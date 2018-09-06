@@ -652,7 +652,9 @@ void TContext::SetContentDispositionAndMimeType()
 
 void TContext::LogRequest()
 {
-    LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
+    DriverRequest_.Id = Request_->GetRequestId();
+    LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
+        Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         ConvertToYsonString(DriverRequest_.Parameters, EYsonFormat::Text).GetData(),

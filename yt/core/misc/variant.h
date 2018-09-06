@@ -163,6 +163,9 @@ private:
 template <class... Ts>
 bool operator==(const TVariant<Ts...>& lhs, const TVariant<Ts...>& rhs);
 
+template <class... Ts>
+TString ToString(const TVariant<Ts...>& variant);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

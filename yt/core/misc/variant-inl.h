@@ -334,6 +334,32 @@ bool operator==(const TVariant<Ts...>& lhs, const TVariant<Ts...>& rhs)
         ::NYT::NDetail::NVariant::TStorageTraits<Ts...>::Equals(lhs.Tag(), lhs, rhs);
 }
 
+template <class T, class... Ts>
+int FormatVariant(TString* out, const TVariant<Ts...>& variant)
+{
+    using ::ToString;
+
+    auto value = variant.template TryAs<T>();
+    if (value) {
+        *out = ToString(*value);
+    }
+
+    return 0;
+}
+
+template <class... Ts>
+TString ToString(const TVariant<Ts...>& variant)
+{
+    TString result;
+
+    int dummy[] = {
+        FormatVariant<Ts>(&result, variant)...
+    };
+    (void)dummy;
+    
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
