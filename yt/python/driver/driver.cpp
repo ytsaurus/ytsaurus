@@ -165,7 +165,7 @@ public:
         if (pyRequest.hasAttr("id")) {
             auto id = GetAttr(pyRequest, "id");
             if (!id.isNone()) {
-                request.Id = Py::ConvertToLongLong(id);
+                request.Id = static_cast<ui64>(Py::ConvertToLongLong(id));
             }
         }
 
