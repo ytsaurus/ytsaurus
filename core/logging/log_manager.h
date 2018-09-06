@@ -71,7 +71,7 @@ struct TSingletonTraits<NYT::NLogging::TLogManager>
 };
 
 template <>
-struct hash<NYT::NLogging::TLogWritersCacheKey>
+struct THash<NYT::NLogging::TLogWritersCacheKey>
 {
     size_t operator () (const NYT::NLogging::TLogWritersCacheKey& obj) const
     {
