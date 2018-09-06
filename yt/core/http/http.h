@@ -223,6 +223,9 @@ struct IRequest
     virtual const NNet::TNetworkAddress& GetRemoteAddress() const = 0;
 
     virtual TSharedRef ReadBody() = 0;
+
+    virtual TGuid GetConnectionId() const = 0;
+    virtual TGuid GetRequestId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRequest)

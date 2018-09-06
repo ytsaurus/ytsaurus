@@ -97,7 +97,7 @@ private:
     const TClientConfigPtr Config_;
     const IDialerPtr Dialer_;
     const IInvokerPtr Invoker_;
-    
+
     TNetworkAddress GetAddress(const TUrlRef& parsedUrl)
     {
         constexpr int DefaultHttpPort = 80;
@@ -116,7 +116,7 @@ private:
 
         return TNetworkAddress(address, parsedUrl.Port.Get(DefaultHttpPort));
     }
-    
+
     std::pair<THttpOutputPtr, THttpInputPtr> OpenHttp(const TNetworkAddress& address)
     {
         auto conn = WaitFor(Dialer_->Dial(address)).ValueOrThrow();
@@ -147,7 +147,7 @@ private:
             }
         })
             .AsyncVia(Invoker_)
-            .Run();        
+            .Run();
     }
 };
 

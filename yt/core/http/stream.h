@@ -104,8 +104,17 @@ public:
 
     virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
 
+    virtual TGuid GetConnectionId() const override;
+    void SetConnectionId(TGuid connectionId);
+
+    virtual TGuid GetRequestId() const override;
+    void SetRequestId(TGuid requestId);
+
     bool IsSafeToReuse() const;
     void Reset();
+
+    // Returns false if connection was closed before receiving first byte.
+    bool ReceiveHeaders();
 
 private:
     const NNet::IConnectionPtr Connection_;
@@ -122,6 +131,11 @@ private:
     TString RawUrl_;
     TUrlRef Url_;
     THeadersPtr Headers_;
+
+    // Debug.
+    TGuid ConnectionId_;
+    TGuid RequestId_;
+    i64 StartByteCount_ = 0;
 
     bool SafeToReuse_ = false;
 
@@ -173,12 +187,21 @@ public:
     bool IsSafeToReuse() const;
     void Reset();
 
+    void SetConnectionId(TGuid connectionId);
+    void SetRequestId(TGuid requestId);
+
 private:
     const NNet::IConnectionPtr Connection_;
     const EMessageType MessageType_;
     const THttpIOConfigPtr Config_;
 
-    TClosure ResetConnectionDeadline_;
+    TClosure OnWriteFinish_;
+
+    //! Debugging.
+    TGuid ConnectionId_;
+    TGuid RequestId_;
+    i64 StartByteCount_ = 0;
+    bool HeadersLogged_ = false;
 
     static const THashSet<TString> FilteredHeaders_;
 
@@ -206,6 +229,8 @@ private:
     static const TSharedRef CrLf;
     static const TSharedRef ZeroCrLf;
     static const TSharedRef ZeroCrLfCrLf;
+
+    void OnWriteFinish();
 };
 
 DEFINE_REFCOUNTED_TYPE(THttpOutput)

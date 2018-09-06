@@ -69,6 +69,8 @@ private:
     const NHttp::IRequestPtr Request_;
     const NHttp::IResponseWriterPtr Response_;
 
+    NLogging::TLogger Logger;
+
     TInstant StartTime_ = TInstant::Now();
 
     TNullable<TSemaphoreGuard> SemaphoreGuard_;

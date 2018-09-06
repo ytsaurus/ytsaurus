@@ -127,25 +127,30 @@ private:
                 continue;
             }
 
-            LOG_DEBUG("Client accepted (RemoteAddress: %v, LocalAddress: %v)",
+            auto connectionId = TGuid::Create();
+            LOG_DEBUG("Client accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
+                connectionId,
                 client->RemoteAddress(),
                 client->LocalAddress());
             Poller_->GetInvoker()->Invoke(
-                BIND(&TServer::HandleClient, MakeStrong(this), std::move(client)));
+                BIND(&TServer::HandleClient, MakeStrong(this), std::move(client), connectionId));
         }
     }
 
-    void HandleRequest(TGuid connectionId, const THttpInputPtr& request, THttpOutputPtr& response)
+    bool HandleRequest(const THttpInputPtr& request, THttpOutputPtr& response)
     {
         response->SetStatus(EStatusCode::InternalServerError);
+        if (!request->ReceiveHeaders()) {
+            return false;
+        }
 
         bool closeResponse = true;
         try {
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, Address: %v, Method: %v, Path: %v)",
-                connectionId,
-                request->GetRemoteAddress(),
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v)",
+                request->GetConnectionId(),
+                request->GetRequestId(),
                 request->GetMethod(),
                 path);
 
@@ -154,19 +159,19 @@ private:
                 closeResponse = false;
                 handler->HandleRequest(request, response);
 
-                LOG_DEBUG("Finished handling HTTP request (ConnectionId: %v)",
-                    connectionId);
+                LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
+                    request->GetRequestId());
             } else {
-                LOG_DEBUG("Missing HTTP handler for given URL (ConnectionId: %v, Path: %v)",
-                    connectionId,
+                LOG_DEBUG("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
+                    request->GetRequestId(),
                     path);
 
                 response->SetStatus(EStatusCode::NotFound);
             }
         } catch (const std::exception& ex) {
             closeResponse = true;
-            LOG_DEBUG(ex, "Error handling HTTP request (ConnectionId: %v)",
-                connectionId);
+            LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
+                request->GetRequestId());
 
             if (!response->IsHeadersFlushed()) {
                 response->SetStatus(EStatusCode::InternalServerError);
@@ -176,19 +181,19 @@ private:
         if (closeResponse) {
             auto responseResult = WaitFor(response->Close());
             if (!responseResult.IsOK()) {
-                LOG_DEBUG(responseResult, "Error flushing HTTP response stream (ConnectionId: %v)",
-                    connectionId);
+                LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
+                    request->GetRequestId());
             }
         }
+
+        return true;
     }
 
-    void HandleClient(const IConnectionPtr& connection)
+    void HandleClient(const IConnectionPtr& connection, const TGuid connectionId)
     {
         auto finally = Finally([&] {
             --ActiveClients_;
         });
-
-        auto connectionId = TGuid::Create();
 
         auto request = New<THttpInput>(
             connection,
@@ -202,8 +207,18 @@ private:
             EMessageType::Response,
             Config_);
 
+        request->SetConnectionId(connectionId);
+        response->SetConnectionId(connectionId);
+
         while (true) {
-            HandleRequest(connectionId, request, response);
+            auto requestId = TGuid::Create();
+            request->SetRequestId(requestId);
+            response->SetRequestId(requestId);
+        
+            bool ok = HandleRequest(request, response);
+            if (!ok) {
+                break;
+            }
 
             if (!Config_->EnableKeepAlive) {
                 break;

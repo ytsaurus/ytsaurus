@@ -1,5 +1,6 @@
 #include "stream.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/core/net/connection.h>
 
@@ -13,6 +14,8 @@ namespace NHttp {
 
 using namespace NConcurrency;
 using namespace NNet;
+
+static const auto& Logger = HttpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,6 +229,7 @@ THttpInput::THttpInput(
     , Config_(config)
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(Config_->ReadBufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
+    , StartByteCount_(connection->GetReadByteCount())
     , ReadInvoker_(readInvoker)
 { }
 
@@ -282,6 +286,26 @@ const TNetworkAddress& THttpInput::GetRemoteAddress() const
     return RemoteAddress_;
 }
 
+TGuid THttpInput::GetConnectionId() const
+{
+    return ConnectionId_;
+}
+
+void THttpInput::SetConnectionId(TGuid connectionId)
+{
+    ConnectionId_ = connectionId;
+}
+
+TGuid THttpInput::GetRequestId() const
+{
+    return RequestId_;
+}
+
+void THttpInput::SetRequestId(TGuid requestId)
+{
+    RequestId_ = requestId;
+}
+
 bool THttpInput::IsSafeToReuse() const
 {
     return SafeToReuse_;
@@ -295,6 +319,8 @@ void THttpInput::Reset()
     RawUrl_ = {};
     Url_ = {};
     SafeToReuse_ = false;
+
+    StartByteCount_ = Connection_->GetReadByteCount();
 }
 
 void THttpInput::FinishHeaders()
@@ -310,8 +336,15 @@ void THttpInput::FinishHeaders()
 
 void THttpInput::EnsureHeadersReceived()
 {
+    if (!ReceiveHeaders()) {
+        THROW_ERROR_EXCEPTION("Connection was closed before the first byte of HTTP message");
+    }
+}
+
+bool THttpInput::ReceiveHeaders()
+{
     if (HeadersReceived_) {
-        return;
+        return true;
     }
 
     bool idleConnection = MessageType_ == EMessageType::Request;
@@ -338,12 +371,12 @@ void THttpInput::EnsureHeadersReceived()
                 SafeToReuse_ = Parser_.ShouldKeepAlive();
             }
             Connection_->SetReadDeadline({});
-            return;
+            return true;
         }
 
         // HTTP parser does not treat EOF at message start as error.
         if (eof) {
-            THROW_ERROR_EXCEPTION("Unexpected EOF while parsing HTTP message");
+            return false;
         }
 
         if (idleConnection) {
@@ -404,6 +437,12 @@ TSharedRef THttpInput::DoRead()
         if (Parser_.GetState() == EParserState::MessageFinished) {
             SafeToReuse_ = Parser_.ShouldKeepAlive();
             Connection_->SetReadDeadline({});
+
+            if (MessageType_ == EMessageType::Request) {
+                LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d)",
+                    RequestId_,
+                    Connection_->GetReadByteCount() - StartByteCount_);
+            }
             return EmptySharedRef;
         }
 
@@ -422,9 +461,8 @@ THttpOutput::THttpOutput(
     : Connection_(connection)
     , MessageType_(messageType)
     , Config_(config)
-    , ResetConnectionDeadline_(BIND([connection] () {
-          connection->SetWriteDeadline({});
-      }))
+    , OnWriteFinish_(BIND(&THttpOutput::OnWriteFinish, MakeWeak(this)))
+    , StartByteCount_(connection->GetWriteByteCount())
     , Headers_(headers)
 { }
 
@@ -480,6 +518,9 @@ bool THttpOutput::IsSafeToReuse() const
 
 void THttpOutput::Reset()
 {
+    StartByteCount_ = Connection_->GetWriteByteCount();
+    HeadersLogged_ = false;
+
     ConnectionClose_ = false;
     Headers_ = New<THeaders>();
 
@@ -492,6 +533,16 @@ void THttpOutput::Reset()
     MessageFinished_ = false;
 
     Trailers_.Reset();
+}
+
+void THttpOutput::SetConnectionId(TGuid connectionId)
+{
+    ConnectionId_ = connectionId;
+}
+
+void THttpOutput::SetRequestId(TGuid requestId)
+{
+    RequestId_ = requestId;
 }
 
 void THttpOutput::WriteRequest(EMethod method, const TString& path)
@@ -592,7 +643,7 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
 
     Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
     return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)))
-        .Apply(ResetConnectionDeadline_);
+        .Apply(OnWriteFinish_);
 }
 
 TFuture<void> THttpOutput::Close()
@@ -623,7 +674,7 @@ TFuture<void> THttpOutput::FinishChunked()
     MessageFinished_ = true;
     Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
     return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)))
-        .Apply(ResetConnectionDeadline_);
+        .Apply(OnWriteFinish_);
 }
 
 TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
@@ -650,7 +701,27 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
     MessageFinished_ = true;
     Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
     return Connection_->WriteV(writeRefs)
-        .Apply(ResetConnectionDeadline_);
+        .Apply(OnWriteFinish_);
+}
+
+void THttpOutput::OnWriteFinish()
+{
+    Connection_->SetWriteDeadline({});
+
+    if (MessageType_ == EMessageType::Response) {
+        if (HeadersFlushed_ && !HeadersLogged_) {
+            HeadersLogged_ = true;
+            LOG_DEBUG("Finished writing HTTP headers (RequestId: %v, StatusCode: %v)",
+                RequestId_,
+                Status_);
+        }
+
+        if (MessageFinished_) {
+            LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
+                RequestId_,
+                Connection_->GetWriteByteCount() - StartByteCount_);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
