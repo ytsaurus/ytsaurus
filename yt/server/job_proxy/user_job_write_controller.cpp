@@ -61,8 +61,9 @@ void TUserJobWriteController::Init()
         Host_->GetJobSpecHelper(),
         TClientBlockReadOptions(),
         Host_->GetTrafficMeter(),
-        Host_->GetInThrottler(),
-        Host_->GetOutThrottler());
+        Host_->GetInBandwidthThrottler(),
+        Host_->GetOutBandwidthThrottler(),
+        Host_->GetOutRpsThrottler());
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
     auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
@@ -119,7 +120,7 @@ void TUserJobWriteController::Init()
                 debugTransactionId,
                 FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
                 Host_->GetTrafficMeter(),
-                Host_->GetOutThrottler()));
+                Host_->GetOutBandwidthThrottler()));
     }
 }
 

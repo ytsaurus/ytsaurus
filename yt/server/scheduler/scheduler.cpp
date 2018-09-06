@@ -284,11 +284,17 @@ public:
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
 
-        LoggingExecutor_ = New<TPeriodicExecutor>(
+        ClusterInfoLoggingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::OnLogging, MakeWeak(this)),
+            BIND(&TImpl::OnClusterInfoLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
-        LoggingExecutor_->Start();
+        ClusterInfoLoggingExecutor_->Start();
+
+        NodesInfoLoggingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::OnNodesInfoLogging, MakeWeak(this)),
+            Config_->NodesInfoLoggingPeriod);
+        NodesInfoLoggingExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -1212,7 +1218,8 @@ private:
     TEnumIndexedVector<TTagId, EInterruptReason> JobInterruptReasonToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
-    TPeriodicExecutorPtr LoggingExecutor_;
+    TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
+    TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
@@ -1394,7 +1401,7 @@ private:
         }
     }
 
-    void OnLogging()
+    void OnClusterInfoLogging()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1405,6 +1412,35 @@ private:
                 .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
                 .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter));
         }
+    }
+
+    void OnNodesInfoLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!IsConnected()) {
+            return;
+        }
+
+        std::vector<TFuture<TYsonString>> nodeListFutures;
+        for (const auto& nodeShard : NodeShards_) {
+            nodeListFutures.push_back(
+                BIND([nodeShard] () {
+                    return BuildYsonStringFluently<EYsonType::MapFragment>()
+                        .Do(BIND(&TNodeShard::BuildNodesYson, nodeShard))
+                        .Finish();
+                })
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
+        }
+
+        auto nodeLists = WaitFor(Combine(nodeListFutures)).ValueOrThrow();
+
+        LogEventFluently(ELogEventType::NodesInfo)
+            .Item("nodes")
+                .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
+                    fluent.Items(nodeList);
+                });
     }
 
 
@@ -1665,61 +1701,6 @@ private:
         }
     }
 
-    // COMPAT(asaitgalin): Runtime params updates from Cypress will be replaced
-    // with separate command and removed.
-    void RequestOperationRuntimeParams(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
-    {
-        std::vector<TString> keys{"weight", "resource_limits", "owners"};
-
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), keys);
-        batchReq->AddRequest(req, "get_runtime_params");
-    }
-
-    void HandleOperationRuntimeParams(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
-    {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-        // COMPAT(babenko): Nirvana operations have no runtime params
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return;
-        }
-        if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
-                operation->GetId());
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-        auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
-
-        try {
-            auto runtimeParamsMap = runtimeParamsNode->AsMap();
-
-            std::vector<TString> ownerList;
-            auto owners = runtimeParamsMap->FindChild("owners");
-            if (owners) {
-                ownerList = ConvertTo<std::vector<TString>>(owners->AsList());
-            }
-
-            Strategy_->UpdateOperationRuntimeParametersOld(operation.Get(), runtimeParamsMap);
-
-            if (operation->GetOwners() != ownerList) {
-                operation->SetOwners(ownerList);
-            }
-
-            LOG_DEBUG("Operation runtime parameters updated from Cypress (OperationId: %v)",
-                operation->GetId());
-        } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error parsing operation runtime parameters (OperationId: %v)",
-                operation->GetId());
-        }
-    }
-
-
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
         LOG_INFO("Requesting scheduler configuration");
@@ -1782,13 +1763,16 @@ private:
             CachedExecNodeMemoryDistributionByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
-            LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
+            ClusterInfoLoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
+            NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
+
+            Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
         }
@@ -2161,9 +2145,6 @@ private:
 
         std::vector<TFuture<void>> asyncResults;
         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            if (jobsByShardId[shardId].empty()) {
-                continue;
-            }
             auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
                 .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
@@ -2217,12 +2198,6 @@ private:
         }
 
         MasterConnector_->RegisterOperation(operation);
-        MasterConnector_->AddOperationWatcherRequester(
-            operation,
-            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
-        MasterConnector_->AddOperationWatcherHandler(
-            operation,
-            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
         auto service = CreateOperationOrchidService(operation);
         YCHECK(IdToOperationService_.emplace(operation->GetId(), service).second);

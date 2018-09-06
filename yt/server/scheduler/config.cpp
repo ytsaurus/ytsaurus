@@ -65,7 +65,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Default(1000)
+        .Default(50000)
         .GreaterThan(0);
 
     RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
@@ -147,7 +147,7 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Default(TDuration::Minutes(1));
 
     RegisterParameter("operation_unschedulable_safe_timeout", OperationUnschedulableSafeTimeout)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Minutes(60));
 
     RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobAttempts)
         .Default(1000);
@@ -161,7 +161,7 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .LessThan(MaxMemoryTag);
 
     RegisterParameter("operations_without_tentative_pool_trees", OperationsWithoutTentativePoolTrees)
-        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy });
+        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +287,8 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
         .Default(TDuration::Seconds(1));
+    RegisterParameter("nodes_info_logging_period", NodesInfoLoggingPeriod)
+        .Default(TDuration::Seconds(30));
     RegisterParameter("exec_node_descriptors_update_period", ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
     RegisterParameter("jobs_logging_period", JobsLoggingPeriod)

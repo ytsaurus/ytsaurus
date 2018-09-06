@@ -1291,10 +1291,6 @@ private:
                 !resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) &&
                 schedulerResultExt.failed_chunk_ids_size() > 0)
             {
-
-            }
-
-            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
                 return EAbortReason::FailedChunks;
             }
         }
@@ -1338,7 +1334,8 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
-            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
+            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
+            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut))
         {
             return EAbortReason::Other;
         }

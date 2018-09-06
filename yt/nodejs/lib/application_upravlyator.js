@@ -429,7 +429,7 @@ YtApplicationUpravlyator.prototype._dispatchGroupHints = function(req, rsp)
         var path = body.path;
         var perm = body.permissions.split(",").sort();
 
-        var acls = self.driver.executeSimpleWithUser("get", this.robot_yt_idm, {
+        var acls = self.driver.executeSimpleWithUser("get", self.robot_yt_idm, {
             path: path + "/@effective_acl"
         });
 
@@ -471,11 +471,11 @@ YtApplicationUpravlyator.prototype._dispatchGetResponsibles = function(req, rsp)
     return Q.cast(req.body).then(function(body) {
         var path = body.path;
 
-        return self.driver.executeSimpleWithUser("get", this.robot_yt_idm, {
+        return self.driver.executeSimpleWithUser("get", self.robot_yt_idm, {
             path: path + "/@account"
         });
     }).then(function(account) {
-        return self.driver.executeSimpleWithUser("get", this.robot_yt_idm, {
+        return self.driver.executeSimpleWithUser("get", self.robot_yt_idm, {
             path: "//sys/accounts/" + account + "/@responsibles"
         });
     }).then(function(responsibles) {
@@ -492,7 +492,7 @@ YtApplicationUpravlyator.prototype._dispatchCreateGroup = function(req, rsp)
         var responsibles = body.responsibles.split(",");
         var permissions = body.permissions.split(",");
 
-        return Q.all([path, name, permissions, self.driver.executeSimpleWithUser("create", this.robot_yt_idm, {
+        return Q.all([path, name, permissions, self.driver.executeSimpleWithUser("create", self.robot_yt_idm, {
             type: "group",
             name: name,
             attributes: {
@@ -502,7 +502,7 @@ YtApplicationUpravlyator.prototype._dispatchCreateGroup = function(req, rsp)
             }
         })]);
     }).spread(function(path, name, permissions) {
-        return self.driver.executeSimpleWithUser("set", this.robot_yt_idm, {
+        return self.driver.executeSimpleWithUser("set", self.robot_yt_idm, {
             path: path + "/@acl/end"
         }, {
             action: "allow",

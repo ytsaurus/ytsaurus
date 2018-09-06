@@ -561,8 +561,11 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes) override
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& /* estimatedSize */) override
     {
+        // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
+        // When reading erasure chunks we fallback to post-throttling.
         return PreparePlacementMeta(options).Apply(
             BIND([=, this_ = MakeStrong(this)] () {
                 auto session = New<TRepairingErasureReaderSession>(
@@ -579,7 +582,8 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount)
+        int blockCount,
+        const TNullable<i64>& /* estimatedSize */)
     {
         // Implement when first needed.
         Y_UNIMPLEMENTED();

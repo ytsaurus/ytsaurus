@@ -278,7 +278,7 @@ protected:
                     auto name = writeNameTable->GetName(it->Id);
                     auto readerId = readNameTable->GetId(name);
 
-                    if (columnFilter.Contains(readerId)) {
+                    if (columnFilter.ContainsIndex(readerId)) {
                         row[count] = *it;
                         row[count].Id = readerId;
                         ++count;

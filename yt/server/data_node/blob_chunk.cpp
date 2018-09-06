@@ -285,7 +285,8 @@ void TBlobChunkBase::DoReadBlockSet(
         auto blocksOrError = WaitFor(reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
-            blocksToRead));
+            blocksToRead,
+            Null));
         auto readTime = timer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {

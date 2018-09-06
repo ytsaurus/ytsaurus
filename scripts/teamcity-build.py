@@ -56,6 +56,9 @@ def yt_processes_cleanup():
     kill_by_name("^node")
     kill_by_name("^run_proxy")
 
+def comma_separated_set(s):
+    return set(el for el in s.split(",") if el)
+
 def process_core_dumps(options, suite_name, suite_path):
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, suite_name]))
@@ -69,14 +72,16 @@ def process_core_dumps(options, suite_name, suite_path):
 
     return find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive)
 
-def disable_for_ya(func):
-    @functools.wraps(func)
-    def wrapper_function(options, build_context):
-        if options.build_system == "ya":
-            teamcity_message("Step {0} is not supported for ya build system yet".format(func.__name__))
-            return
-        func(options, build_context)
-    return wrapper_function
+def only_for_projects(*projects):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapped_function(options, build_context):
+            if not any(p in options.build_project for p in projects):
+                teamcity_message("Skipping step {0} due to build_project configuration".format(func.__name__))
+                return
+            func(options, build_context)
+        return wrapped_function
+    return decorator
 
 def get_artifacts_dir(options):
     return os.path.join(options.working_directory, "ARTIFACTS")
@@ -86,6 +91,22 @@ def get_node_modules_dir(options):
 
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
+
+def get_lib_dir_for_python(options, python_version):
+    return os.path.join(
+        options.working_directory,
+        "lib",
+        "pyshared-" + python_version.replace(".", "-"))
+
+def iter_enabled_python_versions(options):
+    if options.build_enable_python_2_6:
+        yield "2.6"
+
+    if options.build_enable_python_2_7:
+        yield "2.7"
+
+    if options.build_enable_python_3_4:
+        yield "3.4"
 
 def get_ya(options):
     return os.path.join(options.checkout_directory, "ya")
@@ -118,6 +139,7 @@ def ya_make_env(options):
 def ya_make_definition_args(options):
     # This args cannot be passed to ya package.
     return [
+        "-DYT_ENABLE_GDB_INDEX",
         "-DYT_VERSION_PATCH={0}".format(options.patch_number),
         "-DYT_VERSION_BRANCH={0}".format(options.branch),
     ]
@@ -129,20 +151,27 @@ def ya_make_args(options):
 
 def run_yall(options):
     assert options.build_system == "ya"
-    yall = os.path.join(options.checkout_directory, "yall")
+    ya = get_ya(options)
 
-    args = [
-        yall,
-    ]
+    common_args = []
+    common_args += ya_make_args(options)
+    common_args += ya_make_definition_args(options)
+
+    args = [ya, "make", "buildall"] + common_args
     args += ["--install", get_bin_dir(options)]
-    args += ya_make_args(options)
-    args += ya_make_definition_args(options)
     if options.use_asan:
-        args += ["--yall-asan-build"]
-
+        args += ["--sanitize=address"]
     run(args,
         cwd=options.checkout_directory,
         env=ya_make_env(options))
+
+    for python_version in iter_enabled_python_versions(options):
+        args = [ya, "make", "buildall/system-python"] + common_args
+        args += ["-DUSE_SYSTEM_PYTHON=" + python_version]
+        args += ["--install", get_lib_dir_for_python(options, python_version)]
+        run(args,
+            cwd=options.checkout_directory,
+            env=ya_make_env(options))
 
 @build_step
 def prepare(options, build_context):
@@ -414,7 +443,45 @@ def share_packages(options, build_context):
     except Exception as err:
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
 
+
 @build_step
+def package_common_packages(options, build_context):
+    if options.build_system != "ya":
+        return
+
+    PackageTask = collections.namedtuple(
+        "PackageTask", [
+            "package_file",
+            "ya_package_args"])
+
+    PACKAGE_TASK_LIST = [
+        PackageTask(
+            "yandex-yt-http-proxy.json",
+            ("--tar", "--no-compression")),
+    ]
+    artifacts_dir = get_artifacts_dir(options)
+    os.mkdir(artifacts_dir)
+    with cwd(artifacts_dir):
+        for package_task in PACKAGE_TASK_LIST:
+            package_file = os.path.join(get_bin_dir(options), package_task.package_file)
+            args = [
+                get_ya(options), "package", package_file,
+                "--custom-version", build_context["yt_version"],
+            ]
+            args += package_task.ya_package_args
+            args += ya_make_args(options)
+            run(args, env=ya_make_env(options))
+
+    build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
+    run([
+        build_python_packages,
+        "--install-dir", get_lib_dir_for_python(options, "2.7"),
+        "--output-dir", artifacts_dir
+    ])
+
+
+@build_step
+@only_for_projects("yt")
 def package(options, build_context):
     if not options.package:
         return
@@ -440,28 +507,8 @@ def package(options, build_context):
                     teamcity_message("We have uploaded a package to " + repository)
                     teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
         else:
-            PackageTask = collections.namedtuple(
-                "PackageTask", [
-                    "package_file",
-                    "ya_package_args"])
+            pass
 
-            PACKAGE_TASK_LIST = [
-                PackageTask(
-                    "yandex-yt-http-proxy.json",
-                    ("--tar", "--no-compression")),
-            ]
-            artifacts_dir = get_artifacts_dir(options)
-            os.mkdir(artifacts_dir)
-            with cwd(artifacts_dir):
-                for package_task in PACKAGE_TASK_LIST:
-                    package_file = os.path.join(get_bin_dir(options), package_task.package_file)
-                    args = [
-                        get_ya(options), "package", package_file,
-                        "--custom-version", build_context["yt_version"],
-                    ]
-                    args += package_task.ya_package_args
-                    args += ya_make_args(options)
-                    run(args, env=ya_make_env(options))
 
 @build_step
 def run_prepare_node_modules(options, build_context):
@@ -667,6 +714,7 @@ def run_unit_tests(options, build_context):
 
 
 @build_step
+@only_for_projects("yt")
 def run_javascript_tests(options, build_context):
     if not options.build_enable_nodejs or options.disable_tests:
         return
@@ -725,7 +773,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
     if options.build_system == "ya":
-        env["PYTHONPATH"] = get_bin_dir(options) + ":" + env["PYTHONPATH"]
         env["PERL5LIB"] = get_bin_dir(options)
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
@@ -793,6 +840,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
             sudo_rmtree(sandbox_storage)
 
 @build_step
+@only_for_projects("yt")
 def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
@@ -806,6 +854,7 @@ def run_yt_integration_tests(options, build_context):
                pytest_args=pytest_args)
 
 @build_step
+@only_for_projects("yt")
 def run_yt_cpp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("C++ integration tests are skipped since all tests are disabled")
@@ -813,18 +862,15 @@ def run_yt_cpp_integration_tests(options, build_context):
     run_pytest(options, "cpp_integration", "{0}/yt/tests/cpp".format(options.checkout_directory))
 
 @build_step
+@only_for_projects("yp")
 def run_yp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("YP integration tests are skipped since all tests are disabled")
         return
 
     node_path = get_node_modules_dir(options)
-    python_versions = (
-        ("2.7", options.build_enable_python_2_7),
-        ("3.4", options.build_enable_python_3_4)
-    )
-    for python_version, enabled in python_versions:
-        if not enabled:
+    for python_version in iter_enabled_python_versions(options):
+        if python_version not in {"2.7", "3.4"}:
             continue
         run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
            env={
@@ -833,6 +879,7 @@ def run_yp_integration_tests(options, build_context):
            python_version=python_version)
 
 @build_step
+@only_for_projects("yt")
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
@@ -852,6 +899,7 @@ def run_python_libraries_tests(options, build_context):
                 })
 
 @build_step
+@only_for_projects("yt")
 def run_perl_tests(options, build_context):
     if not options.build_enable_perl or options.disable_tests:
         return
@@ -1026,6 +1074,10 @@ def main():
     parser.add_argument(
         "--cxx",
         type=str, action="store", required=False, default="g++-4.8")
+
+    parser.add_argument(
+        "--build_project",
+        type=comma_separated_set, action="store", default={"yt", "yp"})
 
     options = parser.parse_args()
     options.failed_tests_path = os.path.expanduser("~/failed_tests")

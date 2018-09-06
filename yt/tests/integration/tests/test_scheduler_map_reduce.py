@@ -831,6 +831,20 @@ print "x={0}\ty={1}".format(x, y)
         print >>sys.stderr, values
         assert max(values) <= 2 * job_count // node_count
 
+    def test_ordered_map_reduce(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(50):
+            write_table("<append=%true>//tmp/t_in", [{"key": i}])
+        op = map_reduce(in_="//tmp/t_in",
+                        out="//tmp/t_out",
+                        mapper_command="cat",
+                        reducer_command="cat",
+                        sort_by=["key"],
+                        map_job_count=1,
+                        ordered=True)
+
+        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
 ##################################################################
 

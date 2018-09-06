@@ -391,6 +391,8 @@ void TBootstrap::DoRun()
         createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
     });
 
+    ReadRpsOutThrottler = createThrottler(Config->DataNode->ReadRpsOutThrottler, "ReadRpsOut");
+
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
@@ -402,7 +404,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
     JobProxyConfigTemplate->RpcDispatcher = Config->RpcDispatcher;
     JobProxyConfigTemplate->ChunkClientDispatcher = Config->ChunkClientDispatcher;
-    JobProxyConfigTemplate->BandwidthThrottlerRpcTimeout = Config->JobBandwidthThrottlerRpcTimeout;
+    JobProxyConfigTemplate->JobThrottler = Config->JobThrottler;
 
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
@@ -892,6 +894,11 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
         default:
             return TotalOutThrottler;
     }
+}
+
+const IThroughputThrottlerPtr& TBootstrap::GetReadRpsOutThrottler() const
+{
+    return ReadRpsOutThrottler;
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()

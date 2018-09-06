@@ -321,7 +321,8 @@ public:
         bool enableCompatibleStorageMode,
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
-        const std::vector<TOperationEvent>& events = {});
+        const std::vector<TOperationEvent>& events = {},
+        bool suspended = false);
 
 private:
     const TOperationId Id_;

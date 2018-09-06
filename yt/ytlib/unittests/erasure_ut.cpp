@@ -63,23 +63,25 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes) override
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(options, blockIndexes);
+        return TFileReader::ReadBlocks(options, blockIndexes, estimatedSize);
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount) override
+        int blockCount,
+        const TNullable<i64>& estimatedSize) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(options, firstBlockIndex, blockCount);
+        return TFileReader::ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
     }
 
     virtual bool IsValid() const override

@@ -598,13 +598,14 @@ private:
     {
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
-            : Owner_(owner)
+            : Owner_(std::move(owner))
             , ServiceAddresses_(Owner_->Bootstrap_->GetLocalAddresses())
         { }
 
         void Run()
         {
             FireConnecting();
+            EnsureNoSafeMode();
             RegisterInstance();
             StartLockTransaction();
             TakeLock();
@@ -632,6 +633,23 @@ private:
         void FireConnecting()
         {
             Owner_->MasterConnecting_.Fire();
+        }
+
+        void EnsureNoSafeMode()
+        {
+            TObjectServiceProxy proxy(Owner_
+                ->Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+            auto req = TCypressYPathProxy::Get("//sys/@config/enable_safe_mode");
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting \"enable_safe_mode\" from master");
+
+            bool safeMode = ConvertTo<bool>(TYsonString(rspOrError.Value()->value()));
+            if (safeMode) {
+                THROW_ERROR_EXCEPTION("Cluster is in safe mode");
+            }
         }
 
         // - Register scheduler instance.
@@ -777,7 +795,8 @@ private:
                 "events",
                 "slot_index_per_pool_tree",
                 "runtime_parameters",
-                "output_completion_transaction_id"
+                "output_completion_transaction_id",
+                "suspended",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -887,7 +906,8 @@ private:
                 spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 attributes.Get<EOperationState>("state"),
-                attributes.Get<std::vector<TOperationEvent>>("events", {}));
+                attributes.Get<std::vector<TOperationEvent>>("events", {}),
+                /* suspended */ attributes.Get<bool>("suspended", false));
 
             operation->SetShouldFlushAcl(true);
 
@@ -904,7 +924,7 @@ private:
         void UpdateGlobalWatchers()
         {
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : Owner_->GlobalWatcherRequesters_) {
+            for (const auto& requester : Owner_->GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
@@ -914,7 +934,7 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             auto watcherResponses = batchRspOrError.ValueOrThrow();
 
-            for (auto handler : Owner_->GlobalWatcherHandlers_) {
+            for (const auto& handler : Owner_->GlobalWatcherHandlers_) {
                 handler.Run(watcherResponses);
             }
             for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
@@ -1225,7 +1245,7 @@ private:
                     &BuildOperationAce,
                     operation->GetOwners(),
                     operation->GetAuthenticatedUser(),
-                    std::vector<EPermission>({EPermission::Write}),
+                    std::vector<EPermission>({EPermission::Write, EPermission::Read}),
                     _1))
             .EndList();
     }
@@ -1467,7 +1487,7 @@ private:
         // Global watchers.
         {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : GlobalWatcherRequesters_) {
+            for (const auto& requester : GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
@@ -1515,7 +1535,7 @@ private:
         }
 
         const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : GlobalWatcherHandlers_) {
+        for (const auto& handler : GlobalWatcherHandlers_) {
             handler.Run(batchRsp);
         }
 

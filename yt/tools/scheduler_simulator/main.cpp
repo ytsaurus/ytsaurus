@@ -864,10 +864,12 @@ public:
                 {
                     std::vector<std::pair<TJobId, TOperationId>> jobsToRemove;
                     std::vector<TJobId> jobsToAbort;
+                    int snapshotRevision;
                     SchedulingStrategy_->ProcessJobUpdates(
                         jobUpdates,
                         &jobsToRemove,
-                        &jobsToAbort);
+                        &jobsToAbort,
+                        &snapshotRevision);
                     YCHECK(jobsToRemove.size() == 1);
                     YCHECK(jobsToAbort.empty());
                 }

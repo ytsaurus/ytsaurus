@@ -681,7 +681,7 @@ private:
         // TODO(sandello): Options!
         CompleteCallWith(
             context,
-            transaction->Ping());
+            transaction->Ping(false));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction)
@@ -1678,10 +1678,13 @@ private:
         }
 
         SetTimeoutOptions(options, context.Get());
+        TColumnFilter::TIndexes columnFilterIndexes;
         for (int i = 0; i < request->columns_size(); ++i) {
-            options->ColumnFilter.All = false;
-            options->ColumnFilter.Indexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
+            columnFilterIndexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
         }
+        options->ColumnFilter = request->columns_size() == 0
+            ? TColumnFilter()
+            : TColumnFilter(std::move(columnFilterIndexes));
         options->Timestamp = request->timestamp();
         options->KeepMissingRows = request->keep_missing_rows();
 

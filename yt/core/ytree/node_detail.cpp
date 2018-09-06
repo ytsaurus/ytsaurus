@@ -189,8 +189,6 @@ void TCompositeNodeMixin::SetRecursive(
     TRspSet* /*response*/,
     const TCtxSetPtr& context)
 {
-    context->SetRequestInfo();
-
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto factory = CreateFactory();
