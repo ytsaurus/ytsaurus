@@ -45,7 +45,6 @@ DEFINE_ENUM(EMemoryCategory,
     ((CachedVersionedChunkMeta)    (7))
     ((SystemJobs)                  (8))
     ((Query)                       (9))
-    ((QueryCache)                 (10))
 );
 
 using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;
