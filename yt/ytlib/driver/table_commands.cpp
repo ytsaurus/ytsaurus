@@ -249,6 +249,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableWriter,
         TableWriter);
 
+    // XXX(babenko): temporary workaround; this is how it actually works but not how it is intended to be.
+    Options.PingAncestors = true;
     Options.Config = config;
 
     auto apiWriter = WaitFor(context->GetClient()->CreateTableWriter(
