@@ -817,7 +817,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         auto codegenArgs = std::vector<TCodegenValue>();
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return dstAggState;
-            });
+        });
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return aggState;
         });
