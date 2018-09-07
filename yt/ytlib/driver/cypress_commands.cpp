@@ -34,7 +34,7 @@ void TGetCommand::DoExecute(ICommandContextPtr context)
     Options.Options = IAttributeDictionary::FromMap(GetUnrecognized());
 
     auto asyncResult = context->GetClient()->GetNode(
-        Path.GetPath(),
+        RewritePath(Path.GetPath(), RewriteOperationPath),
         Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
@@ -56,7 +56,7 @@ void TSetCommand::DoExecute(ICommandContextPtr context)
     auto value = context->ConsumeInputValue();
 
     auto asyncResult = context->GetClient()->SetNode(
-        Path.GetPath(),
+        RewritePath(Path.GetPath(), RewriteOperationPath),
         value,
         Options);
     WaitFor(asyncResult)
@@ -102,7 +102,7 @@ TListCommand::TListCommand()
 void TListCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->ListNode(
-        Path.GetPath(),
+        RewritePath(Path.GetPath(), RewriteOperationPath),
         Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
@@ -151,7 +151,7 @@ void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
         : CreateEphemeralAttributes();
 
     auto asyncNodeId = context->GetClient()->CreateNode(
-        Path.GetPath(),
+        RewritePath(Path.GetPath(), RewriteOperationPath),
         Type,
         Options);
     auto nodeId = WaitFor(asyncNodeId)
@@ -216,7 +216,7 @@ TLockCommand::TLockCommand()
 void TLockCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncLockResult = context->GetClient()->LockNode(
-        Path.GetPath(),
+        RewritePath(Path.GetPath(), RewriteOperationPath),
         Mode,
         Options);
     auto lockResult = WaitFor(asyncLockResult)
@@ -304,7 +304,7 @@ TExistsCommand::TExistsCommand()
 void TExistsCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->NodeExists(
-        Path.GetPath(),
+        RewritePath(Path.GetPath(), RewriteOperationPath),
         Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
