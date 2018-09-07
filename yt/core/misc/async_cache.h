@@ -18,7 +18,7 @@ namespace NYT {
 template <class TKey, class TValue, class THash>
 class TAsyncSlruCacheBase;
 
-template <class TKey, class TValue, class THash = ::hash<TKey>>
+template <class TKey, class TValue, class THash = THash<TKey>>
 class TAsyncCacheValueBase
     : public virtual TRefCounted
 {
@@ -40,7 +40,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = THash<TKey> >
 class TAsyncSlruCacheBase
     : public virtual TRefCounted
 {
