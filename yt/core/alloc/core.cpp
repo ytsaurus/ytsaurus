@@ -1127,7 +1127,7 @@ public:
             while (current) {
                 RefThreadState(current);
                 states.push_back(current);
-                current = current->RegistryNode.Next;9
+                current = current->RegistryNode.Next;
             }
         }
 
