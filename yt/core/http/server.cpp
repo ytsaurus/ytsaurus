@@ -140,12 +140,13 @@ private:
     bool HandleRequest(const THttpInputPtr& request, THttpOutputPtr& response)
     {
         response->SetStatus(EStatusCode::InternalServerError);
-        if (!request->ReceiveHeaders()) {
-            return false;
-        }
 
         bool closeResponse = true;
         try {
+            if (!request->ReceiveHeaders()) {
+                return false;
+            }
+
             const auto& path = request->GetUrl().Path;
 
             LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v)",
