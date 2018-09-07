@@ -1,15 +1,14 @@
 #pragma once
 
 #include "preprocessor.h"
+#include "range.h"
 
 #include <util/generic/strbuf.h>
 
-#include <util/string/cast.h>
-
 #include <stdexcept>
 #include <type_traits>
-#include <vector>
 #include <array>
+#include <vector>
 
 namespace NYT {
 
@@ -50,8 +49,8 @@ struct TEnumTraits<T, true>
 
     static constexpr int GetDomainSize();
 
-    static const std::vector<TString>& GetDomainNames();
-    static const std::vector<TType>& GetDomainValues();
+    static TRange<TStringBuf> GetDomainNames();
+    static TRange<TType> GetDomainValues();
 
     static TType FromString(TStringBuf str);
     static TString ToString(TType value);

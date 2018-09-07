@@ -12,9 +12,9 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::vector<T> SortedAndUnique(const std::vector<T>& vector)
+std::vector<T> SortedAndUnique(TRange<T> range)
 {
-    auto result = vector;
+    std::vector<T> result(range.begin(), range.end());
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;

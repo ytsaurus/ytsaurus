@@ -3,6 +3,7 @@
 #include "common.h"
 #include "enum.h"
 #include "size_literals.h"
+#include "intrusive_ptr.h"
 
 // Google Protobuf forward declarations.
 namespace google {

@@ -10,6 +10,7 @@
 #include "guid.h"
 #include "assert.h"
 #include "range.h"
+#include "shared_range.h"
 
 #include <cctype>
 

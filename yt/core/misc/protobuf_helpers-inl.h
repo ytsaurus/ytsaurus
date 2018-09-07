@@ -9,7 +9,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 #define DEFINE_TRIVIAL_PROTO_CONVERSIONS(type)                   \
     inline void ToProto(type* serialized, type original)         \
     {                                                            \

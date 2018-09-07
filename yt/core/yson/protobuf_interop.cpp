@@ -14,6 +14,7 @@
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/cast.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 

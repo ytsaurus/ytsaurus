@@ -4,6 +4,7 @@
 #include "common.h"
 #include "new.h"
 #include "range.h"
+#include "shared_range.h"
 
 #include <type_traits>
 

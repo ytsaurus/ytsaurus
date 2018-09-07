@@ -41,6 +41,12 @@ DEFINE_ENUM(EMultipleNames,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+std::vector<T> ToVector(TRange<T> range)
+{
+    return std::vector<T>(range.begin(), range.end());
+}
+
 TEST(TEnumTest, Domain)
 {
     EXPECT_EQ(3, TEnumTraits<ESimple>::GetDomainSize());
@@ -49,7 +55,7 @@ TEST(TEnumTest, Domain)
         ESimple::Y,
         ESimple::Z
     };
-    EXPECT_EQ(v, TEnumTraits<ESimple>::GetDomainValues());
+    EXPECT_EQ(v, ToVector(TEnumTraits<ESimple>::GetDomainValues()));
     EXPECT_EQ(ESimple::X, TEnumTraits<ESimple>::GetMinValue());
     EXPECT_EQ(ESimple::Z, TEnumTraits<ESimple>::GetMaxValue());
 }
@@ -208,7 +214,7 @@ TEST(TEnumTest, DomainValues)
     simpleValues.push_back(ESimple::X);
     simpleValues.push_back(ESimple::Y);
     simpleValues.push_back(ESimple::Z);
-    EXPECT_EQ(simpleValues, TEnumTraits<ESimple>::GetDomainValues());
+    EXPECT_EQ(simpleValues, ToVector(TEnumTraits<ESimple>::GetDomainValues()));
 
     std::vector<EColor> colorValues;
     colorValues.push_back(EColor::Red);
@@ -216,7 +222,7 @@ TEST(TEnumTest, DomainValues)
     colorValues.push_back(EColor::Blue);
     colorValues.push_back(EColor::Black);
     colorValues.push_back(EColor::White);
-    EXPECT_EQ(colorValues, TEnumTraits<EColor>::GetDomainValues());
+    EXPECT_EQ(colorValues, ToVector(TEnumTraits<EColor>::GetDomainValues()));
 }
 
 TEST(TEnumTest, Decompose1)
