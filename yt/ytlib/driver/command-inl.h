@@ -62,7 +62,7 @@ NApi::ITransactionPtr TTransactionalCommandBase<
     }
 
     NApi::TTransactionAttachOptions options;
-    options.Ping = !required;
+    options.Ping = false;
     options.PingAncestors = this->Options.PingAncestors;
     options.Sticky = this->Options.Sticky;
     return context->GetClient()->AttachTransaction(transactionId, options);
