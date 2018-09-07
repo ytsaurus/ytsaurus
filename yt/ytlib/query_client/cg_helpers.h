@@ -30,8 +30,8 @@ using NCodegen::TCGModulePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StringRef ToStringRef(const TString& stroka);
-StringRef ToStringRef(const TSharedRef& sharedRef);
+StringRef ToStringRef(TStringBuf stringBuf);
+StringRef ToStringRef(TRef ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,14 +6,14 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StringRef ToStringRef(const TString& stroka)
+StringRef ToStringRef(TStringBuf stringBuf)
 {
-    return StringRef(stroka.c_str(), stroka.length());
+    return StringRef(stringBuf.c_str(), stringBuf.length());
 }
 
-StringRef ToStringRef(const TSharedRef& sharedRef)
+StringRef ToStringRef(TRef ref)
 {
-    return StringRef(sharedRef.Begin(), sharedRef.Size());
+    return StringRef(ref.Begin(), ref.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

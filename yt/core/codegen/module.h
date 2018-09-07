@@ -52,17 +52,14 @@ public:
 
     void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
 
-    bool SymbolIsLoaded(const TString& symbol) const;
-
+    bool IsSymbolLoaded(const TString& symbol) const;
     void AddLoadedSymbol(const TString& symbol);
 
-    bool FunctionIsLoaded(const TString& function) const;
-
+    bool IsFunctionLoaded(const TString& function) const;
     void AddLoadedFunction(const TString& function);
 
-    bool ModuleIsLoaded(const TSharedRef& data) const;
-
-    void AddLoadedModule(const TSharedRef& data);
+    bool IsModuleLoaded(TRef data) const;
+    void AddLoadedModule(TRef data);
 
 private:
     class TImpl;
