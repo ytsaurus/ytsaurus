@@ -142,12 +142,32 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
 
     auto fillOperationAttributes = [needOperationType, needType] (TFluentMap fluent, const TOperation& operation) {
         fluent
-            .DoIf(operation.Id.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("id").Value(operation.Id);
+#define ADD_ITEM_IF_HAS_VALUE(key, field) \
+            .DoIf(operation.field.operator bool(), [&] (TFluentMap fluent) { \
+                 fluent.Item(key).Value(operation.field); \
             })
-            .DoIf(operation.State.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("state").Value(operation.State);
-            })
+
+            ADD_ITEM_IF_HAS_VALUE("id", Id)
+            ADD_ITEM_IF_HAS_VALUE("state", State)
+            ADD_ITEM_IF_HAS_VALUE("authenticated_user", AuthenticatedUser)
+
+            ADD_ITEM_IF_HAS_VALUE("start_time", StartTime)
+            ADD_ITEM_IF_HAS_VALUE("finish_time", FinishTime)
+
+            ADD_ITEM_IF_HAS_VALUE("brief_progress", BriefProgress)
+            ADD_ITEM_IF_HAS_VALUE("progress", Progress)
+
+            ADD_ITEM_IF_HAS_VALUE("brief_spec", BriefSpec)
+            ADD_ITEM_IF_HAS_VALUE("full_spec", FullSpec)
+            ADD_ITEM_IF_HAS_VALUE("spec", Spec)
+            ADD_ITEM_IF_HAS_VALUE("unrecognized_spec", UnrecognizedSpec)
+
+            ADD_ITEM_IF_HAS_VALUE("runtime_parameters", RuntimeParameters)
+            ADD_ITEM_IF_HAS_VALUE("suspended", Suspended)
+            ADD_ITEM_IF_HAS_VALUE("result", Result)
+            ADD_ITEM_IF_HAS_VALUE("events", Events)
+#undef ADD_ITEM_IF_HAS_VALUE
+
             .DoIf(operation.Type.operator bool(), [&] (TFluentMap fluent) {
                 if (needType) {
                     fluent.Item("type").Value(operation.Type);
@@ -155,50 +175,8 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                 if (needOperationType) {
                     fluent.Item("operation_type").Value(operation.Type);
                 }
-            })
-            .DoIf(operation.AuthenticatedUser.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("authenticated_user").Value(operation.AuthenticatedUser);
-            })
-
-            .DoIf(operation.StartTime.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("start_time").Value(operation.StartTime);
-            })
-            .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("finish_time").Value(operation.FinishTime);
-            })
-
-            .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("brief_progress").Value(operation.BriefProgress);
-            })
-            .DoIf(operation.Progress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("progress").Value(operation.Progress);
-            })
-
-            .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("brief_spec").Value(operation.BriefSpec);
-            })
-            .DoIf(operation.FullSpec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("full_spec").Value(operation.FullSpec);
-            })
-            .DoIf(operation.Spec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("spec").Value(operation.Spec);
-            })
-            .DoIf(operation.UnrecognizedSpec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("unrecognized_spec").Value(operation.UnrecognizedSpec);
-            })
-
-            .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
-            })
-            .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("suspended").Value(operation.Suspended);
-            })
-            .DoIf(operation.Result.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("result").Value(operation.Result);
-            })
-            .DoIf(operation.Events.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("events").Value(operation.Events);
             });
+
     };
 
     if (EnableUIMode) {
