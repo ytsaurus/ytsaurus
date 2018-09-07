@@ -388,25 +388,3 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
             return False
 
         wait(lambda: not has_operations())
-
-
-class TestArchiveVersion23(ListOperationsSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
-    SINGLE_SETUP_TEARDOWN = True
-
-    include_archive = True
-    read_from_values = ["follower"]
-    check_failed_jobs_count = False
-    _archive_version = 23
-
-    def test_version_23(self):
-        res = list_operations(include_archive=True, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.finish_time, cursor_direction="past")
-        # Everything except pool counters should be OK.
-        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
-        assert res["state_counts"] == {"completed": 2, "failed": 1}
-        assert res["type_counts"] == {"map": 2, "map_reduce": 1}
-        if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 1
