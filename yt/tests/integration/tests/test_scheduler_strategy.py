@@ -1346,26 +1346,31 @@ class TestSchedulerPools(YTEnvSetup):
             op.track()
 
     def test_ephemeral_pool_in_custom_pool(self):
-        create_test_tables()
-
         create("map_node", "//sys/pools/custom_pool")
+        create("map_node", "//sys/pools/custom_pool_fifo")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool_fifo/@ephemeral_subpools_mode", "fifo")
 
         time.sleep(0.2)
 
-        map(
-            dont_track=True,
-            command=(with_breakpoint("cat ; BREAKPOINT")),
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"pool": "custom_pool"})
+        op1 = self.run_vanilla_with_sleep(spec={"pool": "custom_pool"})
+        op2 = self.run_vanilla_with_sleep(spec={"pool": "custom_pool_fifo"})
+        wait(lambda: len(list(op1.get_running_jobs())) == 1)
+        wait(lambda: len(list(op2.get_running_jobs())) == 1)
 
-        wait_breakpoint()
+        pools_path = "//sys/scheduler/orchid/scheduler/pools/"
 
-        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool$root")
+        pool = get(pools_path + "custom_pool$root")
         assert pool["parent"] == "custom_pool"
+        assert pool["mode"] == "fair_share"
+
+        pool_fifo = get(pools_path + "custom_pool_fifo$root")
+        assert pool_fifo["parent"] == "custom_pool_fifo"
+        assert pool_fifo["mode"] == "fifo"
 
         remove("//sys/pools/custom_pool")
+        remove("//sys/pools/custom_pool_fifo")
 
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
@@ -1435,6 +1440,15 @@ class TestSchedulerPools(YTEnvSetup):
         custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
         assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
         assert custom_pool_info["mode"] == "fair_share"
+
+    def run_vanilla_with_sleep(self, spec):
+        spec["tasks"] = {
+            "task": {
+                "job_count": 1,
+                "command": "sleep 1000"
+            },
+        }
+        return vanilla(spec=spec, dont_track=True)
 
 ##################################################################
 
