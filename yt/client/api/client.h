@@ -740,9 +740,7 @@ struct TListJobsOptions
     TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
 
     TListJobsOptions()
-    {
-        ReadFrom = EMasterChannelKind::Cache;
-    }
+    { }
 };
 
 struct TStraceJobOptions
