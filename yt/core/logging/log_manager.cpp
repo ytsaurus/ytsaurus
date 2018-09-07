@@ -935,7 +935,7 @@ private:
     {
         auto level = ELogLevel::Maximum;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(category->Name)) {
+            if (rule->IsApplicable(category->Name, ELogMessageFormat::PlainText)) {
                 level = std::min(level, rule->MinLevel);
             }
         }
