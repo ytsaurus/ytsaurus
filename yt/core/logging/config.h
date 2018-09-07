@@ -70,7 +70,7 @@ public:
             .NonEmpty();
     }
 
-    bool IsApplicable(const TString& category) const;
+    bool IsApplicable(const TString& category, ELogMessageFormat format) const;
     bool IsApplicable(const TString& category, ELogLevel level, ELogMessageFormat format) const;
 };
 
