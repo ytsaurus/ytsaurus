@@ -2,6 +2,7 @@
 #include "cg_fragment_compiler.h"
 
 #include <yt/ytlib/table_client/llvm_types.h>
+
 #include <yt/client/table_client/row_base.h>
 
 #include <yt/core/codegen/llvm_migrate_helpers.h>
@@ -34,6 +35,7 @@ static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunct
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
 namespace {
+
 TString ToString(llvm::Type* tp)
 {
     std::string str;
@@ -440,26 +442,35 @@ void LoadLlvmBitcode(
     TCGBaseContext& builder,
     const TString& functionName,
     std::vector<TString> requiredSymbols,
-    TSharedRef implementationFile)
+    TRef implementationFile)
 {
-    if (builder.Module->ModuleIsLoaded(implementationFile)) {
+    if (builder.Module->IsModuleLoaded(implementationFile)) {
         return;
     }
 
     auto diag = SMDiagnostic();
 
-    auto implBuffer = MemoryBufferRef(ToStringRef(implementationFile), StringRef("implementation"));
-
     // NB(levysotsky): This is workaround for the bug in LLVM function llvm::isBitcode
     // (buffer overflow on short (< 4 bytes) inputs).
-    constexpr size_t minimalIRSize = 4;
-    if (implBuffer.getBufferSize() < minimalIRSize) {
-        THROW_ERROR_EXCEPTION("LLVM bitcode must be at least %v bytes long (function %Qv)", minimalIRSize, functionName);
+    constexpr size_t MinimalIRSize = 4;
+    if (implementationFile.Size() < MinimalIRSize) {
+        THROW_ERROR_EXCEPTION("LLVM bitcode for function %Qv must be at least %v bytes long",
+            functionName,
+            MinimalIRSize);
     }
 
-    auto implModule = parseIR(implBuffer, diag, builder->getContext());
+    // MemoryBuffer must be zero-terminated.
+    struct TBitcodeBufferTag { };
+    auto implementationBuffer = TSharedMutableRef::Allocate<TBitcodeBufferTag>(implementationFile.Size() + 1);
+    ::memcpy(implementationBuffer.Begin(), implementationFile.Begin(), implementationFile.Size());
+    implementationBuffer.Begin()[implementationFile.Size()] = 0;
+    auto implementationBufferRef = MemoryBufferRef(
+        ToStringRef(TRef(implementationBuffer.Begin(), implementationFile.Size())),
+        StringRef("implementation"));
 
-    if (!implModule) {
+    auto implementationModule = parseIR(implementationBufferRef, diag, builder->getContext());
+
+    if (!implementationModule) {
         THROW_ERROR_EXCEPTION("Could not parse LLVM bitcode for function %Qv", functionName)
             << TErrorAttribute("line_no", diag.getLineNo())
             << TErrorAttribute("column_no", diag.getColumnNo())
@@ -468,7 +479,7 @@ void LoadLlvmBitcode(
     }
 
     for (const auto& symbol : requiredSymbols) {
-        auto callee = implModule->getFunction(ToStringRef(symbol));
+        auto callee = implementationModule->getFunction(ToStringRef(symbol));
         if (!callee) {
             THROW_ERROR_EXCEPTION(
                 "LLVM bitcode for function %Qv is missing required symbol %Qv",
@@ -478,10 +489,10 @@ void LoadLlvmBitcode(
         callee->addFnAttr(Attribute::AttrKind::InlineHint);
     }
 
-    for (auto& function : implModule->getFunctionList()) {
+    for (auto& function : implementationModule->getFunctionList()) {
         auto name = function.getName();
         auto nameString = TString(name.begin(), name.size());
-        if (builder.Module->SymbolIsLoaded(nameString)) {
+        if (builder.Module->IsSymbolLoaded(nameString)) {
             THROW_ERROR_EXCEPTION(
                 "LLVM bitcode for function %Qv redefines already defined symbol %Qv",
                 functionName,
@@ -499,7 +510,7 @@ void LoadLlvmBitcode(
         llvm::DiagnosticPrinterRawOStream printer(os);
         // Link two modules together, with the first module modified to be the
         // composite of the two input modules.
-        linkerFailed = Linker::LinkModules(module, implModule.get(), [&] (const DiagnosticInfo& info) {
+        linkerFailed = Linker::LinkModules(module, implementationModule.get(), [&] (const DiagnosticInfo& info) {
            info.print(printer);
         });
     }
@@ -514,21 +525,21 @@ void LoadLlvmBitcode(
         };
 
         auto dest = module;
-        LLVMContext& context = dest->getContext();
+        auto& context = dest->getContext();
 #if !LLVM_VERSION_GE(6, 0)
-        LLVMContext::DiagnosticHandlerTy oldDiagnosticHandler = context.getDiagnosticHandler();
+        auto oldDiagnosticHandler = context.getDiagnosticHandler();
         void *oldDiagnosticContext = context.getDiagnosticContext();
         context.setDiagnosticHandler((LLVMContext::DiagnosticHandlerTy)handler, &os, true);
 
-        linkerFailed = Linker::linkModules(*dest, std::move(implModule));
+        linkerFailed = Linker::linkModules(*dest, std::move(implementationModule));
 
         context.setDiagnosticHandler(oldDiagnosticHandler, oldDiagnosticContext, true);
 #else
-        DiagnosticHandler::DiagnosticHandlerTy oldDiagnosticHandler = context.getDiagnosticHandlerCallBack();
+        auto oldDiagnosticHandler = context.getDiagnosticHandlerCallBack();
         void *oldDiagnosticContext = context.getDiagnosticContext();
         context.setDiagnosticHandlerCallBack((DiagnosticHandler::DiagnosticHandlerTy)handler, &os, true);
 
-        linkerFailed = Linker::linkModules(*dest, std::move(implModule));
+        linkerFailed = Linker::linkModules(*dest, std::move(implementationModule));
 
         context.setDiagnosticHandlerCallBack(oldDiagnosticHandler, oldDiagnosticContext, true);
 #endif
@@ -549,13 +560,13 @@ void LoadLlvmFunctions(
     TCGBaseContext& builder,
     const TString& functionName,
     std::vector<std::pair<TString, llvm::FunctionType*>> functions,
-    TSharedRef implementationFile)
+    TRef implementationFile)
 {
     if (!implementationFile) {
         THROW_ERROR_EXCEPTION("UDF implementation is not available in this context");
     }
 
-    if (builder.Module->FunctionIsLoaded(functionName)) {
+    if (builder.Module->IsFunctionLoaded(functionName)) {
         return;
     }
 

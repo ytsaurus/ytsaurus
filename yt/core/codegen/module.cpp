@@ -215,7 +215,7 @@ public:
         Engine_->addObjectFile(std::move(sharedObject));
     }
 
-    bool SymbolIsLoaded(const TString& symbol)
+    bool IsSymbolLoaded(const TString& symbol)
     {
         return LoadedSymbols_.count(symbol) != 0;
     }
@@ -225,7 +225,7 @@ public:
         LoadedSymbols_.insert(symbol);
     }
 
-    bool FunctionIsLoaded(const TString& function) const
+    bool IsFunctionLoaded(const TString& function) const
     {
         return LoadedFunctions_.count(function) != 0;
     }
@@ -235,12 +235,12 @@ public:
         LoadedFunctions_.insert(function);
     }
 
-    bool ModuleIsLoaded(const TSharedRef& data) const
+    bool IsModuleLoaded(TRef data) const
     {
         return LoadedModules_.count(TStringBuf(data.Begin(), data.Size())) != 0;
     }
 
-    void AddLoadedModule(const TSharedRef& data)
+    void AddLoadedModule(TRef data)
     {
         LoadedModules_.insert(TString(TStringBuf(data.Begin(), data.Size())));
     }
@@ -486,9 +486,9 @@ void TCGModule::AddObjectFile(
     Impl_->AddObjectFile(std::move(sharedObject));
 }
 
-bool TCGModule::SymbolIsLoaded(const TString& symbol) const
+bool TCGModule::IsSymbolLoaded(const TString& symbol) const
 {
-    return Impl_->SymbolIsLoaded(symbol);
+    return Impl_->IsSymbolLoaded(symbol);
 }
 
 void TCGModule::AddLoadedSymbol(const TString& symbol)
@@ -496,9 +496,9 @@ void TCGModule::AddLoadedSymbol(const TString& symbol)
     Impl_->AddLoadedSymbol(symbol);
 }
 
-bool TCGModule::FunctionIsLoaded(const TString& function) const
+bool TCGModule::IsFunctionLoaded(const TString& function) const
 {
-    return Impl_->FunctionIsLoaded(function);
+    return Impl_->IsFunctionLoaded(function);
 }
 
 void TCGModule::AddLoadedFunction(const TString& function)
@@ -506,12 +506,12 @@ void TCGModule::AddLoadedFunction(const TString& function)
     Impl_->AddLoadedFunction(function);
 }
 
-bool TCGModule::ModuleIsLoaded(const TSharedRef& data) const
+bool TCGModule::IsModuleLoaded(TRef data) const
 {
-    return Impl_->ModuleIsLoaded(data);
+    return Impl_->IsModuleLoaded(data);
 }
 
-void TCGModule::AddLoadedModule(const TSharedRef& data)
+void TCGModule::AddLoadedModule(TRef data)
 {
     Impl_->AddLoadedModule(data);
 }

@@ -163,12 +163,12 @@ public:
         llvm::FoldingSetNodeID* id) const override;
 
 private:
-    TString FunctionName_;
-    TString SymbolName_;
-    TSharedRef ImplementationFile_;
-    ICallingConventionPtr CallingConvention_;
-    TSharedRef Fingerprint_;
-    bool UseFunctionContext_;
+    const TString FunctionName_;
+    const TString SymbolName_;
+    const TSharedRef ImplementationFile_;
+    const ICallingConventionPtr CallingConvention_;
+    const TSharedRef Fingerprint_;
+    const bool UseFunctionContext_;
 
 };
 
@@ -195,10 +195,10 @@ public:
         llvm::FoldingSetNodeID* id) const override;
 
 private:
-    TString AggregateName_;
-    TSharedRef ImplementationFile_;
-    ICallingConventionPtr CallingConvention_;
-    TSharedRef Fingerprint_;
+    const TString AggregateName_;
+    const TSharedRef ImplementationFile_;
+    const ICallingConventionPtr CallingConvention_;
+    const TSharedRef Fingerprint_;
 
 };
 
