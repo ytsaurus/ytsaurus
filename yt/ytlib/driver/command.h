@@ -81,6 +81,8 @@ class TCommandBase
 
         TCommandBase();
 
+        bool RewriteOperationPath;
+
     public:
         virtual void Execute(ICommandContextPtr context) override;
 };
@@ -288,6 +290,10 @@ class TTypedCommand
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
 { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TYPath RewritePath(const NYPath::TYPath& path, bool rewriteOperationPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

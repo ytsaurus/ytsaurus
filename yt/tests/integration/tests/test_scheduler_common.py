@@ -3348,6 +3348,33 @@ fi
         assert remove_asan_warning(read_file(get_stderr_path(op, jobs[0]))) == "Oh no!\n"
         assert remove_asan_warning(read_file(get_stderr_path_new(op, jobs[0]))) == "Oh no!\n"
 
+    def test_rewrite_operation_path(self):
+        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
+
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            command="echo 'XYZ' >&2",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "enable_compatible_storage_mode": False,
+            })
+
+        assert not exists("//sys/operations/" + op.id + "/@")
+        assert exists("//sys/operations/" + op.id + "/@", rewrite_operation_path=True)
+        assert get("//sys/operations/" + op.id + "/@", rewrite_operation_path=True) == \
+            get(op.get_path() + "/@", rewrite_operation_path=True)
+
+        tx = start_transaction()
+        assert lock("//sys/operations/" + op.id, rewrite_operation_path=True, mode="snapshot", tx=tx)
+
+        jobs = ls("//sys/operations/" + op.id + "/jobs", rewrite_operation_path=True)
+        assert remove_asan_warning(read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True)) == "XYZ\n"
+
 ##################################################################
 
 class TestSchedulerOperationStorageArchivation(YTEnvSetup):
