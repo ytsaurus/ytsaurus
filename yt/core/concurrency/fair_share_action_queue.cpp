@@ -105,6 +105,8 @@ private:
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareActionQueue::TFairShareActionQueue(
     const TString& threadName,
     const std::vector<TString>& bucketNames,
@@ -115,6 +117,31 @@ TFairShareActionQueue::TFairShareActionQueue(
         bucketNames,
         enableLogging,
         enableProfiling))
+{ }
+
+namespace {
+
+std::vector<TString> ToVector(TRange<TStringBuf> range)
+{
+    std::vector<TString> result;
+    for (auto item : range) {
+        result.push_back(TString(item));
+    }
+    return result;
+}
+
+} // namespace
+
+TFairShareActionQueue::TFairShareActionQueue(
+    const TString& threadName,
+    TRange<TStringBuf> bucketNames,
+    bool enableLogging,
+    bool enableProfiling)
+    : TFairShareActionQueue(
+        threadName,
+        ToVector(bucketNames),
+        enableLogging,
+        enableProfiling)
 { }
 
 TFairShareActionQueue::~TFairShareActionQueue() = default;

@@ -22,6 +22,11 @@ public:
         const std::vector<TString>& bucketNames,
         bool enableLogging = true,
         bool enableProfiling = true);
+    TFairShareActionQueue(
+        const TString& threadName,
+        TRange<TStringBuf> bucketNames,
+        bool enableLogging = true,
+        bool enableProfiling = true);
 
     virtual ~TFairShareActionQueue();
 

@@ -156,8 +156,7 @@ TString ToString(const TFormulaToken& token)
     } else if (token.Type == EFormulaTokenType::Variable) {
         return "[" + token.Name + "]";
     } else {
-        return TEnumTraitsImpl_EFormulaTokenType::GetDomainNames()[
-            static_cast<int>(token.Type)];
+        return ToString(token.Type);
     }
 }
 

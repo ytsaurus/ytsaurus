@@ -6,6 +6,7 @@
 #include <yt/core/misc/mpl.h>
 
 #include <util/string/printf.h>
+#include <util/string/cast.h>
 
 #include <stdexcept>
 
@@ -64,22 +65,20 @@ namespace NYT {
             return PP_COUNT(seq); \
         } \
         \
-        static const std::vector<TString>& GetDomainNames() \
+        static NYT::TRange<TStringBuf> GetDomainNames() \
         { \
-            static const TString values[] = { \
+            static const std::array<TStringBuf, PP_COUNT(seq)> result{{ \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
-            }; \
-            static const std::vector<TString> result(values, values + GetDomainSize()); \
-            return result; \
+            }}; \
+            return NYT::MakeRange(result); \
         } \
         \
-        static const std::vector<TType>& GetDomainValues() \
+        static NYT::TRange<TType> GetDomainValues() \
         { \
-            static const TType values[] = { \
+            static const std::array<TType, PP_COUNT(seq)> result{{ \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
-            }; \
-            static std::vector<TType> result(values, values + GetDomainSize()); \
-            return result; \
+            }}; \
+            return NYT::MakeRange(result); \
         } \
         \
         static TType FromString(TStringBuf str) \
@@ -149,7 +148,7 @@ namespace NYT {
     ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
-    TString(PP_STRINGIZE(item)),
+    AsStringBuf(PP_STRINGIZE(item)),
 
 #define ENUM__DECOMPOSE(name, seq) \
     static std::vector<TType> Decompose(TType value) \
@@ -212,13 +211,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-auto TEnumTraits<T, true>::Decompose(TType value) -> std::vector<TType>
+std::vector<T> TEnumTraits<T, true>::Decompose(T value)
 {
     return TImpl::Decompose(value);
 }
 
 template <class T>
-auto TEnumTraits<T, true>::FromString(TStringBuf str) -> TType
+T TEnumTraits<T, true>::FromString(TStringBuf str)
 {
     return TImpl::FromString(str);
 }
@@ -240,25 +239,25 @@ TString TEnumTraits<T, true>::ToString(TType value)
 }
 
 template <class T>
-auto TEnumTraits<T, true>::GetDomainValues() -> const std::vector<TType>&
+TRange<T> TEnumTraits<T, true>::GetDomainValues()
 {
     return TImpl::GetDomainValues();
 }
 
 template <class T>
-auto TEnumTraits<T, true>::GetDomainNames() -> const std::vector<TString>&
+TRange<TStringBuf> TEnumTraits<T, true>::GetDomainNames()
 {
     return TImpl::GetDomainNames();
 }
 
 template <class T>
-constexpr auto TEnumTraits<T, true>::GetMaxValue() -> TType
+constexpr T TEnumTraits<T, true>::GetMaxValue()
 {
     return TImpl::GetMaxValue();
 }
 
 template <class T>
-constexpr auto TEnumTraits<T, true>::GetMinValue() -> TType
+constexpr T TEnumTraits<T, true>::GetMinValue()
 {
     return TImpl::GetMinValue();
 }

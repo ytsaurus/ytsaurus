@@ -2,6 +2,7 @@
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/yson/consumer.h>
 
