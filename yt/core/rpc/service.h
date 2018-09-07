@@ -243,7 +243,7 @@ DEFINE_REFCOUNTED_TYPE(IService)
 
 //! A hasher for TServiceId.
 template <>
-struct hash<NYT::NRpc::TServiceId>
+struct THash<NYT::NRpc::TServiceId>
 {
     inline size_t operator()(const NYT::NRpc::TServiceId& id) const
     {

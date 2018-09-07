@@ -854,7 +854,7 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound);
 
 //! A hasher for TUnversionedValue.
 template <>
-struct hash<NYT::NTableClient::TUnversionedValue>
+struct THash<NYT::NTableClient::TUnversionedValue>
 {
     inline size_t operator()(const NYT::NTableClient::TUnversionedValue& value) const
     {
@@ -864,7 +864,7 @@ struct hash<NYT::NTableClient::TUnversionedValue>
 
 //! A hasher for TUnversionedRow.
 template <>
-struct hash<NYT::NTableClient::TUnversionedRow>
+struct THash<NYT::NTableClient::TUnversionedRow>
 {
     inline size_t operator()(const NYT::NTableClient::TUnversionedRow& row) const
     {

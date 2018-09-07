@@ -218,7 +218,7 @@ protected:
     template <class U>
     friend void swap(TFuture<U>& lhs, TFuture<U>& rhs);
     template <class U>
-    friend struct ::hash;
+    friend struct ::THash;
 
 };
 

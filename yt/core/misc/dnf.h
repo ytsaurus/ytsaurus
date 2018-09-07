@@ -71,13 +71,13 @@ void Deserialize(TDnfFormula& rule, NYTree::INodePtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct hash<NYT::TConjunctiveClause>
+struct THash<NYT::TConjunctiveClause>
 {
     size_t operator()(const NYT::TConjunctiveClause& clause) const;
 };
 
 template <>
-struct hash<NYT::TDnfFormula>
+struct THash<NYT::TDnfFormula>
 {
     size_t operator()(const NYT::TDnfFormula& dnf) const;
 };

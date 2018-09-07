@@ -209,7 +209,7 @@ private:
 } // namespace NYT
 
 template <>
-struct hash<NYT::NNet::TNetworkAddress>
+struct THash<NYT::NNet::TNetworkAddress>
 {
     inline size_t operator()(const NYT::NNet::TNetworkAddress& address) const
     {

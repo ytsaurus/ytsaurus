@@ -1609,7 +1609,7 @@ TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
 
 //! A hasher for TFuture.
 template <class T>
-struct hash<NYT::TFuture<T>>
+struct THash<NYT::TFuture<T>>
 {
     size_t operator () (const NYT::TFuture<T>& future) const
     {
@@ -1619,7 +1619,7 @@ struct hash<NYT::TFuture<T>>
 
 //! A hasher for TPromise.
 template <class T>
-struct hash<NYT::TPromise<T>>
+struct THash<NYT::TPromise<T>>
 {
     size_t operator () (const NYT::TPromise<T>& promise) const
     {

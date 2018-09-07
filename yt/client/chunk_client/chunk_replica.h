@@ -128,7 +128,7 @@ Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex);
 
 //! A hasher for TChunkIdWithIndex.
 template <>
-struct hash<NYT::NChunkClient::TChunkIdWithIndex>
+struct THash<NYT::NChunkClient::TChunkIdWithIndex>
 {
     inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const
     {
@@ -140,7 +140,7 @@ Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndexes);
 
 //! A hasher for TChunkIdWithIndexes.
 template <>
-struct hash<NYT::NChunkClient::TChunkIdWithIndexes>
+struct THash<NYT::NChunkClient::TChunkIdWithIndexes>
 {
     inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndexes& value) const
     {
