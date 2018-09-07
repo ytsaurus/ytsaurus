@@ -4820,34 +4820,36 @@ private:
                 continue;
             }
 
+            TOperation operation;
+
             TGuid operationId(
                 row[columnFilter.GetPosition(tableIndex.IdHi)].Data.Uint64,
                 row[columnFilter.GetPosition(tableIndex.IdLo)].Data.Uint64);
 
             operation.Id = operationId;
 
-            auto value = row[columnFilter.GetIndex(tableIndex.OperationType)];
+            auto value = row[columnFilter.GetPosition(tableIndex.OperationType)];
             operation.Type = ParseEnum<EOperationType>(getString(value, "operation_type"));
 
-            value = row[columnFilter.GetIndex(tableIndex.State)];
+            value = row[columnFilter.GetPosition(tableIndex.State)];
             operation.State = ParseEnum<EOperationState>(getString(value, "state"));
 
-            value = row[columnFilter.GetIndex(tableIndex.AuthenticatedUser)];
+            value = row[columnFilter.GetPosition(tableIndex.AuthenticatedUser)];
             operation.AuthenticatedUser = getString(value, "authenticated_user");
 
-            operation.BriefSpec = getYson(row[columnFilter.GetIndex(tableIndex.BriefSpec)]);
+            operation.BriefSpec = getYson(row[columnFilter.GetPosition(tableIndex.BriefSpec)]);
 
-            if (row[columnFilter.GetIndex(tableIndex.StartTime)].Type == EValueType::Null) {
+            if (row[columnFilter.GetPosition(tableIndex.StartTime)].Type == EValueType::Null) {
                 THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in job archive");
             }
-            operation.StartTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.StartTime)].Data.Int64);
+            operation.StartTime = TInstant::MicroSeconds(row[columnFilter.GetPosition(tableIndex.StartTime)].Data.Int64);
 
-            if (row[columnFilter.GetIndex(tableIndex.FinishTime)].Type != EValueType::Null) {
-                operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
+            if (row[columnFilter.GetPosition(tableIndex.FinishTime)].Type != EValueType::Null) {
+                operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetPosition(tableIndex.FinishTime)].Data.Int64);
             }
 
             if (DoGetOperationsArchiveVersion() >= 22) {
-                operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
+                operation.RuntimeParameters = getYson(row[columnFilter.GetPosition(tableIndex.RuntimeParameters)]);
 
                 if (operation.RuntimeParameters) {
                     operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
