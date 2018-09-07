@@ -110,7 +110,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
     SubmitJobsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitJobsToStrategyPeriod);
     CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
-    CachedResourceStatisticsByTags_->SetPeriod(Config_->SchedulingTagFilterExpireTimeout);
+    CachedResourceStatisticsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
 IInvokerPtr TNodeShard::OnMasterConnected()
