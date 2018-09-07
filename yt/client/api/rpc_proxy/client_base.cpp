@@ -508,7 +508,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.SelectRows();
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.Get(GetRpcProxyConnection()->GetConfig()->DefaultSelectRowsTimeout));
 
     req->set_query(query);
 

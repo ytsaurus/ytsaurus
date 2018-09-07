@@ -30,6 +30,7 @@ public:
     TDuration RpcTimeout;
     TDuration TimestampProviderUpdatePeriod;
     TDuration DefaultTransactionTimeout;
+    TDuration DefaultSelectRowsTimeout;
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
