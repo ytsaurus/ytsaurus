@@ -32,6 +32,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -59,13 +60,14 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/misc/memory_chunk_provider.h>
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/chunked_memory_pool.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -1228,6 +1230,59 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTrackedMemoryChunkProvider
+    : public IMemoryChunkProvider
+{
+private:
+    struct THolder
+        : public TAllocationHolder
+    {
+        NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+    };
+
+public:
+    TTrackedMemoryChunkProvider(
+        size_t size,
+        NNodeTrackerClient::EMemoryCategory mainCategory,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr)
+        : Size_(size)
+        , MainCategory_(mainCategory)
+        , MemoryTracker_(memoryTracker)
+    { }
+
+    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie)
+    {
+        std::shared_ptr<THolder> result(
+            TAllocationHolder::Allocate<THolder>(Size_));
+
+        result->SetCookie(cookie);
+        if (MemoryTracker_) {
+            auto guardOrError = NNodeTrackerClient::TNodeMemoryTrackerGuard::TryAcquire(
+                MemoryTracker_,
+                MainCategory_,
+                Size_);
+
+            result->MemoryTrackerGuard = std::move(guardOrError.ValueOrThrow());
+        }
+        YCHECK(result->Size() != 0);
+
+        return result;
+    }
+
+    virtual size_t GetChunkSize() const
+    {
+        return Size_;
+    }
+
+private:
+    size_t Size_;
+    NNodeTrackerClient::EMemoryCategory MainCategory_;
+    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQuerySubexecutor
     : public ISubexecutor
 {
@@ -1243,7 +1298,8 @@ public:
         , Evaluator_(New<TEvaluator>(
             Config_,
             QueryAgentProfiler,
-            New<TPooledMemoryChunkProvider<PoolChunkSize, EMemoryCategory::QueryCache>>(
+            New<TTrackedMemoryChunkProvider>(
+                PoolChunkSize,
                 EMemoryCategory::Query,
                 Bootstrap_->GetMemoryUsageTracker())))
         , ColumnEvaluatorCache_(Bootstrap_
