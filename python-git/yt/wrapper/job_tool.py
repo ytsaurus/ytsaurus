@@ -207,7 +207,7 @@ def get_job_type_from_dyntable(operation_id, job_id):
     return rows[0]["type"]
 
 def get_operation_attributes_from_dyntable(operation_id):
-    res = yt.driver.make_request("get_operation", {"operation_id": operation_id})
+    res = yt.driver.make_request("_get_operation", {"id": operation_id})
     return yson.convert.json_to_yson(json.loads(res))
 
 def ensure_backend_is_supported():
