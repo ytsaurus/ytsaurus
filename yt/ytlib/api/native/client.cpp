@@ -3754,9 +3754,8 @@ private:
         if (DoGetOperationsArchiveVersion() < 22) {
             attributes.erase("runtime_parameters");
         }
-        // Ignoring memory_usage and suspended in archive.
+        // Ignoring memory_usage in archive.
         attributes.erase("memory_usage");
-        attributes.erase("suspended");
 
         auto fieldsVector = MakeArchiveOperationAttributes(attributes);
         THashSet<TString> fields(fieldsVector.begin(), fieldsVector.end());
