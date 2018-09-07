@@ -2226,6 +2226,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         time_passed = 0
         completion_time = None
         while not operation_completed():
+            print >>sys.stderr, "AAA"
             time.sleep(0.5)
             time_passed += 0.5
 
@@ -2239,7 +2240,8 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     events.notify_event("continue_job_{0}".format(job_id))
 
         # Tentative jobs should now be "slow" enough, it's time to start completing them.
-        while not operation_completed() and time_passed < 3.0 * completion_time:
+        while not operation_completed() and time_passed < 5.0 * completion_time:
+            print >>sys.stderr, "BBB"
             time.sleep(0.5)
             time_passed += 0.5
 
