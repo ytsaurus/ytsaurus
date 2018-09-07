@@ -50,4 +50,4 @@ class TestHttpProxy(YTEnvSetup):
             for instant in rsp[component]:
                 assert "version" in rsp[component][instant]
                 assert "start_time" in rsp[component][instant]
-                assert service["version"] == rsp[component][instant]["version"]
+                assert "version" in service
