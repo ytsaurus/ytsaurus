@@ -11,10 +11,12 @@ from time import sleep
 from collections import defaultdict
 from datetime import datetime
 
-def validate_address_filter(op, include_archive, include_cypress, include_runtime):
+def validate_address_filter(op, include_archive, include_cypress, include_runtime, ignore_states=None):
     job_dict = defaultdict(list)
     res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual")["jobs"]
     for job in res:
+        if ignore_states is not None and job["state"] in ignore_states:
+            continue
         address = job["address"]
         job_dict[address].append(job["id"])
 
@@ -109,7 +111,8 @@ class TestListJobs(YTEnvSetup):
 
         wait(lambda: op.get_job_count("failed") == 1)
 
-        validate_address_filter(op, False, False, True)
+        # We need to ignore failed jobs as they miss from runtime.
+        validate_address_filter(op, False, False, True, ignore_states=["failed"])
 
         aborted_jobs = []
 
