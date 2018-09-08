@@ -128,87 +128,101 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("limit", Options.Limit)
         .Optional();
+    RegisterParameter("attributes", Options.Attributes)
+        .Optional();
     RegisterParameter("enable_ui_mode", EnableUIMode)
         .Optional();
 }
 
 void TListOperationsCommand::BuildOperations(const TListOperationsResult& result, TFluentMap fluent)
 {
-    auto buildOperationsInUIMode = [&] (TFluentList fluent) {
+    // COMPAT(levysotsky): "operation_type" is a deprecated synonim for "type".
+    bool needOperationType = !Options.Attributes || Options.Attributes->has("operation_type");
+    bool needType = !Options.Attributes || Options.Attributes->has("type");
+
+    auto fillOperationAttributes = [needOperationType, needType] (const TOperation& operation, TFluentMap fluent) {
         fluent
-            .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
-                fluent.Item()
-                    .BeginAttributes()
-                        .Item("operation_type").Value(operation.Type)
-                        .Item("state").Value(operation.State)
-                        .Item("authenticated_user").Value(operation.AuthenticatedUser)
-                        .Item("start_time").Value(operation.StartTime)
-                        .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("brief_progress").Value(operation.BriefProgress);
-                        })
-                        .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("brief_spec").Value(operation.BriefSpec);
-                        })
-                        .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
-                        })
-                        .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("finish_time").Value(operation.FinishTime);
-                        })
-                        .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("suspended").Value(operation.Suspended);
-                        })
-                    .EndAttributes()
-                    .Value(operation.Id);
+            .DoIf(operation.Id.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("id").Value(operation.Id);
+            })
+            .DoIf(operation.State.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("state").Value(operation.State);
+            })
+            .DoIf(operation.Type.operator bool(), [&] (TFluentMap fluent) {
+                if (needType) {
+                    fluent.Item("type").Value(operation.Type);
+                }
+                if (needOperationType) {
+                    fluent.Item("operation_type").Value(operation.Type);
+                }
+            })
+            .DoIf(operation.AuthenticatedUser.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("authenticated_user").Value(operation.AuthenticatedUser);
+            })
+
+            .DoIf(operation.StartTime.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("start_time").Value(operation.StartTime);
+            })
+            .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("finish_time").Value(operation.FinishTime);
+            })
+
+            .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("brief_progress").Value(operation.BriefProgress);
+            })
+            .DoIf(operation.Progress.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("progress").Value(operation.Progress);
+            })
+
+            .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("brief_spec").Value(operation.BriefSpec);
+            })
+            .DoIf(operation.FullSpec.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("full_spec").Value(operation.FullSpec);
+            })
+            .DoIf(operation.Spec.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("spec").Value(operation.Spec);
+            })
+            .DoIf(operation.UnrecognizedSpec.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("unrecognized_spec").Value(operation.UnrecognizedSpec);
+            })
+
+            .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
+            })
+            .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("suspended").Value(operation.Suspended);
+            })
+            .DoIf(operation.Result.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("result").Value(operation.Result);
+            })
+            .DoIf(operation.Events.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("events").Value(operation.Events);
             });
     };
 
     if (EnableUIMode) {
-        if (result.Incomplete) {
-            fluent
-                .Item("operations")
-                    .BeginAttributes()
-                        .Item("incomplete").Value(true)
-                    .EndAttributes()
-                    .BeginList()
-                        .Do(buildOperationsInUIMode)
-                    .EndList();
-        } else {
-            fluent
-                .Item("operations")
-                    .BeginList()
-                        .Do(buildOperationsInUIMode)
-                    .EndList();
-        }
+        fluent
+            .Item("operations")
+                .BeginAttributes()
+                    .Item("incomplete").Value(result.Incomplete)
+                .EndAttributes()
+                .DoListFor(result.Operations, [&] (TFluentList fluent, const TOperation& operation) {
+                    fluent.Item()
+                        .BeginAttributes()
+                            .Do(BIND(fillOperationAttributes, operation))
+                        .EndAttributes()
+                        .Value(*operation.Id);
+                });
     } else {
         fluent
-            .Item("operations").BeginList()
-                .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("id").Value(operation.Id)
-                            .Item("type").Value(operation.Type)
-                            .Item("state").Value(operation.State)
-                            .Item("authenticated_user").Value(operation.AuthenticatedUser)
-                            .Item("start_time").Value(operation.StartTime)
-                            .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("brief_progress").Value(operation.BriefProgress);
-                            })
-                            .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("brief_spec").Value(operation.BriefSpec);
-                            })
-                            .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
-                            })
-                            .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("finish_time").Value(operation.FinishTime);
-                            })
-                            .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("suspended").Value(operation.Suspended);
-                            })
+            .Item("operations")
+                .DoListFor(result.Operations, [&] (TFluentList fluent, const TOperation& operation) {
+                    fluent.Item()
+                        .BeginMap()
+                            .Do(BIND(fillOperationAttributes, operation))
                         .EndMap();
                 })
-            .EndList()
             .Item("incomplete").Value(result.Incomplete);
     }
 }
