@@ -70,10 +70,9 @@ def add_acl(path, new_acl, client):
     else:
         logger.warning("ACL '%s' is already present in %s/@acl", new_acl, path)
 
-        # Backwards compatibility.
-
+# Backwards compatibility.
 def get_default_resource_limits(client):
-    result = {"node_count": 200000, "chunk_count": 1000000}
+    result = {"node_count": 500000, "chunk_count": 1000000}
     if client.exists("//sys/media"):
         result["disk_space_per_medium"] = {"default": 10 * TB}
     else:
@@ -110,10 +109,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         client.set(dir + "/@opaque", "true")
 
     add_acl("/", {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]}, client)
-    add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]}, client)
+    add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer", "mount"]}, client)
 
     add_acl("//sys", {"action": "allow", "subjects": ["users"], "permissions": ["read"]}, client)
-    add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]},
+    add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer", "mount"]},
             client)
     client.set("//sys/@inherit_acl", "false")
 
@@ -298,6 +297,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                       attributes={"forbid_immediate_operations": True},
                       ignore_existing=True)
         client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
+        client.create("map_node", "//sys/pool_trees/physical/transfer_manager", ignore_existing=True)
+        add_acl("//sys/pool_trees/physical/transfer_manager", 
+                {"subjects": ["transfer_manager"], "permissions": ["write", "remove"], "action": "allow"},
+                client)
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")

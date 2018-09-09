@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait)
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning)
 
 # Necessary for tests.
 try:
@@ -18,29 +18,31 @@ from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, Vanil
 from yt.wrapper.skiff import convert_to_skiff_schema
 
 from yt.test_helpers import are_almost_equal
-from yt.local import start, stop
 
 from yt.yson import YsonMap, YsonList
 from yt.skiff import SkiffTableSwitch
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
+from yt.local import start, stop
+
 from yt.packages.six import b
 from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
-import os
-import sys
-import time
-import string
-import tempfile
-import random
-import logging
-import pytest
-import signal
-import uuid
 import io
+import logging
+import os
+import pytest
+import random
+import re
+import signal
+import string
+import sys
+import tempfile
+import time
+import uuid
 
 class AggregateMapper(object):
     def __init__(self):
@@ -236,7 +238,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] == "map\n"
+            assert remove_asan_warning(r["data"]) == "map\n"
 
 
         yt.run_reduce("echo reduce >&2 ; cat",
@@ -246,7 +248,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] == "reduce\n"
+            assert remove_asan_warning(r["data"]) == "reduce\n"
 
         yt.run_map_reduce(
             "echo mr-map >&2 ; cat",
@@ -258,7 +260,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] in ["mr-map\n", "mr-reduce\n"]
+            assert remove_asan_warning(r["data"]) in ["mr-map\n", "mr-reduce\n"]
 
     def test_stderr_table_inside_transaction(self):
         table = TEST_DIR + "/table"
@@ -280,7 +282,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert r["data"] == "map\n"
+            assert remove_asan_warning(r["data"]) == "map\n"
 
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self, yt_env):
@@ -336,7 +338,7 @@ class TestOperations(object):
         def check(op):
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "aaa\n"
+            assert remove_asan_warning(stderrs[0]["stderr"]) == "aaa\n"
 
         op = yt.run_operation(VanillaSpecBuilder().task("sample", {"command": "echo 'aaa' >&2", "job_count": 1}))
         check(op)
@@ -1102,7 +1104,7 @@ print(op.id)
 
         stderrs_list = get_stderrs(operation.id, False)
         for stderr in stderrs_list:
-            assert stderr["stderr"] == "Job with stderr"
+            assert remove_asan_warning(stderr["stderr"]) == "Job with stderr"
         assert len(stderrs_list) == 10
 
         assert yt.format_operation_stderrs(stderrs_list)
@@ -1160,7 +1162,7 @@ print(op.id)
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1, use_new_proxy=False)
             second_cluster_client = instance.create_client()
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             second_cluster_client.create("map_node", TEST_DIR)
@@ -1339,7 +1341,7 @@ print(op.id)
 
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "AAA\n"
+            assert remove_asan_warning(stderrs[0]["stderr"]) == "AAA\n"
 
     def test_list_operations(self):
         assert yt.list_operations()["operations"] == []
@@ -1664,3 +1666,18 @@ print(op.id)
 
         yt.run_map(mapper, input_table, TEST_DIR + "/output_table2")
         assert list(yt.read_table(TEST_DIR + "/output_table2")) == [{"y": 9}, {"y": 25}, {"y": 0}]
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_shuffle(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        yt.shuffle_table(table)
+        assert len(list(yt.read_table(table))) == 3
+
+        table = TEST_DIR + "/table"
+        yt.remove(table)
+        yt.create("table", table, attributes={"schema": [{"name": "x", "type": "int64", "sort_order": "ascending", "required": True}]})
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        yt.shuffle_table(table)
+        assert len(list(yt.read_table(table))) == 3
+

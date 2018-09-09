@@ -9,7 +9,6 @@ from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as
 
 import argparse
 import collections
-import copy
 import getpass
 import os
 import platform
@@ -25,6 +24,7 @@ from multiprocessing.dummy import (Process as DummyProcess,
 from collections import Mapping
 from itertools import chain, starmap
 from functools import reduce, wraps
+from copy import copy, deepcopy
 
 EMPTY_GENERATOR = (i for i in [])
 
@@ -295,7 +295,7 @@ def set_param(params, name, value, transform=None):
     return params
 
 def remove_nones_from_dict(obj):
-    result = copy.deepcopy(obj)
+    result = deepcopy(obj)
     for key, value in iteritems(obj):
         if value is None:
             del result[key]
@@ -379,3 +379,25 @@ def escape_c(string):
             return "\\" + oct_digit(num // 64) + oct_digit((num // 8) % 8) + oct_digit(num % 8)
 
     return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
+
+def sanitize_structure(obj):
+    attributes = None
+    is_yson_type = isinstance(obj, yson.YsonType)
+    if is_yson_type and obj.attributes:
+        attributes = sanitize_structure(obj.attributes)
+
+    if isinstance(obj, list):
+        list_cls = yson.YsonList if is_yson_type else list
+        obj = list_cls(imap(sanitize_structure, obj))
+    elif isinstance(obj, dict):
+        dict_cls = yson.YsonMap if is_yson_type else dict
+        obj = dict_cls((k, sanitize_structure(v)) for k, v in iteritems(obj))
+    elif hasattr(obj, "to_yson_type"):
+        obj = obj.to_yson_type()
+    else:
+        obj = copy(obj)
+
+    if attributes is not None:
+        obj.attributes = attributes
+
+    return obj

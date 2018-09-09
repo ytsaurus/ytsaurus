@@ -48,7 +48,7 @@ def test_heavy_proxies():
         update_inplace(yt.config.config, config)
 
 @pytest.mark.usefixtures("yt_env")
-def test_process_params():
+def test_sanitize_structure():
     schema = yson.YsonList([{"name": "k", "type": "int64", "sort_order": "ascending"}])
     schema.attributes["unique_keys"] = True
 

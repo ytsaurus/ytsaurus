@@ -18,6 +18,7 @@ except ImportError:
 import collections
 import glob
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -221,3 +222,16 @@ def wait_record_in_job_archive(operation_id, job_id):
     key = {}
     key["job_id_hi"], key["job_id_lo"] = job_id_hash_pair.hi, job_id_hash_pair.lo
     wait(lambda: any(yt.lookup_rows("//sys/operations_archive/job_specs", [key], column_names=["spec_version"])))
+
+_ASAN_WARNING_PATTERN = re.compile(
+    br"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " \
+    br"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" \
+    br"False positive error reports may follow\n" \
+    br"For details see https://github.com/google/sanitizers/issues/189\n")
+
+def remove_asan_warning(str_or_bytes):
+    """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
+    if isinstance(str_or_bytes, str):
+        return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes.encode("utf-8")).decode("utf-8")
+    assert isinstance(str_or_bytes, bytes)
+    return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes)

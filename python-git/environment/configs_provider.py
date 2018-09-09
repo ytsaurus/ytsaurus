@@ -503,10 +503,6 @@ class ConfigsProvider_19(ConfigsProvider):
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
 
-            # TODO(ignat): temporary solution to check that correctness of connected scheduler.
-            # correct solution is to publish cell_id in some separate place in orchid.
-            set_at(config, "scheduler/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
-
             _set_bind_retry_options(config, key="bus_server")
 
             configs.append(config)
@@ -802,6 +798,23 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
 
         return configs
 
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
+        configs, addresses = super(ConfigsProvider_19_3, self)._build_node_configs(
+            provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
+
+        USER_PORT_START = 20000
+        USER_PORT_END = 30000
+
+        node_count = len(configs)
+        for index, config in enumerate(configs):
+            port_start = USER_PORT_START + (index * (USER_PORT_END - USER_PORT_START)) // node_count
+            port_end = USER_PORT_START + ((index + 1) * (USER_PORT_END - USER_PORT_START)) // node_count
+
+            set_at(config, "exec_agent/job_controller/start_port", port_start)
+            set_at(config, "exec_agent/job_controller/port_count", port_end - port_start)
+
+        return configs, addresses
+
 class ConfigsProvider_19_4(ConfigsProvider_19_3):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         configs, connection_configs = super(ConfigsProvider_19_4, self)._build_master_configs(
@@ -813,10 +826,13 @@ class ConfigsProvider_19_4(ConfigsProvider_19_3):
 
             for config in cell_configs:
                 tablet_manager_config = config["tablet_manager"]
-                if "table_statistics_gossip_period" not in tablet_manager_config:
-                    tablet_manager_config["table_statistics_gossip_period"] = 100
-                if "tablet_cell_statistics_gossip_period" not in tablet_manager_config:
-                    tablet_manager_config["tablet_cell_statistics_gossip_period"] = 100
+
+                multicell_gossip_config = tablet_manager_config.setdefault("multicell_gossip_config", {})
+                if "table_statistics_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["table_statistics_gossip_period"] = 100
+                if "tablet_cell_statistics_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["tablet_cell_statistics_gossip_period"] = 100
+
                 if "tablet_cell_decommissioner" not in tablet_manager_config:
                     tablet_manager_config["tablet_cell_decommissioner"] = {
                         "decommission_check_period": 100,
@@ -824,8 +840,6 @@ class ConfigsProvider_19_4(ConfigsProvider_19_3):
                     }
 
         return configs, connection_configs
-
-
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (19, 2): ConfigsProvider_19_2,
