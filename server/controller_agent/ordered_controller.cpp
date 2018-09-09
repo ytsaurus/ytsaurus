@@ -217,7 +217,7 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -231,9 +231,9 @@ protected:
             return result;
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet, jobSummary);
+            return TTask::OnJobAborted(joblet, jobSummary);
         }
     };
 
@@ -373,7 +373,10 @@ protected:
     {
         if (IsTeleportationSupported()) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns() &&
+                    InputTables[index].ColumnRenameDescriptors.empty())
+                {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables_[0].TableUploadOptions.TableSchema,
@@ -727,7 +730,7 @@ private:
 
     virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
-        return Spec_->StderrTableWriterConfig;
+        return Spec_->StderrTableWriter;
     }
 
     virtual TNullable<TRichYPath> GetCoreTablePath() const override
@@ -737,7 +740,7 @@ private:
 
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
-        return Spec_->CoreTableWriterConfig;
+        return Spec_->CoreTableWriter;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -1092,7 +1095,7 @@ private:
         TOperationControllerBase::InitializeClients();
 
         TClientOptions options;
-        options.User = AuthenticatedUser;
+        options.PinnedUser = AuthenticatedUser;
         InputClient = GetRemoteConnection()->CreateNativeClient(options);
     }
 

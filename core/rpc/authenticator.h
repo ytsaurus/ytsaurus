@@ -21,7 +21,6 @@ struct TAuthenticationContext
 {
     const NRpc::NProto::TRequestHeader* Header;
     NNet::TNetworkAddress UserIP;
-    TNullable<TString> CookieDomain;
 };
 
 struct IAuthenticator

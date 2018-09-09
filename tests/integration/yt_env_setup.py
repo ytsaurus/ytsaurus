@@ -345,11 +345,14 @@ class YTEnvSetup(object):
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    DELTA_RPC_PROXY_CONFIG = {}
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
 
     NUM_REMOTE_CLUSTERS = 0
+
+    SINGLE_SETUP_TEARDOWN = False
 
     # To be redefined in successors
     @classmethod
@@ -406,7 +409,8 @@ class YTEnvSetup(object):
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             modify_configs_func=modify_configs_func,
-            cell_tag=index * 10)
+            cell_tag=index * 10,
+            enable_structured_master_logging=True)
 
         instance._cluster_name = cls.get_cluster_name(index)
         instance._driver_backend = cls.get_param("DRIVER_BACKEND", index)
@@ -496,6 +500,9 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
+        if cls.SINGLE_SETUP_TEARDOWN:
+            cls._setup_method()
+
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
@@ -514,9 +521,13 @@ class YTEnvSetup(object):
             cls.modify_node_config(configs["node"][index])
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+        configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
+        if cls.SINGLE_SETUP_TEARDOWN:
+            cls._teardown_method()
+
         if cls.liveness_checkers:
             map(lambda c: c.stop(), cls.liveness_checkers)
 
@@ -625,8 +636,10 @@ class YTEnvSetup(object):
             yt_commands.clear_metadata_caches(driver=driver)
 
     def setup_method(self, method):
-        self._setup_method()
+        if not self.SINGLE_SETUP_TEARDOWN:
+            self._setup_method()
 
     def teardown_method(self, method):
-        self._teardown_method()
+        if not self.SINGLE_SETUP_TEARDOWN:
+            self._teardown_method()
 

@@ -5,7 +5,6 @@
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "private.h"
-#include "schemaful_reader_adapter.h"
 #include "schemaless_chunk_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
@@ -18,6 +17,7 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
+
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -25,6 +25,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/schemaful_reader_adapter.h>
 
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/timestamp_reader.h>
@@ -60,13 +61,13 @@ std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
     const TColumnFilter& columnFilter,
     const TCachedVersionedChunkMetaPtr& chunkMeta)
 {
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         return chunkMeta->SchemaIdMapping();
     }
 
     std::vector<TColumnIdMapping> schemaIdMapping;
     schemaIdMapping.reserve(chunkMeta->SchemaIdMapping().size());
-    for (auto index : columnFilter.Indexes) {
+    for (auto index : columnFilter.GetIndexes()) {
         if (index < chunkMeta->GetKeyColumnCount()) {
             continue;
         }
@@ -96,14 +97,14 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
         idMapping[index].ReaderSchemaIndex = index;
     }
 
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
             YCHECK(mapping.ChunkSchemaIndex < idMapping.size());
             YCHECK(mapping.ChunkSchemaIndex >= keyColumnCount);
             idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
         }
     } else {
-        for (auto index : columnFilter.Indexes) {
+        for (auto index : columnFilter.GetIndexes()) {
             for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
                 if (mapping.ReaderSchemaIndex == index) {
                     YCHECK(mapping.ChunkSchemaIndex < idMapping.size());
@@ -199,7 +200,7 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     YCHECK(ChunkMeta_->Misc().sorted());
     YCHECK(ChunkMeta_->GetChunkType() == EChunkType::Table);
     YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedSimple);
-    YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
+    YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
     YCHECK(PerformanceCounters_);
 }
 
@@ -607,7 +608,7 @@ public:
         YCHECK(VersionedChunkMeta_->Misc().sorted());
         YCHECK(VersionedChunkMeta_->GetChunkType() == EChunkType::Table);
         YCHECK(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
-        YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
+        YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
         YCHECK(PerformanceCounters_);
 
         KeyColumnReaders_.resize(VersionedChunkMeta_->GetKeyColumnCount());

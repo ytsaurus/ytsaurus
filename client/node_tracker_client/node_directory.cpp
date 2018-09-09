@@ -542,7 +542,7 @@ const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAd
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t hash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
+size_t THash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
     const NYT::NNodeTrackerClient::TNodeDescriptor& nodeDescriptor) const
 {
     size_t result = 0;

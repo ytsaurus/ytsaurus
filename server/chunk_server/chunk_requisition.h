@@ -382,7 +382,7 @@ void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr nod
 } // namespace NYT
 
 template <>
-struct hash<NYT::NChunkServer::TRequisitionEntry>
+struct THash<NYT::NChunkServer::TRequisitionEntry>
 {
     size_t operator()(const NYT::NChunkServer::TRequisitionEntry& entry) const
     {
@@ -391,7 +391,7 @@ struct hash<NYT::NChunkServer::TRequisitionEntry>
 };
 
 template <>
-struct hash<NYT::NChunkServer::TChunkRequisition>
+struct THash<NYT::NChunkServer::TChunkRequisition>
 {
     size_t operator()(const NYT::NChunkServer::TChunkRequisition& requisition) const
     {

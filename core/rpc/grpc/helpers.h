@@ -41,6 +41,7 @@ public:
     TGrpcObjectPtr(const TGrpcObjectPtr& other) = delete;
 
     T* Unwrap();
+    const T* Unwrap() const;
     explicit operator bool() const;
 
     T** GetPtr();
@@ -198,6 +199,7 @@ TError DeserializeError(TStringBuf serializedError);
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config);
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config);
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config);
+TNullable<TString> ParseIssuerFromX509(TStringBuf x509String);
 
 ////////////////////////////////////////////////////////////////////////////////
 

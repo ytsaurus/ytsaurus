@@ -66,6 +66,8 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableTracker)
+            .SetWritable(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -136,11 +138,32 @@ private:
                     .Value(replica->ComputeReplicationLagTime(timestampProvider->GetLatestTimestamp()));
                 return true;
 
+            case EInternedAttributeKey::EnableReplicatedTableTracker:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetEnableReplicatedTableTracker());
+                return true;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    {
+        auto* replica = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::EnableReplicatedTableTracker: {
+                ValidateNoTransaction();
+
+                replica->SetEnableReplicatedTableTracker(ConvertTo<bool>(value));
+                return true;
+            }
+        }
+
+        return TBase::SetBuiltinAttribute(key, value);
     }
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override

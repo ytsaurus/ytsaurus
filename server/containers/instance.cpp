@@ -290,6 +290,11 @@ public:
         Isolate_ = true;
     }
 
+    virtual void EnableMemoryTracking() override
+    {
+        RequireMemoryController_ = true;
+    }
+
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
     {
         SetProperty("memory_guarantee", ToString(memoryGuarantee));
@@ -347,9 +352,12 @@ public:
         SetProperty("isolate", Isolate_ ? "true" : "false");
         SetProperty("command", command);
 
+        TStringBuilder envBuilder;
         for (auto arg : env) {
-            SetProperty("env", TString(arg) + ";");
+            envBuilder.AppendString(arg);
+            envBuilder.AppendChar(';');
         }
+        SetProperty("env", envBuilder.Flush());
 
         // Wait for all pending actions - do not start real execution if
         // preparation has failed

@@ -45,7 +45,9 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
             auto columnId = nameTable->GetIdOrRegisterName(columnName);
             subrequest->add_column_ids(columnId);
         }
-        ToProto(subrequest->mutable_chunk_id(), Chunks_[chunkIndex]->ChunkId());
+        
+        auto chunkId = EncodeChunkId(Chunks_[chunkIndex], nodeId);
+        ToProto(subrequest->mutable_chunk_id(), chunkId);
     }
 
     ToProto(req->mutable_name_table(), nameTable);

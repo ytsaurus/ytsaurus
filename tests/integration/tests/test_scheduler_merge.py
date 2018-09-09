@@ -117,6 +117,20 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@row_count") == 7
         assert sorted(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
 
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_rename_columns(self, merge_mode):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
+        write_table("//tmp/t2", [{"a2": 3}, {"a2": 4}])
+
+        create("table", "//tmp/t_out")
+        merge(mode=merge_mode,
+              in_=["//tmp/t1", "<rename_columns={a2=a}>//tmp/t2"],
+              out="//tmp/t_out")
+
+        assert sorted(read_table("//tmp/t_out")) == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}]
+
     def test_ordered(self):
         self._prepare_tables()
 
@@ -154,6 +168,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long as they are small)
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
+
+    def test_sorted_different_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1}])
+        write_table("//tmp/t2", [{"key": "1"}])
+
+        with pytest.raises(YtError):
+            merge(
+                mode="sorted",
+                in_=["//tmp/t1", "//tmp/t2"],
+                out="//tmp/out")
 
     def test_sorted_column_filter(self):
         create("table", "//tmp/t")
@@ -1295,3 +1327,44 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "1": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}},
                 "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}
             })
+
+    def test_teleporting_chunks_dont_disappear(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        chunk_id = get("//tmp/t1/@chunk_ids/0")
+
+        #external_requisition_indexes/2
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+
+        tx = start_transaction()
+        merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2", tx=tx)
+
+        assert get("//tmp/t2/@chunk_count", tx=tx) == 1
+        assert get("//tmp/t2/@chunk_ids/0", tx=tx) == chunk_id
+
+        assert get("#{0}/@exports/2/ref_counter".format(chunk_id)) == 1
+
+        # The point of this test is to make sure snatching chunks from
+        # under an uncommitted transaction interoperates with
+        # multicell well. Replacing the following two lines with this:
+        #     copy("//tmp/t2", "//tmp/t2_copy", source_transaction_id=tx)
+        # used to produce (it's no longer supported) a horrific situation
+        # when a chunk is destroyed in its cell yet is still
+        # referenced from another cell.
+        create("table", "//tmp/t2_copy", attributes={"external_cell_tag": 2})
+        merge(mode="ordered", in_=['<transaction_id="{0}">//tmp/t2'.format(tx)], out="//tmp/t2_copy")
+
+        abort_transaction(tx)
+
+        remove("//tmp/t1")
+
+        # Give replicator a chance to remove a chunk (in case there's a bug).
+        sleep(0.3)
+
+        assert exists("//tmp/t2")
+        assert get("//tmp/t2/@chunk_count") == 0
+        assert exists("//tmp/t2_copy")
+        assert get("//tmp/t2_copy/@chunk_count") == 1
+        assert get("//tmp/t2_copy/@chunk_ids/0") == chunk_id
+        assert exists("#{0}".format(chunk_id))

@@ -237,13 +237,6 @@ public:
 
         std::vector<TChunkSlice> slices;
 
-        if (EndIndex_ - BeginIndex_ < 2) {
-            // Too small distance between given read limits.
-            auto upperKeyPrefix = GetKeyPrefixSuccessor(MaxKey_, keyColumnCount);
-            slices.emplace_back(SliceReq_, Meta_, lowerKeyPrefix, upperKeyPrefix);
-            return slices;
-        }
-
         i64 startRowIndex = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].ChunkRowCount + 1 : 0;
         if (LowerLimit_.HasRowIndex()) {
             startRowIndex = std::max(startRowIndex, LowerLimit_.GetRowIndex());
@@ -307,13 +300,6 @@ public:
         auto lowerKeyPrefix = GetKeyPrefix(lowerKey, keyColumnCount);
 
         std::vector<TChunkSlice> slices;
-
-        if (EndIndex_ - BeginIndex_ < 2) {
-            // Too small distance between given read limits.
-            auto upperKeyPrefix = GetKeyPrefixSuccessor(MaxKey_, keyColumnCount);
-            slices.emplace_back(SliceReq_, Meta_, lowerKeyPrefix, upperKeyPrefix);
-            return slices;
-        }
 
         i64 startRowIndex = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].ChunkRowCount + 1 : 0;
         if (LowerLimit_.HasRowIndex()) {

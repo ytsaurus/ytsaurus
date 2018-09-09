@@ -461,14 +461,16 @@ bool TTableNode::IsEmpty() const
 TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
     TTimestamp latestTimestamp) const
 {
-    return UnflushedTimestamp_ != NullTimestamp
+    // COMPAT(savrus) Consider saved value only for non-trunk nodes.
+    return !IsTrunk() && UnflushedTimestamp_ != NullTimestamp
         ? UnflushedTimestamp_
         : CalculateUnflushedTimestamp(latestTimestamp);
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
 {
-    return RetainedTimestamp_ != NullTimestamp
+    // COMPAT(savrus) Consider saved value only for non-trunk nodes.
+    return !IsTrunk() && RetainedTimestamp_ != NullTimestamp
         ? RetainedTimestamp_
         : CalculateRetainedTimestamp();
 }

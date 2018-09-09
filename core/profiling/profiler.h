@@ -413,7 +413,7 @@ private:
 
 //! A hasher for TTagIdList.
 template <>
-struct hash<NYT::NProfiling::TTagIdList>
+struct THash<NYT::NProfiling::TTagIdList>
 {
     size_t operator()(const NYT::NProfiling::TTagIdList& ids) const;
 };

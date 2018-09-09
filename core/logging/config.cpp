@@ -6,24 +6,20 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TRuleConfig::IsApplicable(const TString& category) const
+bool TRuleConfig::IsApplicable(const TString& category, ELogMessageFormat format) const
 {
-    if (IncludeCategories && IncludeCategories->find(category) == IncludeCategories->end()) {
-        // No match in include_categories.
-        return false;
-    }
-
-    return ExcludeCategories.find(category) == ExcludeCategories.end();
-
+    return MessageFormat == format
+           && ExcludeCategories.find(category) == ExcludeCategories.end()
+           && (!IncludeCategories || IncludeCategories->find(category) != IncludeCategories->end());
 }
 
-bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogEventFormat format) const
+bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogMessageFormat format) const
 {
-    if (!IsApplicable(category)) {
+    if (!IsApplicable(category, format)) {
         return false;
     }
 
-    return MinLevel <= level && level <= MaxLevel && format == LogEventFormat;
+    return MinLevel <= level && level <= MaxLevel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

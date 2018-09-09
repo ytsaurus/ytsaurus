@@ -142,7 +142,7 @@ void TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& e
         .BeginMap()
             .Items(event.StructuredMessage)
             .Item("instant").Value(ToString(CachingDateFormatter_->Format(event.Instant)))
-            .Item("level").Value(ToString(event.Level))
+            .Item("level").Value(FormatEnum(event.Level))
             .Item("category").Value(event.Category->Name)
         .EndMap();
     jsonConsumer->Flush();

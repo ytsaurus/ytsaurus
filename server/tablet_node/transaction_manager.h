@@ -79,9 +79,10 @@ public:
     //! Returns the full list of transactions, including transient and persistent.
     std::vector<TTransaction*> GetTransactions();
 
-    void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
-    void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
-    void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterTransactionActionHandlers(
+        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
     TTimestamp GetMinPrepareTimestamp();
     TTimestamp GetMinCommitTimestamp();

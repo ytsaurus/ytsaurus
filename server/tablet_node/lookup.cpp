@@ -318,13 +318,9 @@ static NTableClient::TColumnFilter DecodeColumnFilter(
     std::unique_ptr<NTableClient::NProto::TColumnFilter> protoColumnFilter,
     int columnCount)
 {
-    NTableClient::TColumnFilter columnFilter;
-    if (!protoColumnFilter) {
-        columnFilter.All = true;
-    } else {
-        columnFilter.All = false;
-        columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(protoColumnFilter->indexes());
-    }
+    auto columnFilter = !protoColumnFilter
+        ? TColumnFilter()
+        : TColumnFilter(FromProto<TColumnFilter::TIndexes>(protoColumnFilter->indexes()));
     ValidateColumnFilter(columnFilter, columnCount);
     return columnFilter;
 }
@@ -401,12 +397,14 @@ void VersionedLookupRows(
         true,
         false);
 
+    // NB: TLookupSession captures TColumnFilter by const ref.
+    static const TColumnFilter UniversalColumnFilter;
     TLookupSession session(
         std::move(tabletSnapshot),
         timestamp,
         user,
         true,
-        columnFilter,
+        UniversalColumnFilter,
         blockReadOptions,
         std::move(lookupKeys));
 

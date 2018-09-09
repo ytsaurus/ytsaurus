@@ -115,11 +115,11 @@ public:
     TResourceLimitsConfigPtr ResourceLimits;
 
     //! Timeout for RPC query in JobBandwidthThrottler.
-    TDuration JobBandwidthThrottlerRpcTimeout;
-
-    NRpc::TRetryingChannelConfigPtr SupervisorChannel;
+    NJobProxy::TJobThrottlerConfigPtr JobThrottler;
 
     i64 FootprintMemorySize;
+
+    TDuration FootprintUpdatePeriod;
 
     int SkynetHttpPort;
 
@@ -148,14 +148,15 @@ public:
             .Default();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
-        RegisterParameter("job_bandwidth_throttler_rpc_timeout", JobBandwidthThrottlerRpcTimeout)
-            .Default(TDuration::Minutes(15));
-        RegisterParameter("supervisor_channel", SupervisorChannel)
+        RegisterParameter("job_throttler", JobThrottler)
             .DefaultNew();
 
         RegisterParameter("footprint_memory_size", FootprintMemorySize)
             .Default(1_GB)
             .GreaterThanOrEqual(100 * 1_MB);
+
+        RegisterParameter("footprint_update_period", FootprintUpdatePeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("skynet_http_port", SkynetHttpPort)
             .Default(10080);

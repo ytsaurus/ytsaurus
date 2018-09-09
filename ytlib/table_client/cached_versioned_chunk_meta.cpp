@@ -37,11 +37,12 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     const TChunkId& chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
+    const TColumnRenameDescriptors& renameDescriptors,
     TNodeMemoryTracker* memoryTracker)
 {
     try {
         auto cachedMeta = New<TCachedVersionedChunkMeta>();
-        cachedMeta->Init(chunkId, chunkMeta, schema, memoryTracker);
+        cachedMeta->Init(chunkId, chunkMeta, schema, renameDescriptors, memoryTracker);
         return cachedMeta;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
@@ -54,12 +55,13 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& schema,
+    const TColumnRenameDescriptors& renameDescriptors,
     TNodeMemoryTracker* memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
     return chunkReader->GetMeta(blockReadOptions)
         .Apply(BIND([=] (const NChunkClient::NProto::TChunkMeta& chunkMeta) {
-            return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, memoryTracker);
+            return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, renameDescriptors, memoryTracker);
         }));
 }
 
@@ -67,6 +69,7 @@ void TCachedVersionedChunkMeta::Init(
     const TChunkId& chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
+    const TColumnRenameDescriptors& renameDescriptors,
     TNodeMemoryTracker* memoryTracker)
 {
     ChunkId_ = chunkId;
@@ -75,6 +78,7 @@ void TCachedVersionedChunkMeta::Init(
     KeyColumnCount_ = keyColumns.size();
 
     TColumnarChunkMeta::InitExtensions(chunkMeta);
+    TColumnarChunkMeta::RenameColumns(renameDescriptors);
     TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
 
     ValidateChunkMeta();

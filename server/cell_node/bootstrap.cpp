@@ -102,6 +102,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/net/address.h>
 
@@ -110,6 +111,7 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/lfalloc_helpers.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -213,6 +215,13 @@ void TBootstrap::DoRun()
         auto result = MemoryUsageTracker->TryAcquire(EMemoryCategory::Footprint, Config->FootprintMemorySize);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
+
+    FootprintUpdateExecutor = New<TPeriodicExecutor>(
+        GetControlInvoker(),
+        BIND(&TBootstrap::UpdateFootprintMemoryUsage, this),
+        Config->FootprintUpdatePeriod);
+
+    FootprintUpdateExecutor->Start();
 
     MasterConnection = NApi::NNative::CreateConnection(Config->ClusterConnection);
 
@@ -391,6 +400,8 @@ void TBootstrap::DoRun()
         createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
     });
 
+    ReadRpsOutThrottler = createThrottler(Config->DataNode->ReadRpsOutThrottler, "ReadRpsOut");
+
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
@@ -402,7 +413,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
     JobProxyConfigTemplate->RpcDispatcher = Config->RpcDispatcher;
     JobProxyConfigTemplate->ChunkClientDispatcher = Config->ChunkClientDispatcher;
-    JobProxyConfigTemplate->BandwidthThrottlerRpcTimeout = Config->JobBandwidthThrottlerRpcTimeout;
+    JobProxyConfigTemplate->JobThrottler = Config->JobThrottler;
 
     JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
@@ -425,7 +436,6 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
-    JobProxyConfigTemplate->SupervisorChannel = Config->SupervisorChannel;
 
     JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 
@@ -895,6 +905,11 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
     }
 }
 
+const IThroughputThrottlerPtr& TBootstrap::GetReadRpsOutThrottler() const
+{
+    return ReadRpsOutThrottler;
+}
+
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()
 {
     return Config->Addresses.empty()
@@ -955,6 +970,26 @@ void TBootstrap::OnMasterConnected()
 void TBootstrap::OnMasterDisconnected()
 {
     RpcServer->UnregisterService(MasterCacheService);
+}
+
+void TBootstrap::UpdateFootprintMemoryUsage()
+{
+    i64 actualFootprint = GetProcessMemoryUsage().Rss + Config->FootprintMemorySize;
+    for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        if (memoryCategory == EMemoryCategory::UserJobs || memoryCategory == EMemoryCategory::Footprint) {
+            continue;
+        }
+
+        actualFootprint -= GetMemoryUsageTracker()->GetUsed(memoryCategory);
+    }
+
+    auto acquiredFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
+    if (actualFootprint > acquiredFootprint) {
+        LOG_INFO("Increased node memory footprint (OldFootpint:v, NewFootprint: %v)", acquiredFootprint, actualFootprint);
+        GetMemoryUsageTracker()->Acquire(
+            EMemoryCategory::Footprint,
+            actualFootprint - acquiredFootprint);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

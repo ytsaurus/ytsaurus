@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/event_log/public.h>
 
+#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+
 #include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -30,7 +32,14 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TControllerTransactions
+DEFINE_ENUM(EOperationControllerQueue,
+    (Default)
+    (GetJobSpec)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TControllerTransactionIds
 {
     NTransactionClient::TTransactionId AsyncId;
     NTransactionClient::TTransactionId InputId;
@@ -40,13 +49,16 @@ struct TControllerTransactions
     NTransactionClient::TTransactionId DebugCompletionId;
 };
 
+void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds);
+void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TOperationAlertMap = THashMap<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationControllerInitializationAttributes
+struct TOperationControllerInitializeAttributes
 {
     NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
@@ -54,10 +66,10 @@ struct TOperationControllerInitializationAttributes
     NYson::TYsonString UnrecognizedSpec;
 };
 
-struct TOperationControllerInitializationResult
+struct TOperationControllerInitializeResult
 {
-    std::vector<NApi::ITransactionPtr> Transactions;
-    TOperationControllerInitializationAttributes Attributes;
+    TControllerTransactionIds TransactionIds;
+    TOperationControllerInitializeAttributes Attributes;
 };
 
 struct TOperationControllerPrepareResult
@@ -237,7 +249,7 @@ struct IOperationControllerHost
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
-    virtual void OnOperationBannedInTentativeTree(const TString& treeId) = 0;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) = 0;
 
     virtual void ValidateOperationPermission(
         const TString& user,
@@ -292,7 +304,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeClean() = 0;
+    virtual TOperationControllerInitializeResult InitializeClean() = 0;
 
     //! Performs controller inner state initialization for reviving operation.
     /*
@@ -300,7 +312,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) = 0;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!
@@ -354,10 +366,10 @@ struct IOperationControllerSchedulerHost
     virtual void Complete() = 0;
 
     /*!
-     *  Returns the operation controller invoker.
-     *  Most of const controller methods are expected to be run in this invoker.
+     *  Returns the operation controller invoker with index #queue.
+     *  Most of const controller methods are expected to be run in the provided invokers.
      */
-    virtual IInvokerPtr GetInvoker() const = 0;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
     /*!
@@ -414,16 +426,16 @@ struct IOperationControllerSnapshotBuilderHost
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
     /*!
-     *  Returns the operation controller invoker.
-     *  Most of const controller methods are expected to be run in this invoker.
+     *  Returns the operation controller invoker with index #queue.
+     *  Most of const controller methods are expected to be run in the provided invokers.
      */
-    virtual IInvokerPtr GetInvoker() const = 0;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     /*!
-     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
-     *  Most of non-const controller methods are expected to be run in this invoker.
+     *  Returns the operation controller invoker with index #queue wrapped by the context provided by #GetCancelableContext.
+     *  Most of non-const controller methods are expected to be run in the provided invokers.
      */
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called right before the controller is suspended and snapshot builder forks.
     //! Returns a certain opaque cookie.
@@ -482,8 +494,8 @@ struct IOperationController
     : public IOperationControllerSchedulerHost
     , public IOperationControllerSnapshotBuilderHost
 {
-    virtual IInvokerPtr GetInvoker() const = 0;
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
@@ -573,7 +585,7 @@ struct IOperationController
     //! Extracts the job spec proto blob, which is being built at background.
     //! After this call, the reference to this blob is released.
     /*!
-     *  \note Invoker affinity: cancelable Controller invoker
+     *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
     virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 

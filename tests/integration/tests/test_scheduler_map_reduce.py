@@ -391,15 +391,37 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_simple(seld, optimize_for):
+        create("table", "//tmp/tin", attributes={
+                "schema": [{"name": "a", "type": "int64"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/tout")
+        write_table("//tmp/tin", [{"a": 42, "b": 25}])
+
+        map_reduce(in_="<rename_columns={a=b;b=a}>//tmp/tin",
+                   out="//tmp/tout",
+                   mapper_command="cat",
+                   reducer_command="cat",
+                   sort_by=["a"])
+
+        assert read_table("//tmp/tout") == [{"b": 42, "a": 25}]
+
     def _ban_nodes_with_intermediate_chunks(self):
         # Figure out the intermediate chunk
         chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
         intermediate_chunk_ids = []
         for c in chunks:
             if "staging_transaction_id" in c.attributes:
-              tx_id = c.attributes["staging_transaction_id"]
-              if "Scheduler \"output\" transaction" in get("#{}/@title".format(tx_id)):
-                  intermediate_chunk_ids.append(str(c))
+                tx_id = c.attributes["staging_transaction_id"]
+                try:
+                    if "Scheduler \"output\" transaction" in get("#{}/@title".format(tx_id)):
+                        intermediate_chunk_ids.append(str(c))
+                except:
+                    # Transaction may vanish
+                    pass
 
         assert len(intermediate_chunk_ids) == 1
         intermediate_chunk_id = intermediate_chunk_ids[0]
@@ -827,6 +849,20 @@ print "x={0}\ty={1}".format(x, y)
         print >>sys.stderr, values
         assert max(values) <= 2 * job_count // node_count
 
+    def test_ordered_map_reduce(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(50):
+            write_table("<append=%true>//tmp/t_in", [{"key": i}])
+        op = map_reduce(in_="//tmp/t_in",
+                        out="//tmp/t_out",
+                        mapper_command="cat",
+                        reducer_command="cat",
+                        sort_by=["key"],
+                        map_job_count=1,
+                        ordered=True)
+
+        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
 ##################################################################
 

@@ -5,7 +5,10 @@
 #include "job.h"
 #include "operation.h"
 
+#include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
@@ -13,6 +16,8 @@
 #include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -30,6 +35,7 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
+using namespace NApi;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -55,7 +61,7 @@ void BuildMinimalOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    const auto& initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
     fluent
         .Item("operation_type").Value(operation->GetType())
@@ -78,7 +84,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto initializationAttributes = operation->ControllerAttributes().InitializationAttributes;
+    auto initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
@@ -236,6 +242,20 @@ TListOperationsResult ListOperations(
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+NNative::IClientPtr CreateClientForTransaction(
+    const NNative::IClientPtr& client,
+    const TTransactionId& transactionId)
+{
+    auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
+        client->GetNativeConnection(),
+        CellTagFromId(transactionId));
+    return connection->CreateNativeClient(TClientOptions(SchedulerUserName));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

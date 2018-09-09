@@ -222,6 +222,24 @@ message TRspVersionedLookupRows
 
 //------------------------------------------------------------------------------
 
+message TQueryStatistics
+{
+    optional int64 rows_read = 1;
+    optional int64 bytes_read = 2;
+    optional int64 rows_written = 3;
+    optional uint64 sync_time = 4; // TDuration
+    optional uint64 async_time = 5; // TDuration
+    optional uint64 execute_time = 6; // TDuration
+    optional uint64 read_time = 7; // TDuration
+    optional uint64 write_time = 8; // TDuration
+    optional uint64 codegen_time = 9; // TDuration
+    optional uint64 wait_on_ready_event_time = 10; // TDuration
+    optional bool incomplete_input = 11;
+    optional bool incomplete_output = 12;
+
+    repeated TQueryStatistics inner_statistics = 14;
+}
+
 message TReqSelectRows
 {
     required string query = 1;
@@ -241,6 +259,7 @@ message TReqSelectRows
 message TRspSelectRows
 {
     required TRowsetDescriptor rowset_descriptor = 200;
+    optional TQueryStatistics statistics = 201;
 }
 
 //------------------------------------------------------------------------------
@@ -282,6 +301,10 @@ message TRspGetTabletInfos
 
 message TReqModifyRows
 {
+    // ModifyRows requests are sent asynchronously. Sequential numbering is
+    // required to restore their order. (The optionality is for compatibility.)
+    optional int64 sequence_number = 6;
+
     required NYT.NProto.TGuid transaction_id = 1;
     required string path = 2;
     repeated ERowModificationType row_modification_types = 3;
@@ -293,6 +316,22 @@ message TReqModifyRows
 }
 
 message TRspModifyRows
+{
+}
+
+//------------------------------------------------------------------------------
+
+// Actual ModifyRows requests are passed as attachments: one for subrequest's
+// protobuf header, then its own attachments.
+// part_counts field corresponds to the amounts of subrequests' own attachments.
+
+message TReqBatchModifyRows
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated int64 part_counts = 2;
+}
+
+message TRspBatchModifyRows
 {
 }
 
@@ -624,7 +663,6 @@ message TReqCopyNode
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
     optional bool preserve_creation_time = 7 [default = false];
-    optional NYT.NProto.TGuid source_transaction_id = 8;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

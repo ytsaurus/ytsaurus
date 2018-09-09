@@ -3,7 +3,6 @@
 #include "config.h"
 #include "partitioner.h"
 #include "schemaless_block_writer.h"
-#include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 #include "helpers.h"
 #include "skynet_column_evaluator.h"
@@ -36,6 +35,7 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaless_row_reorderer.h>
 
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/config.h>
@@ -1504,10 +1504,10 @@ public:
         , TableUploadOptions_(tableUploadOptions)
         , ObjectId_(objectId)
     {
-        ListenTransaction(UploadTransaction_);
+        StartListenTransaction(UploadTransaction_);
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
     }
 
@@ -1570,8 +1570,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
         }
 
-        UploadTransaction_->Ping();
-        UploadTransaction_->Detach();
+        StopListenTransaction(UploadTransaction_);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);

@@ -29,28 +29,8 @@ public:
     void Stop();
 
 private:
-    class TCandidatePool;
-
-    const TTabletManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* const Bootstrap_;
-
-    TInstant StartTime_;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-    TNullable<bool> LastEnabled_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    bool IsEnabled();
-    void ScanCells();
-
-    void ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool);
-    void SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool);
-    void SchedulePeerRevocation(TTabletCell* cell);
-
-    bool IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout);
-    static bool IsGood(const NNodeTrackerServer::TNode* node);
-    static int FindGoodPeer(const TTabletCell* cell);
-
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletTracker)

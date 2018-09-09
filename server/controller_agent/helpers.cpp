@@ -34,6 +34,9 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NApi;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSizeConstraints
@@ -933,13 +936,18 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                 file.GetPath(),
                 file.Schema,
                 file.Path.GetColumns(),
-                file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
+                file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp),
+                file.Path.GetColumnRenameDescriptors().Get({}));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
             auto dataSource = file.Type == EObjectType::File
                 ? MakeFileDataSource(file.GetPath())
-                : MakeUnversionedDataSource(file.GetPath(), file.Schema, file.Path.GetColumns());
+                : MakeUnversionedDataSource(
+                    file.GetPath(),
+                    file.Schema,
+                    file.Path.GetColumns(),
+                    file.Path.GetColumnRenameDescriptors().Get({}));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         }

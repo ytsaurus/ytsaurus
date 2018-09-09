@@ -10,7 +10,7 @@
 
 #include <yt/core/erasure/public.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/public.h>
 
 #include <yt/client/chunk_client/read_limit.h>
 
@@ -63,6 +63,9 @@ public:
     // "columns"
     TNullable<std::vector<TString>> GetColumns() const;
     void SetColumns(const std::vector<TString>& columns);
+
+    // "rename_columns"
+    TNullable<NTableClient::TColumnRenameDescriptors> GetColumnRenameDescriptors() const;
 
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"

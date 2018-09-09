@@ -51,18 +51,19 @@ class TOutputSchemaInferer
 public:
     virtual void AddInputTableSchema(const NYPath::TYPath& /*path*/, const TTableSchema& tableSchema, ETableSchemaMode schemaMode) override
     {
-        if (!OutputTableSchema_) {
+        if (!AddedInputTables_) {
             if (schemaMode == ETableSchemaMode::Weak) {
                 OutputTableSchema_ = TTableSchema();
             } else {
                 OutputTableSchema_ = tableSchema.ToStrippedColumnAttributes().ToCanonical();
             }
             OutputTableSchemaMode_ = schemaMode;
+            AddedInputTables_ = true;
         } else {
             if (schemaMode == ETableSchemaMode::Weak) {
                 OutputTableSchemaMode_ = ETableSchemaMode::Weak;
             }
-            if (*OutputTableSchema_ != tableSchema.ToStrippedColumnAttributes().ToCanonical()) {
+            if (OutputTableSchema_ != tableSchema.ToStrippedColumnAttributes().ToCanonical()) {
                 OutputTableSchema_ = TTableSchema();
                 OutputTableSchemaMode_ = ETableSchemaMode::Weak;
             }
@@ -71,20 +72,18 @@ public:
 
     virtual const TTableSchema& GetOutputTableSchema() const override
     {
-        YCHECK(OutputTableSchema_);
-        return *OutputTableSchema_;
+        return OutputTableSchema_;
     }
 
     virtual ETableSchemaMode GetOutputTableSchemaMode() const override
     {
-        YCHECK(OutputTableSchemaMode_);
-        return *OutputTableSchemaMode_;
+        return OutputTableSchemaMode_;
     }
 
 private:
-    const TTableSchema EmptySchema_;
-    TNullable<TTableSchema> OutputTableSchema_;
-    TNullable<ETableSchemaMode> OutputTableSchemaMode_;
+    TTableSchema OutputTableSchema_;
+    ETableSchemaMode OutputTableSchemaMode_ = ETableSchemaMode::Weak;
+    bool AddedInputTables_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

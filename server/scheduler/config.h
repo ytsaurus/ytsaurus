@@ -100,7 +100,7 @@ public:
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
-    //! If update of preemtable lists of operation takes more than that duration
+    //! If update of preemptable lists of operation takes more than that duration
     //! then this event will be logged.
     TDuration UpdatePreemptableListDurationLoggingThreshold;
 
@@ -119,11 +119,6 @@ public:
 
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
-
-    //! Enables new possible resource usage computation scheme.
-    //! TODO(asaitgalin): Use this by default and remove ThresholdToEnableMaxPossibleUsageRegularization
-    //! option.
-    bool EnableNewPossibleResourceUsageComputation;
 
     TFairShareStrategyTreeConfig();
 };
@@ -146,6 +141,18 @@ public:
 
     //! Limit on number of operations in cluster.
     int MaxOperationCount;
+
+    //! Unschedulable operations check period.
+    TDuration OperationUnschedulableCheckPeriod;
+
+    //! During this timeout after activation operation can not be considered as unschedulable.
+    TDuration OperationUnschedulableSafeTimeout;
+
+    //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
+    int OperationUnschedulableMinScheduleJobAttempts;
+
+    //! List of operation types, which have disabled tentative pool trees option.
+    THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
 
     TFairShareStrategyConfig();
 };
@@ -244,6 +251,38 @@ DEFINE_REFCOUNTED_TYPE(TOperationsCleanerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TControllerAgentTrackerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    // Scheduler scheduler-to-agent operation request timeout for light requests.
+    // These are expected to be served in O(1).
+    TDuration LightRpcTimeout;
+
+    // Scheduler scheduler-to-agent operation request timeout for heavy requests.
+    // These may run for prolonged time periods (e.g. operation preparation).
+    TDuration HeavyRpcTimeout;
+
+    // If the agent does not report a heartbeat within this period,
+    // it is automatically unregistered.
+    TDuration HeartbeatTimeout;
+
+    // Strategy to pick controller agent for operation.
+    EControllerAgentPickStrategy AgentPickStrategy;
+
+    // Agent must have at least #MinAgentAvailableMemory free memory to serve new operation.
+    i64 MinAgentAvailableMemory;
+
+    // Must be at least #MinAgentCount controller agent for successful assignment agent to waiting operation.
+    int MinAgentCount;
+
+    TControllerAgentTrackerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerAgentTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
@@ -272,6 +311,8 @@ public:
     TDuration JobProberRpcTimeout;
 
     TDuration ClusterInfoLoggingPeriod;
+
+    TDuration NodesInfoLoggingPeriod;
 
     TDuration ExecNodeDescriptorsUpdatePeriod;
 
@@ -333,18 +374,6 @@ public:
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;
 
-    // Scheduler scheduler-to-agent operation request timeout for light requests.
-    // These are expected to be served in O(1).
-    TDuration ControllerAgentLightRpcTimeout;
-
-    // Scheduler scheduler-to-agent operation request timeout for heavy requests.
-    // These may run for prolonged time periods (e.g. operation preparation).
-    TDuration ControllerAgentHeavyRpcTimeout;
-
-    // If the agent does not report a heartbeat within this period,
-    // it is automatically unregistered.
-    TDuration ControllerAgentHeartbeatTimeout;
-
     //! Timeout of cached exec nodes information entries
     //! per scheduling tag filters.
     TDuration SchedulingTagFilterExpireTimeout;
@@ -363,11 +392,14 @@ public:
 
     NYTree::IMapNodePtr SpecTemplate;
 
-    int MinAgentCountForWaitingOperation;
+    TControllerAgentTrackerConfigPtr ControllerAgentTracker;
 
-    TDuration JobReporterWriteFailuresCheckPeriod;
+    TDuration JobReporterIssuesCheckPeriod;
 
     int JobReporterWriteFailuresAlertThreshold;
+    int JobReporterQueueIsTooLargeAlertThreshold;
+
+    int NodeChangesCountThresholdToUpdateCache;
 
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;

@@ -30,6 +30,7 @@ class TSimpleVersionedBlockMeta;
 class TSchemaDictionary;
 class TColumnFilter;
 class TReqLookupRows;
+class TColumnRenameDescriptor;
 
 } // namespace NProto
 
@@ -108,6 +109,7 @@ DEFINE_ENUM(EErrorCode,
     ((SchemaViolation)            (307))
     ((RowWeightLimitExceeded)     (308))
     ((InvalidColumnFilter)        (309))
+    ((InvalidColumnRenaming)      (310))
 );
 
 DEFINE_ENUM(EControlAttribute,
@@ -131,7 +133,7 @@ union TUnversionedValueData;
 
 enum class EValueType : ui8;
 
-struct TColumnFilter;
+class TColumnFilter;
 
 struct TUnversionedValue;
 struct TVersionedValue;
@@ -159,6 +161,9 @@ class TUnversionedOwningRowBuilder;
 
 using TKeyComparer = std::function<int(TKey, TKey)>;
 
+struct TColumnRenameDescriptor;
+using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
+
 class TColumnSchema;
 class TTableSchema;
 
@@ -185,6 +190,11 @@ DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
+DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
+
+DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
+DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
+
 class TSaveContext;
 class TLoadContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
@@ -196,6 +206,8 @@ using TSchemaData = std::vector<ui32>;
 
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
+
+struct IValueConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,52 +10,71 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnFilter::TColumnFilter()
-    : All(true)
+    : IsUniversal_(true)
 { }
 
 TColumnFilter::TColumnFilter(const std::initializer_list<int>& indexes)
-    : All(false)
-    , Indexes(indexes.begin(), indexes.end())
-{
-    for (int i = 0; i < Indexes.size(); ++i) {
-        InvertedIndexMap.try_emplace(Indexes[i], i);
-    }
-}
+    : IsUniversal_(false)
+    , Indexes_(indexes.begin(), indexes.end())
+{ }
+
+TColumnFilter::TColumnFilter(TIndexes&& indexes)
+    : IsUniversal_(false)
+    , Indexes_(std::move(indexes))
+{ }
 
 TColumnFilter::TColumnFilter(const std::vector<int>& indexes)
-    : All(false)
-    , Indexes(indexes.begin(), indexes.end())
-{
-    for (int i = 0; i < Indexes.size(); ++i) {
-        InvertedIndexMap.try_emplace(Indexes[i], i);
-    }
-}
+    : IsUniversal_(false)
+    , Indexes_(indexes.begin(), indexes.end())
+{ }
 
 TColumnFilter::TColumnFilter(int schemaColumnCount)
-    : All(false)
+    : IsUniversal_(false)
 {
     for (int i = 0; i < schemaColumnCount; ++i) {
-        Indexes.push_back(i);
-        InvertedIndexMap.try_emplace(i, i);
+        Indexes_.push_back(i);
     }
 }
 
-int TColumnFilter::GetIndex(int originalColumnIndex) const
+TNullable<int> TColumnFilter::FindPosition(int columnIndex) const
 {
-    auto it = InvertedIndexMap.find(originalColumnIndex);
-    if (it == InvertedIndexMap.end()) {
-        THROW_ERROR_EXCEPTION("Column filter does not contain column index %Qv", originalColumnIndex);
+    if (IsUniversal_) {
+        THROW_ERROR_EXCEPTION("Unable to search index in column filter with IsUniversal flag");
     }
-    return it->second;
+    auto it = std::find(Indexes_.begin(), Indexes_.end(), columnIndex);
+    if (it == Indexes_.end()) {
+        return Null;
+    }
+    return std::distance(Indexes_.begin(), it);
 }
 
-bool TColumnFilter::Contains(int index) const
+int TColumnFilter::GetPosition(int columnIndex) const
 {
-    if (All) {
+    if (auto indexOrNull = FindPosition(columnIndex)) {
+        return *indexOrNull;
+    }
+
+    THROW_ERROR_EXCEPTION("Column filter does not contain column index %Qv", columnIndex);
+}
+
+bool TColumnFilter::ContainsIndex(int columnIndex) const
+{
+    if (IsUniversal_) {
         return true;
     }
 
-    return std::find(Indexes.begin(), Indexes.end(), index) != Indexes.end();
+    return std::find(Indexes_.begin(), Indexes_.end(), columnIndex) != Indexes_.end();
+}
+
+const TColumnFilter::TIndexes& TColumnFilter::GetIndexes() const
+{
+    YCHECK(!IsUniversal_);
+    return Indexes_;
+}
+
+bool TColumnFilter::IsUniversal() const
+{
+    return IsUniversal_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,13 +125,13 @@ void ValidateSchemaValueType(EValueType type)
 
 void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCount)
 {
-    if (columnFilter.All)
+    if (columnFilter.IsUniversal())
         return;
 
     SmallVector<bool, TypicalColumnCount> flags;
     flags.resize(schemaColumnCount);
 
-    for (int index : columnFilter.Indexes) {
+    for (int index : columnFilter.GetIndexes()) {
         if (index < 0 || index >= schemaColumnCount) {
             THROW_ERROR_EXCEPTION("Column filter contains invalid index: actual %v, expected in range [0, %v]",
                 index,
@@ -130,10 +149,10 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
 
 TString ToString(const TColumnFilter& columnFilter)
 {
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         return TString("{All}");
     } else {
-        return Format("{%v}", columnFilter.Indexes);
+        return Format("{%v}", columnFilter.GetIndexes());
     }
 }
 

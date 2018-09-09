@@ -2,7 +2,7 @@
 #include "error.h"
 #include "stream_stack.h"
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/writer.h>

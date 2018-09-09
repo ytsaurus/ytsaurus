@@ -26,6 +26,36 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobThrottlerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration MinBackoffTime;
+    TDuration MaxBackoffTime;
+    double BackoffMultiplier;
+
+    TDuration RpcTimeout;
+
+    TJobThrottlerConfig()
+    {
+        RegisterParameter("min_backoff_time", MinBackoffTime)
+            .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("max_backoff_time", MaxBackoffTime)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("backoff_multiplier", BackoffMultiplier)
+            .Default(1.5);
+
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -46,7 +76,6 @@ public:
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
-    NRpc::TRetryingChannelConfigPtr SupervisorChannel;
 
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
@@ -59,11 +88,12 @@ public:
     TNullable<TString> DataCenter;
 
     TDuration CoreForwarderTimeout;
-    TDuration BandwidthThrottlerRpcTimeout;
 
     i64 AheadMemoryReserve;
 
     bool TestRootFS;
+
+    TJobThrottlerConfigPtr JobThrottler;
 
     TJobProxyConfig()
     {
@@ -88,9 +118,6 @@ public:
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
 
-        RegisterParameter("supervisor_channel", SupervisorChannel)
-            .DefaultNew();
-
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
 
@@ -111,16 +138,14 @@ public:
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
 
-        // Disable throttling when this timeout is 0.
-        RegisterParameter("bandwidth_throttler_rpc_timeout", BandwidthThrottlerRpcTimeout)
-            .Default(TDuration::Zero());
-
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);
 
+        RegisterParameter("job_throttler", JobThrottler)
+            .Default(nullptr);
     }
 };
 

@@ -43,7 +43,7 @@ void TSharedTableSchemaRegistry::DropSchema(TSharedTableSchema *sharedTableSchem
 
 TSharedTableSchema::TSharedTableSchema(TTableSchema tableSchema, const TSharedTableSchemaRegistryPtr& registry)
     : TableSchema_(std::move(tableSchema))
-    , TableSchemaHash_(hash<TTableSchema>()(TableSchema_))
+    , TableSchemaHash_(THash<TTableSchema>()(TableSchema_))
     , Registry_(registry)
 { }
 
@@ -71,7 +71,7 @@ size_t TSharedTableSchemaRegistry::TSharedTableSchemaHash::operator()(const TSha
 
 size_t TSharedTableSchemaRegistry::TSharedTableSchemaHash::operator()(const TTableSchema &tableSchema) const
 {
-    return hash<TTableSchema>()(tableSchema);
+    return THash<TTableSchema>()(tableSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

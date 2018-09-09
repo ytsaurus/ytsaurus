@@ -9,11 +9,12 @@ from yt.test_helpers.job_events import JobEvents, TimeoutError
 import __builtin__
 import copy as pycopy
 import os
+import re
 import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
 ###########################################################################
@@ -118,6 +119,17 @@ def prepare_parameters(parameters):
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
+def retry(func, retry_timeout=timedelta(seconds=10), retry_interval=timedelta(milliseconds=100)):
+    now = datetime.now()
+    deadline = now + retry_timeout
+    while now < deadline:
+        try:
+            return func()
+        except:
+            time.sleep(retry_interval.total_seconds())
+            now = datetime.now()
+    return func()
+
 def execute_command(command_name, parameters, input_stream=None, output_stream=None,
                     verbose=None, verbose_error=None, ignore_result=False, return_response=False):
     global _zombie_responses
@@ -148,6 +160,9 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     if "authenticated_user" in parameters:
         authenticated_user = parameters["authenticated_user"]
         del parameters["authenticated_user"]
+
+    if "rewrite_operation_path" not in parameters:
+        parameters["rewrite_operation_path"] = False
 
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
@@ -1082,6 +1097,16 @@ def get_statistics(statistics, complex_key):
 
 ##################################################################
 
+_ASAN_WARNING_PATTERN = re.compile(
+    r"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " +
+    r"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" +
+    r"False positive error reports may follow\n" +
+    r"For details see https://github.com/google/sanitizers/issues/189\n")
+
+def remove_asan_warning(string):
+    """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
+    return re.sub(_ASAN_WARNING_PATTERN, '', string)
+
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
     jobs_path = "//sys/operations/{0}/jobs".format(op.id)
     assert get(jobs_path + "/@count") == expected_count
@@ -1091,10 +1116,11 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
             assert get(stderr_path + "/@external")
         actual_content = read_file(stderr_path)
         assert get(stderr_path + "/@uncompressed_data_size") == len(actual_content)
+        content_without_warning = remove_asan_warning(actual_content)
         if substring:
-            assert expected_content in actual_content
+            assert expected_content in content_without_warning
         else:
-            assert actual_content == expected_content
+            assert content_without_warning == expected_content
 
 ##################################################################
 

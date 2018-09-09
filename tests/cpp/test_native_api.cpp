@@ -95,7 +95,7 @@ protected:
     static void CreateClient(const TString& userName)
     {
         TClientOptions clientOptions;
-        clientOptions.User = userName;
+        clientOptions.PinnedUser = userName;
         Client_ = Connection_->CreateNativeClient(clientOptions);
     }
 };
@@ -594,7 +594,7 @@ TYPath TDynamicTablesTestBase::Table_;
 using TLookupFilterTestParam = std::tuple<
     std::vector<TString>,
     TString,
-    SmallVector<int, TypicalColumnCount>,
+    TColumnFilter::TIndexes,
     TString,
     TString,
     TString>;
@@ -796,7 +796,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
     const auto& param = GetParam();
     const auto& namedColumns = std::get<0>(param);
     const auto& keyString = std::get<1>(param);
-    const auto& columnFilter = std::get<2>(param);
+    auto columnFilter = std::get<2>(param);
     const auto& resultKeyString = std::get<3>(param);
     const auto& resultValueString = std::get<4>(param);
     const auto& schemaString = std::get<5>(param);
@@ -807,8 +807,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         keyString);
 
     TLookupRowsOptions options;
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = columnFilter;
+    options.ColumnFilter = TColumnFilter(std::move(columnFilter));
 
     auto res = WaitFor(Client_->LookupRows(
         Table_,
@@ -844,7 +843,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     const auto& param = GetParam();
     const auto& namedColumns = std::get<0>(param);
     const auto& keyString = std::get<1>(param);
-    const auto& columnFilter = std::get<2>(param);
+    auto columnFilter = std::get<2>(param);
     const auto& resultKeyString = std::get<3>(param);
     const auto& resultValueString = std::get<4>(param);
     const auto& schemaString = std::get<5>(param);
@@ -861,8 +860,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         keyString);
 
     TVersionedLookupRowsOptions options;
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = columnFilter;
+    options.ColumnFilter = TColumnFilter(std::move(columnFilter));
 
     auto res = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -1010,8 +1008,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         "<id=3;ts=2> 21;"));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = {0,1,2,3};
+    options.ColumnFilter = TColumnFilter({0,1,2,3});
 
     res = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -1029,7 +1026,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         {2}));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.Indexes = {3};
+    options.ColumnFilter = TColumnFilter({3});
 
     preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2", "v3"},
@@ -1087,7 +1084,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 3;",
         3);
 
-    options.ColumnFilter.All = true;
+    options.ColumnFilter = TColumnFilter();
     options.RetentionConfig = New<TRetentionConfig>();
     options.RetentionConfig->MinDataTtl = TDuration::MilliSeconds(0);
     options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(1800000);
@@ -1102,8 +1099,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         {2}));
     EXPECT_EQ(expected, actual);
 
-    options.ColumnFilter.All = false;
-    options.ColumnFilter.Indexes = {0, 1, 2, 4};
+    options.ColumnFilter = TColumnFilter({0, 1, 2, 4});
 
     actual = executeLookup();
     expected = ToString(BuildVersionedRow(
@@ -1134,7 +1130,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30; <id=3> 6;",
         6);
 
-    options.ColumnFilter.Indexes = {0, 1, 2, 4, 5};
+    options.ColumnFilter = TColumnFilter({0, 1, 2, 4, 5});
     options.RetentionConfig->MinDataVersions = 2;
     options.RetentionConfig->MaxDataVersions = 2;
 

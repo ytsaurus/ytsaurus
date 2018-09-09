@@ -93,9 +93,6 @@ TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs)
     return result;
 }
 
-namespace NProto
-{
-
 void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics)
 {
     protoJobMetrics->set_disk_reads(jobMetrics.GetDiskReads());
@@ -112,12 +109,7 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJ
     jobMetrics->SetTimeAborted(protoJobMetrics.time_aborted());
 }
 
-} // namespace NProto
-
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto
-{
 
 void ToProto(
     NScheduler::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
@@ -134,8 +126,6 @@ void FromProto(
     jobMetrics->TreeId = protoJobMetrics.tree_id();
     FromProto(&jobMetrics->Metrics, protoJobMetrics.metrics());
 }
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

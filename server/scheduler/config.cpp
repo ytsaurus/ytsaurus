@@ -65,7 +65,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Default(1000)
+        .Default(50000)
         .GreaterThan(0);
 
     RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
@@ -115,9 +115,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("enable_new_possible_resource_usage_computation", EnableNewPossibleResourceUsageComputation)
-        .Default(true);
-
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
@@ -146,6 +143,15 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
+    RegisterParameter("operation_unschedulable_check_period", OperationUnschedulableCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
+    RegisterParameter("operation_unschedulable_safe_timeout", OperationUnschedulableSafeTimeout)
+        .Default(TDuration::Minutes(60));
+
+    RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobAttempts)
+        .Default(1000);
+
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default(5000)
         .GreaterThan(0)
@@ -153,6 +159,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         // It should be changed simultaneously with values of all `MaxTagValue`
         // across the code base.
         .LessThan(MaxMemoryTag);
+
+    RegisterParameter("operations_without_tentative_pool_trees", OperationsWithoutTentativePoolTrees)
+        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,6 +232,29 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
+{
+    RegisterParameter("light_rpc_timeout", LightRpcTimeout)
+        .Default(TDuration::Seconds(30));
+
+    RegisterParameter("heavy_rpc_timeout", HeavyRpcTimeout)
+        .Default(TDuration::Minutes(30));
+
+    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+        .Default(TDuration::Seconds(15));
+
+    RegisterParameter("agent_pick_strategy", AgentPickStrategy)
+        .Default(EControllerAgentPickStrategy::Random);
+
+    RegisterParameter("min_agent_count", MinAgentCount)
+        .Default(1);
+
+    RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
+        .Default(10_GB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -255,6 +287,8 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
         .Default(TDuration::Seconds(1));
+    RegisterParameter("nodes_info_logging_period", NodesInfoLoggingPeriod)
+        .Default(TDuration::Seconds(30));
     RegisterParameter("exec_node_descriptors_update_period", ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
     RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
@@ -312,15 +346,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("controller_agent_light_rpc_timeout", ControllerAgentLightRpcTimeout)
-        .Default(TDuration::Seconds(30));
-
-    RegisterParameter("controller_agent_heavy_rpc_timeout", ControllerAgentHeavyRpcTimeout)
-        .Default(TDuration::Minutes(30));
-
-    RegisterParameter("controller_agent_heartbeat_timeout", ControllerAgentHeartbeatTimeout)
-        .Default(TDuration::Seconds(15));
-
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
 
@@ -345,14 +370,19 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("spec_template", SpecTemplate)
         .Default();
 
-    RegisterParameter("min_agent_count_for_waiting_operation", MinAgentCountForWaitingOperation)
-        .Default(1);
+    RegisterParameter("controller_agent_tracker", ControllerAgentTracker)
+        .DefaultNew();
 
-    RegisterParameter("job_reporter_write_failures_check_period", JobReporterWriteFailuresCheckPeriod)
+    RegisterParameter("job_reporter_issues_check_period", JobReporterIssuesCheckPeriod)
         .Default(TDuration::Minutes(1));
 
     RegisterParameter("job_reporter_write_failures_alert_threshold", JobReporterWriteFailuresAlertThreshold)
+        .Default(1000);
+    RegisterParameter("job_reporter_queue_is_too_large_alert_threshold", JobReporterQueueIsTooLargeAlertThreshold)
         .Default(10);
+
+    RegisterParameter("node_changes_count_threshold_to_update_cache", NodeChangesCountThresholdToUpdateCache)
+        .Default(5);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

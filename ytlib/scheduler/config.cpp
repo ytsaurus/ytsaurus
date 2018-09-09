@@ -2,10 +2,68 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <util/string/split.h>
+
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TPoolName::TPoolName()
+{ }
+
+TPoolName::TPoolName(TString pool, TNullable<TString> parent)
+{
+    if (parent) {
+        Pool = parent.Get() + DELIMITER + pool;
+        ParentPool = std::move(parent);
+    } else {
+        Pool = std::move(pool);
+    }
+}
+
+const char TPoolName::DELIMITER = '$';
+
+const TString& TPoolName::GetPool() const
+{
+    return Pool;
+}
+
+const TNullable<TString>& TPoolName::GetParentPool() const
+{
+    return ParentPool;
+}
+
+TPoolName TPoolName::FromString(const TString& value) {
+    std::vector<TString> parts;
+    SplitStringTo(value, DELIMITER, &parts);
+    switch (parts.size()) {
+        case 1:
+            return TPoolName(value, Null);
+        case 2:
+            return TPoolName(parts[1], parts[0]);
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse PoolName from string:"
+                "delimiter found more than once (Delimiter: %Qv, RawValue: %Qv)", TPoolName::DELIMITER, value);
+    }
+}
+
+TString TPoolName::ToString() const
+{
+    return Pool;
+}
+
+void Deserialize(TPoolName& value, NYTree::INodePtr node)
+{
+    value = TPoolName::FromString(node->AsString()->GetValue());
+}
+
+void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(value.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////
 
 TJobIOConfig::TJobIOConfig()
 {
@@ -332,6 +390,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("deterministic", Deterministic)
         .Default(false);
+    RegisterParameter("use_porto_memory_tracking", UsePortoMemoryTracking)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (TmpfsSize && *TmpfsSize > MemoryLimit) {
@@ -393,12 +453,16 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
 {
     RegisterParameter("stderr_table_path", StderrTablePath)
         .Default();
-    RegisterParameter("stderr_table_writer_config", StderrTableWriterConfig)
+    RegisterParameter("stderr_table_writer", StderrTableWriter)
+        // TODO(babenko): deprecate this
+        .Alias("stderr_table_writer_config")
         .DefaultNew();
 
     RegisterParameter("core_table_path", CoreTablePath)
         .Default();
-    RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
+    RegisterParameter("core_table_writer", CoreTableWriter)
+        // TODO(babenko): deprecate this
+        .Alias("core_table_writer_config")
         .DefaultNew();
 
     RegisterPostprocessor([&] {
@@ -590,6 +654,8 @@ TNewReduceOperationSpec::TNewReduceOperationSpec()
         .Default();
     RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
         .Default();
+    RegisterParameter("validate_key_column_types", ValidateKeyColumnTypes)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(ReduceBy);
@@ -973,6 +1039,12 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("forbid_immediate_operations", ForbidImmediateOperations)
         .Default(false);
+
+    RegisterParameter("create_ephemeral_subpools", CreateEphemeralSubpools)
+        .Default(false);
+
+    RegisterParameter("ephemeral_subpools_mode", EphemeralSubpoolsMode)
+        .Default(ESchedulingMode::FairShare);
 }
 
 void TPoolConfig::Validate()
@@ -1026,34 +1098,6 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 }
 
-void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user)
-{
-    Owners = spec->Owners;
-    auto allTrees = spec->PoolTrees;
-    allTrees.insert(spec->TentativePoolTrees.begin(), spec->TentativePoolTrees.end());
-    if (allTrees.empty() && defaultTree.HasValue()) {
-        allTrees.insert(defaultTree.Get());
-    }
-    for (const auto& tree : allTrees) {
-        auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
-        auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
-        if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
-            treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-            if (spec->Pool) {
-                treeParams->Pool = spec->Pool;
-            } else {
-                treeParams->Pool = specIt->second->Pool ? specIt->second->Pool : user;
-            }
-            treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
-        } else {
-            treeParams->Weight = spec->Weight;
-            treeParams->Pool = spec->Pool ? spec->Pool : user;
-            treeParams->ResourceLimits = spec->ResourceLimits;
-        }
-        YCHECK(SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
-    }
-}
-
 TUserFriendlyOperationRuntimeParameters::TUserFriendlyOperationRuntimeParameters()
 {
     RegisterParameter("pool", Pool)
@@ -1070,9 +1114,10 @@ TOperationRuntimeParametersPtr TUserFriendlyOperationRuntimeParameters::UpdatePa
         if (Weight) {
             pair.second->Weight = Weight;
         }
-        if (Pool) {
-            pair.second->Pool = Pool;
-        }
+//        TODO(renadeen): fix this when we revive pool change
+//        if (Pool) {
+//            pair.second->Pool = Pool;
+//        }
     }
     return result;
 }

@@ -92,7 +92,7 @@ public:
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
-    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period);
+    void SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler);

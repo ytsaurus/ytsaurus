@@ -42,11 +42,12 @@ TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMin
 
 TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededJobResources() const
 {
-    auto result = InfiniteJobResourcesWithQuota();
+    // Min needed resources must be less than total needed resources of operation. See YT-9363.
+    auto result = GetNeededResources();
     for (const auto& jobResources : GetDetailedMinNeededJobResources()) {
-        result = Min(result, jobResources);
+        result = Min(result, jobResources.ToJobResources());
     }
-    return result.ToJobResources();
+    return result;
 }
 
 void TFairShareStrategyOperationController::UpdateMinNeededJobResources()

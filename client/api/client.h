@@ -482,7 +482,6 @@ struct TCopyNodeOptions
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
     bool PreserveCreationTime = false;
-    NObjectClient::TTransactionId SourceTransactionId;
 };
 
 struct TMoveNodeOptions
@@ -560,6 +559,7 @@ struct TPutFileToCacheOptions
     , public TPrerequisiteOptions
 {
     NYPath::TYPath CachePath;
+    int RetryCount = 10;
 };
 
 struct TJournalReaderOptions
@@ -738,9 +738,7 @@ struct TListJobsOptions
     TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
 
     TListJobsOptions()
-    {
-        ReadFrom = EMasterChannelKind::Cache;
-    }
+    { }
 };
 
 struct TStraceJobOptions
@@ -806,11 +804,10 @@ struct TClusterMeta
 
 struct TOperation
 {
-    NScheduler::TOperationId OperationId;
-    NScheduler::EOperationType OperationType;
-    NScheduler::EOperationState OperationState;
-    //TODO(renadeen): remove
-    TNullable<TString> Pool;
+    NScheduler::TOperationId Id;
+    NScheduler::EOperationType Type;
+    NScheduler::EOperationState State;
+    TNullable<std::vector<TString>> Pools;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;

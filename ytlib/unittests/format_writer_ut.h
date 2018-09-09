@@ -1,11 +1,13 @@
 #pragma once
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
+
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NFormats {
+namespace {
 
 using namespace NTableClient;
 
@@ -33,5 +35,6 @@ void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, TNameTablePtr nam
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT

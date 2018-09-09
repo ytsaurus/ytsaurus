@@ -36,7 +36,7 @@ using namespace NYTree;
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
 static constexpr int CpuShareMultiplier = 10;
 
-static const NLogging::TLogger Logger("ResourceController");
+static const NLogging::TLogger Logger("JobProxyEnvironment");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +253,9 @@ public:
         }
     }
 
+    virtual void EnablePortoMemoryTracking() override
+    { }
+
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
     {
         return New<TCGroupsUserJobEnvironment>(CGroupsConfig_, "user_job_" + jobId);
@@ -327,6 +330,37 @@ public:
         return blockIOStatistics;
     }
 
+    TMemoryStatistics GetMemoryStatistics() const
+    {
+        UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
+        auto error = CheckErrors(ResourceUsage_,
+            EStatField::Rss,
+            EStatField::MappedFiles,
+            EStatField::MajorFaults);
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
+
+        TMemoryStatistics memoryStatistics;
+        memoryStatistics.Rss = ResourceUsage_[EStatField::Rss].Value();
+        memoryStatistics.MappedFile = ResourceUsage_[EStatField::MappedFiles].Value();
+        memoryStatistics.MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value();
+        return memoryStatistics;
+    }
+
+    i64 GetMaxMemoryUsage() const
+    {
+        UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
+        auto error = CheckErrors(ResourceUsage_, EStatField::MaxMemoryUsage);
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get max memory statistics");
+
+        return ResourceUsage_[EStatField::MaxMemoryUsage].Value();
+    }
+
 private:
     IInstancePtr Instance_;
     const TDuration StatUpdatePeriod_;
@@ -345,6 +379,10 @@ private:
                 EStatField::IOReadByte,
                 EStatField::IOWriteByte,
                 EStatField::IOOperations,
+                EStatField::Rss,
+                EStatField::MappedFiles,
+                EStatField::MaxMemoryUsage,
+                EStatField::MajorFaults
             });
 
             auto guard = Guard(SpinLock_);
@@ -368,9 +406,11 @@ public:
         const TString& slotAbsoluteName,
         IPortoExecutorPtr portoExecutor,
         IInstancePtr instance,
-        TDuration blockIOWatchdogPeriod)
+        TDuration blockIOWatchdogPeriod,
+        bool usePortoMemoryTracking)
         : SlotAbsoluteName_(slotAbsoluteName)
         , BlockIOWatchdogPeriod_(blockIOWatchdogPeriod)
+        , UsePortoMemoryTracking_(usePortoMemoryTracking)
         , PortoExecutor_(std::move(portoExecutor))
         , Instance_(std::move(instance))
         , ResourceTracker_(New<TPortoResourceTracker>(Instance_, TDuration::MilliSeconds(100)))
@@ -403,12 +443,20 @@ public:
 
     virtual TMemoryStatistics GetMemoryStatistics() const
     {
-        return TMemoryTrackerBase::GetMemoryStatistics();
+        if (UsePortoMemoryTracking_) {
+            return ResourceTracker_->GetMemoryStatistics();
+        } else {
+            return TMemoryTrackerBase::GetMemoryStatistics();
+        }
     }
 
     virtual i64 GetMaxMemoryUsage() const override
     {
-        return MaxMemoryUsage_;
+        if (UsePortoMemoryTracking_) {
+            return ResourceTracker_->GetMaxMemoryUsage();
+        } else {
+            return MaxMemoryUsage_;
+        }
     }
 
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
@@ -435,6 +483,15 @@ public:
         }
 
         Instance_->SetIsolate();
+
+        if (UsePortoMemoryTracking_) {
+            // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and
+            // shouldn't be created too often. But for special reasons (e.g. Nirvana) we still make a backdoor to track memory via cgroups.
+            // More about malicious cgroups here https://st.yandex-team.ru/YTADMIN-8554#1516791797000.
+            // Future happiness here https://st.yandex-team.ru/KERNEL-141.
+            Instance_->EnableMemoryTracking();
+        }
+
         auto adjustedPath = Instance_->HasRoot()
             ? RootFSBinaryDirectory + path
             : path;
@@ -449,6 +506,7 @@ public:
 private:
     const TString SlotAbsoluteName_;
     const TDuration BlockIOWatchdogPeriod_;
+    const bool UsePortoMemoryTracking_;
     IPortoExecutorPtr PortoExecutor_;
     IInstancePtr Instance_;
     TPortoResourceTrackerPtr ResourceTracker_;
@@ -495,6 +553,11 @@ public:
             .ThrowOnError();
     }
 
+    virtual void EnablePortoMemoryTracking() override
+    {
+        UsePortoMemoryTracking_ = true;
+    }
+
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
     {
         auto containerName = Format("%v/user_job_%v", SlotAbsoluteName_, jobId);
@@ -518,7 +581,8 @@ public:
             SlotAbsoluteName_,
             PortoExecutor_,
             std::move(instance),
-            BlockIOWatchdogPeriod_);
+            BlockIOWatchdogPeriod_,
+            UsePortoMemoryTracking_);
     }
 
 private:
@@ -529,6 +593,7 @@ private:
     IPortoExecutorPtr PortoExecutor_;
     IInstancePtr Self_;
     TPortoResourceTrackerPtr ResourceTracker_;
+    bool UsePortoMemoryTracking_ = false;
 
     void OnFatalError(const TError& error)
     {

@@ -44,15 +44,19 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/value_consumer.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/value_consumer.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
+#include <yt/core/concurrency/fair_share_invoker_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -114,7 +118,7 @@ class TOperationControllerBase
 public: \
     virtual returnType method signature final \
     { \
-        VERIFY_INVOKER_AFFINITY(Invoker); \
+        VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default)); \
         TSafeAssertionsGuard guard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
@@ -191,15 +195,15 @@ public:
     // operations on a cluster, or to a scheduler crash.
     virtual TOperationControllerReviveResult Revive() override;
 
-    virtual TOperationControllerInitializationResult InitializeClean() override;
-    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override;
+    virtual TOperationControllerInitializeResult InitializeClean() override;
+    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
 
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
-    virtual IInvokerPtr GetInvoker() const override;
+    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
@@ -246,7 +250,7 @@ public:
 
     // ITaskHost implementation.
 
-    virtual IInvokerPtr GetCancelableInvoker() const override;
+    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const override;
     virtual TNullable<NYPath::TRichYPath> GetCoreTablePath() const override;
@@ -361,9 +365,9 @@ protected:
     NApi::NNative::IClientPtr OutputClient;
 
     TCancelableContextPtr CancelableContext;
-    IInvokerPtr Invoker;
-    ISuspendableInvokerPtr SuspendableInvoker;
-    IInvokerPtr CancelableInvoker;
+    IInvokerPoolPtr InvokerPool;
+    ISuspendableInvokerPoolPtr SuspendableInvokerPool;
+    IInvokerPoolPtr CancelableInvokerPool;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
 
@@ -518,6 +522,8 @@ protected:
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 
+    std::vector<TJobId> GetJobIdsByTreeId(const TString& treeId);
+
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
@@ -527,7 +533,7 @@ protected:
     virtual void InitializeStructures();
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
-    void FillInitializationResult(TOperationControllerInitializationResult* result);
+    void FillInitializeResult(TOperationControllerInitializeResult* result);
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 
@@ -759,7 +765,10 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    NApi::ITransactionPtr AttachTransaction(const NTransactionClient::TTransactionId& transactionId, bool ping = false);
+    NApi::ITransactionPtr AttachTransaction(
+        const NTransactionClient::TTransactionId& transactionId,
+        const NApi::NNative::IClientPtr& client,
+        bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
@@ -1059,7 +1068,7 @@ private:
 
     void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
-    std::vector<NApi::ITransactionPtr> GetTransactions();
+    TControllerTransactionIds GetTransactionIds();
 
     TNullable<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;

@@ -28,7 +28,7 @@ def get_stderr_from_table(operation_id, job_id):
     rows = list(select_rows("stderr from [//sys/operations_archive/stderrs] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
         .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
     assert len(rows) == 1
-    return rows[0]["stderr"]
+    return remove_asan_warning(rows[0]["stderr"])
 
 class TestListJobs(YTEnvSetup):
     DELTA_NODE_CONFIG = {

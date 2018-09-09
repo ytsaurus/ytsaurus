@@ -28,6 +28,7 @@
 
 #include <yt/core/misc/farm_hash.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/hyperloglog.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -58,6 +59,10 @@ namespace NRoutines {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using THLL = NYT::THyperLogLog<14>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1898,6 +1903,80 @@ extern "C" void MakeMap(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TElement, typename TValue>
+bool ListContainsImpl(const NYTree::INodePtr& node, const TValue& value)
+{
+    const auto valueType = NYTree::NDetail::TScalarTypeTraits<TValue>::NodeType;
+    for (const auto& element : node->AsList()->GetChildren()) {
+        if (element->GetType() == valueType && NYTree::ConvertTo<TElement>(element) == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ListContains(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* ysonList,
+    TUnversionedValue* what)
+{
+    const auto node = NYTree::ConvertToNode(NYson::TYsonString(ysonList->Data.String, ysonList->Length));
+
+    bool found;
+    switch (what->Type) {
+        case EValueType::String:
+            found = ListContainsImpl<TString>(node, TString(what->Data.String, what->Length));
+            break;
+        case EValueType::Int64:
+            found = ListContainsImpl<i64>(node, what->Data.Int64);
+            break;
+        case EValueType::Uint64:
+            found = ListContainsImpl<ui64>(node, what->Data.Uint64);
+            break;
+        case EValueType::Boolean:
+            found = ListContainsImpl<bool>(node, what->Data.Boolean);
+            break;
+        case EValueType::Double:
+            found = ListContainsImpl<double>(node, what->Data.Double);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("ListContains() is not implemented for type %v",
+                ToString(what->Type));
+    }
+
+    *result = MakeUnversionedBooleanValue(found);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result)
+{
+    auto hll = AllocateBytes(context, sizeof(THLL));
+    new (hll) THLL();
+
+    result->Type = EValueType::String;
+    result->Length = sizeof(THLL);
+    result->Data.String = hll;
+}
+
+void HyperLogLogAdd(void* hll, uint64_t value)
+{
+    static_cast<THLL*>(hll)->Add(value);
+}
+
+void HyperLogLogMerge(void* hll1, void* hll2)
+{
+    static_cast<THLL*>(hll1)->Merge(*static_cast<THLL*>(hll2));
+}
+
+ui64 HyperLogLogEstimateCardinality(void* hll)
+{
+    return static_cast<THLL*>(hll)->EstimateCardinality();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1958,6 +2037,11 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_YPATH_GET_ROUTINE(Boolean);
     REGISTER_YPATH_GET_ROUTINE(String);
     REGISTER_YPATH_GET_ROUTINE(Any);
+    REGISTER_ROUTINE(ListContains);
+    REGISTER_ROUTINE(HyperLogLogAllocate);
+    REGISTER_ROUTINE(HyperLogLogAdd);
+    REGISTER_ROUTINE(HyperLogLogMerge);
+    REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 

@@ -64,6 +64,7 @@ struct IInstance
     virtual TString GetName() const = 0;
     virtual TString GetAbsoluteName() const = 0;
     virtual void SetIsolate() = 0;
+    virtual void EnableMemoryTracking() = 0;
 
     //! Returns externally visible pid of the root proccess inside container.
     //! Throws if container is not running.

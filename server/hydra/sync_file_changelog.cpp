@@ -104,17 +104,17 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input, bool oldFormat)
         totalSize += ReadPadded(input, data);
     });
 
-    if (!oldFormat && header.Padding > 0) {
+    if (!oldFormat && header.PaddingSize > 0) {
         // COMPAT(aozeritsky): old format
-        if (input.Avail() < header.Padding) {
+        if (input.Avail() < header.PaddingSize) {
             return TError("Not enough bytes available in data file to read record data: need %v, got %v",
-                header.Padding,
+                header.PaddingSize,
                 input.Avail());
         }
 
         NFS::ExpectIOErrors([&] () {
-            totalSize += header.Padding;
-            input.Skip(header.Padding);
+            totalSize += header.PaddingSize;
+            input.Skip(header.PaddingSize);
         });
     }
 
@@ -533,7 +533,7 @@ public:
                 inputStream.Skip(AlignUp(header.DataSize));
                 if (!OldFormat_) {
                     // COMPAT(aozeritsky): old format
-                    inputStream.Skip(header.Padding);
+                    inputStream.Skip(header.PaddingSize);
                 }
 
                 auto checksum = GetChecksum(data);
@@ -682,7 +682,7 @@ private:
             WritePod(tempFile, header);
 
             Write(tempFile, SerializedMeta_);
-            WriteZeroes(tempFile, header.Padding);
+            WriteZeroes(tempFile, header.PaddingSize);
 
             YCHECK(tempFile.GetPosition() == header.HeaderSize);
 
@@ -834,7 +834,7 @@ private:
 
             file.Seek(offset, sSet);
             ReadPod(file, header);
-            header.Padding = correctSize - CurrentFilePosition_;
+            header.PaddingSize = correctSize - CurrentFilePosition_;
 
             file.Seek(offset, sSet);
             WritePod(file, header);

@@ -10,7 +10,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/formats/config.h>
+#include <yt/client/formats/config.h>
 
 #include <yt/client/api/config.h>
 
@@ -27,7 +27,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_reader.h>
 
-#include <yt/ytlib/formats/format.h>
+#include <yt/client/formats/format.h>
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
@@ -638,7 +638,8 @@ private:
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
                 trafficMeter,
-                Bootstrap_->GetArtifactCacheInThrottler());
+                Bootstrap_->GetArtifactCacheInThrottler(),
+                Bootstrap_->GetReadRpsOutThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(
@@ -681,6 +682,7 @@ private:
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
+                1.0, /* compressionRatio */
                 blockReadOptions);
 
             for (int index = 0; index < blockCount; ++index) {
@@ -750,7 +752,8 @@ private:
             blockReadOptions,
             chunkSpecs,
             trafficMeter,
-            Bootstrap_->GetArtifactCacheInThrottler());
+            Bootstrap_->GetArtifactCacheInThrottler(),
+            Bootstrap_->GetReadRpsOutThrottler());
 
         try {
             auto producer = [&] (IOutputStream* output) {
@@ -850,7 +853,8 @@ private:
             TKeyColumns(),
             /* partitionTag */ Null,
             trafficMeter,
-            Bootstrap_->GetArtifactCacheInThrottler());
+            Bootstrap_->GetArtifactCacheInThrottler(),
+            Bootstrap_->GetReadRpsOutThrottler());
 
         try {
             auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));

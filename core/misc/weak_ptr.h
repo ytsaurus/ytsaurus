@@ -208,7 +208,7 @@ private:
     template <class U>
     friend class TWeakPtr;
     template <class U>
-    friend struct ::hash;
+    friend struct ::THash;
 
     T* T_ = nullptr;
     NYT::NDetail::TRefCounter<true>* RefCounter_ = nullptr;
@@ -272,7 +272,7 @@ bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 
 //! A hasher for TWeakPtr.
 template <class T>
-struct hash<NYT::TWeakPtr<T>>
+struct THash<NYT::TWeakPtr<T>>
 {
     size_t operator () (const NYT::TWeakPtr<T>& ptr) const
     {

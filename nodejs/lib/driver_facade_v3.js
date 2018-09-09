@@ -71,13 +71,13 @@ function YtDriverFacadeV3(logger, driver)
         }
     });
 
-    defineCustomCommand("_list_operations", function(parameters) {
-        return application_operations.list(parameters);
-    });
+    //defineCustomCommand("_list_operations", function(parameters) {
+    //    return application_operations.list(parameters);
+    //});
 
-    defineCustomCommand("_get_operation", function(parameters) {
-        return application_operations.get(parameters);
-    });
+    //defineCustomCommand("_get_operation", function(parameters) {
+    //    return application_operations.get(parameters);
+    //});
 
     this.custom_commands = custom_commands;
 

@@ -2,8 +2,7 @@
 #include "private.h"
 #include "block_cache.h"
 #include "config.h"
-
-#include <yt/ytlib/chunk_client/block_id.h>
+#include "block_id.h"
 
 #include <yt/client/node_tracker_client/node_directory.h>
 

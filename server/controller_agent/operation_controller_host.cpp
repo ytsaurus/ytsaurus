@@ -269,13 +269,14 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_);
 }
 
-void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& treeId)
+void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
         EAgentToSchedulerOperationEventType::BannedInTentativeTree,
         OperationId_,
         {},
-        treeId
+        treeId,
+        jobIds
     });
     LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
         OperationId_,

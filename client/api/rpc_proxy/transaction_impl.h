@@ -48,8 +48,8 @@ public:
     virtual NTransactionClient::EDurability GetDurability() const override;
     virtual TDuration GetTimeout() const override;
 
-    virtual TFuture<void> Ping() override;
-    virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions& options) override;
+    virtual TFuture<void> Ping(bool enableRetries = true) override;
+    virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions&) override;
     virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options) override;
     virtual void Detach() override;
     virtual TFuture<NApi::TTransactionPrepareResult> Prepare() override;
@@ -196,11 +196,15 @@ private:
     const TNullable<TDuration> PingPeriod_;
     const bool Sticky_;
 
+    TSpinLock InFlightModifyRowsRequestsLock_;
+    THashMap<size_t, TFuture<void>> InFlightModifyRowsRequests_;
+    size_t InFlightModifyRowsRequestMinimalSequenceNumber_ = std::numeric_limits<size_t>::max();
+
+    std::atomic<i64> ModifyRowsRequestSequenceCounter_;
+
     TSpinLock SpinLock_;
     TError Error_;
     ETransactionState State_ = ETransactionState::Active;
-
-    std::vector<TFuture<void>> AsyncResults_;
 
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
@@ -215,7 +219,8 @@ private:
     void FireAborted();
 
     TError SetCommitted(const NApi::TTransactionCommitResult& result);
-    void SetAborted(const TError& error);
+    // Returns true if the transaction has been aborted as a result of this call, false otherwise.
+    bool SetAborted(const TError& error);
     void OnFailure(const TError& error);
 
     TFuture<void> SendAbort();

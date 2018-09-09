@@ -961,8 +961,8 @@ auto TWireProtocolReader::GetSchemaData(
         auto value = MakeUnversionedValueHeader(schema.Columns()[id].GetPhysicalType(), id);
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     };
-    if (!filter.All) {
-        for (int id : filter.Indexes) {
+    if (!filter.IsUniversal()) {
+        for (int id : filter.GetIndexes()) {
             addColumn(id);
         }
     } else {

@@ -121,7 +121,7 @@ public:
             return Controller->GetJobType();
         }
 
-        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -230,7 +230,10 @@ protected:
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns() &&
+                    InputTables[index].ColumnRenameDescriptors.empty())
+                {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables_[0].TableUploadOptions.TableSchema,
@@ -556,7 +559,7 @@ private:
 
     virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
-        return Spec->StderrTableWriterConfig;
+        return Spec->StderrTableWriter;
     }
 
     virtual TNullable<TRichYPath> GetCoreTablePath() const override
@@ -566,7 +569,7 @@ private:
 
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
-        return Spec->CoreTableWriterConfig;
+        return Spec->CoreTableWriter;
     }
 
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override

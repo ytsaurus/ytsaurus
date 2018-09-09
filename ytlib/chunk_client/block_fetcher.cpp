@@ -25,6 +25,7 @@ TBlockFetcher::TBlockFetcher(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
+    double compressionRatio,
     const TClientBlockReadOptions& blockReadOptions)
     : Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
@@ -33,6 +34,7 @@ TBlockFetcher::TBlockFetcher(
     , CompressionInvoker_(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         blockReadOptions.WorkloadDescriptor.GetPriority()))
+    , CompressionRatio_(compressionRatio)
     , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))
     , BlockReadOptions_(blockReadOptions)
@@ -302,7 +304,8 @@ void TBlockFetcher::RequestBlocks(
 
     auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(
         BlockReadOptions_,
-        blockIndexes));
+        blockIndexes,
+        static_cast<i64>(uncompressedSize * CompressionRatio_)));
 
     if (!blocksOrError.IsOK()) {
         MarkFailedBlocks(windowIndexes, blocksOrError);
@@ -348,6 +351,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
+    double compressionRatio,
     const TClientBlockReadOptions& blockReadOptions)
     : TBlockFetcher(
         config,
@@ -356,6 +360,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
         chunkReader,
         blockCache,
         codecId,
+        compressionRatio,
         blockReadOptions)
     , OriginalOrderBlockInfos_(blockInfos)
 { }

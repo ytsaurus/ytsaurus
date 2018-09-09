@@ -29,9 +29,13 @@ export NODE_PATH="$PROXY_INSTALL_DIR/node_modules"
 
 cd $PROXY_INSTALL_DIR/node_modules/yt/tests
 
+# debug builds are slower little bit, so we use extra timeout
+TIMEOUT_ARG="--timeout 10000"
+
 exec $INSTALL_DIR/ytnode $PROXY_INSTALL_DIR/node_modules/mocha/bin/mocha \
   --reporter "spec" \
   --require "common.js" \
   --expose-gc \
+  $TIMEOUT_ARG \
   "$@" \
   test_*.js \

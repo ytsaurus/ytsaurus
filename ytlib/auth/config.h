@@ -81,10 +81,15 @@ public:
         RegisterParameter("root_path", RootPath);
         RegisterParameter("realm", Realm)
             .Default("cypress");
+
+        RegisterParameter("secure", Secure)
+            .Default(false);
     }
 
     NYPath::TYPath RootPath;
     TString Realm;
+
+    bool Secure;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
@@ -105,7 +110,12 @@ class TBlackboxCookieAuthenticatorConfig
 {
 public:
     TBlackboxCookieAuthenticatorConfig()
-    { }
+    {
+        RegisterParameter("domain", Domain)
+            .Default("yt.yandex-team.ru");
+    }
+
+    TString Domain;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)

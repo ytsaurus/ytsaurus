@@ -572,6 +572,7 @@ void TServiceBase::HandleRequest(
         method,
         NTracing::ServerReceiveAnnotation);
 
+    // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{
         requestId,
         std::move(replyBus),
@@ -589,10 +590,11 @@ void TServiceBase::HandleRequest(
     // Not actually atomic but should work fine as long as some small error is OK.
     auto maxAuthenticationQueueSize = MaxAuthenticationQueueSize_;
     if (AuthenticationQueueSizeCounter_.GetCurrent() > maxAuthenticationQueueSize) {
-        replyError(TError(
+        auto error = TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Authentication request queue size limit exceeded")
-            << TErrorAttribute("limit", maxAuthenticationQueueSize));
+            << TErrorAttribute("limit", maxAuthenticationQueueSize);
+        ReplyError(error, *acceptedRequest.Header, acceptedRequest.ReplyBus);
         return;
     }
     Profiler.Increment(AuthenticationQueueSizeCounter_, +1);
@@ -602,7 +604,6 @@ void TServiceBase::HandleRequest(
     TAuthenticationContext context;
     context.Header = acceptedRequest.Header.get();
     context.UserIP = acceptedRequest.ReplyBus->GetEndpointAddress();
-    context.CookieDomain = CookieDomain_;
     auto asyncAuthResult = Authenticator_->Authenticate(context);
     if (asyncAuthResult.IsSet()) {
         OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
@@ -938,7 +939,6 @@ void TServiceBase::Configure(INodePtr configNode)
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
 
         MaxAuthenticationQueueSize_ = config->MaxAuthenticationQueueSize;
-        CookieDomain_ = config->CookieDomain;
 
         for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;

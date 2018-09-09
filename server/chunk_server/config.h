@@ -259,20 +259,20 @@ public:
             .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_cached_replicas_per_fetch", MaxCachedReplicasPerFetch)
-            .GreaterThanOrEqual(0)
+            .GreaterThan(0)
             .Default(20);
 
         RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
-            .GreaterThanOrEqual(0)
+            .GreaterThan(0)
             .Default(std::numeric_limits<int>::max());
         RegisterParameter("max_regular_replicas_per_rack", MaxRegularReplicasPerRack)
-            .GreaterThanOrEqual(0)
+            .GreaterThan(0)
             .Default(std::numeric_limits<int>::max());
         RegisterParameter("max_journal_replicas_per_rack", MaxJournalReplicasPerRack)
-            .GreaterThanOrEqual(0)
+            .GreaterThan(0)
             .Default(std::numeric_limits<int>::max());
         RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
-            .GreaterThanOrEqual(0)
+            .GreaterThan(0)
             .Default(std::numeric_limits<int>::max());
         RegisterParameter("allow_multiple_erasure_parts_per_node", AllowMultipleErasurePartsPerNode)
             .Default(false);

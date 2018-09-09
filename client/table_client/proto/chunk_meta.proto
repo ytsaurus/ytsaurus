@@ -118,4 +118,10 @@ message TColumnarStatisticsExt
     optional int64 timestamp_weight = 2;
 }
 
+message TColumnRenameDescriptor
+{
+    required string original_name = 1;
+    required string new_name = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

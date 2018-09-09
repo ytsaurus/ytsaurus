@@ -8,6 +8,8 @@ from yt.environment.helpers import assert_items_equal
 from flaky import flaky
 
 from time import sleep
+
+from collections import Counter
 import __builtin__
 
 ##################################################################
@@ -153,7 +155,7 @@ class TestDynamicTablesBase(YTEnvSetup):
 
 ##################################################################
 
-class TestDynamicTables(TestDynamicTablesBase):
+class TestDynamicTablesSingleCell(TestDynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
@@ -541,8 +543,10 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    @flaky(max_runs=5)
-    def test_cell_bundle_distribution(self):
+    @pytest.mark.parametrize("enable_tablet_cell_balancer", [True, False])
+    def test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True)
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
         node_count = len(nodes)
@@ -555,15 +559,39 @@ class TestDynamicTables(TestDynamicTablesBase):
                 cell_ids[cell_id] = bundle
         wait_for_cells(cell_ids.keys())
 
-        for node in nodes:
-            slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
-            count = {}
-            for slot in slots:
-                if slot["state"] == "none":
-                    continue
-                bundle = cell_ids[slot["cell_id"]]
-                count[bundle] = count.get(bundle, 0) + 1
-            assert count == {bundle: 1 for bundle in bundles}
+        def _check(nodes, floor, ceil):
+            def predicate():
+                for node in nodes:
+                    slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
+                    count = Counter([cell_ids[slot["cell_id"]] for slot in slots if slot["state"] != "none"])
+                    for bundle in bundles:
+                        if not floor <= count[bundle] <= ceil:
+                            return False
+                return True
+            wait(predicate)
+            wait_for_cells(cell_ids.keys())
+
+        _check(nodes, 1, 1)
+
+        nodes = list(get("//sys/nodes").keys())
+
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), True)
+        _check(nodes[:1], 0, 0)
+        _check(nodes[1:], 1, 2)
+
+        if not enable_tablet_cell_balancer:
+            return
+
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
+        _check(nodes, 1, 1)
+
+        for node in nodes[:len(nodes)/2]:
+            set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
+        _check(nodes[len(nodes)/2:], 2, 2)
+
+        for node in nodes[:len(nodes)/2]:
+            set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
+        _check(nodes, 1, 1)
 
     def test_cell_bundle_options(self):
         set("//sys/schemas/tablet_cell_bundle/@options", {
@@ -678,9 +706,19 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+        remount_table("//tmp/t")
 
         # Compaction fails with "Versioned row data weight is too large".
-        wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+        #  wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+
+        # Temporary debug output by ifsmirnov
+        def wait_func():
+            get("//tmp/t/@tablets")
+            get("//tmp/t/@chunk_ids")
+            get("//tmp/t/@tablet_statistics")
+            return bool(get("//tmp/t/@tablet_errors"))
+        wait(wait_func)
+
         assert len(get("//tmp/t/@tablet_errors")) == 1
         assert get("//tmp/t/@tablet_error_count") == 1
 
@@ -795,6 +833,44 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert len(select_rows("* from [//tmp/t]")) == 1
 
+    @skip_if_rpc_driver_backend
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_column_selector_dynamic_tables(self, is_sorted):
+        sync_create_cells(1)
+
+        key_schema = {"name": "key", "type": "int64"}
+        value_schema = {"name": "value", "type": "int64"}
+        if is_sorted:
+            key_schema["sort_order"] = "ascending"
+
+        schema = make_schema(
+            [key_schema, value_schema],
+            strict=True,
+            unique_keys=True if is_sorted else False)
+        create("table", "//tmp/t", attributes={"schema": schema, "external": False})
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+
+        def check_reads(is_dynamic_sorted):
+            assert read_table("//tmp/t{key}") == [{"key": 0}]
+            assert read_table("//tmp/t{value}") == [{"value": 1}]
+            assert read_table("//tmp/t{key,value}") == [{"key": 0, "value": 1}]
+            assert read_table("//tmp/t") == [{"key": 0, "value": 1}]
+            if is_dynamic_sorted:
+                with pytest.raises(YtError):
+                    read_table("//tmp/t{zzzzz}")
+            else:
+                assert read_table("//tmp/t{zzzzz}") == [{}]
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+        check_reads(False)
+        alter_table("//tmp/t", dynamic=True, schema=schema)
+        check_reads(is_sorted)
+
+        if is_sorted:
+            sync_mount_table("//tmp/t")
+            sync_compact_table("//tmp/t")
+            check_reads(True)
 
 ##################################################################
 
@@ -1392,12 +1468,9 @@ class TestTabletActions(TestDynamicTablesBase):
             sync_mount_table("//tmp/t2.{}".format(i), cell_id=cells[1])
 
         assert tablets_distribution("//tmp/t1") == [13, 0, 0, 0, 0]
-        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
 
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
         wait(lambda: sorted(tablets_distribution("//tmp/t1")) == [2, 2, 3, 3, 3])
-        for i in range(7):
-            assert tablets_distribution("//tmp/t2.{}".format(i)) == [0, 1, 0, 0, 0]
-        assert tablets_distribution("//tmp/t1")[1] == 2
 
         for i in range(3, 15):
             name = "//tmp/t{}".format(i)
@@ -1405,32 +1478,42 @@ class TestTabletActions(TestDynamicTablesBase):
             reshard(name, 3)
             sync_mount_table(name, cell_id=cells[2])
 
-        sleep(1)
         wait(lambda: all(
             max(tablets_distribution("//tmp/t{}".format(i))) == 1
             for i
             in range(3, 15)
         ))
 
-        cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
-        without_large = cell_fullness[:2] + cell_fullness[3:]
-        assert max(without_large) - min(without_large) <= 1
-        assert cell_fullness[2] <= 3 + (15 - 3)
+        # Add new cell and wait till slack tablets distribute evenly between cells
+        cells += sync_create_cells(1)
+        def wait_func():
+            cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
+            return max(cell_fullness) - min(cell_fullness) <= 1
+        wait(wait_func)
+        assert sorted(tablets_distribution("//tmp/t1")) == [2, 2, 2, 2, 2, 3]
 
-    def test_balancer_new_cell_added(self):
+    @pytest.mark.parametrize("cell_count", [2, 3])
+    @pytest.mark.parametrize("tablet_count", [6, 9, 10])
+    def test_balancer_new_cell_added(self, cell_count, tablet_count):
         self._configure_bundle("default")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
-        cells = sync_create_cells(2)
+        cells = sync_create_cells(cell_count)
 
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [1], [2], [3], [4], [5]])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
         sync_mount_table("//tmp/t", cell_id=cells[0])
 
-        wait(lambda: get("//sys/tablet_cells/{}/@tablet_count".format(cells[0])) == 3)
+        def check_tablet_count():
+            tablet_counts = [get("//sys/tablet_cells/{}/@tablet_count".format(i)) for i in cells]
+            return tablet_count / cell_count <= min(tablet_counts) and max(tablet_counts) <= (tablet_count - 1) / cell_count + 1
+
+        wait(lambda: check_tablet_count())
 
         new_cell = sync_create_cells(1)[0]
-        wait(lambda: get("//sys/tablet_cells/{}/@tablet_count".format(new_cell)) == 2)
+        cells += [new_cell]
+        cell_count += 1
+        wait(lambda: check_tablet_count())
 
     def test_balancer_in_memory_types(self):
         self._configure_bundle("default")
@@ -1826,7 +1909,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestDynamicTablesMulticell(TestDynamicTables):
+class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def test_cannot_make_external_table_dynamic(self):
@@ -1835,7 +1918,7 @@ class TestDynamicTablesMulticell(TestDynamicTables):
 
 ##################################################################
 
-class TestDynamicTablesRpcProxy(TestDynamicTables):
+class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
@@ -1851,4 +1934,3 @@ class TestDynamicTableStateTransitionsRpcProxy(TestDynamicTableStateTransitions)
 class TestTabletActionsRpcProxy(TestTabletActions):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-

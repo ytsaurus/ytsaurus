@@ -13,14 +13,15 @@ class TReplicatedTableOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableReplicatedTableManager;
-
-    // TODO(aozeritsky): add check list and other options here
+    bool EnableReplicatedTableTracker;
+    int SyncReplicaCount;
 
     TReplicatedTableOptions()
     {
-        RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
+        RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(false);
+        RegisterParameter("sync_replica_count", SyncReplicaCount)
+            .Default(1);
     }
 };
 

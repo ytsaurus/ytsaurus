@@ -69,7 +69,7 @@ public:
         , ChunkList_(chunkList)
         , ReadWriteTimeout_(readWriteTimeout)
         , TrafficMeter_(jobHost->GetTrafficMeter())
-        , OutThrottler_(jobHost->GetOutThrottler())
+        , OutThrottler_(jobHost->GetOutBandwidthThrottler())
         , Logger(logger)
     {
         BoundaryKeys_.set_empty(true);

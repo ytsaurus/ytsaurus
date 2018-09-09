@@ -66,60 +66,67 @@ class TestGetJobStderr(YTEnvSetup):
             })
 
         job_id = wait_breakpoint()[0]
-        res = get_job_stderr(op.id, job_id)
+        res = remove_asan_warning(get_job_stderr(op.id, job_id))
         assert res == "STDERR-OUTPUT\n"
         release_breakpoint()
         op.track()
-        res = get_job_stderr(op.id, job_id)
+        res = remove_asan_warning(get_job_stderr(op.id, job_id))
         assert res == "STDERR-OUTPUT\n"
 
         clean_operations(self.Env.create_native_client())
         time.sleep(1)
 
-        res = get_job_stderr(op.id, job_id)
+        res = remove_asan_warning(get_job_stderr(op.id, job_id))
         assert res == "STDERR-OUTPUT\n"
-    
+
     def test_get_job_stderr_acl(self):
         create_user("u")
         create_user("other")
 
-        create("table", "//tmp/t1", authenticated_user="u")
-        create("table", "//tmp/t2", authenticated_user="u")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}], authenticated_user="u")
+        set("//sys/operations/@inherit_acl", False)
 
-        op = map(
-            dont_track=True,
-            label="get_job_stderr",
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=with_breakpoint("echo STDERR-OUTPUT >&2 ; BREAKPOINT ; cat"),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            },
-            authenticated_user="u")
+        try:
+            create("table", "//tmp/t1", authenticated_user="u")
+            create("table", "//tmp/t2", authenticated_user="u")
+            write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}], authenticated_user="u")
 
-        job_id = wait_breakpoint()[0]
-        
-        res = get_job_stderr(op.id, job_id, authenticated_user="u")
-        assert res == "STDERR-OUTPUT\n"
-        with pytest.raises(YtError):
-            get_job_stderr(op.id, job_id, authenticated_user="other")
-        
-        release_breakpoint()
-        op.track()
-        
-        res = get_job_stderr(op.id, job_id, authenticated_user="u")
-        assert res == "STDERR-OUTPUT\n"
-        with pytest.raises(YtError):
-            get_job_stderr(op.id, job_id, authenticated_user="other")
+            op = map(
+                dont_track=True,
+                label="get_job_stderr",
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command=with_breakpoint("echo STDERR-OUTPUT >&2 ; BREAKPOINT ; cat"),
+                spec={
+                    "mapper": {
+                        "input_format": "json",
+                        "output_format": "json"
+                    }
+                },
+                authenticated_user="u")
 
-        clean_operations(self.Env.create_native_client())
-        time.sleep(1)
+            job_id = wait_breakpoint()[0]
 
-        res = get_job_stderr(op.id, job_id, authenticated_user="u")
-        assert res == "STDERR-OUTPUT\n"
-        with pytest.raises(YtError):
-            get_job_stderr(op.id, job_id, authenticated_user="other")
+            res = get_job_stderr(op.id, job_id, authenticated_user="u")
+            assert res == "STDERR-OUTPUT\n"
+            with pytest.raises(YtError):
+                get_job_stderr(op.id, job_id, authenticated_user="other")
+
+            release_breakpoint()
+            op.track()
+
+            time.sleep(1)
+
+            res = get_job_stderr(op.id, job_id, authenticated_user="u")
+            assert res == "STDERR-OUTPUT\n"
+            with pytest.raises(YtError):
+                get_job_stderr(op.id, job_id, authenticated_user="other")
+
+            clean_operations(self.Env.create_native_client())
+            time.sleep(1)
+
+            res = get_job_stderr(op.id, job_id, authenticated_user="u")
+            assert res == "STDERR-OUTPUT\n"
+            with pytest.raises(YtError):
+                get_job_stderr(op.id, job_id, authenticated_user="other")
+        finally:
+            set("//sys/operations/@inherit_acl", True)

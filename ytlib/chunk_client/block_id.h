@@ -40,7 +40,7 @@ void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId);
 
 //! A hasher for TBlockId.
 template <>
-struct hash<NYT::NChunkClient::TBlockId>
+struct THash<NYT::NChunkClient::TBlockId>
 {
     size_t operator()(const NYT::NChunkClient::TBlockId& blockId) const
     {
