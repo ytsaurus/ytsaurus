@@ -32,7 +32,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = THash<TKey> >
 class TSyncSlruCacheBase
     : public virtual TRefCounted
 {

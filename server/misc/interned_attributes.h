@@ -70,6 +70,7 @@
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
+    XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \
     XX(ErasureCodec, erasure_codec) \
     XX(ErasureStatistics, erasure_statistics) \

@@ -500,6 +500,9 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
     .then(
     function(tokens) {
         var login = tokens[context.token];
+        if (login === undefined) {
+            login = tokens[crypto.createHash("sha1").update(context.token).digest("hex")];
+        }
 
         if (typeof(login) !== "string") {
             return;

@@ -75,3 +75,17 @@ udf_bc_header(
     timestamp_floor_month
     timestamp_floor_year
 )
+
+udf_bc_header(
+  ${CMAKE_CURRENT_LIST_DIR}/udf/list_contains.cpp
+  YT_SOURCE_FILES
+  SYMBOLS
+    list_contains
+)
+
+udf_bc_header(
+  ${CMAKE_CURRENT_LIST_DIR}/udf/any_to_yson_string.cpp
+  YT_SOURCE_FILES
+  SYMBOLS
+    any_to_yson_string
+)

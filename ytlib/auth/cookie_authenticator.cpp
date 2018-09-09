@@ -1,5 +1,6 @@
 #include "cookie_authenticator.h"
 #include "blackbox_service.h"
+#include "config.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -48,7 +49,7 @@ public:
         return Blackbox_->Call("sessionid", {
                 {"sessionid", credentials.SessionId},
                 {"sslsessionid", credentials.SslSessionId},
-                {"host", credentials.Domain},
+                {"host", Config_->Domain},
                 {"userip", credentials.UserIP.FormatIP()}})
             .Apply(BIND(
                 &TBlackboxCookieAuthenticator::OnCallResult,
@@ -165,9 +166,6 @@ public:
     virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
         const NRpc::TAuthenticationContext& context) override
     {
-        if (!context.CookieDomain) {
-            return Null;
-        }
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
             return Null;
         }
@@ -176,6 +174,7 @@ public:
         if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
             return Null;
         }
+
         if (!context.UserIP.IsIP4() && !context.UserIP.IsIP6()) {
             return Null;
         }
@@ -184,7 +183,6 @@ public:
         credentials.SessionId = ext.session_id();
         credentials.SslSessionId = ext.ssl_session_id();
         credentials.UserIP = context.UserIP;
-        credentials.Domain = *context.CookieDomain;
         return Underlying_->Authenticate(credentials).Apply(
             BIND([=] (const TAuthenticationResult& authResult) {
                 NRpc::TAuthenticationResult rpcResult;

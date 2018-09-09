@@ -16,14 +16,15 @@ class TSupervisorServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TSupervisorServiceProxy, SupervisorService,
-        .SetProtocolVersion(2));
+        .SetProtocolVersion(3));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobFinished);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobPrepared);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobProgress);
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateResourceUsage);
-    DEFINE_RPC_PROXY_METHOD(NProto, ThrottleBandwidth);
+    DEFINE_RPC_PROXY_METHOD(NProto, ThrottleJob);
+    DEFINE_RPC_PROXY_METHOD(NProto, PollThrottlingRequest);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,28 @@
+
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dsv_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/escape.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/format.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/protobuf.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/protobuf_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/protobuf_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_writer_adapter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_web_json_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skiff_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skiff_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/versioned_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_parser_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson_parser.cpp
+)

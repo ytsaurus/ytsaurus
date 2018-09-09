@@ -24,7 +24,6 @@ struct ISchedulerStrategyHost
 {
     virtual ~ISchedulerStrategyHost() = default;
 
-    virtual TJobResources GetTotalResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
@@ -66,6 +65,7 @@ struct TJobUpdate
     TJobId JobId;
     TString TreeId;
     TJobResources Delta;
+    TNullable<int> SnapshotRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +140,8 @@ struct ISchedulerStrategy
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
-        std::vector<TJobId>* jobsToAbort) = 0;
+        std::vector<TJobId>* jobsToAbort,
+        int* snapshotRevision) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
@@ -157,11 +158,8 @@ struct ISchedulerStrategy
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user) = 0;
-
-    virtual void UpdateOperationRuntimeParametersOld(
-        IOperationStrategyHost* operation,
-        const NYTree::IMapNodePtr& parametersNode) = 0;
+        const TString& user,
+        EOperationType operationType) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
@@ -193,6 +191,8 @@ struct ISchedulerStrategy
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
     virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) = 0;
+
+    virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

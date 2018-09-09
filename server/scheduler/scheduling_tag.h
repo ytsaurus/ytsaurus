@@ -48,7 +48,7 @@ void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct hash<NYT::NScheduler::TSchedulingTagFilter>
+struct THash<NYT::NScheduler::TSchedulingTagFilter>
 {
     size_t operator()(const NYT::NScheduler::TSchedulingTagFilter& filter) const;
 };

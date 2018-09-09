@@ -284,14 +284,14 @@ int TTableSchema::GetColumnIndexOrThrow(TStringBuf name) const
 
 TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 {
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         return *this;
     }
 
     int newKeyColumnCount = 0;
     bool inKeyColumns = true;
     std::vector<TColumnSchema> columns;
-    for (int id : columnFilter.Indexes) {
+    for (int id : columnFilter.GetIndexes()) {
         if (id < 0 || id >= Columns_.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
                 Columns_.size() - 1,
@@ -321,15 +321,13 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 
 TTableSchema TTableSchema::Filter(const THashSet<TString>& columns) const
 {
-    TColumnFilter filter;
-    filter.All = false;
+    TColumnFilter::TIndexes indexes;
     for (const auto& column : Columns()) {
         if (columns.find(column.Name()) != columns.end()) {
-            filter.Indexes.push_back(GetColumnIndex(column));
+            indexes.push_back(GetColumnIndex(column));
         }
     }
-
-    return Filter(filter);
+    return Filter(TColumnFilter(std::move(indexes)));
 }
 
 TTableSchema TTableSchema::Filter(const TNullable<std::vector<TString>>& columns) const

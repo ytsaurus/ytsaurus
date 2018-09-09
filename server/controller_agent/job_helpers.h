@@ -48,7 +48,8 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
 bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
-    const TSuspiciousJobsOptionsPtr& options);
+    const TSuspiciousJobsOptionsPtr& options,
+    EJobType jobType);
 
 // Performs statistics parsing and put it inside jobSummary.
 void ParseStatistics(TJobSummary* jobSummary, const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());

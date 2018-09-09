@@ -1,7 +1,9 @@
 #pragma once
 
 #include "public.h"
+
 #include <yt/core/misc/dense_map.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -140,19 +142,28 @@ inline bool IsSentinelType(EValueType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TColumnFilter
+// This class contains ordered collection of indexes of columns of some table.
+// Position in context of the class means position of some column index in ordered collection.
+class TColumnFilter
 {
+public:
+    using TIndexes = SmallVector<int, TypicalColumnCount>;
+
     TColumnFilter();
     TColumnFilter(const std::initializer_list<int>& indexes);
-    TColumnFilter(const std::vector<int>& indexes);
-    TColumnFilter(int schemaColumnCount);
+    explicit TColumnFilter(TIndexes&& indexes);
+    explicit TColumnFilter(const std::vector<int>& indexes);
+    explicit TColumnFilter(int schemaColumnCount);
 
-    bool Contains(int index) const;
-    int GetIndex(int originalColumnIndex) const;
+    bool ContainsIndex(int columnIndex) const;
+    int GetPosition(int columnIndex) const;
+    TNullable<int> FindPosition(int columnIndex) const;
+    const TIndexes& GetIndexes() const;
+    bool IsUniversal() const;
 
-    bool All;
-    SmallDenseMap<int, int, TypicalColumnCount> InvertedIndexMap;
-    SmallVector<int, TypicalColumnCount> Indexes;
+private:
+    bool IsUniversal_;
+    TIndexes Indexes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

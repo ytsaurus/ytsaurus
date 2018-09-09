@@ -8,7 +8,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulingTagFilter::TSchedulingTagFilter()
-    : Hash_(0)
+    : Hash_(BooleanFormula_.GetHash())
 { }
 
 TSchedulingTagFilter::TSchedulingTagFilter(const TBooleanFormula& formula)
@@ -84,7 +84,7 @@ void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t hash<NYT::NScheduler::TSchedulingTagFilter>::operator()(const NYT::NScheduler::TSchedulingTagFilter& filter) const
+size_t THash<NYT::NScheduler::TSchedulingTagFilter>::operator()(const NYT::NScheduler::TSchedulingTagFilter& filter) const
 {
     return filter.GetHash();
 }

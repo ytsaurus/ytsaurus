@@ -40,6 +40,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
+            "alerts_update_period": 100,
         }
     }
 
@@ -73,10 +74,24 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
         create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
-        create("map_node", "//sys/pools/small_pool/subpool_3", attributes={"min_share_ratio": 1.0})
-        create("map_node", "//sys/pools/small_pool/subpool_4", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/small_pool/subpool_3")
+        create("map_node", "//sys/pools/small_pool/subpool_4")
 
         total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+
+        # Wait for fair share update.
+        time.sleep(1)
+
+        assert not get("//sys/scheduler/@alerts")
+
+        set("//sys/pools/small_pool/subpool_3/@min_share_resources", {"cpu": 1})
+
+        # Wait for fair share update.
+        time.sleep(1)
+
+        assert get("//sys/scheduler/@alerts")
+
+        remove("//sys/pools/small_pool/subpool_3/@min_share_resources")
 
         # Wait for fair share update.
         time.sleep(1)
@@ -257,6 +272,16 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         op2.track()
         op3.track()
 
+    def test_recursive_fair_share_when_lack_of_resources(self):
+        create("map_node", "//sys/pools/parent_pool", attributes={"min_share_ratio": 0.1})
+        create("map_node", "//sys/pools/parent_pool/subpool1", attributes={"min_share_ratio": 1})
+        create("map_node", "//sys/pools/parent_pool/subpool2", attributes={"min_share_ratio": 1})
+
+        time.sleep(0.2)
+        ratio_path = "//sys/scheduler/orchid/scheduler/pools/{0}/recursive_min_share_ratio"
+
+        assert get(ratio_path.format("subpool1")) == 0.05
+        assert get(ratio_path.format("subpool2")) == 0.05
 
     def test_fractional_cpu_usage(self):
         self._create_table("//tmp/t_in")
@@ -759,7 +784,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "fair_share_update_period": 100
+            "fair_share_update_period": 100,
         }
     }
 
@@ -1004,6 +1029,50 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         wait(lambda: len(op.get_running_jobs()) == 0)
+
+class TestSchedulerUnschedulableOperations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "operation_unschedulable_check_period": 100,
+            "operation_unschedulable_safe_timeout": 5000,
+            "operation_unschedulable_min_schedule_job_attempts": 10,
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
+        config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
+
+    def test_unschedulable_operations(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        ops = []
+        for i in xrange(5):
+            table = "//tmp/t_out" + str(i)
+            create("table", table)
+            op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out=table,
+                     spec={"pool": "fake_pool", "locality_timeout": 0, "mapper": {"cpu_limit": 0.8}})
+            ops.append(op)
+
+        for op in ops:
+            wait(lambda: len(op.get_running_jobs()) == 1)
+
+        table = "//tmp/t_out_other"
+        create("table", table)
+        op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out=table,
+                 spec={"pool": "fake_pool", "locality_timeout": 0, "mapper": {"cpu_limit": 1.5}})
+
+        wait(lambda: op.get_state() == "failed")
+
+        assert "unschedulable" in str(get(get_operation_cypress_path(op.id) + "/@result"))
+
 
 ##################################################################
 
@@ -1276,6 +1345,33 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
+    def test_ephemeral_pool_in_custom_pool(self):
+        create("map_node", "//sys/pools/custom_pool")
+        create("map_node", "//sys/pools/custom_pool_fifo")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool_fifo/@ephemeral_subpools_mode", "fifo")
+
+        time.sleep(0.2)
+
+        op1 = self.run_vanilla_with_sleep(spec={"pool": "custom_pool"})
+        op2 = self.run_vanilla_with_sleep(spec={"pool": "custom_pool_fifo"})
+        wait(lambda: len(list(op1.get_running_jobs())) == 1)
+        wait(lambda: len(list(op2.get_running_jobs())) == 1)
+
+        pools_path = "//sys/scheduler/orchid/scheduler/pools/"
+
+        pool = get(pools_path + "custom_pool$root")
+        assert pool["parent"] == "custom_pool"
+        assert pool["mode"] == "fair_share"
+
+        pool_fifo = get(pools_path + "custom_pool_fifo$root")
+        assert pool_fifo["parent"] == "custom_pool_fifo"
+        assert pool_fifo["mode"] == "fifo"
+
+        remove("//sys/pools/custom_pool")
+        remove("//sys/pools/custom_pool_fifo")
+
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1324,8 +1420,8 @@ class TestSchedulerPools(YTEnvSetup):
     def test_event_log(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/custom_pool", attributes={"min_share_resources": {"cpu": 1}})
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "custom_pool"})
+        create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
 
         time.sleep(2.0)
 
@@ -1339,11 +1435,20 @@ class TestSchedulerPools(YTEnvSetup):
 
         assert events == ["operation_started", "operation_completed"]
         pools_info = [row for row in read_table("//sys/scheduler/event_log")
-                      if row["event_type"] == "pools_info" and "custom_pool" in row["pools"]["default"]]
+                      if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
         assert len(pools_info) == 1
-        custom_pool_info = pools_info[-1]["pools"]["default"]["custom_pool"]
+        custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
         assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
         assert custom_pool_info["mode"] == "fair_share"
+
+    def run_vanilla_with_sleep(self, spec):
+        spec["tasks"] = {
+            "task": {
+                "job_count": 1,
+                "command": "sleep 1000"
+            },
+        }
+        return vanilla(spec=spec, dont_track=True)
 
 ##################################################################
 
@@ -2117,15 +2222,22 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         def operation_completed():
             return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
 
+        def operations_failed_or_aborted():
+            return get("//sys/operations/{0}/@state".format(op.id)) in ["failed", "aborted"]
+
+        time.sleep(5)
+
         non_tentative_job_count = 0
         time_passed = 0
+        completion_time = None
         while not operation_completed():
             time.sleep(0.5)
             time_passed += 0.5
 
-            if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT and \
-                time_passed > 2.0 * TestSchedulingOptionsPerTree.MAX_TENTATIVE_TREE_JOB_DURATION_RATIO:
-                # Tentative jobs should now be "slow" enough, it's time to start completing them.
+            assert not operations_failed_or_aborted()
+
+            if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+                completion_time = time_passed
                 break
 
             for job_id, tentative in iter_running_jobs():
@@ -2133,10 +2245,19 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     non_tentative_job_count += 1
                     events.notify_event("continue_job_{0}".format(job_id))
 
+        wait(lambda: op.get_job_count("completed") >= 5)
+
+        # Tentative jobs should now be "slow" enough, it's time to start completing them.
+        while not operation_completed() and time_passed < 5.0 * completion_time:
+            time.sleep(0.5)
+            time_passed += 0.5
+
         op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
         tentative_job_count = 0
         while not operation_completed():
             time.sleep(0.5)
+
+            assert not operations_failed_or_aborted()
 
             for job_id, tentative in iter_running_jobs():
                 events.notify_event("continue_job_{0}".format(job_id))
@@ -2153,6 +2274,8 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         while not operation_completed():
             time.sleep(0.5)
+
+            assert not operations_failed_or_aborted()
 
             for job_id, tentative in iter_running_jobs():
                 events.notify_event("continue_job_{0}".format(job_id))
@@ -2178,6 +2301,72 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         spec["tentative_tree_eligibility"]["ignore_missing_pool_trees"] = True
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
+
+    def test_tentative_pool_tree_aborted_jobs(self):
+        other_node_list = self._prepare_pool_trees()
+        spec = self._create_spec()
+        self._patch_spec_for_tentativeness(spec)
+        other_nodes = frozenset(other_node_list)
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+        create("table", "//tmp/t_out")
+
+        events = events_on_fs()
+
+        op = map(
+            command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec=spec,
+            dont_track=True)
+
+        jobs_path = op.get_path() + "/controller_orchid/running_jobs"
+
+        def iter_running_jobs():
+            try:
+                jobs = ls(jobs_path)
+            except:
+                return # Operation completed.
+
+            for job_id in jobs:
+                try:
+                    job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
+                except YtError:
+                    continue # The job has already completed, Orchid is lagging.
+
+                job_is_tentative = job_node in other_nodes
+                yield job_id, job_is_tentative
+
+        def operation_completed():
+            return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
+
+        job_aborted = False
+        for iter in xrange(20):
+            time.sleep(0.5)
+
+            for job_id, tentative in iter_running_jobs():
+                if tentative:
+                    try:
+                        abort_job(job_id)
+                        job_aborted = True
+                        break
+                    # Job can be published by controller agent but still be missing in scheduler.
+                    except YtError:
+                        pass
+
+            if job_aborted:
+                break
+
+        assert job_aborted
+
+        tentative_job_count = 0
+        while tentative_job_count + 1 < TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+            time.sleep(0.5)
+            for job_id, tentative in iter_running_jobs():
+                if tentative:
+                    events.notify_event("continue_job_{0}".format(job_id))
+                    tentative_job_count += 1
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1

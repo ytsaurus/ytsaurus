@@ -18,7 +18,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/formats/parser.h>
+#include <yt/client/formats/parser.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -424,18 +424,17 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkK
 
 TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable)
 {
-    TColumnFilter columnFilter;
     if (!columns) {
-        return columnFilter;
+        return TColumnFilter();
     }
 
-    columnFilter.All = false;
-    for (auto column : *columns) {
+    TColumnFilter::TIndexes columnFilterIndexes;
+    for (const auto& column : *columns) {
         auto id = nameTable->GetIdOrRegisterName(column);
-        columnFilter.Indexes.push_back(id);
+        columnFilterIndexes.push_back(id);
     }
 
-    return columnFilter;
+    return TColumnFilter(std::move(columnFilterIndexes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

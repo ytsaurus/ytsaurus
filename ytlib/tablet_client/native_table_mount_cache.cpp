@@ -2,6 +2,8 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/ytlib/election/config.h>
@@ -10,8 +12,6 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/client/object_client/helpers.h>
-
-#include <yt/client/query_client/query_statistics.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/client/table_client/unversioned_row.h>
@@ -30,22 +30,28 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
+#include <yt/core/yson/string.h>
+
 #include <util/datetime/base.h>
 
 namespace NYT {
 namespace NTabletClient {
 
+using namespace NApi;
 using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NRpc;
-using namespace NElection;
-using namespace NObjectClient;
 using namespace NCypressClient;
-using namespace NTableClient;
+using namespace NElection;
 using namespace NHiveClient;
 using namespace NNodeTrackerClient;
-using namespace NQueryClient;
+using namespace NObjectClient;
+using namespace NRpc;
+using namespace NTableClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
+
+using NNative::IConnection;
+using NNative::IConnectionPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,34 +61,103 @@ class TTableMountCache
 public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
-        IChannelPtr masterChannel,
+        IConnectionPtr connection,
         TCellDirectoryPtr cellDirectory,
         const NLogging::TLogger& logger)
         : TTableMountCacheBase(std::move(config), logger)
+        , Connection_(std::move(connection))
         , CellDirectory_(std::move(cellDirectory))
-        , ObjectProxy_(std::move(masterChannel))
     { }
 
 private:
 
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key) override
     {
-        LOG_DEBUG("Requesting table mount info (Path: %v)",
-            path);
+        auto connection = Connection_.Lock();
+        if (!connection) {
+            auto error = TError("Unable to get table mount info: сonnection terminated")
+                << TErrorAttribute("table_path", key.Path);
+            return MakeFuture<TTableMountInfoPtr>(error);
+        }
 
-        auto batchReq = ObjectProxy_.ExecuteBatch();
+        return BIND(&TTableMountCache::DoDoGet, MakeStrong(this), connection, key)
+            .AsyncVia(connection->GetInvoker())
+            .Run();
+    }
 
+private:
+    const TWeakPtr<IConnection> Connection_;
+    const TCellDirectoryPtr CellDirectory_;
+
+    TFuture<TTableMountInfoPtr> DoDoGet(IConnectionPtr connection, const TTableMountCacheKey& key)
+    {
+        // NB: This code is back-ported from 19.4. However object cache invalidation is not supported in 19.3.
+        // Revisions are set to Null which is safe in 19.3. The 19.4 code is mostly untouched to prevent merge hell.
+
+        const auto& path = key.Path;
+        const auto& refreshPrimaryRevision = key.RefreshPrimaryRevision;
+        const auto& refreshSecondaryRevision = key.RefreshSecondaryRevision;
+
+        LOG_DEBUG("Requesting table mount info (Path: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
+            path,
+            refreshPrimaryRevision,
+            refreshSecondaryRevision);
+
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+        auto primaryProxy = TObjectServiceProxy(channel);
+        auto batchReq = primaryProxy.ExecuteBatch();
+        
         auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
         balancingHeaderExt->set_enable_stickness(true);
         balancingHeaderExt->set_sticky_group_size(1);
 
-        auto req = TTableYPathProxy::GetMountInfo(path);
+        {
+            auto req = TTableYPathProxy::Get(path + "/@");
+            std::vector<TString> attributeKeys{
+                "id",
+                "dynamic",
+                "external_cell_tag"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
-        auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
-        cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
 
-        batchReq->AddRequest(req);
+            batchReq->AddRequest(req, "get_attributes");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attriubtes of table %v", path);
+        const auto& batchRsp = batchRspOrError.Value();
+        auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+        auto& rsp = getAttributesRspOrError.Value();
+        auto primaryRevision = Null;
+
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        auto cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
+        auto tableId = attributes->Get<TObjectId>("id");
+        auto dynamic = attributes->Get<bool>("dynamic", false);
+
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Table %v is not dynamic",
+                path);
+        }
+
+        channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache, cellTag);
+        auto secondaryProxy = TObjectServiceProxy(channel);
+        batchReq = secondaryProxy.ExecuteBatch();
+
+        {
+            auto req = TTableYPathProxy::GetMountInfo(FromObjectId(tableId));
+
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+
+            batchReq->AddRequest(req, "get_mount_info");
+        }
+
         return batchReq->Invoke().Apply(
             BIND([= , this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                 auto error = GetCumulativeError(batchRspOrError);
@@ -101,6 +176,8 @@ private:
                 auto tableInfo = New<TTableMountInfo>();
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+                tableInfo->SecondaryRevision = Null;
+                tableInfo->PrimaryRevision = primaryRevision;
 
                 auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
                 primarySchema = FromProto<TTableSchema>(rsp->schema());
@@ -179,30 +256,39 @@ private:
                     tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
                 }
 
-                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
                     path,
                     tableInfo->TableId,
                     tableInfo->Tablets.size(),
-                    tableInfo->Dynamic);
+                    tableInfo->Dynamic,
+                    tableInfo->PrimaryRevision,
+                    tableInfo->SecondaryRevision);
 
                 return tableInfo;
             }));
+
     }
 
-private:
-    const TCellDirectoryPtr CellDirectory_;
-    TObjectServiceProxy ObjectProxy_;
+    virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
+    {
+        Invalidate(tableInfo->Path);
+
+        TAsyncExpiringCache::Get(TTableMountCacheKey{
+            tableInfo->Path,
+            tableInfo->PrimaryRevision,
+            tableInfo->SecondaryRevision});
+    }
 };
 
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
-    IChannelPtr masterChannel,
+    IConnectionPtr connection,
     TCellDirectoryPtr cellDirectory,
     const NLogging::TLogger& logger)
 {
     return New<TTableMountCache>(
         std::move(config),
-        std::move(masterChannel),
+        std::move(connection),
         std::move(cellDirectory),
         logger);
 }

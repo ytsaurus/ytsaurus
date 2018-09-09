@@ -714,7 +714,8 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
             LocalDescriptor_,
             GetBlockCache(),
             /* trafficMeter */ nullptr,
-            throttler);
+            throttler,
+            GetUnlimitedThrottler() /* rps throttler */);
         chunkReaderIsLocal = false;
     }
 

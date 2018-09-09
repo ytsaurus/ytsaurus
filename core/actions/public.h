@@ -33,6 +33,17 @@ DECLARE_REFCOUNTED_STRUCT(IInvoker)
 DECLARE_REFCOUNTED_STRUCT(IPrioritizedInvoker)
 DECLARE_REFCOUNTED_STRUCT(ISuspendableInvoker)
 
+template <class TInvoker>
+class IGenericInvokerPool;
+
+using IInvokerPool = IGenericInvokerPool<IInvoker>;
+using IPrioritizedInvokerPool = IGenericInvokerPool<IPrioritizedInvoker>;
+using ISuspendableInvokerPool = IGenericInvokerPool<ISuspendableInvoker>;
+
+DECLARE_REFCOUNTED_TYPE(IInvokerPool)
+DECLARE_REFCOUNTED_TYPE(IPrioritizedInvokerPool)
+DECLARE_REFCOUNTED_TYPE(ISuspendableInvokerPool)
+
 DECLARE_REFCOUNTED_CLASS(TCancelableContext)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/client/tablet_client/helpers.h>
+
 #include <yt/client/api/transaction.h>
 
 namespace NYT {
@@ -49,6 +51,7 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingPeriod_(pingPeriod)
     , Sticky_(sticky)
+    , ModifyRowsRequestSequenceCounter_(0)
 {
     // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
     LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "
@@ -106,7 +109,7 @@ TDuration TTransaction::GetTimeout() const
     return Timeout_;
 }
 
-TFuture<void> TTransaction::Ping()
+TFuture<void> TTransaction::Ping(bool /*enableRetries*/)
 {
     return SendPing();
 }
@@ -170,12 +173,11 @@ void TTransaction::UnsubscribeAborted(const TCallback<void()>& handler)
     Aborted_.Unsubscribe(handler);
 }
 
-TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
+TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
 {
     LOG_DEBUG("Committing transaction (TransactionId: %v)",
         Id_);
 
-    decltype(AsyncResults_) asyncResults;
     {
         auto guard = Guard(SpinLock_);
         if (!Error_.IsOK()) {
@@ -196,7 +198,6 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
             case ETransactionState::Active:
                 State_ = ETransactionState::Committing;
-                asyncResults = std::move(AsyncResults_);
                 break;
 
             default:
@@ -204,8 +205,28 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         }
     }
 
+    std::vector<TFuture<void>> asyncResults;
+    {
+        auto guard = Guard(InFlightModifyRowsRequestsLock_);
+        asyncResults.reserve(InFlightModifyRowsRequests_.size());
+        std::transform(
+            InFlightModifyRowsRequests_.begin(),
+            InFlightModifyRowsRequests_.end(),
+            std::back_inserter(asyncResults),
+            [] (decltype(InFlightModifyRowsRequests_)::const_reference pair) {
+                return pair.second;
+            });
+    }
+
     return Combine(asyncResults).Apply(
-        BIND([this, this_ = MakeStrong(this), options] () {
+        BIND([this, this_ = MakeStrong(this)] () {
+            {
+                auto guard = Guard(SpinLock_);
+                if (!Error_.IsOK()) {
+                    return MakeFuture<TTransactionCommitResult>(Error_);
+                }
+            }
+
             const auto& config = Connection_->GetConfig();
 
             TApiServiceProxy proxy(Channel_);
@@ -230,8 +251,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                         return result;
                     } else {
                         auto error = TError("Error committing transaction %v ",
-                            Id_)
-                            << rspOrError;
+                            Id_) << rspOrError;
                         OnFailure(error);
                         return error;
                     }
@@ -255,6 +275,8 @@ void TTransaction::WriteRows(
     TSharedRange<TUnversionedRow> rows,
     const TModifyRowsOptions& options)
 {
+    ValidateTabletTransaction(Id_);
+
     std::vector<TRowModification> modifications;
     modifications.reserve(rows.Size());
     for (auto row : rows) {
@@ -305,9 +327,32 @@ void TTransaction::ModifyRows(
     const auto& config = Connection_->GetConfig();
 
     TApiServiceProxy proxy(Channel_);
-
     auto req = proxy.ModifyRows();
     req->SetTimeout(config->RpcTimeout);
+
+    auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_++;
+
+    while (true) {
+        TFuture<void> readyEvent;
+        {
+            auto guard = Guard(InFlightModifyRowsRequestsLock_);
+            if (InFlightModifyRowsRequestMinimalSequenceNumber_ == std::numeric_limits<size_t>::max() ||
+                reqSequenceNumber < InFlightModifyRowsRequestMinimalSequenceNumber_ + MaxInFlightModifyRowsRequestCount)
+            {
+                break;
+            }
+            readyEvent = InFlightModifyRowsRequests_[InFlightModifyRowsRequestMinimalSequenceNumber_];
+        }
+
+        if (readyEvent) {
+            // Sending this request would exceed proxy's window size.
+            // Wait until that window has been slid.
+            auto result = WaitFor(readyEvent);
+            Y_UNUSED(result); // to chunk clang up
+        }
+    }
+
+    req->set_sequence_number(reqSequenceNumber);
 
     ToProto(req->mutable_transaction_id(), Id_);
     req->set_path(path);
@@ -331,13 +376,32 @@ void TTransaction::ModifyRows(
         MakeRange(rows),
         req->mutable_rowset_descriptor());
 
-    auto asyncRequest = req->Invoke().As<void>();
+    auto asyncResult = req->Invoke().As<void>();
 
     {
-        auto guard = Guard(SpinLock_);
-        ValidateActive(guard);
-        AsyncResults_.emplace_back(std::move(asyncRequest));
+        auto guard = Guard(InFlightModifyRowsRequestsLock_);
+        InFlightModifyRowsRequests_.emplace(reqSequenceNumber, asyncResult);
     }
+
+    asyncResult
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            {
+                auto guard = Guard(InFlightModifyRowsRequestsLock_);
+                InFlightModifyRowsRequests_.erase(reqSequenceNumber);
+
+                InFlightModifyRowsRequestMinimalSequenceNumber_ = std::numeric_limits<size_t>::max();
+                for (const auto& pair : InFlightModifyRowsRequests_) {
+                    if (pair.first < InFlightModifyRowsRequestMinimalSequenceNumber_)
+                    {
+                        InFlightModifyRowsRequestMinimalSequenceNumber_ = pair.first;
+                    }
+                }
+            }
+
+            if (!error.IsOK()) {
+                OnFailure(error);
+            }
+        }));
 }
 
 TFuture<ITransactionPtr> TTransaction::StartTransaction(
@@ -615,25 +679,29 @@ TError TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
     return TError();
 }
 
-void TTransaction::SetAborted(const TError& error)
+bool TTransaction::SetAborted(const TError& error)
 {
     {
         auto guard = Guard(SpinLock_);
         if (State_ == ETransactionState::Aborted) {
-            return;
+            return false;
         }
         State_ = ETransactionState::Aborted;
         Error_ = error;
     }
 
     FireAborted();
+
+    return true;
 }
 
 void TTransaction::OnFailure(const TError& error)
 {
-    SetAborted(error);
-    // Best-effort, fire-and-forget.
-    SendAbort();
+    // Send abort request just once.
+    if (SetAborted(error)) {
+        // Best-effort, fire-and-forget.
+        SendAbort();
+    }
 }
 
 TFuture<void> TTransaction::SendAbort()
@@ -650,8 +718,6 @@ TFuture<void> TTransaction::SendAbort()
 
     ToProto(req->mutable_transaction_id(), Id_);
     req->set_sticky(Sticky_);
-
-    FireAborted();
 
     return req->Invoke().Apply(
         BIND([id = Id_, Logger = Logger] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {

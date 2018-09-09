@@ -10,12 +10,14 @@ import yt.environment.init_operation_archive as init_operation_archive
 from operations_archive import clean_operations
 
 import pytest
+from flaky import flaky
 
 import pprint
 import random
 import sys
 import time
 import __builtin__
+from collections import defaultdict
 
 ##################################################################
 
@@ -307,7 +309,7 @@ class TestJobStderr(YTEnvSetup):
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         assert get(jobs_path + "/@count") == 1
         stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
-        stderr = read_file(stderr_path, verbose=False).strip()
+        stderr = remove_asan_warning(read_file(stderr_path, verbose=False).strip())
 
         # Stderr buffer size is equal to 1000000, we should add it to limit
         assert len(stderr) <= 4000000
@@ -931,7 +933,7 @@ class TestSchedulerCommon(YTEnvSetup):
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == 1
         for job_id in ls(jobs_path):
-            assert read_file(jobs_path + "/" + job_id + "/stderr") == \
+            assert remove_asan_warning(read_file(jobs_path + "/" + job_id + "/stderr")) == \
                 "/bin/bash: /non_existed_command: No such file or directory\n"
 
     def test_pipe_statistics(self):
@@ -1049,7 +1051,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 unique_keys=False)
             });
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
-        
+
         with pytest.raises(YtError):
             op = map(
                 in_="//tmp/sorted_table",
@@ -1079,7 +1081,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 unique_keys=True)
             });
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
-        
+
         with pytest.raises(YtError):
             op = map(
                 in_="//tmp/sorted_table",
@@ -1118,6 +1120,31 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"job_count": 1})
 
         assert read_table("//tmp/sorted_table") == [{"key": YsonEntity()}]
+
+    def test_append_to_sorted_table_exclusive_lock(self):
+        create("table", "//tmp/sorted_table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=False)
+            })
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/sorted_table", [{"key": 5}])
+        write_table("//tmp/t1", [{"key": 6}, {"key":10}])
+        write_table("//tmp/t2", [{"key": 8}, {"key": 12}])
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="<append=%true>//tmp/sorted_table",
+            command="sleep 10; cat")
+
+        time.sleep(5)
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t2",
+                out="<append=%true>//tmp/sorted_table",
+                command="cat")
 
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
@@ -1245,6 +1272,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get(path) == "completed"
         op.track()
         assert len(read_table("//tmp/t2")) == 3
+        assert "operation_completed_by_user_request" in ls("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_abort_op(self):
         create("table", "//tmp/t")
@@ -3263,26 +3291,6 @@ fi
         assert not exists("//sys/operations/" + op.id + "/@committed")
         assert exists(get_operation_cypress_path(op.id) + "/@committed")
 
-    def test_runtime_params(self):
-        create("table", "//tmp/t_input")
-        write_table("//tmp/t_input", [{"key": "value"}])
-        create("table", "//tmp/t_output")
-
-        op = map(
-            command="sleep 1000; cat",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            dont_track=True)
-
-        jobs_path = get_operation_cypress_path(op.id) + "/controller_orchid/running_jobs"
-        wait(lambda: exists(jobs_path) and len(ls(jobs_path)) == 1)
-
-        set("//sys/operations/" + op.id + "/@resource_limits", {"user_slots": 1})
-        set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
-
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_limits/user_slots".format(op.id)
-        wait(lambda: get(orchid_path) == 1)
-
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
         write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])
@@ -3337,8 +3345,35 @@ fi
         assert len(jobs) == 1
         assert exists(get_fail_context_path_new(op, jobs[0]))
         assert exists(get_fail_context_path(op, jobs[0]))
-        assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
-        assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
+        assert remove_asan_warning(read_file(get_stderr_path(op, jobs[0]))) == "Oh no!\n"
+        assert remove_asan_warning(read_file(get_stderr_path_new(op, jobs[0]))) == "Oh no!\n"
+
+    def test_rewrite_operation_path(self):
+        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
+
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            command="echo 'XYZ' >&2",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "enable_compatible_storage_mode": False,
+            })
+
+        assert not exists("//sys/operations/" + op.id + "/@")
+        assert exists("//sys/operations/" + op.id + "/@", rewrite_operation_path=True)
+        assert get("//sys/operations/" + op.id + "/@", rewrite_operation_path=True) == \
+            get(op.get_path() + "/@", rewrite_operation_path=True)
+
+        tx = start_transaction()
+        assert lock("//sys/operations/" + op.id, rewrite_operation_path=True, mode="snapshot", tx=tx)
+
+        jobs = ls("//sys/operations/" + op.id + "/jobs", rewrite_operation_path=True)
+        assert remove_asan_warning(read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True)) == "XYZ\n"
 
 ##################################################################
 
@@ -3474,6 +3509,8 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6 and
                      get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 15 * 10**6)
 
+        assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 15 * 10**6
+
         op.track()
 
         time.sleep(5)
@@ -3485,6 +3522,69 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
+class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "agent_pick_strategy": "memory_usage_balanced",
+                "min_agent_available_memory": 0,
+            }
+        }
+    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 100,
+                    "cpu": 100
+                }
+            }
+        }
+    }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        if not hasattr(cls, "controller_agent_counter"):
+            cls.controller_agent_counter = 0
+        cls.controller_agent_counter += 1
+        if cls.controller_agent_counter > 2:
+            cls.controller_agent_counter -= 2
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 20 * 1024 ** 2
+
+    @flaky(max_runs=5)
+    def test_strategy(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        ops = []
+        for i in xrange(45):
+            out = "//tmp/t_out" + str(i)
+            create("table", out, attributes={"replication_factor": 1})
+            op = map(
+                command="sleep 100",
+                in_="//tmp/t_in",
+                out=out,
+                dont_track=True)
+            wait(lambda: op.get_state() == "running")
+            ops.append(op)
+
+        address_to_operation = defaultdict(list)
+        for op in ops:
+            address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
+
+        operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
+        balance_ratio = float(operation_balance[0]) / operation_balance[1]
+        print >>sys.stderr, "BALANCE_RATIO", balance_ratio
+        assert 0.5 <= balance_ratio <= 0.8
 
 class TestPorts(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -3566,7 +3666,7 @@ class TestPorts(YTEnvSetup):
         jobs = ls(jobs_path)
         assert len(jobs) == 1
 
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
+        stderr = remove_asan_warning(read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr"))
         assert "FAILED" not in stderr
         ports = __builtin__.map(int, stderr.split())
         assert len(ports) == 2
@@ -3743,3 +3843,23 @@ class TestNewLivePreview(YTEnvSetup):
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+
+
+class TestConnectToMaster(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    def test_scheduler_doesnt_connect_to_master_in_safe_mode(self):
+        set("//sys/@config/enable_safe_mode", True)
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers(sync=False)
+        time.sleep(1)
+
+        wait(lambda: self.has_safe_mode_error_in_log())
+
+    def has_safe_mode_error_in_log(self):
+        for line in open(self.path_to_run + "/logs/scheduler-0.log"):
+            if "Error connecting to master" in line and "Cluster is in safe mode" in line:
+                return True
+        return False

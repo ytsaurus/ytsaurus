@@ -26,12 +26,12 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
 {
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         for (int id = 0; id < ColumnCount_; ++id) {
             ColumnIds_.push_back(id);
         }
     } else {
-        for (int id : columnFilter.Indexes) {
+        for (int id : columnFilter.GetIndexes()) {
             ColumnIds_.push_back(id);
         }
     }
@@ -363,7 +363,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , MergeRowsOnFlush_(mergeRowsOnFlush)
 {
     size_t mergedKeyColumnCount = 0;
-    if (columnFilter.All) {
+    if (columnFilter.IsUniversal()) {
         for (int id = 0; id < columnCount; ++id) {
             if (id < keyColumnCount) {
                 ++mergedKeyColumnCount;
@@ -372,7 +372,7 @@ TVersionedRowMerger::TVersionedRowMerger(
         }
         Y_ASSERT(mergedKeyColumnCount == keyColumnCount);
     } else {
-        for (int id : columnFilter.Indexes) {
+        for (int id : columnFilter.GetIndexes()) {
             if (id < keyColumnCount) {
                 ++mergedKeyColumnCount;
             }
@@ -442,7 +442,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         [&] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
             auto lhsIndex = ColumnIdToIndex_[lhs.Id];
             auto rhsIndex = ColumnIdToIndex_[rhs.Id];
-            return std::tie(lhsIndex, lhs.Timestamp) < std::tie(rhsIndex, rhs.Timestamp);
+            return std::tie(lhsIndex, lhs.Id, lhs.Timestamp) < std::tie(rhsIndex, rhs.Id, rhs.Timestamp);
         });
     PartialValues_.erase(
         std::unique(

@@ -428,7 +428,10 @@ public:
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
-            ReportStatistics(TJobStatistics().Statistics(Statistics_));
+            ReportStatistics(TJobStatistics()
+                .Statistics(Statistics_)
+                .Type(GetType())
+                .State(GetState()));
         }
     }
 
@@ -997,7 +1000,7 @@ private:
         FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
         Statistics_ = ConvertToYsonString(deserializedStatistics);
 
-        LOG_INFO("Job finalized (Error: %v, JobState: %v)",
+        LOG_INFO(error, "Job finalized (JobState: %v)",
             error,
             GetState());
 
@@ -1279,14 +1282,18 @@ private:
 
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
+        auto resultError = FromProto<TError>(jobResult.error());
+
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
             const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
+
+            if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
+                !resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) &&
+                schedulerResultExt.failed_chunk_ids_size() > 0)
+            {
                 return EAbortReason::FailedChunks;
             }
         }
-
-        auto resultError = FromProto<TError>(jobResult.error());
 
         auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
         if (abortReason) {
@@ -1327,7 +1334,8 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
-            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
+            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
+            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut))
         {
             return EAbortReason::Other;
         }
@@ -1374,6 +1382,7 @@ private:
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
+            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
             error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed);
     }
 };

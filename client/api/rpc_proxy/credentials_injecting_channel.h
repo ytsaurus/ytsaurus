@@ -2,6 +2,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/misc/nullable.h>
+
 namespace NYT {
 namespace NApi {
 namespace NRpcProxy {
@@ -10,16 +12,16 @@ namespace NRpcProxy {
 
 NRpc::IChannelPtr CreateUserInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const TString& user);
+    const TNullable<TString>& user);
 
 NRpc::IChannelPtr CreateTokenInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const TString& user,
+    const TNullable<TString>& user,
     const TString& token);
 
 NRpc::IChannelPtr CreateCookieInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const TString& user,
+    const TNullable<TString>& user,
     const TString& sessionId,
     const TString& sslSessionId);
 

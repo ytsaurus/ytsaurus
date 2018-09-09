@@ -47,6 +47,9 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NScheduler;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
 using NTableClient::TKey;
@@ -216,7 +219,7 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -225,9 +228,9 @@ protected:
             return result;
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet, jobSummary);
+            return TTask::OnJobAborted(joblet, jobSummary);
         }
     };
 
@@ -313,6 +316,40 @@ protected:
             InputSliceDataWeight_);
     }
 
+    void CheckInputTableKeyColumnTypes(
+        const TKeyColumns& keyColumns,
+        std::function<bool(const TInputTable& table)> inputTableFilter = [] (const TInputTable&) { return true; })
+    {
+        YCHECK(!InputTables.empty());
+
+        for (const auto& columnName : keyColumns) {
+            const TColumnSchema* referenceColumn = nullptr;
+            const TInputTable* referenceTable;
+            for (const auto& table : InputTables) {
+                if (!inputTableFilter(table)) {
+                    continue;
+                }
+                const auto& column = table.Schema.GetColumnOrThrow(columnName);
+                if (column.LogicalType() == ELogicalValueType::Any) {
+                    continue;
+                }
+                if (referenceColumn) {
+                    if (GetPhysicalType(referenceColumn->LogicalType()) != GetPhysicalType(column.LogicalType())) {
+                        THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
+                            << TErrorAttribute("column_name", columnName)
+                            << TErrorAttribute("input_table_1", referenceTable->GetPath())
+                            << TErrorAttribute("type_1", referenceColumn->LogicalType())
+                            << TErrorAttribute("input_table_2", table.GetPath())
+                            << TErrorAttribute("type_2", column.LogicalType());
+                    }
+                } else {
+                    referenceColumn = &column;
+                    referenceTable = &table;
+                }
+            }
+        }
+    }
+
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(InputTables[dataSlice->GetTableIndex()].IsForeign());
@@ -386,7 +423,10 @@ protected:
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns() &&
+                    InputTables[index].ColumnRenameDescriptors.empty())
+                {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables_[*tableIndex].TableUploadOptions.TableSchema,
@@ -914,7 +954,7 @@ public:
 
     virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
-        return Spec_->StderrTableWriterConfig;
+        return Spec_->StderrTableWriter;
     }
 
     virtual TNullable<TRichYPath> GetCoreTablePath() const override
@@ -924,7 +964,7 @@ public:
 
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
-        return Spec_->CoreTableWriterConfig;
+        return Spec_->CoreTableWriter;
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -1327,6 +1367,12 @@ public:
                     << TErrorAttribute("operation_type", OperationType);
             }
             SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
+        }
+        if (Spec_->ValidateKeyColumnTypes) {
+            CheckInputTableKeyColumnTypes(ForeignKeyColumns_);
+            CheckInputTableKeyColumnTypes(PrimaryKeyColumns_, [] (const auto& table) {
+                return table.IsPrimary();
+            });
         }
         LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
             PrimaryKeyColumns_,

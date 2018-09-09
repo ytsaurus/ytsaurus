@@ -26,6 +26,9 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpc;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkListPool::TChunkListPool(

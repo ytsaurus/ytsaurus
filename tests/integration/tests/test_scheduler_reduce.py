@@ -174,6 +174,101 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                 {"key": 7}
             ]
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_simple(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b2", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t3", attributes={
+                "schema": [{"name": "a3", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+
+        create("table", "//tmp/tout")
+
+        write_table("//tmp/t1", [{"a": 42, "b": 1}])
+        write_table("//tmp/t2", [{"a2": 42, "b2": 2}])
+        write_table("//tmp/t3", [{"a3": 42, "b": 3}])
+
+        op = reduce(
+            in_=["//tmp/t1", "<rename_columns={a2=a;b2=b}>//tmp/t2", "<rename_columns={a3=a}>//tmp/t3"],
+            out="//tmp/tout",
+            reduce_by=["a"],
+            command="cat",
+            spec={"job_count": 3, # We are trying to divide rows in different jobs.
+                  "reducer": {"format": "dsv"}})
+
+        assert read_table("//tmp/tout") == [{"a": "42", "b": "1"},
+                                            {"a": "42", "b": "2"},
+                                            {"a": "42", "b": "3"}]
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        assert completed["total"] == 1 # Actualy all rows should be in one job despite job_count > 1
+
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_foreign_table(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b2", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+
+        create("table", "//tmp/tout")
+
+        write_table("//tmp/t1", [{"a": 42, "b": 1}])
+        write_table("//tmp/t2", [{"a2": 42, "b2": 2},
+                                 {"a2": 43, "b2": 3}])
+
+        reduce(
+            in_=["//tmp/t1", "<foreign=%true;rename_columns={a2=a;b2=b}>//tmp/t2"],
+            out="//tmp/tout",
+            reduce_by=["a"],
+            join_by=["a"],
+            command="cat",
+            spec={"reducer": {"enable_input_table_index": False}})
+
+        assert read_table("//tmp/tout") == [{"a": 42, "b": 1},
+                                            {"a": 42, "b": 2}]
+
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_rename_columns_teleport_table(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+        create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"},
+                           {"name": "b2", "type": "int64"}],
+                "optimize_for": optimize_for
+            })
+
+        create("table", "//tmp/tout")
+
+        write_table("//tmp/t1", [{"a": 42, "b": 1}])
+        write_table("//tmp/t2", [{"a2": 43, "b2": 3}])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_=["//tmp/t1", "<teleport=%true;rename_columns={a2=a;b2=b}>//tmp/t2"],
+                out="<teleport=%true>//tmp/tout",
+                reduce_by=["a"],
+                command="cat",
+                spec={"reducer": {"format": "dsv"}})
+
     @unix_only
     def test_control_attributes_yson(self):
         create("table", "//tmp/in1")
@@ -204,9 +299,8 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                     },
                 "job_count" : 1})
 
-        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
-        assert len(job_ids) == 1
-        assert read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])) == \
+
+        expected_stderr = \
 """<"table_index"=1;>#;
 <"row_index"=0;>#;
 {"key"=1;"value"=6;};
@@ -214,6 +308,7 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
 <"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
+        check_all_stderrs(op, expected_stderr, 1)
 
         # Test only one row index with only one input table.
         op = reduce(
@@ -228,12 +323,11 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                 },
                 "job_count" : 1})
 
-        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
-        assert len(job_ids) == 1
-        assert read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])) == \
+        expected_stderr = \
 """<"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
+        check_all_stderrs(op, expected_stderr, 1)
 
     @unix_only
     def test_cat_teleport(self):
@@ -512,7 +606,7 @@ echo {v = 2} >&7
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
-        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+        stderr_bytes = remove_asan_warning(read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0])))
 
         assert stderr_bytes.encode("hex") == \
             "010000006100000000" \
@@ -1447,6 +1541,160 @@ class TestSchedulerNewReduceCommandsOneCell(TestSchedulerReduceCommandsOneCell):
         assert len(dct) == 2
         assert dct["a"] == 1000
         assert dct["b"] == 1
+
+    def test_reduce_different_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1}])
+        write_table("//tmp/t2", [{"key": "1"}])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_=["//tmp/t1", "//tmp/t2"],
+                out=["//tmp/out"],
+                command="echo {key=5}",
+                reduce_by="key")
+
+    def test_reduce_with_any(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1}])
+        write_table("//tmp/t2", [{"key": 1}])
+
+        reduce(
+            in_=["//tmp/t1", "//tmp/t2"],
+            out=["//tmp/out"],
+            command="echo {key=5}",
+            reduce_by="key")
+
+        assert read_table("//tmp/out") == [{"key": 5}]
+
+    def test_reduce_different_types_with_any(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t3", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1}])
+        write_table("//tmp/t2", [{"key": 1}])
+        write_table("//tmp/t3", [{"key": "1"}])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+                out=["//tmp/out"],
+                command="echo {key=5}",
+                reduce_by="key")
+
+    def test_reduce_with_foreign_table(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "any", "sort_order": "ascending"},
+                       {"name": "subkey", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "subkey", "type": "string"}]
+            })
+
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1, "subkey": 2}])
+        write_table("//tmp/t2", [{"key": 1, "subkey": "2"}])
+
+        reduce(
+            in_=["//tmp/t1", "<foreign=%true>//tmp/t2"],
+            out=["//tmp/out"],
+            command="echo {key=5}",
+            reduce_by=["key", "subkey"],
+            join_by="key")
+
+        assert read_table("//tmp/out") == [{"key": 5}]
+
+    def test_reduce_with_foreign_table_fail(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "any", "sort_order": "ascending"},
+                       {"name": "subkey", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "subkey", "type": "string", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t3", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "subkey", "type": "int64"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1, "subkey": 2}])
+        write_table("//tmp/t2", [{"key": 1, "subkey": "3"}])
+        write_table("//tmp/t3", [{"key": 1, "subkey": 4}])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_=["//tmp/t1", "//tmp/t2", "<foreign=%true>//tmp/t3"],
+                out=["//tmp/out"],
+                command="echo {key=5}",
+                reduce_by=["key", "subkey"],
+                join_by="key")
+
+    def test_reduce_different_logical_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "int32", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 5}])
+        write_table("//tmp/t2", [{"key": 5}])
+
+        reduce(
+            in_=["//tmp/t1", "//tmp/t2"],
+            out=["//tmp/out"],
+            command="echo {key=1}",
+            reduce_by=["key"])
+
+        assert read_table("//tmp/out") == [{"key": 1}]
+
+    def test_reduce_disable_check_key_column_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+            })
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 5}])
+        write_table("//tmp/t2", [{"key": "6"}])
+
+        reduce(
+            in_=["//tmp/t1", "//tmp/t2"],
+            out=["//tmp/out"],
+            command="echo {key=1}",
+            reduce_by=["key"],
+            spec={"validate_key_column_types": False, "job_count": 2})
+
+        assert read_table("//tmp/out") == [{"key": 1}, {"key": 1}]
 
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommandsOneCell):

@@ -271,6 +271,69 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTabletCellBalancerMasterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTabletCellBalancer;
+    bool EnableVerboseLogging;
+
+    TDynamicTabletCellBalancerMasterConfig()
+    {
+        RegisterParameter("enable_tablet_cell_balancer", EnableTabletCellBalancer)
+            .Default(true);
+        RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicatedTableTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableReplicatedTableTracker;
+    TDuration CheckPeriod;
+    TDuration UpdatePeriod;
+    int ThreadCount;
+
+    TReplicatedTableTrackerConfig()
+    {
+        RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
+            .Default(true);
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("thread_count", ThreadCount)
+            .Default(1);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicReplicatedTableTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableReplicatedTableTracker;
+
+    TDynamicReplicatedTableTrackerConfig()
+    {
+        RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -280,6 +343,9 @@ public:
     NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
 
     TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
+    TDynamicTabletCellBalancerMasterConfigPtr TabletCellBalancer;
+
+    TDynamicReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
     TDynamicTabletManagerConfig()
     {
@@ -288,6 +354,10 @@ public:
         RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
         RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
+        RegisterParameter("tablet_cell_balancer", TabletCellBalancer)
+            .DefaultNew();
+        RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
             .DefaultNew();
     }
 };

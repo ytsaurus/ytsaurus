@@ -45,9 +45,6 @@ DEFINE_ENUM(EErrorCode,
     ((TableReplicaAlreadyExists)(1705))
 );
 
-constexpr int TypicalPeerCount = 5;
-constexpr int MaxPeerCount = 10;
-
 DEFINE_ENUM(EInMemoryMode,
     ((None)        (0))
     ((Compressed)  (1))

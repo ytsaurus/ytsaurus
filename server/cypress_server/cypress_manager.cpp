@@ -642,6 +642,8 @@ public:
         auto* acd = securityManager->GetAcd(node);
         acd->SetOwner(user);
 
+        NodeCreated_.Fire(node);
+
         return node;
     }
 
@@ -1075,6 +1077,8 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
 
     DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
+
+    DEFINE_SIGNAL(void(TCypressNodeBase*), NodeCreated);
 
 private:
     friend class TNodeTypeHandler;
@@ -2672,6 +2676,8 @@ const NTableServer::TSharedTableSchemaRegistryPtr& TCypressManager::GetSharedTab
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)
+
+DELEGATE_SIGNAL(TCypressManager, void(TCypressNodeBase*), NodeCreated, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

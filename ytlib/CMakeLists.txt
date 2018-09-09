@@ -9,8 +9,6 @@ if(YT_ADD_HEADERS_TO_SRCS)
     set(YT_SRCS ${YT_SRCS} ${HEADERS})
 endif()
 
-set(YT_SOURCE_FILES)
-protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
@@ -32,6 +30,7 @@ target_link_libraries(yt-library-ytlib
   yt-core-skiff
   yt-core-erasure
   yt-library-client
+  yt-library-client-formats
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")

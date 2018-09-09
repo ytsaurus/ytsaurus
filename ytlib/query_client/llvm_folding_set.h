@@ -6,7 +6,7 @@
 
 // A hasher for llvm::FoldingSetNodeID
 template <>
-struct hash<llvm::FoldingSetNodeID>
+struct THash<llvm::FoldingSetNodeID>
 {
     inline size_t operator()(const llvm::FoldingSetNodeID& id) const
     {

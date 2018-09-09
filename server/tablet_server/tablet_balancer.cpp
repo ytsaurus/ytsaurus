@@ -17,6 +17,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <util/random/shuffle.h>
+
 #include <queue>
 
 namespace NYT {
@@ -136,91 +138,6 @@ private:
         i64 DesiredTabletSize;
     };
 
-    class TTabletCellOrderedSet {
-    public:
-        using TComparator = std::function<bool(const TTabletCell*, const TTabletCell*)>;
-        using TCellSet = std::set<const TTabletCell*, TComparator>;
-
-        TTabletCellOrderedSet()
-            : Cells_(
-                [this] (const TTabletCell* lhs, const TTabletCell* rhs) {
-                    return Compare(lhs, rhs);
-                })
-        {  }
-
-        TTabletCellOrderedSet(const TTabletCellOrderedSet&) = delete;
-        TTabletCellOrderedSet& operator=(const TTabletCellOrderedSet&) = delete;
-
-        const TCellSet& CellsOrderedByTabletCount() const
-        {
-            return Cells_;
-        }
-
-        void AlterTabletCount(const TTabletCell* cell, int delta)
-        {
-            Cells_.erase(cell);
-            TabletCount_[cell] += delta;
-            Cells_.insert(cell);
-        }
-
-        void Insert(const TTabletCell* cell, int tabletCount)
-        {
-            TabletCount_[cell] = tabletCount;
-            Cells_.insert(cell);
-        }
-
-        int GetTabletCount(const TTabletCell* cell) const
-        {
-            return TabletCount_.at(cell);
-        }
-
-        int Size() const
-        {
-            return Cells_.size();
-        }
-
-    private:
-        TCellSet Cells_;
-        THashMap<const TTabletCell*, int> TabletCount_;
-
-        bool Compare(const TTabletCell* lhs, const TTabletCell* rhs) const
-        {
-            int lhsTabletCount = TabletCount_.at(lhs);
-            int rhsTabletCount = TabletCount_.at(rhs);
-            return std::tie(lhsTabletCount, lhs) < std::tie(rhsTabletCount, rhs);
-        }
-    };
-
-    struct TCellTabletCounters {
-        const TTabletCell* Cell;
-        int TableTabletCount = 0;
-        int TabletCount = 0;
-
-        TCellTabletCounters() {}
-        TCellTabletCounters(const TTabletCell* cell, int tableTabletCount, int tabletCount)
-            : Cell(cell)
-            , TableTabletCount(tableTabletCount)
-            , TabletCount(tabletCount)
-        {  }
-
-        bool operator<(const TCellTabletCounters& other) const
-        {
-            return std::tie(TableTabletCount, TabletCount) < std::tie(other.TableTabletCount, other.TabletCount);
-        }
-
-        bool operator>(const TCellTabletCounters& other) const
-        {
-            return other < *this;
-        }
-
-        void AlterTabletCount(int delta)
-        {
-            TableTabletCount += delta;
-            TabletCount += delta;
-
-        }
-    };
-
     const TTabletBalancerMasterConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
@@ -237,6 +154,7 @@ private:
     THashSet<const TTabletCellBundle*> BundlesWithActiveActions_;
     THashSet<TTabletCellBundleId> BundlesPendingCellBalancing_;
     TTimeFormula FallbackBalancingSchedule_;
+    THashMap<const TTablet*, const TTabletCell*> TabletToTargetCellMap_;
 
     const NProfiling::TProfiler Profiler;
     NProfiling::TSimpleGauge QueueSizeCounter_;
@@ -427,6 +345,20 @@ private:
             ->CommitAndLog(Logger);
     }
 
+    int ApplyMoveActions()
+    {
+        int actionCount = 0;
+        for (const auto& pair : TabletToTargetCellMap_) {
+            if (pair.first->GetCell() != pair.second) {
+                CreateMoveAction(pair.first, pair.second->GetId());
+                ++actionCount;
+            }
+        }
+
+        TabletToTargetCellMap_.clear();
+        return actionCount;
+    }
+
     void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
         const auto& config = bundle->TabletBalancerConfig();
@@ -526,112 +458,230 @@ private:
             {bundle->GetProfilingTag()});
     }
 
-    int ReassignExtMemoryTabletsOfTable(
+    void ReassignExtMemoryTabletsOfTable(
         const std::vector<const TTablet*>& tablets,
-        TTabletCellOrderedSet* bundleCells)
+        const std::vector<const TTabletCell*>& bundleCells,
+        THashMap<const TTabletCell*, std::vector<const TTablet*>>* slackTablets)
     {
-        // For each table we want to distribute its tablets as evenly as possible.
-        // We iteratively take the largest cell (with respect to the number of tablets
-        // of current table) and move tablets from it to the emptier cells.
-        // In case of tie the cell with least overall number of tablets is selected.
-
         THashMap<const TTabletCell*, std::vector<const TTablet*>> tabletsByCell;
         for (auto* tablet : tablets) {
             tabletsByCell[tablet->GetCell()].push_back(tablet);
         }
 
-        std::vector<TCellTabletCounters> tableCells;
-        tableCells.reserve(tabletsByCell.size());
+        std::vector<std::pair<int, const TTabletCell*>> cells;
         for (const auto& pair : tabletsByCell) {
-            tableCells.emplace_back(pair.first, pair.second.size(), bundleCells->GetTabletCount(pair.first));
+            cells.emplace_back(pair.second.size(), pair.first);
         }
 
-        // Avoid balancing if current distribution is good enough.
-        int maxCount = std::max_element(tableCells.begin(), tableCells.end())->TableTabletCount;
-        int minCount = tableCells.size() < bundleCells->Size()
-            ? 0
-            : std::min_element(tableCells.begin(), tableCells.end())->TableTabletCount;
-        if (maxCount - minCount <= 2) {
-            return 0;
-        }
+        // Cells with the same number of tablets of current table should be distributed
+        // randomly each time. It gives better per-cell distribution on average.
+        Shuffle(cells.begin(), cells.end());
+        std::sort(cells.begin(), cells.end(), [] (auto lhs, auto rhs) {
+            return lhs.first > rhs.first;
+        });
 
-        std::priority_queue<TCellTabletCounters, std::vector<TCellTabletCounters>, std::greater<TCellTabletCounters>> queue(
-            tableCells.begin(),
-            tableCells.end());
-
-        // tableCells contains only cells with non-zero tablets from the current table.
-        // Here we consider new cells which were not yet used by the table but which we'll move tablets to.
-        int newCellsNeeded = std::min<int>(tablets.size(), bundleCells->Size()) - tableCells.size();
-        for (auto* cell : bundleCells->CellsOrderedByTabletCount()) {
+        size_t expectedCellCount = std::min(tablets.size(), bundleCells.size());
+        for (auto* cell : bundleCells) {
+            if (cells.size() == expectedCellCount) {
+                break;
+            }
             if (!tabletsByCell.has(cell)) {
-                queue.emplace(cell, 0 /* TableTabletCount */, bundleCells->GetTabletCount(cell));
-                if (--newCellsNeeded == 0) {
+                cells.emplace_back(0, cell);
+            }
+        }
+
+        auto getExpectedTabletCount = [&] (int cellIndex) {
+            int cellCount = bundleCells.size();
+            int tabletCount = tablets.size();
+            return tabletCount / cellCount + (cellIndex < tabletCount % cellCount);
+        };
+
+        const int minCellSize = tablets.size() / bundleCells.size();
+
+        auto moveTablets = [&] (int srcIndex, int dstIndex, int limit) {
+            int moveCount = 0;
+            auto& srcTablets = tabletsByCell[cells[srcIndex].second];
+            while (moveCount < limit && !srcTablets.empty()) {
+                const auto* tablet = srcTablets.back();
+                srcTablets.pop_back();
+
+                TabletToTargetCellMap_[tablet] = cells[dstIndex].second;
+                ++moveCount;
+                --cells[srcIndex].first;
+                ++cells[dstIndex].first;
+
+                if (slackTablets && cells[dstIndex].first > minCellSize) {
+                    slackTablets->at(cells[dstIndex].second).push_back(tablet);
+                }
+            }
+            YCHECK(moveCount == limit);
+        };
+
+        YCHECK(!cells.empty());
+        int dstIndex = cells.size() - 1;
+
+        for (int srcIndex = 0; srcIndex < dstIndex; ++srcIndex) {
+            int srcLimit = cells[srcIndex].first - getExpectedTabletCount(srcIndex);
+            while (srcLimit > 0 && srcIndex < dstIndex) {
+                int dstLimit = getExpectedTabletCount(dstIndex) - cells[dstIndex].first;
+                int moveCount = std::min(srcLimit, dstLimit);
+                YCHECK(moveCount >= 0);
+                moveTablets(srcIndex, dstIndex, moveCount);
+                if (moveCount == dstLimit) {
+                    --dstIndex;
+                }
+                srcLimit -= moveCount;
+            }
+        }
+
+        if (slackTablets) {
+            for (const auto& pair : cells) {
+                const auto* cell = pair.second;
+                auto& tablets = tabletsByCell[cell];
+                if (tablets.size() > minCellSize) {
+                    slackTablets->at(cell).push_back(tabletsByCell[cell].back());
+                } else {
                     break;
                 }
             }
         }
-        YCHECK(newCellsNeeded == 0);
 
-        std::sort(tableCells.rbegin(), tableCells.rend());
+        for (int cellIndex = 0; cellIndex < cells.size(); ++cellIndex) {
+            Y_ASSERT(cells[cellIndex].first == getExpectedTabletCount(cellIndex));
+        }
+    }
 
-        int tabletsLeft = tablets.size();
-        int cellsLeft = queue.size();
-        int actionCount = 0;
-        for (auto& sourceCell : tableCells) {
-            int expectedTabletCount = (tabletsLeft - 1) / cellsLeft + 1;
-            tabletsLeft -= expectedTabletCount;
-            --cellsLeft;
-            YCHECK(sourceCell.TableTabletCount >= expectedTabletCount);
-            if (sourceCell.TableTabletCount <= expectedTabletCount) {
-                break;
-            }
+    void ReassignSlackTablets(std::vector<std::pair<const TTabletCell*, std::vector<const TTablet*>>> cellTablets)
+    {
+        std::sort(
+            cellTablets.begin(),
+            cellTablets.end(),
+            [](const auto& lhs, const auto& rhs) {
+                return lhs.second.size() > rhs.second.size();
+            });
 
-            while (sourceCell.TableTabletCount > expectedTabletCount) {
-                auto& sourceCellTablets = tabletsByCell[sourceCell.Cell];
-                auto targetCell = queue.top();
-                queue.pop();
-                auto* tablet = sourceCellTablets.back();
-                sourceCellTablets.pop_back();
+        std::vector<THashSet<const TTableNode*>> presentTables;
+        std::vector<int> tabletCount;
+        int totalTabletCount = 0;
+        for (const auto& pair : cellTablets) {
+            totalTabletCount += pair.second.size();
+            tabletCount.push_back(pair.second.size());
 
-                CreateMoveAction(tablet, targetCell.Cell->GetId());
-
-                targetCell.AlterTabletCount(1);
-                bundleCells->AlterTabletCount(targetCell.Cell, 1);
-                queue.push(targetCell);
-                sourceCell.AlterTabletCount(-1);
-                bundleCells->AlterTabletCount(sourceCell.Cell, -1);
+            presentTables.emplace_back();
+            for (auto* tablet : pair.second) {
+                YCHECK(presentTables.back().insert(tablet->GetTable()).second);
             }
         }
 
-        return actionCount;
+        auto getExpectedTabletCount = [&] (int cellIndex) {
+            int cellCount = cellTablets.size();
+            return totalTabletCount / cellCount + (cellIndex < totalTabletCount % cellCount);
+        };
+
+        auto moveTablets = [&] (int srcIndex, int dstIndex, int limit) {
+            int moveCount = 0;
+            auto& srcTablets = cellTablets[srcIndex].second;
+            for (size_t tabletIndex = 0; tabletIndex < srcTablets.size() && moveCount < limit; ++tabletIndex) {
+                auto* tablet = srcTablets[tabletIndex];
+                if (!presentTables[dstIndex].has(tablet->GetTable())) {
+                    presentTables[dstIndex].insert(tablet->GetTable());
+                    TabletToTargetCellMap_[tablet] = cellTablets[dstIndex].first;
+                    std::swap(srcTablets[tabletIndex], srcTablets.back());
+                    srcTablets.pop_back();
+
+                    ++moveCount;
+                    --tabletIndex;
+                    --tabletCount[srcIndex];
+                    ++tabletCount[dstIndex];
+                }
+            }
+            YCHECK(moveCount == limit);
+        };
+
+        YCHECK(!cellTablets.empty());
+        int dstIndex = cellTablets.size() - 1;
+
+        for (int srcIndex = 0; srcIndex < dstIndex; ++srcIndex) {
+            int srcLimit = tabletCount[srcIndex] - getExpectedTabletCount(srcIndex);
+            while (srcLimit > 0 && srcIndex < dstIndex) {
+                int dstLimit = getExpectedTabletCount(dstIndex) - tabletCount[dstIndex];
+                int moveCount = std::min(srcLimit, dstLimit);
+                YCHECK(moveCount >= 0);
+                moveTablets(srcIndex, dstIndex, moveCount);
+                if (moveCount == dstLimit) {
+                    --dstIndex;
+                }
+                srcLimit -= moveCount;
+            }
+        }
+
+        for (int cellIndex = 0; cellIndex < cellTablets.size(); ++cellIndex) {
+            Y_ASSERT(tabletCount[cellIndex] == getExpectedTabletCount(cellIndex));
+        }
     }
 
     void ReassignExtMemoryTablets(const TTabletCellBundle* bundle)
     {
+        /*
+           Balancing happens in two iterations. First iteration goes per-table.
+           Tablets of each table are spread between cells as evenly as possible.
+           Due to rounding errors some cells will contain more tablets than
+           the others. These extra tablets are called slack tablets. In the
+           picture C are slack tablets, T are the others.
+
+           | C  C       |
+           | T  T  T  T |
+           | T  T  T  T |
+           +------------+
+
+           Next iteration runs only if there are empty cells (usually when new
+           cells are added). All slack tablets are spead between cells
+           once again. Tablets are moved from cells with many tablets to cells
+           with fewer. After balancing no two slack tablets from the same
+           table may be on the same cell.
+        */
         const auto& config = bundle->TabletBalancerConfig();
         if (!config->EnableCellBalancer) {
             return;
         }
 
-        TTabletCellOrderedSet cells;
-        for (auto* cell : GetAliveCells(bundle)) {
-            cells.Insert(cell, cell->Tablets().size());
-        }
+        auto bundleCells = GetAliveCells(bundle);
+
+        bool haveEmptyCells = false;
 
         THashMap<const TTableNode*, std::vector<const TTablet*>> tabletsByTable;
-        for (auto* cell : cells.CellsOrderedByTabletCount()) {
-            for (auto* tablet : cell->Tablets()) {
-                auto* table = tablet->GetTable();
+        for (const auto* cell : bundleCells) {
+            if (cell->Tablets().empty()) {
+                haveEmptyCells = true;
+            }
+            for (const auto* tablet : cell->Tablets()) {
+                const auto* table = tablet->GetTable();
                 if (table->GetInMemoryMode() == EInMemoryMode::None) {
                     tabletsByTable[table].push_back(tablet);
                 }
             }
         }
 
-        int actionCount = 0;
-        for (const auto& pair : tabletsByTable) {
-            actionCount += ReassignExtMemoryTabletsOfTable(pair.second, &cells);
+        THashMap<const TTabletCell*, std::vector<const TTablet*>> slackTablets;
+        for (const auto* cell : bundleCells) {
+            slackTablets[cell] = {};
         }
+        for (const auto& pair : tabletsByTable) {
+            ReassignExtMemoryTabletsOfTable(
+                pair.second,
+                bundleCells,
+                haveEmptyCells ? &slackTablets : nullptr);
+        }
+
+        if (haveEmptyCells) {
+            std::vector<std::pair<const TTabletCell*, std::vector<const TTablet*>>> slackTabletsVector;
+            for (auto&& pair : slackTablets) {
+                slackTabletsVector.emplace_back(pair.first, std::move(pair.second));
+            }
+            ReassignSlackTablets(slackTabletsVector);
+        }
+
+        int actionCount = ApplyMoveActions();
 
         Profiler.Enqueue(
             "/ext_memory_moves",

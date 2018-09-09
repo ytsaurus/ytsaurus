@@ -47,12 +47,14 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes) override;
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount) override;
+        int blockCount,
+        const TNullable<i64>& estimatedSize) override;
 
     virtual bool IsValid() const override;
 
@@ -92,6 +94,7 @@ public:
         const TClientBlockReadOptions& options,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize,
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
         , Config_(config)
@@ -100,6 +103,7 @@ public:
         , BlockReadOptions_(options)
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
+        , EstimatedSize_(estimatedSize)
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
         , Reader_(reader)
     {
@@ -125,6 +129,7 @@ private:
     const TClientBlockReadOptions BlockReadOptions_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
+    const TNullable<i64> EstimatedSize_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
     TWeakPtr<TRepairingReader> Reader_;
 
@@ -137,7 +142,7 @@ private:
         }
 
         TNullable<TPartIndexSet> erasedIndicesOnPreviousIteration;
-        TError error;
+        std::vector<TError> innerErrors;
         while (true) {
             auto reader = Reader_.Lock();
             if (!reader) {
@@ -151,7 +156,7 @@ private:
 
             if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
                 THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not change")
-                    << error;
+                    << innerErrors;
             }
 
             for (size_t i = 0; i < Readers_.size(); ++i) {
@@ -163,7 +168,8 @@ private:
 
             auto maybeRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
             if (!maybeRepairIndices) {
-                THROW_ERROR_EXCEPTION("Not enough parts to read with repair");
+                THROW_ERROR_EXCEPTION("Not enough parts to read with repair")
+                    << innerErrors;
             }
             auto repairIndices = *maybeRepairIndices;
 
@@ -186,12 +192,12 @@ private:
             }
 
             auto repairingReader = CreateRepairingErasureReader(Codec_, bannedPartIndicesList, readers);
-            auto result = WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_));
+            auto result = WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_, EstimatedSize_));
 
             if (result.IsOK()) {
                 return result.Value();
             } else {
-                error = result;
+                innerErrors.push_back(result);
             }
         }
     }
@@ -255,8 +261,10 @@ TFuture<TChunkMeta> TRepairingReader::GetMeta(
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TClientBlockReadOptions& options,
-    const std::vector<int>& blockIndexes)
+    const std::vector<int>& blockIndexes,
+    const TNullable<i64>& estimatedSize)
 {
+    // We don't use estimatedSize here, because during repair actual use of bandwidth is much higher that the size of blocks;
     return PreparePlacementMeta(options).Apply(
         BIND([=, this_ = MakeStrong(this)] () {
             auto session = New<TRepairingReaderSession>(
@@ -267,6 +275,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
                 options,
                 PlacementExt_,
                 blockIndexes,
+                estimatedSize,
                 MakeStrong(this));
             return session->Run();
         }));
@@ -275,7 +284,8 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
-    int blockCount)
+    int blockCount,
+    const TNullable<i64>& estimatedSize)
 {
     Y_UNIMPLEMENTED();
 }

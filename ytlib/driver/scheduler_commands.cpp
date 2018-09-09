@@ -139,8 +139,8 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
             .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
                 fluent.Item()
                     .BeginAttributes()
-                        .Item("operation_type").Value(operation.OperationType)
-                        .Item("state").Value(operation.OperationState)
+                        .Item("operation_type").Value(operation.Type)
+                        .Item("state").Value(operation.State)
                         .Item("authenticated_user").Value(operation.AuthenticatedUser)
                         .Item("start_time").Value(operation.StartTime)
                         .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
@@ -159,7 +159,7 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             fluent.Item("suspended").Value(operation.Suspended);
                         })
                     .EndAttributes()
-                    .Value(operation.OperationId);
+                    .Value(operation.Id);
             });
     };
 
@@ -186,9 +186,9 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                 .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
                     fluent
                         .Item().BeginMap()
-                            .Item("id").Value(operation.OperationId)
-                            .Item("type").Value(operation.OperationType)
-                            .Item("state").Value(operation.OperationState)
+                            .Item("id").Value(operation.Id)
+                            .Item("type").Value(operation.Type)
+                            .Item("state").Value(operation.State)
                             .Item("authenticated_user").Value(operation.AuthenticatedUser)
                             .Item("start_time").Value(operation.StartTime)
                             .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
@@ -205,9 +205,6 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             })
                             .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("suspended").Value(operation.Suspended);
-                            })
-                            .DoIf(operation.Pool.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("pool").Value(operation.Pool);
                             })
                         .EndMap();
                 })

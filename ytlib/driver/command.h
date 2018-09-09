@@ -6,8 +6,6 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
-#include <yt/ytlib/security_client/public.h>
-
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
 
@@ -82,6 +80,8 @@ class TCommandBase
         virtual void DoExecute(ICommandContextPtr context) = 0;
 
         TCommandBase();
+
+        bool RewriteOperationPath;
 
     public:
         virtual void Execute(ICommandContextPtr context) override;
@@ -290,6 +290,10 @@ class TTypedCommand
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
 { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TYPath RewritePath(const NYPath::TYPath& path, bool rewriteOperationPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

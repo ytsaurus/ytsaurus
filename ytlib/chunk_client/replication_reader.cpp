@@ -126,7 +126,8 @@ public:
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
-        IThroughputThrottlerPtr throttler,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler,
         TTrafficMeterPtr trafficMeter)
         : Config_(config)
         , Options_(options)
@@ -135,7 +136,8 @@ public:
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
-        , Throttler_(throttler)
+        , BandwidthThrottler_(std::move(bandwidthThrottler))
+        , RpsThrottler_(std::move(rpsThrottler))
         , Networks_(client->GetNativeConnection()->GetNetworks())
         , TrafficMeter_(trafficMeter)
         , LocateChunksInvoker_(CreateFixedPriorityInvoker(
@@ -171,12 +173,14 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes) override;
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount) override;
+        int blockCount,
+        const TNullable<i64>& estimatedSize) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TClientBlockReadOptions& options,
@@ -226,7 +230,8 @@ private:
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
-    const IThroughputThrottlerPtr Throttler_;
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
     const TNetworkPreferenceList Networks_;
     const TTrafficMeterPtr TrafficMeter_;
 
@@ -995,7 +1000,8 @@ public:
     TReadBlockSetSession(
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
-        const std::vector<int>& blockIndexes)
+        const std::vector<int>& blockIndexes,
+        const TNullable<i64>& estimatedSize)
         : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
     {
@@ -1019,6 +1025,10 @@ public:
 private:
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
+
+    const TNullable<i64> EstimatedSize_;
+
+    i64 BytesThrottled_ = 0;
 
     //! Promise representing the session.
     TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -1104,6 +1114,8 @@ private:
         std::vector<TFuture<TDataNodeServiceProxy::TRspGetBlockSetPtr>> asyncResults;
         std::vector<TPeer> probePeers;
 
+
+
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.Address);
             if (!channel) {
@@ -1119,6 +1131,7 @@ private:
             ToProto(req->mutable_chunk_id(), reader->ChunkId_);
             ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
             ToProto(req->mutable_block_indexes(), blockIndexes);
+            req->SetRequestAck(false);
 
             probePeers.push_back(peer);
             asyncResults.push_back(req->Invoke());
@@ -1264,6 +1277,18 @@ private:
                 return;
             }
 
+            // One extra request for actually getting blocks.
+            auto throttleResult = WaitFor(reader->RpsThrottler_->Throttle(1 + candidates.size()));
+            if (!throttleResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                    "Failed to throttle bandwidth in reader")
+                    << throttleResult;
+                LOG_WARNING(error, "Chunk reader failed");
+                OnSessionFailed(true, error);
+                return;
+            }
+
             maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
 
@@ -1272,6 +1297,25 @@ private:
         if (!channel) {
             RequestBlocks();
             return;
+        }
+
+        if (peerAddress != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
+            // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
+            // In order not to throttle twice, we use BandwidthThrottled_ flag.
+            // Still it protects us from bursty incoming traffic on the host.
+            // If estimated size was not given, we fallback to post-throttling on actual received size.
+
+            BytesThrottled_ = *EstimatedSize_;
+            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(*EstimatedSize_));
+            if (!throttleResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                    "Failed to throttle bandwidth in reader")
+                    << throttleResult;
+                LOG_WARNING(error, "Chunk reader failed");
+                OnSessionFailed(true, error);
+                return;
+            }
         }
 
         TDataNodeServiceProxy proxy(channel);
@@ -1369,9 +1413,10 @@ private:
               bytesReceived,
               rsp->peer_descriptors_size());
 
-
-        if (peerAddress != GetLocalHostName()) {
-            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+        if (peerAddress != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
+            auto delta = TotalBytesReceived_ - BytesThrottled_;
+            BytesThrottled_ = TotalBytesReceived_;
+            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(delta));
             if (!throttleResult.IsOK()) {
                 auto error = TError(
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
@@ -1420,11 +1465,12 @@ private:
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
-    const std::vector<int>& blockIndexes)
+    const std::vector<int>& blockIndexes,
+    const TNullable<i64>& estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockSetSession>(this, options, blockIndexes);
+    auto session = New<TReadBlockSetSession>(this, options, blockIndexes, estimatedSize);
     return session->Run();
 }
 
@@ -1438,10 +1484,12 @@ public:
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
-        int blockCount)
+        int blockCount,
+        const TNullable<i64> estimatedSize)
         : TSessionBase(reader, options)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
+        , EstimatedSize_(estimatedSize)
     {
         Logger.AddTag("Blocks: %v-%v",
             FirstBlockIndex_,
@@ -1467,11 +1515,15 @@ private:
     //! Number of blocks to fetch.
     const int BlockCount_;
 
+    TNullable<i64> EstimatedSize_;
+
     //! Promise representing the session.
     TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
     std::vector<TBlock> FetchedBlocks_;
+
+    i64 BytesThrottled_ = 0;
 
     virtual bool IsCanceled() const override
     {
@@ -1520,10 +1572,33 @@ private:
             return;
         }
 
-        LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v-%v)",
+        LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v-%v, EstimatedSize: %v, BytesThrottled: %v)",
             peerAddress,
             FirstBlockIndex_,
-            FirstBlockIndex_ + BlockCount_ - 1);
+            FirstBlockIndex_ + BlockCount_ - 1,
+            EstimatedSize_,
+            BytesThrottled_);
+
+
+        if (peerAddress != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
+            // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
+            // In order not to throttle twice, we use BandwidthThrottled_ flag.
+            // Still it protects us from bursty incoming traffic on the host.
+            // If estimated size was not given, we fallback to post-throttling on actual received size.
+
+            BytesThrottled_ = *EstimatedSize_;
+            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(*EstimatedSize_));
+            if (!throttleResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                    "Failed to throttle bandwidth in reader")
+                    << throttleResult;
+                LOG_WARNING(error, "Chunk reader failed");
+                OnSessionFailed(true, error);
+                return;
+            }
+        }
+
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
@@ -1601,8 +1676,10 @@ private:
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
         
-        if (peerAddress != GetLocalHostName()) {
-            auto throttleResult = WaitFor(reader->Throttler_->Throttle(bytesReceived));
+        if (peerAddress != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
+            auto delta = TotalBytesReceived_ - BytesThrottled_;
+            BytesThrottled_ = TotalBytesReceived_;
+            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(delta));
             if (!throttleResult.IsOK()) {
                 auto error = TError(
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
@@ -1651,11 +1728,12 @@ private:
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
-    int blockCount)
+    int blockCount,
+    const TNullable<i64>& estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockRangeSession>(this, options, firstBlockIndex, blockCount);
+    auto session = New<TReadBlockRangeSession>(this, options, firstBlockIndex, blockCount, estimatedSize);
     return session->Run();
 }
 
@@ -1834,7 +1912,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     YCHECK(config);
     YCHECK(blockCache);
@@ -1850,7 +1929,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         chunkId,
         seedReplicas,
         std::move(blockCache),
-        std::move(throttler),
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
         std::move(trafficMeter));
     reader->Initialize();
     return reader;

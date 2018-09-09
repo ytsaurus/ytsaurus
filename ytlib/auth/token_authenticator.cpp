@@ -170,7 +170,14 @@ public:
             tokenMD5,
             userIP);
 
-        auto path = Config_->RootPath + "/" + ToYPathLiteral(credentials.Token);
+        TString path;
+        if (!Config_->Secure) {
+            path = Config_->RootPath + "/" + ToYPathLiteral(credentials.Token);
+        } else {
+            path = Config_->RootPath + "/" + TSHA1Hasher()
+                .Append(credentials.Token)
+                .GetHexDigestLower();
+        }
         return Client_->GetNode(path)
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallResult,

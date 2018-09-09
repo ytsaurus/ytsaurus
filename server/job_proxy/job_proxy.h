@@ -63,8 +63,9 @@ public:
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler() const override;
-    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler() const override;
+    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const override;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
 
 private:
     const TJobProxyConfigPtr Config_;
@@ -123,8 +124,9 @@ private:
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
-    NConcurrency::IThroughputThrottlerPtr InThrottler_;
-    NConcurrency::IThroughputThrottlerPtr OutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr InBandwidthThrottler_;
+    NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
+    NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 

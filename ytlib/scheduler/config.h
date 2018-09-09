@@ -6,8 +6,8 @@
 
 #include <yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/formats/format.h>
-#include <yt/ytlib/formats/config.h>
+#include <yt/client/formats/format.h>
+#include <yt/client/formats/config.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
@@ -33,6 +33,29 @@ namespace NScheduler {
 // Ratio of MaxWeight and MinWeight shouldn't lose precision.
 const double MinSchedulableWeight = sqrt(std::numeric_limits<double>::epsilon());
 const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPoolName {
+public:
+    TPoolName();
+    TPoolName(TString pool, TNullable<TString> parent);
+
+    static const char DELIMITER;
+
+    TString ToString() const;
+    static TPoolName FromString(const TString& value);
+
+    const TString& GetPool() const;
+    const TNullable<TString>& GetParentPool() const;
+
+private:
+    TString Pool;
+    TNullable<TString> ParentPool;
+};
+
+void Deserialize(TPoolName& value, NYTree::INodePtr node);
+void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,6 +147,10 @@ public:
     bool EnableAggressiveStarvation;
 
     bool ForbidImmediateOperations;
+
+    bool CreateEphemeralSubpools;
+
+    ESchedulingMode EphemeralSubpoolsMode;
 
     TPoolConfig();
 
@@ -467,6 +494,10 @@ public:
     //! Flag showing that user code is guaranteed to be deterministic.
     bool Deterministic;
 
+    //! This flag forces creation of memory cgroup for user job and getting memory usage statistics from this cgroup.
+    //! Makes sense only with porto environment.
+    bool UsePortoMemoryTracking;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
@@ -511,10 +542,10 @@ class TOperationWithUserJobSpec
 {
 public:
     TNullable<NYPath::TRichYPath> StderrTablePath;
-    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
+    NTableClient::TBlobTableWriterConfigPtr StderrTableWriter;
 
     TNullable<NYPath::TRichYPath> CoreTablePath;
-    NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
+    NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
 
     TOperationWithUserJobSpec();
 };
@@ -750,6 +781,8 @@ public:
 
     std::vector<NTableClient::TOwningKey> PivotKeys;
 
+    bool ValidateKeyColumnTypes;
+
     TNewReduceOperationSpec();
 
 private:
@@ -939,7 +972,7 @@ class TOperationFairShareTreeRuntimeParameters
 public:
     TNullable<double> Weight;
 
-    TNullable<TString> Pool;
+    TNullable<TPoolName> Pool;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -959,8 +992,6 @@ public:
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParameters();
-
-    void FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)

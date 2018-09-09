@@ -29,13 +29,15 @@ public:
 
     IOperationControllerPtr CreateController(const TOperationPtr& operation);
 
-    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& operation, int minAgentCount = 1);
+    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& operation);
     void AssignOperationToAgent(
         const TOperationPtr& operation,
         const TControllerAgentPtr& agent);
 
     TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation);
     void UnregisterOperationFromAgent(const TOperationPtr& operation);
+
+    void UpdateConfig(TSchedulerConfigPtr config);
 
     /*!
      *  Thread affinity: any

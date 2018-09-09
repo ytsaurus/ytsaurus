@@ -22,12 +22,15 @@ public:
 private:
     NCellNode::TBootstrap* const Bootstrap;
 
+    THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
+
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobPrepared);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobProgress);
     DECLARE_RPC_SERVICE_METHOD(NProto, UpdateResourceUsage);
-    DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleBandwidth);
+    DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleJob);
+    DECLARE_RPC_SERVICE_METHOD(NProto, PollThrottlingRequest);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

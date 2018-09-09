@@ -30,6 +30,10 @@ DEFINE_ENUM(ETabletBackgroundActivity,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int TypicalTabletSlotCount = 10;
+constexpr int TypicalPeerCount = 5;
+constexpr int MaxPeerCount = 10;
+
 //! Signatures enable checking tablet transaction integrity.
 /*!
  *  When a transaction is created, its signature is #InitialTransactionSignature.

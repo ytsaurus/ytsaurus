@@ -6,8 +6,6 @@
 #include "private.h"
 #include "driver.h"
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/ytree/convert.h>
@@ -64,7 +62,7 @@ NApi::ITransactionPtr TTransactionalCommandBase<
     }
 
     NApi::TTransactionAttachOptions options;
-    options.Ping = !required;
+    options.Ping = false;
     options.PingAncestors = this->Options.PingAncestors;
     options.Sticky = this->Options.Sticky;
     return context->GetClient()->AttachTransaction(transactionId, options);

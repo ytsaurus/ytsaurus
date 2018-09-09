@@ -29,6 +29,7 @@ using namespace NYson;
 using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -71,7 +72,7 @@ private:
             .ValueOrThrow();
 
         std::vector<TSharedRef> jobSpecs;
-        results.reserve(jobSpecRequests.size());
+        jobSpecs.reserve(jobSpecRequests.size());
         for (size_t index = 0; index < jobSpecRequests.size(); ++index) {
             const auto& subrequest = jobSpecRequests[index];
             const auto& subresponse = results[index];

@@ -88,7 +88,8 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter,
         bool unordered,
-        IThroughputThrottlerPtr throttler)
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
@@ -97,7 +98,8 @@ public:
         , NameTable_(std::move(nameTable))
         , ColumnFilter_(columnFilter)
         , Unordered_(unordered)
-        , Throttler_(std::move(throttler))
+        , BandwidthThrottler_(std::move(bandwidthThrottler))
+        , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
     {
         YCHECK(Config_);
@@ -187,7 +189,8 @@ private:
     const TNameTablePtr NameTable_;
     const TColumnFilter ColumnFilter_;
     const bool Unordered_;
-    const IThroughputThrottlerPtr Throttler_;
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
 
     const TTransactionId TransactionId_;
 
@@ -316,6 +319,11 @@ private:
 
             auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
+            const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+            auto columnFilter = ColumnFilter_.IsUniversal()
+                ? CreateColumnFilter(dataSource.Columns(), NameTable_)
+                : ColumnFilter_;
+
             UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
                 Config_,
                 options,
@@ -328,9 +336,10 @@ private:
                 dataSliceDescriptor,
                 NameTable_,
                 BlockReadOptions_,
-                ColumnFilter_,
+                columnFilter,
                 /* trafficMeter */ nullptr,
-                Throttler_);
+                BandwidthThrottler_,
+                RpsThrottler_);
         } else {
             dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
                 path,
@@ -361,14 +370,15 @@ private:
                 schema.GetKeyColumns(),
                 /* partitionTag */ Null,
                 /* trafficMeter */ nullptr,
-                Throttler_);
+                BandwidthThrottler_,
+                RpsThrottler_);
         }
 
         WaitFor(UnderlyingReader_->GetReadyEvent())
             .ThrowOnError();
 
         if (Transaction_) {
-            ListenTransaction(Transaction_);
+            StartListenTransaction(Transaction_);
         }
 
         LOG_INFO("Table reader opened");
@@ -423,7 +433,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
@@ -442,7 +453,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
         nameTable,
         columnFilter,
         options.Unordered,
-        throttler);
+        bandwidthThrottler,
+        rpsThrottler);
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;

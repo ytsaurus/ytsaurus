@@ -360,11 +360,11 @@ public:
         GlobalWatcherHandlers_.push_back(handler);
     }
 
-    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+    void SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period});
+        CustomGlobalWatcherRecords_[type] = TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period};
     }
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
@@ -402,6 +402,7 @@ public:
         }
         if (CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]) {
             CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]->SetPeriod(Config_->NodesAttributesUpdatePeriod);
+            CustomGlobalWatcherRecords_[EWatcherType::NodeAttributes].Period = Config_->NodesAttributesUpdatePeriod;
         }
 
         ScheduleTestingDisconnect();
@@ -438,7 +439,7 @@ private:
     std::vector<TWatcherRequester> GlobalWatcherRequesters_;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
-    std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
+    TEnumIndexedVector<TPeriodicExecutorRecord, EWatcherType> CustomGlobalWatcherRecords_;
     TEnumIndexedVector<TPeriodicExecutorPtr, EWatcherType> CustomGlobalWatcherExecutors_;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
@@ -597,13 +598,14 @@ private:
     {
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
-            : Owner_(owner)
+            : Owner_(std::move(owner))
             , ServiceAddresses_(Owner_->Bootstrap_->GetLocalAddresses())
         { }
 
         void Run()
         {
             FireConnecting();
+            EnsureNoSafeMode();
             RegisterInstance();
             StartLockTransaction();
             TakeLock();
@@ -631,6 +633,23 @@ private:
         void FireConnecting()
         {
             Owner_->MasterConnecting_.Fire();
+        }
+
+        void EnsureNoSafeMode()
+        {
+            TObjectServiceProxy proxy(Owner_
+                ->Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+            auto req = TCypressYPathProxy::Get("//sys/@config/enable_safe_mode");
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting \"enable_safe_mode\" from master");
+
+            bool safeMode = ConvertTo<bool>(TYsonString(rspOrError.Value()->value()));
+            if (safeMode) {
+                THROW_ERROR_EXCEPTION("Cluster is in safe mode");
+            }
         }
 
         // - Register scheduler instance.
@@ -776,7 +795,8 @@ private:
                 "events",
                 "slot_index_per_pool_tree",
                 "runtime_parameters",
-                "output_completion_transaction_id"
+                "output_completion_transaction_id",
+                "suspended",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -870,14 +890,8 @@ private:
 
             auto user = attributes.Get<TString>("authenticated_user");
 
-            TOperationRuntimeParametersPtr runtimeParams = nullptr;
-            // COMPAT(renadeen): there is no runtime_parameters when we revive operations after cluster update on this version
-            if (attributes.Contains("runtime_parameters")) {
-                runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
-            } else {
-                runtimeParams = New<TOperationRuntimeParameters>();
-                Owner_->Bootstrap_->GetScheduler()->GetStrategy()->InitOperationRuntimeParameters(runtimeParams, spec, user);
-            }
+            YCHECK(attributes.Contains("runtime_parameters"));
+            TOperationRuntimeParametersPtr runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
 
             auto operation = New<TOperation>(
                 operationId,
@@ -892,7 +906,8 @@ private:
                 spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 attributes.Get<EOperationState>("state"),
-                attributes.Get<std::vector<TOperationEvent>>("events", {}));
+                attributes.Get<std::vector<TOperationEvent>>("events", {}),
+                /* suspended */ attributes.Get<bool>("suspended", false));
 
             operation->SetShouldFlushAcl(true);
 
@@ -909,7 +924,7 @@ private:
         void UpdateGlobalWatchers()
         {
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : Owner_->GlobalWatcherRequesters_) {
+            for (const auto& requester : Owner_->GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
@@ -919,7 +934,7 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             auto watcherResponses = batchRspOrError.ValueOrThrow();
 
-            for (auto handler : Owner_->GlobalWatcherHandlers_) {
+            for (const auto& handler : Owner_->GlobalWatcherHandlers_) {
                 handler.Run(watcherResponses);
             }
             for (const auto& record : Owner_->CustomGlobalWatcherRecords_) {
@@ -1033,10 +1048,7 @@ private:
                         return nullptr;
                     }
                     try {
-                        auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
-                            Bootstrap_->GetMasterClient()->GetNativeConnection(),
-                            CellTagFromId(transactionId));
-                        auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
+                        auto client = CreateClientForTransaction(Bootstrap_->GetMasterClient(), transactionId);
 
                         TTransactionAttachOptions options;
                         options.Ping = ping;
@@ -1050,28 +1062,29 @@ private:
                     }
                 };
 
+                TOperationTransactions transactions;
                 TOperationRevivalDescriptor revivalDescriptor;
-                revivalDescriptor.AsyncTransaction = attachTransaction(
+                transactions.AsyncTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
                     true,
                     "async");
-                revivalDescriptor.InputTransaction = attachTransaction(
+                transactions.InputTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
                     true,
                     "input");
-                revivalDescriptor.OutputTransaction = attachTransaction(
+                transactions.OutputTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
                     true,
                     "output");
-                revivalDescriptor.OutputCompletionTransaction = attachTransaction(
+                transactions.OutputCompletionTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
                     true,
                     "output completion");
-                revivalDescriptor.DebugTransaction = attachTransaction(
+                transactions.DebugTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
                     true,
                     "debug");
-                revivalDescriptor.DebugCompletionTransaction = attachTransaction(
+                transactions.DebugCompletionTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
                     true,
                     "debug completion");
@@ -1089,6 +1102,7 @@ private:
                 }
 
                 operation->RevivalDescriptor() = std::move(revivalDescriptor);
+                operation->Transactions() = std::move(transactions);
             }
         }
 
@@ -1105,10 +1119,10 @@ private:
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
             for (const auto& operation : operations) {
-                auto& revivalDescriptor = *operation->RevivalDescriptor();
+                const auto& transactions = *operation->Transactions();
                 std::vector<TTransactionId> possibleTransactions;
-                if (revivalDescriptor.OutputTransaction) {
-                    possibleTransactions.push_back(revivalDescriptor.OutputTransaction->GetId());
+                if (transactions.OutputTransaction) {
+                    possibleTransactions.push_back(transactions.OutputTransaction->GetId());
                 }
                 possibleTransactions.push_back(NullTransactionId);
 
@@ -1231,7 +1245,7 @@ private:
                     &BuildOperationAce,
                     operation->GetOwners(),
                     operation->GetAuthenticatedUser(),
-                    std::vector<EPermission>({EPermission::Write}),
+                    std::vector<EPermission>({EPermission::Write, EPermission::Read}),
                     _1))
             .EndList();
     }
@@ -1473,7 +1487,7 @@ private:
         // Global watchers.
         {
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : GlobalWatcherRequesters_) {
+            for (const auto& requester : GlobalWatcherRequesters_) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
@@ -1521,7 +1535,7 @@ private:
         }
 
         const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : GlobalWatcherHandlers_) {
+        for (const auto& handler : GlobalWatcherHandlers_) {
             handler.Run(batchRsp);
         }
 
@@ -1699,9 +1713,9 @@ void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
     Impl_->AddGlobalWatcherHandler(handler);
 }
 
-void TMasterConnector::AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+void TMasterConnector::SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
 {
-    Impl_->AddCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
+    Impl_->SetCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
 }
 
 void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)

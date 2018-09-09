@@ -5,6 +5,7 @@
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
@@ -31,6 +32,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TNullable<NTableClient::TTableSchema>, Schema);
     DEFINE_BYREF_RW_PROPERTY(TNullable<std::vector<TString>>, Columns);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
 
     TDataSource() = default;
 
@@ -39,19 +41,22 @@ public:
         const TNullable<TString>& path,
         const TNullable<NTableClient::TTableSchema>& schema,
         const TNullable<std::vector<TString>>& columns,
-        NTransactionClient::TTimestamp timestamp);
+        NTransactionClient::TTimestamp timestamp,
+        const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors);
 };
 
 TDataSource MakeVersionedDataSource(
     const TNullable<TString>& path,
     const NTableClient::TTableSchema& schema,
     const TNullable<std::vector<TString>>& columns,
-    NTransactionClient::TTimestamp timestamp);
+    NTransactionClient::TTimestamp timestamp,
+    const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
 TDataSource MakeUnversionedDataSource(
     const TNullable<TString>& path,
     const TNullable<NTableClient::TTableSchema>& schema,
-    const TNullable<std::vector<TString>>& columns);
+    const TNullable<std::vector<TString>>& columns,
+    const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
 TDataSource MakeFileDataSource(const TNullable<TString>& path);
 

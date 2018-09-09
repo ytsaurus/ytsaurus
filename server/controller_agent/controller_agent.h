@@ -118,7 +118,9 @@ public:
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
     TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId);
-    TFuture<TOperationControllerInitializationResult> InitializeOperation(const TOperationPtr& operation, const TNullable<TControllerTransactions>& transactions);
+    TFuture<TOperationControllerInitializeResult> InitializeOperation(
+        const TOperationPtr& operation,
+        const TNullable<TControllerTransactionIds>& transactions);
     TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation);
     TFuture<TOperationControllerMaterializeResult> MaterializeOperation(const TOperationPtr& operation);
     TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation);

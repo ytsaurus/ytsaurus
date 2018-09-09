@@ -36,7 +36,7 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
 
     auto reader = WaitFor(
         context->GetClient()->CreateFileReader(
-            Path.GetPath(),
+            RewritePath(Path.GetPath(), RewriteOperationPath),
             Options))
         .ValueOrThrow();
 

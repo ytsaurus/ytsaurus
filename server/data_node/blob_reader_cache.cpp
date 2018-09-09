@@ -19,19 +19,22 @@ using namespace NChunkClient;
 
 static const auto& Logger = DataNodeLogger;
 
+typedef std::pair<TString, TChunkId> TReaderCacheKey;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobReaderCache::TCachedReader
-    : public TAsyncCacheValueBase<TChunkId, TCachedReader>
+    : public TAsyncCacheValueBase<TReaderCacheKey, TCachedReader>
     , public TFileReader
 {
 public:
     TCachedReader(
         const IIOEnginePtr& ioEngine,
+        const TString& locationId,
         const TChunkId& chunkId,
         const TString& fileName,
         bool validateBlockChecksums)
-        : TAsyncCacheValueBase<TChunkId, TCachedReader>(chunkId)
+        : TAsyncCacheValueBase<TReaderCacheKey, TCachedReader>({locationId, chunkId})
         , TFileReader(ioEngine, chunkId, fileName, validateBlockChecksums)
         , ChunkId_(chunkId)
     { }
@@ -54,7 +57,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobReaderCache::TImpl
-    : public TAsyncSlruCacheBase<TChunkId, TCachedReader>
+    : public TAsyncSlruCacheBase<TReaderCacheKey, TCachedReader>
 {
 public:
     explicit TImpl(TDataNodeConfigPtr config)
@@ -72,7 +75,7 @@ public:
         const auto& Profiler = location->GetProfiler();
 
         auto chunkId = chunk->GetId();
-        auto cookie = BeginInsert(chunkId);
+        auto cookie = BeginInsert({location->GetId(), chunkId});
         if (cookie.IsActive()) {
             auto fileName = chunk->GetFileName();
             LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
@@ -81,7 +84,7 @@ public:
 
             PROFILE_TIMING ("/blob_chunk_reader_open_time") {
                 try {
-                    auto reader = New<TCachedReader>(chunk->GetLocation()->GetIOEngine(), chunkId, fileName, Config_->ValidateBlockChecksums);
+                    auto reader = New<TCachedReader>(location->GetIOEngine(), location->GetId(), chunkId, fileName, Config_->ValidateBlockChecksums);
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
                     auto error = TError(
@@ -105,7 +108,7 @@ public:
 
     void EvictReader(IChunk* chunk)
     {
-        TAsyncSlruCacheBase::TryRemove(chunk->GetId());
+        TAsyncSlruCacheBase::TryRemove({chunk->GetLocation()->GetId(), chunk->GetId()});
     }
 
 private:
@@ -118,8 +121,9 @@ private:
 
         TAsyncSlruCacheBase::OnAdded(reader);
 
-        LOG_TRACE("Block chunk reader added to cache (ChunkId: %v)",
-            reader->GetKey());
+        LOG_TRACE("Block chunk reader added to cache (Location: %v, ChunkId: %v)",
+            reader->GetKey().first,
+            reader->GetKey().second);
     }
 
     virtual void OnRemoved(const TCachedReaderPtr& reader) override
@@ -128,8 +132,9 @@ private:
 
         TAsyncSlruCacheBase::OnRemoved(reader);
 
-        LOG_TRACE("Block chunk reader removed from cache (ChunkId: %v)",
-            reader->GetKey());
+        LOG_TRACE("Block chunk reader removed from cache (Location: %v, ChunkId: %v)",
+            reader->GetKey().first,
+            reader->GetKey().second);
     }
 
 };

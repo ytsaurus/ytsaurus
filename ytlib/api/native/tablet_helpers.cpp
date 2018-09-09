@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/table_client/name_table.h>
@@ -13,6 +15,7 @@ namespace NYT {
 namespace NApi {
 namespace NNative {
 
+using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NHiveClient;
@@ -262,6 +265,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
     ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
     return tabletInfo;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

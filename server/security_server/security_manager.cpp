@@ -306,6 +306,7 @@ public:
         ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
         OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
         FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
+        OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1123,6 +1124,7 @@ public:
                 permission,
                 user->GetName());
             result.Action = ESecurityAction::Deny;
+            result.Subject = user;
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
@@ -1418,6 +1420,9 @@ private:
     TUserId FileCacheUserId_;
     TUser* FileCacheUser_ = nullptr;
 
+    TUserId OperationsCleanerUserId_;
+    TUser* OperationsCleanerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1548,7 +1553,8 @@ private:
             id == JobUserId_ ||
             id == SchedulerUserId_ ||
             id == ReplicatorUserId_ ||
-            id == FileCacheUserId_)
+            id == FileCacheUserId_ ||
+            id == OperationsCleanerUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1724,7 +1730,10 @@ private:
             auto* account = pair.second;
 
             // Reconstruct account name map.
-            YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+            if (IsObjectAlive(account)) {
+                YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+            }
+
 
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
@@ -1736,7 +1745,9 @@ private:
             auto* user = pair.second;
 
             // Reconstruct user name map.
-            YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+            if (IsObjectAlive(user)) {
+                YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+            }
 
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
@@ -1748,7 +1759,9 @@ private:
             auto* group = pair.second;
 
             // Reconstruct group name map.
-            YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+            if (IsObjectAlive(group)) {
+                YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+            }
         }
 
         InitBuiltins();
@@ -1980,6 +1993,7 @@ private:
         GuestUser_ = nullptr;
         JobUser_ = nullptr;
         SchedulerUser_ = nullptr;
+        OperationsCleanerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -2097,6 +2111,12 @@ private:
         if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
             FileCacheUser_->SetRequestRateLimit(1000000);
             FileCacheUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // operations cleaner
+        if (EnsureBuiltinUserInitialized(OperationsCleanerUser_, OperationsCleanerUserId_, OperationsCleanerUserName)) {
+            OperationsCleanerUser_->SetRequestRateLimit(1000000);
+            OperationsCleanerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts

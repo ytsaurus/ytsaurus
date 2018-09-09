@@ -283,16 +283,8 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
-        auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
-        possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
-    } else {
-        if (GetLocalResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio)
-        {
-            auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
-            possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
-        }
-    }
+    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
+    possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
 
     Attributes_.MaxPossibleUsageRatio = std::min(
         possibleUsageRatio,
@@ -746,10 +738,6 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
 
 TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
-    if (!TreeConfig_->EnableNewPossibleResourceUsageComputation) {
-        limit = Min(limit, MaxPossibleResourceUsage() - GetLocalResourceUsage());
-    }
-
     auto additionalUsage = ZeroJobResources();
 
     for (const auto& child : EnabledChildren_) {
@@ -1107,6 +1095,7 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
 
+        childAttributes.RecursiveMinShareRatio = 0.0;
         childAttributes.AdjustedMinShareRatio = 0.0;
 
         childAttributes.FifoIndex = index;
@@ -1132,12 +1121,24 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
         auto minShareRatio = child->GetMinShareRatio();
-        minShareRatioSum += minShareRatio;
-        childAttributes.RecursiveMinShareRatio = Attributes_.RecursiveMinShareRatio * minShareRatio;
+        auto minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
+
+        childAttributes.RecursiveMinShareRatio = std::max(
+            Attributes_.RecursiveMinShareRatio * minShareRatio,
+            minShareRatioByResources);
+
+        minShareRatioSum += childAttributes.RecursiveMinShareRatio;
 
         if (minShareRatio > 0 && Attributes_.RecursiveMinShareRatio == 0) {
             UpdateFairShareAlerts_.emplace_back(
                 "Min share ratio setting for %Qv has no effect "
+                "because min share ratio of parent pool %Qv is zero",
+                child->GetId(),
+                GetId());
+        }
+        if (minShareRatioByResources > 0 && Attributes_.RecursiveMinShareRatio == 0) {
+            UpdateFairShareAlerts_.emplace_back(
+                "Min share ratio resources setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
                 child->GetId(),
                 GetId());
@@ -1149,40 +1150,18 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     }
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
-    if (minShareRatioSum > 1.0 + RatioComparisonPrecision) {
+    if (minShareRatioSum > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
         UpdateFairShareAlerts_.emplace_back(
-            "Total min share ratio of children of %Qv is too large: %v > 1",
+            "Impossible to satisfy resources guarantees of pool %Qv, "
+            "total min share ratio of children is too large: %v > %v",
             GetId(),
-            minShareRatioSum);
+            minShareRatioSum,
+            Attributes_.RecursiveMinShareRatio);
 
-        double fitFactor = 1.0 / minShareRatioSum;
+        double fitFactor = Attributes_.RecursiveMinShareRatio / minShareRatioSum;
         for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             childAttributes.RecursiveMinShareRatio *= fitFactor;
-        }
-    }
-
-    minShareRatioSum = 0.0;
-    for (const auto& child : EnabledChildren_) {
-        auto& childAttributes = child->Attributes();
-        childAttributes.AdjustedMinShareRatio = std::max(
-            childAttributes.RecursiveMinShareRatio,
-            GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_));
-        minShareRatioSum += childAttributes.AdjustedMinShareRatio;
-    }
-
-    if (minShareRatioSum > Attributes_.GuaranteedResourcesRatio + RatioComparisonPrecision) {
-        UpdateFairShareAlerts_.emplace_back(
-            "Impossible to satisfy resources guarantees for children of %Qv, "
-            "given out resources share is greater than guaranteed resources share: %v > %v",
-            GetId(),
-            minShareRatioSum,
-            Attributes_.GuaranteedResourcesRatio);
-
-        double fitFactor = Attributes_.GuaranteedResourcesRatio / minShareRatioSum;
-        for (const auto& child : EnabledChildren_) {
-            auto& childAttributes = child->Attributes();
-            childAttributes.AdjustedMinShareRatio *= fitFactor;
         }
     }
 
@@ -1192,7 +1171,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             const auto& childAttributes = child->Attributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
-            result = std::max(result, childAttributes.AdjustedMinShareRatio);
+            result = std::max(result, childAttributes.RecursiveMinShareRatio);
             // Never give more than can be used.
             result = std::min(result, childAttributes.MaxPossibleUsageRatio);
             // Never give more than we can allocate.
@@ -1214,7 +1193,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             const auto& childAttributes = child->Attributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
-            result = std::max(result, childAttributes.AdjustedMinShareRatio);
+            result = std::max(result, childAttributes.RecursiveMinShareRatio);
             return result;
         },
         [&] (const TSchedulerElementPtr& child, double value, double uncertantyRatio) {
@@ -1223,10 +1202,10 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         },
         Attributes_.GuaranteedResourcesRatio);
 
-    // Trim adjusted min share ratio with demand ratio.
+    // Compute adjusted min share ratios.
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
-        double result = childAttributes.AdjustedMinShareRatio;
+        double result = childAttributes.RecursiveMinShareRatio;
         // Never give more than can be used.
         result = std::min(result, childAttributes.MaxPossibleUsageRatio);
         // Never give more than we can allocate.
@@ -1611,6 +1590,20 @@ TJobResources TOperationElementSharedState::Disable()
     return resourceUsage;
 }
 
+void TOperationElementSharedState::OnOperationDeactivated(EDeactivationReason reason)
+{
+    ++DeactivationReasons_[reason];
+}
+
+TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasons() const
+{
+    TEnumIndexedVector<int, EDeactivationReason> result;
+    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+        result[reason] = DeactivationReasons_[reason];
+    }
+    return result;
+}
+
 void TOperationElementSharedState::Enable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1786,6 +1779,11 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
+int TOperationElementSharedState::GetScheduledJobCount() const
+{
+    return ScheduledJobCount_;
+}
+
 TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1806,6 +1804,7 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     YCHECK(it.second);
 
     ++RunningJobCount_;
+    ++ScheduledJobCount_;
 
     IncreaseJobResourceUsage(&it.first->second, resourceUsage);
     return resourceUsage;
@@ -1823,6 +1822,16 @@ TPreemptionStatusStatisticsVector TOperationElementSharedState::GetPreemptionSta
     auto guard = Guard(PreemptionStatusStatisticsLock_);
 
     return PreemptionStatusStatistics_;
+}
+
+void TOperationElement::OnOperationDeactivated(EDeactivationReason reason)
+{
+    SharedState_->OnOperationDeactivated(reason);
+}
+
+TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasons() const
+{
+    return SharedState_->GetDeactivationReasons();
 }
 
 void TOperationElement::Disable()
@@ -2035,28 +2044,17 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = GetLocalResourceUsage();
-    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
-        if (!Dominates(limit, usage)) {
-            return usage * GetMinResourceRatio(limit, usage);
-        } else {
-            auto remainingDemand = ResourceDemand() - usage;
-            if (remainingDemand == ZeroJobResources()) {
-                return usage;
-            }
-
-            auto remainingLimit = Max(ZeroJobResources(), limit - usage);
-            // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
-            return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
-        }
+    if (!Dominates(limit, usage)) {
+        return usage * GetMinResourceRatio(limit, usage);
     } else {
-        // Max possible resource usage can be less than usage just after scheduler connection
-        // when not all nodes come with heartbeat to the scheduler.
-        limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
-        if (usage == ZeroJobResources()) {
-            return limit;
-        } else {
-            return usage * GetMinResourceRatio(limit, usage);
+        auto remainingDemand = ResourceDemand() - usage;
+        if (remainingDemand == ZeroJobResources()) {
+            return usage;
         }
+
+        auto remainingLimit = Max(ZeroJobResources(), limit - usage);
+        // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+        return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
     }
 }
 
@@ -2091,9 +2089,14 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
 
     attributes.Active = true;
 
-    if (!IsAlive()) {
-        ++context->DeactivationReasons[EDeactivationReason::IsNotAlive];
+    auto onOperationDeactivated = [&] (EDeactivationReason reason) {
+        ++context->DeactivationReasons[reason];
+        OnOperationDeactivated(reason);
         attributes.Active = false;
+    };
+
+    if (!IsAlive()) {
+        onOperationDeactivated(EDeactivationReason::IsNotAlive);
         return;
     }
 
@@ -2101,20 +2104,17 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context->CanSchedule[SchedulingTagFilterIndex_])
     {
-        ++context->DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
-        attributes.Active = false;
+        onOperationDeactivated(EDeactivationReason::UnmatchedSchedulingTag);
         return;
     }
 
     if (starvingOnly && !Starving_) {
-        ++context->DeactivationReasons[EDeactivationReason::IsNotStarving];
-        attributes.Active = false;
+        onOperationDeactivated(EDeactivationReason::IsNotStarving);
         return;
     }
 
     if (IsBlocked(context->SchedulingContext->GetNow())) {
-        ++context->DeactivationReasons[EDeactivationReason::IsBlocked];
-        attributes.Active = false;
+        onOperationDeactivated(EDeactivationReason::IsBlocked);
         return;
     }
 
@@ -2134,12 +2134,13 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributesList& dynami
 {
     return Format(
         "Scheduling info for tree %Qv = {%v, "
-        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v}",
+        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
         GetTreeId(),
         GetLoggingAttributesString(dynamicAttributesList),
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
-        GetPreemptionStatusStatistics());
+        GetPreemptionStatusStatistics(),
+        GetDeactivationReasons());
 }
 
 bool TOperationElement::ScheduleJob(TFairShareContext* context)
@@ -2159,6 +2160,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
 
     auto disableOperationElement = [&] (EDeactivationReason reason) {
         ++context->DeactivationReasons[reason];
+        OnOperationDeactivated(reason);
         context->DynamicAttributes(this).Active = false;
         updateAncestorsAttributes();
     };
@@ -2393,6 +2395,11 @@ int TOperationElement::GetAggressivelyPreemptableJobCount() const
 TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatistics() const
 {
     return SharedState_->GetPreemptionStatusStatistics();
+}
+
+int TOperationElement::GetScheduledJobCount() const
+{
+    return SharedState_->GetScheduledJobCount();
 }
 
 int TOperationElement::GetSlotIndex() const

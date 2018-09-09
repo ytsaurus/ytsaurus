@@ -270,7 +270,7 @@ const TYPath& GetOperationsArchiveJobsPath()
 
 const TYPath& GetOperationsArchiveJobSpecsPath()
 {
-    static TYPath path =  "//sys/operations_archive/job_specs";
+    static TYPath path = "//sys/operations_archive/job_specs";
     return path;
 }
 
@@ -313,6 +313,7 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Materializing ||
         state == EOperationState::Pending ||
         state == EOperationState::Reviving ||
+        state == EOperationState::RevivingJobs ||
         state == EOperationState::Running ||
         state == EOperationState::Completing ||
         state == EOperationState::Failing ||

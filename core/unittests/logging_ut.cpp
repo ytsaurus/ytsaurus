@@ -55,7 +55,7 @@ protected:
 
     void WritePlainTextEvent(ILogWriter* writer) {
         TLogEvent event;
-        event.Format = ELogEventFormat::PlainText;
+        event.MessageFormat = ELogMessageFormat::PlainText;
         event.Category = &Category;
         event.Level = ELogLevel::Debug;
         event.Message = "message";
@@ -158,12 +158,12 @@ TEST_F(TLoggingTest, Rule)
             writers = [ some_writer ];
         })")));
 
-    EXPECT_TRUE(rule->IsApplicable("some_service"));
-    EXPECT_FALSE(rule->IsApplicable("bus"));
-    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogEventFormat::PlainText));
-    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogEventFormat::PlainText));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogEventFormat::PlainText));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogEventFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogMessageFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogMessageFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogMessageFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogMessageFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogMessageFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogMessageFormat::PlainText));
 }
 
 TEST_F(TLoggingTest, LogManager)
@@ -221,7 +221,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     NFs::Remove("test.log");
 
     TLogEvent event;
-    event.Format = ELogEventFormat::Json;
+    event.MessageFormat = ELogMessageFormat::Structured;
     event.Category = &Category;
     event.Level = ELogLevel::Debug;
     event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -237,12 +237,12 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
 
     auto logStartedJson = DeserializeJson(log[0]);
     EXPECT_EQ(logStartedJson->GetChild("message")->AsString()->GetValue(), "Logging started");
-    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "Info");
+    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "info");
     EXPECT_EQ(logStartedJson->GetChild("category")->AsString()->GetValue(), "Logging");
 
     auto contentJson = DeserializeJson(log[1]);
     EXPECT_EQ(contentJson->GetChild("message")->AsString()->GetValue(), "test_message");
-    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "Debug");
+    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "debug");
     EXPECT_EQ(contentJson->GetChild("category")->AsString()->GetValue(), "category");
 
     NFs::Remove("test.log");

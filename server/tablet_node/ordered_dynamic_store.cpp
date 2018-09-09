@@ -10,23 +10,25 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
-#include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
-#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
+
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schemaful_writer_adapter.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/name_table.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -76,13 +78,13 @@ public:
             return;
         }
 
-        if (MaybeColumnFilter_->All) {
-            MaybeColumnFilter_->All = false;
-            MaybeColumnFilter_->Indexes.clear();
+        if (MaybeColumnFilter_->IsUniversal()) {
+            TColumnFilter::TIndexes columnFilterIndexes;
             // +2 is for (tablet_index, row_index).
             for (int id = 0; id < static_cast<int>(Store_->Schema_.Columns().size()) + 2; ++id) {
-                MaybeColumnFilter_->Indexes.push_back(id);
+                columnFilterIndexes.push_back(id);
             }
+            MaybeColumnFilter_.Emplace(std::move(columnFilterIndexes));
         }
 
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
@@ -138,10 +140,10 @@ private:
             return dynamicRow;
         }
 
-        int columnCount = static_cast<int>(MaybeColumnFilter_->Indexes.size());
+        ui32 columnCount = static_cast<ui32>(MaybeColumnFilter_->GetIndexes().size());
         auto row = TMutableUnversionedRow::Allocate(Pool_.get(), columnCount);
         for (int index = 0; index < columnCount; ++index) {
-            int id = MaybeColumnFilter_->Indexes[index];
+            ui16 id = static_cast<ui16>(MaybeColumnFilter_->GetIndexes()[index]);
             auto& dstValue = row[index];
             if (id == 0) {
                 dstValue = MakeUnversionedInt64Value(TabletIndex_, id);
