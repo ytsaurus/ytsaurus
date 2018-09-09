@@ -31,6 +31,7 @@ public:
 
     const TSchedulerBootstrapConfigPtr& GetConfig() const;
     const NApi::NNative::IClientPtr& GetMasterClient() const;
+    const NApi::NNative::IClientPtr& GetRemoteMasterClient(NObjectClient::TCellTag tag) const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue) const;
@@ -57,6 +58,7 @@ private:
     TControllerAgentTrackerPtr ControllerAgentTracker_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
     ICoreDumperPtr CoreDumper_;
+    mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
 
     void DoRun();
 };

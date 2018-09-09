@@ -39,6 +39,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NControllerAgent;
 
+using std::placeholders::_1;
+
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -162,7 +164,7 @@ public:
             BIND([this, this_ = MakeStrong(this)] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
                 TOperationTransactions transactions;
                 try {
-                    FromProto(&transactions, rsp->transaction_ids(), Bootstrap_->GetMasterClient());
+                    FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1));
                 } catch (const std::exception& ex) {
                     LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
                         OperationId_);
