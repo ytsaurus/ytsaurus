@@ -215,23 +215,6 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/copy_simple"), client->Get("//testing/simple"));
     }
 
-    Y_UNIT_TEST(TestCopy_SourceTransactionId)
-    {
-        auto client = CreateTestClient();
-
-        auto tx = client->StartTransaction();
-        tx->Set("//testing/source", TNode("foo"));
-
-        UNIT_ASSERT(!client->Exists("//testing/source"));
-        UNIT_ASSERT_EXCEPTION(client->Copy("//testing/source", "//testing/destination"), yexception);
-
-        client->Copy("//testing/source", "//testing/destination", TCopyOptions().SourceTransactionId(tx->GetId()));
-        tx->Abort();
-
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/destination"), "foo");
-        UNIT_ASSERT(!client->Exists("//testing/source"));
-    }
-
     Y_UNIT_TEST(TestMove)
     {
         auto client = CreateTestClient();
