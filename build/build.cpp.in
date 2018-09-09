@@ -1,4 +1,6 @@
-#include <yt/core/ya_version/ya_version.h>
+#if defined(YP_IN_ARCADIA)
+#include <yt/build/ya_version.h>
+#endif
 
 #include <util/generic/strbuf.h>
 

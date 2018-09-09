@@ -862,9 +862,8 @@ private:
                 TVersionedLookupRowsOptions options;
                 options.Timestamp = Transaction_->StartTimestamp_;
                 options.KeepMissingRows = false;
-                options.ColumnFilter.All = false;
                 options.RetentionConfig = Transaction_->SingleVersionRetentionConfig_;
-                auto& filterIndexes = options.ColumnFilter.Indexes;
+                TColumnFilter::TIndexes filterIndexes;
 
                 idToField.clear();
                 fieldToId.clear();
@@ -885,6 +884,8 @@ private:
                         subrequest.ResultColumnIds.push_back(resultId);
                     }
                 }
+
+                options.ColumnFilter = TColumnFilter(std::move(filterIndexes));
 
                 request.Tag = Format("Path: %v, Columns: %v, Keys: %v",
                     path,
