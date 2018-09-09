@@ -1048,7 +1048,7 @@ private:
                         return nullptr;
                     }
                     try {
-                        auto client = CreateClientForTransaction(Bootstrap_->GetMasterClient(), transactionId);
+                        auto client = Bootstrap_->GetRemoteMasterClient(CellTagFromId(transactionId));
 
                         TTransactionAttachOptions options;
                         options.Ping = ping;

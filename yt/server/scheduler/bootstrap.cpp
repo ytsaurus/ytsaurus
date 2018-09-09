@@ -15,6 +15,8 @@
 #include <yt/server/scheduler/controller_agent_tracker_service.h>
 #include <yt/server/scheduler/controller_agent_tracker.h>
 
+#include <yt/server/controller_agent/helpers.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -117,7 +119,7 @@ void TBootstrap::DoRun()
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+    Connection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.PinnedUser = NSecurityClient::SchedulerUserName;
@@ -207,9 +209,22 @@ const TSchedulerBootstrapConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-const NApi::NNative::IClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
+}
+
+const NNative::IClientPtr& TBootstrap::GetRemoteMasterClient(TCellTag tag) const
+{
+    auto it = RemoteClients_.find(tag);
+    if (it == RemoteClients_.end()) {
+        auto connection = NControllerAgent::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
+        auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
+        auto result = RemoteClients_.emplace(tag, client);
+        YCHECK(result.second);
+        it = result.first;
+    }
+    return it->second;
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const

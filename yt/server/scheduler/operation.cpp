@@ -20,6 +20,7 @@ namespace NScheduler {
 using namespace NApi;
 using namespace NTransactionClient;
 using namespace NJobTrackerClient;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
@@ -69,14 +70,14 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    const NNative::IClientPtr& masterClient)
+    std::function<NNative::IClientPtr(const TCellTag&)> getClient)
 {
     auto attachTransaction = [&] (const TTransactionId& transactionId) -> ITransactionPtr {
         if (!transactionId) {
             return nullptr;
         }
 
-        auto client = CreateClientForTransaction(masterClient, transactionId);
+        auto client = getClient(CellTagFromId(transactionId));
 
         TTransactionAttachOptions options;
         options.Ping = true;

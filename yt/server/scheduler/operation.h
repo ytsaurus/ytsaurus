@@ -69,7 +69,7 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    const NApi::NNative::IClientPtr& masterClient);
+    std::function<NApi::NNative::IClientPtr(const NObjectClient::TCellTag&)> getClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 
