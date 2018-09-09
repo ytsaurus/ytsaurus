@@ -5,6 +5,7 @@ import yt.local as yt_local
 from yt.wrapper import YtClient
 from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
+from yt.environment import YTInstance
 from yt.environment.helpers import is_dead_or_zombie
 import yt.subprocess_wrapper as subprocess
 
