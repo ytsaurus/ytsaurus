@@ -346,6 +346,10 @@ class UserJobSpecBuilder(object):
     def inode_limit(self, limit):
         return _set_spec_value(self, "inode_limit", limit)
 
+    @spec_option("The number of ports allocated to the user job")
+    def port_count(self, port_count):
+        return _set_spec_value(self, "port_count", port_count)
+
     def environment_variable(self, key, value):
         self._spec.setdefault("environment", {})
         self._spec["environment"][key] = str(value)

@@ -446,7 +446,7 @@ class YTInstance(object):
         else:
             self._wait_functions.append(function)
 
-    def start(self, use_proxy_from_package=True, start_secondary_master_cells=False, on_masters_started_func=None):
+    def start(self, use_proxy_from_package=True, use_new_proxy=False, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
         self._all_processes.clear()
 
@@ -457,7 +457,7 @@ class YTInstance(object):
         self.pids_file = open(self.pids_filename, "wt")
         try:
             if self.has_proxy:
-                self.start_proxy(use_proxy_from_package=use_proxy_from_package, sync=False)
+                self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
 
             self.start_master_cell(sync=False)
 
@@ -499,6 +499,7 @@ class YTInstance(object):
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
+            logger.exception("Failed to start environment")
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
 
@@ -674,8 +675,8 @@ class YTInstance(object):
 
             stderr = open(path).read()
             if stderr:
-                stderr.write("{0}{1} stderr:\n{2}"
-                             .format(name.capitalize(), number_suffix, stderr))
+                sys.stderr.write("{0}{1} stderr:\n{2}"
+                                 .format(name.capitalize(), number_suffix, stderr))
                 if "Address already in use" in stderr:
                     return True
             return False
@@ -934,31 +935,29 @@ class YTInstance(object):
                 active_scheduler_orchid_path = None
                 for instance in instances:
                     orchid_path = "//sys/scheduler/instances/{0}/orchid".format(instance)
-                    path = orchid_path + "/scheduler"
                     try:
                         client.set(orchid_path + "/@retry_backoff_time", 100)
-                        if client.get(path + "/connected"):
-                            active_scheduler_orchid_path = path
-                    except YtError as err:
-                        if not err.is_resolve_error():
+                        if client.get(orchid_path + "/scheduler/connected"):
+                            active_scheduler_orchid_path = orchid_path
+                    except YtResponseError as error:
+                        if not error.is_resolve_error():
                             raise
 
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
 
-                # TODO(ignat): /config/primary_master_cell_id is temporary solution.
                 try:
                     master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/primary_master_cell_id")
+                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
                     if master_cell_id != scheduler_cell_id:
                         return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
-                except YtResponseError as err:
-                    if err.is_resolve_error():
-                        return False, "Failed to request primary_master_cell_id from master and scheduler" + str(err)
+                except YtResponseError as error:
+                    if error.is_resolve_error():
+                        return False, "Failed to request primary master cell id from master and scheduler" + str(error)
                     else:
                         raise
 
-                nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/nodes")))
+                nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
             except YtResponseError as err:
                 # Orchid connection refused
@@ -987,8 +986,8 @@ class YTInstance(object):
                     try:
                         client.set(orchid_path + "/@retry_backoff_time", 100)
                         active_agents_count += client.get(path + "/connected")
-                    except YtError as err:
-                        if not err.is_resolve_error():
+                    except YtResponseError as error:
+                        if not error.is_resolve_error():
                             raise
 
                 if active_agents_count < self.controller_agent_count:
@@ -1040,8 +1039,8 @@ class YTInstance(object):
             if tx_id:
                 client.abort_transaction(tx_id)
                 logger.info("Previous scheduler transaction was aborted")
-        except YtError as err:
-            if not err.is_resolve_error():
+        except YtResponseError as error:
+            if not error.is_resolve_error():
                 raise
 
     def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs, http_proxy_url):
@@ -1120,12 +1119,23 @@ class YTInstance(object):
 
     def _prepare_rpc_proxy(self, rpc_proxy_config, rpc_client_config, rpc_proxy_dir):
         config_path = os.path.join(self.configs_path, "rpc-proxy.yson")
-        write_config(rpc_proxy_config, config_path)
+        if self._load_existing_environment:
+            if not os.path.isfile(config_path):
+                raise YtError("Rpc proxy config {0} not found".format(config_path))
+            config = read_config(config_path)
+        else:
+            config = rpc_proxy_config
+            write_config(config, config_path)
+
         self.configs["rpc_proxy"].append(rpc_proxy_config)
         self.config_paths["rpc_proxy"].append(config_path)
 
         rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
-        write_config(rpc_client_config, rpc_client_config_path)
+        if self._load_existing_environment:
+            if not os.path.isfile(rpc_client_config_path):
+                raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
+        else:
+            write_config(rpc_client_config, rpc_client_config_path)
 
     def _prepare_skynet_managers(self, skynet_manager_configs, skynet_manager_dirs):
         self.configs["skynet_manager"] = []
@@ -1162,10 +1172,12 @@ class YTInstance(object):
                    "-c", self.config_paths["proxy"]],
                    "proxy")
 
-    def start_proxy(self, use_proxy_from_package, sync=True):
+    def start_proxy(self, use_proxy_from_package, use_new_proxy=False, sync=True):
         logger.info("Starting proxy")
         if use_proxy_from_package:
             self._start_proxy_from_package()
+        elif use_new_proxy:
+            self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["proxy"]], "proxy")
         else:
             if not which("run_proxy.sh"):
                 raise YtError("Failed to start proxy from source tree. "
@@ -1196,7 +1208,8 @@ class YTInstance(object):
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
 
-            return len(native_client.list("//sys/rpc_proxies")) == 1
+            proxies = native_client.get("//sys/rpc_proxies")
+            return len(proxies) == 1 and all("alive" in proxy for proxy in proxies.values())
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
 

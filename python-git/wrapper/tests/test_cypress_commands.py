@@ -510,8 +510,6 @@ class TestCypressCommands(object):
         client = yt.YtClient(config=yt.config.config)
         try:
             assert yt.lock(dir) != "0-0-0-0"
-            if yt_env.version <= "18.5":
-                assert yt.lock(dir, waitable=True) == "0-0-0-0"
             with client.Transaction():
                 assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
         finally:

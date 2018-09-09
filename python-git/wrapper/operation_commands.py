@@ -291,7 +291,7 @@ class PrintOperationInfo(object):
                 self.log(
                     "operation %s: %s",
                     self.operation,
-                    "\t".join("{0}={1}".format(k, v) for k, v in order_progress(progress)))
+                    " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(progress)))
             self.progress = progress
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
@@ -455,6 +455,16 @@ def _create_operation_failed_error(operation, state):
         stderrs=stderrs,
         url=operation.url)
 
+def process_operation_unsuccesful_finish_state(operation, state):
+    error = _create_operation_failed_error(operation, state)
+    if get_config(operation.client)["operation_tracker"]["enable_logging_failed_operation"]:
+        logger.warning("***** Failed operation information:\n%s", str(error))
+        if error.attributes["stderrs"]:
+            job_output = StringIO()
+            format_operation_stderr(error.attributes["stderrs"][0], job_output)
+            logger.warning("One of the failed jobs:\n%s", job_output.getvalue())
+    raise error
+
 def get_operation_url(operation, client=None):
     proxy_url = get_proxy_url(required=False, client=client)
     if not proxy_url:
@@ -576,14 +586,7 @@ class Operation(object):
                 finalize_function(state)
 
         if check_result and state.is_unsuccessfully_finished():
-            error = _create_operation_failed_error(self, state)
-            if get_config(self.client)["operation_tracker"]["enable_logging_failed_operation"]:
-                logger.warning("***** Failed operation information:\n%s", str(error))
-                if error.attributes["stderrs"]:
-                    job_output = StringIO()
-                    format_operation_stderr(error.attributes["stderrs"][0], job_output)
-                    logger.warning("One of the failed jobs:\n%s", job_output.getvalue())
-            raise error
+            process_operation_unsuccesful_finish_state(self, state)
 
         if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
             statistics = self.get_job_statistics()

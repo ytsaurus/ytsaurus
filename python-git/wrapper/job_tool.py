@@ -30,8 +30,6 @@ $ yt-job-tool prepare-job-environment 84702787-e6196e33-3fe03e8-f0f415f8 3c9a3b9
 $ yt-job-tool run-job <job_path>
 """
 
-JOB_PATH_PATTERN = "//sys/operations/{0}/jobs/{1}"
-
 JOB_TYPE_TO_SPEC_TYPE = {
     "partition_reduce": "reducer",
     "partition_map": "mapper",
@@ -175,14 +173,6 @@ def get_job_info_from_cypress(operation_id, job_id):
         if not err.is_resolve_error():
             raise
 
-    # COMPAT(asaitgalin): Remove it when scheduler is updated on all clusters.
-    if running_job_info is None:
-        try:
-            running_job_info = yt.get(ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id))
-        except yt.YtResponseError as err:
-            if not err.is_resolve_error():
-                raise
-
     if running_job_info is not None:
         job_info_on_node = None
         try:
@@ -198,12 +188,8 @@ def get_job_info_from_cypress(operation_id, job_id):
 
     if job_is_running:
         return JobInfo(running_job_info["job_type"], is_running=True)
-
-    cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
-    if not yt.exists(cypress_job_path):
-        raise yt.YtError("Cannot find running or failed job with id {0} (operation id: {1})".format(job_id, operation_id))
-
-    return JobInfo(yt.get_attribute(cypress_job_path, "job_type"), is_running=False)
+    else:
+        return JobInfo(yt.get_job(operation_id, job_id)["type"], is_running=False)
 
 def get_job_type_from_dyntable(operation_id, job_id):
     job_hash_pair = yt.common.uuid_hash_pair(job_id)
@@ -221,7 +207,7 @@ def get_job_type_from_dyntable(operation_id, job_id):
     return rows[0]["type"]
 
 def get_operation_attributes_from_dyntable(operation_id):
-    res = yt.driver.make_request("_get_operation", {"id": operation_id})
+    res = yt.driver.make_request("get_operation", {"operation_id": operation_id})
     return yson.convert.json_to_yson(json.loads(res))
 
 def ensure_backend_is_supported():

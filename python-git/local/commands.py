@@ -50,8 +50,8 @@ def get_root_path(path=None):
     else:
         return os.environ.get("YT_LOCAL_ROOT_PATH", os.getcwd())
 
-def get_main_process_pid_file_path(path=None):
-    return os.path.join(get_root_path(path), "main_process_pid.txt")
+def get_main_process_pid_file_path(path):
+    return os.path.join(path, "main_process_pid.txt")
 
 def touch(path):
     open(path, 'a').close()
@@ -236,7 +236,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
-          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0):
+          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0, use_new_proxy=False):
 
     options = {}
     for name in _START_DEFAULTS:
@@ -283,7 +283,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
 
     environment.id = sandbox_id
 
-    use_proxy_from_yt_source = use_proxy_from_yt_source or \
+    use_proxy_from_yt_source = use_new_proxy or use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
 
     require(_is_stopped(sandbox_id, path),
@@ -303,7 +303,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
         os.remove(is_started_file)
 
     if not prepare_only:
-        environment.start(not use_proxy_from_yt_source)
+        environment.start(not use_proxy_from_yt_source, use_new_proxy=use_new_proxy)
 
         # FIXME(asaitgalin): Remove this when st/YT-3054 is done.
         if not environment._load_existing_environment:
@@ -342,7 +342,7 @@ def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
-    main_process_pid_file = get_main_process_pid_file_path(path)
+    main_process_pid_file = get_main_process_pid_file_path(os.path.join(get_root_path(path), id))
 
     if os.path.exists(main_process_pid_file):
         pid = _read_pids_file(main_process_pid_file)[0]

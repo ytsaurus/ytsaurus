@@ -155,7 +155,8 @@ class YtTestEnvironment(object):
                               tmpfs_path=tmpfs_path,
                               allow_chunk_storage_in_tmpfs=True,
                               **env_options)
-        self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False)
+
+        self.env.start(start_secondary_master_cells=True, use_new_proxy=False, use_proxy_from_package=False)
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
