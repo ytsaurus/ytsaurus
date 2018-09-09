@@ -2222,13 +2222,19 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         def operation_completed():
             return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
 
+        def operations_failed_or_aborted():
+            return get("//sys/operations/{0}/@state".format(op.id)) in ["failed", "aborted"]
+
+        time.sleep(5)
+
         non_tentative_job_count = 0
         time_passed = 0
         completion_time = None
         while not operation_completed():
-            print >>sys.stderr, "AAA"
             time.sleep(0.5)
             time_passed += 0.5
+
+            assert not operations_failed_or_aborted()
 
             if non_tentative_job_count >= TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
                 completion_time = time_passed
@@ -2239,9 +2245,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     non_tentative_job_count += 1
                     events.notify_event("continue_job_{0}".format(job_id))
 
+        wait(lambda: op.get_job_count("completed") >= 5)
+
         # Tentative jobs should now be "slow" enough, it's time to start completing them.
         while not operation_completed() and time_passed < 5.0 * completion_time:
-            print >>sys.stderr, "BBB"
             time.sleep(0.5)
             time_passed += 0.5
 
@@ -2249,6 +2256,8 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         tentative_job_count = 0
         while not operation_completed():
             time.sleep(0.5)
+
+            assert not operations_failed_or_aborted()
 
             for job_id, tentative in iter_running_jobs():
                 events.notify_event("continue_job_{0}".format(job_id))
@@ -2265,6 +2274,8 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         while not operation_completed():
             time.sleep(0.5)
+
+            assert not operations_failed_or_aborted()
 
             for job_id, tentative in iter_running_jobs():
                 events.notify_event("continue_job_{0}".format(job_id))
