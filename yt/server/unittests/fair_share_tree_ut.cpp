@@ -240,17 +240,32 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TOperationStrategyHostMock)
 
+class TFairShareTreeHostMock
+    : public IFairShareTreeHost
+{
+public:
+    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override
+    {
+        return FakeCounter_;
+    }
+
+private:
+    NProfiling::TAggregateGauge FakeCounter_;
+};
+
 class TFairShareTreeTest
     : public testing::Test
 {
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
+    TFairShareTreeHostMock FairShareTreeHostMock_;
 
     TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
         return New<TRootElement>(
             host,
+            &FairShareTreeHostMock_,
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
@@ -261,6 +276,7 @@ protected:
     {
         return New<TPool>(
             host,
+            &FairShareTreeHostMock_,
             name,
             New<TPoolConfig>(),
             /*defaultConfigured*/ true,
@@ -283,6 +299,7 @@ protected:
             operationController,
             SchedulerConfig_,
             host,
+            &FairShareTreeHostMock_,
             operation,
             "default");
     }
