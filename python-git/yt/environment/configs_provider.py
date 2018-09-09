@@ -112,8 +112,7 @@ _default_provision = {
         "http_port": None
     },
     "rpc_proxy": {
-        "enable": False,
-        "rpc_port": None,
+        "count": 0
     },
     "driver": {
         "backend": "native",
@@ -133,7 +132,7 @@ def get_default_provision():
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
     def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None, controller_agent_dirs=None,
-                      node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, rpc_proxy_dir=None, skynet_manager_dirs=None,
+                      node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, rpc_proxy_dirs=None, skynet_manager_dirs=None,
                       logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
@@ -164,12 +163,13 @@ class ConfigsProvider(object):
                                                 logs_dir, master_cache_nodes=node_addresses)
         proxy_address = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
-        rpc_proxy_config = None
+        rpc_proxy_configs = []
         rpc_client_config = None
         rpc_proxy_addresses = None
-        if provision["rpc_proxy"]["enable"]:
-            rpc_proxy_config = self._build_rpc_proxy_config(provision, logs_dir, deepcopy(connection_configs), ports_generator)
-            rpc_proxy_addresses = ["{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])]
+        if provision["rpc_proxy"]["count"] > 0:
+            rpc_proxy_configs = self._build_rpc_proxy_configs(provision, logs_dir, deepcopy(connection_configs), ports_generator)
+            rpc_proxy_addresses = ["{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
+                for rpc_proxy_config in rpc_proxy_configs]
             rpc_client_config = {
                 "connection_type": "rpc",
                 "addresses": rpc_proxy_addresses
@@ -194,7 +194,7 @@ class ConfigsProvider(object):
             "controller_agent": controller_agent_configs,
             "node": node_configs,
             "proxy": proxy_config,
-            "rpc_proxy": rpc_proxy_config,
+            "rpc_proxy": rpc_proxy_configs,
             "rpc_client": rpc_client_config,
             "skynet_manager": skynet_manager_configs,
         }
@@ -228,7 +228,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_rpc_proxy_config(self, provision, master_connection_configs, ports_generator):
+    def _build_rpc_proxy_configs(self, provision, master_connection_configs, ports_generator):
         pass
 
     @abc.abstractmethod
@@ -662,26 +662,33 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, rpc_configs
 
-    def _build_rpc_proxy_config(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
-        grpc_server_config = {
-            "addresses": [
-                {
-                    "address": "{}:{}".format(provision["fqdn"], next(ports_generator))
-                }
-            ]
-        }
+    def _build_rpc_proxy_configs(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
+        configs = []
 
-        config = {
-            "cluster_connection": master_connection_configs,
-            "rpc_port": next(ports_generator),
-            "grpc_server": grpc_server_config,
-            "monitoring_port": next(ports_generator),
-            "enable_authentication": False,
-            "address_resolver": {"localhost_fqdn": "localhost"},
-        }
-        config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
-        config["logging"] = init_logging(config.get("logging"), proxy_logs_dir, "rpc-proxy", provision["enable_debug_logging"])
-        return config
+        for rpc_proxy_index in xrange(provision["rpc_proxy"]["count"]):
+            grpc_server_config = {
+                "addresses": [
+                    {
+                        "address": "{}:{}".format(provision["fqdn"], next(ports_generator))
+                    }
+                ]
+            }
+
+            config = {
+                "cluster_connection": master_connection_configs,
+                "rpc_port": next(ports_generator),
+                "grpc_server": grpc_server_config,
+                "monitoring_port": next(ports_generator),
+                "enable_authentication": False,
+                "address_resolver": {"localhost_fqdn": "localhost"},
+            }
+            config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
+            config["logging"] = init_logging(config.get("logging"), proxy_logs_dir,
+                "rpc-proxy-{}".format(rpc_proxy_index), provision["enable_debug_logging"])
+
+            configs.append(config)
+
+        return configs
 
     def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
         configs = []
