@@ -88,7 +88,7 @@ inline bool operator ==(
 } // namespace NYT
 
 template <>
-struct hash<NYT::NAuth::TTokenCredentials>
+struct THash<NYT::NAuth::TTokenCredentials>
 {
     inline size_t operator()(const NYT::NAuth::TTokenCredentials& credentials) const
     {
@@ -99,7 +99,7 @@ struct hash<NYT::NAuth::TTokenCredentials>
 };
 
 template <>
-struct hash<NYT::NAuth::TCookieCredentials>
+struct THash<NYT::NAuth::TCookieCredentials>
 {
     inline size_t operator()(const NYT::NAuth::TCookieCredentials& credentials) const
     {

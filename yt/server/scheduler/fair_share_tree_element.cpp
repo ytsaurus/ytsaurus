@@ -33,23 +33,6 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateGauge& GetCounter(const TString& treeId, const TString& name)
-{
-    using TCounterKey = std::pair<TString, TString>;
-    using TCounterValue = std::unique_ptr<TAggregateGauge>;
-
-    static THashMap<TCounterKey, TCounterValue> counters;
-
-    TCounterKey key = std::make_pair(treeId, name);
-    auto it = counters.find(key);
-    if (it == counters.end()) {
-        auto tag = TProfileManager::Get()->RegisterTag("tree", treeId);
-        auto ptr = std::make_unique<TAggregateGauge>(name, TTagIdList{tag});
-        it = counters.emplace(key, std::move(ptr)).first;
-    }
-
-    return *it->second;
-}
 
 TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
@@ -105,12 +88,14 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerE
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
+    IFairShareTreeHost* treeHost,
     const TFairShareStrategyTreeConfigPtr& treeConfig,
     const TString& treeId)
     : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
+    , TreeHost_(treeHost)
     , TreeConfig_(treeConfig)
     , TotalResourceLimits_(host->GetResourceLimits(treeConfig->NodesFilter))
     , TreeId_(treeId)
@@ -514,9 +499,10 @@ bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
 
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
+    IFairShareTreeHost* treeHost,
     const TFairShareStrategyTreeConfigPtr& treeConfig,
     const TString& treeId)
-    : TSchedulerElementFixedState(host, treeConfig, treeId)
+    : TSchedulerElementFixedState(host, treeHost, treeConfig, treeId)
     , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
@@ -535,6 +521,11 @@ ISchedulerStrategyHost* TSchedulerElement::GetHost() const
     YCHECK(!Cloned_);
 
     return Host_;
+}
+
+IFairShareTreeHost* TSchedulerElement::GetTreeHost() const
+{
+    return TreeHost_;
 }
 
 double TSchedulerElement::ComputeLocalSatisfactionRatio() const
@@ -629,10 +620,11 @@ void TSchedulerElement::SetOperationAlert(
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
+    IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
     const TString& treeId)
-    : TSchedulerElement(host, treeConfig, treeId)
+    : TSchedulerElement(host, treeHost, treeConfig, treeId)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1334,13 +1326,14 @@ TPoolFixedState::TPoolFixedState(const TString& id)
 
 TPool::TPool(
     ISchedulerStrategyHost* host,
+    IFairShareTreeHost* treeHost,
     const TString& id,
     TPoolConfigPtr config,
     bool defaultConfigured,
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
     const TString& treeId)
-    : TCompositeSchedulerElement(host, treeConfig, profilingTag, treeId)
+    : TCompositeSchedulerElement(host, treeHost, treeConfig, profilingTag, treeId)
     , TPoolFixedState(id)
 {
     DoSetConfig(config);
@@ -1967,9 +1960,10 @@ TOperationElement::TOperationElement(
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
+    IFairShareTreeHost* treeHost,
     IOperationStrategyHost* operation,
     const TString& treeId)
-    : TSchedulerElement(host, treeConfig, treeId)
+    : TSchedulerElement(host, treeHost, treeConfig, treeId)
     , TOperationElementFixedState(operation, controllerConfig)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
@@ -2560,8 +2554,8 @@ void TOperationElement::UpdatePreemptableJobsList()
 
     auto elapsed = timer.GetElapsedTime();
 
-    Profiler.Update(GetCounter(GetTreeId(), "/preemptable_list_update_time"), DurationToValue(elapsed));
-    Profiler.Update(GetCounter(GetTreeId(), "/preemptable_list_update_move_count"), moveCount);
+    Profiler.Update(GetTreeHost()->GetProfilingCounter("/preemptable_list_update_time"), DurationToValue(elapsed));
+    Profiler.Update(GetTreeHost()->GetProfilingCounter("/preemptable_list_update_move_count"), moveCount);
 
     if (elapsed > TreeConfig_->UpdatePreemptableListDurationLoggingThreshold) {
         LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v, TreeId: %v)",
@@ -2576,11 +2570,13 @@ void TOperationElement::UpdatePreemptableJobsList()
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
+    IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
     const TString& treeId)
     : TCompositeSchedulerElement(
         host,
+        treeHost,
         treeConfig,
         profilingTag,
         treeId)

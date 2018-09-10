@@ -448,7 +448,7 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 } // namespace NYT
 
 template <class T>
-struct hash<NYT::TNullable<T>>
+struct THash<NYT::TNullable<T>>
 {
     size_t operator()(const NYT::TNullable<T>& nullable) const
     {

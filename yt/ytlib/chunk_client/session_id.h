@@ -38,7 +38,7 @@ Y_DECLARE_PODTYPE(NYT::NChunkClient::TSessionId);
 
 //! A hasher for TSessionId.
 template <>
-struct hash<NYT::NChunkClient::TSessionId>
+struct THash<NYT::NChunkClient::TSessionId>
 {
     inline size_t operator()(const NYT::NChunkClient::TSessionId& value) const
     {

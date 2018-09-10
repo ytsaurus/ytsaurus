@@ -460,7 +460,7 @@ void TProfiler::OnUpdated(TCounterBase& counter, EMetricType metricType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t hash<NYT::NProfiling::TTagIdList>::operator()(const NYT::NProfiling::TTagIdList& list) const
+size_t THash<NYT::NProfiling::TTagIdList>::operator()(const NYT::NProfiling::TTagIdList& list) const
 {
     size_t result = 1;
     for (auto tag : list) {

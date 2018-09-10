@@ -59,6 +59,15 @@ struct TDynamicAttributes
 
 typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This interface must be thread-safe.
+struct IFairShareTreeHost
+{
+    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFairShareContext
@@ -106,12 +115,14 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
 
 protected:
-    explicit TSchedulerElementFixedState(
+    TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
+        IFairShareTreeHost* treeHost,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
         const TString& treeId);
 
     ISchedulerStrategyHost* const Host_;
+    IFairShareTreeHost* const TreeHost_;
 
     TFairShareStrategyTreeConfigPtr TreeConfig_;
 
@@ -288,6 +299,7 @@ private:
 protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
+        IFairShareTreeHost* treeHost,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
         const TString& treeId);
     TSchedulerElement(
@@ -295,6 +307,8 @@ protected:
         TCompositeSchedulerElement* clonedParent);
 
     ISchedulerStrategyHost* GetHost() const;
+
+    IFairShareTreeHost* GetTreeHost() const;
 
     ESchedulableStatus GetStatus(double defaultTolerance) const;
 
@@ -342,6 +356,7 @@ class TCompositeSchedulerElement
 public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
+        IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
         const TString& treeId);
@@ -452,6 +467,7 @@ class TPool
 public:
     TPool(
         ISchedulerStrategyHost* host,
+        IFairShareTreeHost* treeHost,
         const TString& id,
         TPoolConfigPtr config,
         bool defaultConfigured,
@@ -732,6 +748,7 @@ public:
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
+        IFairShareTreeHost* treeHost,
         IOperationStrategyHost* operation,
         const TString& treeId);
     TOperationElement(
@@ -865,6 +882,7 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
+        IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
         const TString& treeId);

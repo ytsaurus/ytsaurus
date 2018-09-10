@@ -32,6 +32,8 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(3));
     RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
         .Default(TDuration::Seconds(15));
+    RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
+        .Default(TDuration::Seconds(30));
     RegisterParameter("default_ping_period", DefaultPingPeriod)
         .Default(TDuration::Seconds(5));
     RegisterParameter("bus_client", BusClient)

@@ -66,7 +66,7 @@ TString ToString(const TYsonString& yson);
 
 //! A hasher for TYsonString
 template <>
-struct hash<NYT::NYson::TYsonString>
+struct THash<NYT::NYson::TYsonString>
 {
     size_t operator () (const NYT::NYson::TYsonString& str) const
     {
