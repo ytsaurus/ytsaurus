@@ -52,7 +52,8 @@ TClient::TClient(
         CreateTableMountCache(
             Connection_->GetConfig()->TableMountCache,
             Channel_,
-            RpcProxyClientLogger))
+            RpcProxyClientLogger,
+            Connection_->GetConfig()->RpcTimeout))
 { }
 
 const ITableMountCachePtr& TClient::GetTableMountCache()
