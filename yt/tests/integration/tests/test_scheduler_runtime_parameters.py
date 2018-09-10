@@ -77,8 +77,7 @@ class TestRuntimeParameters(YTEnvSetup):
         assert get(default_tree_parameters_path + "/resource_limits/user_slots") == 0
 
         assert are_almost_equal(get(progress_path + "/weight"), 3.0)
-
-        # wait() here is essential since resource limits are recomputed during fair-share update.
+        # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
         self.Env.kill_schedulers()
@@ -87,7 +86,8 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: op.get_state() == "running", iter=10)
 
         assert are_almost_equal(get(progress_path + "/weight"), 3.0)
-        assert get(progress_path + "/resource_limits")["user_slots"] == 0
+        # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
+        wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
     @pytest.mark.xfail(run=False, reason="YT-9226")
     def test_update_pool_default_pooltree(self):
