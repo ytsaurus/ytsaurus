@@ -15,7 +15,8 @@ namespace NRpcProxy {
 NTabletClient::ITableMountCachePtr CreateTableMountCache(
     TTableMountCacheConfigPtr config,
     NRpc::IChannelPtr channel,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    TDuration timeout);
 
 ////////////////////////////////////////////////////////////////////////////////
 

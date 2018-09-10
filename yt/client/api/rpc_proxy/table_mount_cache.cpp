@@ -26,9 +26,11 @@ public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
         IChannelPtr channel,
-        const NLogging::TLogger& logger)
+        const NLogging::TLogger& logger,
+        TDuration timeout)
         : TTableMountCacheBase(std::move(config), logger)
         , Channel_(std::move(channel))
+        , Timeout_(timeout)
     { }
 
 private:
@@ -39,7 +41,7 @@ private:
         LOG_DEBUG("Requesting table mount info (Path: %v)", path);
 
         TApiServiceProxy proxy(Channel_);
-        proxy.SetDefaultTimeout(TDuration::Seconds(15));
+        proxy.SetDefaultTimeout(Timeout_);
         auto req = proxy.GetTableMountInfo();
         req->set_path(path);
 
@@ -111,6 +113,7 @@ private:
 
 private:
     const IChannelPtr Channel_;
+    const TDuration Timeout_;
 
     virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
     {
@@ -123,12 +126,14 @@ private:
 ITableMountCachePtr CreateTableMountCache(
     TTableMountCacheConfigPtr config,
     IChannelPtr channel,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    TDuration timeout)
 {
     return New<TTableMountCache>(
         std::move(config),
         std::move(channel),
-        logger);
+        logger,
+        timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
