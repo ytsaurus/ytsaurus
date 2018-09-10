@@ -139,7 +139,7 @@ def ya_make_env(options):
 def ya_make_definition_args(options):
     # This args cannot be passed to ya package.
     return [
-        "-DYT_ENABLE_GDB_INDEX",
+        "-DYT_ENABLE_GDB_INDEX=yes",
         "-DYT_VERSION_PATCH={0}".format(options.patch_number),
         "-DYT_VERSION_BRANCH={0}".format(options.branch),
     ]
@@ -153,7 +153,7 @@ def run_yall(options):
     assert options.build_system == "ya"
     ya = get_ya(options)
 
-    common_args = []
+    common_args = ["-T"]
     common_args += ya_make_args(options)
     common_args += ya_make_definition_args(options)
 
@@ -510,7 +510,33 @@ def package(options, build_context):
                     teamcity_message("We have uploaded a package to " + repository)
                     teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
         else:
-            pass
+            PACKAGE_LIST = [
+                "yandex-yt-controller-agent.json",
+                "yandex-yt-http-proxy.json",
+                "yandex-yt-master.json",
+                "yandex-yt-node.json",
+                "yandex-yt-proxy.json",
+                "yandex-yt-scheduler.json",
+            ]
+            artifacts_dir = get_artifacts_dir(options)
+            with cwd(artifacts_dir):
+                for package_name in PACKAGE_LIST:
+                    package_file = os.path.join(get_bin_dir(options), package_name)
+                    args = [
+                        get_ya(options), "package", package_file,
+                        "--custom-version", build_context["yt_version"],
+                        "--debian", "--strip", "--create-dbg",
+                        "-zlow"
+                    ]
+                    args += ya_make_args(options)
+                    run(args, env=ya_make_env(options))
+                    expected_tar = "{}.{}.tar.gz".format(
+                        package_name[:-len(".json")], # strip .json extension
+                        build_context["yt_version"])
+                    teamcity_message("Extracting archive {}".format(expected_tar))
+                    with tarfile.open(expected_tar) as tarf:
+                        tarf.extractall(path=artifacts_dir)
+                    teamcity_message("Archive {} is extracted".format(expected_tar))
 
 
 @build_step
