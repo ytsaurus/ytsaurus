@@ -492,6 +492,9 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
+    if (options.RetentionConfig) {
+        ToProto(req->mutable_retention_config(), *options.RetentionConfig);
+    }
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspVersionedLookupRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
