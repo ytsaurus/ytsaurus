@@ -979,7 +979,7 @@ private:
                 Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
                 transaction->GetId(),
                 NullChunkListId,
-                GetUnlimitedThrottler(),
+                tabletSnapshot->PartitioningThrottler,
                 blockCache);
             currentWriter = CreateInMemoryVersionedMultiChunkWriter(
                 inMemoryManager,
@@ -1355,7 +1355,7 @@ private:
             Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
             NullChunkListId,
-            GetUnlimitedThrottler(),
+            tabletSnapshot->CompactionThrottler,
             blockCache);
         auto writer = CreateInMemoryVersionedMultiChunkWriter(
             inMemoryManager,

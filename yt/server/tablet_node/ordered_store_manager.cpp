@@ -212,7 +212,9 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             NullChunkListId,
             New<TNodeDirectory>(),
             Client_,
-            blockCache);
+            blockCache,
+            nullptr,
+            tabletSnapshot->FlushThrottler);
 
         TChunkTimestamps chunkTimestamps;
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
