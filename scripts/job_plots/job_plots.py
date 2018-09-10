@@ -592,12 +592,21 @@ def draw_time_statistics_bar_chart(jobset):
         ))
         
 
-def print_text_data(jobset):
+def print_jobset(jobset, sort_by="start_time", reverse=False, additional_fields=()):
     """
-    Print node id, job id and running time for every job
+    Print node id, job id, running time and maybe some additional fields for every job
     """
-    for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
+    for job_type, jobs_info in groupby(
+        sorted(jobset, key=lambda x: (x.type, _get_statistics(x, sort_by)), reverse=reverse),
+        key=lambda x: x.type,
+    ):
         print("{} jobs:".format(job_type))
         for job_info in jobs_info:
             print("\t{}".format(job_info))
+            
+            if additional_fields:
+                print("\t{}:".format("additional_fields"))
+                for field in additional_fields:
+                    print("\t\t{}: {}".format(field, _get_statistics(job_info, field)))
+
 
