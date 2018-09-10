@@ -91,9 +91,14 @@ NInterop::TTableReaderList CreateJobTableReaders(
 {
     auto readJobSpec = LoadReadJobSpec(jobSpec);
 
+    auto dataSourceType = readJobSpec.GetCommonDataSourceType();
+    LOG_DEBUG("Creating table readers (MaxStreamCount: %v, DataSourceType: %v, Columns: %v)",
+        maxStreamCount,
+        dataSourceType,
+        columns);
+
     std::vector<TDataSliceDescriptorList> dataSlices;
 
-    auto dataSourceType = readJobSpec.GetCommonDataSourceType();
     if (dataSourceType == EDataSourceType::UnversionedTable) {
         dataSlices = MergeUnversionedChunks(
             std::move(readJobSpec.DataSliceDescriptors),
@@ -161,7 +166,7 @@ NInterop::TTableReaderList CreateJobTableReaders(
 
     NInterop::TTableReaderList readers;
     for (auto& chunkReader : chunkReaders) {
-        readers.emplace_back(NClickHouse::CreateTablesReader(
+        readers.emplace_back(NClickHouse::CreateTableReader(
             readerTables,
             readerColumns,
             systemColumns,
