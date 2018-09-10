@@ -1,5 +1,4 @@
 #include "config.h"
-#include "in_memory_chunk_writer.h"
 #include "in_memory_manager.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
@@ -71,7 +70,7 @@ TSortedStoreManager::TSortedStoreManager(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager,
+    IInMemoryManagerPtr inMemoryManager,
     NNative::IClientPtr client)
     : TStoreManagerBase(
         std::move(config),
@@ -404,7 +403,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
-        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode);
+        auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
+            Client_,
+            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            inMemoryMode,
+            InMemoryManager_->GetConfig());
+
+        auto blockCache = WaitFor(asyncBlockCache)
+            .ValueOrThrow();
 
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,
@@ -416,11 +422,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             Client_,
             blockCache);
 
-        auto tableWriter = CreateInMemoryVersionedChunkWriter(
+        auto tableWriter = CreateVersionedChunkWriter(
             writerConfig,
             writerOptions,
-            InMemoryManager_,
-            tabletSnapshot,
+            tabletSnapshot->PhysicalSchema,
             chunkWriter,
             blockCache);
 
@@ -470,6 +475,15 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         }
 
         WaitFor(tableWriter->Close())
+            .ThrowOnError();
+
+        std::vector<TChunkInfo> chunkInfos;
+        chunkInfos.emplace_back(
+            tableWriter->GetChunkId(),
+            tableWriter->GetNodeMeta(),
+            tabletSnapshot->TabletId);
+
+        WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
         ProfileChunkWriter(

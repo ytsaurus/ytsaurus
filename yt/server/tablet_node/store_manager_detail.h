@@ -22,7 +22,7 @@ public:
         TTablet* tablet,
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager,
-        TInMemoryManagerPtr inMemoryManager,
+        IInMemoryManagerPtr inMemoryManager,
         NApi::NNative::IClientPtr client);
 
     virtual bool HasActiveLocks() const override;
@@ -86,7 +86,7 @@ protected:
     TTablet* Tablet_;
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
-    const TInMemoryManagerPtr InMemoryManager_;
+    const IInMemoryManagerPtr InMemoryManager_;
     const NApi::NNative::IClientPtr Client_;
 
     bool RotationScheduled_ = false;

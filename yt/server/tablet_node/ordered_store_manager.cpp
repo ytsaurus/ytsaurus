@@ -1,6 +1,5 @@
 #include "config.h"
 #include "in_memory_manager.h"
-#include "in_memory_chunk_writer.h"
 #include "ordered_dynamic_store.h"
 #include "ordered_store_manager.h"
 #include "store.h"
@@ -16,6 +15,8 @@
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/name_table.h>
+
+#include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -55,7 +56,7 @@ TOrderedStoreManager::TOrderedStoreManager(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager,
+    IInMemoryManagerPtr inMemoryManager,
     NNative::IClientPtr client)
     : TStoreManagerBase(
         std::move(config),
@@ -201,7 +202,14 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
-        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode);
+        auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
+            Client_,
+            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            inMemoryMode,
+            InMemoryManager_->GetConfig());
+
+        auto blockCache = WaitFor(asyncBlockCache)
+            .ValueOrThrow();
 
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,
@@ -217,11 +225,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
-        auto tableWriter = CreateInMemorySchemalessChunkWriter(
+        auto tableWriter = CreateSchemalessChunkWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
-            InMemoryManager_,
-            tabletSnapshot,
+            tabletSnapshot->PhysicalSchema,
             chunkWriter,
             chunkTimestamps,
             blockCache);
@@ -253,6 +260,15 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         }
 
         WaitFor(tableWriter->Close())
+            .ThrowOnError();
+
+        std::vector<TChunkInfo> chunkInfos;
+        chunkInfos.emplace_back(
+            tableWriter->GetChunkId(),
+            tableWriter->GetNodeMeta(),
+            tabletSnapshot->TabletId);
+
+        WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
         ProfileChunkWriter(

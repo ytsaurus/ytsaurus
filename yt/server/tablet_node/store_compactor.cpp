@@ -1,6 +1,5 @@
 #include "config.h"
 #include "in_memory_manager.h"
-#include "in_memory_chunk_writer.h"
 #include "partition.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -959,9 +958,15 @@ private:
         int writeRowCount = 0;
         IVersionedMultiChunkWriterPtr currentWriter;
 
-        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-        auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
-            tabletSnapshot->Config->InMemoryMode);
+        auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetMasterClient()->GetNativeConnection()->
+                GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            tabletSnapshot->Config->InMemoryMode,
+            Bootstrap_->GetInMemoryManager()->GetConfig());
+
+        auto blockCache = WaitFor(asyncBlockCache)
+            .ValueOrThrow();
 
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
@@ -972,7 +977,7 @@ private:
                 currentPivotKey,
                 nextPivotKey);
 
-            auto underlyingWriter = CreateVersionedMultiChunkWriter(
+            currentWriter = CreateVersionedMultiChunkWriter(
                 writerConfig,
                 writerOptions,
                 tabletSnapshot->PhysicalSchema,
@@ -982,10 +987,6 @@ private:
                 NullChunkListId,
                 GetUnlimitedThrottler(),
                 blockCache);
-            currentWriter = CreateInMemoryVersionedMultiChunkWriter(
-                inMemoryManager,
-                tabletSnapshot,
-                std::move(underlyingWriter));
         };
 
         auto flushOutputRows = [&] () {
@@ -1088,6 +1089,19 @@ private:
         YCHECK(readRowCount == writeRowCount);
 
         WaitFor(Combine(asyncCloseResults))
+            .ThrowOnError();
+
+        std::vector<TChunkInfo> chunkInfos;
+        for (const auto& writer : releasedWriters) {
+            for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
+                chunkInfos.emplace_back(
+                    FromProto<TChunkId>(chunkSpec.chunk_id()),
+                    chunkSpec.chunk_meta(),
+                    tabletSnapshot->TabletId);
+            }
+        }
+
+        WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
         return std::make_tuple(releasedWriters, readRowCount);
@@ -1345,11 +1359,17 @@ private:
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
 
-        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-        auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
-            tabletSnapshot->Config->InMemoryMode);
+        auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetMasterClient()->GetNativeConnection()->
+                GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            tabletSnapshot->Config->InMemoryMode,
+            Bootstrap_->GetInMemoryManager()->GetConfig());
 
-        auto underlyingWriter = CreateVersionedMultiChunkWriter(
+        auto blockCache = WaitFor(asyncBlockCache)
+            .ValueOrThrow();
+
+        auto writer = CreateVersionedMultiChunkWriter(
             writerConfig,
             writerOptions,
             tabletSnapshot->PhysicalSchema,
@@ -1359,10 +1379,6 @@ private:
             NullChunkListId,
             GetUnlimitedThrottler(),
             blockCache);
-        auto writer = CreateInMemoryVersionedMultiChunkWriter(
-            inMemoryManager,
-            tabletSnapshot,
-            std::move(underlyingWriter));
 
         WaitFor(reader->Open())
             .ThrowOnError();
@@ -1390,6 +1406,17 @@ private:
         }
 
         WaitFor(writer->Close())
+            .ThrowOnError();
+
+        std::vector<TChunkInfo> chunkInfos;
+        for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
+            chunkInfos.emplace_back(
+                FromProto<TChunkId>(chunkSpec.chunk_id()),
+                chunkSpec.chunk_meta(),
+                tabletSnapshot->TabletId);
+        }
+
+        WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
         YCHECK(readRowCount == writeRowCount);

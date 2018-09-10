@@ -366,7 +366,6 @@ private:
             return result;
         }
 
-
         void OpenJournal()
         {
             DelayTimer_ = Profiler.TimingStart(
@@ -646,10 +645,8 @@ private:
                 targets.push_back(descriptor);
             }
 
-            const auto& networks = Client_->GetNativeConnection()->GetNetworks();
             for (const auto& target : targets) {
-                auto address = target.GetAddressOrThrow(networks);
-                auto lightChannel = Client_->GetChannelFactory()->CreateChannel(address);
+                auto lightChannel = Client_->GetChannelFactory()->CreateChannel(target);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
                     lightChannel,

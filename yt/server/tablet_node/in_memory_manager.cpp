@@ -1,5 +1,6 @@
 #include "config.h"
 #include "in_memory_manager.h"
+#include "in_memory_service_proxy.h"
 #include "private.h"
 #include "slot_manager.h"
 #include "sorted_chunk_store.h"
@@ -12,6 +13,10 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
+
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -33,11 +38,18 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/periodic_yielder.h>
+
 #include <yt/core/misc/finally.h>
+
+#include <yt/core/rpc/channel.h>
 
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NApi;
+using namespace NRpc;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
@@ -52,6 +64,8 @@ using NChunkClient::NProto::TBlocksExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 const auto& Logger = TabletNodeLogger;
+
+using TInMemorySessionId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,11 +115,13 @@ EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInMemoryManager::TImpl
-    : public TRefCounted
+DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
+
+class TInMemoryManager
+    : public IInMemoryManager
 {
 public:
-    TImpl(
+    TInMemoryManager(
         TInMemoryManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
@@ -117,7 +133,7 @@ public:
         , Throttler_(CreateReconfigurableThroughputThrottler(config->PreloadThrottler))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
+        slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
     }
 
     IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode)
@@ -127,7 +143,7 @@ public:
         return New<TInterceptingBlockCache>(this, mode);
     }
 
-    TInMemoryChunkDataPtr EvictInterceptedChunkData(const TChunkId& chunkId)
+    TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -149,7 +165,7 @@ public:
     }
 
     void FinalizeChunk(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TChunkMeta& chunkMeta,
         const TTabletSnapshotPtr& tabletSnapshot)
     {
@@ -169,6 +185,11 @@ public:
         }
 
         FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
+    }
+
+    const TInMemoryManagerConfigPtr& GetConfig() const
+    {
+        return Config_;
     }
 
 private:
@@ -217,7 +238,7 @@ private:
 
             auto preloadStoreCallback =
                 BIND(
-                    &TImpl::PreloadStore,
+                    &TInMemoryManager::PreloadStore,
                     MakeStrong(this),
                     Passed(std::move(guard)),
                     slot,
@@ -313,7 +334,7 @@ private:
         : public IBlockCache
     {
     public:
-        TInterceptingBlockCache(TImplPtr owner, EInMemoryMode mode)
+        TInterceptingBlockCache(TInMemoryManagerPtr owner, EInMemoryMode mode)
             : Owner_(owner)
             , Mode_(mode)
             , BlockType_(MapInMemoryModeToBlockType(Mode_))
@@ -323,7 +344,7 @@ private:
         {
             for (const auto& chunkId : ChunkIds_) {
                 TDelayedExecutor::Submit(
-                    BIND(IgnoreResult(&TImpl::EvictInterceptedChunkData), Owner_, chunkId),
+                    BIND(IgnoreResult(&TInMemoryManager::EvictInterceptedChunkData), Owner_, chunkId),
                     Owner_->Config_->InterceptedDataRetentionTime);
             }
         }
@@ -386,7 +407,7 @@ private:
         }
 
     private:
-        const TImplPtr Owner_;
+        const TInMemoryManagerPtr Owner_;
         const EInMemoryMode Mode_;
         const EBlockType BlockType_;
 
@@ -445,34 +466,16 @@ private:
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletStatic);
     }
+
 };
 
-////////////////////////////////////////////////////////////////////////////////
+DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 
-TInMemoryManager::TInMemoryManager(
+IInMemoryManagerPtr CreateInMemoryManager(
     TInMemoryManagerConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-TInMemoryManager::~TInMemoryManager() = default;
-
-IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode)
 {
-    return Impl_->CreateInterceptingBlockCache(mode);
-}
-
-TInMemoryChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
-{
-    return Impl_->EvictInterceptedChunkData(chunkId);
-}
-
-void TInMemoryManager::FinalizeChunk(
-    const TChunkId& chunkId,
-    const TChunkMeta& chunkMeta,
-    const TTabletSnapshotPtr& tabletSnapshot)
-{
-    Impl_->FinalizeChunk(chunkId, chunkMeta, tabletSnapshot);
+    return New<TInMemoryManager>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -655,6 +658,362 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         static_cast<bool>(chunkData->LookupHashTable));
 
     return chunkData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TNode)
+
+struct TNode
+    : public TRefCounted
+{
+    const TNodeDescriptor Descriptor;
+    TInMemorySessionId SessionId;
+    TInMemoryServiceProxy Proxy;
+    const TDuration ControlRpcTimeout;
+
+    TPeriodicExecutorPtr PingExecutor;
+
+    TNode(
+        const TNodeDescriptor& descriptor,
+        TInMemorySessionId sessionId,
+        IChannelPtr channel,
+        const TDuration controlRpcTimeout)
+        : Descriptor(descriptor)
+        , SessionId(sessionId)
+        , Proxy(std::move(channel))
+        , ControlRpcTimeout(controlRpcTimeout)
+    { }
+
+    void OnPingSent(const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
+    {
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
+                Descriptor.GetDefaultAddress(),
+                SessionId);
+        }
+    }
+
+    void SendPing()
+    {
+        LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
+            Descriptor.GetDefaultAddress(),
+            SessionId);
+
+        auto req = Proxy.PingSession();
+        req->SetTimeout(ControlRpcTimeout);
+        ToProto(req->mutable_session_id(), SessionId);
+        req->Invoke().Subscribe(
+            BIND(&TNode::OnPingSent, MakeWeak(this))
+                .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNode)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteInMemoryBlockCache
+    : public IRemoteInMemoryBlockCache
+{
+public:
+    TRemoteInMemoryBlockCache(
+        std::vector<TNodePtr> nodes,
+        EInMemoryMode inMemoryMode,
+        size_t batchSize,
+        const TDuration controlRpcTimeout,
+        const TDuration heavyRpcTimeout)
+        : Nodes_(std::move(nodes))
+        , InMemoryMode_(inMemoryMode)
+        , BatchSize_(batchSize)
+        , ControlRpcTimeout_(controlRpcTimeout)
+        , HeavyRpcTimeout_(heavyRpcTimeout)
+    { }
+
+    virtual void Put(
+        const TBlockId& id,
+        EBlockType type,
+        const TBlock& data,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+    {
+        if (type != MapInMemoryModeToBlockType(InMemoryMode_)) {
+            return;
+        }
+
+        if (Dropped_.load()) {
+            return;
+        }
+
+        bool batchIsReady;
+        {
+            auto guard = Guard(SpinLock_);
+            Blocks_.emplace_back(id, data.Data);
+            CurrentSize_ += data.Data.Size();
+            batchIsReady = CurrentSize_ > BatchSize_;
+        }
+
+        if (batchIsReady) {
+            bool expected = false;
+            if (Sending_.compare_exchange_strong(expected, true)) {
+                ReadyEvent_ = SendNextBatch();
+                ReadyEvent_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError&) {
+                    Sending_ = false;
+                }));
+            }
+        }
+    }
+
+    virtual TBlock Find(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return TBlock();
+    }
+
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return MapInMemoryModeToBlockType(InMemoryMode_);
+    }
+
+    virtual TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) override
+    {
+        bool expected = false;
+        if (Sending_.compare_exchange_strong(expected, true)) {
+            ReadyEvent_ = SendNextBatch();
+        }
+
+        return ReadyEvent_
+            .Apply(BIND(
+                &TRemoteInMemoryBlockCache::DoFinish,
+                MakeStrong(this),
+                chunkInfos));
+    }
+
+private:
+    TFuture<void> SendNextBatch()
+    {
+        auto guard = Guard(SpinLock_);
+        if (Blocks_.empty()) {
+            return VoidFuture;
+        }
+
+        if (Nodes_.empty()) {
+            Dropped_ = true;
+            Blocks_.clear();
+            CurrentSize_ = 0;
+            return MakeFuture(TError("All sessions are dropped"));
+        }
+
+        std::vector<std::pair<TBlockId, TSharedRef>> blocks;
+        size_t groupSize = 0;
+        while (!Blocks_.empty() && groupSize < BatchSize_) {
+            auto block = std::move(Blocks_.front());
+            groupSize += block.second.Size();
+            blocks.push_back(std::move(block));
+            Blocks_.pop_front();
+        }
+
+        CurrentSize_ -= groupSize;
+
+        guard.Release();
+
+        std::vector<TFuture<TInMemoryServiceProxy::TRspPutBlocksPtr>> asyncResults;
+        for (const auto& node : Nodes_) {
+            auto req = node->Proxy.PutBlocks();
+            req->SetTimeout(HeavyRpcTimeout_);
+            ToProto(req->mutable_session_id(), node->SessionId);
+
+            for (const auto& block : blocks) {
+                LOG_DEBUG("Sending in-memory block (ChunkId: %v, BlockIndex: %v, SessionId: %v, Address: %v)",
+                    block.first.ChunkId,
+                    block.first.BlockIndex,
+                    node->SessionId,
+                    node->Descriptor.GetDefaultAddress());
+
+                ToProto(req->add_block_ids(), block.first);
+                req->Attachments().push_back(block.second);
+            }
+
+            asyncResults.push_back(req->Invoke());
+        }
+
+        return CombineAll(asyncResults)
+            .Apply(BIND(&TRemoteInMemoryBlockCache::OnSendResponse, MakeStrong(this)));
+    }
+
+    TFuture<void> OnSendResponse(
+        const std::vector<TErrorOr<TInMemoryServiceProxy::TRspPutBlocksPtr>>& results)
+    {
+        std::vector<TNodePtr> activeNodes;
+        for (size_t index = 0; index < results.size(); ++index) {
+            if (!results[index].IsOK()) {
+                LOG_WARNING("Error sending batch (SessionId: %v, Address: %v)",
+                    Nodes_[index]->SessionId,
+                    Nodes_[index]->Descriptor.GetDefaultAddress());
+                continue;
+            }
+
+            auto result = results[index].Value();
+
+            if (result->dropped()) {
+                LOG_WARNING("Dropped in-memory session (SessionId: %v, Address: %v)",
+                    Nodes_[index]->SessionId,
+                    Nodes_[index]->Descriptor.GetDefaultAddress());
+                continue;
+            }
+
+            activeNodes.push_back(Nodes_[index]);
+        }
+
+        Nodes_.swap(activeNodes);
+
+        return SendNextBatch();
+    }
+
+    TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
+    {
+        LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
+            MakeFormattableRange(Nodes_, [] (TStringBuilder* builder, const TNodePtr& node) {
+                FormatValue(builder, node->SessionId, TStringBuf());
+            }));
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& node : Nodes_) {
+            if (node->PingExecutor) {
+                node->PingExecutor->Stop();
+                node->PingExecutor.Reset();
+            }
+
+            auto req = node->Proxy.FinishSession();
+            req->SetTimeout(HeavyRpcTimeout_);
+            ToProto(req->mutable_session_id(), node->SessionId);
+
+            for (const auto& chunkInfo : chunkInfos) {
+                ToProto(req->add_chunk_id(), chunkInfo.ChunkId);
+                ToProto(req->add_chunk_meta(), chunkInfo.ChunkMeta);
+                ToProto(req->add_tablet_id(), chunkInfo.TabletId);
+            }
+
+            asyncResults.push_back(req->Invoke().As<void>());
+        }
+
+        return Combine(asyncResults);
+    }
+
+private:
+    std::vector<TNodePtr> Nodes_;
+    const EInMemoryMode InMemoryMode_;
+    const size_t BatchSize_;
+    const TDuration ControlRpcTimeout_;
+    const TDuration HeavyRpcTimeout_;
+
+    TFuture<void> ReadyEvent_ = VoidFuture;
+    std::atomic<bool> Sending_ = {false};
+    std::atomic<bool> Dropped_ = {false};
+
+    TSpinLock SpinLock_;
+    std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
+    size_t CurrentSize_ = 0;
+
+};
+
+class TDummyInMemoryBlockCache
+    : public IRemoteInMemoryBlockCache
+{
+public:
+    virtual void Put(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/,
+        const TBlock& /*data*/,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+    { }
+
+    virtual TBlock Find(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return TBlock();
+    }
+
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::None;
+    }
+
+    virtual TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
+    {
+        return VoidFuture;
+    }
+};
+
+IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
+    NNative::IClientPtr client,
+    const NHiveClient::TCellDescriptor& cellDescriptor,
+    EInMemoryMode inMemoryMode,
+    TInMemoryManagerConfigPtr config)
+{
+    std::vector<TNodePtr> nodes;
+    for (const auto& target : cellDescriptor.Peers) {
+        auto channel = client->GetChannelFactory()->CreateChannel(target);
+
+        TInMemoryServiceProxy proxy(channel);
+
+        auto req = proxy.StartSession();
+        req->SetTimeout(config->ControlRpcTimeout);
+        req->set_in_memory_mode(static_cast<int>(inMemoryMode));
+
+        auto rspOrError = WaitFor(req->Invoke());
+
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error starting in-memory session at node %v",
+                target.GetDefaultAddress())
+                << rspOrError;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto sessionId = FromProto<TInMemorySessionId>(rsp->session_id());
+
+        auto node = New<TNode>(
+            target,
+            sessionId,
+            std::move(channel),
+            config->ControlRpcTimeout);
+
+        node->PingExecutor = New<TPeriodicExecutor>(
+            NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
+            BIND(&TNode::SendPing, MakeWeak(node)),
+            config->PingPeriod);
+        node->PingExecutor->Start();
+
+        nodes.push_back(node);
+    }
+
+    LOG_DEBUG("In-memory sessions started (SessionIds: %v)",
+        MakeFormattableRange(nodes, [] (TStringBuilder* builder, const TNodePtr& node) {
+            FormatValue(builder, node->SessionId, TStringBuf());
+        }));
+
+    return New<TRemoteInMemoryBlockCache>(
+        std::move(nodes),
+        inMemoryMode,
+        config->BatchSize,
+        config->ControlRpcTimeout,
+        config->HeavyRpcTimeout);
+}
+
+TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
+    NNative::IClientPtr client,
+    const NHiveClient::TCellDescriptor& cellDescriptor,
+    EInMemoryMode inMemoryMode,
+    TInMemoryManagerConfigPtr config)
+{
+    if (inMemoryMode == EInMemoryMode::None) {
+        return MakeFuture<IRemoteInMemoryBlockCachePtr>(New<TDummyInMemoryBlockCache>());
+    }
+
+    return BIND(&DoCreateRemoteInMemoryBlockCache)
+        .AsyncVia(GetCurrentInvoker())
+        .Run(client, cellDescriptor, inMemoryMode, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
