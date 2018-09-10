@@ -92,7 +92,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
 {
     auto changelog = Chunk_->GetAttachedChangelog();
     int recordCount = changelog->GetRecordCount();
-    
+
     if (startBlockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
             GetId(),
@@ -134,7 +134,7 @@ TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
 {
     auto changelog = Chunk_->GetAttachedChangelog();
     int recordCount = changelog->GetRecordCount();
-    
+
     if (blockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
             GetId(),

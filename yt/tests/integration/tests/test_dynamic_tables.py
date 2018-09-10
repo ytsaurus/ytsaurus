@@ -354,6 +354,17 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         assert get("#" + cell_id + "/@health") == "good"
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
+    def test_in_memory_flush(self, mode):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        set("//tmp/t/@in_memory_mode", mode)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        sync_flush_table("//tmp/t")
+
     def test_tablet_cell_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell(authenticated_user="u")

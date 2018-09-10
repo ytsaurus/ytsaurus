@@ -46,6 +46,7 @@
 #include <yt/server/query_agent/query_service.h>
 
 #include <yt/server/tablet_node/in_memory_manager.h>
+#include <yt/server/tablet_node/in_memory_service.h>
 #include <yt/server/tablet_node/partition_balancer.h>
 #include <yt/server/tablet_node/security_manager.h>
 #include <yt/server/tablet_node/slot_manager.h>
@@ -401,6 +402,8 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
+    RpcServer->RegisterService(CreateInMemoryService(Config->TabletNode->InMemoryManager, this));
+
     auto localAddress = GetDefaultAddress(localRpcAddresses);
 
     JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
@@ -517,7 +520,7 @@ void TBootstrap::DoRun()
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
-    InMemoryManager = New<TInMemoryManager>(Config->TabletNode->InMemoryManager, this);
+    InMemoryManager = CreateInMemoryManager(Config->TabletNode->InMemoryManager, this);
 
     VersionedChunkMetaManager = New<TVersionedChunkMetaManager>(Config->TabletNode, this);
 
@@ -692,7 +695,7 @@ const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
     return SecurityManager;
 }
 
-const TInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
+const IInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
 {
     return InMemoryManager;
 }

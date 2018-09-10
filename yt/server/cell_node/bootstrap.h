@@ -66,7 +66,7 @@ public:
     const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const;
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
-    const NTabletNode::TInMemoryManagerPtr& GetInMemoryManager() const;
+    const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
@@ -180,7 +180,7 @@ private:
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
     NTabletNode::TSecurityManagerPtr SecurityManager;
-    NTabletNode::TInMemoryManagerPtr InMemoryManager;
+    NTabletNode::IInMemoryManagerPtr InMemoryManager;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;

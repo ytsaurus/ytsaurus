@@ -25,7 +25,7 @@ public:
         TTablet* tablet,
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager = nullptr,
-        TInMemoryManagerPtr inMemoryManager = nullptr,
+        IInMemoryManagerPtr inMemoryManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr);
 
     // IStoreManager overrides.

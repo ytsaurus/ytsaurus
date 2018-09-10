@@ -24,7 +24,7 @@ TReplicatedStoreManager::TReplicatedStoreManager(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager,
+    IInMemoryManagerPtr inMemoryManager,
     NNative::IClientPtr client)
     : Config_(config)
     , Tablet_(tablet)

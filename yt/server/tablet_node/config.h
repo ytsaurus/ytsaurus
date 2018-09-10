@@ -454,6 +454,10 @@ class TInMemoryManagerConfig
 public:
     int MaxConcurrentPreloads;
     TDuration InterceptedDataRetentionTime;
+    TDuration PingPeriod;
+    TDuration ControlRpcTimeout;
+    TDuration HeavyRpcTimeout;
+    size_t BatchSize;
     TWorkloadDescriptor WorkloadDescriptor;
     NConcurrency::TThroughputThrottlerConfigPtr PreloadThrottler;
 
@@ -464,6 +468,14 @@ public:
             .Default(1);
         RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("ping_period", PingPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("heavy_rpc_timeout", HeavyRpcTimeout)
+            .Default(TDuration::Seconds(20));
+        RegisterParameter("batch_size", BatchSize)
+            .Default(16_MB);
         RegisterParameter("workload_descriptor", WorkloadDescriptor)
             .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
         RegisterParameter("preload_throttler", PreloadThrottler)

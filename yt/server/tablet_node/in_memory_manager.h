@@ -4,7 +4,10 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/ytlib/api/native/public.h>
+
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
@@ -47,29 +50,29 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
  *  Provides means for intercepting data write-out during flushes and compactions
  *  and thus enables new chunk stores to be created with all blocks already resident.
  */
-class TInMemoryManager
+struct IInMemoryManager
     : public TRefCounted
 {
-public:
-    TInMemoryManager(
-        TInMemoryManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
-    ~TInMemoryManager();
+    virtual NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(
+            NTabletClient::EInMemoryMode mode) = 0;
 
-    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(NTabletClient::EInMemoryMode mode);
-    TInMemoryChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
-    void FinalizeChunk(
-        const NChunkClient::TChunkId& chunkId,
+    virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(
+        NChunkClient::TChunkId chunkId) = 0;
+
+    virtual void FinalizeChunk(
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const TTabletSnapshotPtr& tablet);
+        const TTabletSnapshotPtr& tablet) = 0;
 
-private:
-    class TImpl;
-    using TImplPtr = TIntrusivePtr<TImpl>;
-    const TImplPtr Impl_;
+    virtual const TInMemoryManagerConfigPtr& GetConfig() const = 0;
+
 };
 
-DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
+DEFINE_REFCOUNTED_TYPE(IInMemoryManager)
+
+IInMemoryManagerPtr CreateInMemoryManager(
+    TInMemoryManagerConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,6 +85,38 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
     const NProfiling::TTagId& preloadTag = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkInfo
+{
+    TChunkInfo(
+        NChunkClient::TChunkId chunkId,
+        NChunkClient::NProto::TChunkMeta chunkMeta,
+        TTabletId tabletId)
+        : ChunkId(chunkId)
+        , ChunkMeta(std::move(chunkMeta))
+        , TabletId(tabletId)
+    { }
+
+    NChunkClient::TChunkId ChunkId;
+    NChunkClient::NProto::TChunkMeta ChunkMeta;
+    TTabletId TabletId;
+};
+
+struct IRemoteInMemoryBlockCache
+    : public NChunkClient::IBlockCache
+{
+    virtual TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IRemoteInMemoryBlockCache)
+
+TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
+    NApi::NNative::IClientPtr client,
+    const NHiveClient::TCellDescriptor& cellDescriptor,
+    NTabletClient::EInMemoryMode inMemoryMode,
+    TInMemoryManagerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
