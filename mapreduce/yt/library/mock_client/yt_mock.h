@@ -18,6 +18,7 @@ namespace NTesting {
         MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
         MOCK_METHOD1(ListOperations, TListOperationsResult(const TListOperationsOptions&));
         MOCK_METHOD2(UpdateOperationParameters, void(const TOperationId&, const TNode&));
+        MOCK_METHOD2(ListJobs, TListJobsResult(const TOperationId&, const TListJobsOptions&));
         MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
         MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));
         MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));
@@ -94,6 +95,7 @@ namespace NTesting {
         MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
         MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
         MOCK_METHOD2(UpdateOperationParameters, void(const TOperationId&, const TNode&));
+        MOCK_METHOD2(ListJobs, TListJobsResult(const TOperationId&, const TListJobsOptions&));
         MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
         MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));
         MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));

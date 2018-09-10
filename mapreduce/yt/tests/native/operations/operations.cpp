@@ -445,6 +445,21 @@ REGISTER_MAPPER(TMapperThatNumbersRows);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIdMapperFailingFirstJob : public TIdMapper
+{
+public:
+    void Start(TWriter*) override
+    {
+        if (FromString<int>(GetEnv("YT_JOB_INDEX")) == 1) {
+            exit(1);
+        }
+    }
+};
+
+REGISTER_MAPPER(TIdMapperFailingFirstJob);
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_UNIT_TEST_SUITE(Operations)
 {
     Y_UNIT_TEST(IncorrectTableId)
@@ -2086,6 +2101,55 @@ Y_UNIT_TEST_SUITE(Operations)
             GetGuidAsString(op->GetId()) +
             "/progress/scheduling_info_per_pool_tree/default/weight";
         UNIT_ASSERT_DOUBLES_EQUAL(client->Get(weightPath).AsDouble(), 10.0, 1e-9);
+    }
+
+    Y_UNIT_TEST(ListJobs)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        auto beforeStart = TInstant::Now();
+        auto op = client->MapReduce(
+            TMapReduceOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .SortBy({"foo"})
+                .ReduceBy({"foo"})
+                .MapJobCount(2),
+            new TIdMapperFailingFirstJob,
+            /* reduceCombiner = */ nullptr,
+            new TIdReducer);
+        auto afterFinish = TInstant::Now();
+
+        auto options = TListJobsOptions()
+            .Type(EJobType::PartitionMap)
+            .SortField(EJobSortField::State)
+            .SortOrder(ESortOrder::SO_ASCENDING);
+
+        for (const auto& result : {op->ListJobs(options), client->ListJobs(op->GetId(), options)}) {
+            // There must be 3 partition_map jobs, the last of which is failed
+            // (as EJobState::Failed > EJobState::Completed).
+            UNIT_ASSERT_VALUES_EQUAL(result.Jobs.size(), 3);
+            for (size_t index = 0; index < result.Jobs.size(); ++index) {
+                const auto& jobAttrs = result.Jobs[index];
+
+                UNIT_ASSERT(jobAttrs.StartTime);
+                UNIT_ASSERT(*jobAttrs.StartTime > beforeStart);
+
+                UNIT_ASSERT(jobAttrs.FinishTime);
+                UNIT_ASSERT(*jobAttrs.FinishTime < afterFinish);
+
+                UNIT_ASSERT(jobAttrs.Type);
+                UNIT_ASSERT_VALUES_EQUAL(*jobAttrs.Type, EJobType::PartitionMap);
+
+                UNIT_ASSERT(jobAttrs.State);
+                auto expectedState = (index == result.Jobs.size() - 1)
+                    ? EJobState::Failed
+                    : EJobState::Completed;
+                UNIT_ASSERT_VALUES_EQUAL(*jobAttrs.State, expectedState);
+            }
+        }
     }
 
     Y_UNIT_TEST(FormatHint)

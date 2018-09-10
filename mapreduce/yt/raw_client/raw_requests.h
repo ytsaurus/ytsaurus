@@ -106,10 +106,17 @@ void UpdateOperationParameters(
     const TNode& newParameters,
     IRetryPolicy* retryPolicy = nullptr);
 
-TNode ListJobs(
+TNode ListJobsOld(
     const TAuth& auth,
     const TOperationId& operationId,
-    const TListJobsOptions& options = TListJobsOptions());
+    const TListJobsOptions& options = TListJobsOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
+
+TListJobsResult ListJobs(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TListJobsOptions& options = TListJobsOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 TString GetJobStderr(
     const TAuth& auth,

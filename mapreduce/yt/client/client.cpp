@@ -473,6 +473,13 @@ void TClientBase::UpdateOperationParameters(
     return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, newParameters);
 }
 
+TListJobsResult TClientBase::ListJobs(
+    const TOperationId& operationId,
+    const TListJobsOptions& options)
+{
+    return NYT::NDetail::ListJobs(Auth_, operationId, options);
+}
+
 void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
