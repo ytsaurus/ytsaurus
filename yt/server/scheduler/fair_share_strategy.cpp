@@ -2759,11 +2759,11 @@ public:
         int* snapshotRevision) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_DEBUG("Processing job updates to strategy");
+
         YCHECK(successfullyUpdatedJobs->empty());
         YCHECK(jobsToAbort->empty());
-
-        LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
-            jobUpdates.size());
 
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         {
