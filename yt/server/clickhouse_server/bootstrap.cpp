@@ -148,10 +148,9 @@ void TBootstrap::DoInitialize()
     auto poller = CreateThreadPoolPoller(1, "Http");
     HttpServer = NHttp::CreateServer(MonitoringPort_, poller);
 
-// TODO(prime@): uncomment after arcadia sync
-//        HttpServer->AddHandler(
-//            "/orchid/",
-//            GetOrchidYPathHttpHandler(orchidRoot));
+    HttpServer->AddHandler(
+        "/orchid/",
+        GetOrchidYPathHttpHandler(orchidRoot));
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
