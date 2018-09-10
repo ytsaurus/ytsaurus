@@ -395,7 +395,7 @@ void TTableReader::ValidateColumns(const NInterop::TColumnBuilderList& columns) 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::ITableReaderPtr CreateTablesReader(
+NInterop::ITableReaderPtr CreateTableReader(
     NInterop::TTableList tables,
     NInterop::TColumnList columns,
     NInterop::TSystemColumns systemColumns,
@@ -416,7 +416,7 @@ NInterop::ITableReaderPtr CreateTableReader(
     NInterop::TTablePtr table,
     ISchemafulReaderPtr chunkReader)
 {
-    return CreateTablesReader(
+    return CreateTableReader(
         {table},
         table->Columns,
         {},

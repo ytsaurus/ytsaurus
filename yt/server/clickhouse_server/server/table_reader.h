@@ -11,7 +11,7 @@ namespace NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::ITableReaderPtr CreateTablesReader(
+NInterop::ITableReaderPtr CreateTableReader(
     NInterop::TTableList tables,
     NInterop::TColumnList columns,
     NInterop::TSystemColumns systemColumns,
