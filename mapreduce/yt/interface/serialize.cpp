@@ -302,12 +302,17 @@ void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer)
     BuildYsonFluently(consumer).List(filter.Attributes_);
 }
 
-void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
+void Deserialize(TVector<TTableColumnarStatistics>& statisticsList, const TNode& node)
 {
-    const auto& nodeMap = node.AsMap();
-    DESERIALIZE_ITEM("column_data_weights", statistics.ColumnDataWeight);
-    DESERIALIZE_ITEM("legacy_chunks_data_weight", statistics.LegacyChunksDataWeight);
-    DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
+    for (const auto& element : node.AsList()) {
+        const auto& nodeMap = element.AsMap();
+        statisticsList.emplace_back();
+        auto& statistics = statisticsList.back();
+
+        DESERIALIZE_ITEM("column_data_weights", statistics.ColumnDataWeight);
+        DESERIALIZE_ITEM("legacy_chunks_data_weight", statistics.LegacyChunksDataWeight);
+        DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
+    }
 }
 
 void Serialize(const TGUID& value, IYsonConsumer* consumer)

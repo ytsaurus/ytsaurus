@@ -174,12 +174,12 @@ TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
     return CanonizePath(Auth_, path);
 }
 
-TTableColumnarStatistics TClientBase::GetTableColumnarStatistics(const TRichYPath& path)
+TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const TVector<TRichYPath>& paths)
 {
     THttpHeader header("GET", "get_table_columnar_statistics");
-    header.MergeParameters(NDetail::SerializeParamsForGetTableColumnarStatistics(TransactionId_, path));
+    header.MergeParameters(NDetail::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
     auto response = NodeFromYsonString(RetryRequest(Auth_, header));
-    TTableColumnarStatistics result;
+    TVector<TTableColumnarStatistics> result;
     Deserialize(result, response);
     return result;
 }

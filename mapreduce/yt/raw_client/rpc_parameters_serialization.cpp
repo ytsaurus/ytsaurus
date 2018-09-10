@@ -440,11 +440,13 @@ TNode SerializeParamsForAlterTable(
 
 TNode SerializeParamsForGetTableColumnarStatistics(
     const TTransactionId& transactionId,
-    const TRichYPath& path)
+    const TVector<TRichYPath>& paths)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    result["path"] = PathToNode(path);
+    for (const auto& path : paths) {
+        result["paths"].Add(PathToNode(path));
+    }
     return result;
 }
 

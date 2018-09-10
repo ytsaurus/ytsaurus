@@ -61,7 +61,7 @@ public:
 
     virtual TRichYPath CanonizeYPath(const TRichYPath& path) = 0;
 
-    virtual TTableColumnarStatistics GetTableColumnarStatistics(const TRichYPath& path) = 0;
+    virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

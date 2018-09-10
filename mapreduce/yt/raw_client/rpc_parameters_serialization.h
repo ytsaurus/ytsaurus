@@ -106,7 +106,7 @@ TNode SerializeParamsForAlterTable(
 
 TNode SerializeParamsForGetTableColumnarStatistics(
     const TTransactionId& transactionId,
-    const TRichYPath& path);
+    const TVector<TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////
 

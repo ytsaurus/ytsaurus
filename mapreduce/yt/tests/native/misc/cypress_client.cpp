@@ -344,14 +344,15 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             writer->Finish();
         }
 
-        auto statistics = tx->GetTableColumnarStatistics(TRichYPath("//testing/table").Columns({"bar", "foo"}));
+        auto statisticsList = tx->GetTableColumnarStatistics({ TRichYPath("//testing/table").Columns({"bar", "foo"}) });
+        const auto& statistics = statisticsList.front();
 
         UNIT_ASSERT_VALUES_EQUAL(statistics.ColumnDataWeight.size(), 2);
         UNIT_ASSERT(statistics.ColumnDataWeight.at("foo") > 0);
         UNIT_ASSERT(statistics.ColumnDataWeight.at("bar") > 0);
 
         UNIT_ASSERT_EXCEPTION(
-            client->GetTableColumnarStatistics(TRichYPath("//testing/table").Columns({"bar", "foo"})),
+            client->GetTableColumnarStatistics({ TRichYPath("//testing/table").Columns({"bar", "foo"}) }),
             TErrorResponse);
     }
 }
