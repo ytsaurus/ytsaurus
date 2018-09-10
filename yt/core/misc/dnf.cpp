@@ -196,12 +196,12 @@ void Deserialize(TDnfFormula& dnf, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t hash<NYT::TConjunctiveClause>::operator()(const NYT::TConjunctiveClause& clause) const
+size_t THash<NYT::TConjunctiveClause>::operator()(const NYT::TConjunctiveClause& clause) const
 {
     return clause.GetHash();
 }
 
-size_t hash<NYT::TDnfFormula>::operator()(const NYT::TDnfFormula& dnf) const
+size_t THash<NYT::TDnfFormula>::operator()(const NYT::TDnfFormula& dnf) const
 {
     return dnf.GetHash();
 }

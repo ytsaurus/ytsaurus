@@ -359,7 +359,7 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 
 //! A hasher for TIntrusivePtr.
 template <class T>
-struct hash<NYT::TIntrusivePtr<T>>
+struct THash<NYT::TIntrusivePtr<T>>
 {
     Y_FORCE_INLINE size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
     {

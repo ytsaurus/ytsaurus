@@ -161,6 +161,9 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         authenticated_user = parameters["authenticated_user"]
         del parameters["authenticated_user"]
 
+    if "rewrite_operation_path" not in parameters:
+        parameters["rewrite_operation_path"] = False
+
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
 
@@ -731,8 +734,8 @@ def create_tmpdir(prefix):
         sys.excepthook(*sys.exc_info())
 
     tmpdir = tempfile.mkdtemp(
-         prefix="{0}_{1}_".format(prefix, os.getpid()),
-         dir=basedir)
+        prefix="{0}_{1}_".format(prefix, os.getpid()),
+        dir=basedir)
     # Give full access to tmpdir, it must be accessible from user jobs
     # to implement waitable jobs.
     os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)

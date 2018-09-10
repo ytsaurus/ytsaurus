@@ -158,8 +158,8 @@ TEST_F(TLoggingTest, Rule)
             writers = [ some_writer ];
         })")));
 
-    EXPECT_TRUE(rule->IsApplicable("some_service"));
-    EXPECT_FALSE(rule->IsApplicable("bus"));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogMessageFormat::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogMessageFormat::PlainText));
     EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogMessageFormat::PlainText));
     EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogMessageFormat::PlainText));
     EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogMessageFormat::PlainText));

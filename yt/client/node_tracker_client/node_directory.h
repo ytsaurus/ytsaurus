@@ -149,7 +149,7 @@ DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct hash<NYT::NNodeTrackerClient::TNodeDescriptor>
+struct THash<NYT::NNodeTrackerClient::TNodeDescriptor>
 {
     size_t operator()(const NYT::NNodeTrackerClient::TNodeDescriptor& value) const;
 };

@@ -133,6 +133,7 @@ DEFINE_REFCOUNTED_TYPE(IFairShareTreeSnapshot);
 
 class TFairShareTree
     : public TIntrinsicRefCounted
+    , public IFairShareTreeHost
 {
 public:
     TFairShareTree(
@@ -155,7 +156,7 @@ public:
         , FairShareLogTimeCounter("/fair_share_log_time", {TreeIdProfilingTag})
         , AnalyzePreemptableJobsTimeCounter("/analyze_preemptable_jobs_time", {TreeIdProfilingTag})
     {
-        RootElement = New<TRootElement>(Host, config, GetPoolProfilingTag(RootPoolName), TreeId);
+        RootElement = New<TRootElement>(Host, this, config, GetPoolProfilingTag(RootPoolName), TreeId);
     }
 
     IFairShareTreeSnapshotPtr CreateSnapshot()
@@ -251,6 +252,7 @@ public:
             state->GetController(),
             ControllerConfig,
             Host,
+            this,
             state->GetHost(),
             TreeId);
 
@@ -278,10 +280,15 @@ public:
 
         auto pool = FindPool(poolName.GetPool());
         if (!pool) {
+            auto poolConfig = New<TPoolConfig>();
+            if (poolName.GetParentPool()) {
+                poolConfig->Mode = GetPool(poolName.GetParentPool().Get())->GetConfig()->EphemeralSubpoolsMode;
+            }
             pool = New<TPool>(
                 Host,
+                this,
                 poolName.GetPool(),
-                New<TPoolConfig>(),
+                poolConfig,
                 /* defaultConfigured */ true,
                 Config,
                 GetPoolProfilingTag(poolName.GetPool()),
@@ -489,6 +496,7 @@ public:
                             // Create new pool.
                             pool = New<TPool>(
                                 Host,
+                                this,
                                 childId,
                                 poolConfig,
                                 /* defaultConfigured */ false,
@@ -966,6 +974,19 @@ public:
         return static_cast<bool>(FindOperationElement(operationId));
     }
 
+    virtual TAggregateGauge& GetProfilingCounter(const TString& name) override
+    {
+        TGuard<TSpinLock> guard(CustomProfilingCountersLock_);
+
+        auto it = CustomProfilingCounters_.find(name);
+        if (it == CustomProfilingCounters_.end()) {
+            auto tag = TProfileManager::Get()->RegisterTag("tree", TreeId);
+            auto ptr = std::make_unique<TAggregateGauge>(name, TTagIdList{tag});
+            it = CustomProfilingCounters_.emplace(name, std::move(ptr)).first;
+        }
+        return *it->second;
+    }
+
 private:
     TFairShareStrategyTreeConfigPtr Config;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
@@ -1099,9 +1120,9 @@ private:
 
     TDynamicAttributesList GlobalDynamicAttributes_;
 
-    struct TProfilingCounters
+    struct TScheduleJobsProfilingCounters
     {
-        TProfilingCounters(const TString& prefix, const TTagId& treeIdProfilingTag)
+        TScheduleJobsProfilingCounters(const TString& prefix, const TTagId& treeIdProfilingTag)
             : PrescheduleJobTime(prefix + "/preschedule_job_time", {treeIdProfilingTag})
             , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", {treeIdProfilingTag})
             , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", {treeIdProfilingTag})
@@ -1129,12 +1150,15 @@ private:
         TEnumIndexedVector<TMonotonicCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
     };
 
-    TProfilingCounters NonPreemptiveProfilingCounters;
-    TProfilingCounters PreemptiveProfilingCounters;
+    TScheduleJobsProfilingCounters NonPreemptiveProfilingCounters;
+    TScheduleJobsProfilingCounters PreemptiveProfilingCounters;
 
     TAggregateGauge FairShareUpdateTimeCounter;
     TAggregateGauge FairShareLogTimeCounter;
     TAggregateGauge AnalyzePreemptableJobsTimeCounter;
+
+    TSpinLock CustomProfilingCountersLock_;
+    THashMap<TString, std::unique_ptr<TAggregateGauge>> CustomProfilingCounters_;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
@@ -1153,7 +1177,7 @@ private:
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         TCpuInstant startTime,
-        const std::function<void(TProfilingCounters&, int, TDuration)> profileTimings,
+        const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)> profileTimings,
         const std::function<void(TStringBuf)> logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
@@ -1197,7 +1221,7 @@ private:
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         TCpuInstant startTime,
-        const std::function<void(TProfilingCounters&, int, TDuration)>& profileTimings,
+        const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)>& profileTimings,
         const std::function<void(TStringBuf)>& logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
@@ -1394,7 +1418,7 @@ private:
         TFairShareContext context(schedulingContext);
 
         auto profileTimings = [&] (
-            TProfilingCounters& counters,
+            TScheduleJobsProfilingCounters& counters,
             int scheduleJobCount,
             TDuration scheduleJobDurationWithoutControllers)
         {

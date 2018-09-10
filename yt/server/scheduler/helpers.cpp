@@ -245,18 +245,6 @@ TListOperationsResult ListOperations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NNative::IClientPtr CreateClientForTransaction(
-    const NNative::IClientPtr& client,
-    const TTransactionId& transactionId)
-{
-    auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
-        client->GetNativeConnection(),
-        CellTagFromId(transactionId));
-    return connection->CreateNativeClient(TClientOptions(SchedulerUserName));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NScheduler
 } // namespace NYT
 

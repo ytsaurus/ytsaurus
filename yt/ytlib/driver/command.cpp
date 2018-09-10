@@ -3,8 +3,12 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/ypath/tokenizer.h>
+
 namespace NYT {
 namespace NDriver {
+
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +66,9 @@ void ProduceSingleOutput(
 TCommandBase::TCommandBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
+
+    RegisterParameter("rewrite_operation_path", RewriteOperationPath)
+        .Default(true);
 }
 
 void TCommandBase::Execute(ICommandContextPtr context)
@@ -84,6 +91,60 @@ void TCommandBase::ProduceResponseParameters(
     }
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Keep sync with yt/ytlib/scheduler/helpers.cpp.
+TYPath GetNewOperationPath(const TGuid& operationId)
+{
+    int hashByte = operationId.Parts32[0] & 0xff;
+    return
+        "//sys/operations/" +
+        Format("%02x", hashByte) +
+        "/" +
+        ToYPathLiteral(ToString(operationId));
+}
+
+TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
+{
+    if (!rewriteOperationPath) {
+        return path;
+    }
+
+    std::vector<std::pair<ETokenType, TString>> expectedTokens = {
+        {ETokenType::Slash, "/"},
+        {ETokenType::Slash, "/"},
+        {ETokenType::Literal, "sys"},
+        {ETokenType::Slash, "/"},
+        {ETokenType::Literal, "operations"},
+        {ETokenType::Slash, "/"},
+    };
+
+    TTokenizer tokenizer(path);
+    tokenizer.Advance();
+
+    for (const auto& pair : expectedTokens) {
+        auto expectedTokenType = pair.first;
+        const auto& expectedTokenValue = pair.second;
+        if (expectedTokenType != tokenizer.GetType() ||
+            expectedTokenValue != tokenizer.GetToken())
+        {
+            return path;
+        }
+        tokenizer.Advance();
+    }
+
+    if (tokenizer.GetType() != ETokenType::Literal) {
+        return path;
+    }
+
+    TGuid operationId;
+    if (!TGuid::FromString(tokenizer.GetToken(), &operationId)) {
+        return path;
+    }
+
+    return GetNewOperationPath(operationId) + tokenizer.GetSuffix();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

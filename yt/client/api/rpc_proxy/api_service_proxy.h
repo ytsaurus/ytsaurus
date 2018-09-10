@@ -61,7 +61,25 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
 
-    // File chaching
+    // Operations
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartOperation);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortOperation);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SuspendOperation);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ResumeOperation);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CompleteOperation);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UpdateOperationParameters);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetOperation);
+
+    // Jobs
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJob);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StraceJob);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DumpJobContext);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SignalJob);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbandonJob);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PollJobShell);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortJob);
+
+    // File caching
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFileFromCache);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PutFileToCache);
 
@@ -72,6 +90,12 @@ public:
     // IAdmin
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BuildSnapshot);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GCCollect);
+
+    // Security
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveMember);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckPermission);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

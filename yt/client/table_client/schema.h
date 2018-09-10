@@ -232,7 +232,7 @@ void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyCo
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct hash<NYT::NTableClient::TColumnSchema>
+struct THash<NYT::NTableClient::TColumnSchema>
 {
     inline size_t operator()(const NYT::NTableClient::TColumnSchema& columnSchema) const
     {
@@ -249,7 +249,7 @@ struct hash<NYT::NTableClient::TColumnSchema>
 };
 
 template <>
-struct hash<NYT::NTableClient::TTableSchema>
+struct THash<NYT::NTableClient::TTableSchema>
 {
     inline size_t operator()(const NYT::NTableClient::TTableSchema& tableSchema) const
     {
