@@ -2234,7 +2234,7 @@ private:
         for (auto* tablet : syncReplicaTablets) {
             AdvanceReplicatedTrimmedRowCount(tablet, transaction);
         }
-        
+
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             UnlockLockedTablets(transaction);
         }

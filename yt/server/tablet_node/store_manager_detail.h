@@ -58,7 +58,6 @@ public:
     virtual void BackoffStorePreload(IChunkStorePtr store) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
-    virtual ui64 GetInMemoryConfigRevision() const override;
 
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
@@ -91,7 +90,6 @@ protected:
     const NApi::NNative::IClientPtr Client_;
 
     bool RotationScheduled_ = false;
-    ui64 InMemoryConfigRevision_ = 0;
     TInstant LastRotated_;
 
     THashSet<IStorePtr> LockedStores_;
@@ -114,7 +112,6 @@ protected:
 
     void UpdateInMemoryMode();
 
-    void ScheduleStorePreload(IChunkStorePtr store);
     bool TryPreloadStoreFromInterceptedData(
         IChunkStorePtr store,
         TInMemoryChunkDataPtr chunkData);

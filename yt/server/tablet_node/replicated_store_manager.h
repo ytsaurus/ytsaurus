@@ -66,7 +66,6 @@ public:
     virtual void BackoffStorePreload(IChunkStorePtr store) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
-    virtual ui64 GetInMemoryConfigRevision() const override;
 
     virtual bool IsStoreFlushable(IStorePtr store) const override;
     virtual TStoreFlushCallback BeginStoreFlush(

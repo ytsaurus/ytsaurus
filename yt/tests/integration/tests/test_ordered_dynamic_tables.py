@@ -636,7 +636,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
         sync_mount_table("//tmp/t")
-        _check_preload_state("disabled")
+        _check_preload_state("none")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
         # Re-enable in-memory mode

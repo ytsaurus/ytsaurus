@@ -1290,7 +1290,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
         sync_mount_table("//tmp/t")
-        _check_preload_state("disabled")
+        _check_preload_state("none")
         assert lookup_rows("//tmp/t", keys) == rows
 
         # Re-enable in-memory mode

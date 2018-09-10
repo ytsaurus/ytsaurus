@@ -220,7 +220,7 @@ public:
     virtual void SetPreloadState(EStorePreloadState state) override;
 
     virtual bool IsPreloadAllowed() const override;
-    virtual void UpdatePreloadAttempt() override;
+    virtual void UpdatePreloadAttempt(bool isBackoff) override;
 
     virtual TFuture<void> GetPreloadFuture() const override;
     virtual void SetPreloadFuture(TFuture<void> future) override;
@@ -238,7 +238,7 @@ public:
         const NConcurrency::IThroughputThrottlerPtr& throttler) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode, ui64 configRevision) override;
+    virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
@@ -251,11 +251,12 @@ protected:
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;
-    ui64 InMemoryConfigRevision_ = 0;
-
-    EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
+    EStorePreloadState PreloadState_ = EStorePreloadState::None;
     TInstant AllowedPreloadTimestamp_;
     TFuture<void> PreloadFuture_;
+    TPreloadedBlockCachePtr PreloadedBlockCache_;
+    NTableClient::TChunkStatePtr ChunkState_;
+
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant AllowedCompactionTimestamp_;
 
@@ -268,11 +269,6 @@ protected:
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
-
-    TPreloadedBlockCachePtr PreloadedBlockCache_;
-
-    NTableClient::TChunkStatePtr ChunkState_;
-
 
     void OnLocalReaderFailed();
 

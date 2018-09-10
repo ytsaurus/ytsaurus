@@ -28,7 +28,6 @@ struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
-    ui64 InMemoryConfigRevision = 0;
 
     std::vector<NChunkClient::TBlock> Blocks;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
@@ -57,7 +56,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TInMemoryManager();
 
-    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(NTabletClient::EInMemoryMode mode, ui64 configRevision);
+    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(NTabletClient::EInMemoryMode mode);
     TInMemoryChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
     void FinalizeChunk(
         const NChunkClient::TChunkId& chunkId,

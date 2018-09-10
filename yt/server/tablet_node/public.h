@@ -155,7 +155,6 @@ DEFINE_ENUM(EStoreCompactionState,
 );
 
 DEFINE_ENUM(EStorePreloadState,
-    (Disabled)
     (None)
     (Scheduled)
     (Running)

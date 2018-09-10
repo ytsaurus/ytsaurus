@@ -192,11 +192,6 @@ EInMemoryMode TReplicatedStoreManager::GetInMemoryMode() const
     return LogStoreManager_->GetInMemoryMode();
 }
 
-ui64 TReplicatedStoreManager::GetInMemoryConfigRevision() const
-{
-    return LogStoreManager_->GetInMemoryConfigRevision();
-}
-
 bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
 {
     return LogStoreManager_->IsStoreFlushable(std::move(store));
