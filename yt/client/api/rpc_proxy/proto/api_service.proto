@@ -68,6 +68,26 @@ enum ETabletReadKind
     TRK_LEADER_OR_FOLLOWER = 2;
 }
 
+enum EOperationType
+{
+    OT_MAP = 0;
+    OT_MERGE = 1;
+    OT_ERASE = 2;
+    OT_SORT = 3;
+    OT_REDUCE = 4;
+    OT_MAP_REDUCE = 5;
+    OT_REMOTE_COPY = 6;
+    OT_JOIN_REDUCE = 7;
+    OT_VANILLA = 8;
+}
+
+enum ESecurityAction
+{
+    SA_UNDEFINED = 0;
+    SA_ALLOW = 1;
+    SA_DENY = 2;
+}
+
 // XXX(babenko): this is a very unconventional analog of NYT.NYTree.NProto.TAttributeKeys
 // Only sandello@ knows why we need this.
 message TAttributeKeys
@@ -586,7 +606,7 @@ message TReqCreateNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspCreateNode
@@ -605,7 +625,7 @@ message TReqRemoveNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspRemoveNode
@@ -622,7 +642,7 @@ message TReqSetNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspSetNode
@@ -642,7 +662,7 @@ message TReqLockNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspLockNode
@@ -666,7 +686,7 @@ message TReqCopyNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspCopyNode
@@ -688,7 +708,7 @@ message TReqMoveNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspMoveNode
@@ -709,7 +729,7 @@ message TReqLinkNode
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspLinkNode
@@ -728,7 +748,7 @@ message TReqConcatenateNodes
 
     optional TTransactionalOptions transactional_options = 100;
     // TODO(sandello): Prerequisite?
-    optional TMutatingOptions mutating_options = 103; // required?
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspConcatenateNodes
@@ -911,7 +931,6 @@ message TReqGetFileFromCache
     required string md5 = 1;
     required string cache_path = 2; // YPath
 
-    optional TTransactionalOptions transactional_options = 100;
     optional TMasterReadOptions master_read_options = 102;
 }
 
@@ -928,7 +947,6 @@ message TReqPutFileToCache
     required string md5 = 2;
     required string cache_path = 3; // YPath
 
-    optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TMutatingOptions mutating_options = 103;
@@ -940,6 +958,243 @@ message TRspPutFileToCache
 }
 
 //------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////
+// OPERATIONS
+////////////////////////////////////////////////////////////////////////////////
+
+//------------------------------------------------------------------------------
+
+message TReqStartOperation
+{
+    required EOperationType type = 1;
+    required bytes spec = 2; // YSON
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspStartOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAbortOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    optional string abort_message = 2;
+}
+
+message TRspAbortOperation
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqSuspendOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    optional bool abort_running_jobs = 2 [default = false];
+}
+
+message TRspSuspendOperation
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqResumeOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspResumeOperation
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqCompleteOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspCompleteOperation
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqUpdateOperationParameters
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required bytes parameters = 2; // YSON
+}
+
+message TRspUpdateOperationParameters
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGetOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    repeated string attributes = 2;
+    optional bool include_runtime = 3 [default = false];
+
+    optional TMasterReadOptions master_read_options = 102;
+}
+
+message TRspGetOperation
+{
+    required bytes meta = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////
+// JOBS
+////////////////////////////////////////////////////////////////////////////////
+
+//------------------------------------------------------------------------------
+
+message TReqGetJob
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetJob
+{
+    required bytes info = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+message TReqStraceJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspStraceJob
+{
+    required bytes trace = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+message TReqDumpJobContext
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string path = 2;
+}
+
+message TRspDumpJobContext
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqSignalJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string signal_name = 2;
+}
+
+message TRspSignalJob
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAbandonJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspAbandonJob
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqPollJobShell
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required bytes parameters = 2; // YSON
+}
+
+message TRspPollJobShell
+{
+    required bytes result = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAbortJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+    optional int64 interrupt_timeout = 2;
+}
+
+message TRspAbortJob
+{
+}
+
+//------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////
+// ETC
+////////////////////////////////////////////////////////////////////////////////
+
+//------------------------------------------------------------------------------
+
+message TReqAddMember
+{
+    required string group = 1;
+    required string member = 2;
+
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspAddMember
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqRemoveMember
+{
+    required string group = 1;
+    required string member = 2;
+
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspRemoveMember
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqCheckPermission
+{
+    required string user = 1;
+    required string path = 2; // YSON
+    required int32 permission = 3; // bit enum consisting of 7 bits
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMasterReadOptions master_read_options = 102;
+}
+
+message TRspCheckPermission
+{
+    required TCheckPermissionResult result = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -955,4 +1210,11 @@ message TPutFileToCacheResult
     required string path = 1; // YPath
 }
 
-////////////////////////////////////////////////////////////////////////////////
+message TCheckPermissionResult
+{
+    required ESecurityAction action = 1;
+    required NYT.NProto.TGuid object_id = 2;
+    optional string object_name = 3;
+    required NYT.NProto.TGuid subject_id = 4;
+    optional string subject_name = 5;
+}

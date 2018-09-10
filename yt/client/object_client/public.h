@@ -208,6 +208,9 @@ const EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
 using TTransactionId = TObjectId;
 extern const TTransactionId NullTransactionId;
 
+using TOperationId = TObjectId;
+using TJobId = TObjectId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Identifies a node possibly branched by a transaction.

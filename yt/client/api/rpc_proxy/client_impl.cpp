@@ -389,6 +389,299 @@ TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
     }));
 }
 
+TFuture<void> TClient::AddMember(
+    const TString& group,
+    const TString& member,
+    const NApi::TAddMemberOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.AddMember();
+    SetTimeoutOptions(*req, options);
+
+    req->set_group(group);
+    req->set_member(member);
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::RemoveMember(
+    const TString& group,
+    const TString& member,
+    const NApi::TRemoveMemberOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.RemoveMember();
+    SetTimeoutOptions(*req, options);
+
+    req->set_group(group);
+    req->set_member(member);
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
+    const TString& user,
+    const NYPath::TYPath& path,
+    NYTree::EPermission permission,
+    const NApi::TCheckPermissionOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.CheckPermission();
+    SetTimeoutOptions(*req, options);
+
+    req->set_user(user);
+    req->set_path(path);
+    req->set_permission(static_cast<int>(permission));
+
+    ToProto(req->mutable_master_read_options(), options);
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionPtr& rsp) {
+        return FromProto<NApi::TCheckPermissionResult>(rsp->result());
+    }));
+}
+
+TFuture<NScheduler::TOperationId> TClient::StartOperation(
+    NScheduler::EOperationType type,
+    const NYson::TYsonString& spec,
+    const NApi::TStartOperationOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.StartOperation();
+    SetTimeoutOptions(*req, options);
+
+    req->set_type(NProto::ConvertOperationTypeToProto(type));
+    req->set_spec(spec.GetData());
+
+    ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_transactional_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStartOperationPtr& rsp) {
+        return FromProto<NScheduler::TOperationId>(rsp->operation_id());
+    }));
+}
+
+TFuture<void> TClient::AbortOperation(
+    const NScheduler::TOperationId& operationId,
+    const NApi::TAbortOperationOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.AbortOperation();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+
+    if (options.AbortMessage) {
+        req->set_abort_message(*options.AbortMessage);
+    }
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::SuspendOperation(
+    const NScheduler::TOperationId& operationId,
+    const NApi::TSuspendOperationOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.SuspendOperation();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+    req->set_abort_running_jobs(options.AbortRunningJobs);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::ResumeOperation(
+    const NScheduler::TOperationId& operationId,
+    const NApi::TResumeOperationOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.ResumeOperation();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::CompleteOperation(
+    const NScheduler::TOperationId& operationId,
+    const NApi::TCompleteOperationOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.CompleteOperation();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::UpdateOperationParameters(
+    const NScheduler::TOperationId& operationId,
+    const NYson::TYsonString& parameters,
+    const NApi::TUpdateOperationParametersOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.UpdateOperationParameters();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+    req->set_parameters(parameters.GetData());
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<NYson::TYsonString> TClient::GetOperation(
+    const NScheduler::TOperationId& operationId,
+    const NApi::TGetOperationOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.GetOperation();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+    ToProto(req->mutable_master_read_options(), options);
+    if (options.Attributes) {
+        for (const auto& attribute: options.Attributes.Get()) {
+            req->add_attributes(attribute);
+        }
+    }
+    req->set_include_runtime(options.IncludeRuntime);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetOperationPtr& rsp) {
+        return NYson::TYsonString(rsp->meta());
+    }));
+}
+
+TFuture<void> TClient::DumpJobContext(
+    const NJobTrackerClient::TJobId& jobId,
+    const NYPath::TYPath& path,
+    const NApi::TDumpJobContextOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.DumpJobContext();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+    req->set_path(path);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<NYson::TYsonString> TClient::GetJob(
+    const NJobTrackerClient::TOperationId& operationId,
+    const NJobTrackerClient::TJobId& jobId,
+    const NApi::TGetJobOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.GetJob();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+    ToProto(req->mutable_job_id(), jobId);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobPtr& rsp) {
+        return NYson::TYsonString(rsp->info());
+    }));
+}
+
+TFuture<NYson::TYsonString> TClient::StraceJob(
+    const NJobTrackerClient::TJobId& jobId,
+    const NApi::TStraceJobOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.StraceJob();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStraceJobPtr& rsp) {
+        return NYson::TYsonString(rsp->trace());
+    }));
+}
+
+TFuture<void> TClient::SignalJob(
+    const NJobTrackerClient::TJobId& jobId,
+    const TString& signalName,
+    const NApi::TSignalJobOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.SignalJob();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+    req->set_signal_name(signalName);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::AbandonJob(
+    const NJobTrackerClient::TJobId& jobId,
+    const NApi::TAbandonJobOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.AbandonJob();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<NYson::TYsonString> TClient::PollJobShell(
+    const NJobTrackerClient::TJobId& jobId,
+    const NYson::TYsonString& parameters,
+    const NApi::TPollJobShellOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.PollJobShell();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+    req->set_parameters(parameters.GetData());
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPollJobShellPtr& rsp) {
+        return NYson::TYsonString(rsp->result());
+    }));
+}
+
+TFuture<void> TClient::AbortJob(
+    const NJobTrackerClient::TJobId& jobId,
+    const NApi::TAbortJobOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.AbortJob();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+    if (options.InterruptTimeout) {
+        req->set_interrupt_timeout(NYT::ToProto<i64>(options.InterruptTimeout.Get()));
+    }
+
+    return req->Invoke().As<void>();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
@@ -406,7 +699,7 @@ TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
     ToProto(req->mutable_master_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetFileFromCachePtr& rsp) {
-        return FromProto<TGetFileFromCacheResult>(rsp->result());
+        return FromProto<NApi::TGetFileFromCacheResult>(rsp->result());
     }));
 }
 
@@ -431,7 +724,7 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPutFileToCachePtr& rsp) {
-        return FromProto<TPutFileToCacheResult>(rsp->result());
+        return FromProto<NApi::TPutFileToCacheResult>(rsp->result());
     }));
 }
 
