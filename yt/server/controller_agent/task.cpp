@@ -50,11 +50,11 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     : Logger(ControllerLogger)
     , TaskHost_(taskHost.Get())
     , EdgeDescriptors_(std::move(edgeDescriptors))
+    , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
     , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
-    , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , InputChunkMapping_(New<TInputChunkMapping>())
 { }
 
