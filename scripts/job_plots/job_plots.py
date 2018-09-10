@@ -252,7 +252,7 @@ def get_jobs(op_id, cluster_name):
     return jobset
 
 
-def raw_time_gantt_data(jobset):
+def get_raw_time_gantt_data(jobset):
     """
     Get data which are used in gantt chart: times of job events, job_id and state.
     Jobs are separated by their type.
@@ -279,7 +279,7 @@ def raw_time_gantt_data(jobset):
 
 def draw_time_gantt(jobset):
     """Draw gantt chart illustrating preparation and execution periods for every job"""
-    data = raw_time_gantt_data(jobset)
+    data = get_raw_time_gantt_data(jobset)
     if not data:
         return
     for jobs_per_type in data:
@@ -312,17 +312,17 @@ def draw_time_gantt(jobset):
         ))
         
 
-def raw_hist_data(jobset, statistic="total_time"):
+def get_raw_hist_data(jobset, statistic="total_time"):
     """
     Get data which are used in hist: values of selected statistic separated by job set.
     """
-    data = raw_comparative_hist_data([jobset], statistic)
+    data = get_raw_comparative_hist_data([jobset], statistic)
     if data:
         return data[0]
     return None
         
         
-def raw_comparative_hist_data(jobsets, statistic="total_time"):
+def get_raw_comparative_hist_data(jobsets, statistic="total_time"):
     """
     Get raw hist data for a list of job sets.
     """
@@ -351,7 +351,7 @@ def draw_hist(jobset, statistic="total_time"):
 
 def draw_comparative_hist(jobsets, statistic="total_time"):
     """Draw histograms for several jobsets on one plot"""
-    data = raw_comparative_hist_data(jobsets, statistic)
+    data = get_raw_comparative_hist_data(jobsets, statistic)
     if not data:
         return
     # Find data boundaries for calculation of bins edges:
@@ -382,18 +382,18 @@ def draw_comparative_hist(jobsets, statistic="total_time"):
     ))
 
     
-def raw_time_plot_data(jobset):
+def get_raw_time_plot_data(jobset):
     """
     Get data which are used in time plot:
     time points as "x_values" and job counts in these points as "y_values", separated by job type.
     """
-    data = raw_comparative_time_plot_data([jobset])
+    data = get_raw_comparative_time_plot_data([jobset])
     if data:
         return data[0]
     return None
     
     
-def raw_comparative_time_plot_data(jobsets):
+def get_raw_comparative_time_plot_data(jobsets):
     """
     Get raw time plot data for a list of job sets.
     """
@@ -432,7 +432,7 @@ def draw_time_plot(jobset):
 
 def draw_comparative_time_plot(jobsets):
     """Draw line graphs for several jobsets on one plot"""
-    data = raw_comparative_time_plot_data(jobsets)
+    data = get_raw_comparative_time_plot_data(jobsets)
     if not data:
         return
     traces = []
@@ -459,18 +459,18 @@ def draw_comparative_time_plot(jobsets):
     ))
     
 
-def raw_scatter_plot_data(jobset, x_statistic="input_data_weight", y_statistic="total_time"):
+def get_raw_scatter_plot_data(jobset, x_statistic="input_data_weight", y_statistic="total_time"):
     """
     Get data which are used in scatter plot:
     values of selected x_statistic and y_statistic as "x_values" and "y_values" separated by job type.
     """
-    data = raw_comparative_scatter_plot_data([jobset], x_statistic, y_statistic)
+    data = get_raw_comparative_scatter_plot_data([jobset], x_statistic, y_statistic)
     if data:
         return data[0]
     return None
     
     
-def raw_comparative_scatter_plot_data(jobsets, x_statistic="input_data_weight", y_statistic="total_time"):
+def get_raw_comparative_scatter_plot_data(jobsets, x_statistic="input_data_weight", y_statistic="total_time"):
     """
     Get raw scatter plot data for a list of job sets.
     """
@@ -503,7 +503,7 @@ def draw_scatter_plot(jobset, x_statistic="input_data_weight", y_statistic="tota
 
 def draw_comparative_scatter_plot(jobsets, x_statistic="input_data_weight", y_statistic="total_time"):
     """Draw scatter charts for several jobsets on one plot"""
-    data = raw_comparative_scatter_plot_data(jobsets, x_statistic, y_statistic)
+    data = get_raw_comparative_scatter_plot_data(jobsets, x_statistic, y_statistic)
     if not data:
         return
     traces = []
@@ -529,7 +529,7 @@ def draw_comparative_scatter_plot(jobsets, x_statistic="input_data_weight", y_st
     ))
 
 
-def raw_time_statistics_data(jobset):
+def get_raw_time_statistics_data(jobset):
     """
     Get data which are used in time statistics bar chart:
     values of statistics as "statistics" and list of job ids.
@@ -564,7 +564,7 @@ def draw_time_statistics_bar_chart(jobset):
     """
     Draw duration of different job stages as a bar chart for every job
     """
-    data = raw_time_statistics_data(jobset)
+    data = get_raw_time_statistics_data(jobset)
     if not data:
         return
     statistics = [
@@ -608,5 +608,4 @@ def print_jobset(jobset, sort_by="start_time", reverse=False, additional_fields=
                 print("\t{}:".format("additional_fields"))
                 for field in additional_fields:
                     print("\t\t{}: {}".format(field, _get_statistics(job_info, field)))
-
 
