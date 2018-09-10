@@ -1016,6 +1016,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
+        tablet->ReconfigureThrottlers();
         tablet->FillProfilerTags(Slot_->GetCellId());
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
