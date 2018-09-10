@@ -36,6 +36,7 @@ public:
     virtual void CompleteOperation() override;
     virtual TOperationAttributes GetAttributes(const TGetOperationOptions& options) override;
     virtual void UpdateParameters(const TNode& newParameters) override;
+    virtual TListJobsResult ListJobs(const TListJobsOptions& options) override;
 
 private:
     TClientPtr Client_;

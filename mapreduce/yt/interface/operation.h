@@ -957,17 +957,19 @@ struct TListJobsOptions
     FLUENT_FIELD_OPTION(EJobState, State);
     FLUENT_FIELD_OPTION(TString, Address);
     FLUENT_FIELD_OPTION(bool, WithStderr);
+    FLUENT_FIELD_OPTION(bool, WithSpec);
+    FLUENT_FIELD_OPTION(bool, WithFailContext);
 
     FLUENT_FIELD_OPTION(EJobSortField, SortField);
     FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
 
-    // Where to search for jobs: in scheduler and Cypress (`Runtime'), in archive (`Archive'),
-    // automatically basing on operation presence in Cypress (`Auto') or choose manually (`Manual').
+    // Where to search for jobs: in scheduler and Cypress ('Runtime'), in archive ('Archive'),
+    // automatically basing on operation presence in Cypress ('Auto') or choose manually (`Manual').
     FLUENT_FIELD_OPTION(EListJobsDataSource, DataSource);
 
     // These three options are taken into account only for `DataSource == Manual'.
     FLUENT_FIELD_OPTION(bool, IncludeCypress);
-    FLUENT_FIELD_OPTION(bool, IncludeScheduler);
+    FLUENT_FIELD_OPTION(bool, IncludeControllerAgent);
     FLUENT_FIELD_OPTION(bool, IncludeArchive);
 
     // Skip `Offset' first jobs and return not more than `Limit' of remaining.
@@ -985,12 +987,11 @@ struct TCoreInfo
 
 struct TJobAttributes
 {
-    TJobId Id;
-    EJobType Type;
-    EJobState State;
-    TString Address;
-    TInstant StartTime;
-
+    TMaybe<TJobId> Id;
+    TMaybe<EJobType> Type;
+    TMaybe<EJobState> State;
+    TMaybe<TString> Address;
+    TMaybe<TInstant> StartTime;
     TMaybe<TInstant> FinishTime;
     TMaybe<double> Progress;
     TMaybe<i64> StderrSize;
@@ -998,6 +999,14 @@ struct TJobAttributes
     TMaybe<TNode> BriefStatistics;
     TMaybe<TVector<TRichYPath>> InputPaths;
     TMaybe<TVector<TCoreInfo>> CoreInfos;
+};
+
+struct TListJobsResult
+{
+    TVector<TJobAttributes> Jobs;
+    TMaybe<i64> CypressJobCount;
+    TMaybe<i64> ControllerAgentJobCount;
+    TMaybe<i64> ArchiveJobCount;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1091,6 +1100,11 @@ struct IOperation
     // Update operation runtime parameters.
     virtual void UpdateParameters(
         const TNode& newParameters) = 0;
+
+    //
+    // List jobs satisfying given filters.
+    virtual TListJobsResult ListJobs(
+        const TListJobsOptions& options = TListJobsOptions()) = 0;
 };
 
 struct TOperationOptions
@@ -1250,6 +1264,12 @@ struct IOperationClient
     virtual void UpdateOperationParameters(
         const TOperationId& operationId,
         const TNode& newParameters) = 0;
+
+    //
+    // List jobs satisfying given filters.
+    virtual TListJobsResult ListJobs(
+        const TOperationId& operationId,
+        const TListJobsOptions& options = TListJobsOptions()) = 0;
 
 private:
     virtual IOperationPtr DoMap(

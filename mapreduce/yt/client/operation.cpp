@@ -861,7 +861,7 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     const i64 stderrTailSize = options.StderrTailSize_;
 
     if (USE_GET_OPERATION) {
-        const auto jobList = ListJobs(auth, operationId, TListJobsOptions()
+        const auto jobList = ListJobsOld(auth, operationId, TListJobsOptions()
             .State(EJobState::Failed)
             .Limit(maxJobCount))["jobs"].AsList();
         TVector<TFailedJobInfo> result;
@@ -2213,6 +2213,7 @@ public:
     void CompleteOperation();
     TOperationAttributes GetAttributes(const TGetOperationOptions& options);
     void UpdateParameters(const TNode& newParameters);
+    TListJobsResult ListJobs(const TListJobsOptions& options);
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
@@ -2441,6 +2442,11 @@ void TOperation::TOperationImpl::UpdateParameters(const TNode& newParameters)
     return NYT::NDetail::UpdateOperationParameters(Auth_, Id_, newParameters);
 }
 
+TListJobsResult TOperation::TOperationImpl::ListJobs(const TListJobsOptions& options)
+{
+    return NYT::NDetail::ListJobs(Auth_, Id_, options);
+}
+
 struct TAsyncFinishOperationsArgs
 {
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl;
@@ -2572,7 +2578,12 @@ TOperationAttributes TOperation::GetAttributes(const TGetOperationOptions& optio
 
 void TOperation::UpdateParameters(const TNode& newParameters)
 {
-    return Impl_->UpdateParameters(newParameters);
+    Impl_->UpdateParameters(newParameters);
+}
+
+TListJobsResult TOperation::ListJobs(const TListJobsOptions& options)
+{
+    return Impl_->ListJobs(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

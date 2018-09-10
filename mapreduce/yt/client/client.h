@@ -195,6 +195,10 @@ public:
         const TOperationId& operationId,
         const TNode& newParameters) override;
 
+    TListJobsResult ListJobs(
+        const TOperationId& operationId,
+        const TListJobsOptions& options = TListJobsOptions()) override;
+
     void AlterTable(
         const TYPath& path,
         const TAlterTableOptions& options) override;

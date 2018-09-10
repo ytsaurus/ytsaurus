@@ -296,11 +296,12 @@ TNode SerializeParamsForListJobs(
 {
     TNode result;
     result["operation_id"] = GetGuidAsString(operationId);
+
     if (options.Type_) {
-        result["job_type"] = ::ToString(*options.Type_);
+        result["type"] = ::ToString(*options.Type_);
     }
     if (options.State_) {
-        result["job_state"] = ::ToString(*options.State_);
+        result["state"] = ::ToString(*options.State_);
     }
     if (options.Address_) {
         result["address"] = *options.Address_;
@@ -308,17 +309,35 @@ TNode SerializeParamsForListJobs(
     if (options.WithStderr_) {
         result["with_stderr"] = *options.WithStderr_;
     }
+    if (options.WithSpec_) {
+        result["with_spec"] = *options.WithSpec_;
+    }
+    if (options.WithFailContext_) {
+        result["with_fail_context"] = *options.WithFailContext_;
+    }
+
     if (options.SortField_) {
         result["sort_field"] = ::ToString(*options.SortField_);
     }
     if (options.SortOrder_) {
         result["sort_order"] = ::ToString(*options.SortOrder_);
     }
+
     if (options.Offset_) {
         result["offset"] = *options.Offset_;
     }
     if (options.Limit_) {
         result["limit"] = *options.Limit_;
+    }
+
+    if (options.IncludeCypress_) {
+        result["include_cypress"] = *options.IncludeCypress_;
+    }
+    if (options.IncludeArchive_) {
+        result["include_archive"] = *options.IncludeArchive_;
+    }
+    if (options.IncludeControllerAgent_) {
+        result["include_controller_agent"] = *options.IncludeControllerAgent_;
     }
     return result;
 }

@@ -8,6 +8,7 @@
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/interface/operation.h>
+#include <mapreduce/yt/interface/serialize.h>
 #include <mapreduce/yt/node/node_io.h>
 
 namespace NYT {
@@ -337,14 +338,113 @@ void UpdateOperationParameters(
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
-TNode ListJobs(
+TNode ListJobsOld(
     const TAuth& auth,
     const TOperationId& operationId,
-    const TListJobsOptions& options)
+    const TListJobsOptions& options,
+    IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "list_jobs");
     header.MergeParameters(NDetail::SerializeParamsForListJobs(operationId, options));
-    return NodeFromYsonString(RetryRequest(auth, header));
+    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
+    return NodeFromYsonString(responseInfo.Response);
+}
+
+TJobAttributes ParseJobAttributes(const TNode& node)
+{
+    const auto& mapNode = node.AsMap();
+    TJobAttributes result;
+
+    if (auto idNode = mapNode.FindPtr("id")) {
+        result.Id = GetGuid(idNode->AsString());
+    }
+    if (auto typeNode = mapNode.FindPtr("type")) {
+        result.Type = FromString<EJobType>(typeNode->AsString());
+    }
+    if (auto stateNode = mapNode.FindPtr("state")) {
+        result.State = FromString<EJobState>(stateNode->AsString());
+    }
+    if (auto addressNode = mapNode.FindPtr("address")) {
+        result.Address = addressNode->AsString();
+    }
+    if (auto startTimeNode = mapNode.FindPtr("start_time")) {
+        result.StartTime = TInstant::ParseIso8601(startTimeNode->AsString());
+    }
+    if (auto finishTimeNode = mapNode.FindPtr("finish_time")) {
+        result.FinishTime = TInstant::ParseIso8601(finishTimeNode->AsString());
+    }
+    if (auto progressNode = mapNode.FindPtr("progress")) {
+        result.Progress = progressNode->AsDouble();
+    }
+    if (auto stderrSizeNode = mapNode.FindPtr("stderrSize")) {
+        result.StderrSize = stderrSizeNode->AsInt64();
+    }
+    if (auto errorNode = mapNode.FindPtr("error")) {
+        result.Error.ConstructInPlace(*errorNode);
+    }
+    if (auto briefStatisticsNode = mapNode.FindPtr("briefStatistics")) {
+        result.BriefStatistics = *briefStatisticsNode;
+    }
+    if (auto inputPathsNode = mapNode.FindPtr("inputPaths")) {
+        const auto& inputPathNodesList = inputPathsNode->AsList();
+        result.InputPaths.ConstructInPlace();
+        result.InputPaths->reserve(inputPathNodesList.size());
+        for (const auto& inputPathNode : inputPathNodesList) {
+            TRichYPath path;
+            Deserialize(path, inputPathNode);
+            result.InputPaths->push_back(std::move(path));
+        }
+    }
+    if (auto coreInfosNode = mapNode.FindPtr("coreInfos")) {
+        const auto& coreInfoNodesList = coreInfosNode->AsList();
+        result.CoreInfos.ConstructInPlace();
+        result.CoreInfos->reserve(coreInfoNodesList.size());
+        for (const auto& coreInfoNode : coreInfoNodesList) {
+            TCoreInfo coreInfo;
+            coreInfo.ProcessId = coreInfoNode["process_id"].AsInt64();
+            coreInfo.ExecutableName = coreInfoNode["executable_name"].AsString();
+            if (coreInfoNode.HasKey("size")) {
+                coreInfo.Size = coreInfoNode["size"].AsUint64();
+            }
+            if (coreInfoNode.HasKey("error")) {
+                coreInfo.Error.ConstructInPlace(coreInfoNode["error"]);
+            }
+            result.CoreInfos->push_back(std::move(coreInfo));
+        }
+    }
+    return result;
+}
+
+TListJobsResult ListJobs(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TListJobsOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("GET", "list_jobs");
+    header.MergeParameters(NDetail::SerializeParamsForListJobs(operationId, options));
+    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
+    auto resultNode = NodeFromYsonString(responseInfo.Response);
+
+    TListJobsResult result;
+
+    const auto& jobNodesList = resultNode["jobs"].AsList();
+    result.Jobs.reserve(jobNodesList.size());
+    for (const auto jobNode : jobNodesList) {
+        result.Jobs.push_back(ParseJobAttributes(jobNode));
+    }
+
+    if (resultNode.HasKey("cypress_job_count") && !resultNode["cypress_job_count"].IsNull()) {
+        result.CypressJobCount = resultNode["cypress_job_count"].AsInt64();
+    }
+    if (resultNode.HasKey("controller_agent_job_count") && !resultNode["controller_agent_job_count"].IsNull()) {
+        result.ControllerAgentJobCount = resultNode["scheduler_job_count"].AsInt64();
+    }
+    if (resultNode.HasKey("archive_job_count") && !resultNode["archive_job_count"].IsNull()) {
+        result.ArchiveJobCount = resultNode["archive_job_count"].AsInt64();
+    }
+
+    return result;
 }
 
 TString GetJobStderr(
