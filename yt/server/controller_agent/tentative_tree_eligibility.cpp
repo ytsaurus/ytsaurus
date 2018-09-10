@@ -70,7 +70,7 @@ bool TTentativeTreeEligibility::CanScheduleJob(
         return true;
     }
 
-    if (IsTreeBanned(treeId)) {
+    if (Disabled_ || IsTreeBanned(treeId)) {
         return false;
     }
 
@@ -92,6 +92,11 @@ bool TTentativeTreeEligibility::CanScheduleJob(
     }
 
     return true;
+}
+
+void TTentativeTreeEligibility::Disable()
+{
+    Disabled_ = true;
 }
 
 void TTentativeTreeEligibility::OnJobStarted(const TString& treeId, bool tentative)

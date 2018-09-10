@@ -46,6 +46,9 @@ public:
 
     void OnJobStarted(const TString& treeId, bool tentative);
 
+    //! No jobs in tentative trees can start after call to this method.
+    void Disable();
+
     TJobFinishedResult OnJobFinished(
         const TJobSummary& jobSummary,
         const TString& treeId,
@@ -70,6 +73,8 @@ private:
     THashMap<TString, THashMap<EJobState, int>> FinishedJobsPerStatePerPoolTree_;
 
     THashSet<TString> BannedTrees_;
+
+    bool Disabled_ = false;
 
     // For documentation on the meaning of parameters, see
     // TTentativeTreeEligibilityConfig::{SampleJobCount,MaxTentativeJobDurationRatio,MinJobDuration} respectively.
