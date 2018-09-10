@@ -346,6 +346,7 @@ message TBox {
 message THttpGet {
     uint32 Port = 1;
 
+    // Полный путь, например: localhost:8080/ping
     string Path = 2;
     string ExpectedAnswer = 3;
 
