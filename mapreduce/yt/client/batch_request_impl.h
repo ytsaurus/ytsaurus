@@ -82,7 +82,7 @@ public:
 
     virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) override;
 
-    virtual NThreading::TFuture<TTableColumnarStatistics> GetTableColumnarStatistics(const TRichYPath& path) override;
+    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) override;
 
     virtual void ExecuteBatch(const TExecuteBatchOptions& executeBatch) override;
 

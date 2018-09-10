@@ -78,7 +78,7 @@ public:
     TRichYPath CanonizeYPath(const TRichYPath& path) override;
 
 
-    TTableColumnarStatistics GetTableColumnarStatistics(const TRichYPath& path) override;
+    TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) override;
 
     IFileReaderPtr CreateFileReader(
         const TRichYPath& path,

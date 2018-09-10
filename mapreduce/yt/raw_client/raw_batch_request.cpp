@@ -193,13 +193,13 @@ public:
 ////////////////////////////////////////////////////////////////////
 
 class TTableColumnarStatisticsParser
-    : public TResponseParserBase<TTableColumnarStatistics>
+    : public TResponseParserBase<TVector<TTableColumnarStatistics>>
 {
 public:
     virtual void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::Map);
-        TTableColumnarStatistics statistics;
+        TVector<TTableColumnarStatistics> statistics;
         Deserialize(statistics, *node);
         Result.SetValue(std::move(statistics));
     }
@@ -416,11 +416,11 @@ TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
     }
 }
 
-TFuture<TTableColumnarStatistics> TRawBatchRequest::GetTableColumnarStatistics(const TTransactionId& transaction, const TRichYPath& path)
+TFuture<TVector<TTableColumnarStatistics>> TRawBatchRequest::GetTableColumnarStatistics(const TTransactionId& transaction, const TVector<TRichYPath>& paths)
 {
     return AddRequest<TTableColumnarStatisticsParser>(
         "get_table_columnar_statistics",
-        SerializeParamsForGetTableColumnarStatistics(transaction, path),
+        SerializeParamsForGetTableColumnarStatistics(transaction, paths),
         Nothing());
 }
 

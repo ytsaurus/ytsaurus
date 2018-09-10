@@ -63,7 +63,7 @@ public:
 
     virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) = 0;
 
-    virtual NThreading::TFuture<TTableColumnarStatistics> GetTableColumnarStatistics(const TRichYPath& path) = 0;
+    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
 };
 
 class IBatchRequest
