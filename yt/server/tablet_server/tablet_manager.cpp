@@ -3681,6 +3681,8 @@ private:
             YCHECK(expectedCells.insert(cell).second);
         }
 
+        THashMap<TCellId, EPeerState> cellIdToPeerState;
+
         // Figure out and analyze the reality.
         THashSet<const TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
@@ -3732,6 +3734,8 @@ private:
                     cellId,
                     peerId);
             }
+
+            cellIdToPeerState.emplace(cellId, state);
 
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
             YCHECK(actualCells.insert(cell).second);
@@ -3800,6 +3804,14 @@ private:
 
             auto* cell = tablet->GetCell();
             if (!IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
+                continue;
+            }
+
+            auto found = cellIdToPeerState.find(cell->GetId());
+
+            if (found == cellIdToPeerState.end() ||
+                found->second != EPeerState::Leading && found->second != EPeerState::LeaderRecovery)
+            {
                 continue;
             }
 
