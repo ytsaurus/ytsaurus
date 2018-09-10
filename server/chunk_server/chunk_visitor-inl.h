@@ -33,7 +33,7 @@ private:
         i64 MaxBlockSize = 0;
     };
 
-    using TKey = typename std::result_of<TKeyExtractor(const TChunk*)>::type;
+    using TKey = typename std::invoke_result_t<TKeyExtractor, const TChunk*>;
     using TStatiticsMap = THashMap<TKey, TStatistics>;
     TStatiticsMap StatisticsMap_;
 
