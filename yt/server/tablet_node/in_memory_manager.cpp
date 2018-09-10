@@ -120,11 +120,11 @@ public:
         slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
     }
 
-    IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode, ui64 configRevision)
+    IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return New<TInterceptingBlockCache>(this, mode, configRevision);
+        return New<TInterceptingBlockCache>(this, mode);
     }
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(const TChunkId& chunkId)
@@ -141,10 +141,9 @@ public:
         auto chunkData = std::move(it->second);
         ChunkIdToData_.erase(it);
 
-        LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v, ConfigRevision: %v)",
+        LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
             chunkId,
-            chunkData->InMemoryMode,
-            chunkData->InMemoryConfigRevision);
+            chunkData->InMemoryMode);
 
         return chunkData;
     }
@@ -204,11 +203,10 @@ private:
         }
 
         const auto& storeManager = tablet->GetStoreManager();
-        auto mode = storeManager->GetInMemoryMode();
-        auto configRevision = storeManager->GetInMemoryConfigRevision();
 
         while (true) {
             auto store = storeManager->PeekStoreForPreload();
+
             if (!store) {
                 break;
             }
@@ -216,6 +214,7 @@ private:
             if (!guard) {
                 break;
             }
+
             auto preloadStoreCallback =
                 BIND(
                     &TImpl::PreloadStore,
@@ -223,8 +222,6 @@ private:
                     Passed(std::move(guard)),
                     slot,
                     tablet,
-                    mode,
-                    configRevision,
                     store,
                     storeManager)
                 .AsyncVia(tablet->GetEpochAutomatonInvoker());
@@ -236,20 +233,36 @@ private:
         TAsyncSemaphoreGuard /*guard*/,
         const TTabletSlotPtr& slot,
         TTablet* tablet,
-        EInMemoryMode mode,
-        ui64 configRevision,
         const IChunkStorePtr& store,
         const IStoreManagerPtr& storeManager)
     {
         auto readSessionId = TReadSessionId::Create();
+        auto mode = store->GetInMemoryMode();
+
+        std::vector<IInvokerPtr> feasibleInvokers{
+            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
+            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
+        VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v, ReadSessionId: %v",
+        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
             tablet->GetId(),
             store->GetId(),
             mode,
-            configRevision,
             readSessionId);
+
+        LOG_INFO("Preloading in-memory store");
+
+        YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
+
+        if (mode == EInMemoryMode::None) {
+            // Mode has been changed while current action was waiting in action queue
+            LOG_INFO("In-memory mode has been changed");
+
+            store->SetPreloadState(EStorePreloadState::None);
+            store->SetPreloadFuture(TFuture<void>());
+            return;
+        }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
@@ -258,39 +271,6 @@ private:
         }
 
         try {
-            // Fail quickly.
-            if (storeManager->GetInMemoryConfigRevision() != configRevision) {
-                THROW_ERROR_EXCEPTION("In-memory config revision has changed")
-                    << TErrorAttribute("expected", configRevision)
-                    << TErrorAttribute("actual", storeManager->GetInMemoryConfigRevision());
-            }
-
-            // We can create finalizer after the previous check, because if the check did not succeed,
-            // the condition within the finalizer would not succeed either.
-            auto finalizer = Finally(
-                [&, invoker = tablet->GetEpochAutomatonInvoker()] () {
-                    // Finalizer may be invoked from a finalizer thread,
-                    // thus we reschedule backoff to a proper thread to avoid unsynchronized access.
-                    LOG_WARNING("Backing off tablet store preload");
-                    invoker->Invoke(BIND([configRevision, storeManager, store] {
-                        if (storeManager->GetInMemoryConfigRevision() == configRevision) {
-                            storeManager->BackoffStorePreload(store);
-                        }
-                    }));
-                });
-
-            if (tabletSnapshot->Config->InMemoryMode != mode) {
-                THROW_ERROR_EXCEPTION("In-memory mode does not match the snapshot")
-                    << TErrorAttribute("expected", mode)
-                    << TErrorAttribute("actual", tabletSnapshot->Config->InMemoryMode);
-            }
-
-            if (tabletSnapshot->InMemoryConfigRevision != configRevision) {
-                THROW_ERROR_EXCEPTION("In-memory config revision does not match the snapshot")
-                    << TErrorAttribute("expected", mode)
-                    << TErrorAttribute("actual", tabletSnapshot->Config->InMemoryMode);
-            }
-
             // This call may suspend the current fiber.
             auto chunkData = PreloadInMemoryStore(
                 tabletSnapshot,
@@ -300,25 +280,30 @@ private:
                 CompressionInvoker_,
                 Throttler_,
                 PreloadTag_);
-            // Now, check is the revision in still the same.
 
-            if (storeManager->GetInMemoryConfigRevision() != configRevision) {
-                THROW_ERROR_EXCEPTION("In-memory config revision has changed")
-                    << TErrorAttribute("expected", configRevision)
-                    << TErrorAttribute("actual", storeManager->GetInMemoryConfigRevision());
-            }
+            std::vector<IInvokerPtr> feasibleInvokers{
+                tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
+                tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
+            VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
-            finalizer.Release();
+            YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
+
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
+
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(TError());
         } catch (const std::exception& ex) {
+            // Do not back off if fiber cancellation exception was thrown.
+            // SetInMemoryMode with other mode was called during current action execution.
+
+            LOG_ERROR(ex, "Error preloading tablet store, backing off");
+            storeManager->BackoffStorePreload(store);
+
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
-            LOG_ERROR(ex, "Error preloading tablet store, backed off");
         }
 
         slotManager->RegisterTabletSnapshot(slot, tablet);
@@ -328,10 +313,9 @@ private:
         : public IBlockCache
     {
     public:
-        TInterceptingBlockCache(TImplPtr owner, EInMemoryMode mode, ui64 configRevision)
+        TInterceptingBlockCache(TImplPtr owner, EInMemoryMode mode)
             : Owner_(owner)
             , Mode_(mode)
-            , ConfigRevision_(configRevision)
             , BlockType_(MapInMemoryModeToBlockType(Mode_))
         { }
 
@@ -368,10 +352,10 @@ private:
             auto it = ChunkIds_.find(id.ChunkId);
             TInMemoryChunkDataPtr data;
             if (it == ChunkIds_.end()) {
-                data = Owner_->CreateChunkData(id.ChunkId, Mode_, ConfigRevision_);
+                data = Owner_->CreateChunkData(id.ChunkId, Mode_);
                 YCHECK(ChunkIds_.insert(id.ChunkId).second);
             } else {
-                data = Owner_->GetChunkData(id.ChunkId, Mode_, ConfigRevision_);
+                data = Owner_->GetChunkData(id.ChunkId, Mode_);
             }
 
             if (data->Blocks.size() <= id.BlockIndex) {
@@ -404,7 +388,6 @@ private:
     private:
         const TImplPtr Owner_;
         const EInMemoryMode Mode_;
-        const ui64 ConfigRevision_;
         const EBlockType BlockType_;
 
         TSpinLock SpinLock_;
@@ -412,7 +395,7 @@ private:
         bool Dropped_ = false;
     };
 
-    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode, ui64 configRevision)
+    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
 
@@ -421,18 +404,16 @@ private:
 
         auto chunkData = it->second;
         YCHECK(chunkData->InMemoryMode == mode);
-        YCHECK(chunkData->InMemoryConfigRevision == configRevision);
 
         return chunkData;
     }
 
-    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode, ui64 configRevision)
+    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 
         auto chunkData = New<TInMemoryChunkData>();
         chunkData->InMemoryMode = mode;
-        chunkData->InMemoryConfigRevision = configRevision;
         chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletStatic,
@@ -442,10 +423,9 @@ private:
         // Replace the old data, if any, by a new one.
         ChunkIdToData_[chunkId] = chunkData;
 
-        LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v, ConfigRevision: %v)",
+        LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
             chunkId,
-            mode,
-            configRevision);
+            mode);
 
         return chunkData;
     }
@@ -477,9 +457,9 @@ TInMemoryManager::TInMemoryManager(
 
 TInMemoryManager::~TInMemoryManager() = default;
 
-IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode, ui64 configRevision)
+IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode)
 {
-    return Impl_->CreateInterceptingBlockCache(mode, configRevision);
+    return Impl_->CreateInterceptingBlockCache(mode);
 }
 
 TInMemoryChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
@@ -507,12 +487,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NProfiling::TTagId& preloadTag)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
-    auto configRevision = tabletSnapshot->InMemoryConfigRevision;
 
     NLogging::TLogger Logger(TabletNodeLogger);
     Logger.AddTag(
-        "TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v, ReadSessionId: %v",
-        tabletSnapshot->TabletId, store->GetId(), mode, configRevision, readSessionId);
+        "TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+        tabletSnapshot->TabletId, store->GetId(), mode, readSessionId);
 
     LOG_INFO("Store preload started");
 
@@ -572,7 +551,6 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto chunkData = New<TInMemoryChunkData>();
     chunkData->InMemoryMode = mode;
-    chunkData->InMemoryConfigRevision = configRevision;
     if (memoryUsageTracker) {
         chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
             memoryUsageTracker,

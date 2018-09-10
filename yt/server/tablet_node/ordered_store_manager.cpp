@@ -194,7 +194,6 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto reader = orderedDynamicStore->CreateFlushReader();
 
     auto inMemoryMode = GetInMemoryMode();
-    auto inMemoryConfigRevision = GetInMemoryConfigRevision();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
@@ -202,7 +201,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
-        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
+        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode);
 
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,

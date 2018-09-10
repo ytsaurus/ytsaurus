@@ -70,7 +70,6 @@ struct IStoreManager
     virtual void BackoffStorePreload(IChunkStorePtr store) = 0;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;
-    virtual ui64 GetInMemoryConfigRevision() const = 0;
 
     virtual bool IsStoreFlushable(IStorePtr store) const = 0;
     virtual TStoreFlushCallback BeginStoreFlush(

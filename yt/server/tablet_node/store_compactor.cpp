@@ -961,8 +961,7 @@ private:
 
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
         auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
-            tabletSnapshot->Config->InMemoryMode,
-            tabletSnapshot->InMemoryConfigRevision);
+            tabletSnapshot->Config->InMemoryMode);
 
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
@@ -1348,8 +1347,7 @@ private:
 
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
         auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
-            tabletSnapshot->Config->InMemoryMode,
-            tabletSnapshot->InMemoryConfigRevision);
+            tabletSnapshot->Config->InMemoryMode);
 
         auto underlyingWriter = CreateVersionedMultiChunkWriter(
             writerConfig,

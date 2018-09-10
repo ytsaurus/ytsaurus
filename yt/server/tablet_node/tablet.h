@@ -126,7 +126,6 @@ struct TTabletSnapshot
     int OverlappingStoreCount = 0;
     int CriticalPartitionCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
-    ui64 InMemoryConfigRevision = 0;
 
     TPartitionSnapshotPtr Eden;
 

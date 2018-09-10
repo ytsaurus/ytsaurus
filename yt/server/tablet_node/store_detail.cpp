@@ -382,12 +382,12 @@ class TPreloadedBlockCache
 public:
     TPreloadedBlockCache(
         TIntrusivePtr<TChunkStoreBase> owner,
+        TInMemoryChunkDataPtr chunkData,
         const TChunkId& chunkId,
-        EInMemoryMode mode,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
+        , ChunkData_(chunkData)
         , ChunkId_(chunkId)
-        , BlockType_(MapInMemoryModeToBlockType(mode))
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
@@ -404,7 +404,7 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        if (type == BlockType_ && IsPreloaded()) {
+        if (type == GetSupportedBlockTypes()) {
             Y_ASSERT(id.ChunkId == ChunkId_);
             Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < ChunkData_->Blocks.size());
             return ChunkData_->Blocks[id.BlockIndex];
@@ -415,43 +415,15 @@ public:
 
     virtual EBlockType GetSupportedBlockTypes() const override
     {
-        return BlockType_;
-    }
-
-    void Preload(TInMemoryChunkDataPtr chunkData)
-    {
-        // This method must be idempotent: preloads may be retried due to synchronization
-        // with the config version. However, once the store is preloaded -- we keep it that way.
-        auto preloaded = Preloaded_.load(std::memory_order_relaxed);
-        if (preloaded != EState::NotPreloaded) {
-            return;
-        }
-        if (Preloaded_.compare_exchange_strong(preloaded, EState::InProgress)) {
-            ChunkData_ = std::move(chunkData);
-            YCHECK(Preloaded_.exchange(EState::Preloaded) == EState::InProgress);
-        }
-    }
-
-    bool IsPreloaded() const
-    {
-        return Preloaded_.load(std::memory_order_acquire) == EState::Preloaded;
+        return MapInMemoryModeToBlockType(ChunkData_->InMemoryMode);
     }
 
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
+    const TInMemoryChunkDataPtr ChunkData_;
     const TChunkId ChunkId_;
-    const EBlockType BlockType_;
     const IBlockCachePtr UnderlyingCache_;
 
-    TInMemoryChunkDataPtr ChunkData_;
-
-    enum EState {
-        NotPreloaded,
-        InProgress,
-        Preloaded,
-    };
-
-    std::atomic<EState> Preloaded_ = {EState::NotPreloaded};
 };
 
 DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
@@ -487,15 +459,8 @@ TChunkStoreBase::TChunkStoreBase(
 void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 {
     auto inMemoryMode = Tablet_->GetConfig()->InMemoryMode;
-    ui64 inMemoryConfigRevision = 0;
 
-    // When recovering from a snapshot, the store manager is not installed yet.
-    const auto& storeManager = Tablet_->GetStoreManager();
-    if (storeManager) {
-        inMemoryConfigRevision = storeManager->GetInMemoryConfigRevision();
-    }
-
-    SetInMemoryMode(inMemoryMode, inMemoryConfigRevision);
+    SetInMemoryMode(inMemoryMode);
 
     if (descriptor) {
         ChunkMeta_->CopyFrom(descriptor->chunk_meta());
@@ -599,6 +564,7 @@ EStorePreloadState TChunkStoreBase::GetPreloadState() const
 
 void TChunkStoreBase::SetPreloadState(EStorePreloadState state)
 {
+    LOG_INFO("Set preload state (Current: %v, New: %v)", PreloadState_, state);
     PreloadState_ = state;
 }
 
@@ -750,9 +716,9 @@ bool TChunkStoreBase::IsPreloadAllowed() const
     return Now() > AllowedPreloadTimestamp_;
 }
 
-void TChunkStoreBase::UpdatePreloadAttempt()
+void TChunkStoreBase::UpdatePreloadAttempt(bool isBackoff)
 {
-    AllowedPreloadTimestamp_ = Now() + Config_->PreloadBackoffTime;
+    AllowedPreloadTimestamp_ = Now() + (isBackoff ? Config_->PreloadBackoffTime : TDuration::Zero());
 }
 
 bool TChunkStoreBase::IsCompactionAllowed() const
@@ -773,50 +739,37 @@ EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
     return InMemoryMode_;
 }
 
-void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode, ui64 configRevision)
+void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
 
-    InMemoryConfigRevision_ = configRevision; // Unconditionally. Consumes the new revision.
+    if (InMemoryMode_ != mode) {
+        LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
+            InMemoryMode_,
+            mode);
 
-    if (InMemoryMode_ == mode) {
-        return;
-    }
+        InMemoryMode_ = mode;
 
-    InMemoryMode_ = mode;
+        ChunkState_.Reset();
+        PreloadedBlockCache_.Reset();
+        ChunkReader_.Reset();
 
-    ChunkState_.Reset();
-    PreloadedBlockCache_.Reset();
-
-    if (PreloadFuture_) {
-        PreloadFuture_.Cancel();
-        PreloadFuture_.Reset();
-    }
-
-    if (mode == EInMemoryMode::None) {
-        PreloadState_ = EStorePreloadState::Disabled;
-    } else {
-        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-            this,
-            StoreId_,
-            mode,
-            BlockCache_);
-
-        switch (PreloadState_) {
-            case EStorePreloadState::Disabled:
-            case EStorePreloadState::Running:
-            case EStorePreloadState::Complete:
-                PreloadState_ = EStorePreloadState::None;
-                break;
-            case EStorePreloadState::None:
-            case EStorePreloadState::Scheduled:
-                break;
+        if (PreloadFuture_) {
+            LOG_INFO("Cancelling current preload");
+            PreloadFuture_.Cancel();
+            PreloadFuture_.Reset();
         }
+
+        PreloadState_ = EStorePreloadState::None;
     }
 
-    ChunkReader_.Reset();
+    if (PreloadState_ == EStorePreloadState::None && mode != EInMemoryMode::None) {
+        PreloadState_ = EStorePreloadState::Scheduled;
+    }
+
+    YCHECK((mode == EInMemoryMode::None) == (PreloadState_ == EStorePreloadState::None));
 }
 
 void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
@@ -825,10 +778,15 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 
     TWriterGuard guard(SpinLock_);
 
+    // Otherwise action must be cancelled.
     YCHECK(chunkData->InMemoryMode == InMemoryMode_);
-    YCHECK(chunkData->InMemoryConfigRevision == InMemoryConfigRevision_);
 
-    PreloadedBlockCache_->Preload(chunkData);
+    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+            this,
+            chunkData,
+            StoreId_,
+            BlockCache_);
+
     ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
         chunkData->ChunkSpec,
@@ -849,11 +807,13 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 
 bool TChunkStoreBase::ValidateBlockCachePreloaded()
 {
+    // Under spin lock
+
     if (InMemoryMode_ == EInMemoryMode::None) {
         return false;
     }
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ChunkState_) {
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
             << TErrorAttribute("table_path", TablePath_)
