@@ -125,9 +125,9 @@ def get_git_depth(options):
         capture_output=True)
     return run_result.stdout.rstrip("\n")
 
-def get_http_proxy_tar_ya_package(options):
+def get_http_proxy_nanny_tar_ya_package(options):
     with cwd(get_artifacts_dir(options)):
-        generated_package_list = glob.glob("yandex-yt-http-proxy*.tar")
+        generated_package_list = glob.glob("yandex-yt-http-proxy-nanny*.tar")
         assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
         return os.path.realpath(generated_package_list[0])
 
@@ -459,7 +459,7 @@ def package_common_packages(options, build_context):
 
     PACKAGE_TASK_LIST = [
         PackageTask(
-            "yandex-yt-http-proxy.json",
+            "yandex-yt-http-proxy-nanny.json",
             ("--tar", "--no-compression")),
     ]
     artifacts_dir = get_artifacts_dir(options)
@@ -559,7 +559,7 @@ def run_prepare_node_modules(options, build_context):
     else:
         assert options.build_system == "ya"
         mkdirp(nodejs_build)
-        with tarfile.open(get_http_proxy_tar_ya_package(options)) as http_proxy_tar:
+        with tarfile.open(get_http_proxy_nanny_tar_ya_package(options)) as http_proxy_tar:
             http_proxy_tar.extractall(path=nodejs_build)
         assert os.path.exists(get_node_modules_dir(options))
 
@@ -648,7 +648,7 @@ def run_sandbox_upload(options, build_context):
     else:
         assert options.build_system == "ya"
         ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
-        os.symlink(get_http_proxy_tar_ya_package(options), ya_nodejs_tar)
+        os.symlink(get_http_proxy_nanny_tar_ya_package(options), ya_nodejs_tar)
 
         rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
         sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
