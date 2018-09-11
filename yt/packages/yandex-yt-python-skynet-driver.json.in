@@ -1,0 +1,65 @@
+{
+    "meta": {
+        "name": "yandex-yt-python-skynet-driver",
+        "maintainer": "YT Team <yt@yandex-team.ru>",
+        "description": "YT. This package provides Python Skynet native bindings",
+        "version": "{revision}.{branch}",
+        "pre-depends": [],
+        "depends": ["libc6 (>= 2.15)"],
+        "homepage": "https://wiki.yandex-team.ru/yt/"
+    },
+    "build": {
+        "targets": [
+            "yt/python/driver_shared"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            },
+            {
+                "name": "YT_ENABLE_GDB_INDEX",
+                "value": "yes"
+            },
+            {
+                "name": "PYTHON_CONFIG",
+                "value": "/skynet/python/bin/python-config"
+            },
+            {
+                "name": "USE_ARCADIA_PYTHON",
+                "value": "no"
+            },
+            {
+                "name": "OS_SDK",
+                "value": "local"
+            }
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/python/driver_shared/driver_lib.so"
+            },
+            "destination": {
+                "path": "/usr/lib/pyshared-skynet/yt_driver_bindings/driver_lib.so"
+            }
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "python/yt_driver_bindings",
+                "files": [
+                    "*.py"
+                ]
+            },
+            "destination": {
+                "path": "/usr/lib/pyshared-skynet/yt_driver_bindings/"
+            }
+        }
+    ]
+}
