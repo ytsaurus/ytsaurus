@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "yandex-yt-http-proxy",
+        "name": "yandex-yt-http-proxy-nanny",
         "maintainer": "YT Team <yt@yandex-team.ru>",
         "description": "YT. This package provides server-side software",
         "version": "{revision}.{branch}",
