@@ -2135,6 +2135,11 @@ private:
             return;
         }
 
+        if (request->has_retention_config()) {
+            options.RetentionConfig = New<TRetentionConfig>();
+            FromProto(options.RetentionConfig.Get(), request->retention_config());
+        }
+
         CompleteCallWith(
             context,
             client->VersionedLookupRows(

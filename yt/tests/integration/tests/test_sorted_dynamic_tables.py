@@ -437,7 +437,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     # TODO(savrus) Support versioned format.
     @pytest.mark.parametrize("optimize_for", ["lookup"])
-    @skip_if_rpc_driver_backend
     def test_lookup_versioned_retention(self, optimize_for):
         sync_create_cells(1)
         schema = [

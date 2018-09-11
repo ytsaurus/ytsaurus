@@ -50,6 +50,14 @@ void ToProto(
     const NApi::TTabletRangeOptions& options);
 
 void ToProto(
+    NProto::TRetentionConfig* protoConfig,
+    const NTableClient::TRetentionConfig& config);
+
+void FromProto(
+    NTableClient::TRetentionConfig* config,
+    const NProto::TRetentionConfig& protoConfig);
+
+void ToProto(
     NProto::TGetFileFromCacheResult* proto,
     const NApi::TGetFileFromCacheResult& result);
 

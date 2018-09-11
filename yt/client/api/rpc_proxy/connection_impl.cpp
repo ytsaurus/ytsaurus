@@ -133,6 +133,7 @@ TConnection::TConnection(TConnectionConfigPtr config)
     , ChannelPool_(New<TDynamicChannelPool>(ChannelFactory_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
+    , StickyTransactionPool_(CreateStickyTransactionPool<NApi::ITransactionPtr>(Logger))
     , UpdateProxyListExecutor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
@@ -187,6 +188,16 @@ NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipan
     const TTransactionParticipantOptions&)
 {
     Y_UNIMPLEMENTED();
+}
+
+ITransactionPtr TConnection::RegisterStickyTransaction(ITransactionPtr transaction)
+{
+    return StickyTransactionPool_->RegisterTransaction(transaction);
+}
+
+ITransactionPtr TConnection::GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId)
+{
+    return StickyTransactionPool_->GetTransactionAndRenewLease(transactionId);
 }
 
 void TConnection::ClearMetadataCaches()

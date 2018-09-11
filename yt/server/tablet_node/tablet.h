@@ -155,6 +155,10 @@ struct TTabletSnapshot
     NProfiling::TTagIdList ProfilerTags;
     NProfiling::TTagIdList DiskProfilerTags;
 
+    NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TKey& lowerBound,
@@ -444,6 +448,8 @@ public:
     void UpdateReplicaCounters();
     bool IsProfilingEnabled() const;
 
+    void ReconfigureThrottlers();
+
 private:
     TTableMountConfigPtr Config_;
     TTabletChunkReaderConfigPtr ReaderConfig_;
@@ -473,6 +479,10 @@ private:
     i64 TabletLockCount_ = 0;
 
     TTabletCounters* ProfilerCounters_ = nullptr;
+
+    NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler_;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
     void Initialize();
 

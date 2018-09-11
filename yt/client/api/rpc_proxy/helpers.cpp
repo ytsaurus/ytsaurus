@@ -108,6 +108,32 @@ void ToProto(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// CONFIGS
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TRetentionConfig* protoConfig,
+    const NTableClient::TRetentionConfig& config)
+{
+    protoConfig->set_min_data_versions(config.MinDataVersions);
+    protoConfig->set_max_data_versions(config.MaxDataVersions);
+    protoConfig->set_min_data_ttl(config.MinDataTtl.GetValue());
+    protoConfig->set_max_data_ttl(config.MaxDataTtl.GetValue());
+    protoConfig->set_ignore_major_timestamp(config.IgnoreMajorTimestamp);
+}
+
+void FromProto(
+    NTableClient::TRetentionConfig* config,
+    const NProto::TRetentionConfig& protoConfig)
+{
+    config->MinDataVersions = protoConfig.min_data_versions();
+    config->MaxDataVersions = protoConfig.max_data_versions();
+    config->MinDataTtl = TDuration::FromValue(protoConfig.min_data_ttl());
+    config->MaxDataTtl = TDuration::FromValue(protoConfig.max_data_ttl());
+    config->IgnoreMajorTimestamp = protoConfig.ignore_major_timestamp();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // RESULTS
 ////////////////////////////////////////////////////////////////////////////////
 

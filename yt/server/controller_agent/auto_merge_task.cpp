@@ -104,6 +104,9 @@ TAutoMergeTask::TAutoMergeTask(
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
         ChunkPool_.get(),
         this);
+
+    // Tentative trees are not allowed for auto-merge jobs since they are genuinely IO-bound.
+    TentativeTreeEligibility_.Disable();
 }
 
 TString TAutoMergeTask::GetTitle() const

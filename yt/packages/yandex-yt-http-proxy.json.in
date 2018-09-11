@@ -22,6 +22,10 @@
             {
                 "name": "YT_VERSION_BRANCH",
                 "value": "@YT_VERSION_BRANCH"
+            },
+            {
+                "name": "YT_ENABLE_GDB_INDEX",
+                "value": "yes"
             }
         ]
     },

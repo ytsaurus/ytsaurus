@@ -1146,10 +1146,11 @@ public:
             return MakeFuture(chunk->MiscExt());
         }
 
-        std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
-        for (auto nodeWithIndex : chunk->StoredReplicas()) {
-            const auto* node = nodeWithIndex.GetPtr();
-            replicas.push_back(node->GetDescriptor());
+        std::vector<NJournalClient::TChunkReplicaDescriptor> replicas;
+        for (auto nodeWithIndexes : chunk->StoredReplicas()) {
+            const auto* node = nodeWithIndexes.GetPtr();
+            const auto mediumIndex = nodeWithIndexes.GetMediumIndex();
+            replicas.emplace_back(NJournalClient::TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
         }
 
         return ComputeQuorumInfo(

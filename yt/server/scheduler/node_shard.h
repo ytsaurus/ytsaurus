@@ -228,7 +228,7 @@ private:
         NProfiling::TCpuInstant StartTime;
     };
     // NB: It is important to use THash* instead of std::unordered_* since we rely on
-    // iterators not to be uninvalidated.
+    // iterators not to be invalidated.
     THashMap<TJobId, TScheduleJobEntry> JobIdToScheduleEntry_;
     THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator> OperationIdToJobIterators_;
 

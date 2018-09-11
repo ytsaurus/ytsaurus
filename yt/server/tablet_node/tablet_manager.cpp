@@ -981,7 +981,7 @@ private:
         } else {
             auto state = tablet->GetState();
             if (IsInUnmountWorkflow(state)) {
-                LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %Qlv state, ignored (TabletId: %v)",
+                LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in a wrong state, ignored (State: %v, TabletId: %v)",
                     state,
                     tabletId);
                 return;
@@ -1017,6 +1017,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
+        tablet->ReconfigureThrottlers();
         tablet->FillProfilerTags(Slot_->GetCellId());
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
@@ -1041,7 +1042,7 @@ private:
 
         auto state = tablet->GetState();
         if (IsInUnmountWorkflow(state) || IsInFreezeWorkflow(state)) {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in a wrong state, ignored (State: %v, TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -1070,7 +1071,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Frozen)  {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to unfreeze a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to unfreeze a tablet in a wrong state, ignored (State: %v, TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -1105,13 +1106,13 @@ private:
             case ETabletState::FreezeFlushing: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
-                        requestedState,
+                    LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored  (CurrentState: %v, RequestedState: %v, TabletId: %v)",
                         state,
+                        requestedState,
                         tabletId);
                     return;
                 }
-                // No break intentionaly
+                // No break intentionally.
             }
 
             case ETabletState::UnmountFlushing: {
@@ -1160,9 +1161,9 @@ private:
             case ETabletState::Frozen: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
-                        requestedState,
+                    LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored (CurrentState %v, RequestedState: %v, TabletId: %v)",
                         state,
+                        requestedState,
                         tabletId);
                     return;
                 }
@@ -3364,8 +3365,18 @@ private:
             ++it;
         }
 
-        YCHECK(it != storeRowIndexMap.end());
-        auto trimmedRowCount = it->second->GetStartingRowIndex();
+        i64 trimmedRowCount;
+        if (it == storeRowIndexMap.end()) {
+            // Looks like a full trim.
+            // Typically we have a sentinel dynamic store at the end but during unmount this one may be missing.
+            YCHECK(!storeRowIndexMap.empty());
+            const auto& lastStore = storeRowIndexMap.rbegin()->second;
+            YCHECK(minReplicationRowIndex == lastStore->GetStartingRowIndex() + lastStore->GetRowCount());
+            trimmedRowCount = minReplicationRowIndex;
+        } else {
+            trimmedRowCount = it->second->GetStartingRowIndex();
+        }
+
         YCHECK(tablet->GetTrimmedRowCount() <= trimmedRowCount);
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
