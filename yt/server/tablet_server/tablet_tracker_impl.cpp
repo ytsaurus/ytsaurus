@@ -90,7 +90,7 @@ public:
     {
         return Bootstrap_->GetTabletManager()->TabletCellBundles();
     }
-    
+
     virtual bool IsPossibleHost(const TNode* node, const TTabletCellBundle* bundle) override
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
@@ -216,8 +216,13 @@ void TTabletTrackerImpl::ScanCells()
 void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
 {
     // Try to move the leader to a good peer.
-    if (!IsFailed(cell, cell->GetLeadingPeerId(), Config_->LeaderReassignmentTimeout))
+    const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
+
+    if (!leadingPeer.Descriptor.IsNull() &&
+        !IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), Config_->LeaderReassignmentTimeout))
+    {
         return;
+    }
 
     auto goodPeerId = FindGoodPeer(cell);
     if (goodPeerId == InvalidPeerId)
@@ -280,19 +285,21 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
     }
 
     for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-        if (IsFailed(cell, peerId, Config_->PeerRevocationTimeout)) {
+        const auto& peer = cell->Peers()[peerId];
+
+        if (!peer.Descriptor.IsNull() &&
+            IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout))
+        {
             balancer->RevokePeer(cell, peerId);
         }
     }
 }
 
-bool TTabletTrackerImpl::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout)
+bool TTabletTrackerImpl::IsFailed(
+    const TTabletCell::TPeer& peer,
+    const TBooleanFormula& nodeTagFilter,
+    TDuration timeout)
 {
-    const auto& peer = cell->Peers()[peerId];
-    if (peer.Descriptor.IsNull()) {
-        return false;
-    }
-
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
     if (node) {
@@ -308,7 +315,7 @@ bool TTabletTrackerImpl::IsFailed(const TTabletCell* cell, TPeerId peerId, TDura
             return true;
         }
 
-        if (!cell->GetCellBundle()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
+        if (!nodeTagFilter.IsSatisfiedBy(node->Tags())) {
             return true;
         }
     }

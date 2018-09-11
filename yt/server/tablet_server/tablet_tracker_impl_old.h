@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "tablet_cell.h"
+
 #include <yt/server/cell_master/public.h>
 
 #include <yt/server/node_tracker_server/public.h>
@@ -36,7 +38,10 @@ private:
     void SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool);
     void SchedulePeerRevocation(TTabletCell* cell);
 
-    bool IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout);
+    bool IsFailed(
+        const TTabletCell::TPeer& peer,
+        const TBooleanFormula& nodeTagFilter,
+        TDuration timeout);
     static bool IsGood(const NNodeTrackerServer::TNode* node);
     static int FindGoodPeer(const TTabletCell* cell);
 };

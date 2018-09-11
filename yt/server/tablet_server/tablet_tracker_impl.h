@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_cell.h"
 #include "tablet_cell_balancer.h"
 
 #include <yt/server/cell_master/public.h>
@@ -36,7 +37,10 @@ private:
     void SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer);
     void SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer);
 
-    bool IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout);
+    bool IsFailed(
+        const TTabletCell::TPeer& peer,
+        const TBooleanFormula& nodeTagFilter,
+        TDuration timeout);
     static int FindGoodPeer(const TTabletCell* cell);
 };
 
