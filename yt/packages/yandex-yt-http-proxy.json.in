@@ -46,7 +46,7 @@
                 "path": "yt/nodejs/targets/bin/ytnode"
             },
             "destination": {
-                "path": "/usr/bin/ytnodejs"
+                "path": "/usr/bin/ytnode"
             }
         },
         {
