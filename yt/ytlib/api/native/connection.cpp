@@ -30,6 +30,8 @@
 #include <yt/ytlib/transaction_client/config.h>
 #include <yt/client/transaction_client/remote_timestamp_provider.h>
 
+#include <yt/client/api/sticky_transaction_pool.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -72,6 +74,7 @@ public:
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create()))
         , ChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
+        , StickyTransactionPool_(CreateStickyTransactionPool<NNative::ITransactionPtr>(Logger))
     { }
 
     void Initialize()
@@ -328,49 +331,12 @@ public:
 
     virtual ITransactionPtr RegisterStickyTransaction(NNative::ITransactionPtr transaction) override
     {
-        const auto& transactionId = transaction->GetId();
-        TStickyTransactionEntry entry{
-            transaction,
-            TLeaseManager::CreateLease(
-                transaction->GetTimeout(),
-                BIND(&TConnection::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId))
-        };
-
-        {
-            TWriterGuard guard(StickyTransactionLock_);
-            YCHECK(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
-        }
-
-        transaction->SubscribeCommitted(BIND(&TConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
-        transaction->SubscribeAborted(BIND(&TConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
-
-        LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
-            transactionId);
-
-        return transaction;
+        return StickyTransactionPool_->RegisterTransaction(transaction);
     }
 
     virtual ITransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
     {
-        ITransactionPtr transaction;
-        TLease lease;
-        {
-            TReaderGuard guard(StickyTransactionLock_);
-            auto it = IdToStickyTransactionEntry_.find(transactionId);
-            if (it == IdToStickyTransactionEntry_.end()) {
-                THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::NoSuchTransaction,
-                    "Sticky transaction %v is not found",
-                    transactionId);
-            }
-            const auto& entry = it->second;
-            transaction = entry.Transaction;
-            lease = entry.Lease;
-        }
-        TLeaseManager::RenewLease(lease);
-        LOG_DEBUG("Sticky transaction lease renewed (TransactionId: %v)",
-            transactionId);
-        return transaction;
+        return StickyTransactionPool_->GetTransactionAndRenewLease(transactionId);
     }
 
     virtual void Terminate() override
@@ -419,15 +385,7 @@ private:
 
     std::atomic<bool> Terminated_ = {false};
 
-    struct TStickyTransactionEntry
-    {
-        ITransactionPtr Transaction;
-        TLease Lease;
-    };
-
-    TReaderWriterSpinLock StickyTransactionLock_;
-    THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
-
+    const IStickyTransactionPoolPtr<NNative::ITransactionPtr> StickyTransactionPool_;
 
     IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind)
     {
@@ -454,45 +412,6 @@ private:
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
 
         return channel;
-    }
-
-
-    void OnStickyTransactionLeaseExpired(const TTransactionId& transactionId)
-    {
-        ITransactionPtr transaction;
-        {
-            TWriterGuard guard(StickyTransactionLock_);
-            auto it = IdToStickyTransactionEntry_.find(transactionId);
-            if (it == IdToStickyTransactionEntry_.end()) {
-                return;
-            }
-            transaction = it->second.Transaction;
-            IdToStickyTransactionEntry_.erase(it);
-        }
-
-        LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
-            transactionId);
-
-        transaction->Abort();
-    }
-
-    void OnStickyTransactionFinished(const TTransactionId& transactionId)
-    {
-        TLease lease;
-        {
-            TWriterGuard guard(StickyTransactionLock_);
-            auto it = IdToStickyTransactionEntry_.find(transactionId);
-            if (it == IdToStickyTransactionEntry_.end()) {
-                return;
-            }
-            lease = it->second.Lease;
-            IdToStickyTransactionEntry_.erase(it);
-        }
-
-        LOG_DEBUG("Sticky transaction unregistered (TransactionId: %v)",
-            transactionId);
-
-        TLeaseManager::CloseLease(lease);
     }
 };
 

@@ -103,7 +103,7 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
             const auto& rsp = rspOrError.ValueOrThrow();
             auto transactionId = FromProto<TTransactionId>(rsp->id());
             auto startTimestamp = static_cast<TTimestamp>(rsp->start_timestamp());
-            return CreateTransaction(
+            auto transaction = CreateTransaction(
                 std::move(connection),
                 std::move(client),
                 std::move(channel),
@@ -115,6 +115,11 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
                 timeout,
                 pingPeriod,
                 sticky);
+
+            if (sticky) {
+                return connection->RegisterStickyTransaction(transaction);
+            }
+            return transaction;
         }));
 }
 

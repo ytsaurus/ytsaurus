@@ -99,6 +99,9 @@ ITransactionPtr TClient::AttachTransaction(
     const TTransactionId& transactionId,
     const TTransactionAttachOptions& options)
 {
+    if (options.Sticky) {
+        return GetRpcProxyConnection()->GetStickyTransaction(transactionId);
+    }
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
     auto channel = GetChannel();
