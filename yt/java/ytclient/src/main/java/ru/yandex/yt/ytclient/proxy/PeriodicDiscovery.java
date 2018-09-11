@@ -16,10 +16,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.ListenableFuture;
-import com.ning.http.client.RequestBuilder;
-import com.ning.http.client.Response;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.ListenableFuture;
+import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +27,7 @@ import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.YtFormat;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
@@ -34,6 +35,8 @@ import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+
+import static org.asynchttpclient.Dsl.asyncHttpClient;
 
 public class PeriodicDiscovery implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(PeriodicDiscovery.class);
@@ -70,7 +73,7 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.proxies = new HashMap<>();
         this.credentials = Objects.requireNonNull(credentials);
         this.listenerOpt = Option.ofNullable(listener);
-        this.httpClient = new AsyncHttpClient();
+        this.httpClient = asyncHttpClient();
 
         addProxies(this.initialAddresses);
         updateProxies();
@@ -240,6 +243,6 @@ public class PeriodicDiscovery implements AutoCloseable {
     public void close() {
         logger.debug("Stopping periodic discovery");
         running.set(false);
-        httpClient.closeAsynchronously();
+        IoUtils.closeQuietly(httpClient);
     }
 }
