@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "yandex-yt-http-proxy",
+        "name": "yandex-yt-http-proxy-nanny",
         "maintainer": "YT Team <yt@yandex-team.ru>",
         "description": "YT. This package provides server-side software",
         "version": "{revision}.{branch}",
@@ -36,7 +36,7 @@
                 "path": "yt/nodejs/targets/bin/ytnode"
             },
             "destination": {
-                "path": "/usr/bin/ytnodejs"
+                "path": "/node/bin/nodejs"
             }
         },
         {
@@ -48,7 +48,7 @@
                 ]
             },
             "destination": {
-                "path": "/usr/lib/node_modules/yt/"
+                "path": "/node_modules/yt/"
             }
         },
         {
@@ -57,7 +57,7 @@
                 "content": "This package is built with ya package.\n"
             },
             "destination": {
-                "path": "/usr/lib/node_modules/yt/built_by_ya.txt"
+                "path": "/node_modules/yt/built_by_ya.txt"
             }
         },
         {
@@ -67,7 +67,7 @@
                 "path": "node_modules"
             },
             "destination": {
-                "path": "/usr/lib/node_modules/yt/"
+                "path": "/node_modules/yt/"
             }
         }
     ]

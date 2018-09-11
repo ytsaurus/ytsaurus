@@ -8,7 +8,10 @@ CMS=@CMAKE_CURRENT_SOURCE_DIR@
 
 export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
 
-(cd $CMB && npm install)
+(cd $CMB && sky get rbtorrent:2f0bd3b3332017758248f5a510b7b304af84ecb6 && tar xf resource.tar.gz 2> /dev/null)
+
+rm $CMB/node_modules/.bin/_mocha
+ln -s ../mocha/bin/_mocha $CMB/node_modules/.bin/_mocha
 
 [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
 
