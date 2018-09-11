@@ -498,6 +498,7 @@ def package(options, build_context):
         else:
             PACKAGE_LIST = [
                 "yandex-yt-controller-agent.json",
+                "yandex-yt-http-proxy.json",
                 "yandex-yt-master.json",
                 "yandex-yt-node.json",
                 "yandex-yt-proxy.json",
