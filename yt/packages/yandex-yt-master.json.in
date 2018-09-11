@@ -11,7 +11,7 @@
     },
     "build": {
         "targets": [
-            "yt/server/cell_master_program"
+            "yt/server/cell_master/bin"
         ],
         "flags": [
             {
@@ -28,7 +28,7 @@
         {
             "source": {
                 "type": "BUILD_OUTPUT",
-                "path": "yt/server/cell_master_program/ytserver-master"
+                "path": "yt/server/cell_master/bin/ytserver-master"
             },
             "destination": {
                 "path": "/usr/bin/ytserver-master"
