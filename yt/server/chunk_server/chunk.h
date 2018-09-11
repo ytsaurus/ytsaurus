@@ -47,7 +47,8 @@ struct TChunkDynamicData
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and null (default iterator value) for others.
-    std::array<TChunkRepairQueueIterator, MaxMediumCount> RepairQueueIterators;
+    std::array<TChunkRepairQueueIterator, MaxMediumCount> MissingPartRepairQueueIterators;
+    std::array<TChunkRepairQueueIterator, MaxMediumCount> DecommissionedPartRepairQueueIterators;
 
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
@@ -58,6 +59,13 @@ struct TChunkDynamicData
     //! All journal chunks are linked via this node.
     TIntrusiveLinkedListNode<TChunk> JournalLinkedListNode;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EChunkRepairQueue,
+    ((Missing)           (0))
+    ((Decommissioned)    (1))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,8 +136,8 @@ public:
     void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     TChunk* GetNextScannedChunk(EChunkScanKind kind) const;
 
-    TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex) const;
-    void SetRepairQueueIterator(int mediumIndex, TChunkRepairQueueIterator value);
+    TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
+    void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
 
     bool IsJobScheduled() const;
     TJobPtr GetJob() const;

@@ -180,8 +180,10 @@ private:
     //! Medium index designates the medium where the chunk is missing some of
     //! its parts. It's always equal to the index of its queue.
     //! In each queue, a single chunk may only appear once.
-    TPerMediumArray<TChunkRepairQueue>  ChunkRepairQueues_ = {};
-    TDecayingMaxMinBalancer<int, double> ChunkRepairQueueBalancer_;
+    TPerMediumArray<TChunkRepairQueue>  MissingPartChunkRepairQueues_ = {};
+    TPerMediumArray<TChunkRepairQueue>  DecommissionedPartChunkRepairQueues_ = {};
+    TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
+    TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
@@ -315,8 +317,8 @@ private:
 
     void UpdateJobCountGauge(EJobType jobType, int delta);
 
-    void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
-    void RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
+    void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue);
+    void RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes);
 
     void InitInterDCEdges();
     void UpdateInterDCEdgeCapacities();
@@ -332,6 +334,10 @@ private:
     void OnCheckEnabledSecondary();
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
+
+    TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
+    TPerMediumArray<TChunkRepairQueue>& ChunkRepairQueues(EChunkRepairQueue queue);
+    TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)
