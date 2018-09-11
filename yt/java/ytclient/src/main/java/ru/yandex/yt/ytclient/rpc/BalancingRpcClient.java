@@ -122,7 +122,7 @@ public class BalancingRpcClient implements RpcClient {
         this.failoverTimeout = failoverTimeout;
         this.pingTimeout = pingTimeout;
         this.globalTimeout = globalTimeout;
-        this.executorService = connector.executorService();
+        this.executorService = connector.eventLoopGroup();
         this.dataCenters = new DataCenter[dataCenters.size()];
         this.localDataCenter = null;
 
