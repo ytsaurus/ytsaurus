@@ -24,7 +24,7 @@ case $CLUSTER in
     ;;
     seneca-man)
     MASTERS="m0[1-5]i.seneca-man.yt.yandex.net"
-    NODES="n00[01-74]i.seneca-man.yt.yandex.net"
+    NODES="n0[001-230]i.seneca-man.yt.yandex.net"
     ;;
     seneca-myt)
     MASTERS="m0[1-5]-myt.seneca-myt.yt.yandex.net"
