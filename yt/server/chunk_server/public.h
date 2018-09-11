@@ -114,16 +114,18 @@ constexpr int LastSeenReplicaCount = 16;
 static_assert(LastSeenReplicaCount >= NErasure::MaxTotalPartCount, "LastSeenReplicaCount < NErasure::MaxTotalPartCount");
 
 DEFINE_BIT_ENUM(EChunkStatus,
-    ((None)              (0x0000))
-    ((Underreplicated)   (0x0001))
-    ((Overreplicated)    (0x0002))
-    ((Lost)              (0x0004))
-    ((DataMissing)       (0x0008))
-    ((ParityMissing)     (0x0010))
-    ((QuorumMissing)     (0x0020))
-    ((Safe)              (0x0040))
-    ((Sealed)            (0x0080))
-    ((UnsafelyPlaced)    (0x0100))
+    ((None)                    (0x0000))
+    ((Underreplicated)         (0x0001))
+    ((Overreplicated)          (0x0002))
+    ((Lost)                    (0x0004))
+    ((DataMissing)             (0x0008))
+    ((ParityMissing)           (0x0010))
+    ((QuorumMissing)           (0x0020))
+    ((Safe)                    (0x0040))
+    ((Sealed)                  (0x0080))
+    ((UnsafelyPlaced)          (0x0100))
+    ((DataDecommissioned)      (0x0200))
+    ((ParityDecommissioned)    (0x0400))
 );
 
 DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
@@ -134,7 +136,7 @@ DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
     ((QuorumMissing)     (0x0020))
     ((Precarious)        (0x0200)) // All replicas are on transient media.
     ((MediumWiseLost)    (0x0400)) // Lost on some media, but not others.
-    ((Deficient)         (0x0800)) // Underreplicated, data-missing or parity-missing on some media.
+    ((Deficient)         (0x0800)) // Underreplicated or {data,parity}-{missing,decommissioned} on some media.
 );
 
 DEFINE_BIT_ENUM(EChunkScanKind,
