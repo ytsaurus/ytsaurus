@@ -985,7 +985,7 @@ private:
                 CellTagFromId(tabletSnapshot->TabletId),
                 transaction->GetId(),
                 NullChunkListId,
-                GetUnlimitedThrottler(),
+                tabletSnapshot->PartitioningThrottler,
                 blockCache);
         };
 
@@ -1377,7 +1377,7 @@ private:
             CellTagFromId(tabletSnapshot->TabletId),
             transaction->GetId(),
             NullChunkListId,
-            GetUnlimitedThrottler(),
+            tabletSnapshot->CompactionThrottler,
             blockCache);
 
         WaitFor(reader->Open())

@@ -168,6 +168,8 @@ protected:
     //! Increments each time a new job in this task is scheduled.
     TIdGenerator TaskJobIndexGenerator_;
 
+    TTentativeTreeEligibility TentativeTreeEligibility_;
+
     virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
@@ -260,8 +262,6 @@ private:
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
-
-    TTentativeTreeEligibility TentativeTreeEligibility_;
 
     mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
     mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;

@@ -833,7 +833,9 @@ private:
             }
             auto&& it = NotificationWatchesIndex_.find(currentWD);
             auto&& jt = NotificationWatchesIndex_.end();
-            YCHECK(it != jt);
+            if (it == jt) {
+                continue;
+            }
 
             auto* watch = it->second;
             watch->Run();

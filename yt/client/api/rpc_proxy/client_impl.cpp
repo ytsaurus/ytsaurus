@@ -52,7 +52,8 @@ TClient::TClient(
         CreateTableMountCache(
             Connection_->GetConfig()->TableMountCache,
             Channel_,
-            RpcProxyClientLogger))
+            RpcProxyClientLogger,
+            Connection_->GetConfig()->RpcTimeout))
 { }
 
 const ITableMountCachePtr& TClient::GetTableMountCache()
@@ -98,6 +99,9 @@ ITransactionPtr TClient::AttachTransaction(
     const TTransactionId& transactionId,
     const TTransactionAttachOptions& options)
 {
+    if (options.Sticky) {
+        return GetRpcProxyConnection()->GetStickyTransaction(transactionId);
+    }
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
     auto channel = GetChannel();

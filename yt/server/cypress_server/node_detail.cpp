@@ -99,6 +99,12 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     }
     branchedNode->SetOpaque(originatingNode->GetOpaque());
 
+    // Copying node's account requires special handling.
+    YCHECK(!branchedNode->GetAccount());
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* account = originatingNode->GetAccount();
+    securityManager->SetAccount(branchedNode, nullptr, account, transaction);
+
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode, branchedNode);
 }

@@ -131,8 +131,10 @@ DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
     ((Lost)              (0x0004))
     ((DataMissing)       (0x0008))
     ((ParityMissing)     (0x0010))
+    ((QuorumMissing)     (0x0020))
     ((Precarious)        (0x0200)) // All replicas are on transient media.
     ((MediumWiseLost)    (0x0400)) // Lost on some media, but not others.
+    ((Deficient)         (0x0800)) // Underreplicated, data-missing or parity-missing on some media.
 );
 
 DEFINE_BIT_ENUM(EChunkScanKind,

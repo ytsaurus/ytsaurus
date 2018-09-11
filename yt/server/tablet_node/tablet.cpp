@@ -25,8 +25,9 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -36,15 +37,16 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NHydra;
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NTabletClient::NProto;
 using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NObjectClient;
-using namespace NTransactionClient;
-using namespace NQueryClient;
 using namespace NProfiling;
+using namespace NQueryClient;
+using namespace NTableClient;
+using namespace NTabletClient::NProto;
+using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,6 +315,15 @@ TTablet::TTablet(
     , WriterConfig_(New<TTabletChunkWriterConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
+    , FlushThrottler_(CreateReconfigurableThroughputThrottler(
+        Config_->FlushThrottler,
+        TabletNodeLogger))
+    , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
+        Config_->CompactionThrottler,
+        TabletNodeLogger))
+    , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
+        Config_->PartitioningThrottler,
+        TabletNodeLogger))
 { }
 
 TTablet::TTablet(
@@ -355,6 +366,15 @@ TTablet::TTablet(
         PivotKey_,
         NextPivotKey_))
     , Context_(context)
+    , FlushThrottler_(CreateReconfigurableThroughputThrottler(
+        Config_->FlushThrottler,
+        TabletNodeLogger))
+    , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
+        Config_->CompactionThrottler,
+        TabletNodeLogger))
+    , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
+        Config_->PartitioningThrottler,
+        TabletNodeLogger))
 {
     Initialize();
 }
@@ -635,6 +655,8 @@ void TTablet::AsyncLoad(TLoadContext& context)
             }
         }
     }
+
+    ReconfigureThrottlers();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
@@ -1040,6 +1062,9 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->CriticalPartitionCount = CriticalPartitionCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
+    snapshot->FlushThrottler = FlushThrottler_;
+    snapshot->CompactionThrottler = CompactionThrottler_;
+    snapshot->PartitioningThrottler = PartitioningThrottler_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {
@@ -1194,6 +1219,13 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
     ProfilerCounters_ = !ProfilerTags_.empty()
         ? &GetGloballyCachedValue<TTabletInternalProfilerTrait>(ProfilerTags_)
         : nullptr;
+}
+
+void TTablet::ReconfigureThrottlers()
+{
+    FlushThrottler_->Reconfigure(Config_->FlushThrottler);
+    CompactionThrottler_->Reconfigure(Config_->CompactionThrottler);
+    PartitioningThrottler_->Reconfigure(Config_->PartitioningThrottler);
 }
 
 void TTablet::UpdateReplicaCounters()

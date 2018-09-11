@@ -420,7 +420,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             NullChunkListId,
             New<TNodeDirectory>(),
             Client_,
-            blockCache);
+            blockCache,
+            nullptr,
+            tabletSnapshot->FlushThrottler);
 
         auto tableWriter = CreateVersionedChunkWriter(
             writerConfig,
