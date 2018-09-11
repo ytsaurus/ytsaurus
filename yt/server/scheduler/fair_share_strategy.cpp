@@ -2561,10 +2561,10 @@ public:
                 THROW_ERROR_EXCEPTION("Pool tree %Qv was not configured for this operation", pair.first);
             }
         }
-
-        ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
-        ValidatePoolLimits(operation, runtimeParams);
-        ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
+//        TODO(renadeen): we shouldn't validate pools if user didn't change them
+//        ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
+//        ValidatePoolLimits(operation, runtimeParams);
+//        ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
     }
 
     virtual void BuildOrchid(TFluentMap fluent) override

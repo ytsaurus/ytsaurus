@@ -84,8 +84,17 @@ class ListOperationsSetup(YTEnvSetup):
         else:
             init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version)
 
-        create("table", cls._input_path, recursive=True, ignore_existing=True)
+        create("table", cls._input_path, recursive=True, ignore_existing=True,
+            attributes={
+                "schema": [
+                    {"name":"key", "type": "int64", "sort_order":"ascending"},
+                    {"name":"value", "type": "int64"},
+                ]
+            }
+        )
+
         write_table(cls._input_path, {"key": 1, "value": 2})
+
         create("table", cls._output_path, recursive=True, ignore_existing=True)
 
         # Create a new pool tree.
