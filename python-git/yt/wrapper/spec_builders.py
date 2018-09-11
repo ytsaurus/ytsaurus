@@ -430,6 +430,8 @@ class UserJobSpecBuilder(object):
         file_paths += list(imap(lambda path: TablePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
+        if "local_files" in spec:
+            del spec["local_files"]
 
         return spec, tmpfs_size, file_uploader.disk_size
 
