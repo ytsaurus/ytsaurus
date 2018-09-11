@@ -3,6 +3,8 @@ package ru.yandex.yt.ytclient.bus;
 import java.net.SocketAddress;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.netty.channel.EventLoopGroup;
+
 /**
  * Интерфейс для установки соединений по протоколу bus
  */
@@ -21,7 +23,11 @@ public interface BusConnector extends AutoCloseable {
      */
     BusServer listen(SocketAddress address, BusListener listener);
 
-    ScheduledExecutorService executorService();
+    EventLoopGroup eventLoopGroup();
+
+    default ScheduledExecutorService executorService() {
+        return eventLoopGroup();
+    }
 
     @Override
     void close();

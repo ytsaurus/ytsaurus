@@ -50,7 +50,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
         discovery = new ArrayList<>();
 
         this.dataCenters = new DataCenter[initialAddresses.size()];
-        this.executorService = connector.executorService();
+        this.executorService = connector.eventLoopGroup();
         this.options = options;
 
         int dataCenterIndex = 0;
@@ -112,7 +112,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
         discovery = new ArrayList<>();
 
         this.dataCenters = new DataCenter[clusters.size()];
-        this.executorService = connector.executorService();
+        this.executorService = connector.eventLoopGroup();
         this.options = options;
 
         int dataCenterIndex = 0;

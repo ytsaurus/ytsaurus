@@ -3,13 +3,13 @@ package ru.yandex.yt.ytclient.bus;
 import java.net.SocketAddress;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -165,7 +165,7 @@ public class DefaultBusConnector implements BusConnector {
     }
 
     @Override
-    public ScheduledExecutorService executorService() {
+    public EventLoopGroup eventLoopGroup() {
         return group;
     }
 }

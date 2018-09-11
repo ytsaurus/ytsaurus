@@ -16,10 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.ListenableFuture;
-import org.asynchttpclient.RequestBuilder;
-import org.asynchttpclient.Response;
+import org.asynchttpclient.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +70,11 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.proxies = new HashMap<>();
         this.credentials = Objects.requireNonNull(credentials);
         this.listenerOpt = Option.ofNullable(listener);
-        this.httpClient = asyncHttpClient();
+        this.httpClient = asyncHttpClient(
+                new DefaultAsyncHttpClientConfig.Builder()
+                    .setEventLoopGroup(connector.eventLoopGroup())
+                    .build()
+        );
 
         addProxies(this.initialAddresses);
         updateProxies();
@@ -194,7 +195,7 @@ public class PeriodicDiscovery implements AutoCloseable {
                     scheduleUpdate();
                 }
             }
-        }, connector.executorService());
+        }, connector.eventLoopGroup());
     }
 
     private void updateProxiesFromRpc() {
@@ -236,7 +237,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     }
 
     private void scheduleUpdate() {
-        connector.executorService().schedule(this::updateProxies, updatePeriod.toMillis(), TimeUnit.MILLISECONDS);
+        connector.eventLoopGroup().schedule(this::updateProxies, updatePeriod.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
