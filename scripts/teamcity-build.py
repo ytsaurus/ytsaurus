@@ -495,24 +495,9 @@ def package(options, build_context):
             run(["make", "-j", "8", "python-package"])
             run(["make", "-j", "8", "python-yp-package"])
             run(["make", "version"])
-
-            teamcity_message("We have built a package")
-            teamcity_interact("setParameter", name="yt.package_built", value=1)
-            teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
-            teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(build_context["yt_version"]))
-
-            share_packages(options, build_context)
-
-            artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(build_context["yt_version"]))
-            if artifacts:
-                for repository in options.repositories:
-                    run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
-                    teamcity_message("We have uploaded a package to " + repository)
-                    teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
         else:
             PACKAGE_LIST = [
                 "yandex-yt-controller-agent.json",
-                "yandex-yt-http-proxy.json",
                 "yandex-yt-master.json",
                 "yandex-yt-node.json",
                 "yandex-yt-proxy.json",
@@ -537,6 +522,20 @@ def package(options, build_context):
                     with tarfile.open(expected_tar) as tarf:
                         tarf.extractall(path=artifacts_dir)
                     teamcity_message("Archive {} is extracted".format(expected_tar))
+
+        teamcity_message("We have built a package")
+        teamcity_interact("setParameter", name="yt.package_built", value=1)
+        teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
+        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(build_context["yt_version"]))
+
+        share_packages(options, build_context)
+
+        artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(build_context["yt_version"]))
+        if artifacts:
+            for repository in options.repositories:
+                run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
+                teamcity_message("We have uploaded a package to " + repository)
+                teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
 
 @build_step
