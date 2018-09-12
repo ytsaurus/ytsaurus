@@ -45,7 +45,8 @@ TClientReader::TClientReader(
     , Format_(format)
     , Options_(options)
     , ReadTransaction_(nullptr)
-    , RetriesLeft_(TConfig::Get()->RetryCount)
+    , InitialRetryCount_(TConfig::Get()->RetryCount)
+    , RetriesLeft_(InitialRetryCount_)
 {
     if (options.CreateTransaction_) {
         ReadTransaction_ = MakeHolder<TPingableTransaction>(auth, transactionId);
@@ -74,6 +75,11 @@ bool TClientReader::Retry(
 
     CreateRequest(rangeIndex, rowIndex);
     return true;
+}
+
+void TClientReader::ResetRetries()
+{
+    RetriesLeft_ = InitialRetryCount_;
 }
 
 size_t TClientReader::DoRead(void* buf, size_t len)

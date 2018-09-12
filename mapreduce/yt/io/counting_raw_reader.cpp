@@ -10,6 +10,11 @@ bool TCountingRawTableReader::Retry(const TMaybe<ui32>& rangeIndex, const TMaybe
     return Reader_->Retry(rangeIndex, rowIndex);
 }
 
+void TCountingRawTableReader::ResetRetries()
+{
+    Reader_->ResetRetries();
+}
+
 bool TCountingRawTableReader::HasRangeIndices() const
 {
     return Reader_->HasRangeIndices();

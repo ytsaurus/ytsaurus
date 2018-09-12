@@ -18,6 +18,7 @@ public:
     explicit TJobReader(const TFile& file);
 
     virtual bool Retry( const TMaybe<ui32>& /*rangeIndex*/, const TMaybe<ui64>& /*rowIndex*/) override;
+    virtual void ResetRetries() override;
     virtual bool HasRangeIndices() const override;
 
 protected:

@@ -42,7 +42,7 @@ struct TRowElement
 class TRowQueue
 {
 public:
-    TRowQueue(size_t sizeLimit = 4 << 20);
+    explicit TRowQueue(size_t sizeLimit = 4 << 20);
 
     void Enqueue(TRowElement&& row);
     TRowElement Dequeue();
@@ -60,7 +60,7 @@ private:
     TAutoEvent EnqueueEvent_;
     TAutoEvent DequeueEvent_;
     std::atomic<bool> Stopped_{false};
-    size_t SizeLimit_ = 4 << 20;
+    size_t SizeLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

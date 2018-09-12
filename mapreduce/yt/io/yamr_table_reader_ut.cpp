@@ -90,6 +90,9 @@ public:
         return true;
     }
 
+    void ResetRetries() override
+    { }
+
     bool HasRangeIndices() const override
     {
         return false;

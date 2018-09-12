@@ -1020,6 +1020,47 @@ Y_UNIT_TEST_SUITE(TableIo) {
             UNIT_ASSERT_VALUES_EQUAL(result, expected);
         }
     }
+
+    // Checks we are able to read the whole table even if the connections
+    // are aborted after every row. It emulates reading of a huge table
+    // during which the server can drop the connections every now and then.
+    Y_UNIT_TEST(OptimisticRetries)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryCount = 2;
+        TConfig::Get()->RetryInterval = TDuration::MicroSeconds(10);
+
+        auto client = CreateTestClient();
+        auto tablePath = TRichYPath("//testing/table");
+        int numRows = 20;
+        {
+            auto writer = client->CreateTableWriter<TNode>(tablePath);
+            for (int i = 0; i < numRows; ++i) {
+                writer->AddRow(TNode()("foo", TString(1 << 20, i + 'a')));
+            }
+            writer->Finish();
+        }
+        int abortedRequestCount = 0;
+        {
+            // We rely on the hope that one row will be stored in any case, so set the queue size to 1 byte.
+            auto reader = client->CreateTableReader<TNode>(tablePath, TTableReaderOptions().SizeLimit(1));
+            for (int i = 0; i < numRows; ++i) {
+                UNIT_ASSERT(reader->IsValid());
+                const auto& row = reader->GetRow();
+                UNIT_ASSERT(AllOf(
+                    row["foo"].AsString(),
+                    std::bind(std::equal_to<char>(), std::placeholders::_1, i + 'a')));
+
+                abortedRequestCount += TAbortableHttpResponse::AbortAll("/read_table");
+
+                reader->Next();
+            }
+            UNIT_ASSERT(!reader->IsValid());
+        }
+        // Check that there has been much more requests than RetryCount.
+        UNIT_ASSERT(abortedRequestCount >= 10);
+    }
 }
 
 Y_UNIT_TEST_SUITE(BlobTableIo) {

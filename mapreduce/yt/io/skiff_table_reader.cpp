@@ -262,6 +262,10 @@ void TSkiffTableReader::ReadRow()
                 Y_FAIL("Bad column type: %d", static_cast<int>(columnSchema.Type));
         }
     }
+
+    // We successfully parsed one more row from the stream,
+    // so reset retry count to their initial value.
+    Input_.ResetRetries();
 }
 
 void TSkiffTableReader::EnsureValidity() const

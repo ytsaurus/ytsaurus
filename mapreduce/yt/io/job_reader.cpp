@@ -23,6 +23,9 @@ bool TJobReader::Retry(const TMaybe<ui32>& /*rangeIndex*/, const TMaybe<ui64>& /
     return false;
 }
 
+void TJobReader::ResetRetries()
+{ }
+
 bool TJobReader::HasRangeIndices() const
 {
     return false;

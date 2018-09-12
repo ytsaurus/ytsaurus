@@ -27,6 +27,8 @@ public:
         const TMaybe<ui32>& rangeIndex,
         const TMaybe<ui64>& rowIndex) override;
 
+    void ResetRetries() override;
+
     bool HasRangeIndices() const override { return true; }
 
 protected:
@@ -44,6 +46,7 @@ private:
     THolder<THttpRequest> Request_;
     THttpResponse* Input_;
 
+    int InitialRetryCount_;
     int RetriesLeft_;
 
 private:

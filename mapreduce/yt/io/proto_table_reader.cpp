@@ -179,6 +179,11 @@ void TLenvalProtoTableReader::ReadRow(Message* row)
         try {
             ParseFromStream(&Input_, *row, Length_);
             RowTaken_ = true;
+
+            // We successfully parsed one more row from the stream,
+            // so reset retry count to their initial value.
+            Input_.ResetRetries();
+
             break;
         } catch (const yexception& ) {
             if (!TLenvalTableReader::Retry()) {
