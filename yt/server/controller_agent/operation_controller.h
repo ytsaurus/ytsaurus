@@ -251,10 +251,9 @@ struct IOperationControllerHost
     virtual void OnOperationSuspended(const TError& error) = 0;
     virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) = 0;
 
-    virtual void ValidateOperationPermission(
+    virtual void ValidateOperationAccess(
         const TString& user,
-        NYTree::EPermission permission,
-        const TString& subnodePath = "") = 0;
+        NScheduler::EAccessType accessType) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

@@ -42,6 +42,7 @@ message TReqCheckPermissionByAcl
     required string user = 1;
     required int32 permission = 2;
     required string acl = 3;
+    optional bool ignore_missing_subjects = 4 [default = false];
 }
 
 message TRspCheckPermissionByAcl
@@ -49,6 +50,7 @@ message TRspCheckPermissionByAcl
     required int32 action = 1;
     optional NYT.NProto.TGuid subject_id = 2;
     optional string subject_name = 3;
+    repeated string missing_subjects = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

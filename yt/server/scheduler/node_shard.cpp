@@ -705,7 +705,7 @@ TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
         operationId = job->GetOperationId();
     }
 
-    Host_->ValidateOperationPermission(user, operationId, EPermission::Write);
+    Host_->ValidateOperationAccess(user, operationId, EAccessType::Ownership);
 
     return node->NodeDescriptor();
 }
@@ -718,7 +718,7 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
 
     LOG_DEBUG("Getting strace dump (JobId: %v, OperationId: %v)",
         job->GetId(),
@@ -749,7 +749,7 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
 
     LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v, User: %v)",
         job->GetId(),
@@ -790,7 +790,7 @@ void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
 
     LOG_DEBUG("Sending job signal (JobId: %v, OperationId: %v, Signal: %v)",
         job->GetId(),
@@ -820,7 +820,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
 
     LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
         job->GetId(),
@@ -866,7 +866,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     TShellParameters shellParameters;
     Deserialize(shellParameters, ConvertToNode(parameters));
     if (shellParameters.Operation == EShellOperation::Spawn) {
-        Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+        Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
     }
 
     LOG_DEBUG("Polling job shell (JobId: %v, OperationId: %v, Parameters: %v)",
@@ -898,7 +898,7 @@ void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration>
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
 
     if (job->GetState() != EJobState::Running &&
         job->GetState() != EJobState::Waiting)
