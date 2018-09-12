@@ -108,6 +108,10 @@ TString FormatToMime(const NFormats::TFormat& format)
                 return "application/x-yt-yson-binary";
             }
         }
+        case EFormatType::Skiff:
+            return "application/octet-stream";
+        case EFormatType::WebJson:
+            return "application/json";
         default:
             THROW_ERROR_EXCEPTION("Cannot determine mime-type for format")
                 << TErrorAttribute("format", format);
