@@ -78,14 +78,30 @@ inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
     return node.Next;
 }
 
-inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex) const
+inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const
 {
-    return GetDynamicData()->RepairQueueIterators[mediumIndex];
+    switch (queue) {
+        case EChunkRepairQueue::Missing:
+            return GetDynamicData()->MissingPartRepairQueueIterators[mediumIndex];
+        case EChunkRepairQueue::Decommissioned:
+            return GetDynamicData()->DecommissionedPartRepairQueueIterators[mediumIndex];
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
-inline void TChunk::SetRepairQueueIterator(int mediumIndex, TChunkRepairQueueIterator value)
+inline void TChunk::SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value)
 {
-    GetDynamicData()->RepairQueueIterators[mediumIndex] = value;
+    switch (queue) {
+        case EChunkRepairQueue::Missing:
+            GetDynamicData()->MissingPartRepairQueueIterators[mediumIndex] = value;
+            break;
+        case EChunkRepairQueue::Decommissioned:
+            GetDynamicData()->DecommissionedPartRepairQueueIterators[mediumIndex] = value;
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 inline bool TChunk::IsJobScheduled() const

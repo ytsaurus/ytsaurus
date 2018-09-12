@@ -119,7 +119,10 @@ TChunkReplicator::TChunkReplicator(
     , RequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate))
-    , ChunkRepairQueueBalancer_(
+    , MissingPartChunkRepairQueueBalancer_(
+        Config_->RepairQueueBalancerWeightDecayFactor,
+        Config_->RepairQueueBalancerWeightDecayInterval)
+    , DecommissionedPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
     , EnabledCheckExecutor_(New<TPeriodicExecutor>(
@@ -137,7 +140,8 @@ TChunkReplicator::TChunkReplicator(
 
     for (int i = 0; i < MaxMediumCount; ++i) {
         // We "balance" medium indexes, not the repair queues themselves.
-        ChunkRepairQueueBalancer_.AddContender(i);
+        MissingPartChunkRepairQueueBalancer_.AddContender(i);
+        DecommissionedPartChunkRepairQueueBalancer_.AddContender(i);
     }
 
     InitInterDCEdges();
@@ -167,27 +171,41 @@ void TChunkReplicator::Stop()
         }
     }
 
-    for (const auto& queue : ChunkRepairQueues_) {
+    for (const auto& queue : MissingPartChunkRepairQueues_) {
         for (auto chunkWithIndexes : queue) {
-            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), TChunkRepairQueueIterator());
+            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
+                chunkWithIndexes.GetMediumIndex(),
+                EChunkRepairQueue::Missing,
+                TChunkRepairQueueIterator());
         }
     }
+    MissingPartChunkRepairQueueBalancer_.ResetWeights();
 
-    ChunkRepairQueueBalancer_.ResetWeights();
+    for (const auto& queue : DecommissionedPartChunkRepairQueues_) {
+        for (auto chunkWithIndexes : queue) {
+            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
+                chunkWithIndexes.GetMediumIndex(),
+                EChunkRepairQueue::Decommissioned,
+                TChunkRepairQueueIterator());
+        }
+    }
+    DecommissionedPartChunkRepairQueueBalancer_.ResetWeights();
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        auto repairIt = chunk->GetRepairQueueIterator(mediumIndex);
-        if (repairIt == TChunkRepairQueueIterator()) {
-            continue;
+        for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
+            auto repairIt = chunk->GetRepairQueueIterator(mediumIndex, queue);
+            if (repairIt == TChunkRepairQueueIterator()) {
+                continue;
+            }
+            auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
+            chunkRepairQueue.erase(repairIt);
+            TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
+            auto newRepairIt = chunkRepairQueue.insert(chunkRepairQueue.begin(), chunkWithIndexes);
+            chunk->SetRepairQueueIterator(mediumIndex, queue, newRepairIt);
         }
-        auto& chunkRepairQueue = ChunkRepairQueues_[mediumIndex];
-        chunkRepairQueue.erase(repairIt);
-        TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-        auto newRepairIt = chunkRepairQueue.insert(chunkRepairQueue.begin(), chunkWithIndexes);
-        chunk->SetRepairQueueIterator(mediumIndex, newRepairIt);
     }
 }
 
@@ -506,9 +524,6 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
         auto isDataPart = index < dataPartCount;
         auto removalAdvised = replicationFactor == 0 || (!isDataPart && dataPartsOnly);
         auto targetReplicationFactor = removalAdvised ? 0 : 1;
-        const auto missingPartFlag = isDataPart
-            ? EChunkStatus::DataMissing
-            : EChunkStatus::ParityMissing;
 
         if (replicaCount >= targetReplicationFactor && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
@@ -530,7 +545,9 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
                 return IsReplicaDecommissioned(replica);
             };
             if (std::all_of(replicas.begin(), replicas.end(), isReplicaDecommissioned)) {
-                result.Status |= missingPartFlag;
+                result.Status |= isDataPart
+                    ? EChunkStatus::DataDecommissioned
+                    : EChunkStatus::ParityDecommissioned;
             } else {
                 result.Status |= EChunkStatus::Underreplicated;
                 result.ReplicationIndexes.push_back(index);
@@ -539,7 +556,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
 
         if (replicaCount == 0 && decommissionedReplicaCount == 0 && !removalAdvised) {
             erasedIndexes.set(index);
-            result.Status |= missingPartFlag;
+            result.Status |= isDataPart ? EChunkStatus::DataMissing : EChunkStatus::ParityMissing;
         }
     }
 
@@ -602,7 +619,10 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
         }
 
         const auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
-        if (Any(mediumStatistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing))) {
+        if (Any(mediumStatistics.Status &
+                (EChunkStatus::DataMissing | EChunkStatus::ParityMissing |
+                 EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned)))
+        {
             deficient = true;
         }
     }
@@ -1478,11 +1498,13 @@ void TChunkReplicator::ScheduleNewJobs(
         }
 
         // Schedule repair jobs.
-        {
+        // NB: the order of the enum items is crucial! Part-missing chunks must
+        // be repaired before part-decommissioned chunks.
+        for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
             TPerMediumArray<TChunkRepairQueue::iterator> iteratorPerRepairQueue = {};
             std::transform(
-                ChunkRepairQueues_.begin(),
-                ChunkRepairQueues_.end(),
+                ChunkRepairQueues(queue).begin(),
+                ChunkRepairQueues(queue).end(),
                 iteratorPerRepairQueue.begin(),
                 [] (TChunkRepairQueue& repairQueue) {
                     return repairQueue.begin();
@@ -1491,11 +1513,11 @@ void TChunkReplicator::ScheduleNewJobs(
             while (hasSpareRepairResources() &&
                    HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
             {
-                auto winner = ChunkRepairQueueBalancer_.TakeWinnerIf(
+                auto winner = ChunkRepairQueueBalancer(queue).TakeWinnerIf(
                     [&] (int mediumIndex) {
                         // Don't repair chunks on nodes without relevant medium.
                         // In particular, this avoids repairing non-cloud tables in the cloud.
-                        return node->HasMedium(mediumIndex) && iteratorPerRepairQueue[mediumIndex] != ChunkRepairQueues_[mediumIndex].end();
+                        return node->HasMedium(mediumIndex) && iteratorPerRepairQueue[mediumIndex] != ChunkRepairQueue(mediumIndex, queue).end();
                     });
 
                 if (!winner) {
@@ -1503,16 +1525,16 @@ void TChunkReplicator::ScheduleNewJobs(
                 }
 
                 auto mediumIndex = *winner;
-                auto& chunkRepairQueue = ChunkRepairQueues_[mediumIndex];
+                auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
                 auto chunkIt = iteratorPerRepairQueue[mediumIndex]++;
                 auto chunkWithIndexes = *chunkIt;
                 auto* chunk = chunkWithIndexes.GetPtr();
                 TJobPtr job;
                 if (CreateRepairJob(node, chunkWithIndexes, &job)) {
-                    chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), TChunkRepairQueueIterator());
+                    chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
                     chunkRepairQueue.erase(chunkIt);
                     if (job) {
-                        ChunkRepairQueueBalancer_.AddWeight(
+                        ChunkRepairQueueBalancer(queue).AddWeight(
                             *winner,
                             job->ResourceUsage().repair_data_size() * job->TargetReplicas().size());
                     }
@@ -1742,11 +1764,14 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 }
             }
 
-            if (Any(statistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
-                None(statistics.Status & EChunkStatus::Lost))
-            {
-                TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-                AddToChunkRepairQueue(chunkWithIndexes);
+            if (None(statistics.Status & EChunkStatus::Lost)) {
+                if (Any(statistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing))) {
+                    TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
+                    AddToChunkRepairQueue(chunkWithIndexes, EChunkRepairQueue::Missing);
+                } else if (Any(statistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
+                    TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
+                    AddToChunkRepairQueue(chunkWithIndexes, EChunkRepairQueue::Decommissioned);
+                }
             }
         }
     }
@@ -1825,7 +1850,7 @@ void TChunkReplicator::RemoveChunkFromQueuesOnRefresh(TChunk* chunk)
         // Remove from repair queue.
         auto mediumIndex = medium->GetIndex();
         TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-        RemoveFromChunkRepairQueue(chunkWithIndexes);
+        RemoveFromChunkRepairQueues(chunkWithIndexes);
     }
 }
 
@@ -1851,7 +1876,7 @@ void TChunkReplicator::RemoveChunkFromQueuesOnDestroy(TChunk* chunk)
     if (chunk->IsErasure()) {
         for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
             TChunkPtrWithIndexes chunkPtrWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-            RemoveFromChunkRepairQueue(chunkPtrWithIndexes);
+            RemoveFromChunkRepairQueues(chunkPtrWithIndexes);
         }
     }
 }
@@ -2385,26 +2410,28 @@ void TChunkReplicator::HandleNodeDataCenterChange(TNode* node, TDataCenter* oldD
     }
 }
 
-void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes)
+void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue)
 {
     Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
-    YCHECK(chunk->GetRepairQueueIterator(mediumIndex) == TChunkRepairQueueIterator());
-    auto& chunkRepairQueue = ChunkRepairQueues_[mediumIndex];
+    YCHECK(chunk->GetRepairQueueIterator(mediumIndex, queue) == TChunkRepairQueueIterator());
+    auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
     auto it = chunkRepairQueue.insert(chunkRepairQueue.end(), chunkWithIndexes);
-    chunk->SetRepairQueueIterator(mediumIndex, it);
+    chunk->SetRepairQueueIterator(mediumIndex, queue, it);
 }
 
-void TChunkReplicator::RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes)
+void TChunkReplicator::RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes)
 {
     Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
-    auto it = chunk->GetRepairQueueIterator(mediumIndex);
-    if (it != TChunkRepairQueueIterator()) {
-        ChunkRepairQueues_[mediumIndex].erase(it);
-        chunk->SetRepairQueueIterator(mediumIndex, TChunkRepairQueueIterator());
+    for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
+        auto it = chunk->GetRepairQueueIterator(mediumIndex, queue);
+        if (it != TChunkRepairQueueIterator()) {
+            ChunkRepairQueue(mediumIndex, queue).erase(it);
+            chunk->SetRepairQueueIterator(mediumIndex, queue, TChunkRepairQueueIterator());
+        }
     }
 }
 
@@ -2557,6 +2584,35 @@ bool TChunkReplicator::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* 
 TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()
 {
     return Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
+}
+
+TChunkRepairQueue& TChunkReplicator::ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue)
+{
+    return ChunkRepairQueues(queue)[mediumIndex];
+}
+
+TPerMediumArray<TChunkRepairQueue>& TChunkReplicator::ChunkRepairQueues(EChunkRepairQueue queue)
+{
+    switch (queue) {
+        case EChunkRepairQueue::Missing:
+            return MissingPartChunkRepairQueues_;
+        case EChunkRepairQueue::Decommissioned:
+            return DecommissionedPartChunkRepairQueues_;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+TDecayingMaxMinBalancer<int, double>& TChunkReplicator::ChunkRepairQueueBalancer(EChunkRepairQueue queue)
+{
+    switch (queue) {
+        case EChunkRepairQueue::Missing:
+            return MissingPartChunkRepairQueueBalancer_;
+        case EChunkRepairQueue::Decommissioned:
+            return DecommissionedPartChunkRepairQueueBalancer_;
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
