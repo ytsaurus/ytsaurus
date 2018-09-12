@@ -95,7 +95,6 @@ class TProxyConfig
 public:
     int Port;
     int ThreadCount;
-    int MonitoringPort;
 
     NHttp::TServerConfigPtr HttpServer;
     NHttps::TServerConfigPtr HttpsServer;
@@ -114,8 +113,6 @@ public:
     {
         RegisterParameter("port", Port)
             .Default(80);
-        RegisterParameter("monitoring_port", MonitoringPort)
-            .Default(10013);
         RegisterParameter("thread_count", ThreadCount)
             .Default(16);
         RegisterParameter("http_server", HttpServer)
