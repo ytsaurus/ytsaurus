@@ -283,11 +283,55 @@ TNode SerializeParamsForGetOperation(
 
 TNode SerializeParamsForUpdateOperationParameters(
     const TOperationId& operationId,
-    const TNode& newParameters)
+    const TUpdateOperationParametersOptions& options)
 {
+    TNode parameters;
+    if (options.Pool_) {
+        parameters["pool"] = *options.Pool_;
+    }
+    if (options.Weight_) {
+        parameters["weight"] = *options.Weight_;
+    }
+    if (!options.Owners_.empty()) {
+        parameters["owners"] = TNode::CreateList();
+        for (const auto& owner : options.Owners_) {
+            parameters["owners"].Add(owner);
+        }
+    }
+    if (options.SchedulingOptionsPerPoolTree_) {
+        parameters["scheduling_options_per_pool_tree"] = TNode::CreateMap();
+        for (const auto& entry : options.SchedulingOptionsPerPoolTree_->Options_) {
+            auto schedulingOptionsNode = TNode::CreateMap();
+            const auto& schedulingOptions = entry.second;
+            if (schedulingOptions.Pool_) {
+                schedulingOptionsNode["pool"] = *schedulingOptions.Pool_;
+            }
+            if (schedulingOptions.Weight_) {
+                schedulingOptionsNode["weight"] = *schedulingOptions.Weight_;
+            }
+            if (schedulingOptions.ResourceLimits_) {
+                auto resourceLimitsNode = TNode::CreateMap();
+                const auto& resourceLimits = *schedulingOptions.ResourceLimits_;
+                if (resourceLimits.UserSlots_) {
+                    resourceLimitsNode["user_slots"] = *resourceLimits.UserSlots_;
+                }
+                if (resourceLimits.Memory_) {
+                    resourceLimitsNode["memory"] = *resourceLimits.Memory_;
+                }
+                if (resourceLimits.Cpu_) {
+                    resourceLimitsNode["cpu"] = *resourceLimits.Cpu_;
+                }
+                if (resourceLimits.Network_) {
+                    resourceLimitsNode["network"] = *resourceLimits.Network_;
+                }
+                schedulingOptionsNode["resource_limits"] = std::move(resourceLimitsNode);
+            }
+            parameters["scheduling_options_per_pool_tree"][entry.first] = std::move(schedulingOptionsNode);
+        }
+    }
     return TNode()
         ("operation_id", GetGuidAsString(operationId))
-        ("parameters", newParameters);
+        ("parameters", parameters);
 }
 
 TNode SerializeParamsForListJobs(

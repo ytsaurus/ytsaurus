@@ -103,7 +103,7 @@ TListOperationsResult ListOperations(
 void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,
-    const TNode& newParameters,
+    const TUpdateOperationParametersOptions& options,
     IRetryPolicy* retryPolicy = nullptr);
 
 TNode ListJobsOld(

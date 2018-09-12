@@ -393,11 +393,11 @@ TFuture<TOperationAttributes> TRawBatchRequest::GetOperation(
 
 TFuture<void> TRawBatchRequest::UpdateOperationParameters(
     const TOperationId& operationId,
-    const TNode& newParameters)
+    const TUpdateOperationParametersOptions& options)
 {
     return AddRequest<TVoidResponseParser>(
         "update_op_parameters",
-        SerializeParamsForUpdateOperationParameters(operationId, newParameters),
+        SerializeParamsForUpdateOperationParameters(operationId, options),
         Nothing());
 }
 

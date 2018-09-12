@@ -2093,9 +2093,11 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         client->UpdateOperationParameters(op->GetId(),
-            TNode()("scheduling_options_per_pool_tree",
-                TNode()("default",
-                    TNode()("weight", 10.0))));
+            TUpdateOperationParametersOptions()
+            .SchedulingOptionsPerPoolTree(
+                TSchedulingOptionsPerPoolTree()
+                .Add("default", TSchedulingOptions()
+                    .Weight(10.0))));
 
         auto weightPath = "//sys/scheduler/orchid/scheduler/operations/" +
             GetGuidAsString(op->GetId()) +

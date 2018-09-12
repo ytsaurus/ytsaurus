@@ -1099,7 +1099,7 @@ struct IOperation
     //
     // Update operation runtime parameters.
     virtual void UpdateParameters(
-        const TNode& newParameters) = 0;
+        const TUpdateOperationParametersOptions& options) = 0;
 
     //
     // List jobs satisfying given filters.
@@ -1263,7 +1263,7 @@ struct IOperationClient
     // Update operation runtime parameters.
     virtual void UpdateOperationParameters(
         const TOperationId& operationId,
-        const TNode& newParameters) = 0;
+        const TUpdateOperationParametersOptions& options) = 0;
 
     //
     // List jobs satisfying given filters.

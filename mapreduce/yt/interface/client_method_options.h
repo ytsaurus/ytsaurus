@@ -151,6 +151,73 @@ struct TBlobTableReaderOptions
     FLUENT_FIELD_DEFAULT(ui64, PartSize, 4 * 1024 * 1024);
 };
 
+// https://wiki.yandex-team.ru/yt/userdoc/fairshare/#resursy
+struct TResourceLimits
+{
+    using TSelf = TResourceLimits;
+
+    // Number of slots for user jobs.
+    FLUENT_FIELD_OPTION(i64, UserSlots);
+
+    // Number of cpu cores.
+    FLUENT_FIELD_OPTION(double, Cpu);
+
+    // Network usage in some units.
+    FLUENT_FIELD_OPTION(i64, Network);
+
+    // Memory in bytes.
+    FLUENT_FIELD_OPTION(i64, Memory);
+};
+
+struct TSchedulingOptions
+{
+    using TSelf = TSchedulingOptions;
+
+    // Pool to switch operation to.
+    // NOTE: switching is currently disabled on the server (will induce an exception).
+    FLUENT_FIELD_OPTION(TString, Pool);
+
+    // Operation weight.
+    FLUENT_FIELD_OPTION(double, Weight);
+
+    // Operation resource limits.
+    FLUENT_FIELD_OPTION(TResourceLimits, ResourceLimits);
+};
+
+struct TSchedulingOptionsPerPoolTree
+{
+    using TSelf = TSchedulingOptionsPerPoolTree;
+
+    TSchedulingOptionsPerPoolTree(const THashMap<TString, TSchedulingOptions>& options = {})
+        : Options_(options)
+    { }
+
+    TSelf& Add(TStringBuf poolTreeName, const TSchedulingOptions& schedulingOptions)
+    {
+        Y_ENSURE(Options_.emplace(poolTreeName, schedulingOptions).second);
+        return *this;
+    }
+
+    THashMap<TString, TSchedulingOptions> Options_;
+};
+
+// https://wiki.yandex-team.ru/yt/userdoc/api/#updateopparameters
+struct TUpdateOperationParametersOptions
+{
+    using TSelf = TUpdateOperationParametersOptions;
+
+    // New owners of the operation.
+    FLUENT_VECTOR_FIELD(TString, Owner);
+
+    // Pool to switch operation to (for all pool trees it is running in).
+    FLUENT_FIELD_OPTION(TString, Pool);
+
+    // New operation weight (for all pool trees it is running in).
+    FLUENT_FIELD_OPTION(double, Weight);
+
+    // Scheduling options for each pool tree the operation is running in.
+    FLUENT_FIELD_OPTION(TSchedulingOptionsPerPoolTree, SchedulingOptionsPerPoolTree);
+};
 
 template <class TDerived>
 struct TIOOptions

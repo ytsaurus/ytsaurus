@@ -193,7 +193,7 @@ public:
 
     void UpdateOperationParameters(
         const TOperationId& operationId,
-        const TNode& newParameters) override;
+        const TUpdateOperationParametersOptions& options) override;
 
     TListJobsResult ListJobs(
         const TOperationId& operationId,
