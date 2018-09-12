@@ -109,7 +109,7 @@ public:
         const TGetOperationOptions& options);
     NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
-        const TNode& newParameters);
+        const TUpdateOperationParametersOptions& options);
     NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path);
     NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TTransactionId& transaction, const TVector<TRichYPath>& paths);
 

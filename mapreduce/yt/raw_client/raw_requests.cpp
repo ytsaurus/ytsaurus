@@ -330,11 +330,11 @@ TListOperationsResult ListOperations(
 void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,
-    const TNode& newParameters,
+    const TUpdateOperationParametersOptions& options,
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("POST", "update_op_parameters");
-    header.MergeParameters(NDetail::SerializeParamsForUpdateOperationParameters(operationId, newParameters));
+    header.MergeParameters(NDetail::SerializeParamsForUpdateOperationParameters(operationId, options));
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 

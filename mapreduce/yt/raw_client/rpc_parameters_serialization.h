@@ -74,7 +74,7 @@ TNode SerializeParamsForListOperations(
 
 TNode SerializeParamsForUpdateOperationParameters(
     const TOperationId& operationId,
-    const TNode& newParameters);
+    const TUpdateOperationParametersOptions& options);
 
 TNode SerializeParamsForListJobs(
     const TOperationId& operationId,

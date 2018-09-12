@@ -468,9 +468,9 @@ TListOperationsResult TClientBase::ListOperations(
 
 void TClientBase::UpdateOperationParameters(
     const TOperationId& operationId,
-    const TNode& newParameters)
+    const TUpdateOperationParametersOptions& options)
 {
-    return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, newParameters);
+    return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, options);
 }
 
 TListJobsResult TClientBase::ListJobs(

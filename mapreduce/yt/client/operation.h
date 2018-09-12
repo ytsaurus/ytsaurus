@@ -35,7 +35,7 @@ public:
     virtual void AbortOperation() override;
     virtual void CompleteOperation() override;
     virtual TOperationAttributes GetAttributes(const TGetOperationOptions& options) override;
-    virtual void UpdateParameters(const TNode& newParameters) override;
+    virtual void UpdateParameters(const TUpdateOperationParametersOptions& options) override;
     virtual TListJobsResult ListJobs(const TListJobsOptions& options) override;
 
 private:
