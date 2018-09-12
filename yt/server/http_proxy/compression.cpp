@@ -67,6 +67,8 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
+        Holder_ = buffer;
+
         CreateCompressor();
         Compressor_->Write(buffer.Begin(), buffer.Size());
         return VoidFuture;
@@ -83,8 +85,12 @@ private:
     const IAsyncOutputStreamPtr Underlying_;
     const EContentEncoding ContentEncoding_;
 
-    std::unique_ptr<IOutputStream> Compressor_;
+    // NB: Arcadia streams got some "interresting" ideas about
+    // exception handling and the role of destructors in the C++
+    // programming language.
+    TSharedRef Holder_;
     bool Destroying_ = false;
+    std::unique_ptr<IOutputStream> Compressor_;
 
     void CreateCompressor()
     {
