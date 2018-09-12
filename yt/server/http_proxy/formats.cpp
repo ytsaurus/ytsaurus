@@ -110,6 +110,8 @@ TString FormatToMime(const NFormats::TFormat& format)
         }
         case EFormatType::Skiff:
             return "application/octet-stream";
+        case EFormatType::Protobuf:
+            return "application/octet-stream";
         case EFormatType::WebJson:
             return "application/json";
         default:
