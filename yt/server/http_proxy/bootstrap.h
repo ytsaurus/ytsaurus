@@ -66,6 +66,9 @@ private:
     NConcurrency::TActionQueuePtr Control_;
     NConcurrency::IPollerPtr Poller_;
 
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NHttp::IServerPtr MonitoringServer_;
+
     NApi::NNative::IConnectionPtr Connection_;
     NApi::IClientPtr Client_;
     NDriver::IDriverPtr DriverV3_;
