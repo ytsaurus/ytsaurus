@@ -7,9 +7,7 @@
 #include "scheduling_context.h"
 #include "shared_data.h"
 
-#include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/operation.h>
+#include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -122,6 +120,23 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
     }
 
     return execNodes;
+}
+
+std::vector<TExecNodePtr> CreateExecNodesFromNode(const INodePtr& nodeGroupsNode)
+{
+    std::vector<TNodeGroupConfigPtr> nodeGroups;
+    Deserialize(nodeGroups, nodeGroupsNode);
+    return CreateExecNodes(nodeGroups);
+}
+
+std::vector<TExecNodePtr> CreateExecNodesFromFile(const TString& nodeGroupsFilename)
+{
+    try {
+        TIFStream configStream(nodeGroupsFilename);
+        return CreateExecNodesFromNode(ConvertToNode(&configStream));
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading node groups") << ex;
+    }
 }
 
 std::vector<TOperationDescription> LoadOperations()
@@ -438,7 +453,7 @@ void Run(const char* configFilename)
 
     LOG_INFO("Reading operations description");
 
-    std::vector<TExecNodePtr> execNodes = CreateExecNodes(config->NodeGroups);
+    std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
 
     LOG_INFO("Discovered %v nodes", execNodes.size());
 
