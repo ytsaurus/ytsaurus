@@ -184,9 +184,9 @@ public:
         Enabled_ = true;
     }
 
-    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath)
+    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TGuid& tag)
     {
-        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath)
+        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -456,13 +456,13 @@ private:
         return Config_->Quota.Get(std::numeric_limits<i64>::max());
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath)
+    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TGuid& tag)
     {
         ValidateEnabled();
 
         auto id = TLayerId::Create();
         try {   
-            LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v)", id, archivePath);
+            LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v, Tag: %v)", id, archivePath, tag);
 
             {
                 // Take exclusive lock in blocking fashion to ensure that no
@@ -471,22 +471,22 @@ private:
                 file.Flock(LOCK_EX);
             }
 
-            LOG_DEBUG("Create new directory for layer (LayerId: %v)", id);
+            LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v)", id, tag);
             auto layerDirectory = GetLayerPath(id);
 
             try {
-                LOG_DEBUG("Unpack layer (Path: %v)", layerDirectory);
+                LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)", layerDirectory, tag);
                 WaitFor(Executor_->ImportLayer(archivePath, ToString(id), Config_->Path))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v)", id, archivePath);
+                LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)", id, archivePath, tag);
                 THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
             }
 
             auto layerSize = RunTool<TGetDirectorySizeAsRootTool>(layerDirectory);
 
-            LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v)", id, layerSize);
+            LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)", id, layerSize, tag);
 
             TLayerMeta layerMeta;
             layerMeta.Path = layerDirectory;
@@ -520,11 +520,12 @@ private:
                 Layers_[id] = layerMeta;
             }
 
-            LOG_INFO("Finished importing layer (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v)",
+            LOG_INFO("Finished importing layer (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v, Tag: %v)",
                 id,
                 layerDirectory,
                 UsedSpace_,
-                AvailableSpace_);
+                AvailableSpace_,
+                tag);
 
             return layerMeta;
         } catch (const std::exception& ex) {
@@ -824,21 +825,25 @@ public:
         }
     }
 
-    TFuture<TLayerPtr> PrepareLayer(const TArtifactKey& artifactKey)
+    TFuture<TLayerPtr> PrepareLayer(const TArtifactKey& artifactKey, const TGuid& tag)
     {
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
         if (cookie.IsActive()) {
             auto& chunkCache = Bootstrap_->GetChunkCache();
 
+            LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactKey: %v)", tag, artifactKey);
+
             chunkCache->PrepareArtifact(artifactKey, Bootstrap_->GetNodeDirectory())
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<IChunkPtr>& artifactChunkOrError) mutable {
                     try {
+                        LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, Error: %v, ArtifactKey: %v)", tag, artifactChunkOrError, artifactKey);
+
                         // NB: ensure that artifact stays alive until the end of layer import.
                         const auto& artifactChunk = artifactChunkOrError.ValueOrThrow();
                         auto location = this_->PickLocation();
 
-                        auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName()))
+                        auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), tag))
                             .ValueOrThrow();
 
                         auto layer = New<TLayer>(layerMeta, artifactKey, location);
@@ -850,6 +855,8 @@ public:
                 // We must pass this action through invoker to avoid synchronous execution.
                 // WaitFor calls inside this action can ruin context-switch-free handlers inside TJob.
                 .Via(GetCurrentInvoker()));
+        } else {
+            LOG_DEBUG("Layer is already being loaded into cache (Tag: %v, ArtifactKey: %v)", tag, artifactKey);
         }
 
         return value;
@@ -1038,11 +1045,14 @@ public:
         YCHECK(!layers.empty());
 
         auto volumeKey = TVolumeKey(layers);
+        auto tag = TGuid::Create();
 
-        static auto createVolume = BIND([=] (const TVolumeStatePtr& volumeState) {
+        auto createVolume = BIND([=] (const TVolumeStatePtr& volumeState) {
             for (const auto& layer : volumeState->Layers()) {
                 LayerCache_->Touch(layer);
             }
+
+            LOG_DEBUG("Creating new layered volume (Tag: %v, Path: %v)", tag, volumeState->Path());
 
             return New<TLayeredVolume>(volumeState);
         });
@@ -1055,12 +1065,17 @@ public:
             if (it != Volumes_.end()) {
                 // Better release guard before calling Apply.
                 guard.Release();
-                return it->second
+
+                LOG_DEBUG("Extracting volume from cache (Tag: %v, OriginalVolumeTag: %v)", tag, it->second.Tag);
+
+                return it->second.VolumeFuture
                     .Apply(createVolume)
                     .As<IVolumePtr>();
             } else {
+                LOG_DEBUG("Volume is not cached, will be created (Tag: %v)", tag);
+
                 promise = NewPromise<TVolumeStatePtr>();
-                YCHECK(Volumes_.insert(std::make_pair(volumeKey, promise.ToFuture())).second);
+                YCHECK(Volumes_.insert(std::make_pair(volumeKey, TAsyncVolume{promise.ToFuture(), tag})).second);
             }
         }
 
@@ -1070,7 +1085,7 @@ public:
         std::vector<TFuture<TLayerPtr>> layerFutures;
         layerFutures.reserve(layers.size());
         for (const auto& layerKey : layers) {
-            layerFutures.push_back(LayerCache_->PrepareLayer(layerKey));
+            layerFutures.push_back(LayerCache_->PrepareLayer(layerKey, tag));
         }
 
         // ToDo(psushin): choose proper invoker.
@@ -1080,7 +1095,8 @@ public:
                 &TPortoVolumeManager::OnLayersPrepared,
                 MakeStrong(this),
                 promise,
-                volumeKey)
+                volumeKey,
+                tag)
             .Via(GetCurrentInvoker()));
 
         // This promise is intentionally uncancelable. If we decide to abort job cancel job preparation
@@ -1097,6 +1113,14 @@ public:
     }
 
 private:
+    struct TAsyncVolume
+    {
+        TFuture<TVolumeStatePtr> VolumeFuture;
+
+        //! This tag allows to trace the history of a volume being cached.
+        TGuid Tag;
+    };
+
     IPortoExecutorPtr Executor_;
 
     std::vector<TLayerLocationPtr> Locations_;
@@ -1104,7 +1128,7 @@ private:
     TLayerCachePtr LayerCache_;
 
     TSpinLock SpinLock_;
-    THashMap<TVolumeKey, TFuture<TVolumeStatePtr>> Volumes_;
+    THashMap<TVolumeKey, TAsyncVolume> Volumes_;
 
     std::atomic<bool> Enabled_ = { true };
 
@@ -1118,9 +1142,12 @@ private:
     void OnLayersPrepared(
         TPromise<TVolumeStatePtr> volumeStatePromise,
         const TVolumeKey& key,
+        const TGuid& tag,
         const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
     {
         try {
+            LOG_DEBUG("All layers prepared (Tag: %v, Error: %v)", tag, errorOrLayers);
+
             const auto& layers = errorOrLayers
                 .ValueOrThrow();
 
@@ -1139,6 +1166,8 @@ private:
                 this,
                 location,
                 layers);
+
+            LOG_DEBUG("Created volume state (Tag: %v, VolumeId: %v)", tag, volumeMeta.Id);
 
             volumeStatePromise.Set(volumeState);
         } catch (const std::exception& ex) {
