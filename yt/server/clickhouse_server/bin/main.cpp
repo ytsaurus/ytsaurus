@@ -64,6 +64,8 @@ TProgram::TProgram()
     Opts_.AddLongOption("http-port", "ClickHouse HTTP port")
         .DefaultValue(9203)
         .StoreResult(&HttpPort_);
+
+    SetCrashOnError();
 }
 
 void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
