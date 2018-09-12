@@ -518,7 +518,7 @@ private:
             return node->GetCellCount(bundle) < floor;
         });
 
-        if (Provider_->IsVerboseLoggingEnabled() && (aboveCeil > 0 || belowFloor > 0)) {
+        if (aboveCeil > 0 || belowFloor > 0) {
             LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
                 bundle->GetName(),
                 ceil,
