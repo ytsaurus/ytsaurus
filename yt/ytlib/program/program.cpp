@@ -58,6 +58,11 @@ TProgram::TProgram()
     Opts_.SetFreeArgsNum(0);
 }
 
+void TProgram::SetCrashOnError()
+{
+    CrashOnError_ = true;
+}
+
 TProgram::~TProgram() = default;
 
 int TProgram::Run(int argc, const char** argv)
@@ -66,16 +71,24 @@ int TProgram::Run(int argc, const char** argv)
 
     srand(time(nullptr));
 
-    try {
+    auto run = [&] {
         Argv0_ = TString(argv[0]);
         TOptsParseResult result(this, argc, argv);
 
-
         DoRun(result);
-        return Exit(EProgramExitCode::OK);
-    } catch (...) {
-        OnError(CurrentExceptionMessage());
-        return Exit(EProgramExitCode::ProgramError);
+    };
+
+    if (CrashOnError_) {
+        try {
+            run();
+            return Exit(EProgramExitCode::OK);
+        } catch (...) {
+            OnError(CurrentExceptionMessage());
+            return Exit(EProgramExitCode::ProgramError);
+        }
+    } else {
+        run();
+        return Exit(EProgramExitCode::OK);        
     }
 }
 

@@ -36,7 +36,11 @@ protected:
 
     virtual void OnError(const TString& message) const noexcept;
 
+    void SetCrashOnError();
+
 private:
+    bool CrashOnError_ = false;
+
     // Custom handler for option parsing errors.
     class TOptsParseResult;
 
