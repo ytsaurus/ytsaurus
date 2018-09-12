@@ -42,12 +42,13 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Index)
-            .SetMandatory(true));
+        descriptors->push_back(EInternedAttributeKey::Index);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Transient)
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Cache)
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Priority)
             .SetWritable(true)
             .SetReplicated(true));

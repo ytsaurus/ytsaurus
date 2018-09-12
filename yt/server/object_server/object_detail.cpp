@@ -368,7 +368,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
-        .SetReplicated(true));
+        .SetReplicated(true)
+        .SetMandatory(true));
 }
 
 const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
