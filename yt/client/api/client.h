@@ -245,7 +245,9 @@ struct TCheckPermissionByAclOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
     , public TPrerequisiteOptions
-{ };
+{
+    bool IgnoreMissingSubjects = false;
+};
 
 struct TCheckPermissionByAclResult
 {
@@ -254,6 +256,7 @@ struct TCheckPermissionByAclResult
     NSecurityClient::ESecurityAction Action;
     NSecurityClient::TSubjectId SubjectId;
     TNullable<TString> SubjectName;
+    std::vector<TString> MissingSubjects;
 };
 
 // TODO(lukyan): Use TTransactionalOptions as base class

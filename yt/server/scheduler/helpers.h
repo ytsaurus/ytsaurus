@@ -52,6 +52,16 @@ TListOperationsResult ListOperations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateOperationAccess(
+    const TString& user,
+    const TOperationId& operationId,
+    EAccessType accessType,
+    const NYTree::INodePtr& acl,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

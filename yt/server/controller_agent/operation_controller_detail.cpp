@@ -590,7 +590,9 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
 {
-    Host->ValidateOperationPermission(user, permission, "/intermediate_data_access");
+    // Permission for IntermediateData can be only Read.
+    YCHECK(permission == EPermission::Read);
+    Host->ValidateOperationAccess(user, EAccessType::IntermediateData);
 }
 
 void TOperationControllerBase::InitUpdatingTables()
