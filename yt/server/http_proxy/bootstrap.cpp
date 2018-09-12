@@ -16,11 +16,23 @@
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_client.h>
+
+#include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/driver/driver.h>
+
+#include <yt/ytlib/program/build_attributes.h>
+
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
@@ -34,6 +46,8 @@ using namespace NHttp;
 using namespace NApi;
 using namespace NDriver;
 using namespace NNative;
+using namespace NMonitoring;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +63,36 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     Control_ = New<TActionQueue>("Control");
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
+
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    MonitoringServer_ = NHttp::CreateServer(
+        Config_->MonitoringServer);
+
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
+        "/ref_counted",
+        CreateRefCountedTrackerStatisticsProducer());
+    MonitoringManager_->Start();
+    
+    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
+    SetNodeByYPath(
+        orchidRoot,
+        "/monitoring",
+        CreateVirtualNode(MonitoringManager_->GetService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/profiling",
+        CreateVirtualNode(TProfileManager::Get()->GetService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/config",
+        ConfigNode_);
+
+    MonitoringServer_->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
+
+    SetBuildAttributes(orchidRoot, "http_proxy");
 
     Connection_ = CreateConnection(ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver));
     TClientOptions options;
@@ -109,6 +153,8 @@ void TBootstrap::HandleRequest(
 
 void TBootstrap::Run()
 {
+    MonitoringServer_->Start();
+
     ApiHttpServer_->Start();
     if (ApiHttpsServer_) {
         ApiHttpsServer_->Start();
