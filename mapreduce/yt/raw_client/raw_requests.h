@@ -33,57 +33,64 @@ void ExecuteBatch(
     const TExecuteBatchOptions& options = TExecuteBatchOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
-// TODO: use retry policy here
 TNode Get(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TGetOptions& options = TGetOptions());
+    const TGetOptions& options = TGetOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 void Set(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TNode& value,
-    const TSetOptions& options = TSetOptions());
+    const TSetOptions& options = TSetOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 bool Exists(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TYPath& path);
+    const TYPath& path,
+    IRetryPolicy* retryPolicy = nullptr);
 
 TNodeId Create(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     const ENodeType& type,
-    const TCreateOptions& options = TCreateOptions());
+    const TCreateOptions& options = TCreateOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 void Remove(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TRemoveOptions& options = TRemoveOptions());
+    const TRemoveOptions& options = TRemoveOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 TNode::TListType List(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TListOptions& options);
+    const TListOptions& options,
+    IRetryPolicy* retryPolicy = nullptr);
 
 TNodeId Link(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& targetPath,
     const TYPath& linkPath,
-    const TLinkOptions& options = TLinkOptions());
+    const TLinkOptions& options = TLinkOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 TLockId Lock(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     ELockMode mode,
-    const TLockOptions& options = TLockOptions());
+    const TLockOptions& options = TLockOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 void PingTx(
     const TAuth& auth,
@@ -93,7 +100,8 @@ void PingTx(
 TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,
-    const TGetOperationOptions& options = TGetOperationOptions());
+    const TGetOperationOptions& options = TGetOperationOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 TListOperationsResult ListOperations(
     const TAuth& auth,
@@ -122,7 +130,8 @@ TString GetJobStderr(
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,
-    const TGetJobStderrOptions& options = TGetJobStderrOptions());
+    const TGetJobStderrOptions& options = TGetJobStderrOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 TMaybe<TYPath> GetFileFromCache(
     const TAuth& auth,
