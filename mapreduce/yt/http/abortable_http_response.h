@@ -57,6 +57,8 @@ public:
     void Abort();
     const TString& GetUrl() const;
 
+    bool IsAborted() const;
+
 private:
     size_t DoRead(void* buf, size_t len) override;
     size_t DoSkip(size_t len) override;

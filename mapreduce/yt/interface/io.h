@@ -63,6 +63,9 @@ public:
         const TMaybe<ui32>& rangeIndex,
         const TMaybe<ui64>& rowIndex) = 0;
 
+    // Resets retry count to the initial value.
+    virtual void ResetRetries() = 0;
+
     // Returns 'true' if the input stream may contain table ranges.
     // The TRawTableReader user is responsible to track active range index in this case
     // in order to pass it to Retry().

@@ -14,6 +14,7 @@ public:
     { }
 
     bool Retry(const TMaybe<ui32>& rangeIndex, const TMaybe<ui64>& rowIndex) override;
+    void ResetRetries() override;
     bool HasRangeIndices() const override;
 
     size_t GetReadByteCount() const;

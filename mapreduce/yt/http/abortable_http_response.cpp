@@ -52,7 +52,7 @@ public:
     {
         int result = 0;
         for (auto& response : ResponseList_) {
-            if (response.GetUrl().find(urlPattern) != TString::npos) {
+            if (!response.IsAborted() && response.GetUrl().find(urlPattern) != TString::npos) {
                 response.Abort();
                 ++result;
             }
@@ -147,6 +147,11 @@ TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(const TStrin
 const TString& TAbortableHttpResponse::GetUrl() const
 {
     return Url_;
+}
+
+bool TAbortableHttpResponse::IsAborted() const
+{
+    return Aborted_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -295,6 +295,10 @@ void TNodeTableReader::Next()
         Row_ = RowQueue_.Dequeue();
 
         if (Row_->Type == TRowElement::Row) {
+            // We successfully parsed one more row from the stream,
+            // so reset retry count to their initial value.
+            Input_.ResetRetries();
+
             if (!Row_->Node.IsEntity()) {
                 AtStart_ = false;
                 break;
