@@ -412,6 +412,11 @@ TSharedRef THttpInput::ReadBody()
     return MergeRefsToRef<THttpParserTag>(std::move(chunks));
 }
 
+i64 THttpInput::GetReadByteCount() const
+{
+    return Connection_->GetReadByteCount() - StartByteCount_;
+}
+
 TSharedRef THttpInput::DoRead()
 {
     if (Parser_.GetState() == EParserState::MessageFinished) {
@@ -441,7 +446,7 @@ TSharedRef THttpInput::DoRead()
             if (MessageType_ == EMessageType::Request) {
                 LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d)",
                     RequestId_,
-                    Connection_->GetReadByteCount() - StartByteCount_);
+                    GetReadByteCount());
             }
             return EmptySharedRef;
         }
@@ -704,6 +709,11 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
         .Apply(OnWriteFinish_);
 }
 
+i64 THttpOutput::GetWriteByteCount() const
+{
+    return Connection_->GetWriteByteCount() - StartByteCount_;
+}
+
 void THttpOutput::OnWriteFinish()
 {
     Connection_->SetWriteDeadline({});
@@ -719,7 +729,7 @@ void THttpOutput::OnWriteFinish()
         if (MessageFinished_) {
             LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
                 RequestId_,
-                Connection_->GetWriteByteCount() - StartByteCount_);
+                GetWriteByteCount());
         }
     }
 }
