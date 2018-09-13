@@ -98,6 +98,7 @@ ISchemafulReaderPtr CreateChunkReader(
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
 
             return createReader(
                 config,
@@ -122,6 +123,7 @@ ISchemafulReaderPtr CreateChunkReader(
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
 
             return CreateSchemalessMergingMultiChunkReader(
                 config,
