@@ -64,6 +64,9 @@ message TRepairChunkJobSpecExt
     // Replica indexes indicate specific chunk parts to be repaired.
     // Medium indexes are same and indicate destination medium.
     repeated fixed32 target_replicas = 5;
+
+    // True, if this repair job was scheduled as a part of node decommission.
+    optional bool decommission = 6;
 }
 
 message TSealChunkJobSpecExt
