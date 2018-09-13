@@ -337,7 +337,9 @@ TFuture<void> TWritingValueConsumer::Flush()
             Writer_->Write(rows);
             RowBuffer_->Clear();
             return Writer_->GetReadyEvent();
-        }));
+        })
+        // All the work with Writer must happen from the same thread, so should get back to this thread to do actual Writing.
+        .AsyncVia(GetCurrentInvoker()));
 }
 
 const TNameTablePtr& TWritingValueConsumer::GetNameTable() const
