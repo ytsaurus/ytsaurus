@@ -24,6 +24,8 @@ class TJob
 public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Decommission);
+
     //! Can't make it TChunkPtrWithIndexes since removal jobs may refer to nonexistent chunks.
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndexes, ChunkIdWithIndexes);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
@@ -52,8 +54,9 @@ public:
         const TJobId& jobId,
         TChunk* chunk,
         NNodeTrackerServer::TNode* node,
-        const TNodePtrWithIndexesList& targetReplicas,
-        i64 memoryUsage);
+        const   TNodePtrWithIndexesList& targetReplicas,
+        i64 memoryUsage,
+        bool decommission);
 
     static TJobPtr CreateSeal(
         const TJobId& jobId,
@@ -68,7 +71,8 @@ private:
         NNodeTrackerServer::TNode* node,
         const TNodePtrWithIndexesList& targetReplicas,
         TInstant startTime,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        bool decommission = false);
     DECLARE_NEW_FRIEND();
 
 };

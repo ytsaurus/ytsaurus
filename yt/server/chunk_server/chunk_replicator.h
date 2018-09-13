@@ -217,6 +217,7 @@ private:
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex,
         TJobPtr* job);
     bool CreateRepairJob(
+        EChunkRepairQueue repairQueue,
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes,
         TJobPtr* job);
