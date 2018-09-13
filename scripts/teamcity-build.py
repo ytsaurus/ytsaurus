@@ -503,6 +503,7 @@ def package(options, build_context):
                 "yandex-yt-node.json",
                 "yandex-yt-proxy.json",
                 "yandex-yt-scheduler.json",
+                "yandex-yt-src.json",
             ]
             artifacts_dir = get_artifacts_dir(options)
             with cwd(artifacts_dir):
