@@ -82,7 +82,7 @@ public:
 
         // Sort from longest paths, to shortest.
         std::sort(toRelease.begin(), toRelease.end(), [] (const TString& lhs, const TString& rhs) {
-            return SplitStroku(lhs, "/").size() > SplitStroku(rhs, "/").size();
+            return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
         });
 
         std::vector<TFuture<void>> asyncUnlinkResults;
@@ -233,7 +233,7 @@ public:
 
             // Sort from longest paths, to shortest.
             std::sort(toRelease.begin(), toRelease.end(), [] (const TString& lhs, const TString& rhs) {
-                return SplitStroku(lhs, "/").size() > SplitStroku(rhs, "/").size();
+                return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
             });
 
             for (const auto& path : toRelease) {

@@ -150,11 +150,11 @@ private:
         }
 
         // The only supported Authorization kind is "Basic <base64-encoded clique-id:oauth-token>".
-        auto authorizationTypeAndCredentials = SplitStroku(*authorization, " ", 2);
+        auto authorizationTypeAndCredentials = SplitString(*authorization, " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
         if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
             const auto& credentials = authorizationTypeAndCredentials[1];
-            auto fooAndToken = SplitStroku(Base64Decode(credentials), ":", 2);
+            auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
             if (fooAndToken.size() == 2) {
                 // First component (that should be username) is ignored.
                 Token_ = fooAndToken[1];
