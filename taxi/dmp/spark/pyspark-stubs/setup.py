@@ -30,7 +30,7 @@ setup(
                         else ''),
     packages=list(list_packages()),
     package_data={
-        '': ['*.pyi']
+        '': ['*.pyi', 'py.typed']
     },
     install_requires=['pyspark>=2.3.0,<2.4.0']
 )
