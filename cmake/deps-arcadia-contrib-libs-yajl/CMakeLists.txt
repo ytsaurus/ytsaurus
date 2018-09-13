@@ -17,6 +17,7 @@ set(SRCS_CXX
 
 set_source_files_properties(${SRCS_C} PROPERTIES LANGUAGE C)
 set_source_files_properties(${SRCS_CXX} PROPERTIES LANGUAGE CXX)
+set_source_files_properties(${SRCS_CXX} PROPERTIES COMPILE_FLAGS --std=c++1z)
 
 include_directories(${CMAKE_SOURCE_DIR})
 
@@ -25,4 +26,3 @@ add_library(${NAME} STATIC ${SRCS_C} ${SRCS_CXX})
 if(CMAKE_COMPILER_IS_GNUCXX)
   set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -w)
 endif()
-
