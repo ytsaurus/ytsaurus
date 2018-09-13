@@ -25,6 +25,7 @@ DEFINE_ENUM(ETabletState,
     // Aggregated states
     ((None)          (100))
     ((Mixed)         (101))
+    ((Transient)     (102))
 );
 
 constexpr ETabletState MinValidTabletState = ETabletState::Mounting;
