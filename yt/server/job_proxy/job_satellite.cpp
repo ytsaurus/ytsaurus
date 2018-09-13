@@ -88,10 +88,8 @@ class TFreezerPidsHolder
 {
 public:
     explicit TFreezerPidsHolder(const TString& name)
-        : Freezer_(name)
-    {
-        Freezer_.Create();
-    }
+        : Freezer_(NCGroup::TFreezer::Name, name)
+    { }
 
     virtual std::vector<int> GetPids() override
     {
@@ -99,7 +97,7 @@ public:
     }
 
 private:
-    NCGroup::TFreezer Freezer_;
+    NCGroup::TNonOwningCGroup Freezer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
