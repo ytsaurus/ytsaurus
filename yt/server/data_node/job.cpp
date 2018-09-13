@@ -630,6 +630,7 @@ private:
         auto* codec = NErasure::GetCodec(codecId);
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         auto targetReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.target_replicas());
+        auto decommission = JobSpecExt_.decommission();
 
         // Compute target medium index.
         YCHECK(!targetReplicas.empty());
@@ -707,7 +708,13 @@ private:
         {
             // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions options;
-            options.WorkloadDescriptor = Config_->RepairReader->WorkloadDescriptor;
+            options.WorkloadDescriptor = decommission
+                ? TWorkloadDescriptor(
+                    EWorkloadCategory::SystemReplication,
+                    0,
+                    TInstant::Now(),
+                    {Format("Decommission via repair for chunk %v", chunkId)})
+                : Config_->RepairReader->WorkloadDescriptor;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
             auto result = RepairErasedParts(
