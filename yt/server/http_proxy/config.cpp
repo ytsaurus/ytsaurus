@@ -69,7 +69,6 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
     auto config =  BuildYsonNodeFluently()
         .BeginMap()
             .Item("port").Value(legacyConfig->AsMap()->GetChild("port"))
-            .Item("monitoring_port").Value(legacyConfig->AsMap()->GetChild("monitoring_port"))
             .Item("coordinator").Value(legacyConfig->AsMap()->GetChild("coordination"))
             .Item("logging").Value(proxy->GetChild("logging"))
             .Item("driver").Value(proxy->GetChild("driver"))
@@ -78,6 +77,10 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
             })
         .EndMap();
 
+    if (auto monitoringPort = legacyConfig->AsMap()->FindChild("monitoring_port")) {
+        config->AsMap()->AddChild("monitoring_port", CloneNode(monitoringPort));
+    }
+        
     if (auto node = legacyConfig->AsMap()->FindChild("cypress_annotations")) {
         config->AsMap()->AddChild("cypress_annotations", CloneNode(node));
     }
