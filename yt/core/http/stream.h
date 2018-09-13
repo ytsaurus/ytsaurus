@@ -110,6 +110,8 @@ public:
     virtual TGuid GetRequestId() const override;
     void SetRequestId(TGuid requestId);
 
+    virtual i64 GetReadByteCount() const override;
+
     bool IsSafeToReuse() const;
     void Reset();
 
@@ -189,6 +191,8 @@ public:
 
     void SetConnectionId(TGuid connectionId);
     void SetRequestId(TGuid requestId);
+
+    virtual i64 GetWriteByteCount() const override;
 
 private:
     const NNet::IConnectionPtr Connection_;

@@ -168,10 +168,10 @@ void TApi::IncrementProfilingCounters(
 
         if (it == counters->ApiErrors.end()) {
             auto tags = counters->Tags;
-            tags.push_back(TProfileManager::Get()->RegisterTag("error_code", *httpStatusCode));
+            tags.push_back(TProfileManager::Get()->RegisterTag("error_code", static_cast<int>(apiErrorCode)));
 
             it = counters->ApiErrors.emplace(
-                *httpStatusCode,
+                apiErrorCode,
                 TMonotonicCounter{"/api_error_count", tags}).first;
         }
 

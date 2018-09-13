@@ -226,6 +226,7 @@ struct IRequest
 
     virtual TGuid GetConnectionId() const = 0;
     virtual TGuid GetRequestId() const = 0;
+    virtual i64 GetReadByteCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRequest)
@@ -243,6 +244,7 @@ struct IResponseWriter
     virtual TNullable<EStatusCode> GetStatus() const = 0;
     virtual void SetStatus(EStatusCode status) = 0;
     virtual void AddConnectionCloseHeader() = 0;
+    virtual i64 GetWriteByteCount() const = 0;
 
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) = 0;
 };

@@ -801,8 +801,8 @@ void TContext::Finalize()
         Response_->GetStatus(),
         Error_.GetCode(),
         TInstant::Now() - StartTime_,
-        0,
-        0);
+        Request_->GetReadByteCount(),
+        Response_->GetWriteByteCount());
 }
 
 template <class TJsonProducer>
