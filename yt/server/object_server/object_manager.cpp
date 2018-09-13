@@ -867,6 +867,8 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     auto* object = handler->CreateObject(hintId, attributes);
+    // The "life_stage" attribute is only applied at object's creation. It's not writable.
+    attributes->Remove("life_stage");
 
     if (!Bootstrap_->IsMulticell()) {
         object->SetLifeStage(EObjectLifeStage::CreationCommitted);
