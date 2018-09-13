@@ -164,6 +164,8 @@ Settings TStorageDistributed::PrepareLeafJobSettings(const Settings& settings)
     newSettings.max_memory_usage_for_user.changed = false;
     newSettings.max_memory_usage_for_all_queries.changed = false;
 
+    newSettings.max_query_size = 0;
+
     return newSettings;
 }
 

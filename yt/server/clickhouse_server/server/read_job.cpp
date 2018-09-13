@@ -97,6 +97,9 @@ NInterop::TTableReaderList CreateJobTableReaders(
         dataSourceType,
         columns);
 
+    // TODO(max42): YT-9180.
+    maxStreamCount = 1;
+
     std::vector<TDataSliceDescriptorList> dataSlices;
 
     if (dataSourceType == EDataSourceType::UnversionedTable) {
