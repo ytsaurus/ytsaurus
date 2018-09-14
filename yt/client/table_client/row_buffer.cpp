@@ -7,16 +7,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowBuffer::TRowBuffer(
-    i64 chunkSize,
-    double maxSmallBlockRatio,
-    TRefCountedTypeCookie tagCookie)
-    : Pool_(
-        chunkSize,
-        maxSmallBlockRatio,
-        tagCookie)
-{ }
-
 TChunkedMemoryPool* TRowBuffer::GetPool()
 {
     return &Pool_;

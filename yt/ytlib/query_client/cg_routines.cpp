@@ -1212,7 +1212,7 @@ void OrderOpHelper(
 
     auto limit = context->Limit;
 
-    TTopCollector topCollector(limit, comparer, rowSize);
+    TTopCollector topCollector(limit, comparer, rowSize, context->MemoryChunkProvider);
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows();
 
