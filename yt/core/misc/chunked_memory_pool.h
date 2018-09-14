@@ -4,34 +4,60 @@
 #include "ref.h"
 
 namespace NYT {
+namespace NYTAlloc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Support build without YTAlloc
+Y_WEAK size_t YTGetSize(void* ptr)
+{
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTAlloc
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDefaultChunkedMemoryPoolTag { };
 
+// TAllocationHolder is polymorphic. So we cannot use TWithExtraSpace mixin
+// because it needs the most derived type as a template argument and
+// it would require GetExtraSpacePtr/GetRef methods to be virtual.
+
 class TAllocationHolder
-     : public TMutableRef
 {
 public:
-    TAllocationHolder() = default;
+    TAllocationHolder(TMutableRef ref, TRefCountedTypeCookie cookie);
     TAllocationHolder(const TAllocationHolder&) = delete;
     TAllocationHolder(TAllocationHolder&&) = default;
+    virtual ~TAllocationHolder();
 
     void operator delete(void* ptr) noexcept
     {
         ::free(ptr);
     }
 
-    template <class TDerived>
-    static TDerived* Allocate(size_t size)
+    TMutableRef GetRef() const
     {
-        auto totalSize = sizeof(TDerived) + size;
-        auto* ptr = ::malloc(totalSize);
+        return Ref_;
+    }
+
+    template <class TDerived>
+    static TDerived* Allocate(size_t size, TRefCountedTypeCookie cookie)
+    {
+        auto requestedSize = sizeof(TDerived) + size;
+        auto* ptr = ::malloc(requestedSize);
+        auto allocatedSize = NYTAlloc::YTGetSize(ptr);
+        if (allocatedSize) {
+            size += allocatedSize - requestedSize;
+        }
+
         auto* instance = static_cast<TDerived*>(ptr);
 
         try {
-            new (instance) TDerived();
-            *static_cast<TMutableRef*>(instance) = TMutableRef(instance + 1, size);
+            new (instance) TDerived(TMutableRef(instance + 1, size), cookie);
         } catch (const std::exception& ex) {
             // Do not forget to free the memory.
             ::free(ptr);
@@ -41,32 +67,9 @@ public:
         return instance;
     }
 
-    void SetCookie(TRefCountedTypeCookie cookie)
-    {
-    #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        if (Cookie_ != NullRefCountedTypeCookie) {
-            TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
-            TRefCountedTrackerFacade::FreeSpace(Cookie_, Size());
-        }
-        Cookie_ = cookie;
-        if (Cookie_ != NullRefCountedTypeCookie) {
-            TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
-            TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size());
-        }
-    #endif
-    }
-
-    ~TAllocationHolder()
-    {
-    #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        if (Cookie_ != NullRefCountedTypeCookie) {
-            TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
-            TRefCountedTrackerFacade::FreeSpace(Cookie_, Size());
-        }
-    #endif
-    }
-
 private:
+    const TMutableRef Ref_;
+
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTypeCookie Cookie_ = NullRefCountedTypeCookie;
 #endif
@@ -75,63 +78,46 @@ private:
 struct IMemoryChunkProvider
     : public TIntrinsicRefCounted
 {
-    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie) = 0;
-
-    virtual size_t GetChunkSize() const = 0;
+    virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMemoryChunkProvider)
 
-IMemoryChunkProviderPtr CreateMemoryChunkProvider(i64 chunkSize);
+IMemoryChunkProviderPtr CreateMemoryChunkProvider();
 
 class TChunkedMemoryPool
     : private TNonCopyable
 {
 public:
-    static const i64 DefaultChunkSize;
-    static const double DefaultMaxSmallBlockSizeRatio;
+    static const size_t DefaultStartChunkSize;
+    static const size_t RegularChunkSize;
 
     TChunkedMemoryPool(
-        double maxSmallBlockSizeRatio,
         TRefCountedTypeCookie tagCookie,
-        IMemoryChunkProviderPtr chunkProvider);
+        IMemoryChunkProviderPtr chunkProvider,
+        size_t startChunkSize = DefaultStartChunkSize);
 
-    explicit TChunkedMemoryPool(
-        i64 chunkSize = DefaultChunkSize,
-        double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio,
-        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>())
+    TChunkedMemoryPool()
         : TChunkedMemoryPool(
-            maxSmallBlockSizeRatio,
-            tagCookie,
-            CreateMemoryChunkProvider(chunkSize))
+            GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>(),
+            CreateMemoryChunkProvider())
     { }
 
     template <class TTag>
     explicit TChunkedMemoryPool(
         TTag,
-        i64 chunkSize = DefaultChunkSize,
-        double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
+        size_t startChunkSize = DefaultStartChunkSize)
         : TChunkedMemoryPool(
-            chunkSize,
-            maxSmallBlockSizeRatio,
-            GetRefCountedTypeCookie<TTag>())
-    { }
-
-    template <class TTag>
-    explicit TChunkedMemoryPool(
-        TTag,
-        IMemoryChunkProviderPtr chunkProvider)
-        : TChunkedMemoryPool(
-            1.0,
             GetRefCountedTypeCookie<TTag>(),
-            std::move(chunkProvider))
+            CreateMemoryChunkProvider(),
+            startChunkSize)
     { }
 
     //! Allocates #sizes bytes without any alignment.
-    char* AllocateUnaligned(i64 size);
+    char* AllocateUnaligned(size_t size);
 
     //! Allocates #size bytes aligned with 8-byte granularity.
-    char* AllocateAligned(i64 size, int align = 8);
+    char* AllocateAligned(size_t size, int align = 8);
 
     //! Allocates #n uninitialized instances of #T.
     template <class T>
@@ -152,21 +138,20 @@ public:
     void Purge();
 
     //! Returns the number of allocated bytes.
-    i64 GetSize() const;
+    size_t GetSize() const;
 
     //! Returns the number of reserved bytes.
-    i64 GetCapacity() const;
+    size_t GetCapacity() const;
 
 private:
-    const i64 ChunkSize_;
-    const i64 MaxSmallBlockSize_;
     const TRefCountedTypeCookie TagCookie_;
     const IMemoryChunkProviderPtr ChunkProvider_;
 
-    int CurrentChunkIndex_ = 0;
+    int NextChunkIndex_ = 0;
+    size_t NextSmallSize_;
 
-    i64 Size_ = 0;
-    i64 Capacity_ = 0;
+    size_t Size_ = 0;
+    size_t Capacity_ = 0;
 
     // Chunk memory layout:
     //   |AAAA|....|UUUU|
@@ -177,21 +162,12 @@ private:
     char* FreeZoneBegin_;
     char* FreeZoneEnd_;
 
-    char* FirstChunkBegin_ = nullptr;
-    char* FirstChunkEnd_ = nullptr;
+    std::vector<std::unique_ptr<TAllocationHolder>> Chunks_;
+    std::vector<std::unique_ptr<TAllocationHolder>> OtherBlocks_;
 
-
-
-    std::vector<std::shared_ptr<TMutableRef>> Chunks_;
-    std::vector<TSharedMutableRef> LargeBlocks_;
-
-    char* AllocateUnalignedSlow(i64 size);
-    char* AllocateAlignedSlow(i64 size, int align);
-    char* AllocateSlowCore(i64 size);
-
-    void SetupFreeZone();
-
-    void ClearSlow();
+    char* AllocateUnalignedSlow(size_t size);
+    char* AllocateAlignedSlow(size_t size, int align);
+    char* AllocateSlowCore(size_t size);
 
 };
 

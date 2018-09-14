@@ -24,8 +24,6 @@
 namespace NYT {
 namespace NQueryClient {
 
-constexpr size_t PoolChunkSize = 128 * 1024;
-const double MaxSmallBlockRatio = 1.0;
 constexpr size_t RowsetProcessingSize = 1024;
 constexpr size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
@@ -274,7 +272,11 @@ struct TExecutionContext
 class TTopCollector
 {
 public:
-    TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize);
+    TTopCollector(
+        i64 limit,
+        TComparerFunction* comparer,
+        size_t rowSize,
+        IMemoryChunkProviderPtr memoryChunkProvider);
 
     std::vector<const TValue*> GetRows() const;
 
@@ -309,6 +311,7 @@ private:
 
     TComparer Comparer_;
     size_t RowSize_;
+    IMemoryChunkProviderPtr MemoryChunkProvider_;
 
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;

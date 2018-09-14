@@ -9,7 +9,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline char* TChunkedMemoryPool::AllocateUnaligned(i64 size)
+inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 {
     // Fast path.
     if (FreeZoneEnd_ >= FreeZoneBegin_ + size) {
@@ -22,7 +22,7 @@ inline char* TChunkedMemoryPool::AllocateUnaligned(i64 size)
     return AllocateUnalignedSlow(size);
 }
 
-inline char* TChunkedMemoryPool::AllocateAligned(i64 size, int align)
+inline char* TChunkedMemoryPool::AllocateAligned(size_t size, int align)
 {
     // NB: This can lead to FreeZoneBegin_ >= FreeZoneEnd_ in which case the chunk is full.
     FreeZoneBegin_ = AlignUp(FreeZoneBegin_, align);
@@ -64,16 +64,22 @@ inline void TChunkedMemoryPool::Free(char* from, char* to)
 
 inline void TChunkedMemoryPool::Clear()
 {
-    // Fast path.
-    if (CurrentChunkIndex_ == 0 && LargeBlocks_.empty()) {
-        FreeZoneBegin_ = FirstChunkBegin_;
-        FreeZoneEnd_ = FirstChunkEnd_;
-        Size_ = 0;
-        return;
+    Size_ = 0;
+
+    if (Chunks_.empty()) {
+        FreeZoneBegin_ = nullptr;
+        FreeZoneEnd_ = nullptr;
+        NextChunkIndex_ = 0;
+    } else {
+        FreeZoneBegin_ = Chunks_.front()->GetRef().Begin();
+        FreeZoneEnd_ = Chunks_.front()->GetRef().End();
+        NextChunkIndex_ = 1;
     }
 
-    // Slow path.
-    ClearSlow();
+    for (const auto& block : OtherBlocks_) {
+        Capacity_ -= block->GetRef().Size();
+    }
+    OtherBlocks_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
