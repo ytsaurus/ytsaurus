@@ -15,6 +15,7 @@ namespace NYT {
 namespace NAuth {
 
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +58,10 @@ private:
     const IInvokerPtr Invoker_;
 
     static const THashSet<TString> PrivateUrlParams_;
+
+    TMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
+    TMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
+    TMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
 
 private:
     static std::pair<TString, TString> BuildUrl(const TString& method, const THashMap<TString, TString>& params)
@@ -129,8 +134,11 @@ private:
         for (int attempt = 1; deadline - TInstant::Now() > TimeoutSlack; ++attempt) {
             INodePtr result;
             try {
+                AuthProfiler.Increment(BlackboxCalls_);
                 result = DoCallOnce(callId, attempt, host, port, realUrl, safeUrl, deadline);
             } catch (const std::exception& ex) {
+                AuthProfiler.Increment(BlackboxCallErrors_);
+            
                 LOG_WARNING(
                     ex,
                     "Blackbox call attempt failed, backing off (CallId: %v, Attempt: %v)",
@@ -166,6 +174,7 @@ private:
                                     "Blackbox has raised an exception (CallId: %v, Attempt: %v)",
                                     callId,
                                     attempt);
+                                AuthProfiler.Increment(BlackboxCallFatalErrors_);
                                 THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
                                     << TErrorAttribute("call_id", callId)
                                     << TErrorAttribute("attempt", attempt);
@@ -184,6 +193,7 @@ private:
             Sleep(std::min(Config_->BackoffTimeout, deadline - now));
         }
 
+        AuthProfiler.Increment(BlackboxCallFatalErrors_);
         THROW_ERROR_EXCEPTION("Blackbox call failed")
             << std::move(accumulatedErrors)
             << TErrorAttribute("call_id", callId);
