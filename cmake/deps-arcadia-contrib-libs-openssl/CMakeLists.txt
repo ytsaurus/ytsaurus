@@ -1,6 +1,6 @@
 set(NAME deps-arcadia-contrib-libs-openssl)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/openssl)
-set(SRCS
+set(SRCS_C
   ${BASE}/crypto/aes/aes_cfb.c
   ${BASE}/crypto/aes/aes_ctr.c
   ${BASE}/crypto/aes/aes_ecb.c
@@ -663,6 +663,13 @@ set(SRCS
   ${BASE}/crypto/evp/m_md2.c
 )
 
+SET(SRCS_CXX
+  ${BASE}/crypto/err/err.cpp
+)
+
+set_source_files_properties(${SRCS_C} PROPERTIES LANGUAGE C)
+set_source_files_properties(${SRCS_CXX} PROPERTIES LANGUAGE CXX)
+
 if(APPLE)
   set(ASMS_NS /asm/darwin)
 endif()
@@ -769,7 +776,7 @@ include_directories(
   ${BASE}/include
 )
 
-add_library(${NAME} STATIC ${SRCS} ${_o_})
+add_library(${NAME} STATIC ${SRCS_C} ${SRCS_CXX} ${_o_})
 
 if (_is_gcc)
   set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)
