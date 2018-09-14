@@ -46,6 +46,7 @@ class TTabletCellBalancerProvider
 public:
     explicit TTabletCellBalancerProvider(const TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
+        , BalanceRequestTime_(Now())
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
         bundleNodeTracker->SubscribeBundleNodesChanged(BIND(&TTabletCellBalancerProvider::OnBundleNodesChanged, MakeWeak(this)));
@@ -53,6 +54,8 @@ public:
 
     virtual std::vector<TNodeHolder> GetNodes() override
     {
+        BalanceRequestTime_.Reset();
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
@@ -105,18 +108,26 @@ public:
 
     virtual bool IsBalancingRequired() override
     {
-        bool result = BalancingRequired_;
-        BalancingRequired_ = false;
-        return result;
+        auto waitTime = Bootstrap_->GetConfigManager()->GetConfig()
+            ->TabletManager->TabletCellBalancer->RebalanceWaitTime;
+
+        if (BalanceRequestTime_ && *BalanceRequestTime_ + waitTime < Now()) {
+            BalanceRequestTime_.Reset();
+            return true;
+        }
+
+        return false;
     }
 
 private:
     const TBootstrap* Bootstrap_;
-    bool BalancingRequired_ = true;
+    TNullable<TInstant> BalanceRequestTime_;
 
     void OnBundleNodesChanged(const TTabletCellBundle* /*bundle*/)
     {
-        BalancingRequired_ = true;
+        if (!BalanceRequestTime_) {
+            BalanceRequestTime_ = Now();
+        }
     }
 };
 
