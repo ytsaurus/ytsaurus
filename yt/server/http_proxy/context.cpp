@@ -542,7 +542,9 @@ void TContext::CaptureParameters()
         .EndMap()->AsMap();
 
     try {
-        DriverRequest_.Parameters = PatchNode(DriverRequest_.Parameters, ParseQueryString(Request_->GetUrl().RawQuery))->AsMap();
+        auto queryParams = ParseQueryString(Request_->GetUrl().RawQuery);
+        FixupNodesWithAttributes(queryParams);
+        DriverRequest_.Parameters = PatchNode(DriverRequest_.Parameters, std::move(queryParams))->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse parameters from query string") << ex;
     }
