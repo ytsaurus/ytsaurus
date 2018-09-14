@@ -652,7 +652,7 @@ void TContext::SetContentDispositionAndMimeType()
     }
 
     if (Descriptor_->OutputType == EDataType::Binary) {
-        if (disposition == "inline") {
+        if (disposition.StartsWith("inline")) {
             ContentType_ = "text/plain; charset=\"utf-8\"";
         } else {
             ContentType_ = "application/octet-stream";
