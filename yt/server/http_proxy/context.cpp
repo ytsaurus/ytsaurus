@@ -270,7 +270,7 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         LOG_DEBUG(authResult, "Authentication error");
 
-        Response_->SetStatus(EStatusCode::Unauthorized);
+        Response_->SetStatus(EStatusCode::ServiceUnavailable);
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(authResult));
