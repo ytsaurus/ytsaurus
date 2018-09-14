@@ -9,8 +9,8 @@ include_directories(${CMAKE_SOURCE_DIR})
 add_library(${NAME} STATIC ${SRCS})
 
 target_link_libraries(${NAME}
+  deps-arcadia-contrib-libs-fastlz
   deps-arcadia-contrib-libs-lz4
   deps-arcadia-contrib-libs-minilzo
   deps-arcadia-util
-  deps-yt-contrib-fastlz
 )
