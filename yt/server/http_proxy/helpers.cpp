@@ -165,6 +165,41 @@ IMapNodePtr ParseQueryString(TStringBuf queryString)
     return params;
 }
 
+INodePtr DecodeAttributesFromJson(INodePtr node)
+{
+    if (node->GetType() == ENodeType::Map) {
+        auto mapNode = node->AsMap();
+        if (mapNode->GetChildCount() > 2) {
+            return mapNode;
+        }
+
+        auto value = mapNode->FindChild("$value");
+        if (!value) {
+            return mapNode;
+        }
+        mapNode->RemoveChild("$value");
+        
+        auto attributes = mapNode->FindChild("$attributes");
+        if (attributes) {
+            mapNode->RemoveChild("$attributes");
+
+            value->MutableAttributes()->MergeFrom(attributes->AsMap());
+        }
+
+        return value;
+    } else {
+        return node;
+    }
+}
+
+void FixupNodesWithAttributes(const IMapNodePtr& node)
+{
+    for (auto child : node->GetChildren()) {
+        node->RemoveChild(child.second);
+        node->AddChild(child.first, DecodeAttributesFromJson(child.second));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNullable<TNetworkStatistics> GetNetworkStatistics()

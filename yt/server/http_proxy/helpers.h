@@ -17,6 +17,8 @@ TNullable<TString> GatherHeader(const NHttp::THeadersPtr& headers, const TString
 
 NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 
+void FixupNodesWithAttributes(const NYTree::IMapNodePtr& node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNetworkStatistics
