@@ -1,11 +1,10 @@
 #include <library/unittest/registar.h>
 #include <util/system/env.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/proxy_connection.h>
+#include <yt/client/api/client.h>
 
-#include <yt/ytlib/rpc_proxy/connection.h>
-#include <yt/ytlib/rpc_proxy/config.h>
+#include <yt/client/api/rpc_proxy/config.h>
+#include <yt/client/api/rpc_proxy/connection.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -14,7 +13,6 @@
 using namespace NYT;
 using namespace NYT::NApi;
 using namespace NYT::NLogging;
-using namespace NYT::NRpcProxy;
 using namespace NYT::NNet;
 
 IClientPtr CreateTestRpcClient()
