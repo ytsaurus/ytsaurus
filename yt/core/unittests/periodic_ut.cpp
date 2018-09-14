@@ -82,7 +82,7 @@ TEST_W(TPeriodicTest, ParallelStop)
     EXPECT_EQ(1, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(30)));
     {
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
