@@ -220,7 +220,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
         {
             if (req->GetUrl().Path == "/" || req->GetUrl().Path == "/ui") {
                 rsp->SetStatus(EStatusCode::SeeOther);
-                rsp->GetHeaders()->Add("Location", config->UIRedirectUrl);
+                rsp->GetHeaders()->Add("Location", config->UIRedirectUrl + "?" + req->GetUrl().RawQuery);
             } else {
                 rsp->SetStatus(EStatusCode::NotFound);
             }
