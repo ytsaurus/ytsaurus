@@ -1153,6 +1153,7 @@ struct TTypedExpressionBuilder
     const TString& Source;
     const TConstTypeInferrerMapPtr& Functions;
     const NAst::TAliasMap& AliasMap;
+    mutable bool AfterGroupBy;
     mutable size_t Depth;
 
     TUntypedExpression DoBuildUntypedExpression(
@@ -1288,40 +1289,46 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedExpression(
     ISchemaProxyPtr schema,
     std::set<TString>& usedAliases) const
 {
-    auto column = schema->GetColumnPtr(reference);
-    if (!column) {
-        if (!reference.TableName) {
-            const auto& columnName = reference.ColumnName;
-            auto found = AliasMap.find(columnName);
+    if (AfterGroupBy) {
+        if (auto column = schema->GetColumnPtr(reference)) {
+            TTypeSet resultTypes({column->Type});
+            TExpressionGenerator generator = [name = column->Name] (EValueType type) {
+                return New<TReferenceExpression>(type, name);
+            };
+            return TUntypedExpression{resultTypes, std::move(generator), false};
+        }
+    }
 
-            if (found != AliasMap.end()) {
-                // try InferName(found, expand aliases = true)
+    if (!reference.TableName) {
+        const auto& columnName = reference.ColumnName;
+        auto found = AliasMap.find(columnName);
 
-                if (usedAliases.count(columnName)) {
-                    THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv",
-                        columnName);
-                }
+        if (found != AliasMap.end()) {
+            // try InferName(found, expand aliases = true)
 
-                usedAliases.insert(columnName);
+            if (usedAliases.insert(columnName).second) {
                 auto aliasExpr = DoBuildUntypedExpression(
                     found->second.Get(),
                     schema,
                     usedAliases);
-
                 usedAliases.erase(columnName);
                 return aliasExpr;
             }
         }
-
-        THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-            NAst::InferColumnName(reference));
     }
 
-    TTypeSet resultTypes({column->Type});
-    TExpressionGenerator generator = [name = column->Name] (EValueType type) {
-        return New<TReferenceExpression>(type, name);
-    };
-    return TUntypedExpression{resultTypes, std::move(generator), false};
+    if (!AfterGroupBy) {
+        if (auto column = schema->GetColumnPtr(reference)) {
+            TTypeSet resultTypes({column->Type});
+            TExpressionGenerator generator = [name = column->Name] (EValueType type) {
+                return New<TReferenceExpression>(type, name);
+            };
+            return TUntypedExpression{resultTypes, std::move(generator), false};
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Undefined reference %Qv",
+        NAst::InferColumnName(reference));
 }
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
@@ -1850,10 +1857,6 @@ class TSchemaProxy
 public:
     TSchemaProxy() = default;
 
-    explicit TSchemaProxy(const THashMap<NAst::TReference, TBaseColumn>& lookup)
-        : Lookup_(lookup)
-    { }
-
     virtual TNullable<TBaseColumn> GetColumnPtr(
         const NAst::TReference& reference) override
     {
@@ -2259,6 +2262,7 @@ void PrepareQuery(
             groupExprs->second,
             schemaProxy,
             builder);
+        builder.AfterGroupBy = true;
     }
 
     if (ast.HavingPredicate) {
@@ -2425,6 +2429,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         parsedSource.Source,
         functions,
         aliasMap,
+        false,
         0};
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
@@ -2770,6 +2775,7 @@ TQueryPtr PrepareJobQuery(
         source,
         functions,
         aliasMap,
+        false,
         0};
 
     PrepareQuery(
@@ -2813,6 +2819,7 @@ TConstExpressionPtr PrepareExpression(
         parsedSource.Source,
         functions,
         aliasMap,
+        false,
         0};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);

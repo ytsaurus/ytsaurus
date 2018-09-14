@@ -1117,6 +1117,26 @@ TEST_F(TQueryEvaluateTest, Simple)
     Evaluate("a, b FROM [//t]", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, SimpleAlias)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=4;b=5",
+        "a=10;b=11"
+    };
+
+    auto result = YsonToRows({
+        "a=16;b=5",
+        "a=100;b=11"
+    }, split);
+
+    Evaluate("a * a as a, b FROM [//t]", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SelectAll)
 {
     auto split = MakeSplit({
@@ -1754,6 +1774,41 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupByAlias)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;t=120",
+        "a=2;t=150",
+        "a=0;t=180"
+    }, resultSplit);
+
+    Evaluate("a % 3 as a, sum(b) as t FROM [//t] group by a", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
