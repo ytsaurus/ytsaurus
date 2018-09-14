@@ -127,8 +127,20 @@ TContext::TContext(
     DriverRequest_.Id = RandomNumber<ui64>();
 }
 
+void TContext::ProcessDebugHeaders()
+{
+    Response_->GetHeaders()->Add("X-YT-Request-ID", ToString(Request_->GetRequestId()));
+
+    auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
+    if (correlationId) {
+        Logger.AddTag("CorrelationId: %v", *correlationId);
+    }
+}
+
 bool TContext::TryPrepare()
 {
+    ProcessDebugHeaders();
+
     return
         TryParseRequest() &&
         TryParseCommandName() &&
@@ -256,6 +268,8 @@ bool TContext::TryParseUser()
 
     auto authResult = WaitFor(asyncAuth);
     if (!authResult.IsOK()) {
+        LOG_DEBUG(authResult, "Authentication error");
+
         Response_->SetStatus(EStatusCode::Unauthorized);
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
