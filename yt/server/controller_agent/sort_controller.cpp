@@ -668,7 +668,12 @@ protected:
 
         TSortTask(TSortControllerBase* controller, TPartition* partition, std::vector<TEdgeDescriptor> edgeDescriptors)
             : TPartitionBoundTask(controller, partition, std::move(edgeDescriptors))
-        { }
+        {
+            JobProxyMemoryDigest_ = CreateLogDigest(New<TLogDigestConfig>(
+                1.0, // LowerLimit - we do not want to adjust memory reserve lower limit for sort jobs - we are pretty sure in our initial estimates.
+                Controller->Spec->JobProxyMemoryDigest->UpperBound,
+                Controller->Spec->JobProxyMemoryDigest->DefaultValue.Get(1.0)));
+        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
