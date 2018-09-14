@@ -20,6 +20,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NCrypto;
 using namespace NApi;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +68,10 @@ private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr Blackbox_;
 
+    TMonotonicCounter RejectedTokens_{"/blackbox_token_authenticator/rejected_tokens"};
+    TMonotonicCounter InvalidBlackboxResponces_{"/blackbox_token_authenticator/invalid_responces"};
+    TMonotonicCounter TokenScopeCheckErrors_{"/blackbox_token_authenticator/scope_check_errors"};
+
 private:
     TAuthenticationResult OnCallResult(const TString& tokenMD5, const INodePtr& data)
     {
@@ -90,12 +95,14 @@ private:
         // See https://doc.yandex-team.ru/blackbox/reference/method-oauth-response-json.xml for reference.
         auto statusId = GetByYPath<int>(data, "/status/id");
         if (!statusId.IsOK()) {
+            AuthProfiler.Increment(InvalidBlackboxResponces_);
             return TError("Blackbox returned invalid response");
         }
 
         if (EBlackboxStatus(statusId.Value()) != EBlackboxStatus::Valid) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
+            AuthProfiler.Increment(RejectedTokens_);
             return TError("Blackbox rejected token")
                 << TErrorAttribute("reason", reason);
         }
@@ -112,6 +119,8 @@ private:
             if (!oauthClientId.IsOK()) error.InnerErrors().push_back(oauthClientId);
             if (!oauthClientName.IsOK()) error.InnerErrors().push_back(oauthClientName);
             if (!oauthScope.IsOK()) error.InnerErrors().push_back(oauthScope);
+
+            AuthProfiler.Increment(InvalidBlackboxResponces_);
             return error;
         }
 
@@ -127,6 +136,7 @@ private:
                 }
             }
             if (!matchedScope) {
+                AuthProfiler.Increment(TokenScopeCheckErrors_);
                 return TError("Token does not provide a valid scope")
                     << TErrorAttribute("scope", oauthScope.Value());
             }

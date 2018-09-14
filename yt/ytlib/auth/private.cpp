@@ -7,6 +7,8 @@ namespace NAuth {
 
 const NLogging::TLogger AuthLogger("Auth");
 
+const NProfiling::TProfiler AuthProfiler("/auth");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NAuth
