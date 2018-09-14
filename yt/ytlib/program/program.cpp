@@ -78,7 +78,7 @@ int TProgram::Run(int argc, const char** argv)
         DoRun(result);
     };
 
-    if (CrashOnError_) {
+    if (!CrashOnError_) {
         try {
             run();
             return Exit(EProgramExitCode::OK);
