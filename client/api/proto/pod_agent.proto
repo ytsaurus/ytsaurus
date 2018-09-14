@@ -90,7 +90,6 @@ message TPodAgentDebugSpec {
     repeated string LayerIds = 2;
     repeated string VolumeIds = 3;
     repeated string BoxIds = 4;
-    repeated string StaticResourceIds = 5;
 }
 
 // Расширенный debug status возвращаемый Pod-agent
@@ -103,8 +102,6 @@ message TPodAgentDebugStatus {
     map<string, string> VolumeTreeDots = 3 [(NYT.NYson.NProto.yson_map) = true];
     // Состояние behavior tree для boxes в dot формате
     map<string, string> BoxTreeDots = 4 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для layers в dot формате
-    map<string, string> StaticResourcesTreeDots = 5 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 //============================== SPEC ==========================
