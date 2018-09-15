@@ -3366,8 +3366,8 @@ fi
 
         assert not exists("//sys/operations/" + op.id + "/@")
         assert exists("//sys/operations/" + op.id + "/@", rewrite_operation_path=True)
-        assert get("//sys/operations/" + op.id + "/@", rewrite_operation_path=True) == \
-            get(op.get_path() + "/@", rewrite_operation_path=True)
+        assert get("//sys/operations/" + op.id + "/@id", rewrite_operation_path=True) == \
+            get(op.get_path() + "/@id", rewrite_operation_path=True)
 
         tx = start_transaction()
         assert lock("//sys/operations/" + op.id, rewrite_operation_path=True, mode="snapshot", tx=tx)
