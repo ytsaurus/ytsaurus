@@ -2380,9 +2380,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 
         time.sleep(0.5)
 
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": 1}])
-        create("table", "//tmp/t_out")
+        create_test_tables()
 
         op = map(
             command=with_breakpoint("cat ; BREAKPOINT"),
@@ -2396,42 +2394,6 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
         assert jobs[jobs.keys()[0]]["address"] == runnable_custom_node
-
-        release_breakpoint()
-
-    def test_explicit_scheduling_tag_filter_overrides_per_pool_tree_config(self):
-        all_nodes = ls("//sys/nodes")
-        default_node = all_nodes[0]
-        explicit_node = all_nodes[1]
-        runnable_node = all_nodes[2]
-        set("//sys/nodes/" + default_node + "/@user_tags", ["default_tag"])
-        set("//sys/nodes/" + explicit_node + "/@user_tags", ["custom_tag", "explicit_tag"])
-        set("//sys/nodes/" + runnable_node + "/@user_tags", ["custom_tag", "runnable_tag"])
-
-        set("//sys/pool_trees/default/@nodes_filter", "default_tag")
-        create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"nodes_filter": "custom_tag"})
-
-        time.sleep(0.5)
-
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": 1}])
-        create("table", "//tmp/t_out")
-
-        op = map(
-            command=with_breakpoint("cat ; BREAKPOINT"),
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={
-                "pool_trees": ["custom_pool_tree"],
-                "scheduling_tag_filter": "explicit_tag"
-            },
-            dont_track=True)
-
-        wait_breakpoint()
-
-        jobs = op.get_running_jobs()
-        assert len(jobs) == 1
-        assert jobs[jobs.keys()[0]]["address"] == explicit_node
 
         release_breakpoint()
 
