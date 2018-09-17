@@ -1674,20 +1674,29 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                     Value* rhsData = rhsValue.GetTypedData(builder);
                     Value* evalData = nullptr;
 
-                    auto checkZero = [&] (Value* value) {
-                        CodegenIf<TCGBaseContext>(
-                            builder,
-                            builder->CreateIsNull(value),
-                            [] (TCGBaseContext& builder) {
-                                builder->CreateCall(
-                                    builder.Module->GetRoutine("ThrowQueryException"),
-                                    {
-                                        builder->CreateGlobalStringPtr("Division by zero")
-                                    });
-                            });
-                    };
+                    CodegenIf<TCGBaseContext>(
+                        builder,
+                        builder->CreateIsNull(rhsData),
+                        [] (TCGBaseContext& builder) {
+                            builder->CreateCall(
+                                builder.Module->GetRoutine("ThrowQueryException"),
+                                {
+                                    builder->CreateGlobalStringPtr("Division by zero")
+                                });
+                        });
 
-                    checkZero(rhsData);
+                    CodegenIf<TCGBaseContext>(
+                        builder,
+                        builder->CreateAnd(
+                            builder->CreateICmpEQ(lhsData, builder->getInt64(std::numeric_limits<i64>::min())),
+                            builder->CreateICmpEQ(rhsData, builder->getInt64(-1))),
+                        [] (TCGBaseContext& builder) {
+                            builder->CreateCall(
+                                builder.Module->GetRoutine("ThrowQueryException"),
+                                {
+                                    builder->CreateGlobalStringPtr("Division INT_MIN by -1")
+                                });
+                        });
 
                     switch (operandType) {
                         case EValueType::Int64:

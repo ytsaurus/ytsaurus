@@ -1625,7 +1625,7 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
         HasSubstr("Format string is too long"));
 }
 
-class TDivisionByZeroTest
+class TArithmeticErrorTest
     : public ::testing::Test
 {
 protected:
@@ -1633,7 +1633,7 @@ protected:
     { }
 };
 
-TEST_F(TDivisionByZeroTest, Int64_1)
+TEST_F(TArithmeticErrorTest, Int64_DivisionByZero)
 {
     TTableSchema schema({
         TColumnSchema("i1", EValueType::Int64),
@@ -1652,7 +1652,7 @@ TEST_F(TDivisionByZeroTest, Int64_1)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TDivisionByZeroTest, Int64_2)
+TEST_F(TArithmeticErrorTest, Int64_ModuloByZero)
 {
     TTableSchema schema({
         TColumnSchema("i1", EValueType::Int64),
@@ -1671,7 +1671,7 @@ TEST_F(TDivisionByZeroTest, Int64_2)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TDivisionByZeroTest, UInt64_1)
+TEST_F(TArithmeticErrorTest, UInt64_DivisionByZero)
 {
     TTableSchema schema({
         TColumnSchema("u1", EValueType::Uint64),
@@ -1690,7 +1690,7 @@ TEST_F(TDivisionByZeroTest, UInt64_1)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TDivisionByZeroTest, UInt64_2)
+TEST_F(TArithmeticErrorTest, UInt64_ModuloByZero)
 {
     TTableSchema schema({
         TColumnSchema("u1", EValueType::Uint64),
@@ -1707,6 +1707,25 @@ TEST_F(TDivisionByZeroTest, UInt64_2)
     EXPECT_THROW_THAT(
         [&] { EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer); },
         HasSubstr("Division by zero"));
+}
+
+TEST_F(TArithmeticErrorTest, Int64_DivisionIntMinByMinusOne)
+{
+    TTableSchema schema({
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64)
+    });
+
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("i1 / i2", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer); },
+        HasSubstr("Division INT_MIN by -1"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
