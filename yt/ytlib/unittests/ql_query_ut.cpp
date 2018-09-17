@@ -1799,16 +1799,16 @@ TEST_F(TQueryEvaluateTest, GroupByAlias)
 
     auto resultSplit = MakeSplit({
         {"a", EValueType::Int64},
-        {"t", EValueType::Int64}
+        {"b", EValueType::Int64}
     });
 
     auto result = YsonToRows({
-        "a=1;t=120",
-        "a=2;t=150",
-        "a=0;t=180"
+        "a=1;b=123",
+        "a=2;b=156",
+        "a=0;b=180"
     }, resultSplit);
 
-    Evaluate("a % 3 as a, sum(b) as t FROM [//t] group by a", split, source, ResultMatcher(result));
+    Evaluate("a % 3 as a, sum(a + b) as b FROM [//t] group by a", split, source, ResultMatcher(result));
 
     SUCCEED();
 }

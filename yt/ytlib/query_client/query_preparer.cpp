@@ -1153,23 +1153,21 @@ struct TTypedExpressionBuilder
     const TString& Source;
     const TConstTypeInferrerMapPtr& Functions;
     const NAst::TAliasMap& AliasMap;
+    mutable std::set<TString> UsedAliases;
     mutable bool AfterGroupBy;
     mutable size_t Depth;
 
     TUntypedExpression DoBuildUntypedExpression(
         const NAst::TReference& reference,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     TUntypedExpression DoBuildUntypedFunctionExpression(
         const NAst::TFunctionExpression* functionExpr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     TUntypedExpression DoBuildUntypedUnaryExpression(
         const NAst::TUnaryOpExpression* unaryExpr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     TUntypedExpression MakeBinaryExpr(
         const NAst::TBinaryOpExpression* binaryExpr,
@@ -1180,37 +1178,31 @@ struct TTypedExpressionBuilder
 
     TUntypedExpression DoBuildUntypedBinaryExpression(
         const NAst::TBinaryOpExpression* binaryExpr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     void InferArgumentTypes(
         std::vector<TConstExpressionPtr>* typedArguments,
         std::vector<EValueType>* argTypes,
         const NAst::TExpressionList& expressions,
         ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases,
         TStringBuf operatorName,
         TStringBuf source) const;
 
     TUntypedExpression DoBuildUntypedInExpression(
         const NAst::TInExpression* inExpr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     TUntypedExpression DoBuildUntypedBetweenExpression(
         const NAst::TBetweenExpression* betweenExpr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     TUntypedExpression DoBuildUntypedTransformExpression(
         const NAst::TTransformExpression* transformExpr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const;
+        ISchemaProxyPtr schema) const;
 
     TUntypedExpression DoBuildUntypedExpression(
         const NAst::TExpression* expr,
-        ISchemaProxyPtr schema,
-        std::set<TString>& usedAliases) const
+        ISchemaProxyPtr schema) const
     {
         auto* scheduler = TryGetCurrentScheduler();
         if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
@@ -1238,21 +1230,21 @@ struct TTypedExpressionBuilder
             };
             return TUntypedExpression{resultTypes, std::move(generator), true};
         } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
-            return DoBuildUntypedExpression(NAst::TReference(aliasExpr->Name), schema, usedAliases);
+            return DoBuildUntypedExpression(NAst::TReference(aliasExpr->Name), schema);
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
-            return DoBuildUntypedExpression(referenceExpr->Reference, schema, usedAliases);
+            return DoBuildUntypedExpression(referenceExpr->Reference, schema);
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-            return DoBuildUntypedFunctionExpression(functionExpr, schema, usedAliases);
+            return DoBuildUntypedFunctionExpression(functionExpr, schema);
         } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-            return DoBuildUntypedUnaryExpression(unaryExpr, schema, usedAliases);
+            return DoBuildUntypedUnaryExpression(unaryExpr, schema);
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            return DoBuildUntypedBinaryExpression(binaryExpr, schema, usedAliases);
+            return DoBuildUntypedBinaryExpression(binaryExpr, schema);
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            return DoBuildUntypedInExpression(inExpr, schema, usedAliases);
+            return DoBuildUntypedInExpression(inExpr, schema);
         } else if (auto betweenExpr = expr->As<NAst::TBetweenExpression>()) {
-            return DoBuildUntypedBetweenExpression(betweenExpr, schema, usedAliases);
+            return DoBuildUntypedBetweenExpression(betweenExpr, schema);
         } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
-            return DoBuildUntypedTransformExpression(transformExpr, schema, usedAliases);
+            return DoBuildUntypedTransformExpression(transformExpr, schema);
         }
 
         Y_UNREACHABLE();
@@ -1262,8 +1254,7 @@ struct TTypedExpressionBuilder
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema) const
     {
-        std::set<TString> usedAliases;
-        return DoBuildUntypedExpression(expr, schema, usedAliases);
+        return DoBuildUntypedExpression(expr, schema);
     }
 
     TConstExpressionPtr BuildTypedExpression(
@@ -1286,8 +1277,7 @@ struct TTypedExpressionBuilder
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedExpression(
     const NAst::TReference& reference,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     if (AfterGroupBy) {
         if (auto column = schema->GetColumnPtr(reference)) {
@@ -1306,12 +1296,11 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedExpression(
         if (found != AliasMap.end()) {
             // try InferName(found, expand aliases = true)
 
-            if (usedAliases.insert(columnName).second) {
+            if (UsedAliases.insert(columnName).second) {
                 auto aliasExpr = DoBuildUntypedExpression(
                     found->second.Get(),
-                    schema,
-                    usedAliases);
-                usedAliases.erase(columnName);
+                    schema);
+                UsedAliases.erase(columnName);
                 return aliasExpr;
             }
         }
@@ -1333,8 +1322,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedExpression(
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
     const NAst::TFunctionExpression* functionExpr,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     auto functionName = functionExpr->FunctionName;
     functionName.to_lower();
@@ -1370,8 +1358,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
         for (const auto& argument : functionExpr->Arguments) {
             auto untypedArgument = DoBuildUntypedExpression(
                 argument.Get(),
-                schema,
-                usedAliases);
+                schema);
             argTypes.push_back(untypedArgument.FeasibleTypes);
             operandTypers.push_back(untypedArgument.Generator);
         }
@@ -1412,8 +1399,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedUnaryExpression(
     const NAst::TUnaryOpExpression* unaryExpr,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     if (unaryExpr->Operand.size() != 1) {
         THROW_ERROR_EXCEPTION(
@@ -1423,8 +1409,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedUnaryExpression(
 
     auto untypedOperand = DoBuildUntypedExpression(
         unaryExpr->Operand.front().Get(),
-        schema,
-        usedAliases);
+        schema);
 
     TTypeSet genericAssignments;
     auto resultTypes = InferUnaryExprTypes(
@@ -1520,7 +1505,6 @@ struct TGenerator
     const TTypedExpressionBuilder& Builder;
     const NAst::TBinaryOpExpression* BinaryExpr;
     ISchemaProxyPtr Schema;
-    std::set<TString>& UsedAliases;
 
     TUntypedExpression Do(size_t keySize, EBinaryOp op)
     {
@@ -1529,12 +1513,10 @@ struct TGenerator
 
         auto untypedLhs = Builder.DoBuildUntypedExpression(
             BinaryExpr->Lhs[offset].Get(),
-            Schema,
-            UsedAliases);
+            Schema);
         auto untypedRhs = Builder.DoBuildUntypedExpression(
             BinaryExpr->Rhs[offset].Get(),
-            Schema,
-            UsedAliases);
+            Schema);
 
         auto result = Builder.MakeBinaryExpr(BinaryExpr, op, std::move(untypedLhs), std::move(untypedRhs), offset);
 
@@ -1542,12 +1524,10 @@ struct TGenerator
             --offset;
             auto untypedLhs = Builder.DoBuildUntypedExpression(
                 BinaryExpr->Lhs[offset].Get(),
-                Schema,
-                UsedAliases);
+                Schema);
             auto untypedRhs = Builder.DoBuildUntypedExpression(
                 BinaryExpr->Rhs[offset].Get(),
-                Schema,
-                UsedAliases);
+                Schema);
 
             auto eq = Builder.MakeBinaryExpr(
                 BinaryExpr,
@@ -1592,8 +1572,7 @@ struct TGenerator
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBinaryExpression(
     const NAst::TBinaryOpExpression* binaryExpr,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
         if (binaryExpr->Lhs.size() != binaryExpr->Rhs.size()) {
@@ -1604,7 +1583,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBinaryExpression(
         }
 
         int keySize = binaryExpr->Lhs.size();
-        return TGenerator{*this, binaryExpr, schema, usedAliases}.Do(keySize, binaryExpr->Opcode);
+        return TGenerator{*this, binaryExpr, schema}.Do(keySize, binaryExpr->Opcode);
     } else {
         if (binaryExpr->Lhs.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -1618,12 +1597,10 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBinaryExpression(
 
         auto untypedLhs = DoBuildUntypedExpression(
             binaryExpr->Lhs.front().Get(),
-            schema,
-            usedAliases);
+            schema);
         auto untypedRhs = DoBuildUntypedExpression(
             binaryExpr->Rhs.front().Get(),
-            schema,
-            usedAliases);
+            schema);
 
         return MakeBinaryExpr(binaryExpr, binaryExpr->Opcode, std::move(untypedLhs), std::move(untypedRhs), 0);
     }
@@ -1634,14 +1611,13 @@ void TTypedExpressionBuilder::InferArgumentTypes(
     std::vector<EValueType>* argTypes,
     const NAst::TExpressionList& expressions,
     ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases,
     TStringBuf operatorName,
     TStringBuf source) const
 {
     std::unordered_set<TString> columnNames;
 
     for (const auto& argument : expressions) {
-        auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+        auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema);
 
         EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
         auto typedArgument = untypedArgument.Generator(argType);
@@ -1661,8 +1637,7 @@ void TTypedExpressionBuilder::InferArgumentTypes(
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedInExpression(
     const NAst::TInExpression* inExpr,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     std::vector<TConstExpressionPtr> typedArguments;
     std::vector<EValueType> argTypes;
@@ -1674,7 +1649,6 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedInExpression(
         &argTypes,
         inExpr->Expr,
         schema,
-        usedAliases,
         "IN",
         inExpr->GetSource(Source));
 
@@ -1690,8 +1664,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedInExpression(
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBetweenExpression(
     const NAst::TBetweenExpression* betweenExpr,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     std::vector<TConstExpressionPtr> typedArguments;
     std::vector<EValueType> argTypes;
@@ -1703,7 +1676,6 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBetweenExpression(
         &argTypes,
         betweenExpr->Expr,
         schema,
-        usedAliases,
         "BETWEEN",
         source);
 
@@ -1719,8 +1691,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBetweenExpression(
 
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedTransformExpression(
     const NAst::TTransformExpression* transformExpr,
-    ISchemaProxyPtr schema,
-    std::set<TString>& usedAliases) const
+    ISchemaProxyPtr schema) const
 {
     std::vector<TConstExpressionPtr> typedArguments;
     std::vector<EValueType> argTypes;
@@ -1732,7 +1703,6 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedTransformExpression(
         &argTypes,
         transformExpr->Expr,
         schema,
-        usedAliases,
         "TRANSFORM",
         source);
 
@@ -1777,7 +1747,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedTransformExpression(
                 << TErrorAttribute("source", source);
         }
 
-        auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front().Get(), schema, usedAliases);
+        auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front().Get(), schema);
 
         if (!Unify(&resultTypes, untypedArgument.FeasibleTypes)) {
             THROW_ERROR_EXCEPTION("Type mismatch in default expression: expected %Qlv, got %Qlv",
@@ -2087,9 +2057,13 @@ public:
         const TString& subexprName,
         const TTypedExpressionBuilder& builder) override
     {
+        YCHECK(builder.AfterGroupBy);
+
+        builder.AfterGroupBy = false;
         auto untypedOperand = builder.BuildUntypedExpression(
             argument,
             Base_);
+        builder.AfterGroupBy = true;
 
         TTypeSet constraint;
         TNullable<EValueType> stateType;
@@ -2429,6 +2403,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         parsedSource.Source,
         functions,
         aliasMap,
+        std::set<TString>(),
         false,
         0};
 
@@ -2775,6 +2750,7 @@ TQueryPtr PrepareJobQuery(
         source,
         functions,
         aliasMap,
+        std::set<TString>(),
         false,
         0};
 
@@ -2819,6 +2795,7 @@ TConstExpressionPtr PrepareExpression(
         parsedSource.Source,
         functions,
         aliasMap,
+        std::set<TString>(),
         false,
         0};
 
