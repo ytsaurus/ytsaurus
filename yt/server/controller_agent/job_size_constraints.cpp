@@ -170,8 +170,8 @@ private:
         i64 maxJobCountForSliceCountFit =
             std::max<i64>(1, 1 + (*SamplingConfig_->MaxTotalSliceCount - InputChunkCount_) / MergeInputTableCount_);
         i64 minSamplingJobDataWeightForSliceCountFit = InitialInputDataWeight_ / maxJobCountForSliceCountFit;
-        SamplingDataWeightPerJob_ = std::max(minSamplingJobDataWeightForIOEfficiency, minSamplingJobDataWeightForSliceCountFit);
-        SamplingPrimaryDataWeightPerJob_ = minSamplingJobPrimaryDataWeightForIOEfficiency;
+        SamplingDataWeightPerJob_ = std::max<i64>({1, minSamplingJobDataWeightForIOEfficiency, minSamplingJobDataWeightForSliceCountFit});
+        SamplingPrimaryDataWeightPerJob_ = std::max<i64>(1, minSamplingJobPrimaryDataWeightForIOEfficiency);
         LOG_INFO(
             "Sampling parameters calculated (InitialInputDataWeight: %v, SamplingRate: %v, InputDataWeight: %v, "
             "PrimaryInputDataWeight: %v, MinSamplingJobDataWeightForIOEfficiency: %v, "
@@ -293,7 +293,7 @@ public:
     virtual i64 GetPrimaryDataWeightPerJob() const override
     {
         return JobCount_ > 0
-            ? DivCeil(PrimaryInputDataWeight_, JobCount_)
+            ? std::max<i64>(1, DivCeil(PrimaryInputDataWeight_, JobCount_))
             : 1;
     }
 
