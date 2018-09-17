@@ -2368,7 +2368,7 @@ private:
             auto oldTotalRowCount = tablet->GetTotalRowCount();
             tablet->UpdateTotalRowCount();
             auto newTotalRowCount = tablet->GetTotalRowCount();
-            LOG_DEBUG_IF(IsRecovery() || oldTotalRowCount == newTotalRowCount,
+            LOG_DEBUG_UNLESS(IsRecovery() || oldTotalRowCount == newTotalRowCount,
                 "Tablet total row count updated (TabletId: %v, TotalRowCount: %v -> %v)",
                 tablet->GetId(),
                 oldTotalRowCount,
