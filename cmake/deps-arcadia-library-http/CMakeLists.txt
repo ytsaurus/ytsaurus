@@ -1,5 +1,6 @@
 set(NAME deps-arcadia-library-http)
 set(BASE ${CMAKE_SOURCE_DIR}/library/http)
+
 set(SRCS
   ${BASE}/io/chunk.cpp
   ${BASE}/io/headers.cpp
@@ -19,5 +20,6 @@ add_library(${NAME} STATIC ${SRCS})
 
 target_link_libraries(${NAME}
   deps-arcadia-library-openssl
+  deps-arcadia-library-uri
   deps-arcadia-util
 )
