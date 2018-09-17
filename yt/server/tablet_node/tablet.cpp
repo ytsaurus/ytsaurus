@@ -189,8 +189,11 @@ bool TTabletSnapshot::IsProfilingEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReplicaInfo::TTableReplicaInfo(const TTableReplicaId& id)
-    : Id_(id)
+TTableReplicaInfo::TTableReplicaInfo(
+    TTablet* tablet,
+    TTableReplicaId id)
+    : Tablet_(tablet)
+    , Id_(id)
 { }
 
 void TTableReplicaInfo::Save(TSaveContext& context) const
@@ -475,6 +478,10 @@ void TTablet::Load(TLoadContext& context)
         Load(context, RuntimeData_->LastWriteTimestamp);
     }
     Load(context, Replicas_);
+    for (auto& pair : Replicas_) {
+        auto& replicaInfo = pair.second;
+        replicaInfo.SetTablet(this);
+    }
     Load(context, RetainedTimestamp_);
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
