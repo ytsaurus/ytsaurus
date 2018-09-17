@@ -21,7 +21,7 @@ $ cat ya.make:
         mapreduce/yt/python           # path to yt_stuff that provides local yt
     )
     DEPENDS(
-        yt/packages/19_2              # path to yt binaries (required by yt_stuff)
+        yt/packages/19_3              # path to yt binaries (required by yt_stuff)
         mapreduce/yt/tests/native_new # path to unittest directory
     )
     END()
