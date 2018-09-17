@@ -25,27 +25,27 @@ class TBlob
 {
 public:
     //! Constructs a blob with a given size.
-    TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage);
+    TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage, size_t alignment = 1);
 
     //! Copies a chunk of memory into a new instance.
-    TBlob(TRefCountedTypeCookie tagCookie, const void* data, size_t size);
+    TBlob(TRefCountedTypeCookie tagCookie, const void* data, size_t size, size_t alignment = 1);
 
     //! Constructs an empty blob.
     template <class TTag = TDefaultBlobTag>
     explicit TBlob(TTag tag = TTag())
-        : TBlob(tag, 0)
+        : TBlob(tag, 0, true, 1)
     { }
 
     //! Constructs a blob with a given size.
     template <class TTag>
-    explicit TBlob(TTag, size_t size, bool initiailizeStorage = true)
-        : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage)
+    explicit TBlob(TTag, size_t size, bool initiailizeStorage = true, size_t alignment = 1)
+        : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage, alignment)
     { }
 
     //! Copies a chunk of memory into a new instance.
     template <class TTag>
-    TBlob(TTag, const void* data, size_t size)
-        : TBlob(GetRefCountedTypeCookie<TTag>(), data, size)
+    TBlob(TTag, const void* data, size_t size, size_t alignment = 1)
+        : TBlob(GetRefCountedTypeCookie<TTag>(), data, size, alignment)
     { }
 
     //! Remind user about the tag argument.
@@ -163,9 +163,11 @@ public:
     friend void swap(TBlob& left, TBlob& right);
 
 private:
+    char* Buffer_ = nullptr;
     char* Begin_ = nullptr;
     size_t Size_ = 0;
     size_t Capacity_ = 0;
+    size_t Alignment_ = 1;
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTypeCookie TagCookie_ = NullRefCountedTypeCookie;
