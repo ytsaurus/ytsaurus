@@ -115,8 +115,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t2", [{"a": 7}, {"a": 8}, {"a": 9}])
         write_table("//tmp/t3", [{"a": 1}, {"a": 2}, {"a": 3}])
 
-        raw_input()
-
         create("table", "//tmp/t_out")
         merge(mode="unordered",
               in_=["//tmp/t1", "//tmp/t2[:#2]", "//tmp/t3[#1:]"],
