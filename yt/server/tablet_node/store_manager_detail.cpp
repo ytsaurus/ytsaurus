@@ -251,14 +251,26 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     TInMemoryChunkDataPtr chunkData)
 {
     if (!chunkData) {
-        LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
+        LOG_WARNING_UNLESS(
+            IsRecovery(),
+            "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
+            store->GetId());
+        return false;
+    }
+
+    if(!chunkData->Finalized) {
+        LOG_WARNING_UNLESS(
+            IsRecovery(),
+            "Intercepted chunk data for in-memory store is not finalized (StoreId: %v)",
             store->GetId());
         return false;
     }
 
     auto mode = Tablet_->GetConfig()->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {
-        LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
+        LOG_WARNING_UNLESS(
+            IsRecovery(),
+            "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
             store->GetId(),
             mode,
             chunkData->InMemoryMode);

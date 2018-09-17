@@ -92,6 +92,8 @@ void FinalizeChunkData(
             data->MemoryTrackerGuard.UpdateSize(data->LookupHashTable->GetByteSize());
         }
     }
+
+    data->Finalized = true;
 }
 
 } // namespace

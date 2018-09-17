@@ -780,6 +780,8 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 
     // Otherwise action must be cancelled.
     YCHECK(chunkData->InMemoryMode == InMemoryMode_);
+    YCHECK(chunkData->Finalized);
+    YCHECK(chunkData->ChunkMeta);
 
     PreloadedBlockCache_ = New<TPreloadedBlockCache>(
             this,
@@ -789,7 +791,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 
     ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
-        chunkData->ChunkSpec,
+        TChunkSpec(),
         chunkData->ChunkMeta,
         chunkData->LookupHashTable,
         PerformanceCounters_,

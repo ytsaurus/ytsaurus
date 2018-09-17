@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -135,10 +136,15 @@ private:
                 continue;
             }
 
-            Bootstrap_->GetInMemoryManager()->FinalizeChunk(
-                FromProto<TChunkId>(request->chunk_id(index)),
-                request->chunk_meta(index),
-                tabletSnapshot);
+            auto asyncResult = BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager())
+                .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
+                .Run(
+                    FromProto<TChunkId>(request->chunk_id(index)),
+                    request->chunk_meta(index),
+                    tabletSnapshot);
+
+            WaitFor(asyncResult)
+                .ThrowOnError();
         }
 
         if (auto session = FindSession(sessionId)) {
