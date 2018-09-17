@@ -2196,6 +2196,7 @@ private:
 
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
+            YCHECK(context.RowCount == record.RowCount);
 
             locklessRowCount += context.RowCount;
         }
@@ -2318,6 +2319,7 @@ private:
 
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
+            YCHECK(context.RowCount == record.RowCount);
 
             rowCount += context.RowCount;
         }
