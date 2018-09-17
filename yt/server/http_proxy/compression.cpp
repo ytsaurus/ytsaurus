@@ -85,7 +85,7 @@ private:
     const IAsyncOutputStreamPtr Underlying_;
     const EContentEncoding ContentEncoding_;
 
-    // NB: Arcadia streams got some "interresting" ideas about
+    // NB: Arcadia streams got some "interesting" ideas about
     // exception handling and the role of destructors in the C++
     // programming language.
     TSharedRef Holder_;
