@@ -66,7 +66,7 @@ TFuture<TAuthenticationResult> THttpAuthenticator::Authenticate(
     if (authorizationHeader) {
         TStringBuf prefix = "OAuth ";
         if (!authorizationHeader->StartsWith(prefix)) {
-            THROW_ERROR_EXCEPTION("Invalid value of Authorization header");
+            return TError("Invalid value of Authorization header");
         }
 
         TTokenCredentials credentials;
@@ -81,17 +81,17 @@ TFuture<TAuthenticationResult> THttpAuthenticator::Authenticate(
         TCookieCredentials credentials;
         credentials.UserIP = request->GetRemoteAddress();
         if (cookies.find("Session_id") == cookies.end()) {
-            THROW_ERROR_EXCEPTION("Request is missing \"Session_id\" cookie");
+            return TError("Request is missing \"Session_id\" cookie");
         }
         if (cookies.find("sessionid2") == cookies.end()) {
-            THROW_ERROR_EXCEPTION("Request is missing \"sessionid2\" cookie");
+            return TError("Request is missing \"sessionid2\" cookie");
         }
         credentials.SessionId = cookies["Session_id"];
         credentials.SslSessionId = cookies["sessionid2"];
         return CookieAuthenticator_->Authenticate(credentials);
     }
 
-    THROW_ERROR_EXCEPTION("Client is missing credentials");
+    return TError("Client is missing credentials");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
