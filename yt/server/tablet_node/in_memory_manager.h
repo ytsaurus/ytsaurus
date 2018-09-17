@@ -33,10 +33,10 @@ struct TInMemoryChunkData
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
 
     std::vector<NChunkClient::TBlock> Blocks;
-    NChunkClient::NProto::TChunkSpec ChunkSpec;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+    std::atomic<bool> Finalized = {false};
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
