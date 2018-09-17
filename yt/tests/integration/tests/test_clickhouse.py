@@ -65,14 +65,13 @@ class TestClickhouse(YTEnvSetup):
         self._clickhouse_client_binary = find_executable("clickhouse")
         self._ytserver_clickhouse_binary = find_executable("ytserver-clickhouse")
 
-        if exists("//sys/clickhouse"):
-            return
-
-        create("map_node", "//sys/clickhouse")
         if self._clickhouse_client_binary is None or self._ytserver_clickhouse_binary is None:
             pytest.skip("This test requires built clickhouse and ytserver-clickhouse binaries; "
                         "they are available only when using ya as a build system")
 
+        if exists("//sys/clickhouse"):
+            return
+        create("map_node", "//sys/clickhouse")
         create("map_node", "//sys/clickhouse/config_files")
         create("map_node", "//sys/clickhouse/configuration")
 
