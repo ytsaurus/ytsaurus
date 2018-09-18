@@ -183,6 +183,7 @@ size_t ComputeValidIndexPrefix(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncFileChangelog::TImpl
+    : public TIntrinsicRefCounted
 {
 public:
     TImpl(
@@ -193,6 +194,7 @@ public:
         , FileName_(fileName)
         , Config_(config)
         , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment_, Config_->IndexBlockSize)
+        , AppendOutput_(Alignment_, Alignment_)
         , Logger(HydraLogger)
     {
         Logger.AddTag("Path: %v", FileName_);
@@ -418,8 +420,7 @@ public:
             YCHECK(::AlignUp(CurrentFilePosition_, Alignment_) == CurrentFilePosition_);
             YCHECK(::AlignUp<i64>(AppendOutput_.Size(), Alignment_) == AppendOutput_.Size());
 
-            auto data = TAsyncFileChangelogIndex::AllocateAligned<TNull>(AppendOutput_.Size(), false, Alignment_);
-            ::memcpy(reinterpret_cast<void*>(data.Begin()), AppendOutput_.Blob().Begin(), AppendOutput_.Size());
+            TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 
             // Write blob to file.
             WaitFor(IOEngine_->Pwrite(DataFile_, data, CurrentFilePosition_))
@@ -900,7 +901,7 @@ TSyncFileChangelog::TSyncFileChangelog(
     const NChunkClient::IIOEnginePtr& ioEngine,
     const TString& fileName,
     TFileChangelogConfigPtr config)
-    : Impl_(std::make_unique<TImpl>(
+    : Impl_(New<TImpl>(
         ioEngine,
         fileName,
         config))
