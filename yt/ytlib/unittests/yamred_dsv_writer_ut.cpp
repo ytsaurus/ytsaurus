@@ -75,7 +75,7 @@ protected:
     {
         char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
-        value = SplitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        value = SplitString(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         // We should at least have key and the rest of values.
         if (value.size() < 2)
             return false;
@@ -90,7 +90,7 @@ protected:
     {
         char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
-        value = SplitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        value = SplitString(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         // We should at least have key, subkey and the rest of values.
         if (value.size() < 3)
            return false;
@@ -105,8 +105,8 @@ protected:
     void CompareKeyValue(TString output, TString expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
         char delimiter[2] = {recordSeparator, 0};
-        VectorStrok outputRows = SplitStroku(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
-        VectorStrok expectedRows = SplitStroku(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        VectorStrok outputRows = SplitString(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
+        VectorStrok expectedRows = SplitString(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         EXPECT_EQ(outputRows.size(), expectedRows.size());
         // Since there is \n after each row, there will be an extra empty string in both vectors.
         EXPECT_EQ(outputRows.back(), "");
@@ -130,8 +130,8 @@ protected:
     void CompareKeySubkeyValue(TString output, TString expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
         char delimiter[2] = {recordSeparator, 0};
-        VectorStrok outputRows = SplitStroku(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
-        VectorStrok expectedRows = SplitStroku(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        VectorStrok outputRows = SplitString(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
+        VectorStrok expectedRows = SplitString(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         EXPECT_EQ(outputRows.size(), expectedRows.size());
         // Since there is \n after each row, there will be an extra empty string in both vectors.
         EXPECT_EQ(outputRows.back(), "");
