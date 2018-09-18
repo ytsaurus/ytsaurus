@@ -4,7 +4,6 @@ var Q = require("bluebird");
 
 var YtError = require("./error").that;
 var YtApplicationVersions = require("./application_versions").that;
-var YtApplicationOperations = require("./application_operations").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,20 +63,6 @@ function YtDriverFacadeV3(logger, driver)
     defineCustomCommand("_discover_versions", function(output_stream) {
         return application_versions.get_versions();
     });
-
-    var application_operations = new YtApplicationOperations(logger, {
-        executeSimple: function(name, parameters, data) {
-            return driver.executeSimpleWithUser(name, "application_operations", parameters, data);
-        }
-    });
-
-    //defineCustomCommand("_list_operations", function(parameters) {
-    //    return application_operations.list(parameters);
-    //});
-
-    //defineCustomCommand("_get_operation", function(parameters) {
-    //    return application_operations.get(parameters);
-    //});
 
     this.custom_commands = custom_commands;
 
