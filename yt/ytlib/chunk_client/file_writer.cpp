@@ -11,6 +11,7 @@
 #include <yt/core/misc/checksum.h>
 
 #include <util/system/align.h>
+#include <util/system/compiler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -43,7 +44,7 @@ TFileWriter::TFileWriter(
     , EnableWriteDirectIO_(enableWriteDirectIO)
 {
     size_t size = 1_MB;
-#if defined(__has_feature) && __has_feature(memory_sanitizer)
+#ifdef _msan_enabled_
     constexpr bool initializeMemory = true;
 #else
     constexpr bool initializeMemory = false;
