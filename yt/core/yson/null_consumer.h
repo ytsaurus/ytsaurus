@@ -9,7 +9,7 @@ namespace NYson {
 
 //! Consumer that does nothing.
 class TNullYsonConsumer
-    : public IYsonConsumer
+    : public virtual IYsonConsumer
 {
     virtual void OnStringScalar(TStringBuf /*value*/) override;
 

@@ -163,7 +163,7 @@ TMemoryUsage GetProcessMemoryUsage(int pid)
     }
 
     TIFStream memoryStatFile(path);
-    auto memoryStatFields = SplitStroku(memoryStatFile.ReadLine(), " ");
+    auto memoryStatFields = SplitString(memoryStatFile.ReadLine(), " ");
     return TMemoryUsage {
         FromString<ui64>(memoryStatFields[1]) * NSystemInfo::GetPageSize(),
         FromString<ui64>(memoryStatFields[2]) * NSystemInfo::GetPageSize(),
@@ -182,7 +182,7 @@ ui64 GetProcessCumulativeMajorPageFaults(int pid)
     }
 
     TIFStream statFile(path);
-    auto statFields = SplitStroku(statFile.ReadLine(), " ");
+    auto statFields = SplitString(statFile.ReadLine(), " ");
     return FromString<ui64>(statFields[11]) + FromString<ui64>(statFields[12]);
 #else
     return 0;

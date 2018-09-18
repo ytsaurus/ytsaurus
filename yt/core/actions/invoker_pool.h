@@ -65,7 +65,7 @@ template <class TInvokerFunctor, class TInputInvoker>
 struct TTransformInvokerPoolHelper
 {
     using TInputInvokerPtr = TIntrusivePtr<TInputInvoker>;
-    using TOutputInvokerPtr = typename std::result_of<TInvokerFunctor(TInputInvokerPtr)>::type;
+    using TOutputInvokerPtr = std::invoke_result_t<TInvokerFunctor, TInputInvokerPtr>;
     using TOutputInvoker = typename TOutputInvokerPtr::TUnderlying;
 };
 

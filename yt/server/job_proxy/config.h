@@ -97,7 +97,8 @@ public:
 
     TJobProxyConfig()
     {
-        RegisterParameter("slot_index", SlotIndex);
+        RegisterParameter("slot_index", SlotIndex)
+            .Default(-1);
 
         RegisterParameter("tmpfs_path", TmpfsPath)
             .Default();
