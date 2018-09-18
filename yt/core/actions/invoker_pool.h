@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +66,11 @@ template <class TInvokerFunctor, class TInputInvoker>
 struct TTransformInvokerPoolHelper
 {
     using TInputInvokerPtr = TIntrusivePtr<TInputInvoker>;
+#ifdef YT_IN_ARCADIA
     using TOutputInvokerPtr = std::invoke_result_t<TInvokerFunctor, TInputInvokerPtr>;
+#else
+    using TOutputInvokerPtr = typename std::result_of<TInvokerFunctor(TInputInvokerPtr)>::type;
+#endif
     using TOutputInvoker = typename TOutputInvokerPtr::TUnderlying;
 };
 
