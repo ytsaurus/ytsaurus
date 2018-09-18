@@ -370,7 +370,6 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     }
 
     if (Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) &&
-        None(result.Status & EChunkStatus::Overreplicated) &&
         replicaCount + decommissionedReplicaCount > 0)
     {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
