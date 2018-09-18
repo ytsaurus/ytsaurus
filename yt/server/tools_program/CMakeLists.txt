@@ -13,7 +13,6 @@ NO_COMPILER_WARNINGS()
 NO_WERROR()
 
 CXXFLAGS(
-  -std=c++1y
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value

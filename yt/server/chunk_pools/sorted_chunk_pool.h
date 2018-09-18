@@ -15,9 +15,9 @@ namespace NChunkPools {
 
 struct TSortedJobOptions
 {
-    bool EnableKeyGuarantee;
-    int PrimaryPrefixLength;
-    int ForeignPrefixLength;
+    bool EnableKeyGuarantee = false;
+    int PrimaryPrefixLength = 0;
+    int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;
 
     std::vector<NTableClient::TKey> PivotKeys;
