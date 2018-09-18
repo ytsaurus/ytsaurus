@@ -47,6 +47,7 @@ from git_svn_lib import (Git, Svn, CheckError, make_remote_ref, abbrev, git_dry_
                          get_all_symbolic_refs, check_git_version, check_git_working_tree, check_svn_url,
                          extract_git_svn_revision_to_commit_mapping_as_list,
                          extract_git_svn_revision_to_commit_mapping_as_dict,
+                         parse_git_svn_correspondence,
                          init_git_svn, fetch_git_svn, push_git_svn, pull_git_svn, get_svn_url_for_git_svn_remote)
 
 import argparse
@@ -341,7 +342,8 @@ def action_pull(ctx, args):
         ctx.arc_git_remote,
         "yt/",
         "yt/%s/" % ctx.abi,
-        revision=args.revision)
+        revision=args.revision,
+        recent_push=args.recent_push)
 
 def action_copy_to_local_svn(ctx, args):
     local_svn = LocalSvn(args.arcadia)
@@ -760,6 +762,11 @@ if __name__ == "__main__":
     pull_parser = add_parser(
         "pull", help="initiate a merge from arcadia to github")
     pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
+    pull_parser.add_argument(
+        "--recent-push",
+        metavar="<svn-revision>:<git-commit>",
+        type=parse_git_svn_correspondence,
+        help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
     pull_parser.set_defaults(action=action_pull)
 
     push_parser = add_parser(
