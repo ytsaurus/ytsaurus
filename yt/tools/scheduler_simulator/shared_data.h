@@ -189,6 +189,7 @@ public:
         TSchedulerStrategyHost& strategyHost,
         const IInvokerPtr& invoker,
         const TSchedulerSimulatorConfigPtr& config,
+        const NScheduler::TSchedulerConfigPtr& schedulerConfig,
         TInstant earliestTime,
         int workerCount);
 

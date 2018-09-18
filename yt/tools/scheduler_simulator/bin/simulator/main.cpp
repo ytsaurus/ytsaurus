@@ -139,6 +139,23 @@ std::vector<TExecNodePtr> CreateExecNodesFromFile(const TString& nodeGroupsFilen
     }
 }
 
+TSchedulerConfigPtr LoadSchedulerConfigFromNode(const INodePtr& schedulerConfigNode)
+{
+    TSchedulerConfigPtr schedulerConfig;
+    Deserialize(schedulerConfig, schedulerConfigNode);
+    return schedulerConfig;
+}
+
+TSchedulerConfigPtr LoadSchedulerConfigFromFile(const TString& schedulerConfigFilename)
+{
+    try {
+        TIFStream configStream(schedulerConfigFilename);
+        return LoadSchedulerConfigFromNode(ConvertToNode(&configStream));
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading scheduler config") << ex;
+    }
+}
+
 std::vector<TOperationDescription> LoadOperations()
 {
     std::vector<TOperationDescription> operations;
@@ -185,6 +202,7 @@ public:
         TSharedRunningOperationsMap* runningOperationsMap,
         TSharedJobAndOperationCounter* jobOperationCounter,
         const TSchedulerSimulatorConfigPtr& config,
+        const TSchedulerConfigPtr& schedulerConfig,
         TInstant earliestTime,
         int workerId)
         : ExecNodes_(execNodes)
@@ -195,6 +213,7 @@ public:
         , RunningOperationsMap_(runningOperationsMap)
         , JobAndOperationCounter_(jobOperationCounter)
         , Config_(config)
+        , SchedulerConfig_(schedulerConfig)
         , EarliestTime_(earliestTime)
         , WorkerId_(workerId)
         , Logger(TLogger(NYT::Logger)
@@ -251,7 +270,7 @@ public:
                 // Prepare scheduling context.
                 const auto& jobsSet = node->Jobs();
                 std::vector<TJobPtr> nodeJobs(jobsSet.begin(), jobsSet.end());
-                auto context = New<TSchedulingContext>(Config_->SchedulerConfig, node, nodeJobs);
+                auto context = New<TSchedulingContext>(SchedulerConfig_, node, nodeJobs);
                 context->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
                 SchedulingStrategy_->ScheduleJobs(context);
@@ -436,6 +455,7 @@ private:
     TSharedJobAndOperationCounter* JobAndOperationCounter_;
 
     const TSchedulerSimulatorConfigPtr Config_;
+    const TSchedulerConfigPtr SchedulerConfig_;
     const TInstant EarliestTime_;
     const int WorkerId_;
 
@@ -476,10 +496,13 @@ void Run(const char* configFilename)
     TThreadPoolPtr threadPool = New<TThreadPool>(config->ThreadCount, "Workers");
     auto invoker = threadPool->GetInvoker();
 
+    auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
+
     TSharedSchedulingStrategy schedulingData(
         strategyHost,
         invoker,
         config,
+        schedulerConfig,
         earliestTime,
         config->ThreadCount);
 
@@ -498,6 +521,7 @@ void Run(const char* configFilename)
             &runningOperationsMap,
             &jobAndOperationCounter,
             config,
+            schedulerConfig,
             earliestTime,
             workerId);
         asyncWorkerResults.emplace_back(

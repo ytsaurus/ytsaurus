@@ -65,8 +65,7 @@ public:
     TString PoolTreesFilename;
     TString OperationsStatsFilename;
     TString EventLogFilename;
-
-    NScheduler::TSchedulerConfigPtr SchedulerConfig;
+    TString SchedulerConfigFilename;
 
     NLogging::TLogConfigPtr Logging;
     bool EnableFullEventLog;
@@ -86,9 +85,7 @@ public:
             .Alias("pools_file");
         RegisterParameter("operations_stats_file", OperationsStatsFilename);
         RegisterParameter("event_log_file", EventLogFilename);
-
-        RegisterParameter("scheduler", SchedulerConfig)
-            .DefaultNew();
+        RegisterParameter("scheduler_config_file", SchedulerConfigFilename);
 
         RegisterParameter("logging", Logging)
             .DefaultNew();

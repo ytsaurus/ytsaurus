@@ -341,11 +341,12 @@ TSharedSchedulingStrategy::TSharedSchedulingStrategy(
     TSchedulerStrategyHost& strategyHost,
     const IInvokerPtr& invoker,
     const TSchedulerSimulatorConfigPtr& config,
+    const TSchedulerConfigPtr& schedulerConfig,
     TInstant earliestTime,
     int workerCount)
     : StrategyHost_(strategyHost)
     , LastFairShareUpdateTime_(earliestTime)
-    , FairShareUpdateAndLogPeriod_(config->SchedulerConfig->FairShareUpdatePeriod)
+    , FairShareUpdateAndLogPeriod_(schedulerConfig->FairShareUpdatePeriod)
     , MaxAllowedOutrunningPeriod_(FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
     , EnableFullEventLog_(config->EnableFullEventLog)
     , WorkerClocks_(workerCount)
@@ -354,7 +355,7 @@ TSharedSchedulingStrategy::TSharedSchedulingStrategy(
         WorkerClocks_[workerId]->store(earliestTime);
     }
 
-    SchedulerStrategy_ = CreateFairShareStrategy(config->SchedulerConfig, &strategyHost, {invoker});
+    SchedulerStrategy_ = CreateFairShareStrategy(schedulerConfig, &strategyHost, {invoker});
     WaitFor(
         BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, LoadPoolTrees(config->PoolTreesFilename))
             .AsyncVia(invoker)
