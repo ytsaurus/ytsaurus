@@ -1,0 +1,17 @@
+#pragma once
+
+#include "details.h"
+
+namespace NYT {
+namespace NCompression {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SnappyCompress(StreamSource* source, TBlob* output);
+
+void SnappyDecompress(StreamSource* source, TBlob* output);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCompression
+} // namespace NYT

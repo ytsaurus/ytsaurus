@@ -1,0 +1,31 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/chunk_client/proto/read_limit.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a portion of TChunkSpec.
+message TChunkSlice
+{
+    // required int32 deprected = 1;
+
+    // Lower boundary, inclusive.
+    required TReadLimit lower_limit = 2;
+
+    // Upper boundary, exclusive.
+    required TReadLimit upper_limit = 3;
+
+    optional int64 row_count_override = 4;
+    optional int64 data_weight_override = 5;
+}
+
+message TSliceRequest
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    optional TReadLimit lower_limit = 2;
+    optional TReadLimit upper_limit = 3;
+    optional int32 erasure_codec = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

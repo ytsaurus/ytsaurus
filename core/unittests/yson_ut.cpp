@@ -1,0 +1,238 @@
+#include <yt/core/test_framework/framework.h>
+
+#include <yt/core/yson/string.h>
+#include <yt/core/yson/stream.h>
+
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_client.h>
+
+namespace NYT {
+namespace NYson {
+namespace {
+
+using namespace NYTree;
+
+TEST(TYsonTest, GetYPath)
+{
+    TString yson = "{key=value; submap={ other_key=other_value; }}";
+    auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
+
+    EXPECT_EQ("/submap/other_key", node->AsMap()->GetChild("submap")->AsMap()->GetChild("other_key")->GetPath());
+}
+
+TEST(TYsonTest, SetNodeByYPath)
+{
+    auto node = NYT::NYTree::ConvertToNode(TYsonString("{}"));
+    ForceYPath(node, "/submap/other_key");
+
+    auto submap = node->AsMap()->GetChild("submap")->AsMap();
+    EXPECT_EQ(0, submap->GetChildCount());
+
+    auto value = NYT::NYTree::ConvertToNode(TYsonString("4"));
+
+    SetNodeByYPath(node, "/submap/other_key", value);
+    submap = node->AsMap()->GetChild("submap")->AsMap();
+    EXPECT_EQ(4, ConvertTo<int>(submap->GetChild("other_key")));
+}
+
+TEST(TYsonTest, ConvertToNode)
+{
+    TString yson = "{key=value; other_key=10}";
+    auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
+
+    ASSERT_NO_THROW(node->AsMap());
+    ASSERT_THROW(node->AsList(), std::exception);
+    EXPECT_EQ("key", node->AsMap()->GetKeys().front());
+
+    EXPECT_EQ("{\"key\"=\"value\";\"other_key\"=10;}",
+              ConvertToYsonString(node, EYsonFormat::Text).GetData());
+
+    NYT::NYTree::INodePtr child;
+
+    child = node->AsMap()->FindChild("key");
+    for (auto format : TEnumTraits<EYsonFormat>::GetDomainValues()) {
+        EXPECT_EQ("value", ConvertTo<TString>(child));
+        EXPECT_EQ("value", ConvertTo<TString>(ConvertToYsonString(child, format)));
+    }
+    EXPECT_EQ(ConvertTo<TString>(ConvertToYsonString(child)), "value");
+
+    child = node->AsMap()->FindChild("other_key");
+    for (auto format : TEnumTraits<EYsonFormat>::GetDomainValues()) {
+        EXPECT_EQ(10, ConvertTo<i32>(child));
+        EXPECT_EQ(10, ConvertTo<i32>(ConvertToYsonString(child, format)));
+    }
+}
+
+TEST(TYsonTest, ListFragment)
+{
+    TString yson = "{a=b};{c=d}";
+    NYT::NYTree::INodePtr node;
+
+    node = NYT::NYTree::ConvertToNode(TYsonString(yson, EYsonType::ListFragment));
+    ASSERT_NO_THROW(node->AsList());
+    EXPECT_EQ("[{\"a\"=\"b\";};{\"c\"=\"d\";};]",
+              ConvertToYsonString(node, EYsonFormat::Text).GetData());
+}
+
+TEST(TYsonTest, ConvertFromStream)
+{
+    TString yson = "{key=value}";
+    TStringInput ysonStream(yson);
+
+    auto node = ConvertToNode(&ysonStream);
+    ASSERT_NO_THROW(node->AsMap());
+    EXPECT_EQ("{\"key\"=\"value\";}",
+              ConvertToYsonString(node, EYsonFormat::Text).GetData());
+}
+
+TEST(TYsonTest, ConvertToProducerNode)
+{
+    // Make consumer
+    TStringStream output;
+    TYsonWriter writer(&output, EYsonFormat::Text);
+
+    // Make producer
+    auto ysonProducer = ConvertToProducer(TYsonString("{key=value}"));
+
+    // Apply producer to consumer
+    ysonProducer.Run(&writer);
+
+    EXPECT_EQ("{\"key\"=\"value\";}", output.Str());
+}
+
+TEST(TYsonTest, ConvertToProducerListFragment)
+{
+    {
+        auto producer = ConvertToProducer(TYsonString("{a=b}; {c=d}", EYsonType::ListFragment));
+        EXPECT_EQ("{\"a\"=\"b\";};\n{\"c\"=\"d\";};\n",
+            ConvertToYsonString(producer, EYsonFormat::Text).GetData());
+    }
+
+    {
+        auto producer = ConvertToProducer(TYsonString("{key=value}"));
+        EXPECT_EQ("{\"key\"=\"value\";}",
+            ConvertToYsonString(producer, EYsonFormat::Text).GetData());
+    }
+}
+
+TEST(TYsonTest, ConvertToForPodTypes)
+{
+    {
+        auto node = ConvertToNode(42);
+        EXPECT_EQ(42, ConvertTo<i32>(node));
+        EXPECT_EQ(42, ConvertTo<i64>(node));
+
+        auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ("42", ysonStr.GetData());
+        EXPECT_EQ(42, ConvertTo<i32>(ysonStr));
+        EXPECT_EQ(42, ConvertTo<i64>(ysonStr));
+        EXPECT_EQ(42.0, ConvertTo<double>(ysonStr));
+    }
+
+    {
+        auto node = ConvertToNode(0.1);
+        EXPECT_EQ(0.1, ConvertTo<double>(node));
+
+        auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ("0.1", ysonStr.GetData());
+        EXPECT_EQ(0.1, ConvertTo<double>(ysonStr));
+    }
+
+    {
+        std::vector<i32> numbers;
+        numbers.push_back(1);
+        numbers.push_back(2);
+        auto node = ConvertToNode(numbers);
+        auto converted = ConvertTo< std::vector<i32> >(node);
+        EXPECT_EQ(numbers, converted);
+        auto yson = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ(EYsonType::Node, yson.GetType());
+        EXPECT_EQ("[1;2;]", yson.GetData());
+    }
+
+    {
+        bool boolean = true;
+        auto node = ConvertToNode(boolean);
+        auto converted = ConvertTo<bool>(node);
+        EXPECT_EQ(boolean, converted);
+        auto yson = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ(EYsonType::Node, yson.GetType());
+        EXPECT_EQ("%true", yson.GetData());
+    }
+
+    EXPECT_EQ(ConvertTo<bool>("false"), false);
+    EXPECT_EQ(ConvertTo<bool>(TYsonString("%false")), false);
+
+    EXPECT_EQ(ConvertTo<bool>("true"), true);
+    EXPECT_EQ(ConvertTo<bool>(TYsonString("%true")), true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonTest, UpdateNodes)
+{
+    auto base = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key_a")
+            .Value(0)
+
+            .Item("key_b")
+            .BeginAttributes()
+                .Item("attr")
+                .Value("some_attr")
+            .EndAttributes()
+            .Value(3.0)
+
+            .Item("key_c")
+            .BeginMap()
+                .Item("ignat")
+                .Value(70.0)
+            .EndMap()
+        .EndMap();
+
+    auto patch = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key_a")
+            .Value(100)
+
+            .Item("key_b")
+            .Value(0.0)
+
+            .Item("key_c")
+            .BeginMap()
+                .Item("max")
+                .Value(75.0)
+            .EndMap()
+
+            .Item("key_d")
+            .BeginMap()
+                .Item("x")
+                .Value("y")
+            .EndMap()
+        .EndMap();
+
+    auto res = PatchNode(base, patch);
+
+    EXPECT_EQ(
+        "100",
+        ConvertToYsonString(res->AsMap()->FindChild("key_a"), EYsonFormat::Text).GetData());
+    EXPECT_EQ(
+        "<\"attr\"=\"some_attr\";>0.",
+        ConvertToYsonString(res->AsMap()->FindChild("key_b"), EYsonFormat::Text).GetData());
+    EXPECT_EQ(
+        "70.",
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("ignat"), EYsonFormat::Text).GetData());
+    EXPECT_EQ(
+        "75.",
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("max"), EYsonFormat::Text).GetData());
+    EXPECT_EQ(
+        "{\"x\"=\"y\";}",
+        ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).GetData());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYson
+} // namespace NYT

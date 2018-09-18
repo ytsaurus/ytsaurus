@@ -1,0 +1,14 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/client/chunk_client/proto/chunk_spec.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(psushin): deprecated.
+message TDataSliceDescriptor
+{
+    // Chunks comprising the input.
+    repeated TChunkSpec chunks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

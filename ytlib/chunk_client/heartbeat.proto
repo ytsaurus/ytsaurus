@@ -1,0 +1,23 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Chunk Manager stuff.
+
+message TChunkAddInfo
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required int32 medium_index = 5;
+    optional bool active = 3 [default = false];
+    optional bool sealed = 4 [default = false];
+}
+
+message TChunkRemoveInfo
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required int32 medium_index = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

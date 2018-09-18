@@ -1,0 +1,40 @@
+{
+    thread_count = 10;
+
+    heartbeat_period = 5000;
+    pools_file = "pools.yson";
+    operations_stats_file = "operations_stats.csv";
+    event_log_file = "scheduler_event_log.txt";
+    enable_full_event_log = %false;
+
+    scheduler = { };
+
+    node_groups = [];
+
+    logging = {
+        flush_period = 1000;
+
+        rules = [
+            {
+                min_level = info;
+                writers = [ info ];
+            };
+            {
+                min_level = warning;
+                writers = [ stderr ];
+            };
+        ];
+
+        writers = {
+            info  = { file_name = "info.log"; type = file; };
+            stderr = { type = stderr; };
+        };
+
+        suppressed_messages = [
+            "Job started";
+            "Job finished"
+        ];
+    };
+
+    cycles_per_flush = 1000000;
+}

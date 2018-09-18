@@ -1,0 +1,22 @@
+package NYT.NDataNode.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/server/data_node/artifact.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TLayerMeta
+{
+    required TArtifactKey artifact_key = 1;
+    required int64 size = 2;
+    required NYT.NProto.TGuid id = 3;
+}
+
+message TVolumeMeta
+{
+    repeated TArtifactKey layer_artifact_keys = 1;
+    repeated string layer_paths = 2;
+    required NYT.NProto.TGuid id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

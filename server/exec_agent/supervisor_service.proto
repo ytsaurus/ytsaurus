@@ -1,0 +1,109 @@
+package NYT.NExecAgent.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/misc/proto/workload.proto";
+import "yt/ytlib/job_tracker_client/proto/job.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobSpec
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobSpec
+{
+    required NJobTrackerClient.NProto.TJobSpec job_spec = 1;
+    required TJobProxyResources resource_usage = 2;
+    repeated int32 ports = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnJobPrepared
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspOnJobPrepared
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnJobFinished
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NJobTrackerClient.NProto.TJobResult result = 2;
+    required string statistics = 3;
+    optional uint64 start_time = 4;
+    optional uint64 finish_time = 5;
+    optional string job_stderr = 6;
+    optional string fail_context = 7;
+}
+
+message TRspOnJobFinished
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnJobProgress
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required double progress = 2;
+    required string statistics = 3;
+    optional uint64 stderr_size = 4;
+}
+
+message TRspOnJobProgress
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateResourceUsage
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required TJobProxyResources resource_usage = 2;
+}
+
+message TRspUpdateResourceUsage
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqThrottleJob
+{
+    required int32 throttler_type = 1; //EJobThrottlerType
+    required int64 count = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+    required NYT.NProto.TGuid job_id = 4;
+}
+
+message TRspThrottleJob
+{
+    // If request_id is not returned, then request is fulfilled immediately.
+    optional NYT.NProto.TGuid throttling_request_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPollThrottlingRequest
+{
+    optional NYT.NProto.TGuid throttling_request_id = 1;
+}
+
+message TRspPollThrottlingRequest
+{
+    required bool completed = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes the resource usage of job proxy (possibly, combined with user job resource usage).
+message TJobProxyResources
+{
+    required int64 memory = 1;
+    required int32 cpu = 2;
+    required int32 network = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

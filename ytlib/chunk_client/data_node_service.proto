@@ -1,0 +1,339 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
+import "yt/client/misc/proto/workload.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
+import "yt/ytlib/chunk_client/block_id.proto";
+import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk_reader_statistics.proto";
+import "yt/ytlib/chunk_client/chunk_slice.proto";
+import "yt/ytlib/chunk_client/session_id.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartChunk
+{
+    required TSessionId session_id = 7;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
+    optional bool sync_on_close = 3 [default = true];
+    optional bool enable_direct_io = 8 [default = false];
+    optional bool enable_multiplexing = 4 [default = false];
+    optional NYT.NProto.TGuid placement_id = 6;
+}
+
+message TRspStartChunk
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFinishChunk
+{
+    required TSessionId session_id = 4;
+    optional TChunkMeta chunk_meta = 2;
+    optional int32 block_count = 3;
+}
+
+message TRspFinishChunk
+{
+    required TChunkInfo chunk_info = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCancelChunk
+{
+    required TSessionId session_id = 2;
+}
+
+message TRspCancelChunk
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Used in replication writer.
+message TReqPutBlocks
+{
+    required TSessionId session_id = 7;
+    required int32 first_block_index = 2;
+    optional bool populate_cache = 5 [default = false];
+    optional bool flush_blocks = 6 [default = false];
+
+    // Might be empty, or contain NullChecksum.
+    repeated fixed64 block_checksums = 8;
+}
+
+message TRspPutBlocks
+{
+    optional bool location_sick = 1 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Used in replication writer when asking one node to send data to another node.
+message TReqSendBlocks
+{
+    required TSessionId session_id = 5;
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor target_descriptor = 2;
+    required int32 first_block_index = 3;
+    required int32 block_count = 4;
+}
+
+message TRspSendBlocks
+{
+    optional bool location_sick = 1 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFlushBlocks
+{
+    required TSessionId session_id = 3;
+    required int32 block_index = 2;
+}
+
+message TRspFlushBlocks
+{
+        optional bool location_sick = 1 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// This request is used to distribute blocks around the cluster by TPeerBlockDistributor.
+// Blocks are sent as attachments. If node accepts to put blocks in her cache
+// (currently node does not have an option to decline), it responds with an expiration time,
+// such that the originator node can mention her as a peer within this time (cf. TPeerBlockUpdater).
+
+message TReqPopulateCache
+{
+    message TBlock
+    {
+        required TBlockId block_id = 1;
+        optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor source_descriptor = 2;
+    }
+    repeated TBlock blocks = 1;
+    repeated fixed64 block_checksums = 2;
+}
+
+message TRspPopulateCache
+{
+    required int64 expiration_time = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetBlockSet
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated int32 block_indexes = 2;
+    optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
+    optional uint64 peer_expiration_time = 4;
+    optional bool populate_cache = 5 [default = true];
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
+    optional bool fetch_from_cache = 7 [default = true];
+    optional bool fetch_from_disk = 8 [default = true];
+}
+
+message TRspGetBlockSet
+{
+    message TPeerDescriptor
+    {
+        required int32 block_index = 1;
+        repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptors = 2;
+    }
+
+    repeated TPeerDescriptor peer_descriptors = 1;
+    required bool has_complete_chunk = 3;
+    required bool net_throttling = 5;
+    required int64 net_queue_size = 6;
+    required bool disk_throttling = 7;
+    required int64 disk_queue_size = 8;
+    optional TChunkReaderStatistics chunk_reader_statistics = 10;
+
+    // Blocks are returned via attachments and correspond to block_indexes
+    // list in the request. Some blocks may be null.
+
+    repeated fixed64 block_checksums = 9;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetBlockRange
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required int32 first_block_index = 2;
+    required int32 block_count = 3;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
+    optional bool populate_cache = 5 [default = true];
+    optional bool fetch_from_cache = 6 [default = true];
+    optional bool fetch_from_disk = 7 [default = true];
+}
+
+message TRspGetBlockRange
+{
+    required bool has_complete_chunk = 1;
+    required bool net_throttling = 3;
+    required int64 net_queue_size = 4;
+    required bool disk_throttling = 5;
+    required int64 disk_queue_size = 6;
+    optional TChunkReaderStatistics chunk_reader_statistics = 8;
+
+    // Blocks are returned via attachments and correspond to a prefix of
+    // the requested range.
+
+    repeated fixed64 block_checksums = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingSession
+{
+    required TSessionId session_id = 2;
+}
+
+message TRspPingSession
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChunkMeta
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    optional int32 medium_index = 7;
+    repeated int32 extension_tags = 2;
+    // If true, then extension_tags are ignored and
+    // the whole available meta is returned.
+    optional bool all_extension_tags = 3 [default = false];
+    optional int32 partition_tag = 4;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
+
+    // COMPAT(psushin).
+    optional bool enable_throttling = 6 [default = false];
+}
+
+message TRspGetChunkMeta
+{
+    optional TChunkMeta chunk_meta = 1;
+    optional bool net_throttling = 2 [default = false];
+    optional TChunkReaderStatistics chunk_reader_statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdatePeer
+{
+    repeated TBlockId block_ids = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 2;
+    required uint64 peer_expiration_time = 3;
+}
+
+message TRspUpdatePeer
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTableSamples
+{
+    message TSampleRequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int32 sample_count = 2;
+        optional bytes lower_key = 3;
+        optional bytes upper_key = 4;
+    }
+
+    repeated TSampleRequest sample_requests = 1;
+    repeated string key_columns = 2;
+    required int32 max_sample_size = 3;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
+    required int32 sampling_policy = 5;
+
+    optional bool keys_in_attachment = 6 [default = false];
+}
+
+message TRspGetTableSamples
+{
+    message TSample
+    {
+        optional bytes key = 1;
+        required bool incomplete = 2;
+        required int64 weight = 3;
+        optional int32 key_index = 4;
+    }
+
+    message TChunkSamples
+    {
+        optional NYT.NProto.TError error = 1;
+        // Deprecated = 2;
+        repeated TSample samples = 3;
+    }
+
+    repeated TChunkSamples sample_responses = 1;
+    optional bool keys_in_attachment = 2 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// For sorted chunks only.
+// Scheduler calls this method to perform sorted merge, reduce, join, etc.
+message TReqGetChunkSlices
+{
+    repeated TSliceRequest slice_requests = 1;
+    repeated string key_columns = 2;
+    required int64 slice_data_size = 3;
+    // If false, chunks are sliced by row indexes and
+    // lower_key and upper_key contain estimated values.
+    // If true, chunks are sliced by key, each slice contains the whole key
+    required bool slice_by_keys = 4;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
+
+    // COMPAT(psushin).
+    optional bool keys_in_attachment = 6 [default = false];
+}
+
+message TRspGetChunkSlices
+{
+    message TChunkSlices
+    {
+        optional NYT.NProto.TError error = 1;
+        // Deprecated = 2;
+        repeated TChunkSlice chunk_slices = 3;
+    }
+
+    repeated TChunkSlices slices = 1;
+
+    optional bool keys_in_attachment = 2 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Scheduler calls this method to get a better estimation for input data weight.
+// Such information is also exposed to a client via an API method.
+message TReqGetColumnarStatistics
+{
+    required NYT.NTableClient.NProto.TNameTableExt name_table = 1;
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        repeated int32 column_ids = 2;
+    }
+
+    repeated TSubrequest subrequests = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+}
+
+message TRspGetColumnarStatistics
+{
+    message TSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated int64 data_weights = 2;
+        optional int64 timestamp_total_weight = 3;
+    }
+
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

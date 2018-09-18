@@ -1,0 +1,109 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/core/misc/proto/protobuf_helpers.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TBlockInfo
+{
+    required int64 offset = 1;
+    required int64 size = 2;
+    required uint64 checksum = 3;
+}
+
+// Chunk meta extension.
+message TBlocksExt
+{
+    repeated TBlockInfo blocks = 1;
+}
+
+// Chunk meta extension.
+message TMiscExt
+{
+    // Total size of uncompressed blocks.
+    optional int64 uncompressed_data_size = 1 [default = 0];
+
+    // Total size of blocks with data sent to holder.
+    optional int64 compressed_data_size = 5 [default = 0];
+
+    // Total size of (key column names + values + 1) in each row.
+    // Must be greater than zero.
+    optional int64 data_weight = 7 [default = 1];
+
+    // Size of chunk meta (without TMiscExt), obtained via ByteSize.
+    optional int64 meta_size = 6 [default = 0];
+
+    // Number of rows in this chunk (tables and journals only).
+    optional int64 row_count = 2 [default = 0];
+
+    // ECompressionCodec
+    optional int32 compression_codec = 3 [default = 0];
+
+    // Indicates if the chunk contains a sorted rowset (tables only).
+    optional bool sorted = 4 [default = false];
+
+    // Number of key-value pairs across all rows in the chunk.
+    optional int64 value_count = 8 [default = 0];
+
+    // Uncompressed size of the largest block.
+    optional int64 max_block_size = 9 [default = 0];
+
+    // Min/max timestamps for versioned table chunks.
+    optional int64 min_timestamp = 10 [default = 0];
+    optional int64 max_timestamp = 11 [default = 0];
+
+    // Is the chunk sealed (journals only)?
+    optional bool sealed = 13;
+
+    // Does this chunk belong to Eden (dynamic tables only)?
+    optional bool eden = 14 [default = false];
+
+    // EErasureCodec
+    optional int32 erasure_codec = 15;
+
+    // Indicates if the chunk contains a sorted rowsed with unique keys (tables only).
+    optional bool unique_keys = 16 [default = false];
+
+    // Chunk creation time.
+    optional uint64 creation_time = 17 [default = 0];
+
+    // When set, datanode allow downloading this chunk by http.
+    optional bool shared_to_skynet = 18 [default = false];
+}
+
+message TPartInfo
+{
+    // Index of the first block in the whole chunk.
+    required int32 first_block_index = 1;
+
+    // Block sizes. Used to estimate memory consumption of repair.
+    repeated int64 block_sizes = 2;
+}
+
+message TErasurePlacementExt
+{
+    repeated TPartInfo part_infos = 1;
+    required int32 parity_part_count = 2;
+    required int32 parity_block_count = 3;
+    required int64 parity_block_size = 4;
+    required int64 parity_last_block_size = 5;
+
+    // We cannot store checksums in TPartInfo,
+    // since part infos are present only for non-empty data parts.
+    repeated fixed64 part_checksums = 6;
+}
+
+// TChunkMeta is stored in *.meta files on data nodes
+// and passed around (possibly with a different extension subset).
+message TChunkMeta
+{
+    // EChunkType
+    required int32 type = 1;
+
+    // Format version validated by reader.
+    required int32 version = 3;
+
+    required NYT.NProto.TExtensionSet extensions = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,21 @@
+#pragma once
+
+#include <yt/core/misc/public.h>
+
+namespace NYT {
+namespace NCoreDump {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TCoreDumperConfig)
+
+namespace NProto {
+
+class TCoreInfo;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCoreDump
+} // namespace NYT

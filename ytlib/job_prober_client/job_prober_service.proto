@@ -1,0 +1,98 @@
+package NYT.NJobProberClient.NProto;
+
+import "yt/ytlib/job_tracker_client/proto/job.proto";
+
+import "yt/core/misc/proto/error.proto";
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDumpInputContext
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspDumpInputContext
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+}
+
+message TReqGetStderr
+{
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetStderr
+{
+    required string stderr_data = 1;
+}
+
+message TReqGetSpec
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetSpec
+{
+    required NYT.NJobTrackerClient.NProto.TJobSpec spec = 1;
+}
+
+message TReqStrace
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspStrace
+{
+    required string trace = 1;
+}
+
+message TReqSignalJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string signal_name = 2;
+}
+
+message TRspSignalJob
+{ }
+
+message TReqPollJobShell
+{
+    required NYT.NProto.TGuid job_id = 1;
+    // Parameters in YSON format.
+    required string parameters = 2;
+}
+
+message TRspPollJobShell
+{
+    // Result in YSON format.
+    required string result = 1;
+}
+
+message TReqInterrupt
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspInterrupt
+{ }
+
+message TReqFail
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspFail
+{ }
+
+message TReqAbort
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TError error = 2;
+}
+
+message TRspAbort
+{ }
+
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,93 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicateChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TReplicateChunkJobSpecExt replicate_chunk_job_spec_ext = 201;
+    }
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+
+    // Encoded chunk id.
+    required NYT.NProto.TGuid chunk_id = 3;
+
+    // Medium where the chunk replica resides.
+    required int32 source_medium_index = 4;
+
+    // Nodes where new replicas must be created.
+    // Replica indexes are not used.
+    // Medium indexes indicate destination medium.
+    repeated fixed32 target_replicas = 5;
+}
+
+message TRemoveChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TRemoveChunkJobSpecExt remove_chunk_job_spec_ext = 204;
+    }
+
+    // Encoded chunk id.
+    required NYT.NProto.TGuid chunk_id = 1;
+
+    // Medium where the chunk replica resides.
+    required int32 medium_index = 2;
+}
+
+message TRepairChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TRepairChunkJobSpecExt repair_chunk_job_spec_ext = 202;
+    }
+
+    required int32 erasure_codec = 1;
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+
+    // Unencoded chunk id.
+    required NYT.NProto.TGuid chunk_id = 3;
+
+    // Nodes where existing replicas reside.
+    // Replica indexes indicate specific chunk parts.
+    // Medium indexes indicate source media, as expected.
+    repeated fixed32 source_replicas = 4;
+
+    // Nodes where repaired replicas must be created.
+    // Replica indexes indicate specific chunk parts to be repaired.
+    // Medium indexes are same and indicate destination medium.
+    repeated fixed32 target_replicas = 5;
+}
+
+message TSealChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TSealChunkJobSpecExt seal_chunk_job_spec_ext = 203;
+    }
+
+    // The final number of rows this chunk must have.
+    required int64 row_count = 1;
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+
+    // Unencoded chunk id.
+    required NYT.NProto.TGuid chunk_id = 3;
+
+    // Medium where the chunk replica resides.
+    required int32 medium_index = 4;
+
+    // Nodes where existing replicas reside.
+    // Replica indexes are not used.
+    // Medium indexes indicate source media, as expected.
+    repeated fixed32 source_replicas = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/logging/log.h>
+
+namespace NYT {
+namespace NTabletClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger TabletClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTabletClient
+} // namespace NYT

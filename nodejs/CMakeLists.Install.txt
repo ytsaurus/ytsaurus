@@ -1,0 +1,9 @@
+execute_process(
+  COMMAND sh -ec "/usr/local/bin/sky get rbtorrent:2f0bd3b3332017758248f5a510b7b304af84ecb6 && tar xf resource.tar.gz"
+  WORKING_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/node_modules/yt"
+  RESULT_VARIABLE exit_code
+)
+
+if(NOT exit_code EQUAL 0)
+  message(FATAL_ERROR "npm install failed with exit code ${exit_code}")
+endif()

@@ -1,0 +1,24 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/profiling/profiler.h>
+
+namespace NYT {
+namespace NTabletServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTabletTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger TabletServerLogger;
+extern const NProfiling::TProfiler TabletServerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTabletServer
+} // namespace NYT

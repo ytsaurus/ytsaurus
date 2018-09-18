@@ -1,0 +1,22 @@
+package NYT.NYTree.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yt.ytree";
+option java_multiple_files = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAttribute
+{
+    required string key = 1;
+    required bytes value = 2;
+}
+
+message TAttributeDictionary
+{
+    option (NYT.NYson.NProto.attribute_dictionary) = true;
+    repeated TAttribute attributes = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

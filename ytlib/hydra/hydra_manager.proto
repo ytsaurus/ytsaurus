@@ -1,0 +1,35 @@
+package NYT.NHydra.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSnapshotMeta
+{
+    required int32 prev_record_count = 1;
+}
+
+message TChangelogMeta
+{
+    // NB: Multiplexed changelogs ignore this field.
+    optional int32 prev_record_count = 1 [default = -1];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMutationHeader
+{
+    required string mutation_type = 1;
+    optional uint64 timestamp = 2;
+    optional uint64 random_seed = 3;
+    required int32 segment_id = 5;
+    required int32 record_id = 6;
+    optional NYT.NProto.TGuid mutation_id = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TVoidMutationResponse
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

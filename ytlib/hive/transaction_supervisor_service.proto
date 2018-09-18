@@ -1,0 +1,58 @@
+package NYT.NHiveClient.NProto.NTransactionSupervisor;
+
+import "yt/client/hive/proto/timestamp_map.proto";
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated NYT.NProto.TGuid participant_cell_ids = 2;
+    required bool force_2pc = 3;
+    optional bool generate_prepare_timestamp = 6 [default = true];
+    required bool inherit_commit_timestamp = 4;
+    optional int32 coordinator_commit_mode = 5; // ETransactionCoordinatorCommitMode
+}
+
+message TRspCommitTransaction
+{
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional bool force = 2 [default = false];
+}
+
+message TRspAbortTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    // Only makes sense for master transactions.
+    optional bool ping_ancestors = 2 [default = false];
+}
+
+message TRspPingTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetDownedParticipants
+{
+    repeated NYT.NProto.TGuid cell_ids = 1;
+}
+
+message TRspGetDownedParticipants
+{
+    repeated NYT.NProto.TGuid cell_ids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

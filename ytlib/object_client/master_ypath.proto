@@ -1,0 +1,54 @@
+package NYT.NObjectClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+import "yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt/client/hive/proto/cluster_directory.proto";
+import "yt/ytlib/chunk_client/medium_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateObject
+{
+    required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributeDictionary object_attributes = 2;
+}
+
+message TRspCreateObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetClusterMeta
+{
+    optional bool populate_node_directory = 1;
+    optional bool populate_cluster_directory = 2;
+    optional bool populate_medium_directory = 3;
+}
+
+message TRspGetClusterMeta
+{
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    optional NHiveClient.NProto.TClusterDirectory cluster_directory = 2;
+    optional NChunkClient.NProto.TMediumDirectory medium_directory = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCheckPermissionByAcl
+{
+    required string user = 1;
+    required int32 permission = 2;
+    required string acl = 3;
+}
+
+message TRspCheckPermissionByAcl
+{
+    required int32 action = 1;
+    optional NYT.NProto.TGuid subject_id = 2;
+    optional string subject_name = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

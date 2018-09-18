@@ -1,0 +1,20 @@
+#pragma once
+
+#include <yt/client/cypress_client/public.h>
+
+namespace NYT {
+namespace NCypressClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TReqCreate;
+class TRspCreate;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCypressClient
+} // namespace NYT

@@ -1,0 +1,763 @@
+{
+  "state": "running",
+  "user_transaction_id": "0-0-0-0",
+  "async_scheduler_transaction_id": "3042-ccb-3eb0001-dd948771",
+  "suspended": false,
+  "input_transaction_id": "3038-5d10f-3eb0001-1819a5e3",
+  "brief_progress": {
+    "fair_share_ratio": 0.008910256410256445,
+    "pool": "psushin",
+    "jobs": {
+      "lost": 0,
+      "pending": 797,
+      "aborted": {
+        "failed_chunks": 25,
+        "preemption": 0,
+        "total": 57,
+        "other": 0,
+        "resource_overdraft": 0,
+        "scheduler": 32
+      },
+      "failed": 0,
+      "total": 10528,
+      "completed": 9725,
+      "running": 6
+    }
+  },
+  "authenticated_user": "psushin",
+  "operation_type": "map",
+  "mutation_id": "a4649453-12be403e-6f0ecd5b-b8a9cec",
+  "running_jobs": null,
+  "progress": {
+    "usage_ratio": 0.01,
+    "estimated_input_statistics": {
+      "row_count": 23618552,
+      "unavailable_chunk_count": 0,
+      "compressed_data_size": 470459710112,
+      "chunk_count": 329,
+      "uncompressed_data_size": 1412987348375
+    },
+    "weight": 1,
+    "start_time": "2016-03-02T05:43:43.104532Z",
+    "dominant_resource": "cpu",
+    "ready_job_count": 797,
+    "fair_share_ratio": 0.008910256410256445,
+    "preemptable_job_count": 1,
+    "scheduling_status": "normal",
+    "min_share_ratio": 0,
+    "max_share_ratio": 1,
+    "max_possible_usage_ratio": 1,
+    "jobs": {
+      "lost": 0,
+      "pending": 797,
+      "aborted": {
+        "failed_chunks": 25,
+        "preemption": 0,
+        "total": 57,
+        "other": 0,
+        "resource_overdraft": 0,
+        "scheduler": 32
+      },
+      "failed": 0,
+      "total": 10528,
+      "completed": 9725,
+      "running": 6
+    },
+    "pool": "psushin",
+    "best_allocation_ratio": 1,
+    "resource_limits": {
+      "repair_slots": 176,
+      "user_slots": 800,
+      "seal_slots": 352,
+      "network": 2200,
+      "replication_slots": 352,
+      "cpu": 600,
+      "memory": 1159347041846,
+      "removal_slots": 1408
+    },
+    "resource_usage": {
+      "repair_slots": 0,
+      "user_slots": 6,
+      "seal_slots": 0,
+      "network": 0,
+      "replication_slots": 0,
+      "cpu": 6,
+      "memory": 4450190144,
+      "removal_slots": 0
+    },
+    "resource_demand": {
+      "repair_slots": 0,
+      "user_slots": 803,
+      "seal_slots": 0,
+      "network": 0,
+      "replication_slots": 0,
+      "cpu": 803,
+      "memory": 651834085632,
+      "removal_slots": 0
+    },
+    "adjusted_min_share_ratio": 0,
+    "starving": false,
+    "satisfaction_ratio": 1.122302158273377,
+    "job_statistics": {
+      "data": {
+        "input": {
+          "row_count": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 2530,
+                  "count": 25,
+                  "sum": 16799,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 3702,
+                  "count": 9725,
+                  "sum": 22695535,
+                  "min": 1142
+                }
+              }
+            }
+          },
+          "compressed_data_size": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 59953186,
+                  "count": 25,
+                  "sum": 376652378,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 118449160,
+                  "count": 9725,
+                  "sum": 555722250467,
+                  "min": 2729778
+                }
+              }
+            }
+          },
+          "chunk_count": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 2,
+                  "count": 25,
+                  "sum": 15,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 11,
+                  "count": 9725,
+                  "sum": 19070,
+                  "min": 1
+                }
+              }
+            }
+          },
+          "uncompressed_data_size": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 185034644,
+                  "count": 25,
+                  "sum": 1160226989,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 319493993,
+                  "count": 9725,
+                  "sum": 1671294303632,
+                  "min": 16794828
+                }
+              }
+            }
+          }
+        },
+        "output": {
+          "0": {
+            "row_count": {
+              "$$": {
+                "aborted": {
+                  "map": {
+                    "max": 0,
+                    "count": 25,
+                    "sum": 0,
+                    "min": 0
+                  }
+                },
+                "completed": {
+                  "map": {
+                    "max": 0,
+                    "count": 9725,
+                    "sum": 0,
+                    "min": 0
+                  }
+                }
+              }
+            },
+            "compressed_data_size": {
+              "$$": {
+                "aborted": {
+                  "map": {
+                    "max": 0,
+                    "count": 25,
+                    "sum": 0,
+                    "min": 0
+                  }
+                },
+                "completed": {
+                  "map": {
+                    "max": 0,
+                    "count": 9725,
+                    "sum": 0,
+                    "min": 0
+                  }
+                }
+              }
+            },
+            "chunk_count": {
+              "$$": {
+                "aborted": {
+                  "map": {
+                    "max": 0,
+                    "count": 25,
+                    "sum": 0,
+                    "min": 0
+                  }
+                },
+                "completed": {
+                  "map": {
+                    "max": 0,
+                    "count": 9725,
+                    "sum": 0,
+                    "min": 0
+                  }
+                }
+              }
+            },
+            "uncompressed_data_size": {
+              "$$": {
+                "aborted": {
+                  "map": {
+                    "max": 0,
+                    "count": 25,
+                    "sum": 0,
+                    "min": 0
+                  }
+                },
+                "completed": {
+                  "map": {
+                    "max": 0,
+                    "count": 9725,
+                    "sum": 0,
+                    "min": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "time": {
+        "exec": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 376178,
+                "count": 25,
+                "sum": 2403272,
+                "min": 60937
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 696376,
+                "count": 9725,
+                "sum": 247000359,
+                "min": 319
+              }
+            }
+          }
+        },
+        "prepare": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 761,
+                "count": 25,
+                "sum": 1890,
+                "min": 7
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 3273,
+                "count": 9725,
+                "sum": 368656,
+                "min": 7
+              }
+            }
+          }
+        },
+        "total": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 376665,
+                "count": 45,
+                "sum": 3882853,
+                "min": 45135
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 697141,
+                "count": 9725,
+                "sum": 253572458,
+                "min": 729
+              }
+            }
+          }
+        }
+      },
+      "job_proxy": {
+        "memory_hog": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 0,
+                "count": 25,
+                "sum": 0,
+                "min": 0
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 0,
+                "count": 9725,
+                "sum": 0,
+                "min": 0
+              }
+            }
+          }
+        },
+        "block_io": {
+          "io_read": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 14,
+                  "count": 25,
+                  "sum": 54,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 21,
+                  "count": 9725,
+                  "sum": 164,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "bytes_read": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 1503232,
+                  "count": 25,
+                  "sum": 4886528,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 1486848,
+                  "count": 9725,
+                  "sum": 7974912,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "bytes_written": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 0,
+                  "count": 9725,
+                  "sum": 0,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "io_write": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 0,
+                  "count": 9725,
+                  "sum": 0,
+                  "min": 0
+                }
+              }
+            }
+          }
+        },
+        "cpu": {
+          "user": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 1360,
+                  "count": 25,
+                  "sum": 9890,
+                  "min": 70
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 3860,
+                  "count": 9725,
+                  "sum": 10559680,
+                  "min": 70
+                }
+              }
+            }
+          },
+          "system": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 1160,
+                  "count": 25,
+                  "sum": 10020,
+                  "min": 90
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 1640,
+                  "count": 9725,
+                  "sum": 4709540,
+                  "min": 40
+                }
+              }
+            }
+          }
+        },
+        "max_memory": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 157069312,
+                "count": 25,
+                "sum": 1962422272,
+                "min": 44920832
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 219881472,
+                "count": 9725,
+                "sum": 1091191132160,
+                "min": 34676736
+              }
+            }
+          }
+        }
+      },
+      "user_job": {
+        "current_memory": {
+          "rss": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 49152,
+                  "count": 9725,
+                  "sum": 364544,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "mapped_file": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 0,
+                  "count": 9725,
+                  "sum": 0,
+                  "min": 0
+                }
+              }
+            }
+          }
+        },
+        "woodpecker": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 0,
+                "count": 25,
+                "sum": 0,
+                "min": 0
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 0,
+                "count": 9725,
+                "sum": 0,
+                "min": 0
+              }
+            }
+          }
+        },
+        "block_io": {
+          "io_read": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 6,
+                  "count": 25,
+                  "sum": 6,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 8,
+                  "count": 9725,
+                  "sum": 59,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "bytes_read": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 32768,
+                  "count": 25,
+                  "sum": 32768,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 319488,
+                  "count": 9725,
+                  "sum": 1097728,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "bytes_written": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 0,
+                  "count": 9725,
+                  "sum": 0,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "io_write": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 0,
+                  "count": 9725,
+                  "sum": 0,
+                  "min": 0
+                }
+              }
+            }
+          }
+        },
+        "cpu": {
+          "user": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 0,
+                  "count": 25,
+                  "sum": 0,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 10,
+                  "count": 9725,
+                  "sum": 280,
+                  "min": 0
+                }
+              }
+            }
+          },
+          "system": {
+            "$$": {
+              "aborted": {
+                "map": {
+                  "max": 120,
+                  "count": 25,
+                  "sum": 730,
+                  "min": 0
+                }
+              },
+              "completed": {
+                "map": {
+                  "max": 250,
+                  "count": 9725,
+                  "sum": 550480,
+                  "min": 0
+                }
+              }
+            }
+          }
+        },
+        "max_memory": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 901120,
+                "count": 25,
+                "sum": 15925248,
+                "min": 425984
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 1101824,
+                "count": 9725,
+                "sum": 6160470016,
+                "min": 421888
+              }
+            }
+          }
+        },
+        "cumulative_memory_mb_sec": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "max": 0,
+                "count": 25,
+                "sum": 0,
+                "min": 0
+              }
+            },
+            "completed": {
+              "map": {
+                "max": 0,
+                "count": 9725,
+                "sum": 0,
+                "min": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "demand_ratio": 1.3383333333333334,
+    "live_preview": {
+      "intermediate_supported": false,
+      "output_supported": true
+    }
+  },
+  "start_time": "2016-03-02T05:43:43.104532Z",
+  "spec": {
+    "started_by": {
+      "user": "psushin",
+      "hostname": "build01-01g.yt.yandex.net",
+      "wrapper_version": "0.6.76-0",
+      "command": [
+        "./find_bad_tables.py"
+      ],
+      "pid": 177865
+    },
+    "max_failed_job_count": 1,
+    "input_table_paths": [
+      "//statbox/reqans-log/2016-02-09"
+    ],
+    "data_size_per_job": 134217728,
+    "output_table_paths": [
+      "//tmp/t"
+    ],
+    "mapper": {
+      "check_input_fully_consumed": "false",
+      "file_paths": [],
+      "output_format": "yson",
+      "input_format": "yson",
+      "command": "cat > /dev/null",
+      "use_yamr_descriptors": "false"
+    }
+  },
+  "sync_scheduler_transaction_id": "3038-5d105-3eb0001-5b933524",
+  "output_transaction_id": "3038-5d119-3eb0001-2406fbc3"
+}

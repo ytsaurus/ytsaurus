@@ -1,0 +1,283 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
+import "yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt/ytlib/chunk_client/session_id.proto";
+import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt/client/chunk_client/proto/data_statistics.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLocateChunks
+{
+    // Each subrequest is chunk id.
+    repeated NYT.NProto.TGuid subrequests = 1;
+}
+
+message TRspLocateChunks
+{
+    message TSubresponse
+    {
+        optional bool missing = 1 [default = false];
+        repeated fixed32 replicas = 2;
+        optional int32 erasure_codec = 3;
+    }
+
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated TSubresponse subresponses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqTouchChunks
+{
+    // Each subrequest is chunk id.
+    repeated NYT.NProto.TGuid subrequests = 1;
+}
+
+message TRspTouchChunks
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAllocateWriteTargets
+{
+    message TSubrequest
+    {
+        required NProto.TSessionId session_id = 1;
+
+        // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
+        // This does not prevent further balancing to move chunk there.
+        repeated string forbidden_addresses = 2;
+
+        // Host name (without port number!) to be preferred for upload.
+        // The client typically puts the name of the local host here to
+        // facilitate local uploads.
+        optional string preferred_host_name = 3;
+
+        // Desired number of nodes to allocate.
+        required int32 desired_target_count = 4;
+
+        // Minimum acceptable number of nodes to allocate.
+        required int32 min_target_count = 5;
+
+        // An override for chunk replication factor;
+        // used when one wants to upload fewer replicas but still guarantee placement safety.
+        optional int32 replication_factor_override = 6;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspAllocateWriteTargets
+{
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+
+    message TSubresponse
+    {
+        optional NYT.NProto.TError error = 2;
+        repeated fixed32 replicas = 1;
+    }
+
+    repeated TSubresponse subresponses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkExportData
+{
+    required NYT.NProto.TGuid id = 1;
+    required int32 destination_cell_tag = 2;
+}
+
+message TChunkImportData
+{
+    required NYT.NProto.TGuid id = 1;
+    required NYT.NChunkClient.NProto.TChunkInfo info = 2;
+    required NYT.NChunkClient.NProto.TChunkMeta meta = 3;
+    required int32 erasure_codec = 4; // NErasure::ECodec
+}
+
+message TReqExportChunks
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated TChunkExportData chunks = 2;
+}
+
+message TRspExportChunks
+{
+    repeated TChunkImportData chunks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqImportChunks
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated TChunkImportData chunks = 2;
+}
+
+message TRspImportChunks
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChunkOwningNodes
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+}
+
+message TRspGetChunkOwningNodes
+{
+    message TOwningNode
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        optional NYT.NProto.TGuid transaction_id = 2;
+    }
+
+    repeated TOwningNode nodes = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecuteBatch
+{
+    message TCreateChunkSubrequest
+    {
+        // The id of the transaction where the chunk should be staged.
+        required NYT.NProto.TGuid transaction_id = 1;
+
+        // The name of the account paying for this chunk.
+        required string account = 2;
+
+        // Type actual type of chunk to create (e.g. regular, erasure, journal etc).
+        required int32 type = 3; // NObjectClient::EObjectType
+
+        // Desired number of copies (including those created by background replication).
+        optional int32 replication_factor = 4 [default = 1];
+
+        // Minimum number of replicas to read during seal. Journal chunks only.
+        optional int32 read_quorum = 5 [default = 0];
+
+        // Minimum number of replicas to flush during write. Journal chunks only.
+        optional int32 write_quorum = 6 [default = 0];
+
+        optional int32 erasure_codec = 7 [default = 0]; // NErasure::ECodec
+
+        // Can this chunk be balanced to other nodes?
+        optional bool movable = 8 [default = true];
+
+        // Should this chunk be marked as vital?
+        optional bool vital = 9 [default = false];
+
+        // If given, the new chunk is immediately attached to this chunk list.
+        optional NYT.NProto.TGuid chunk_list_id = 10;
+
+        // Primary medium.
+        required string medium_name = 11;
+
+        // Validate that there is enough disk space available.
+        optional bool validate_resource_usage_increase = 12 [default = true];
+    }
+
+    repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
+
+    message TConfirmChunkSubrequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        repeated fixed32 replicas = 2;
+        required TChunkMeta chunk_meta = 3;
+        required TChunkInfo chunk_info = 4;
+        optional bool request_statistics = 5 [default = false];
+    }
+
+    repeated TConfirmChunkSubrequest confirm_chunk_subrequests = 2;
+
+    message TSealChunkSubrequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required TMiscExt misc = 2;
+    }
+
+    repeated TSealChunkSubrequest seal_chunk_subrequests = 3;
+
+    message TCreateChunkListsSubrequest
+    {
+        required NYT.NProto.TGuid transaction_id = 1;
+        required int32 count = 2;
+    }
+
+    repeated TCreateChunkListsSubrequest create_chunk_lists_subrequests = 4;
+
+    message TUnstageChunkTreeSubrequest
+    {
+        required NYT.NProto.TGuid chunk_tree_id = 1;
+        required bool recursive = 2;
+    }
+
+    repeated TUnstageChunkTreeSubrequest unstage_chunk_tree_subrequests = 5;
+
+    message TAttachChunkTreesSubrequest
+    {
+        required NYT.NProto.TGuid parent_id = 1;
+        repeated NYT.NProto.TGuid child_ids = 2;
+        optional bool request_statistics = 3 [default = false];
+    }
+
+    repeated TAttachChunkTreesSubrequest attach_chunk_trees_subrequests = 6;
+
+    optional bool suppress_upstream_sync = 7 [default = false];
+}
+
+message TRspExecuteBatch
+{
+    message TCreateChunkSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        optional NYT.NChunkClient.NProto.TSessionId session_id = 2;
+    }
+
+    repeated TCreateChunkSubresponse create_chunk_subresponses = 1;
+
+    message TConfirmChunkSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        optional TDataStatistics statistics = 2;
+    }
+
+    repeated TConfirmChunkSubresponse confirm_chunk_subresponses = 2;
+
+    message TSealChunkSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+    }
+
+    repeated TSealChunkSubresponse seal_chunk_subresponses = 3;
+
+    message TCreateChunkListsSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated NYT.NProto.TGuid chunk_list_ids = 2;
+    }
+
+    repeated TCreateChunkListsSubresponse create_chunk_lists_subresponses = 4;
+
+    message TUnstageChunkTreeSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+    }
+
+    repeated TUnstageChunkTreeSubresponse unstage_chunk_tree_subresponses = 5;
+
+    message TAttachChunkTreesSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        optional TDataStatistics statistics = 2;
+    }
+
+    repeated TAttachChunkTreesSubresponse attach_chunk_trees_subresponses = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////

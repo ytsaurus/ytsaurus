@@ -1,0 +1,18 @@
+#pragma once
+
+#include <yt/client/election/public.h>
+
+namespace NYT {
+namespace NElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TCellManager)
+
+struct TCellPeerConfig;
+DECLARE_REFCOUNTED_CLASS(TCellConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NElection
+} // namespace NYT

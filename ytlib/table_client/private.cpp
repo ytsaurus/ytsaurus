@@ -1,0 +1,14 @@
+#include "private.h"
+
+namespace NYT {
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger TableClientLogger("TableClient");
+const NProfiling::TProfiler TableClientProfiler("/table_client");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableClient
+} // namespace NYT

@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/logging/log.h>
+
+namespace NYT {
+namespace NNodeTrackerClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger NodeTrackerClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NNodeTrackerClient
+} // namespace NYT

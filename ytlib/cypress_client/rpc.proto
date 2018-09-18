@@ -1,0 +1,27 @@
+package NYT.NCypressClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/rpc/proto/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTransactionalExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional NYT.NProto.TGuid transaction_id = 100;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccessTrackingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional bool suppress_access_tracking = 103;
+        optional bool suppress_modification_tracking = 108;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////

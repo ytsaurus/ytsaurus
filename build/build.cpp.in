@@ -1,0 +1,65 @@
+#include <yt/build/build.h>
+
+#if defined(YT_IN_ARCADIA)
+#include <yt/build/ya_version.h>
+#endif
+
+#include <util/system/compiler.h>
+
+#include <util/generic/strbuf.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK int GetVersionMajor()
+{
+    return @YT_VERSION_MAJOR@;
+}
+
+Y_WEAK int GetVersionMinor()
+{
+    return @YT_VERSION_MINOR@;
+}
+
+Y_WEAK int GetVersionPatch()
+{
+    return @YT_VERSION_PATCH@;
+}
+
+#if defined(YT_IN_ARCADIA)
+
+Y_WEAK const char* GetVersion()
+{
+    static auto version = CreateYTVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
+    return version.c_str();
+}
+
+#else
+
+Y_WEAK const char* GetVersion()
+{
+    return "@YT_VERSION@";
+}
+
+#endif
+
+Y_WEAK const char* GetBuildHost()
+{
+    return "@YT_BUILD_HOST@";
+}
+
+Y_WEAK const char* GetBuildMachine()
+{
+    return "@YT_BUILD_MACHINE@";
+}
+
+Y_WEAK const char* GetBuildTime()
+{
+    return "@YT_BUILD_TIME@";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+

@@ -1,0 +1,125 @@
+package NYT.NYTree.NProto;
+
+import "yt/core/rpc/proto/rpc.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TYPathHeaderExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TYPathHeaderExt ypath_header_ext = 104;
+    }
+
+    optional bool mutating = 1 [default = false];
+    required string path = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCachingHeaderExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TCachingHeaderExt caching_header_ext = 105;
+    }
+
+    required int32 success_expiration_time = 1;
+    required int32 failure_expiration_time = 2;
+    optional int64 refresh_revision = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAttributeKeys
+{
+    repeated string keys = 1;
+}
+
+message TReqGet
+{
+    optional TAttributeKeys attributes = 1;
+    optional int64 limit = 2;
+    optional bool ignore_opaque = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary options = 4;
+}
+
+message TRspGet
+{
+    required bytes value = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetKey
+{ }
+
+message TRspGetKey
+{
+    required bytes value = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSet
+{
+    required bytes value = 1;
+    optional bool recursive = 2 [default = false];
+}
+
+message TRspSet
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemove
+{
+    optional bool recursive = 1 [default = true];
+    optional bool force = 2 [default = false];
+}
+
+message TRspRemove
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqList
+{
+    optional TAttributeKeys attributes = 1;
+    optional int64 limit = 2;
+}
+
+message TRspList
+{
+    required bytes value = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExists
+{ }
+
+message TRspExists
+{
+    required bool value = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMultiset
+{
+    message TSubrequest
+    {
+        required string key = 1;
+        required bytes value = 2;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspMultiset
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

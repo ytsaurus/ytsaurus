@@ -1,0 +1,63 @@
+package NYT.NCypressServer.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccessStatisticsUpdate
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required int64 access_time = 2;
+    required int64 access_counter_delta = 3;
+}
+
+message TReqUpdateAccessStatistics
+{
+    repeated TAccessStatisticsUpdate updates = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateForeignNode
+{
+    required NYT.NProto.TGuid node_id = 1;
+    optional NYT.NProto.TGuid transaction_id = 2;
+    required int32 type = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary explicit_node_attributes = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_node_attributes = 6;
+    optional NYT.NProto.TGuid account_id = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCloneForeignNode
+{
+    required NYT.NProto.TGuid source_node_id = 1;
+    optional NYT.NProto.TGuid source_transaction_id = 2;
+    required NYT.NProto.TGuid cloned_node_id = 3;
+    optional NYT.NProto.TGuid cloned_transaction_id = 4;
+    required int32 mode = 5; // ENodeCloneMode
+    required NYT.NProto.TGuid account_id = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveExpiredNodes
+{
+    repeated NYT.NProto.TGuid node_ids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLockForeignNode
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid node_id = 2;
+    required int32 mode = 3; // ELockMode
+    optional string child_key = 4;
+    optional string attribute_key = 5;
+    optional uint64 timestamp = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////

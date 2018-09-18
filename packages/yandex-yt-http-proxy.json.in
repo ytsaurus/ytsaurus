@@ -1,0 +1,85 @@
+{
+    "meta": {
+        "name": "yandex-yt-http-proxy",
+        "maintainer": "YT Team <yt@yandex-team.ru>",
+        "description": "YT. This package provides server-side software",
+        "version": "{revision}.{branch}",
+        "pre-depends": [],
+        "depends": ["libc6 (>= 2.15)"],
+        "conflicts": ["yandex-yt"],
+        "homepage": "https://wiki.yandex-team.ru/yt/"
+    },
+    "build": {
+        "targets": [
+            "yt/server/http_proxy/bin",
+            "yt/nodejs/targets/bin",
+            "yt/nodejs/targets/package"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            },
+            {
+                "name": "YT_ENABLE_GDB_INDEX",
+                "value": "yes"
+            }
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/server/http_proxy/bin/ytserver-http-proxy"
+            },
+            "destination": {
+                "path": "/usr/bin/ytserver-http-proxy"
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/nodejs/targets/bin/ytnode"
+            },
+            "destination": {
+                "path": "/usr/bin/ytnode"
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/nodejs/targets/package",
+                "files": [
+                    "*"
+                ]
+            },
+            "destination": {
+                "path": "/usr/lib/node_modules/yt/"
+            }
+        },
+        {
+            "source": {
+                "type": "INLINE",
+                "content": "This package is built with ya package.\n"
+            },
+            "destination": {
+                "path": "/usr/lib/node_modules/yt/built_by_ya.txt"
+            }
+        },
+        {
+            "source": {
+                "type": "SANDBOX_RESOURCE",
+                "id": 625566363,
+                "path": "node_modules"
+            },
+            "destination": {
+                "path": "/usr/lib/node_modules/yt/"
+            }
+        }
+    ]
+}
+

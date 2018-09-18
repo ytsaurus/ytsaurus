@@ -1,0 +1,36 @@
+package NYT.NTracing.NProto;
+
+option java_package = "ru.yandex.yt.tracing";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEndpoint
+{
+    optional uint32 address = 1;
+    optional uint32 port = 2;
+}
+
+message TTraceEvent
+{
+    optional int64 trace_id = 1;
+    optional int64 span_id = 2;
+    optional int64 parent_span_id = 3;
+    optional int64 timestamp = 4;
+    optional string span_name = 5; // e.g. RPC method
+    optional string service_name = 6; // e.g. RPC service
+    optional string annotation_name = 7; // simple annotations (cs, sr, ss, cr etc)
+    optional string annotation_key = 8; // binary annotations (e.g. request_id)
+    optional string annotation_value = 9;
+}
+
+message TReqSendBatch
+{
+    optional TEndpoint endpoint = 1;
+    repeated TTraceEvent events = 2;
+}
+
+message TRspSendBatch
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

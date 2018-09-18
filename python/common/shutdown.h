@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/actions/callback.h>
+
+namespace NYT {
+namespace NPython {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterShutdownCallback(TCallback<void()> additionalCallback, int index);
+void RegisterShutdown();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPython
+} // namespace NYT
+

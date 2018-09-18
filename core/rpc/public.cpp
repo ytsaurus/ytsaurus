@@ -1,0 +1,16 @@
+#include "public.h"
+
+namespace NYT {
+namespace NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TRequestId NullRequestId;
+const TRealmId NullRealmId;
+const TMutationId NullMutationId;
+const TString RootUserName("root");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRpc
+} // namespace NYT

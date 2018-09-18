@@ -1,0 +1,15 @@
+#include "private.h"
+
+namespace NYT {
+namespace NElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger ElectionLogger("Election");
+const NProfiling::TProfiler ElectionProfiler("/election");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NElection
+} // namespace NYT
+

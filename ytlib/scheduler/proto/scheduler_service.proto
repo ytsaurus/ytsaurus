@@ -1,0 +1,99 @@
+package NYT.NScheduler.NProto;
+
+import "yt/core/misc/proto/error.proto";
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Starts a new operation.
+
+message TReqStartOperation
+{
+    // EOperationType value.
+    required int32 type = 1;
+
+    // Operation spec in YSON.
+    required bytes spec = 2;
+
+    // NB: Transaction id (if any) is passed via extension, like in Cypress commands.
+}
+
+message TRspStartOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Aborts an existing operation.
+
+message TReqAbortOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    optional string abort_message = 2;
+}
+
+message TRspAbortOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Puts an operation into suspended state.
+
+message TReqSuspendOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    optional bool abort_running_jobs = 2;
+}
+
+message TRspSuspendOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Resumes an earlier suspended operation.
+
+message TReqResumeOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspResumeOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Completes an existing operation.
+
+message TReqCompleteOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspCompleteOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Waits until a given operation is finished.
+
+message TOperationResult
+{
+    required NYT.NProto.TError error = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Updates operation runtime params.
+
+message TReqUpdateOperationParameters
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    // Operation parameters in YSON.
+    required bytes parameters = 2;
+}
+
+message TRspUpdateOperationParameters
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

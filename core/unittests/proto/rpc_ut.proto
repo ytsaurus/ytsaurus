@@ -1,0 +1,45 @@
+package NMyRpc;
+
+message TReqSomeCall
+{
+    required int32 a = 1;
+}
+
+message TRspSomeCall
+{
+    required int32 b = 1;
+}
+
+message TReqPassCall {}
+
+message TRspPassCall
+{
+    required string user = 1;
+    required string mutation_id = 2;
+    required bool retry = 3;
+}
+
+message TReqRegularAttachments { }
+message TRspRegularAttachments { }
+
+message TReqNullAndEmptyAttachments { }
+message TRspNullAndEmptyAttachments { }
+
+message TReqDoNothing { }
+message TRspDoNothing { }
+
+message TReqCustomMessageError { }
+message TRspCustomMessageError { }
+
+message TReqNotRegistered { }
+message TRspNotRegistered { }
+
+message TReqSlowCall { }
+message TRspSlowCall { }
+
+message TReqSlowCanceledCall { }
+message TRspSlowCanceledCall { }
+
+message TReqNoReply { }
+message TRspNoReply { }
+

@@ -1,0 +1,26 @@
+#!/bin/bash
+
+CMB=@CMAKE_CURRENT_BINARY_DIR@
+CMS=@CMAKE_CURRENT_SOURCE_DIR@
+
+[[ -f $CMB/Makefile ]] && ( make cmake_check_build_system || (echo "Re-run $0" && exit) )
+[[ ! -f $CMS/lib/ytnode.node ]] && ln -s $CMB/ytnode.node $CMS/lib
+
+export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
+
+(cd $CMB && sky get rbtorrent:2f0bd3b3332017758248f5a510b7b304af84ecb6 && tar xf resource.tar.gz 2> /dev/null)
+
+rm $CMB/node_modules/.bin/_mocha
+ln -s ../mocha/bin/_mocha $CMB/node_modules/.bin/_mocha
+
+[[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
+
+[[ ! -z $MOCHA_OUTPUT_FILE ]] && exec > $MOCHA_OUTPUT_FILE
+
+(cd $CMS/tests && exec $CMB/node_modules/.bin/mocha \
+  --reporter "spec" \
+  --require "common.js" \
+  --expose-gc \
+  "$@" \
+  test_*.js \
+  )

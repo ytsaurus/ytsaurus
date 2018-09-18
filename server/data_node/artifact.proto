@@ -1,0 +1,15 @@
+package NYT.NDataNode.NProto;
+
+import "yt/client/chunk_client/proto/chunk_spec.proto";
+import "yt/ytlib/chunk_client/data_source.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TArtifactKey
+{
+    optional bytes format = 3;
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 6;
+    required NYT.NChunkClient.NProto.TDataSource data_source = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
