@@ -43,8 +43,8 @@ namespace NDetail {
 //
 // === T(Bound)Args ===
 // A function type that is being (ab)used to store the types of set of
-// arguments. The "return" type is always void here. We use this hack so 
-// that we do not need a new type name for each arity of type. (eg., BindState1, 
+// arguments. The "return" type is always void here. We use this hack so
+// that we do not need a new type name for each arity of type. (eg., BindState1,
 // BindState2, ...). This makes forward declarations and friending much much easier.
 //
 //
@@ -247,6 +247,29 @@ public:
 
 private:
     R (T::*Method)(TArgs...) const;
+};
+
+// Noexcept Bound Method Adapter
+template <class R, class T, class... TArgs>
+class TRunnableAdapter<R(T::*)(TArgs...) noexcept>
+{
+public:
+    typedef NMpl::TTrueType IsMethod;
+
+    enum { Arity = 1 + sizeof...(TArgs) };
+    typedef R (TSignature)(T*, TArgs...);
+
+    explicit TRunnableAdapter(R(T::*method)(TArgs...) noexcept)
+        : Method(method)
+    { }
+
+    R Run(T* target, TArgs&&... args)
+    {
+        return (target->*Method)(std::forward<TArgs>(args)...);
+    }
+
+private:
+    R (T::*Method)(TArgs...) noexcept;
 };
 
 
