@@ -94,13 +94,6 @@ class ParallelReader(object):
             self._transaction.abort()
 
 def make_read_parallel_request(command_name, path, ranges, params, prepare_params_func, unordered, response_parameters, client):
-    title = "Python wrapper: read {0}".format(str(TablePath(path, client=client)))
-    transaction = None
-    if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
-        transaction = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
-    if response_parameters is None:
-        response_parameters = {}
-
     if not ranges:
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
@@ -108,6 +101,13 @@ def make_read_parallel_request(command_name, path, ranges, params, prepare_param
             close=lambda: None,
             process_error=lambda response: None,
             get_response_parameters=lambda: None)
+
+    title = "Python wrapper: read {0}".format(str(TablePath(path, client=client)))
+    transaction = None
+    if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
+        transaction = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
+    if response_parameters is None:
+        response_parameters = {}
 
     thread_count = min(len(ranges), get_config(client)["read_parallel"]["max_thread_count"])
     try:
