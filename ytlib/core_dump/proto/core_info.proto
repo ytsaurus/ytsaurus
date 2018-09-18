@@ -1,0 +1,15 @@
+package NYT.NCoreDump.NProto;
+
+import "yt/core/misc/proto/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCoreInfo
+{
+    required int32 process_id = 1;
+    required string executable_name = 2;
+    optional uint64 size = 3;
+    optional NYT.NProto.TError error = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

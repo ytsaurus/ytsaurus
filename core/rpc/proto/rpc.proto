@@ -1,0 +1,113 @@
+package NYT.NRpc.NProto;
+
+option java_package = "ru.yandex.yt.rpc";
+option java_multiple_files = true;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRequestHeader
+{
+    optional NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 8;
+
+    optional int32 protocol_version_major = 9 [default = 0];
+    optional int32 protocol_version_minor = 19 [default = 0];
+
+    optional int64 start_time = 7;
+    optional bool retry = 11 [default = false];
+    optional NYT.NProto.TGuid mutation_id = 13;
+
+    optional int64 timeout = 10;
+
+    optional string user = 12;
+
+    optional int32 tos_level = 14;
+
+    optional int32 request_format = 15;
+    optional int32 response_format = 16;
+
+    optional bool uncancelable = 17 [default = false];
+
+    optional string user_agent = 18;
+
+    extensions 100 to max;
+}
+
+message TTracingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TTracingExt tracing_ext = 106;
+    }
+
+    optional uint64 trace_id = 1;
+    optional uint64 span_id = 2;
+    optional uint64 parent_span_id = 3;
+}
+
+message TBalancingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TBalancingExt balancing_ext = 111;
+    }
+
+    optional bool enable_stickness = 1 [default = false];
+    optional int32 sticky_group_size = 2 [default = 1];
+}
+
+message TCredentialsExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TCredentialsExt credentials_ext = 110;
+    }
+
+    // optional string user_ip = 1; // This field is removed.
+    optional string token = 2;
+    optional string session_id = 4;
+    optional string ssl_session_id = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TResponseHeader
+{
+    optional NYT.NProto.TGuid request_id = 1;
+
+    // If omitted then OK is assumed.
+    optional NYT.NProto.TError error = 2;
+
+    optional int32 response_format = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRequestCancelationHeader
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDiscover
+{
+    extensions 100 to max;
+}
+
+message TRspDiscover
+{
+    required bool up = 1;
+    repeated string suggested_addresses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

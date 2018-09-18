@@ -1,0 +1,56 @@
+package NYT.NTabletClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/ytlib/transaction_client/action.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqWrite
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional uint64 transaction_start_timestamp = 2;
+    optional int64 transaction_timeout = 3;
+    required NYT.NProto.TGuid tablet_id = 4;
+    required int64 mount_revision = 5;
+    required int32 durability = 6; // EDurability
+    optional uint32 signature = 7;
+    required int32 request_codec = 8; // ECodec
+    required int32 row_count = 9;
+    required bool versioned = 10;
+    repeated NYT.NProto.TGuid sync_replica_ids = 11;
+    optional NYT.NProto.TGuid upstream_replica_id = 12;
+    optional uint64 data_weight = 13 [default = 0];
+    // Attachement contains wire-encoded data.
+}
+
+message TRspWrite
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterTransactionActions
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 transaction_start_timestamp = 2;
+    required int64 transaction_timeout = 3;
+    required uint64 signature = 4;
+    repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;
+}
+
+message TRspRegisterTransactionActions
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqTrim
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int64 trimmed_row_count = 3;
+}
+
+message TRspTrim
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

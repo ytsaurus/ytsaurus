@@ -1,0 +1,22 @@
+package NYT.NAdmin.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDie
+{
+    optional int32 exit_code = 1 [default = 42];
+}
+
+// This message is never actually sent as the process dies before replying.
+message TRspDie
+{ }
+
+message TReqWriteCoreDump
+{ }
+
+message TRspWriteCoreDump
+{
+    required string path = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

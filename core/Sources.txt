@@ -1,0 +1,251 @@
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/actions/cancelable_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/actions/future.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/actions/invoker_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/actions/invoker_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/actions/invoker_util.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/bus/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/dispatcher_impl.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/packet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/server.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/compression/brotli.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/bzip2.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/codec.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/details.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/lz.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/lzma.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/snappy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/zlib.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/zstd.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/zstd_legacy.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/action_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_semaphore.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_rw_lock.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_stream_pipe.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/coroutine.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/delayed_executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_stack.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_action_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_invoker_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_invoker_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_thread_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_queue_scheduler_thread.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fiber.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/finalizer_thread.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fls.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/fork_aware_spinlock.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/invoker_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/notification_handle.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/periodic_executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/periodic_yielder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/profiling_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/scheduler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/scheduler_thread.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/single_queue_scheduler_thread.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/thread_affinity.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/thread_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/thread_pool_poller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/throughput_throttler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/lease_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/count_down_latch.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/crypto/proto/crypto.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/logging/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/formatter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/fluent_log.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/log.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/log_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/pattern.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/writer.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/misc/arithmetic_formula.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/assert.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/bitmap.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/blob.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/blob_output.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/bloom_filter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/checkpointable_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/checksum.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_input_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_allocator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_output_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/cpuid.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/crash_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/digest.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/dnf.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/error.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/fs.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/guid.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/histogram.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/hr_timer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/id_generator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/lfalloc_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/linear_probe.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/memory_tag.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/mpsc_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/parser_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/pattern_formatter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/phoenix.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/protobuf_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/random.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/ref.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker_statistics_producer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/safe_assert.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/shutdown.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/signaler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/source_location.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/stack_trace.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/stracer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/string.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/utf8_decoder.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/error.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/bloom_filter.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/guid.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/proto/protobuf_helpers.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/net/address.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/dialer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/listener.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/socket.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/dns_resolver.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/local_address.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/pipes/io_dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipes/pipe.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipes/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipes/pty.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/profiling/profile_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/profiling/profiler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/profiling/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/profiling/resource_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/profiling/timing.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/balancing_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/caching_channel_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/channel_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/local_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/local_server.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/message.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/redirector_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/response_keeper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/retrying_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/roaming_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/serialized_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/server_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/service_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/static_channel_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/throttling_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/latency_taming_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/message_format.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/authenticator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/protocol_version.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/bus/server.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/bus/channel.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/proto/rpc.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/tools/registry.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tools/tools.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/tracing/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tracing/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_manager.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/tracing/proto/trace_service.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/utilex/random.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/ypath/token.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ypath/tokenizer.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/yson/async_consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/async_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/attribute_consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/forwarding_consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/lexer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/null_consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/producer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/protobuf_interop.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/string.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/token.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/tokenizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson/writer.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/yson/proto/protobuf_interop.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/attribute_consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/attributes.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/convert.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ephemeral_attribute_owner.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ephemeral_node_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/exception_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/interned_attributes.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/node_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/permission.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/system_attribute_provider.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/tree_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/tree_visitor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/virtual.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/service_combiner.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_resolver.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/yson_serializable.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/proto/ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/proto/attributes.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/json/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_callbacks.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json/json_writer.cpp
+)

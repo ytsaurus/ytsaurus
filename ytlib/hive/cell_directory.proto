@@ -1,0 +1,27 @@
+package NYT.NHiveClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCellPeerDescriptor
+{
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 1;
+    required bool voting = 2;
+}
+
+message TCellDescriptor
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 config_version = 2;
+    repeated TCellPeerDescriptor peers = 3;
+}
+
+message TCellInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 config_version = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

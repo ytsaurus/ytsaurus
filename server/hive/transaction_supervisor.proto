@@ -1,0 +1,74 @@
+package NYT.NHiveServer.NProto;
+
+import "yt/client/hive/proto/timestamp_map.proto";
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCoordinatorCommitSimpleTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional NYT.NProto.TGuid mutation_id = 2;
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 3;
+    required string user_name = 4;
+}
+
+message TReqCoordinatorCommitDistributedTransactionPhaseOne
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional NYT.NProto.TGuid mutation_id = 2;
+    repeated NYT.NProto.TGuid participant_cell_ids = 3;
+    optional bool generate_prepare_timestamp = 7 [default = true];
+    required bool inherit_commit_timestamp = 5;
+    optional int32 coordinator_commit_mode = 6; // ETransactionCoordinatorCommitMode
+    required uint64 prepare_timestamp = 4;
+    required string user_name = 8;
+}
+
+message TReqCoordinatorCommitDistributedTransactionPhaseTwo
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 2;
+}
+
+message TReqCoordinatorAbortDistributedTransactionPhaseTwo
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TError error = 2;
+}
+
+message TReqCoordinatorFinishDistributedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+message TReqCoordinatorAbortTransaction
+{
+    optional NYT.NProto.TGuid mutation_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+    optional bool force = 3;
+    required string user_name = 4;
+}
+
+message TReqParticipantPrepareTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 prepare_timestamp = 2;
+    required string user_name = 3;
+}
+
+message TReqParticipantCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2;
+    required string user_name = 3;
+}
+
+message TReqParticipantAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required string user_name = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

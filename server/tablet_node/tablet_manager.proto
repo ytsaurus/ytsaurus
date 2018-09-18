@@ -1,0 +1,189 @@
+package NYT.NTabletNode.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt/ytlib/tablet_client/heartbeat.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAddStoreDescriptor
+{
+    required int32 store_type = 1;
+    required NYT.NProto.TGuid store_id = 2;
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
+    optional NYT.NProto.TGuid backing_store_id = 4;
+    optional int64 starting_row_index = 5;
+}
+
+message TRemoveStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+}
+
+message TTableReplicaDescriptor
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required string cluster_name = 2;
+    required string replica_path = 3;
+    required uint64 start_replication_timestamp = 4;
+    required NYT.NTabletClient.NProto.TTableReplicaStatistics statistics = 5;
+    required int32 mode = 6; // ETableReplicaMode
+    optional bool preserve_timestamps = 7;
+    optional int32 atomicity = 8; // EAtomicity
+}
+
+message TReqMountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid table_id = 9;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    repeated TAddStoreDescriptor stores = 4;
+    optional bytes pivot_key = 5;
+    optional bytes next_pivot_key = 6;
+    required string mount_config = 7;
+    required string reader_config = 16;
+    required string writer_config = 17;
+    required string writer_options = 8;
+    required int32 atomicity = 10; // EAtomicity
+    required int32 commit_ordering = 15; // ECommitOrdering
+    required int64 mount_revision = 11;
+    required int64 trimmed_row_count = 12;
+    required bool freeze = 13;
+    repeated TTableReplicaDescriptor replicas = 14;
+    optional NYT.NProto.TGuid upstream_replica_id = 18;
+    optional string path = 19;
+}
+
+message TReqUnmountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bool force = 2;
+}
+
+message TReqRemountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required string mount_config = 7;
+    required string reader_config = 9;
+    required string writer_config = 10;
+    required string writer_options = 8;
+}
+
+message TReqFreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqUnfreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqSetTabletState
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 3;
+    required int32 state = 2;
+}
+
+message TReqWriteRows
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional uint64 transaction_start_timestamp = 2;
+    optional int64 transaction_timeout = 3;
+    required NYT.NProto.TGuid tablet_id = 4;
+    required int64 mount_revision = 6;
+    required int32 codec = 7;
+    required bytes compressed_data = 8;
+    optional uint32 signature = 9;
+    required bool lockless = 10;
+    required int32 row_count = 11;
+    repeated NYT.NProto.TGuid sync_replica_ids = 12;
+    optional uint64 data_weight = 13 [ default = 0 ];
+    optional string user = 14 [ default = "" ];
+}
+
+message TReqTrimRows
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int64 trimmed_row_count = 3;
+}
+
+message TReqRotateStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+}
+
+message TReqSplitPartition
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
+    required NYT.NProto.TGuid partition_id = 2;
+    repeated bytes pivot_keys = 3;
+}
+
+message TReqMergePartitions
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
+    required NYT.NProto.TGuid partition_id = 2;
+    required int32 partition_count = 3;
+}
+
+message TReqUpdatePartitionSampleKeys
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
+    required NYT.NProto.TGuid partition_id = 4;
+    required bytes sample_keys = 6; // wire-format encoded
+}
+
+message TReqAddTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required TTableReplicaDescriptor replica = 2;
+}
+
+message TReqRemoveTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+}
+
+message TReqSetTableReplicaEnabled
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required bool enabled = 3;
+}
+
+message TReqSetTableReplicaMode
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int32 mode = 3; // ETableReplicaMode
+}
+
+message TReqAlterTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    optional bool enabled = 3;
+    optional int32 mode = 4; // ETableReplicaMode
+    optional bool preserve_timestamps = 5;
+    optional int32 atomicity = 6; // EAtomicity
+}
+
+message TReqReplicateRows
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int64 new_replication_row_index = 3;
+    required uint64 new_replication_timestamp = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

@@ -1,0 +1,39 @@
+package NYT.NCellMaster.NProto;
+
+import "yt/core/misc/proto/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterSecondaryMasterAtPrimary
+{
+    required int32 cell_tag = 1;
+}
+
+message TRspRegisterSecondaryMasterAtPrimary
+{
+    optional NYT.NProto.TError error = 1;
+}
+
+message TReqRegisterSecondaryMasterAtSecondary
+{
+    required int32 cell_tag = 1;
+}
+
+message TReqStartSecondaryMasterRegistration
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCellStatistics
+{
+    required int32 chunk_count = 1;
+    required int32 lost_vital_chunk_count = 2;
+}
+
+message TReqSetCellStatistics
+{
+    required int32 cell_tag = 1;
+    required TCellStatistics statistics = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

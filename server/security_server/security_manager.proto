@@ -1,0 +1,78 @@
+package NYT.NSecurityServer.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TClusterResources
+{
+    required int32 chunk_count = 2;
+    required int32 node_count = 3;
+    required int32 tablet_count = 5;
+    required int64 tablet_static_memory_size = 6;
+
+    message TMediumDiskSpace
+    {
+        required int32 medium_index = 1;
+        required int64 disk_space = 2;
+    }
+
+    repeated TMediumDiskSpace disk_space_per_medium = 4;
+}
+
+message TUserStatistics
+{
+    required int64 request_count = 1;
+    required int64 read_request_time = 2;
+    required int64 write_request_time = 3;
+    required int64 access_time = 4;
+}
+
+message TAccountStatistics
+{
+    required TClusterResources resource_usage = 1;
+    required TClusterResources committed_resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIncreaseUserStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid user_id = 1;
+        required TUserStatistics statistics = 2;
+    }
+
+    repeated TEntry entries = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetAccountStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid account_id = 1;
+        required TAccountStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetUserStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid user_id = 1;
+        required TUserStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

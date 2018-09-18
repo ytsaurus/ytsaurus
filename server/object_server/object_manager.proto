@@ -1,0 +1,67 @@
+package NYT.NObjectServer.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    required string user_name = 1;
+    repeated bytes request_parts = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDestroyObjects
+{
+    repeated NYT.NProto.TGuid object_ids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateForeignObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+    required int32 type = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary object_attributes = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveForeignObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnrefExportedObjects
+{
+    message TUnrefEntry
+    {
+        required NYT.NProto.TGuid object_id = 1;
+        required int32 import_ref_counter = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TUnrefEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Confirms that an object has changed its life stage. Sent by secondary masters
+// to primary.
+message TReqConfirmObjectLifeStage
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+// Forces an object to move on to its next life stage. Sent by primary master to
+// secondary ones.
+message TReqAdvanceObjectLifeStage
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

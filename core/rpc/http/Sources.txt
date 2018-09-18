@@ -1,0 +1,3 @@
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/server.cpp
+)

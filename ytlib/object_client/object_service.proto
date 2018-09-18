@@ -1,0 +1,42 @@
+package NYT.NObjectClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    // Each Execute call carries a number of YPath requests.
+    // Each of these requests is represented by a message.
+    // Each message, in turn, is a sequence of parts.
+    // This array contains the lengths of those part sequences.
+    // In particular, its length is just the number of encaplusated YPath requests.
+    repeated int32 part_counts = 1;
+
+    // If |true|, the master responding to the query will make no attempt to synchronize
+    // its state with the upstream servers.
+    optional bool suppress_upstream_sync = 2 [default = false];
+
+    // If |true|, the master is allowed to send a partial response to this request.
+    optional bool allow_backoff = 3 [default = false];
+}
+
+message TRspExecute
+{
+    // Similar to TReqExecute::part_counts, but denotes the number of parts in each
+    // encapsulated response.
+    // NB: a batched response may have less subresponses than its corresponding request
+    // does subrequests if TReqExecute::allow_backoff was |true| (because of timeouts).
+    repeated int32 part_counts = 1;
+
+    // Hydra revision at the beginning of each YPath request execution.
+    repeated int64 revisions = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGCCollect
+{ }
+
+message TRspGCCollect
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IPollerPtr CreateThreadPoolPoller(
+    int threadCount,
+    const TString& threadNamePrefix);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NConcurrency
+} // namespace NYT

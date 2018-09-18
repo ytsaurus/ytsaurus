@@ -1,0 +1,110 @@
+package NYT.NTabletClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
+import "yt/ytlib/hive/cell_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTabletSlotInfo
+{
+    required int32 peer_state = 1;
+    optional int32 peer_id = 2;
+    optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
+    optional int32 dynamic_config_version = 4;
+}
+
+message TTableReplicaStatistics
+{
+    required int64 current_replication_row_index = 1;
+    required uint64 current_replication_timestamp = 2;
+}
+
+message TTabletStatistics
+{
+    required int32 partition_count = 1;
+    required int32 store_count = 2;
+    required int32 preload_pending_store_count = 3;
+    required int32 preload_completed_store_count = 4;
+    required int32 preload_failed_store_count = 5;
+    optional int32 overlapping_store_count = 6;
+    optional uint64 last_commit_timestamp = 7;
+    optional uint64 last_write_timestamp = 9;
+    optional uint64 unflushed_timestamp = 8;
+    optional int64 dynamic_memory_pool_size = 10 [default = 0];
+}
+
+message TTabletPerformanceCounters
+{
+    required int64 dynamic_row_read_count = 1;
+    optional int64 dynamic_row_read_data_weight_count = 14 [default = 0];
+    required int64 dynamic_row_lookup_count = 2;
+    optional int64 dynamic_row_lookup_data_weight_count = 15 [default = 0];
+    required int64 dynamic_row_write_count = 3;
+    optional int64 dynamic_row_write_data_weight_count = 11 [default = 0];
+    required int64 dynamic_row_delete_count = 4;
+    required int64 static_chunk_row_read_count = 5;
+    optional int64 static_chunk_row_read_data_weight_count = 16 [default = 0];
+    required int64 static_chunk_row_lookup_count = 6;
+    required int64 static_chunk_row_lookup_true_negative_count = 9;
+    required int64 static_chunk_row_lookup_false_positive_count = 10;
+    optional int64 static_chunk_row_lookup_data_weight_count = 17 [default = 0];
+    required int64 unmerged_row_read_count = 7;
+    required int64 merged_row_read_count = 8;
+    optional int64 compaction_data_weight_count = 12 [default = 0];
+    optional int64 partitioning_data_weight_count = 13 [default = 0];
+    required int64 write_error_count = 18 [default = 0];
+    required int64 lookup_error_count = 19 [default = 0];
+}
+
+message TTableReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required TTableReplicaStatistics statistics = 2;
+    optional NYT.NProto.TError error = 3;
+}
+
+message TTabletInfo
+{
+    message TErrorEntry
+    {
+        required int32 key = 1;
+        required NYT.NProto.TError value = 2;
+    }
+
+    required NYT.NProto.TGuid tablet_id = 1;
+    required TTabletStatistics statistics = 2;
+    repeated TTableReplicaInfo replicas = 3;
+    required TTabletPerformanceCounters performance_counters = 4;
+    // repeated NYT.NProto.TError errors = 5; deprecated
+    repeated TErrorEntry errors = 6;
+}
+
+message TCreateTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 peer_id = 2;
+    required bytes options = 3; // NTabletClient::TTabletCellOptions
+    optional string tablet_cell_bundle = 4 [default = ""];
+}
+
+message TConfigureTabletSlotInfo
+{
+    required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
+    required NYT.NProto.TGuid prerequisite_transaction_id = 2;
+}
+
+message TUpdateTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 dynamic_config_version = 2;
+    optional bytes dynamic_options = 3; // NTabletClient::TDynamicTabletCellOptions
+}
+
+message TRemoveTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

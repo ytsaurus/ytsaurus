@@ -1,0 +1,41 @@
+package NYT.NProtobufFormatTest;
+
+enum EEnum
+ {
+    one = 1;
+    two = 2;
+    three = 3;
+
+    minus_forty_two = -42;
+}
+
+message TEmbeddedMessage
+{
+    optional string key = 1;
+    optional string value = 2;
+}
+
+message TMessage
+{
+    optional double double_field = 1;
+    optional float float_field = 2;
+
+    optional int64 int64_field = 3;
+    optional uint64 uint64_field = 4;
+    optional sint64 sint64_field = 5;
+    optional fixed64 fixed64_field = 6;
+    optional sfixed64 sfixed64_field = 7;
+
+    optional int32 int32_field = 8;
+    optional uint32 uint32_field = 9;
+    optional sint32 sint32_field = 10;
+    optional fixed32 fixed32_field = 11;
+    optional sfixed32 sfixed32_field = 12;
+
+    optional bool bool_field = 13;
+    optional string string_field = 14;
+    optional bytes bytes_field = 15;
+
+    optional EEnum enum_field = 16;
+    optional TEmbeddedMessage message_field = 17;
+}

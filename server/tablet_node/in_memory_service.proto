@@ -1,0 +1,57 @@
+package NYT.NTabletNode.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt/ytlib/chunk_client/block_id.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartSession
+{
+    required int32 in_memory_mode = 1;
+}
+
+message TRspStartSession
+{
+    required NYT.NProto.TGuid session_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFinishSession
+{
+    required NYT.NProto.TGuid session_id = 1;
+
+    repeated NYT.NProto.TGuid chunk_id = 2;
+    repeated NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
+    repeated NYT.NProto.TGuid tablet_id = 4;
+}
+
+message TRspFinishSession
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingSession
+{
+    required NYT.NProto.TGuid session_id = 1;
+}
+
+message TRspPingSession
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Used in replication writer.
+message TReqPutBlocks
+{
+    required NYT.NProto.TGuid session_id = 1;
+    repeated NYT.NChunkClient.NProto.TBlockId block_ids = 2;
+}
+
+message TRspPutBlocks
+{
+    required bool dropped = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

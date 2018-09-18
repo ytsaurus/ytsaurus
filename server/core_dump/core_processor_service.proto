@@ -1,0 +1,17 @@
+package NYT.NCoreDump.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartCoreDump
+{
+    required int32 process_id = 1;
+    required string executable_name = 2;
+}
+
+message TRspStartCoreDump
+{
+    // A path of the named pipe that the core file should be written to.
+    required string named_pipe_path = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

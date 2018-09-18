@@ -1,0 +1,315 @@
+
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/admin/admin_service.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/api/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/admin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/transaction_participant.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/table_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/table_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/file_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/file_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/journal_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/journal_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/skynet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native/tablet_helpers.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup/cgroup.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_id.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_id.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/cache_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_info.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta_extensions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_owner_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_reader_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_reader_statistics.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_scraper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_slice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_slice.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_spec.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_teleporter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/client_block_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/confirming_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_node_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_repair.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/format.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk_slice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_data_slice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/io_engine.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/key_set.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_writer_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_reader_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/reader_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/repairing_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/traffic_meter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/heartbeat.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent_service.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/proto/core_info.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_dumper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/event_log/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/event_log/event_log.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_client/cypress_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_client/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc.proto
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc_helpers.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/driver/command.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/cypress_commands.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/driver.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/etc_commands.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/file_commands.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/journal_commands.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/scheduler_commands.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/table_commands.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver/transaction_commands.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/election/cell_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election/election_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/election/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/file_client/file_chunk_meta.proto
+  ${CMAKE_CURRENT_LIST_DIR}/file_client/file_chunk_output.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_client/file_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_client/file_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_client/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/peer_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_prober_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_probe.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_spec_helper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_read_controller.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job_tracker_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/proto/job_spec_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/statistics.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/journal_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_client/journal_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/journal_client/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_client/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/monitoring/http_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/monitoring/monitoring_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/monitoring/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/proto/node_tracker_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/object_client/master_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/object_client/object_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/object_client/object_service_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_client/object_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/object_client/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/orchid/orchid_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/orchid/orchid_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/orchid/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/ast.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_fragment_compiler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_ir_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_routines.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/column_evaluator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/coordinator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/evaluation_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/evaluator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/folding_profiler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_common.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.proto
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cg.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_builtin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/function_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/key_trie.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/lexer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query.proto
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_common.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_preparer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/program/program.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_config_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_cgroup_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_tool_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_pdeathsig_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/build_attributes.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/configure_singletons.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/config.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job_prober_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/output_result.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/scheduler_service.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/security_client/account_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/security_client/group_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/security_client/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_client/user_ypath.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_reader_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_writer_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/compressed_integer_vector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/data_block_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/double_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/double_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/null_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/timestamp_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/timestamp_reader.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/blob_table_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/cached_versioned_chunk_meta.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/cache_based_versioned_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_lookup_hash_table.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slice_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_statistics_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/overlapping_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/partition_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/partitioner.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/pipe.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/row_merger.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/row_sampler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/samples_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schema_dictionary.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schema_inferer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_concatenating_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_block_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_block_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_buffered_table_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_partition_sort_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/skynet_column_evaluator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/table_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/unordered_schemaful_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_reader_adapter.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/heartbeat.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/master_tablet_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/native_table_mount_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/table_replica_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/tablet_service.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/action.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/action.proto
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_listener.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_service.proto
+)

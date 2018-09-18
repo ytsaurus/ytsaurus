@@ -1,0 +1,29 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/actions/future.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCoreDump
+{
+    TString Path;
+    TFuture<void> WrittenEvent;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICoreDumper
+    : public virtual TRefCounted
+{
+    virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ICoreDumper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

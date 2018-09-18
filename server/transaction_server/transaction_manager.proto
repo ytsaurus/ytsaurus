@@ -1,0 +1,43 @@
+package NYT.NTransactionServer.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 1;
+    optional string title = 6;
+
+    optional NYT.NProto.TGuid hint_id = 2;
+    optional NYT.NProto.TGuid parent_id = 3;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
+
+    required int64 timeout = 4;
+    required string user_name = 5;
+
+    repeated int32 replicate_to_cell_tags = 9;
+}
+
+message TReqPrepareTransactionCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 prepare_timestamp = 2;
+    optional string user_name = 3 [default = "root"];
+}
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2;
+}
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool force = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

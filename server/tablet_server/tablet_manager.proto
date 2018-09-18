@@ -1,0 +1,172 @@
+package NYT.NTabletServer.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/node_tracker_client/proto/node.proto";
+import "yt/ytlib/tablet_client/heartbeat.proto";
+import "yt/server/tablet_node/tablet_manager.proto";
+import "yt/server/security_server/security_manager.proto";
+import "yt/client/chunk_client/proto/data_statistics.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAssignPeers
+{
+    message TPeerInfo
+    {
+        required int32 peer_id = 1;
+        required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
+    }
+
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated TPeerInfo peer_infos = 2;
+}
+
+message TReqRevokePeers
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated int32 peer_ids = 2;
+}
+
+message TReqSetLeadingPeer
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 peer_id = 2;
+}
+
+message TRspMountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bool frozen = 2;
+}
+
+message TRspUnmountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TRspFreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TRspUnfreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqUpdateTabletStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
+    repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 2;
+    repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+    required uint64 retained_timestamp = 5;
+}
+
+message TReqUpdateTabletTrimmedRowCount
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int64 trimmed_row_count = 3;
+}
+
+message TReqUpdateTableReplicaStatistics
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int64 mount_revision = 3;
+    required NTabletClient.NProto.TTableReplicaStatistics statistics = 4;
+}
+
+message TRspDisableTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int64 mount_revision = 3;
+}
+
+message TReqCreateTabletAction
+{
+    required int32 kind = 1;
+    repeated NYT.NProto.TGuid tablet_ids = 2;
+    repeated NYT.NProto.TGuid cell_ids = 3;
+    repeated bytes pivot_keys = 4;
+    optional int32 tablet_count = 5;
+    optional bool keep_finished = 6 [default = false];
+}
+
+message TReqKickOrphanedTabletActions
+{
+    repeated NYT.NProto.TGuid tablet_action_ids = 1;
+}
+
+message TTabletCellStatistics
+{
+    message TTabletCountPerMemoryModeEntry
+    {
+        required int32 key = 1; // EInMemoryMode
+        required int32 value = 2;  // TabletCount
+    }
+
+    required int64 unmerged_row_count = 1;
+    required int64 uncompressed_data_size = 2;
+    required int64 compressed_data_size = 3;
+    required int64 memory_size = 4;
+    required int64 dynamic_memory_pool_size = 5;
+    repeated int64 disk_space_per_medium = 6;
+    required int32 chunk_count = 7;
+    required int32 partition_count = 8;
+    required int32 store_count = 9;
+    required int32 preload_pending_store_count = 10;
+    required int32 preload_completed_store_count = 11;
+    required int32 preload_failed_store_count = 12;
+    required int32 tablet_count = 13;
+    repeated TTabletCountPerMemoryModeEntry tablet_count_per_memory_mode = 14;
+    required bool decommissioned = 15;
+}
+
+message TReqSetTabletCellStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid tablet_cell_id = 1;
+        required TTabletCellStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+message TReqSendTableStatisticsUpdates
+{
+    required int64 table_count = 1;
+}
+
+message TReqUpdateTableStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid table_id = 1;
+        optional NChunkClient.NProto.TDataStatistics data_statistics = 2;
+        optional NSecurityServer.NProto.TClusterResources tablet_resource_usage = 3;
+    }
+
+    repeated TEntry entries = 1;
+}
+
+message TReqUpdateUpstreamTabletState
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required NYT.NProto.TGuid last_mount_transaction_id = 2;
+    optional int32 actual_tablet_state = 3;
+    optional int32 expected_tablet_state = 4;
+}
+
+message TReqUpdateTabletState
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required NYT.NProto.TGuid last_mount_transaction_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

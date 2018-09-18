@@ -1,0 +1,80 @@
+package NYT.NHiveClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/ytlib/hive/cell_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEncapsulatedMessage
+{
+    required string type = 1;
+    required bytes data = 2;
+
+    optional fixed64 trace_id = 3;
+    optional fixed64 span_id = 4;
+    optional fixed64 parent_span_id = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPing
+{
+    required NYT.NProto.TGuid src_cell_id = 1;
+}
+
+message TRspPing
+{
+    optional int64 last_outcoming_message_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSyncCells
+{
+    repeated NHiveClient.NProto.TCellInfo known_cells = 2;
+}
+
+message TUnregisterCellInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
+message TReconfigureCellInfo
+{
+    required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
+}
+
+message TRspSyncCells
+{
+    repeated TUnregisterCellInfo cells_to_unregister = 4;
+    repeated TReconfigureCellInfo cells_to_reconfigure = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPostMessages
+{
+    required NYT.NProto.TGuid src_cell_id = 1;
+    required int64 first_message_id = 2;
+    repeated TEncapsulatedMessage messages = 3;
+}
+
+message TRspPostMessages
+{
+    optional int64 next_persistent_incoming_message_id = 1;
+    required int64 next_transient_incoming_message_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSendMessages
+{
+    required NYT.NProto.TGuid src_cell_id = 1;
+    repeated TEncapsulatedMessage messages = 2;
+}
+
+message TRspSendMessages
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

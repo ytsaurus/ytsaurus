@@ -1,0 +1,15 @@
+package NYT.NJournalClient.NProto;
+
+import "yt/client/chunk_client/proto/data_statistics.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSeal
+{
+    required NYT.NChunkClient.NProto.TDataStatistics statistics = 1;
+}
+
+message TRspSeal
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

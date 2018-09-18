@@ -1,0 +1,136 @@
+package NYT.NTableClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt/ytlib/hive/cell_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+
+    // If omitted then cell is chosen automatically.
+    optional NYT.NProto.TGuid cell_id = 3;
+
+    required bool freeze = 4;
+    optional uint64 mount_timestamp = 5 [default = 0];
+}
+
+message TRspMount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnmount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required bool force = 3 [default = false];
+}
+
+message TRspUnmount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspFreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnfreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspUnfreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReshard
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    // For sorted tables only.
+    repeated bytes pivot_keys = 3;
+    required int32 tablet_count = 4;
+}
+
+message TRspReshard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetMountInfo
+{ }
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 7;
+    required int32 state = 2; // ETabletState
+    optional int32 in_memory_mode = 8; // EInMemoryMode
+    required bytes pivot_key = 3;
+    optional NYT.NProto.TGuid cell_id = 4;
+    optional int32 cell_config_version = 5;
+}
+
+message TReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required string cluster_name = 2;
+    required string replica_path = 3;
+    required int32 mode = 4; // ETableReplicaMode
+}
+
+message TRspGetMountInfo
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required TTableSchemaExt schema = 2;
+    repeated TTabletInfo tablets = 3;
+    repeated NYT.NHiveClient.NProto.TCellDescriptor tablet_cells = 4;
+    required bool dynamic = 5;
+    required NYT.NProto.TGuid upstream_replica_id = 6;
+    repeated TReplicaInfo replicas = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAlter
+{
+    optional TTableSchemaExt schema = 1;
+    optional bool dynamic = 2;
+    optional NYT.NProto.TGuid upstream_replica_id = 3;
+}
+
+message TRspAlter
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

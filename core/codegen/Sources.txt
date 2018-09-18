@@ -1,0 +1,6 @@
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/init.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/module.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/routine_registry.cpp
+)

@@ -1,0 +1,19 @@
+#pragma once
+
+#include <yt/core/misc/public.h>
+
+namespace NYT {
+namespace NYPath {
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ETokenType;
+class TTokenizer;
+class TRichYPath;
+
+using TYPath = TString;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYPath
+} // namespace NYT

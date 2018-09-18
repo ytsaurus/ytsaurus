@@ -1,0 +1,8 @@
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/codec.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/jerasure.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lrc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/reed_solomon.cpp
+)

@@ -1,0 +1,14 @@
+#include "private.h"
+
+namespace NYT {
+namespace NHiveServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger HiveServerLogger("HiveServer");
+const NProfiling::TProfiler HiveServerProfiler("/hive");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHiveServer
+} // namespace NYT

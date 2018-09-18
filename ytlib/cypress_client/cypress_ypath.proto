@@ -1,0 +1,81 @@
+package NYT.NCypressClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+import "yt/core/ytree/proto/ypath.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLock
+{
+    required int32 mode = 1;
+    optional bool waitable = 2 [default = false];
+    optional string child_key = 3;
+    optional string attribute_key = 4;
+    optional uint64 timestamp = 5 [default = 0];
+}
+
+message TRspLock
+{
+    required NYT.NProto.TGuid lock_id = 1;
+    required NYT.NProto.TGuid node_id = 2;
+    required int32 cell_tag = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreate
+{
+    required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 2;
+    optional bool recursive = 3 [default = false];
+    optional bool ignore_existing = 4 [default = false];
+    optional bool force = 6 [default = false];
+}
+
+message TRspCreate
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required int32 cell_tag = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCopy
+{
+    required string source_path = 1;
+    optional bool preserve_account = 2 [default = false];
+    // "move" is actually "copy" with "remove_source" set to true.
+    optional bool remove_source = 3 [default = false];
+    optional bool recursive = 4 [default = false];
+    optional bool force = 5 [default = false];
+    optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_creation_time = 7 [default = false];
+}
+
+message TRspCopy
+{
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqEnumerate
+{
+    optional NYT.NYTree.NProto.TAttributeKeys attributes = 1;
+    required int64 limit = 2;
+}
+
+message TRspEnumerate
+{
+    message TItem
+    {
+        required bytes key = 1;
+        optional bytes attributes = 2;
+    }
+
+    required bool incomplete = 1;
+    repeated TItem items = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

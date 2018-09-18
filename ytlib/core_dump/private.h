@@ -1,0 +1,18 @@
+#pragma once
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/public.h>
+
+namespace NYT {
+namespace NCoreDump {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger CoreDumpLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCoreDump
+} // namespace NYT
+

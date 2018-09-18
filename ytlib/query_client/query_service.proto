@@ -1,0 +1,93 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt/client/query_client/proto/query_statistics.proto";
+import "yt/ytlib/query_client/query.proto";
+import "yt/ytlib/query_client/functions_cache.proto";
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    required TQuery query = 1;
+    repeated TExternalFunctionImpl external_functions = 5;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+    required TQueryOptions options = 2;
+    repeated TDataRanges data_sources = 3;
+    required int32 response_codec = 4; // ECodec
+}
+
+message TRspExecute
+{
+    required TQueryStatistics query_statistics = 1;
+    // Attachements contains wire-encoded data.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRead
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required uint64 timestamp = 3;
+    required int32 request_codec = 4; // ECodec
+    required int32 response_codec = 5; // ECodec
+    optional string retention_config = 6;
+    // Attachement contains wire-encoded data.
+}
+
+message TRspRead
+{
+    // Attachement contains wire-encoded data.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMultiread
+{
+    required int32 request_codec = 1; // ECodec
+    required int32 response_codec = 2; // ECodec
+    optional string retention_config = 3;
+    required uint64 timestamp = 4;
+    repeated NYT.NProto.TGuid tablet_ids = 5;
+    repeated int64 mount_revisions = 6;
+
+    // Attachement contains wire-encoded data.
+}
+
+message TRspMultiread
+{
+    // Attachement contains wire-encoded data.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTabletInfo
+{
+    repeated NYT.NProto.TGuid tablet_ids = 1;
+}
+
+message TReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required uint64 last_replication_timestamp = 2;
+    required int32 mode = 3; // ETableReplicaMode
+    required int64 current_replication_row_index = 4;
+}
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated TReplicaInfo replicas = 2;
+    required int64 total_row_count = 3;
+    // COMPAT(babenko): make it required in 19.3
+    optional int64 trimmed_row_count = 4;
+}
+
+message TRspGetTabletInfo
+{
+    repeated TTabletInfo tablets = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
