@@ -79,6 +79,7 @@ public:
     TDuration WriteRowsTimeout;
     NCompression::ECodec WriteRowsRequestCodec;
     int MaxRowsPerWriteRequest;
+    i64 MaxDataWeightPerWriteRequest;
     int MaxRowsPerTransaction;
 
     TDuration DefaultLookupRowsTimeout;
