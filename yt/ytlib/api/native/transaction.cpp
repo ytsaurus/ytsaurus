@@ -1046,9 +1046,26 @@ private:
             }
         }
 
+        bool IsNewBatchNeeded()
+        {
+            if (Batches_.empty()) {
+                return true;
+            }
+
+            const auto& lastBatch = Batches_.back();
+            if (lastBatch->RowCount >= Config_->MaxRowsPerWriteRequest) {
+                return true;
+            }
+            if (lastBatch->DataWeight >= Config_->MaxDataWeightPerWriteRequest) {
+                return true;
+            }
+
+            return false;
+        }
+
         TBatch* EnsureBatch()
         {
-            if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {
+            if (IsNewBatchNeeded()) {
                 Batches_.emplace_back(new TBatch());
             }
             return Batches_.back().get();
