@@ -467,10 +467,6 @@ THttpResponse::THttpResponse(
             logAndSetError(TStringBuilder() << "internal error in proxy " << HostName_);
             break;
 
-        case 503:
-            logAndSetError(TStringBuilder() << "proxy " << HostName_ << " is unavailable");
-            break;
-
         default: {
             TStringStream httpHeaders;
             httpHeaders << "HTTP headers (";
