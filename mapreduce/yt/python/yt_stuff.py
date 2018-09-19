@@ -271,10 +271,25 @@ class YtStuff(object):
             programs += [('scheduler', 'programs/scheduler'),
                          ('controller-agent', 'programs/controller_agent')]
 
-        for binary, server_dir in programs:
-            binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
-                                                    .format(self.version, server_dir, binary))
-            os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
+        if self.version != "19_4":
+            for binary, server_dir in programs:
+                binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
+                                                        .format(self.version, server_dir, binary))
+                os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
+        else:
+            programs = [('master', 'cell_master/bin'),
+                        ('node', 'cell_node/bin'),
+                        ('job-proxy', 'job_proxy/bin'),
+                        ('exec', 'bin/exec'),
+                        ('proxy', 'rpc_proxy/bin'),
+                        ('http-proxy', 'http_proxy/bin'),
+                        ('tools', 'bin/tools'),
+                        ('scheduler', 'scheduler/bin'),
+                        ('controller-agent', 'controller_agent/bin')]
+            for binary, server_dir in programs:
+                binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
+                                                        .format(self.version, server_dir, binary))
+                os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
 
         yt_node_arcadia_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode'.format(self.version))
         os.symlink(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
