@@ -18,7 +18,6 @@ CXXFLAGS(
   -Wno-unused-value
   -Wno-switch
   -Wno-type-limits
-  -Wno-c++14-extensions
   -DYT_IN_ARCADIA
 )
 
