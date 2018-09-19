@@ -12,7 +12,7 @@ class TBlobOutput
 {
 public:
     TBlobOutput();
-    explicit TBlobOutput(size_t capacity, size_t alignment = 1);
+    explicit TBlobOutput(size_t capacity);
 
     ~TBlobOutput();
 
