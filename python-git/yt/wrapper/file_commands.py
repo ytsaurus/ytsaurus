@@ -1,5 +1,5 @@
 import yt.logger as logger
-from .config import get_config, get_option
+from .config import get_config, get_option, get_backend_type
 from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value, \
                     update, remove_nones_from_dict
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
@@ -394,7 +394,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
-        use_legacy = get_config(client)["backend"] == "native" or \
+        use_legacy = get_backend_type(client) == "native" or \
                      "put_file_to_cache" not in get_api_commands(client) or \
                      "get_file_from_cache" not in get_api_commands(client) or \
                      get_config(client)["remote_temp_files_directory"] is not None
