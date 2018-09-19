@@ -899,6 +899,21 @@ TBooleanFormula MakeBooleanFormula(const TString& formula)
     return TBooleanFormula(std::move(impl));
 }
 
+TBooleanFormula operator&(const TBooleanFormula& lhs, const TBooleanFormula& rhs)
+{
+    return MakeBooleanFormula(Format("(%v) & (%v)", lhs.GetFormula(), rhs.GetFormula()));
+}
+
+TBooleanFormula operator|(const TBooleanFormula& lhs, const TBooleanFormula& rhs)
+{
+    return MakeBooleanFormula(Format("(%v) | (%v)", lhs.GetFormula(), rhs.GetFormula()));
+}
+
+TBooleanFormula operator!(const TBooleanFormula& formula)
+{
+    return MakeBooleanFormula(Format("!(%v)", formula.GetFormula()));
+}
+
 void Serialize(const TBooleanFormula& booleanFormula, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
