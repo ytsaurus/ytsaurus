@@ -12,7 +12,6 @@ SET(YT_ARCADIA_CXXFLAGS
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-unused-const-variable
-  -Wno-c++14-extensions
   -Wno-uninitialized
   -Wno-switch
   -Wno-type-limits
