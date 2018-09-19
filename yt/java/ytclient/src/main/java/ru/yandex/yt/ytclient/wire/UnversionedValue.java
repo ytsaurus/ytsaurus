@@ -7,6 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
+import com.google.protobuf.Message;
+
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeProtoUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
@@ -138,7 +141,9 @@ public class UnversionedValue implements YTreeConvertible {
                 }
 
                 YTreeNode node;
-                if (value instanceof YTreeNode) {
+                if (value instanceof Message) {
+                    node = YTreeProtoUtils.marshal((Message) value);
+                } else if (value instanceof YTreeNode) {
                     node = (YTreeNode) value;
                 } else {
                     node = YTree.builder().value(value).build();
