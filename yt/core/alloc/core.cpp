@@ -649,7 +649,13 @@ public:
                     MAP_PRIVATE | MAP_ANONYMOUS | flags,
                     -1,
                     0);
-                YCHECK(result != MAP_FAILED);
+                if (result == MAP_FAILED) {
+                    auto error = errno;
+                    if (error == ENOMEM) {
+                        OnOOM();
+                    }
+                    Y_UNREACHABLE();
+                }
                 return result;
             });
     }
@@ -723,6 +729,9 @@ private:
                 auto result = ::madvise(ptr, size, flag);
                 if (result != 0) {
                     auto error = errno;
+                    if (error == ENOMEM) {
+                        OnOOM();
+                    }
                     YCHECK(error == EINVAL);
                     notSupported->store(true);
                 }
@@ -738,6 +747,13 @@ private:
 
     std::atomic<bool> FreeUnavailable_ = {false};
     bool FreeUnavailableLogged_ = false;
+
+private:
+    void OnOOM()
+    {
+        fprintf(stderr, "YTAlloc has detected an out-of-memory condition; terminating\n");
+        _exit(9);
+    }
 };
 
 TBox<TMappedMemoryManager> MappedMemoryManager;
