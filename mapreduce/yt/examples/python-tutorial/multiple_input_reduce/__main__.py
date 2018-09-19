@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import os
+import getpass
 
 import yt.wrapper
 
@@ -33,9 +33,9 @@ def filter_robots_reducer(key, input_row_iterator, context):
 if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
-    sorted_staff_table = "//tmp/" + os.getlogin() + "-pytutorial-staff-sorted"
-    sorted_is_robot_table = "//tmp/" + os.getlogin() + "-pytutorial-is_robot-sorted"
-    output_table = "//tmp/" + os.getlogin() + "-pytutorial-robots"
+    sorted_staff_table = "//tmp/" + getpass.getuser() + "-pytutorial-staff-sorted"
+    sorted_is_robot_table = "//tmp/" + getpass.getuser() + "-pytutorial-is_robot-sorted"
+    output_table = "//tmp/" + getpass.getuser() + "-pytutorial-robots"
 
     yt.wrapper.run_sort(
         source_table="//home/ermolovd/yt-tutorial/staff_unsorted",

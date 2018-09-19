@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import os
+import getpass
 
 import yt.wrapper
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
     # Выходная таблица у нас будет лежать в tmp и содержать имя текущего пользователя.
-    output_table = "//tmp/" + os.getlogin() + "-pytutorial-emails"
+    output_table = "//tmp/" + getpass.getuser() + "-pytutorial-emails"
 
     yt.wrapper.run_map(
         compute_emails_mapper,
