@@ -4,14 +4,17 @@ import getpass
 
 import yt.wrapper
 
+
 #
 # Для того чтобы запустить операцию mapreduce, нам нужны обычные маппер и редьюсер
 # (их даже можно использовать в других местах в отдельных операциях map/reduce).
 #
 
+
 def normalize_name_mapper(row):
     normalized_name = row["name"].lower()
     yield {"name": normalized_name}
+
 
 def count_names_reducer(key, input_row_iterator):
     name = key["name"]
