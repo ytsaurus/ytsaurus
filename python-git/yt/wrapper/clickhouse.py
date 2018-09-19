@@ -54,7 +54,6 @@ def get_clickhouse_clique_spec_builder(instance_count,
                          '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port $YT_PORT_1 '
                          '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
                          .format(executable_path)) \
-                .format("dsv") \
                 .memory_limit(10 * 2**30) \
                 .port_count(4) \
             .end_task() \

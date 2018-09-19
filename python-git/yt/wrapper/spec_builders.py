@@ -500,7 +500,7 @@ class UserJobSpecBuilder(object):
     def _apply_spec_patch(self, spec):
         self._spec_patch = update(spec, self._spec_patch)
 
-    def build(self, input_tables, output_tables, operation_type, requires_command,
+    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format,
               local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         spec = update(self._spec_patch, self._deepcopy_spec())
@@ -508,14 +508,17 @@ class UserJobSpecBuilder(object):
 
         if "command" not in spec and not requires_command:
             return None
-
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
-        format_ = spec.pop("format", None)
-        input_format, output_format = _prepare_operation_formats(
-            format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
-            input_tables, output_tables, client)
-        spec["input_format"] = input_format.to_yson_type()
-        spec["output_format"] = output_format.to_yson_type()
+
+        if requires_format:
+            format_ = spec.pop("format", None)
+            input_format, output_format = _prepare_operation_formats(
+                format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
+                input_tables, output_tables, client)
+            spec["input_format"] = input_format.to_yson_type()
+            spec["output_format"] = output_format.to_yson_type()
+        else:
+            input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
         spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove,
@@ -707,7 +710,7 @@ class SpecBuilder(object):
             spec[output_tables_param] = unlist(spec[output_tables_param])
 
     def _build_user_job_spec(self, spec, job_type, input_tables, output_tables,
-                             requires_command=True, group_by=None, client=None):
+                             requires_command=True, requires_format=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
             spec[job_type] = job_spec_builder.build(group_by=group_by,
@@ -716,6 +719,7 @@ class SpecBuilder(object):
                                                     input_tables=input_tables,
                                                     output_tables=output_tables,
                                                     requires_command=requires_command,
+                                                    requires_format=requires_format,
                                                     client=client)
             if spec[job_type] is None:
                 del spec[job_type]
@@ -1559,7 +1563,8 @@ class VanillaSpecBuilder(SpecBuilder):
                                                       job_type=task,
                                                       input_tables=[],
                                                       output_tables=[],
-                                                      client=client)
+                                                      client=client,
+                                                      requires_format=False)
         return spec
 
     def supports_user_job_spec(self):
