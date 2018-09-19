@@ -604,7 +604,24 @@ enum EHttpCheckState {
     EHttpCheckState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
 }
 
+enum ETcpCheckState {
+    ETcpCheckState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    // Connect не завершился успешно
+    ETcpCheckState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
+
+    ETcpCheckState_RUNNING = 2 [(NYT.NYson.NProto.enum_value_name) = "running"];
+    // Ожидание истечения InitialDelayMs
+    ETcpCheckState_WAITING_INIT = 3 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
+    // Ожидание истечения restart period - см. TTimeLimit
+    ETcpCheckState_WAITING_RESTART = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
+}
+
 message TTcpCheckStatus {
+    ETcpCheckState State = 1;
+    google.protobuf.Timestamp LastRequestTime = 2;
+    uint32 ConsecutiveSuccessesCounter = 3;
+    uint32 ConsecutiveFailuresCounter = 4;
 }
 
 message THttpGetStatus {
