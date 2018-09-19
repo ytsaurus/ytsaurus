@@ -55,6 +55,19 @@ void TProgressCounter::Increment(i64 value)
     }
 }
 
+void TProgressCounter::Decrement(i64 value)
+{
+    YCHECK(TotalEnabled_);
+    Total_ -= value;
+    YCHECK(Total_ >= 0);
+    Pending_ -= value;
+    YCHECK(Pending_ >= 0);
+
+    if (Parent_) {
+        Parent_->Decrement(value);
+    }
+}
+
 i64 TProgressCounter::GetTotal() const
 {
     YCHECK(TotalEnabled_);
