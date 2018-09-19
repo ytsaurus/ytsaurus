@@ -61,7 +61,7 @@ class TJobProxyConfig
 {
 public:
     // Job-specific parameters.
-    int SlotIndex;
+    int SlotIndex = -1;
 
     TNullable<TString> TmpfsPath;
     std::vector<NExecAgent::TBindConfigPtr> Binds;
@@ -97,8 +97,7 @@ public:
 
     TJobProxyConfig()
     {
-        RegisterParameter("slot_index", SlotIndex)
-            .Default(-1);
+        RegisterParameter("slot_index", SlotIndex);
 
         RegisterParameter("tmpfs_path", TmpfsPath)
             .Default();
