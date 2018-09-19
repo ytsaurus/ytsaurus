@@ -111,7 +111,6 @@
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/core/misc/proc.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -124,6 +123,8 @@
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
+
+#include <yt/core/alloc/alloc.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -987,7 +988,9 @@ void TBootstrap::OnMasterDisconnected()
 
 void TBootstrap::UpdateFootprintMemoryUsage()
 {
-    i64 actualFootprint = GetProcessMemoryUsage().Rss + Config->FootprintMemorySize;
+    i64 actualFootprint =
+        NYTAlloc::GetTotalCounters()[NYTAlloc::ETotalCounter::BytesCommitted] +
+        Config->FootprintMemorySize;
     for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         if (memoryCategory == EMemoryCategory::UserJobs || memoryCategory == EMemoryCategory::Footprint) {
             continue;
