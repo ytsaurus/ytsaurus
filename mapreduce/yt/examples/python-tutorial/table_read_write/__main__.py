@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import os
+import getpass
 
 import yt.wrapper
 
 if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
-    table = "//tmp/" + os.getlogin() + "-read-write"
+    table = "//tmp/" + getpass.getuser() + "-read-write"
 
     # Просто пишем данные в таблицу, если таблица существует, её перезапишут.
     yt.wrapper.write_table(table, [
