@@ -203,6 +203,27 @@ private:
     R (*Function)(TArgs...);
 };
 
+// Noexcept Function Adapter
+template <class R, class... TArgs>
+class TRunnableAdapter<R(*)(TArgs...) noexcept>
+{
+public:
+    enum { Arity = sizeof...(TArgs) };
+    typedef R (TSignature)(TArgs...);
+
+    explicit TRunnableAdapter(R(*function)(TArgs...) noexcept)
+        : Function(function)
+    { }
+
+    R Run(TArgs&&... args) noexcept
+    {
+        return Function(std::forward<TArgs>(args)...);
+    }
+
+private:
+    R (*Function)(TArgs...) noexcept;
+};
+
 // Bound Method Adapter
 template <class R, class T, class... TArgs>
 class TRunnableAdapter<R(T::*)(TArgs...)>
@@ -247,6 +268,52 @@ public:
 
 private:
     R (T::*Method)(TArgs...) const;
+};
+
+// Noexcept Bound Method Adapter
+template <class R, class T, class... TArgs>
+class TRunnableAdapter<R(T::*)(TArgs...) noexcept>
+{
+public:
+    typedef NMpl::TTrueType IsMethod;
+
+    enum { Arity = 1 + sizeof...(TArgs) };
+    typedef R (TSignature)(T*, TArgs...);
+
+    explicit TRunnableAdapter(R(T::*method)(TArgs...) noexcept)
+        : Method(method)
+    { }
+
+    R Run(T* target, TArgs&&... args) noexcept
+    {
+        return (target->*Method)(std::forward<TArgs>(args)...);
+    }
+
+private:
+    R (T::*Method)(TArgs...) noexcept;
+};
+
+// Const Noexcept Bound Method Adapter
+template <class R, class T, class... TArgs>
+class TRunnableAdapter<R(T::*)(TArgs...) const noexcept>
+{
+public:
+    typedef NMpl::TTrueType IsMethod;
+
+    enum { Arity = 1 + sizeof...(TArgs) };
+    typedef R (TSignature)(const T*, TArgs...);
+
+    explicit TRunnableAdapter(R(T::*method)(TArgs...) const noexcept)
+        : Method(method)
+    { }
+
+    R Run(const T* target, TArgs&&... args) noexcept
+    {
+        return (target->*Method)(std::forward<TArgs>(args)...);
+    }
+
+private:
+    R (T::*Method)(TArgs...) const noexcept;
 };
 
 
