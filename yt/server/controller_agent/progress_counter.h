@@ -24,6 +24,7 @@ public:
     void Set(i64 total);
     bool IsTotalEnabled() const;
 
+    void Decrement(i64 value);
     void Increment(i64 value);
 
     i64 GetTotal() const;
