@@ -148,6 +148,30 @@ TEST(TBooleanFormulaTest, ValidateVariable)
     EXPECT_THROW(ValidateBooleanFormulaVariable("in"), TErrorException);
 }
 
+TEST(TBooleanFormulaTest, ExternalOperators)
+{
+    auto formulaA = MakeBooleanFormula("a");
+    auto formulaB = MakeBooleanFormula("b");
+    auto aAndB = formulaA & formulaB;
+    auto aOrB = formulaA | formulaB;
+    auto notA = !formulaA;
+
+    for (auto vars : std::vector<std::vector<TString>>{{}, {"a"}, {"b"}, {"a", "b"}}) {
+        bool resA = formulaA.IsSatisfiedBy(vars);
+        bool resB = formulaB.IsSatisfiedBy(vars);
+
+        EXPECT_EQ(resA & resB, aAndB.IsSatisfiedBy(vars));
+        EXPECT_EQ(resA | resB, aOrB.IsSatisfiedBy(vars));
+        EXPECT_EQ(!resA, notA.IsSatisfiedBy(vars));
+    }
+
+    EXPECT_FALSE((!MakeBooleanFormula("a | b"))
+        .IsSatisfiedBy(std::vector<TString>{"b"}));
+
+    EXPECT_EQ((formulaA & formulaB).GetFormula(), "(a) & (b)");
+    EXPECT_EQ((formulaA | formulaB).GetFormula(), "(a) | (b)");
+    EXPECT_EQ((!formulaA).GetFormula(), "!(a)");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
