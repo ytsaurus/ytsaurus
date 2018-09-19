@@ -248,6 +248,7 @@ struct TRichYPath
 
     FLUENT_VECTOR_FIELD(TReadRange, Range);
 
+
     // Specifies columns that should be read.
     // If it's set to Nothing then all columns will be read.
     // If empty TKeyColumns is specified then each read row will be empty.
@@ -275,8 +276,6 @@ struct TRichYPath
     // Specifiy transaction that should be used to access this path.
     // Allows to start cross-transactional operations.
     FLUENT_FIELD_OPTION(TTransactionId, TransactionId);
-
-    FLUENT_FIELD_OPTION(TNode, RenameColumns);
 
     TRichYPath()
     { }
