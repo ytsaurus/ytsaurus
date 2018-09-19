@@ -624,9 +624,13 @@ Y_POD_THREAD(ui64) TSyscallGuard::ElapsedTime_;
 
 // A wrapper for mmap, mumap, and madvise calls.
 // The latter are invoked with MADV_POPULATE and MADV_FREE flags
-// and may fail if the OS support is missing. These failures are
-// ignored but subsequently logged (once).
-// Also mlocks all VMAs on startup to prevent pagefaults in our heavy binaries
+// and may fail if the OS support is missing. These failures are logged (once) and
+// handled as follows:
+// * if MADV_POPULATE fails then its subsequent attempts are suppressed
+// (since this is just an optimization)
+// * if MADV_FREE fails then it (and all subsequent attempts) is replaced with MADV_DONTNEED
+// (which is non-lazy and is less efficient but will somehow do).
+// Also this class mlocks all VMAs on startup to prevent pagefaults in our heavy binaries
 // from disturbing latency tails.
 class TMappedMemoryManager
 {
@@ -671,12 +675,38 @@ public:
 
     void Populate(void* ptr, size_t size)
     {
-        Advise(ptr, size, MADV_POPULATE, &PopulateUnavailable_);
+        RunSyscall([&] {
+            if (!PopulateUnavailable_.load(std::memory_order_relaxed)) {
+                auto result = ::madvise(ptr, size, MADV_POPULATE);
+                if (result != 0) {
+                    auto error = errno;
+                    if (error == ENOMEM) {
+                        OnOOM();
+                    }
+                    YCHECK(error == EINVAL);
+                    PopulateUnavailable_.store(true);
+                }
+            }
+        });
     }
 
     void Release(void* ptr, size_t size)
     {
-        Advise(ptr, size, MADV_FREE, &FreeUnavailable_);
+        RunSyscall([&] {
+            if (!FreeUnavailable_.load(std::memory_order_relaxed)) {
+                auto result = ::madvise(ptr, size, MADV_FREE);
+                if (result != 0) {
+                    auto error = errno;
+                    YCHECK(error == EINVAL);
+                    FreeUnavailable_.store(true);
+                }
+            }
+            if (FreeUnavailable_.load()) {
+                auto result = ::madvise(ptr, size, MADV_DONTNEED);
+                // Must not fail.
+                YCHECK(result == 0);
+            }
+        });
     }
 
     void RunBackgroundTasks(const TBackgroundContext& context)
@@ -712,30 +742,6 @@ private:
             TSyscallGuard::ChargeTime(timer.GetElapsedTime());
         });
         return func();
-    }
-
-    void Advise(
-        void* ptr,
-        size_t size,
-        int flag,
-        std::atomic<bool>* notSupported)
-    {
-        if (notSupported->load(std::memory_order_relaxed)) {
-            return;
-        }
-
-        RunSyscall(
-            [&] {
-                auto result = ::madvise(ptr, size, flag);
-                if (result != 0) {
-                    auto error = errno;
-                    if (error == ENOMEM) {
-                        OnOOM();
-                    }
-                    YCHECK(error == EINVAL);
-                    notSupported->store(true);
-                }
-            });
     }
 
 private:
