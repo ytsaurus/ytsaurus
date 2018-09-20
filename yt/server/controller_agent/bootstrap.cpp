@@ -170,7 +170,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/controller_agent",
-        CreateVirtualNode(ControllerAgent_->GetOrchidService()->Via(GetControlInvoker())));
+        CreateVirtualNode(ControllerAgent_->CreateOrchidService()->Via(GetControlInvoker())));
 
     SetBuildAttributes(orchidRoot, "controller_agent");
 
