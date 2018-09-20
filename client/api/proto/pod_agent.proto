@@ -246,6 +246,11 @@ message TTimeLimit {
     uint64 MaxExecutionTimeMs = 6;
 }
 
+message TTimeLimitStatus {
+    google.protobuf.Timestamp LastCallTime = 1;
+    uint32 ConsecutiveSuccessesCounter = 2;
+    uint32 ConsecutiveFailuresCounter = 3;
+}
 
 //Уточню позже
 message SecretEnvSelector {
@@ -542,10 +547,12 @@ message TContainerStatus {
     uint32 TimeoutCounter = 9;
     uint32 KilledExternallyCounter = 10;
     uint32 SystemFailureCounter = 11;
-    uint32 ConsecutiveFailuresCounter = 12;
-    uint32 ConsecutiveSuccessesCounter = 13;
+    // Use TimeLimit instead
+    uint32 ConsecutiveFailuresCounter = 12 [deprecated=true];
+    uint32 ConsecutiveSuccessesCounter = 13 [deprecated=true];
+    google.protobuf.Timestamp LastStartTime = 14 [deprecated=true];
 
-    google.protobuf.Timestamp LastStartTime = 14;
+    TTimeLimitStatus TimeLimit = 15;
 }
 
 enum EConditionStatus {
@@ -620,18 +627,22 @@ enum ETcpCheckState {
 
 message TTcpCheckStatus {
     ETcpCheckState State = 1;
-    google.protobuf.Timestamp LastRequestTime = 2;
-    uint32 ConsecutiveSuccessesCounter = 3;
-    uint32 ConsecutiveFailuresCounter = 4;
-    string FailReason = 5;
+    // Use TimeLimit instead
+    google.protobuf.Timestamp LastRequestTime = 2 [deprecated=true];
+    uint32 ConsecutiveSuccessesCounter = 3 [deprecated=true];
+    uint32 ConsecutiveFailuresCounter = 4 [deprecated=true];
+    TTimeLimitStatus TimeLimit = 5;
+    string FailReason = 6;
 }
 
 message THttpGetStatus {
     EHttpCheckState State = 1;
-    google.protobuf.Timestamp LastRequestTime = 2;
-    uint32 ConsecutiveSuccessesCounter = 3;
-    uint32 ConsecutiveFailuresCounter = 4;
-    string FailReason = 5;
+    // Use TimeLimit instead
+    google.protobuf.Timestamp LastRequestTime = 2 [deprecated=true];
+    uint32 ConsecutiveSuccessesCounter = 3 [deprecated=true];
+    uint32 ConsecutiveFailuresCounter = 4 [deprecated=true];
+    TTimeLimitStatus TimeLimit = 5;
+    string FailReason = 6;
 }
 
 message TReadinessStatus {
