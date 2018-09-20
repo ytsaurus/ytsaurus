@@ -13,7 +13,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 class TestRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
 
     def test_non_sticky_transactions_dont_stick(self):
         tx = start_transaction(timeout=1000)

@@ -74,7 +74,8 @@ class ExecutableItem(pytest.Item):
                         configs["master"][tag][index] = update_inplace(config, config_patches["master"])
 
             if "rpc_proxy" in config_patches:
-                configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], config_patches["rpc_proxy"])
+                for index, config in enumerate(configs["rpc_proxy"]):
+                    configs["rpc_proxy"][index] = update_inplace(config, config_patches["rpc_proxy"])
 
         kwargs['modify_configs_func'] = modify_configs
 
