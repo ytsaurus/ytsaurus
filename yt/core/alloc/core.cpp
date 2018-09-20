@@ -597,13 +597,17 @@ public:
             return;
         }
 
+        // Y_POD_STATIC_THREAD declares instances of NTls::TValue for MacOS.
+        // This typecast provides a portable way of accessing the underlying value.
+        ui64 elapsedTime = ElapsedTime_;
+
         if (ConfigurationManager->IsLoggingEnabled() &&
-            TDuration::MicroSeconds(ElapsedTime_) > ConfigurationManager->GetSyscallTimeWarningThreshold())
+            TDuration::MicroSeconds(elapsedTime) > ConfigurationManager->GetSyscallTimeWarningThreshold())
         {
             // These calls may cause allocations so we RecursionDepth_ must remain positive here.
             static const NLogging::TLogger Logger(LoggerCategory);
             LOG_DEBUG("Syscalls took too long (Time: %v)",
-                ElapsedTime_);
+                elapsedTime);
         }
 
         RecursionDepth_ = 0;
@@ -1641,28 +1645,28 @@ private:
         const auto& Logger = context.Logger;
         LOG_DEBUG("Started computing lazy free bytes");
 
-        ssize_t lazyFreeBytes = 0;
+        //ssize_t lazyFreeBytes = 0;
 
-        try {
-            TIFStream file("/proc/self/smaps");
-            auto lines = file.ReadAll();
-            for (const auto& line : SplitString(lines, "\n")) {
-                if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
-                    auto tokens = SplitString(line, " ");
-                    if (tokens.size() < 3) {
-                        continue;
-                    }
-                    lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
-                }
-            }
-            LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
-                lazyFreeBytes / 1_MB);
-
-            LastLazyFreeBytesComputeTime_ = now;
-            LazyFreeBytes_.store(lazyFreeBytes);
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to compute lazy free bytes");
-        }
+        //try {
+        //    TIFStream file("/proc/self/smaps");
+        //    auto lines = file.ReadAll();
+        //    for (const auto& line : SplitString(lines, "\n")) {
+        //        if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
+        //            auto tokens = SplitString(line, " ");
+        //            if (tokens.size() < 3) {
+        //                continue;
+        //            }
+        //            lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
+        //        }
+        //    }
+        //    LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
+        //        lazyFreeBytes / 1_MB);
+        //
+        //    LastLazyFreeBytesComputeTime_ = now;
+        //    LazyFreeBytes_.store(lazyFreeBytes);
+        //} catch (const std::exception& ex) {
+        //    LOG_DEBUG(ex, "Failed to compute lazy free bytes");
+        //}
     }
 
 private:
