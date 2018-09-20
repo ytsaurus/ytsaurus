@@ -63,9 +63,11 @@ class TBernoulliSampler
 public:
     TBernoulliSampler() = default;
 
-    TBernoulliSampler(TNullable<double> samplingRate);
+    explicit TBernoulliSampler(TNullable<double> samplingRate);
 
     bool Sample();
+
+    void Persist(const TPersistenceContext& context);
 
 private:
     TNullable<double> SamplingRate_;
@@ -75,20 +77,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TBernoulliSampler);
 
-//! This method is used only to make TPodSerializer work with the class.
-//! Unfortunately it wants to be able to dump the structure using "%v", but actually
-//! it will never be called.
-TString ToString(const TBernoulliSampler& /* sampler */);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkPools
-} // namespace NYT
-
-// Make sampler persistable as POD.
-template<>
-struct TTypeTraits<NYT::NChunkPools::TBernoulliSampler>
-{
-    static const bool IsPod = true;
-};
+} // namespace NYT;
 
