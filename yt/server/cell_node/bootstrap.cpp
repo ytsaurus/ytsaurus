@@ -1001,7 +1001,9 @@ void TBootstrap::UpdateFootprintMemoryUsage()
 
     auto acquiredFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
     if (actualFootprint > acquiredFootprint) {
-        LOG_INFO("Increased node memory footprint (OldFootpint:v, NewFootprint: %v)", acquiredFootprint, actualFootprint);
+        LOG_INFO("Increased node memory footprint (OldFootprint: %v, NewFootprint: %v)",
+            acquiredFootprint,
+            actualFootprint);
         GetMemoryUsageTracker()->Acquire(
             EMemoryCategory::Footprint,
             actualFootprint - acquiredFootprint);
