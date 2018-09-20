@@ -1678,7 +1678,7 @@ void* TSystemAllocator::Allocate(size_t size)
     auto rawSize = GetRawBlobSize<TSystemBlobHeader>(size);
     void* mmappedPtr;
     while (true) {
-        auto currentPtr = CurrentPtr_ += rawSize;
+        auto currentPtr = CurrentPtr_.fetch_add(rawSize);
         YCHECK(currentPtr + rawSize <= SystemZoneEnd);
         mmappedPtr = MappedMemoryManager->Map(currentPtr, rawSize, MAP_POPULATE);
         if (mmappedPtr == reinterpret_cast<void*>(currentPtr)) {
