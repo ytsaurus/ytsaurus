@@ -290,7 +290,8 @@ private:
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
         if (!tabletSnapshot) {
-            THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
+            LOG_INFO("Tablet snapshot is missing");
+            return;
         }
 
         try {
