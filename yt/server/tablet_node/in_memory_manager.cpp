@@ -327,6 +327,12 @@ private:
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
+        } catch (const TFiberCanceledException&) {
+            LOG_DEBUG("Preload cancelled");
+            throw;
+        } catch (...) {
+            LOG_DEBUG("Unknown exception in preload");
+            throw;
         }
 
         slotManager->RegisterTabletSnapshot(slot, tablet);
