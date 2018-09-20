@@ -785,9 +785,14 @@ CHECK_HEADER_SIZE(TSystemBlobHeader)
 class TSystemAllocator
 {
 public:
-    static void* Allocate(size_t size);
-    static void Free(void* ptr);
+    void* Allocate(size_t size);
+    void Free(void* ptr);
+
+private:
+    std::atomic<uintptr_t> CurrentPtr_ = {SystemZoneStart};
 };
+
+TBox<TSystemAllocator> SystemAllocator;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -796,22 +801,22 @@ struct TSystemAllocatable
 {
     void* operator new(size_t size) noexcept
     {
-        return TSystemAllocator::Allocate(size);
+        return SystemAllocator->Allocate(size);
     }
 
     void* operator new[](size_t size) noexcept
     {
-        return TSystemAllocator::Allocate(size);
+        return SystemAllocator->Allocate(size);
     }
 
     void operator delete(void* ptr) noexcept
     {
-        TSystemAllocator::Free(ptr);
+        SystemAllocator->Free(ptr);
     }
 
     void operator delete[](void* ptr) noexcept
     {
-        TSystemAllocator::Free(ptr);
+        SystemAllocator->Free(ptr);
     }
 };
 
@@ -850,7 +855,7 @@ private:
 private:
     void AllocateMore()
     {
-        auto* objs = static_cast<T*>(TSystemAllocator::Allocate(sizeof(T) * BatchSize));
+        auto* objs = static_cast<T*>(SystemAllocator->Allocate(sizeof(T) * BatchSize));
         for (size_t index = 0; index < BatchSize; ++index) {
             auto* obj = objs + index;
             FreeList_.Put(obj);
@@ -896,7 +901,7 @@ private:
 private:
     void AllocateMore()
     {
-        auto* objs = static_cast<T*>(TSystemAllocator::Allocate(sizeof(T) * BatchSize));
+        auto* objs = static_cast<T*>(SystemAllocator->Allocate(sizeof(T) * BatchSize));
         for (size_t index = 0; index < BatchSize; ++index) {
             auto* obj = objs + index;
             FreeLists_[index % ShardCount].Put(obj);
@@ -1671,11 +1676,21 @@ void TThreadManager::DestroyThreadState(TThreadState* state)
 void* TSystemAllocator::Allocate(size_t size)
 {
     auto rawSize = GetRawBlobSize<TSystemBlobHeader>(size);
-    StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesAllocated, rawSize);
-    auto* blob = static_cast<TSystemBlobHeader*>(MappedMemoryManager->Map(SystemZoneStart, rawSize, MAP_POPULATE));
+    void* mmappedPtr;
+    while (true) {
+        auto currentPtr = CurrentPtr_ += rawSize;
+        YCHECK(currentPtr + rawSize <= SystemZoneEnd);
+        mmappedPtr = MappedMemoryManager->Map(currentPtr, rawSize, MAP_POPULATE);
+        if (mmappedPtr == reinterpret_cast<void*>(currentPtr)) {
+            break;
+        }
+        MappedMemoryManager->Unmap(mmappedPtr, rawSize);
+    }
+    auto* blob = static_cast<TSystemBlobHeader*>(mmappedPtr);
     new (blob) TSystemBlobHeader(size);
     auto* result = HeaderToPtr(blob);
     PoisonUninitializedRange(result, size);
+    StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesAllocated, rawSize);
     return result;
 }
 
@@ -1683,8 +1698,8 @@ void TSystemAllocator::Free(void* ptr)
 {
     auto* blob = PtrToHeader<TSystemBlobHeader>(ptr);
     auto rawSize = GetRawBlobSize<TSystemBlobHeader>(blob->Size);
-    StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesFreed, rawSize);
     MappedMemoryManager->Unmap(blob, rawSize);
+    StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesFreed, rawSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2885,6 +2900,7 @@ void InitializeGlobals()
         LargeBlobAllocator.Construct();
         HugeBlobAllocator.Construct();
         ConfigurationManager.Construct();
+        SystemAllocator.Construct();
 
         SmallArenaAllocators.Construct();
         auto constructSmallArenaAllocators = [&] (EAllocationKind kind, uintptr_t zonesStart) {
