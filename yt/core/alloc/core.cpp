@@ -567,7 +567,7 @@ public:
 private:
     std::atomic<bool> LoggingEnabled_ = {false};
     std::atomic<bool> ProfilingEnabled_ = {false};
-    std::atomic<double> LargeUnreclaimableCoeff_ = {0.1};
+    std::atomic<double> LargeUnreclaimableCoeff_ = {0.05};
     std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
     std::atomic<ui64> SyscallTimeWarningThreshold_ = {10000000}; // in microseconds, 10 ms by default
 };
