@@ -11,6 +11,8 @@
 
 #include <util/generic/singleton.h>
 
+#include <util/string/vector.h>
+
 #include <yt/core/misc/size_literals.h>
 #include <yt/core/misc/intrusive_linked_list.h>
 #include <yt/core/misc/memory_tag.h>
@@ -86,6 +88,7 @@ using ::AlignUp;
 
 // Period between background activities.
 constexpr auto BackgroundInterval = TDuration::Seconds(1);
+constexpr auto LazyFreeBytesRecomputePeriod = TDuration::Seconds(15);
 
 constexpr size_t PageSize = 4_KB;
 constexpr size_t ZoneSize = 1_TB;
@@ -1367,6 +1370,8 @@ public:
         for (size_t rank = 0; rank < LargeRankCount; ++rank) {
             result[ETotalCounter::BytesCommitted] += largeArenaCounters[rank][ELargeArenaCounter::BytesCommitted];
         }
+
+        result[ETotalCounter::BytesLazyFree] = LazyFreeBytes_.load();
         
         return result;
     }
@@ -1506,6 +1511,7 @@ public:
         PushSmallStatistics(context);
         PushLargeStatistics(context);
         PushHugeStatistics(context);
+        ComputeLazyFreeBytes(context);
     }
 
 private:
@@ -1625,10 +1631,47 @@ private:
         }
     }
 
+    void ComputeLazyFreeBytes(const TBackgroundContext& context)
+    {
+        auto now = TInstant::Now();
+        if (now < LastLazyFreeBytesComputeTime_ + LazyFreeBytesRecomputePeriod) {
+            return;
+        }
+
+        const auto& Logger = context.Logger;
+        LOG_DEBUG("Started computing lazy free bytes");
+
+        ssize_t lazyFreeBytes = 0;
+
+        try {
+            TIFStream file("/proc/self/smaps");
+            auto lines = file.ReadAll();
+            for (const auto& line : SplitString(lines, "\n")) {
+                if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
+                    auto tokens = SplitString(line, " ");
+                    if (tokens.size() < 3) {
+                        continue;
+                    }
+                    lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
+                }
+            }
+            LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
+                lazyFreeBytes / 1_MB);
+
+            LastLazyFreeBytesComputeTime_ = now;
+            LazyFreeBytes_.store(lazyFreeBytes);
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to compute lazy free bytes");
+        }
+    }
+
 private:
     TGlobalSystemCounters SystemCounters_;
     std::array<TGlobalSmallCounters, SmallRankCount> SmallArenaCounters_;
     TGlobalHugeCounters HugeCounters_;
+
+    TInstant LastLazyFreeBytesComputeTime_;
+    std::atomic<ssize_t> LazyFreeBytes_ = {0};
 };
 
 TBox<TStatisticsManager> StatisticsManager;
