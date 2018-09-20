@@ -105,6 +105,7 @@ DEFINE_ENUM(ETotalCounter,
     (BytesFreed)
     (BytesUsed)
     (BytesCommitted)
+    (BytesLazyFree)
 );
 
 // Returns statistics for all user allocations.

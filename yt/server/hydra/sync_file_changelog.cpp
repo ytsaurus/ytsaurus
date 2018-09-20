@@ -193,7 +193,6 @@ public:
         , FileName_(fileName)
         , Config_(config)
         , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment_, Config_->IndexBlockSize)
-        , AppendOutput_(Alignment_, Alignment_)
         , Logger(HydraLogger)
     {
         Logger.AddTag("Path: %v", FileName_);
@@ -419,7 +418,8 @@ public:
             YCHECK(::AlignUp(CurrentFilePosition_, Alignment_) == CurrentFilePosition_);
             YCHECK(::AlignUp<i64>(AppendOutput_.Size(), Alignment_) == AppendOutput_.Size());
 
-            TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), nullptr);
+            auto data = TAsyncFileChangelogIndex::AllocateAligned<TNull>(AppendOutput_.Size(), false, Alignment_);
+            ::memcpy(reinterpret_cast<void*>(data.Begin()), AppendOutput_.Blob().Begin(), AppendOutput_.Size());
 
             // Write blob to file.
             WaitFor(IOEngine_->Pwrite(DataFile_, data, CurrentFilePosition_))

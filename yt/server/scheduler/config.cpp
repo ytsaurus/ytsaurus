@@ -280,6 +280,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
         .Default(TDuration::MilliSeconds(100));
 
+    // NB: This setting is NOT synchronized with the Cypress while scheduler is connected to master.
     RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
         .Default(TDuration::Seconds(15));
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)

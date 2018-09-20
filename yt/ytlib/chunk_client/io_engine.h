@@ -26,7 +26,7 @@ struct IIOEngine
 
     virtual TFuture<void> Pwrite(
         const std::shared_ptr<TFileHandle>& fh,
-        const TSharedRef& data, i64 offset,
+        const TSharedMutableRef& data, i64 offset,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh, i64 priority = std::numeric_limits<i64>::max()) = 0;

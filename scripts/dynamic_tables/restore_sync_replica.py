@@ -35,7 +35,7 @@ def ask_attr_for_each(items, path):
 def ask_get_for_each(prefix, items, suffix):
     return ask_for_each(items, lambda x: {"command": "get", "parameters": {"path": "{0}{1}{2}".format(prefix, x, suffix)}})
 
-def chec_replica(table, replica):
+def check_replica(table, replica):
     tablets = yt.get(table + "/@tablets")
     cells = [t["cell_id"] for t in tablets]
     tablets = [t["tablet_id"] for t in tablets]
@@ -72,15 +72,14 @@ def fix_replica(args, table, replica_id, replica):
     yt_destination = yt.YtClient(proxy=replica_cluster)
     print "Creating new replica", yson.dumps(attributes)
     
-    if args.yes:
-        yt.remove("#" + replica_id)
-        replica_id = yt.create("table_replica", attributes=attributes)
-        if replica["state"] != "disabled":
-            yt.alter_table_replica(replica_id, True)
-        print "Unmounting replica table", replica_path
-        yt_destination.unmount_table(replica_path, sync=True)
-        make_request("alter_table", {"path": replica_path, "upstream_replica_id": replica_id}, client=yt_destination)
-        yt_destination.mount_table(replica_path, sync=True)
+    yt.remove("#" + replica_id)
+    replica_id = yt.create("table_replica", attributes=attributes)
+    if replica["state"] != "disabled":
+        yt.alter_table_replica(replica_id, True)
+    print "Unmounting replica table", replica_path
+    yt_destination.unmount_table(replica_path, sync=True)
+    make_request("alter_table", {"path": replica_path, "upstream_replica_id": replica_id}, client=yt_destination)
+    yt_destination.mount_table(replica_path, sync=True)
 
 def main(args):
     table = args.table
@@ -93,10 +92,11 @@ def main(args):
     replicas = yt.get(table + "/@replicas")
 
     for replica in replicas.keys():
-        if not chec_replica(table, replica):
-        #if replicas[replica]["mode"] == "sync":
+        if not check_replica(table, replica):
             print "Bad replica", replica, replicas[replica]
-            fix_replica(args, table, replica, replicas[replica]) 
+            if args.yes and replicas[replica]["mode"] == "sync":
+                print "Will fix replica"
+                fix_replica(args, table, replica, replicas[replica])
 
     print "Checked all replicas"
 
