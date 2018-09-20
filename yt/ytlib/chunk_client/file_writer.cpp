@@ -11,6 +11,7 @@
 #include <yt/core/misc/checksum.h>
 
 #include <util/system/align.h>
+#include <util/system/compiler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -43,7 +44,12 @@ TFileWriter::TFileWriter(
     , EnableWriteDirectIO_(enableWriteDirectIO)
 {
     size_t size = 1_MB;
-    auto data = TSharedMutableRef::Allocate<TNull>(size + Alignment_, false);
+#ifdef _msan_enabled_
+    constexpr bool initializeMemory = true;
+#else
+    constexpr bool initializeMemory = false;
+#endif
+    auto data = TSharedMutableRef::Allocate<TNull>(size + Alignment_, initializeMemory);
     data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
     data = data.Slice(data.Begin(), data.Begin() + size);
     Buffer_ = data;

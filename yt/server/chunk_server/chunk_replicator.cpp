@@ -370,7 +370,6 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     }
 
     if (Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) &&
-        None(result.Status & EChunkStatus::Overreplicated) &&
         replicaCount + decommissionedReplicaCount > 0)
     {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
@@ -1269,6 +1268,7 @@ bool TChunkReplicator::CreateRemovalJob(
 }
 
 bool TChunkReplicator::CreateRepairJob(
+    EChunkRepairQueue repairQueue,
     TNode* node,
     TChunkPtrWithIndexes chunkWithIndexes,
     TJobPtr* job)
@@ -1360,7 +1360,8 @@ bool TChunkReplicator::CreateRepairJob(
         chunk,
         node,
         targetReplicas,
-        Config_->RepairJobMemoryUsage);
+        Config_->RepairJobMemoryUsage,
+        repairQueue == EChunkRepairQueue::Decommissioned);
 
     LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
         (*job)->GetJobId(),
@@ -1530,7 +1531,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 auto chunkWithIndexes = *chunkIt;
                 auto* chunk = chunkWithIndexes.GetPtr();
                 TJobPtr job;
-                if (CreateRepairJob(node, chunkWithIndexes, &job)) {
+                if (CreateRepairJob(queue, node, chunkWithIndexes, &job)) {
                     chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
                     chunkRepairQueue.erase(chunkIt);
                     if (job) {
