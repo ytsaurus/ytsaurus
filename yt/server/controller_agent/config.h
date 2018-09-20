@@ -512,6 +512,8 @@ public:
 
     TDuration OperationTransactionTimeout;
 
+    TDuration OperationTransactionPingPeriod;
+
     TDuration OperationLogProgressBackoff;
 
     TDuration OperationControllerFailTimeout;

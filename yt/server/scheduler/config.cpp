@@ -385,6 +385,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("node_changes_count_threshold_to_update_cache", NodeChangesCountThresholdToUpdateCache)
         .Default(5);
 
+    RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)
+        .Default(TDuration::Seconds(30));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

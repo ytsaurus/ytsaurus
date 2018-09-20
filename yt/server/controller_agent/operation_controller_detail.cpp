@@ -997,6 +997,7 @@ ITransactionPtr TOperationControllerBase::AttachTransaction(
     TTransactionAttachOptions options;
     options.Ping = ping;
     options.PingAncestors = false;
+    options.PingPeriod = Config->OperationTransactionPingPeriod;
     return client->AttachTransaction(transactionId, options);
 }
 
@@ -1108,6 +1109,7 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
         options.PrerequisiteTransactionIds.push_back(prerequisiteTransactionId);
     }
     options.Timeout = Config->OperationTransactionTimeout;
+    options.PingPeriod = Config->OperationTransactionPingPeriod;
 
     auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
 

@@ -1057,6 +1057,7 @@ private:
                         auto client = Bootstrap_->GetRemoteMasterClient(CellTagFromId(transactionId));
 
                         TTransactionAttachOptions options;
+                        options.PingPeriod = Config_->OperationTransactionPingPeriod;
                         options.Ping = ping;
                         options.PingAncestors = false;
                         return client->AttachTransaction(transactionId, options);
