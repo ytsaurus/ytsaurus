@@ -203,27 +203,6 @@ private:
     R (*Function)(TArgs...);
 };
 
-// Noexcept Function Adapter
-template <class R, class... TArgs>
-class TRunnableAdapter<R(*)(TArgs...) noexcept>
-{
-public:
-    enum { Arity = sizeof...(TArgs) };
-    typedef R (TSignature)(TArgs...);
-
-    explicit TRunnableAdapter(R(*function)(TArgs...) noexcept)
-        : Function(function)
-    { }
-
-    R Run(TArgs&&... args) noexcept
-    {
-        return Function(std::forward<TArgs>(args)...);
-    }
-
-private:
-    R (*Function)(TArgs...) noexcept;
-};
-
 // Bound Method Adapter
 template <class R, class T, class... TArgs>
 class TRunnableAdapter<R(T::*)(TArgs...)>
