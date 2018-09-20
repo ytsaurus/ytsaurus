@@ -336,7 +336,8 @@ class YTEnvSetup(object):
     NUM_SCHEDULERS = 0
     NUM_CONTROLLER_AGENTS = None
     ENABLE_PROXY = False
-    ENABLE_RPC_PROXY = False
+    ENABLE_RPC_PROXY = None
+    NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
     NUM_SKYNET_MANAGERS = 0
 
@@ -403,6 +404,7 @@ class YTEnvSetup(object):
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
             has_proxy=cls.get_param("ENABLE_PROXY", index),
             has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
+            rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index),
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -410,10 +412,10 @@ class YTEnvSetup(object):
             fqdn="localhost",
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
+            driver_backend=cls.get_param("DRIVER_BACKEND", index),
             enable_structured_master_logging=True)
 
         instance._cluster_name = cls.get_cluster_name(index)
-        instance._driver_backend = cls.get_param("DRIVER_BACKEND", index)
 
         return instance
 
@@ -521,7 +523,8 @@ class YTEnvSetup(object):
             cls.modify_node_config(configs["node"][index])
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
-        configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
+        for index, config in enumerate(configs["rpc_proxy"]):
+            configs["rpc_proxy"][index] = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
