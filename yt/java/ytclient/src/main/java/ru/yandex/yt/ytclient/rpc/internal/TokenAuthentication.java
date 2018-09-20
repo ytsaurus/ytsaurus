@@ -3,8 +3,8 @@ package ru.yandex.yt.ytclient.rpc.internal;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 
+import ru.yandex.yt.rpc.TCredentialsExt;
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpcproxy.TCredentialsExt;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
@@ -42,7 +42,6 @@ public class TokenAuthentication implements RpcClient {
         if (!header.hasExtension(TCredentialsExt.credentialsExt)) {
             header.setExtension(TCredentialsExt.credentialsExt, TCredentialsExt.newBuilder()
                     .setToken(credentials.getToken())
-                    .setUserIp(getLocalAddress())
                     .build());
         }
         return client.send(this, request, handler);
