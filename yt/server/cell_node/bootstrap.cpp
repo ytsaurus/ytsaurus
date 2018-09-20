@@ -988,25 +988,30 @@ void TBootstrap::OnMasterDisconnected()
 
 void TBootstrap::UpdateFootprintMemoryUsage()
 {
-    i64 actualFootprint =
-        NYTAlloc::GetTotalCounters()[NYTAlloc::ETotalCounter::BytesCommitted] +
-        Config->FootprintMemorySize;
+    auto bytesCommitted = NYTAlloc::GetTotalCounters()[NYTAlloc::ETotalCounter::BytesCommitted];
+    auto newFootprint = Config->FootprintMemorySize + bytesCommitted;
     for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         if (memoryCategory == EMemoryCategory::UserJobs || memoryCategory == EMemoryCategory::Footprint) {
             continue;
         }
-
-        actualFootprint -= GetMemoryUsageTracker()->GetUsed(memoryCategory);
+        newFootprint -= GetMemoryUsageTracker()->GetUsed(memoryCategory);
     }
 
-    auto acquiredFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
-    if (actualFootprint > acquiredFootprint) {
-        LOG_INFO("Increased node memory footprint (OldFootprint: %v, NewFootprint: %v)",
-            acquiredFootprint,
-            actualFootprint);
+    auto oldFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
+
+    LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
+        bytesCommitted,
+        oldFootprint,
+        newFootprint);
+
+    if (newFootprint > oldFootprint) {
         GetMemoryUsageTracker()->Acquire(
             EMemoryCategory::Footprint,
-            actualFootprint - acquiredFootprint);
+            newFootprint - oldFootprint);
+    } else {
+        GetMemoryUsageTracker()->Release(
+            EMemoryCategory::Footprint,
+            oldFootprint - newFootprint);
     }
 }
 
