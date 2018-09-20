@@ -357,6 +357,7 @@ message THttpGet {
     TTimeLimit TimeLimit = 4;
 }
 
+// проверяет только, что connect по данному порту успешно завершился
 message TTcpCheck {
     uint32 Port = 1;
 
@@ -622,6 +623,7 @@ message TTcpCheckStatus {
     google.protobuf.Timestamp LastRequestTime = 2;
     uint32 ConsecutiveSuccessesCounter = 3;
     uint32 ConsecutiveFailuresCounter = 4;
+    string FailReason = 5;
 }
 
 message THttpGetStatus {
@@ -629,6 +631,7 @@ message THttpGetStatus {
     google.protobuf.Timestamp LastRequestTime = 2;
     uint32 ConsecutiveSuccessesCounter = 3;
     uint32 ConsecutiveFailuresCounter = 4;
+    string FailReason = 5;
 }
 
 message TReadinessStatus {
