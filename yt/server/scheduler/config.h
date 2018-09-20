@@ -401,6 +401,8 @@ public:
 
     int NodeChangesCountThresholdToUpdateCache;
 
+    TDuration OperationTransactionPingPeriod;
+
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;
 

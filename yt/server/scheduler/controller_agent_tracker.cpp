@@ -94,6 +94,7 @@ public:
         TSchedulerConfigPtr config,
         const TOperationPtr& operation)
         : Bootstrap_(bootstrap)
+        , Config_(config)
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
     { }
@@ -164,7 +165,7 @@ public:
             BIND([this, this_ = MakeStrong(this)] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
                 TOperationTransactions transactions;
                 try {
-                    FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1));
+                    FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1), Config_->OperationTransactionPingPeriod);
                 } catch (const std::exception& ex) {
                     LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
                         OperationId_);
@@ -488,6 +489,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
+    TSchedulerConfigPtr Config_;
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
 

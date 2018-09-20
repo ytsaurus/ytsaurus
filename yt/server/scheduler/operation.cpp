@@ -70,7 +70,8 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NNative::IClientPtr(const TCellTag&)> getClient)
+    std::function<NNative::IClientPtr(const TCellTag&)> getClient,
+    TDuration pingPeriod)
 {
     auto attachTransaction = [&] (const TTransactionId& transactionId) -> ITransactionPtr {
         if (!transactionId) {
@@ -82,6 +83,7 @@ void FromProto(
         TTransactionAttachOptions options;
         options.Ping = true;
         options.PingAncestors = false;
+        options.PingPeriod = pingPeriod;
         return client->AttachTransaction(transactionId, options);
     };
 
