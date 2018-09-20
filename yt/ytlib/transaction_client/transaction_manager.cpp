@@ -1030,9 +1030,8 @@ private:
             LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
                 Id_);
 
-            TDelayedExecutor::Submit(
-                BIND(&TImpl::RunPeriodicPings, MakeWeak(this)),
-                PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod));
+            auto pingPeriod = std::min(PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod), GetTimeout() / 2);
+            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingPeriod);
         }));
     }
 
