@@ -1268,8 +1268,7 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
         .SetReplicated(true)
-        .SetWritable(true)
-        .SetOpaque(true));
+        .SetWritable(true));
 }
 
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)

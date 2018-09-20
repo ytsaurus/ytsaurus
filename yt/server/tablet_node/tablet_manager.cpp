@@ -1939,12 +1939,13 @@ private:
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx)",
+            "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %llx -> %llx)",
             tabletId,
             replicaId,
             transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             newCurrentReplicationRowIndex,
+            tablet->GetTotalRowCount(),
             replicaInfo->GetCurrentReplicationTimestamp(),
             newReplicationTimestamp);
 
@@ -1985,7 +1986,7 @@ private:
         AdvanceReplicatedTrimmedRowCount(tablet, transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, TrimmedRowCount: %v -> %v)",
+            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, TrimmedRowCount: %v -> %v, TotalRowCount: %v)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -1994,7 +1995,8 @@ private:
             prevCurrentReplicationTimestamp,
             replicaInfo->GetCurrentReplicationTimestamp(),
             prevTrimmedRowCount,
-            tablet->GetTrimmedRowCount());
+            tablet->GetTrimmedRowCount(),
+            tablet->GetTotalRowCount());
     }
 
     void HydraAbortReplicateRows(TTransaction* transaction, TReqReplicateRows* request)
@@ -2019,12 +2021,13 @@ private:
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx)",
+            "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %llx -> %llx)",
             tabletId,
             replicaId,
             transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             request->new_replication_row_index(),
+            tablet->GetTotalRowCount(),
             replicaInfo->GetCurrentReplicationTimestamp(),
             request->new_replication_timestamp());
     }
@@ -2124,16 +2127,20 @@ private:
         YCHECK(!transaction->GetReplicatedRowsPrepared());
         for (const auto& pair : replicaToRowCount) {
             auto* replicaInfo = pair.first;
+            const auto* tablet = replicaInfo->GetTablet();
             auto rowCount = pair.second;
             auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
             auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex + rowCount;
             replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
             LOG_DEBUG_UNLESS(IsRecovery(),
-                "Sync replicated rows prepared (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v -> %v)",
+                "Sync replicated rows prepared (TransactionId: %v, TabletId: %v, ReplicaId: %v, CurrentReplicationRowIndex: %v -> %v, "
+                "TotalRowCount: %v)",
                 transaction->GetId(),
+                tablet->GetId(),
                 replicaInfo->GetId(),
                 oldCurrentReplicationRowIndex,
-                newCurrentReplicationRowIndex);
+                newCurrentReplicationRowIndex,
+                tablet->GetTotalRowCount());
         }
         transaction->SetReplicatedRowsPrepared(true);
     }
@@ -2219,15 +2226,18 @@ private:
         std::sort(syncReplicas.begin(), syncReplicas.end());
         syncReplicas.erase(std::unique(syncReplicas.begin(), syncReplicas.end()), syncReplicas.end());
         for (auto* replicaInfo : syncReplicas) {
+            const auto* tablet = replicaInfo->GetTablet();
             auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
             auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
             replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
             LOG_DEBUG_UNLESS(IsRecovery(),
-                "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx)",
+                "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx, "
+                "TotalRowCount: %v)",
                 transaction->GetId(),
                 replicaInfo->GetId(),
                 oldCurrentReplicationTimestamp,
-                newCurrentReplicationTimestamp);
+                newCurrentReplicationTimestamp,
+                tablet->GetTotalRowCount());
         }
 
         std::sort(syncReplicaTablets.begin(), syncReplicaTablets.end());
@@ -2361,16 +2371,20 @@ private:
 
             for (const auto& pair : replicaToRowCount) {
                 auto* replicaInfo = pair.first;
+                const auto* tablet = replicaInfo->GetTablet();
                 auto rowCount = pair.second;
                 auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
                 auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex - rowCount;
                 replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
                 LOG_DEBUG_UNLESS(IsRecovery(),
-                    "Sync replicated rows aborted (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v -> %v)",
+                    "Sync replicated rows aborted (TransactionId: %v, TabletId: %v, ReplicaId: %v, CurrentReplicationRowIndex: %v -> %v, "
+                    "TotalRowCount: %v)",
                     transaction->GetId(),
+                    tablet->GetId(),
                     replicaInfo->GetId(),
                     oldCurrentReplicationRowIndex,
-                    newCurrentReplicationRowIndex);
+                    newCurrentReplicationRowIndex,
+                    tablet->GetTotalRowCount());
             }
         }
 
@@ -2407,7 +2421,14 @@ private:
         tablet->UpdateLastCommitTimestamp(timestamp);
 
         if (tablet->IsPhysicallyOrdered()) {
+            auto oldTotalRowCount = tablet->GetTotalRowCount();
             tablet->UpdateTotalRowCount();
+            auto newTotalRowCount = tablet->GetTotalRowCount();
+            LOG_DEBUG_UNLESS(IsRecovery() || oldTotalRowCount == newTotalRowCount,
+                "Tablet total row count updated (TabletId: %v, TotalRowCount: %v -> %v)",
+                tablet->GetId(),
+                oldTotalRowCount,
+                newTotalRowCount);
         }
     }
 
@@ -2831,8 +2852,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .Value(tablet->GetReaderConfig())
-                .DoIf(
-                    tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+                .DoIf(tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
@@ -2844,7 +2864,7 @@ private:
                                     .DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
                             });
                 })
-                .DoIf(!tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+                .DoIf(tablet->IsPhysicallyOrdered(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("stores").DoMapFor(
                             tablet->StoreIdMap(),
@@ -2857,7 +2877,7 @@ private:
                         .Item("total_row_count").Value(tablet->GetTotalRowCount())
                         .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
                 })
-                .DoIf(!tablet->IsReplicated(), [&] (TFluentMap fluent) {
+                .DoIf(tablet->IsReplicated(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("replicas").DoMapFor(
                             tablet->Replicas(),
@@ -3192,7 +3212,7 @@ private:
             return nullptr;
         }
 
-        auto pair = replicas.emplace(replicaId, TTableReplicaInfo(replicaId));
+        auto pair = replicas.emplace(replicaId, TTableReplicaInfo(tablet, replicaId));
         YCHECK(pair.second);
         auto& replicaInfo = pair.first->second;
 

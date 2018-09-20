@@ -43,7 +43,7 @@ import requests
 
 NODEJS_RESOURCE = "sbr:629132696"
 INTEGRATION_TESTS_PARALLELISM = 4
-PYTHON_TESTS_PARALLELISM = 16
+PYTHON_TESTS_PARALLELISM = 6
 
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
@@ -503,6 +503,7 @@ def package(options, build_context):
                 "yandex-yt-node.json",
                 "yandex-yt-proxy.json",
                 "yandex-yt-scheduler.json",
+                "yandex-yt-src.json",
             ]
             artifacts_dir = get_artifacts_dir(options)
             with cwd(artifacts_dir):

@@ -1,5 +1,5 @@
-set(NAME deps-yt-contrib-fastlz)
-set(BASE ${CMAKE_SOURCE_DIR}/yt/contrib/fastlz)
+set(NAME deps-arcadia-contrib-libs-fastlz)
+set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/fastlz)
 set(SRCS
   ${BASE}/fastlz.c
 )

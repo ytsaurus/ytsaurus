@@ -771,11 +771,6 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
 
-    // For sorted_merge and sorted_reduce jobs.
-    TLogDigestConfigPtr SortedMergeJobProxyMemoryDigest;
-    // For final_sort and partition_reduce jobs.
-    TLogDigestConfigPtr FinalSortJobProxyMemoryDigest;
-
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 

@@ -23,9 +23,11 @@ TJob::TJob(
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
     TInstant startTime,
-    const TNodeResources& resourceUsage)
+    const TNodeResources& resourceUsage,
+    bool decommission)
     : JobId_(jobId)
     , Type_(type)
+    , Decommission_(decommission)
     , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , Node_(node)
     , TargetReplicas_(targetReplicas)
@@ -80,7 +82,8 @@ TJobPtr TJob::CreateRepair(
     TChunk* chunk,
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
-    i64 memoryUsage)
+    i64 memoryUsage,
+    bool decommisssion)
 {
     auto dataSize = chunk->GetPartDiskSpace();
 
@@ -96,7 +99,8 @@ TJobPtr TJob::CreateRepair(
         node,
         targetReplicas,
         TInstant::Now(),
-        resourceUsage);
+        resourceUsage,
+        decommisssion);
 }
 
 TJobPtr TJob::CreateSeal(
