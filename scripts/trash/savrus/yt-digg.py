@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# YT Assistance scripts
+# YT Dynamic tables digging scripts
 #
 
 import yt.wrapper as yt
