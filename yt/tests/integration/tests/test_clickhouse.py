@@ -1,7 +1,7 @@
 from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges
 from yt_commands import *
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
-from yt.wrapper.common import sanitize_structure
+from yt.wrapper.common import simplify_structure
 
 from distutils.spawn import find_executable
 
