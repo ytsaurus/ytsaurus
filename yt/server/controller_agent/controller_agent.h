@@ -53,7 +53,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    NYTree::IYPathServicePtr GetOrchidService();
+    NYTree::IYPathServicePtr CreateOrchidService();
 
     /*!
      *  \note Thread affinity: any

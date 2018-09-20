@@ -161,22 +161,21 @@ IYPathServicePtr IYPathService::Via(IInvokerPtr invoker)
 
 class TCachedYPathService
     : public TYPathServiceBase
+    , public ICachedYPathService
 {
 public:
     TCachedYPathService(
         IYPathServicePtr underlyingService,
         TDuration updatePeriod)
         : UnderlyingService_(std::move(underlyingService))
+        , IsCacheEnabled_(false)
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             GetWorkerInvoker(),
             BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
             updatePeriod))
     {
         YCHECK(UnderlyingService_);
-        // NB: we explicitly build cache in constructor in order to have
-        // CachedTreeOrError_ set at moment of first request invocation.
-        RebuildCache();
-        PeriodicExecutor_->Start();
+        SetUpdatePeriod(updatePeriod);
     }
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
@@ -184,8 +183,26 @@ public:
         return TResolveResultHere{path};
     }
 
+    virtual void SetUpdatePeriod(TDuration period)
+    {
+        if (period == TDuration::Zero()) {
+            if (IsCacheEnabled_) {
+                IsCacheEnabled_ = false;
+                PeriodicExecutor_->Stop();
+            }
+        } else {
+            PeriodicExecutor_->SetPeriod(period);
+            if (!IsCacheEnabled_) {
+                RebuildCache();
+                PeriodicExecutor_->Start();
+                IsCacheEnabled_ = true;
+            }
+        }
+    }
+
 private:
     const IYPathServicePtr UnderlyingService_;
+    std::atomic<bool> IsCacheEnabled_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
@@ -193,15 +210,18 @@ private:
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
-        GetWorkerInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
-            try {
-                auto cachedTreeOrError = GetCachedTree();
-                auto cachedTree = cachedTreeOrError.ValueOrThrow();
-                ExecuteVerb(cachedTree, context);
-            } catch (const std::exception& ex) {
-                context->Reply(ex);
-            }
-        }));
+        if (IsCacheEnabled_) {
+            GetWorkerInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)]() {
+                try {
+                    auto cachedTree = GetCachedTree().ValueOrThrow();
+                    ExecuteVerb(cachedTree, context);
+                } catch (const std::exception& ex) {
+                    context->Reply(ex);
+                }
+            }));
+        } else {
+            UnderlyingService_->Invoke(context);
+        }
         return true;
     }
 
@@ -216,9 +236,7 @@ private:
             auto yson = WaitFor(asyncYson)
                 .ValueOrThrow();
 
-            auto node = ConvertToNode(yson);
-
-            SetCachedTree(node);
+            SetCachedTree(ConvertToNode(yson));
         } catch (const std::exception& ex) {
             SetCachedTree(TError(ex));
         }
@@ -250,9 +268,7 @@ private:
 
 IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
 {
-    return updatePeriod == TDuration::Zero()
-        ? MakeStrong(this)
-        : New<TCachedYPathService>(this, updatePeriod);
+    return New<TCachedYPathService>(this, updatePeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
