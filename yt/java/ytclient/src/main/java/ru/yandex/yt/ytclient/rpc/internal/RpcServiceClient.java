@@ -42,7 +42,7 @@ public class RpcServiceClient implements InvocationHandler {
         builder.setRequestId(RpcUtil.toProto(GUID.create()));
         builder.setService(serviceName);
         builder.setMethod(methodDescriptor.getMethodName());
-        builder.setProtocolVersion(protocolVersion);
+        builder.setProtocolVersionMajor(protocolVersion);
         return builder;
     }
 
