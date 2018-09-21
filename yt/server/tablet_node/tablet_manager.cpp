@@ -2357,6 +2357,7 @@ private:
     {
         if (transaction &&
             !transaction->GetForeign() &&
+            transaction->GetPrepareTimestamp() != NullTimestamp &&
             tablet->GetAtomicity() == EAtomicity::Full &&
             Slot_->GetAutomatonState() == EPeerState::Leading)
         {
