@@ -88,6 +88,13 @@ public:
 
         try {
             ConfigNode_ = ConvertObjectToNode(configDict);
+
+            // TODO(shakurov): remove this once the sticky transaction pool is
+            // refactored out of connection and into driver.
+            auto enableStickyTransactionPool =  GetEphemeralNodeFactory()->CreateBoolean();
+            enableStickyTransactionPool->SetValue(true);
+            ConfigNode_->AsMap()->AddChild("enable_sticky_transaction_pool", enableStickyTransactionPool);
+
             auto connection = NApi::CreateConnection(ConfigNode_);
             auto driverConfig = ConvertTo<TDriverConfigPtr>(ConfigNode_);
             UnderlyingDriver_ = CreateDriver(connection, driverConfig);
