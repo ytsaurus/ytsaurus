@@ -196,6 +196,10 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                 return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
                     Id_));
 
+            case ETransactionState::Detached:
+                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is detached",
+                    Id_));
+
             case ETransactionState::Active:
                 State_ = ETransactionState::Committing;
                 break;
