@@ -325,6 +325,11 @@ struct TTransactionCommitOptions
     bool GeneratePrepareTimestamp = true;
 };
 
+struct TTransactionPingOptions
+{
+    bool EnableRetries = true;
+};
+
 struct TTransactionCommitResult
 {
     //! Empty for non-atomic transactions (timestamps are fake).

@@ -23,6 +23,7 @@ using TTransactionAttachOptions = NApi::TTransactionAttachOptions;
 using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
 using TTransactionCommitResult = NApi::TTransactionCommitResult;
 using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
+using TTransactionPingOptions = NApi::TTransactionPingOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +54,7 @@ public:
     void Detach();
 
     //! Sends an asynchronous ping.
-    TFuture<void> Ping(bool enableRetries = true);
+    TFuture<void> Ping(const TTransactionPingOptions& options = {});
 
 
     //! Returns the transaction type.

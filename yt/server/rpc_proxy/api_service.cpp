@@ -702,9 +702,11 @@ private:
         }
 
         // TODO(sandello): Options!
+        TTransactionPingOptions pingOptions;
+        pingOptions.EnableRetries = false;
         CompleteCallWith(
             context,
-            transaction->Ping(false));
+            transaction->Ping(pingOptions));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction)
