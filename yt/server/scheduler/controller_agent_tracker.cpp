@@ -94,7 +94,7 @@ public:
         TSchedulerConfigPtr config,
         const TOperationPtr& operation)
         : Bootstrap_(bootstrap)
-        , Config_(config)
+        , Config_(std::move(config))
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
     { }
