@@ -2868,9 +2868,6 @@ private:
     void BuildReplicaOrchidYson(const TTableReplicaInfo& replica, TFluentAny fluent)
     {
         fluent
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
             .BeginMap()
                 .Item("cluster_name").Value(replica.GetClusterName())
                 .Item("replica_path").Value(replica.GetReplicaPath())
