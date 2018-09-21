@@ -57,31 +57,17 @@ def main():
 
     sources = zip(peers, cells, tablets)
 
-    total_row_counts = ask_for_each(sources, lambda x: {"command": "get", "parameters": {"path": "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/total_row_count".format(x[0], x[1], x[2])}})
-    print "total_row_counts", len(total_row_counts)
+    tablet_orchids = ask_for_each(sources, lambda x: {"command": "get", "parameters": {"path": "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}".format(x[0], x[1], x[2])}})
+    print "tablet_orchids", len(tablet_orchids)
 
-    replicas = ask_for_each(sources, lambda x: {"command": "get", "parameters": {"path": "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/replicas".format(x[0], x[1], x[2])}})
-    print "replicas", len(replicas)
-
-    rsources = [[sources[i]] * len(replicas[i]) for i in xrange(len(replicas)) if replicas[i] is not None]
-    total_row_counts = [[total_row_counts[i]] * len(replicas[i]) for i in xrange(len(replicas)) if replicas[i] is not None]
-    replicas = [list(replica) for replica in replicas if replica is not None]
-    rsources = sum(rsources, [])
-    replicas = sum(replicas, [])
-    total_row_counts = sum(total_row_counts, [])
-
-    rsources = [list(s) + [r] for s, r in zip(rsources, replicas)]
-
-    print "Will ask for", len(rsources)
-
-    replication_row_indexes = ask_for_each(rsources, lambda x: {"command": "get", "parameters": {"path": "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/replicas/{3}/current_replication_row_index".format(x[0], x[1], x[2], x[3])}})
-    print "replication_row_indexes", len(replication_row_indexes)
-
-    assert len(total_row_counts) == len(replication_row_indexes)
-
-    for i in xrange(len(replicas)):
-        if total_row_counts[i] < replication_row_indexes[i]:
-            print replication_row_indexes[i] - total_row_counts[i], total_row_counts[i], replication_row_indexes[i], rsources[i], table_paths[tablet_tables[rsources[i][2]]] 
+    for s, t in zip(sources, tablet_orchids):
+        if "replicas" not in t:
+            continue
+        for r in t["replicas"].values():
+            total = t["total_row_count"]
+            current = r["current_replication_row_index"]
+            if current > total:
+                print current - total, total, current, s, r, table_paths[tablet_tables[s[2]]]
 
 if __name__ == "__main__":
     main()
