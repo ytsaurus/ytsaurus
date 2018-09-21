@@ -420,7 +420,7 @@ message TBoxStatus {
 
     repeated TContainerStatus Inits = 3;
 
-    //Неструктурированное описание последней ошибки связанной c запуском контейнера
+    // Неструктурированное описание последней ошибки
     string FailReason = 5;
 
     TCondition Ready = 6;
@@ -595,6 +595,9 @@ message TWorkloadStatus {
 
     // Ревизия к которой относится workload
     uint32 Revision = 12;
+
+    // Неструктурированное описание последней ошибки
+    string FailReason = 13;
 }
 
 enum EHttpCheckState {
@@ -726,7 +729,7 @@ message TLayerStatus {
     //Общее количество ошибок связанное с ресурсом
     uint32 FailCounter = 5;
 
-    //Неструктурированное описание последней ошибки связанной с ресурсом
+    // Неструктурированное описание последней ошибки
     string FailReason = 6;
 
     TCondition Ready = 7;
@@ -752,7 +755,7 @@ message TStaticResourceStatus {
     //Общее количество ошибок связанное с ресурсом
     uint32 FailCounter = 5;
 
-    //Неструктурированное описание последней ошибки связанной с ресурсом
+    // Неструктурированное описание последней ошибки
     string FailReason = 6;
 
     TCondition Ready = 7;
@@ -799,7 +802,7 @@ message TVolumeStatus {
     //Количество неудачных попыток собрать вольюм
     uint32 FailCounter = 3;
 
-    //Неструктурированное описание последней ошибки связанной с томом
+    // Неструктурированное описание последней ошибки
     string FailReason = 4;
 
     TCondition Ready = 5;
