@@ -1339,7 +1339,8 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 10,
-                    "cpu": 10
+                    "cpu": 10,
+                    "memory": 10 * 1024 ** 3,
                 }
             }
         }
