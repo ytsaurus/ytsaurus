@@ -783,7 +783,7 @@ void ValidateClientRow(
     for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, schema, &idMapping);
 
-        if (mappedId < 0 || mappedId > schema.Columns().size()) {
+        if (mappedId < 0 || mappedId >= schema.Columns().size()) {
             int size = nameTable->GetSize();
             if (value.Id < 0 || value.Id >= size) {
                 THROW_ERROR_EXCEPTION("Expected value id in range [0:%v] but got %v",
