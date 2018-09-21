@@ -44,6 +44,7 @@ import requests
 NODEJS_RESOURCE = "sbr:629132696"
 INTEGRATION_TESTS_PARALLELISM = 6
 PYTHON_TESTS_PARALLELISM = 6
+YP_TESTS_PARALLELISM = 6
 
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
@@ -900,6 +901,10 @@ def run_yp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("YP integration tests are skipped since all tests are disabled")
         return
+    
+    pytest_args = []
+    if options.enable_parallel_testing:
+        pytest_args.extend(["--process-count", str(YP_TESTS_PARALLELISM)])
 
     node_path = get_node_modules_dir(options)
     for python_version in iter_enabled_python_versions(options):
@@ -909,7 +914,8 @@ def run_yp_integration_tests(options, build_context):
            env={
                "NODE_PATH": node_path
            },
-           python_version=python_version)
+           python_version=python_version,
+           pytest_args=pytest_args)
 
 @build_step
 @only_for_projects("yt")
