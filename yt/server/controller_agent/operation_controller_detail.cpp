@@ -1972,12 +1972,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->SplitJobCount);
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    MaybeBanInTentativeTree(joblet, taskResult);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
@@ -2058,12 +2053,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    MaybeBanInTentativeTree(joblet, taskResult);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
@@ -2152,12 +2142,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    MaybeBanInTentativeTree(joblet, taskResult);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -3670,6 +3655,19 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
     return Spec_->TentativePoolTrees.has(treeId);
+}
+
+void TOperationControllerBase::MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result)
+{
+    if (result.BanTree) {
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
+        auto error = TError("Operation was banned from tentative tree")
+            << TErrorAttribute("tree_id", joblet->TreeId);
+        SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
+    }
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const

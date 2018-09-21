@@ -115,6 +115,7 @@ DEFINE_ENUM(EOperationAlertType,
     (OperationTooLong)
     (OperationPending)
     (OperationCompletedByUserRequest)
+    (OperationBannedInTentativeTree)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
