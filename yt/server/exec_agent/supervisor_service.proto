@@ -102,7 +102,7 @@ message TRspPollThrottlingRequest
 message TJobProxyResources
 {
     required int64 memory = 1;
-    required int32 cpu = 2;
+    required double cpu = 2;
     required int32 network = 3;
 }
 
