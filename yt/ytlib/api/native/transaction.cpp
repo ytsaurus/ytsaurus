@@ -1462,6 +1462,11 @@ private:
 
         {
             auto guard = Guard(SpinLock_);
+            if (State_ == ETransactionState::Abort) {
+                THROW_ERROR_EXCEPTION("Cannot prepare since transaction %v is already in %Qlv state",
+                    GetId(),
+                    State_);
+            }
             YCHECK(State_ == ETransactionState::Prepare || State_ == ETransactionState::Commit);
             YCHECK(Prepared_ == false);
             Prepared_ = true;
