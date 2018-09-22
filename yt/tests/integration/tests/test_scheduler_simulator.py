@@ -182,13 +182,15 @@ scheduler_simulator_config = {
     "event_log_file": None,
     "enable_full_event_log": False,
     "default_tree": "test_pool",
-    "scheduler": None,
-    "node_groups": [{"count": 1, "tags": ["internal"],
-                     "resource_limits": {"cpu": 2.0, "memory": 8 * ONE_GB, "user_slots": 40, "network": 100}},
-                    {"count": 1, "tags": ["external"],
-                     "resource_limits": {"cpu": 2.0, "memory": 8 * ONE_GB, "user_slots": 40, "network": 100}}],
+    "scheduler_config_file": None,
+    "node_groups_file": None,
     "cycles_per_flush": 1000000,
 }
+
+node_groups = [{"count": 1, "tags": ["internal"],
+                "resource_limits": {"cpu": 2.0, "memory": 8 * ONE_GB, "user_slots": 40, "network": 100}},
+               {"count": 1, "tags": ["external"],
+                "resource_limits": {"cpu": 2.0, "memory": 8 * ONE_GB, "user_slots": 40, "network": 100}}]
 
 pools_config = yson.to_yson_type(
     {
@@ -288,8 +290,16 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         self._set_scheduler_simulator_config_params(simulator_files_path)
         with open(simulator_files_path["scheduler_simulator_config_yson_file"], "w") as fout:
             fout.write(yson.dumps(scheduler_simulator_config))
+
+        with open(simulator_files_path["node_groups_yson_file"], "w") as fout:
+            yson.dump(node_groups, fout)
+
         with open(simulator_files_path["pools_test_yson_file"], "w") as fout:
             yson.dump(pools_config, fout)
+
+        scheduler_config = self.Env.configs["scheduler"][0]["scheduler"]
+        with open(simulator_files_path["scheduler_config_yson_file"], "w") as fout:
+            yson.dump(scheduler_config, fout)
 
         with open(simulator_files_path["simulator_input_bin_file"]) as fin:
             subprocess.check_call(["scheduler_simulator",
@@ -330,6 +340,8 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         files["simulator_input_yson_file"] = os.path.join(simulator_data_dir, "simulator_input.yson")
         files["simulator_input_bin_file"] = os.path.join(simulator_data_dir, "simulator_input.bin")
         files["scheduler_simulator_config_yson_file"] = os.path.join(simulator_data_dir, "scheduler_simulator_config.yson")
+        files["node_groups_yson_file"] = os.path.join(simulator_data_dir, "node_groups.yson")
+        files["scheduler_config_yson_file"] = os.path.join(simulator_data_dir, "scheduler_config.yson")
         files["pools_test_yson_file"] = os.path.join(simulator_data_dir, "pools_test.yson")
         files["operations_stats_file"] = os.path.join(simulator_data_dir, "operations_stats_test.csv")
         files["scheduler_event_log_file"] = os.path.join(simulator_data_dir, "scheduler_event_log_test.txt")
@@ -340,7 +352,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         scheduler_simulator_config["pools_file"] = simulator_files_path["pools_test_yson_file"]
         scheduler_simulator_config["operations_stats_file"] = simulator_files_path["operations_stats_file"]
         scheduler_simulator_config["event_log_file"] = simulator_files_path["scheduler_event_log_file"]
-        scheduler_config = self.Env.configs["scheduler"][0]["scheduler"]
-        scheduler_simulator_config["scheduler"] = scheduler_config
+        scheduler_simulator_config["node_groups_file"] = simulator_files_path["node_groups_yson_file"]
+        scheduler_simulator_config["scheduler_config_file"] = simulator_files_path["scheduler_config_yson_file"]
 
 ##################################################################
