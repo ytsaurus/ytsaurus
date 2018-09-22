@@ -10,7 +10,7 @@ from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_s
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
-from .ypath import FilePath, ypath_join, ypath_dirname
+from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
 
@@ -425,6 +425,20 @@ def upload_file_to_cache(filename, hash=None, client=None):
     remove(real_destination, force=True, client=client)
 
     return destination
+
+def _touch_file_in_cache(filepath, client=None):
+    use_legacy = get_config(client)["use_legacy_file_cache"]
+    if use_legacy is None:
+        use_legacy = get_backend_type(client) == "native" or \
+                     "put_file_to_cache" not in get_api_commands(client) or \
+                     "get_file_from_cache" not in get_api_commands(client) or \
+                     get_config(client)["remote_temp_files_directory"] is not None
+
+    if use_legacy:
+        set(filepath + "&/@touched", True, client=client)
+    else:
+        dirname, hash = ypath_split(filepath)
+        get_file_from_cache(hash, client=client)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):
