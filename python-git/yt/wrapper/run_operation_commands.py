@@ -413,10 +413,11 @@ def run_remote_copy(source_table, destination_table,
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 class OperationRequestRetrier(Retrier):
-    def __init__(self, command_name, spec, run_with_start_op, client=None):
+    def __init__(self, command_name, spec, run_with_start_op, retry_actions, client=None):
         self.command_name = command_name
         self.spec = spec
         self.run_with_start_op = run_with_start_op
+        self.retry_actions = retry_actions
         self.client = client
 
         retry_config = {
@@ -441,6 +442,8 @@ class OperationRequestRetrier(Retrier):
                                                          client=self.client)
 
     def backoff_action(self, iter_number, sleep_backoff):
+        for action in self.retry_actions:
+            action()
         logger.warning("Failed to start operation since concurrent operation limit exceeded. "
                        "Sleep for %.2lf seconds before next (%d) retry.",
                        sleep_backoff, iter_number)
@@ -448,10 +451,11 @@ class OperationRequestRetrier(Retrier):
 
 def _make_operation_request(command_name, spec, sync,
                             finalization_actions=None,
+                            retry_actions=None,
                             run_with_start_op=None,
                             client=None):
     def _manage_operation(finalization_actions):
-        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, client=client)
+        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, retry_actions=retry_actions, client=client)
         operation_id = retrier.run()
         operation = Operation(operation_id, type=command_name, finalization_actions=finalization_actions, client=client)
 
@@ -586,9 +590,12 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
     if enable_optimizations and spec_builder.operation_type in OPERATION_OPTIMIZERS:
         operations_list = OPERATION_OPTIMIZERS[spec_builder.operation_type](spec, client)
 
-    finalizer = spec_builder.get_finalizer(spec, client=client)
     _, _, finalization_actions = operations_list[-1]
+
+    finalizer = spec_builder.get_finalizer(spec, client=client)
     finalization_actions.append(finalizer)
+
+    retry_actions = [spec_builder.get_toucher()]
 
     if len(operations_list) > 1 and not sync:
         raise YtError(
@@ -602,6 +609,7 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
             result = _make_operation_request(command_name=operation_type,
                                              spec=spec,
                                              finalization_actions=finalization_actions,
+                                             retry_actions=retry_actions,
                                              run_with_start_op=spec_builder.run_with_start_op,
                                              sync=sync,
                                              client=client)

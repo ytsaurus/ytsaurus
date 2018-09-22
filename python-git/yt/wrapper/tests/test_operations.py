@@ -806,6 +806,8 @@ print(op.id)
                     "cat; sleep 5",
                     table,
                     TEST_DIR + "/output_" + str(index),
+                    # File is used to test toucher.
+                    local_files=get_test_file_path("capitalize_b.py"),
                     sync=False,
                     spec={"pool": "with_operation_count_limit"})
 

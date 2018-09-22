@@ -148,6 +148,7 @@ class FileUploader(object):
     def __init__(self, client):
         self.client = client
         self.disk_size = 0
+        self.uploaded_files = []
 
     def __call__(self, files):
         if files is None:
@@ -171,6 +172,7 @@ class FileUploader(object):
                     "executable": is_executable(local_file.path, client=self.client),
                     "file_name": local_file.file_name,
                 }))
+                self.uploaded_files.append(path)
         return file_paths
 
 def _is_python_function(binary):
