@@ -177,7 +177,8 @@ private:
                     }
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error writing value of field %Qv",
-                        fieldDescription->Name);
+                        fieldDescription->Name)
+                        << ex;
                 }
             }
 
