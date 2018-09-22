@@ -332,14 +332,27 @@ TWritingValueConsumer::TWritingValueConsumer(
 
 TFuture<void> TWritingValueConsumer::Flush()
 {
-    return Writer_->GetReadyEvent()
-        .Apply(BIND([=, rows = std::move(Rows_)] () {
+    if (RowBuffer_->GetSize() == 0) {
+        return VoidFuture;
+    }
+
+    // We could have multiple value consumers writing into the same Writer.
+    // It means, that there could be multiple subscribers waiting to flush data on the same ready event.
+    // To make writing safe, we must double check that the writer is really ready, before flushing rows.
+
+    return
+        BIND([=, rows = std::move(Rows_)] () {
+            while (!Writer_->GetReadyEvent().IsSet() || !Writer_->GetReadyEvent().Get().IsOK()) {
+                WaitFor(Writer_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
             Writer_->Write(rows);
             RowBuffer_->Clear();
             return Writer_->GetReadyEvent();
         })
-        // All the work with Writer must happen from the same thread, so should get back to this thread to do actual Writing.
-        .AsyncVia(GetCurrentInvoker()));
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
 }
 
 const TNameTablePtr& TWritingValueConsumer::GetNameTable() const

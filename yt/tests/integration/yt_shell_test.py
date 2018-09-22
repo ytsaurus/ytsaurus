@@ -26,7 +26,8 @@ def get_config_patcher(patches):
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, patches.get("DELTA_DRIVER_CONFIG", {}))
         configs["proxy"] = update_inplace(configs["proxy"], patches.get("DELTA_PROXY_CONFIG", {}))
-        configs["rpc_proxy"] = update_inplace(configs["rpc_proxy"], patches.get("DELTA_RPC_PROXY_CONFIG", {}))
+        for index, config in enumerate(configs["rpc_proxy"]):
+            configs["rpc_proxy"][index] = update_inplace(config, patches.get("DELTA_RPC_PROXY_CONFIG", {}))
     return apply_config_patches
 
 def extract_attrs(file_path, comment_line_begin):

@@ -109,7 +109,7 @@ TDuration TTransaction::GetTimeout() const
     return Timeout_;
 }
 
-TFuture<void> TTransaction::Ping(bool /*enableRetries*/)
+TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
 {
     return SendPing();
 }
@@ -194,6 +194,10 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
             case ETransactionState::Aborted:
                 return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
+                    Id_));
+
+            case ETransactionState::Detached:
+                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is detached",
                     Id_));
 
             case ETransactionState::Active:
