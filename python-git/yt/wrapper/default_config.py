@@ -77,7 +77,7 @@ default_config = {
         "retries": retries_config(count=6, enable=True, backoff={
             "policy": "exponential",
             "exponential_policy": {
-                "start_timeout": 2,
+                "start_timeout": 2000,
                 "base": 2,
                 "max_timeout": 20000,
                 "decay_factor_bound": 0.3
@@ -432,7 +432,7 @@ default_config = {
     "read_retries": retries_config(count=30, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 2,
+            "start_timeout": 2000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
@@ -448,7 +448,7 @@ default_config = {
     "write_retries": retries_config(count=6, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 2,
+            "start_timeout": 2000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
@@ -467,7 +467,7 @@ default_config = {
     "start_operation_retries": retries_config(count=30, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 3,
+            "start_timeout": 3000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
@@ -483,7 +483,7 @@ default_config = {
     "concatenate_retries": retries_config(count=6, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 20,
+            "start_timeout": 20000,
             "base": 2,
             "max_timeout": 120000,
             "decay_factor_bound": 0.3,
