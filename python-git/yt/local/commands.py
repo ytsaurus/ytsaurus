@@ -153,6 +153,8 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
         environment.id))
     if start_proxy:
         logger.info("Proxy address: %s", environment.get_proxy_address())
+        if environment._hostname != "localhost":
+            logger.info("UI address: http://yt.yandex.net/%s", environment.get_proxy_address())
     if start_rpc_proxy:
         logger.info("GRPC proxy address: %s", environment.get_grpc_proxy_address())
 

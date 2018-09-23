@@ -485,6 +485,10 @@ class YTInstance(object):
                 client.create("user", attributes={"name": "application_operations"})
                 client.add_member("application_operations", "superusers")
 
+            if self.has_proxy:
+                # NB: it is used to determine proper operation URL in local mode.
+                client.set("//sys/@local_mode_proxy_address", self.get_proxy_address())
+
             self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
