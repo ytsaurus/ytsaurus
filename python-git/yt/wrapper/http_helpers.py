@@ -12,7 +12,7 @@ import yt.yson as yson
 import yt.json_wrapper as json
 
 from yt.packages.six import reraise, add_metaclass, PY3, iterbytes
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import xrange, map as imap
 
 import os
 import sys
@@ -33,6 +33,18 @@ def _hexify(message):
         else:
             return hex(byte)
     return "".join(map(convert, iterbytes(message)))
+
+def _hexify_recursively(obj):
+    if isinstance(obj, dict):
+        for key in obj:
+            obj[key] = _hexify_recursively(obj[key])
+    elif isinstance(obj, list):
+        for index in xrange(len(obj)):
+            obj[key] = _hexify_recursively(obj[key])
+    elif isinstance(obj, bytes):
+        return _hexify(obj)
+    else:
+        return obj
 
 def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
@@ -105,7 +117,7 @@ def check_response_is_decodable(response, format):
     elif format == "yson":
         try:
             if PY3:
-                yson.loads(_hexify(response.content))
+                yson.loads(response.content, encoding=None)
             else:
                 yson.loads(response.content)
         except (yson.YsonError, TypeError):
