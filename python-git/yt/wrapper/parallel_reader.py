@@ -18,13 +18,8 @@ class ParallelReadRetrier(Retrier):
     def __init__(self, command_name, transaction_id, client):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
         retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
-        retry_config = {
-            "count": get_config(client)["read_retries"]["retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                            get_config(client)["proxy"]["heavy_request_timeout"])
+        retry_config = get_config(client)["read_retries"]
+        timeout = get_config(client)["proxy"]["heavy_request_timeout"]
 
         super(ParallelReadRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=timeout,

@@ -255,18 +255,15 @@ class Config(types.ModuleType, client_state.ClientState):
         config = self.get_config(client)
         #backend = self.get_backend_type(client)
         # TODO(ignat): support native backend.
-        return self.common_module.get_value(config["proxy"]["request_retry_timeout"],
-                                            config["proxy"]["request_timeout"])
+        return config["proxy"]["request_timeout"]
 
     def get_request_retry_count(self, client):
         config = self.get_config(client)
         #backend = self.get_backend_type(client)
         # TODO(ignat): support native backend.
-        enable = self.common_module.get_value(config["proxy"]["request_retry_enable"],
-                                              config["proxy"]["retries"]["enable"])
+        enable = config["proxy"]["retries"]["enable"]
         if enable:
-            return self.common_module.get_value(config["proxy"]["request_retry_count"],
-                                                config["proxy"]["retries"]["count"])
+            return config["proxy"]["retries"]["count"]
         else:
             return 1
 
@@ -282,42 +279,11 @@ class Config(types.ModuleType, client_state.ClientState):
     def update_config(self, patch):
         self.common_module.update_inplace(self.config, patch)
 
-    def _check_deprecations(self, config):
-        declare_deprecated = self.common_module.declare_deprecated
-
-        declare_deprecated('config option "proxy/request_retry_timeout"',
-                           '"proxy/request_timeout"',
-                           config["proxy"]["request_retry_timeout"] is not None)
-        declare_deprecated('config option "proxy/heavy_request_retry_timeout"',
-                           '"proxy/heavy_request_timeout"',
-                           config["proxy"]["heavy_request_retry_timeout"] is not None)
-        declare_deprecated('config option "proxy/request_retry_enable"',
-                           '"proxy/retries/enable"',
-                           config["proxy"]["request_retry_enable"] is not None)
-        declare_deprecated('config option "proxy/request_retry_count"',
-                           '"proxy/retries/count"',
-                           config["proxy"]["request_retry_count"] is not None)
-        declare_deprecated('config option "retry_backoff"',
-                           '"proxy/retries/backoff"',
-                           config["retry_backoff"] != self.default_config_module.retry_backoff_config())
-
-        declare_deprecated('config option "start_operation_retries/retry_count"',
-                           '"start_operation_retries/count"',
-                           config["start_operation_retries"]["retry_count"] is not None)
-        declare_deprecated('config option "start_operation_retries/retry_timeout"',
-                           '"start_operation_request_timeout" in config root',
-                           config["start_operation_retries"]["retry_timeout"] is not None)
-
-        declare_deprecated('config option "read_retries/retry_count"',
-                           '"read_retries/count"',
-                           config["read_retries"]["retry_count"] is not None)
-
     def get_config(self, client):
         if client is not None:
             config = client.config
         else:
             config = self.config
-        self._check_deprecations(config)
         return config
 
     def has_option(self, option, client):

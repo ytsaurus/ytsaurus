@@ -148,11 +148,7 @@ class _ConcatenateRetrier(Retrier):
         self.destination_path = destination_path
         self.client = client
 
-        retry_config = {
-            "backoff": get_config(client)["retry_backoff"],
-            "count": get_config(client)["proxy"]["request_retry_count"],
-        }
-        retry_config = update(get_config(client)["concatenate_retries"], remove_nones_from_dict(retry_config))
+        retry_config = get_config(client)["concatenate_retries"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(_ConcatenateRetrier, self).__init__(retry_config=retry_config,
                                                   exceptions=get_retriable_errors(),
