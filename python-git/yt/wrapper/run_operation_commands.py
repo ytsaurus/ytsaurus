@@ -410,14 +410,8 @@ class OperationRequestRetrier(Retrier):
         self.retry_actions = retry_actions
         self.client = client
 
-        retry_config = {
-            "count": get_config(client)["start_operation_retries"]["retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["start_operation_retries"],
-                              remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["start_operation_retries"]["retry_timeout"],
-                            get_config(client)["start_operation_request_timeout"])
+        retry_config = get_config(client)["start_operation_retries"]
+        timeout = get_config(client)["start_operation_request_timeout"]
 
         super(OperationRequestRetrier, self).__init__(retry_config=retry_config,
                                                       timeout=timeout,

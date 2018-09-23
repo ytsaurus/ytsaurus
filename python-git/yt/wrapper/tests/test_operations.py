@@ -580,8 +580,8 @@ import yt.wrapper as yt
 import sys
 
 input, output = sys.argv[1:3]
-yt.config["proxy"]["request_retry_timeout"] = 5000
-yt.config["proxy"]["request_retry_count"] = 1
+yt.config["proxy"]["request_timeout"] = 5000
+yt.config["proxy"]["retries"]["count"] = 1
 yt.config["detached"] = False
 op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
 print(op.id)

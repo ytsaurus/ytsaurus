@@ -266,14 +266,8 @@ def _get_cache_path(client):
 
 class PutFileToCacheRetrier(Retrier):
     def __init__(self, params, client=None):
-        retry_config = {
-            "enable": get_config(client)["proxy"]["request_retry_enable"],
-            "count": get_config(client)["proxy"]["request_retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
-                            get_config(client)["proxy"]["request_timeout"])
+        retry_config = get_config(client)["proxy"]["retries"]
+        timeout = get_config(client)["proxy"]["request_timeout"]
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
         chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)

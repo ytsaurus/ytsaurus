@@ -54,9 +54,6 @@ default_config = {
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
-    # Option for backward compatibility
-    "retry_backoff": retry_backoff_config(),
-
     # Configuration of proxy connection.
     "proxy": {
         "url": None,
@@ -66,12 +63,6 @@ default_config = {
         "accept_encoding": "gzip, identity",
         # "gzip" | "br" | "identity"
         "content_encoding": "gzip",
-
-        # Options for backward compatibility
-        "request_retry_count": None,
-        "request_retry_enable": None,
-        "request_retry_timeout": None,
-        "heavy_request_retry_timeout": None,
 
         # Retries configuration for http requests.
         "retries": retries_config(count=6, enable=True, backoff={
@@ -440,7 +431,6 @@ default_config = {
         .update_template_dict({
             "allow_multiple_ranges": False,
             "create_transaction_and_take_snapshot_lock": True,
-            "retry_count": None,
             "change_proxy_period": None
         }),
 
@@ -471,12 +461,7 @@ default_config = {
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
-        }}) \
-        .update_template_dict({
-            # For backward compatibility.
-            "retry_count": None,
-            "retry_timeout": None
-        }),
+        }}),
     "start_operation_request_timeout": 60000,
 
     # Retries for concatenate requests.
