@@ -11,7 +11,7 @@ import yt.logger as logger
 import yt.yson as yson
 import yt.json_wrapper as json
 
-from yt.packages.six import reraise, add_metaclass, PY3
+from yt.packages.six import reraise, add_metaclass, PY3, iterbytes
 from yt.packages.six.moves import map as imap
 
 import os
@@ -25,6 +25,14 @@ from abc import ABCMeta, abstractmethod
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
+
+def _hexify(message):
+    def convert(byte):
+        if byte < 128:
+            return chr(byte)
+        else:
+            return hex(byte)
+    return "".join(map(convert, iterbytes(message)))
 
 def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
@@ -96,7 +104,10 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
-            yson.loads(response.content)
+            if PY3:
+                yson.loads(_hexify(response.content))
+            else:
+                yson.loads(response.content)
         except (yson.YsonError, TypeError):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
