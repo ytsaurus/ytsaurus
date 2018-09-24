@@ -1,5 +1,7 @@
 #include "chunked_output_stream.h"
 
+#include <util/system/sanitizers.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,10 @@ std::vector<TSharedRef> TChunkedOutputStream::Flush()
 
     Y_ASSERT(CurrentChunk_.IsEmpty());
     FinishedSize_ = 0;
+
+    for (auto& chunk : FinishedChunks_) {
+        NSan::CheckMemIsInitialized(chunk.Begin(), chunk.Size());
+    }
 
     return std::move(FinishedChunks_);
 }
