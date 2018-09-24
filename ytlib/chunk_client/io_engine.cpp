@@ -391,7 +391,7 @@ private:
         }
 
         UpdateSicknessProfiling();
-    }       
+    }
 
     void AddReadWaitTimeSample(TDuration duration)
     {
@@ -505,7 +505,7 @@ public:
         size_t len,
         i64 offset,
         i64 alignment)
-        : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, false))
+        : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, true))
         , FH_(fh)
         , Length_(len)
         , Offset_(offset)
