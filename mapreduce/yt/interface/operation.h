@@ -1011,6 +1011,16 @@ struct TListJobsResult
 
 ////////////////////////////////////////////////////////////////////
 
+struct TGetJobInputOptions
+{
+    using TSelf = TGetJobInputOptions;
+};
+
+struct TGetJobFailContextOptions
+{
+    using TSelf = TGetJobFailContextOptions;
+};
+
 struct TGetJobStderrOptions
 {
     using TSelf = TGetJobStderrOptions;
@@ -1270,6 +1280,26 @@ struct IOperationClient
     virtual TListJobsResult ListJobs(
         const TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) = 0;
+
+    //
+    // Get the input of a running or failed job.
+    virtual IFileReaderPtr GetJobInput(
+        const TJobId& jobId,
+        const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
+
+    //
+    // Get fail context of a failed job.
+    virtual IFileReaderPtr GetJobFailContext(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
+
+    //
+    // Get stderr of a running or failed job.
+    virtual IFileReaderPtr GetJobStderr(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
 private:
     virtual IOperationPtr DoMap(

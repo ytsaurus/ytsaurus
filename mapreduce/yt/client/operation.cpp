@@ -872,7 +872,7 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
             auto errorIt = jobMap.find("error");
             info.Error = TYtError(errorIt == jobMap.end() ? "unknown error" : errorIt->second);
             if (jobMap.count("stderr_size")) {
-                info.Stderr = GetJobStderr(auth, operationId, info.JobId);
+                info.Stderr = GetJobStderr(auth, operationId, info.JobId)->ReadAll();
                 if (info.Stderr.Size() > static_cast<size_t>(stderrTailSize)) {
                     info.Stderr = TString(info.Stderr.Data() + info.Stderr.Size() - stderrTailSize, stderrTailSize);
                 }
