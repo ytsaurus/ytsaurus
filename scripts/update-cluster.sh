@@ -62,7 +62,7 @@ case $CLUSTER in
     PROXIES="c01-man.hume.yt.yandex.net,c02-man.hume.yt.yandex.net,n0001-man.hume.yt.yandex.net,n0003-man.hume.yt.yandex.net,n0006-man.hume.yt.yandex.net,n0010-man.hume.yt.yandex.net,n0024-man.hume.yt.yandex.net,n0040-man.hume.yt.yandex.net,n0043-man.hume.yt.yandex.net,n0044-man.hume.yt.yandex.net,n0059-man.hume.yt.yandex.net,n0060-man.hume.yt.yandex.net,n0079-man.hume.yt.yandex.net,n0080-man.hume.yt.yandex.net,n0099-man.hume.yt.yandex.net,n0114-man.hume.yt.yandex.net,n0116-man.hume.yt.yandex.net,n0120-man.hume.yt.yandex.net,n0122-man.hume.yt.yandex.net,n0133-man.hume.yt.yandex.net,n0134-man.hume.yt.yandex.net,n0142-man.hume.yt.yandex.net"
     ;;
     freud)
-    MASTERS="m0[1-3]i.freud.yt.yandex.net"
+    MASTERS="m[0-2][1-3]i.freud.yt.yandex.net"
     NODES="n0[001-786]i.freud.yt.yandex.net"
     SCHEDULERS="s0[1-2]i.freud.yt.yandex.net"
     PROXIES="c0[1-2]i.freud.yt.yandex.net"
