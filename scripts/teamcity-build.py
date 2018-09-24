@@ -504,7 +504,7 @@ def package(options, build_context):
                 "yandex-yt-node.json",
                 "yandex-yt-proxy.json",
                 "yandex-yt-perl.json",
-                "yandex-yt-perl-abi.json",
+                # "yandex-yt-perl-abi.json",
                 "yandex-yt-scheduler.json",
                 "yandex-yt-src.json",
             ]
