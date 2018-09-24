@@ -429,6 +429,9 @@ message TBoxStatus {
 
     // Ревизия к которой относится box
     uint32 Revision = 8;
+
+    // Количество неудачных попыток собрать box
+    uint32 FailCounter = 9;
 }
 
 enum EBoxState {
@@ -569,6 +572,7 @@ message TCondition {
 }
 
 message TWorkloadStatus {
+    reserved 13;
 
     // уникальный в рамках pod идентификатор Workload
     string Id = 1;
@@ -595,9 +599,6 @@ message TWorkloadStatus {
 
     // Ревизия к которой относится workload
     uint32 Revision = 12;
-
-    // Неструктурированное описание последней ошибки
-    string FailReason = 13;
 }
 
 enum EHttpCheckState {
