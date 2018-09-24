@@ -1309,11 +1309,13 @@ private:
                         .Item("incarnation_id").Value(IncarnationId_);
                 })
                 .Item("config").Value(Config_)
-                .Item("tagged_memory_statistics").BeginAttributes()
-                    .Item("opaque").Value(true)
-                .EndAttributes().DoList([&] (TFluentList fluent) {
-                    MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
-                })
+                .Item("tagged_memory_statistics")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .DoList([&] (TFluentList fluent) {
+                        MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
+                    })
             .EndMap();
     }
 
