@@ -458,20 +458,70 @@ TListJobsResult ListJobs(
     return result;
 }
 
-TString GetJobStderr(
+class TResponseReader
+    : public IFileReader
+{
+public:
+    TResponseReader(const TAuth& auth, THttpHeader header)
+        : Request_(GetProxyForHeavyRequest(auth))
+    {
+        header.SetToken(auth.Token);
+
+        Request_.Connect();
+        Request_.StartRequest(header);
+        Request_.FinishRequest();
+
+        Response_ = Request_.GetResponseStream();
+    }
+
+private:
+    size_t DoRead(void* buf, size_t len) override
+    {
+        return Response_->Read(buf, len);
+    }
+
+    size_t DoSkip(size_t len) override
+    {
+        return Response_->Skip(len);
+    }
+
+private:
+    THttpRequest Request_;
+    THttpResponse* Response_;
+};
+
+IFileReaderPtr GetJobInput(
+    const TAuth& auth,
+    const TJobId& jobId,
+    const TGetJobInputOptions& /* options */)
+{
+    THttpHeader header("GET", "get_job_input");
+    header.AddParameter("job_id", GetGuidAsString(jobId));
+    return new TResponseReader(auth, std::move(header));
+}
+
+IFileReaderPtr GetJobFailContext(
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,
-    const TGetJobStderrOptions& /* options */,
-    IRetryPolicy* retryPolicy)
+    const TGetJobFailContextOptions& /* options */)
 {
-    auto heavyProxy = GetProxyForHeavyRequest(auth);
-    TAuth authForHeavyRequest{heavyProxy, auth.Token};
+    THttpHeader header("GET", "get_job_fail_context");
+    header.AddOperationId(operationId);
+    header.AddParameter("job_id", GetGuidAsString(jobId));
+    return new TResponseReader(auth, std::move(header));
+}
 
+IFileReaderPtr GetJobStderr(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& /* options */)
+{
     THttpHeader header("GET", "get_job_stderr");
     header.AddOperationId(operationId);
     header.AddParameter("job_id", GetGuidAsString(jobId));
-    return RetryRequestWithPolicy(authForHeavyRequest, header, "", retryPolicy).Response;
+    return new TResponseReader(auth, std::move(header));
 }
 
 TMaybe<TYPath> GetFileFromCache(

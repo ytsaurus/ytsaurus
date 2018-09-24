@@ -126,12 +126,22 @@ TListJobsResult ListJobs(
     const TListJobsOptions& options = TListJobsOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
-TString GetJobStderr(
+TIntrusivePtr<IFileReader> GetJobInput(
+    const TAuth& auth,
+    const TJobId& jobId,
+    const TGetJobInputOptions& options = TGetJobInputOptions());
+
+TIntrusivePtr<IFileReader> GetJobFailContext(
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,
-    const TGetJobStderrOptions& options = TGetJobStderrOptions(),
-    IRetryPolicy* retryPolicy = nullptr);
+    const TGetJobFailContextOptions& options = TGetJobFailContextOptions());
+
+TIntrusivePtr<IFileReader> GetJobStderr(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& options = TGetJobStderrOptions());
 
 TMaybe<TYPath> GetFileFromCache(
     const TAuth& auth,

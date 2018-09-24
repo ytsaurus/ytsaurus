@@ -480,6 +480,29 @@ TListJobsResult TClientBase::ListJobs(
     return NYT::NDetail::ListJobs(Auth_, operationId, options);
 }
 
+IFileReaderPtr TClientBase::GetJobInput(
+    const TJobId& jobId,
+    const TGetJobInputOptions& options)
+{
+    return NYT::NDetail::GetJobInput(Auth_, jobId, options);
+}
+
+IFileReaderPtr TClientBase::GetJobFailContext(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobFailContextOptions& options)
+{
+    return NYT::NDetail::GetJobFailContext(Auth_, operationId, jobId, options);
+}
+
+IFileReaderPtr TClientBase::GetJobStderr(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& options)
+{
+    return NYT::NDetail::GetJobStderr(Auth_, operationId, jobId, options);
+}
+
 void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)

@@ -21,6 +21,7 @@
 #include <library/unittest/registar.h>
 
 #include <util/generic/maybe.h>
+#include <util/generic/scope.h>
 #include <util/folder/path.h>
 #include <util/system/env.h>
 #include <util/system/fs.h>
@@ -85,8 +86,10 @@ REGISTER_REDUCER(TIdReducer);
 class TAlwaysFailingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader*, TWriter*)
+    void Do(TReader* reader, TWriter*)
     {
+        for (; reader->IsValid(); reader->Next()) {
+        }
         Cerr << "This mapper always fails" << Endl;
         ::exit(1);
     }
@@ -2082,6 +2085,10 @@ Y_UNIT_TEST_SUITE(Operations)
                 .Spec(TNode()("weight", 5.0))
                 .Wait(false));
 
+        Y_DEFER {
+            op->AbortOperation();
+        };
+
         static auto getState = [](const IOperationPtr& op) {
             auto attrs = op->GetAttributes(TGetOperationOptions().AttributeFilter(
                 TOperationAttributeFilter().Add(EOperationAttribute::State)));
@@ -2153,6 +2160,137 @@ Y_UNIT_TEST_SUITE(Operations)
             }
         }
     }
+
+    Y_UNIT_TEST(GetJobInput)
+    {
+        auto client = CreateTestClient();
+
+        const TVector<TNode> expectedRows = {
+            TNode()("a", 10)("b", 20),
+            TNode()("a", 15)("b", 25),
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            for (const auto& row : expectedRows) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .JobCount(1),
+            new TSleepingMapper(TDuration::Seconds(100)),
+            TOperationOptions()
+                .Wait(false));
+
+        Y_DEFER {
+            op->AbortOperation();
+        };
+
+        auto isJobRunning = [&] () {
+            auto jobs = op->ListJobs().Jobs;
+            if (jobs.empty()) {
+                return false;
+            }
+            const auto& job = jobs.front();
+            TString path = TStringBuilder()
+                << "//sys/nodes/" << *job.Address
+                << "/orchid/job_controller/active_jobs/scheduler/" << *job.Id << "/job_phase";
+            if (!client->Exists(path)) {
+                return false;
+            }
+            return client->Get(path).AsString() == "running";
+        };
+
+        TInstant deadline = TInstant::Now() + TDuration::Seconds(30);
+        while (!isJobRunning() && TInstant::Now() < deadline) {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+
+        auto jobs = op->ListJobs().Jobs;
+        UNIT_ASSERT_VALUES_EQUAL(jobs.size(), 1);
+        UNIT_ASSERT(jobs.front().Id.Defined());
+
+        auto jobInputStream = client->GetJobInput(*jobs.front().Id);
+        auto reader = CreateTableReader<TNode>(jobInputStream.Get());
+
+        TVector<TNode> readRows;
+        for (; reader->IsValid(); reader->Next()) {
+            readRows.push_back(reader->MoveRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(expectedRows, readRows);
+    }
+
+    Y_UNIT_TEST(GetJobStderr)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .JobCount(1),
+            new TMapperThatWritesStderr);
+
+        auto jobs = op->ListJobs().Jobs;
+        UNIT_ASSERT_VALUES_EQUAL(jobs.size(), 1);
+        UNIT_ASSERT(jobs.front().Id.Defined());
+
+        auto jobStderrStream = client->GetJobStderr(op->GetId(), *jobs.front().Id);
+        UNIT_ASSERT_STRING_CONTAINS(jobStderrStream->ReadAll(), "PYSHCH");
+    }
+
+    Y_UNIT_TEST(GetJobFailContext)
+    {
+        auto client = CreateTestClient();
+
+        const TVector<TNode> expectedRows = {
+            TNode()("a", 10)("b", 20),
+            TNode()("a", 15)("b", 25),
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            for (const auto& row : expectedRows) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .JobCount(1)
+                .MaxFailedJobCount(1),
+            new TAlwaysFailingMapper,
+            TOperationOptions()
+                .Wait(false));
+
+        op->Watch().Wait();
+
+        auto jobs = op->ListJobs().Jobs;
+        UNIT_ASSERT_VALUES_EQUAL(jobs.size(), 1);
+        UNIT_ASSERT(jobs.front().Id.Defined());
+
+        auto jobFailContextStream = client->GetJobFailContext(op->GetId(), *jobs.front().Id);
+        auto reader = CreateTableReader<TNode>(jobFailContextStream.Get());
+
+        TVector<TNode> readRows;
+        for (; reader->IsValid(); reader->Next()) {
+            readRows.push_back(reader->MoveRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(expectedRows, readRows);
+    }
+
 
     Y_UNIT_TEST(FormatHint)
     {

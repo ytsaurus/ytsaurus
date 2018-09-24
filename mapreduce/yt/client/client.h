@@ -199,6 +199,20 @@ public:
         const TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) override;
 
+    IFileReaderPtr GetJobInput(
+        const TJobId& jobId,
+        const TGetJobInputOptions& options = TGetJobInputOptions()) override;
+
+    IFileReaderPtr GetJobFailContext(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) override;
+
+    IFileReaderPtr GetJobStderr(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobStderrOptions& options = TGetJobStderrOptions()) override;
+
     void AlterTable(
         const TYPath& path,
         const TAlterTableOptions& options) override;
