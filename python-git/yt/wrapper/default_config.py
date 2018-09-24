@@ -323,14 +323,13 @@ default_config = {
     "remote_temp_files_directory": None,
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
-    "use_legacy_file_cache": None,
-
     # Expiration timeout for temporary objects (in milliseconds).
     "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,
 
     "file_cache": {
         "replication_factor": 10,
     },
+    "use_legacy_file_cache": None,
 
     "operation_tracker": {
         # Operation state check interval.
@@ -353,7 +352,7 @@ default_config = {
         # This parameter is only supported if stderr_download_threading_enable is True.
         "stderr_download_timeout": 60 * 1000,
         # Enables logging in text format operation failed error and job errors.
-        "enable_logging_failed_operation": False,
+        "enable_logging_failed_operation": True,
     },
 
     "read_parallel": {
@@ -448,7 +447,7 @@ default_config = {
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
-            #
+            # TODO: add comment.
             "rows_chunk_size": 100,
         }),
 
