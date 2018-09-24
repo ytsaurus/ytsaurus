@@ -1500,6 +1500,7 @@ class TestTabletActions(TestDynamicTablesBase):
             assert all(c == count[0] for c in count)
 
     def test_ext_memory_cells_balance(self):
+        # TODO(ifsmirnov): parametrize external_cell_tag for multicell
         self._configure_bundle("default")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", False)
@@ -1515,12 +1516,12 @@ class TestTabletActions(TestDynamicTablesBase):
                 cnt[cells.index(cell_id)] += 1
             return list(cnt.values())
 
-        self._create_sorted_table("//tmp/t1")
+        self._create_sorted_table("//tmp/t1", external=False)
         reshard("//tmp/t1", 13)
         sync_mount_table("//tmp/t1", cell_id=cells[0])
 
         for i in range(7):
-            self._create_sorted_table("//tmp/t2.{}".format(i))
+            self._create_sorted_table("//tmp/t2.{}".format(i), external=False)
             sync_mount_table("//tmp/t2.{}".format(i), cell_id=cells[1])
 
         assert tablets_distribution("//tmp/t1") == [13, 0, 0, 0, 0]
@@ -1530,7 +1531,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
         for i in range(3, 15):
             name = "//tmp/t{}".format(i)
-            self._create_sorted_table(name)
+            self._create_sorted_table(name, external=False)
             reshard(name, 3)
             sync_mount_table(name, cell_id=cells[2])
 
