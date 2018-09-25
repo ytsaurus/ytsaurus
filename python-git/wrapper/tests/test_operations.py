@@ -214,17 +214,12 @@ class TestOperations(object):
                        ])
         operation = yt.run_map("PYTHONPATH=. ./capitalize_b.py",
                                TablePath(table, columns=["b"]), other_table,
-                               files=get_test_file_path("capitalize_b.py"),
+                               local_files=get_test_file_path("capitalize_b.py"),
                                format=yt.DsvFormat())
         records = yt.read_table(other_table, raw=False)
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
         assert get_operation_error(operation.id) is None
-
-        with pytest.raises(yt.YtError):
-            yt.run_map("cat", table, table, local_files=get_test_file_path("capitalize_b.py"),
-                                            files=get_test_file_path("capitalize_b.py"))
-
 
     def test_stderr_table(self):
         table = TEST_DIR + "/table"
@@ -557,7 +552,7 @@ class TestOperations(object):
         yt.run_map("PYTHONPATH=. ./many_output.py yt",
                    table,
                    output_tables + [TablePath(append_table, append=True)],
-                   files=get_test_file_path("many_output.py"),
+                   local_files=get_test_file_path("many_output.py"),
                    format=yt.DsvFormat())
 
         for table in output_tables:
@@ -585,8 +580,8 @@ import yt.wrapper as yt
 import sys
 
 input, output = sys.argv[1:3]
-yt.config["proxy"]["request_retry_timeout"] = 5000
-yt.config["proxy"]["request_retry_count"] = 1
+yt.config["proxy"]["request_timeout"] = 5000
+yt.config["proxy"]["retries"]["count"] = 1
 yt.config["detached"] = False
 op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
 print(op.id)
@@ -806,6 +801,8 @@ print(op.id)
                     "cat; sleep 5",
                     table,
                     TEST_DIR + "/output_" + str(index),
+                    # File is used to test toucher.
+                    local_files=get_test_file_path("capitalize_b.py"),
                     sync=False,
                     spec={"pool": "with_operation_count_limit"})
 
@@ -1149,7 +1146,7 @@ print(op.id)
         with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
             f.write("etwas")
 
-        yt.run_map(mapper, table, table, files=['<file_name="cool_name.dat">' + f.name])
+        yt.run_map(mapper, table, table, local_files=['<file_name="cool_name.dat">' + f.name])
         check(yt.read_table(table), [{"k": "etwas"}])
 
     def test_remote_copy(self):

@@ -855,11 +855,6 @@ def add_shuffle_parser(add_parser):
 
 @copy_docstring_from(yt.start_clickhouse_clique)
 def start_clickhouse_clique_handler(*args, **kwargs):
-    if "cypress_ytserver_clickhouse_path" in kwargs and kwargs["cypress_ytserver_clickhouse_path"] is None:
-        del kwargs["cypress_ytserver_clickhouse_path"]
-    if "host_ytserver_clickhouse_path" in kwargs and kwargs["host_ytserver_clickhouse_path"] is None:
-        del kwargs["host_ytserver_clickhouse_path"]
-
     op = yt.start_clickhouse_clique(*args, **kwargs)
     print(op.id)
 

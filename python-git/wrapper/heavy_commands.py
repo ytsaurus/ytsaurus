@@ -41,13 +41,8 @@ class FakeTransaction(object):
 
 class WriteRequestRetrier(Retrier):
     def __init__(self, transaction_timeout, write_action, client=None):
-        retry_config = {
-            "backoff": get_config(client)["retry_backoff"],
-            "count": get_config(client)["proxy"]["request_retry_count"],
-        }
-        retry_config = update(get_config(client)["write_retries"], remove_nones_from_dict(retry_config))
-        request_timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                                    get_config(client)["proxy"]["heavy_request_timeout"])
+        retry_config = get_config(client)["write_retries"]
+        request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(WriteRequestRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=request_timeout,
@@ -153,13 +148,8 @@ class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state_class, client=None):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
         retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
-        retry_config = {
-            "count": get_config(client)["read_retries"]["retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                            get_config(client)["proxy"]["heavy_request_timeout"])
+        retry_config = get_config(client)["read_retries"]
+        timeout = get_config(client)["proxy"]["heavy_request_timeout"]
 
         super(ReadIterator, self).__init__(retry_config, timeout, retriable_errors,
                                            default_chaos_monkey(chaos_monkey_enabled))

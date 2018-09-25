@@ -11,8 +11,8 @@ import yt.logger as logger
 import yt.yson as yson
 import yt.json_wrapper as json
 
-from yt.packages.six import reraise, add_metaclass, PY3
-from yt.packages.six.moves import map as imap
+from yt.packages.six import reraise, add_metaclass, PY3, iterbytes
+from yt.packages.six.moves import xrange, map as imap
 
 import os
 import sys
@@ -25,6 +25,26 @@ from abc import ABCMeta, abstractmethod
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
+
+def _hexify(message):
+    def convert(byte):
+        if byte < 128:
+            return chr(byte)
+        else:
+            return hex(byte)
+    return "".join(map(convert, iterbytes(message)))
+
+def _hexify_recursively(obj):
+    if isinstance(obj, dict):
+        for key in obj:
+            obj[key] = _hexify_recursively(obj[key])
+    elif isinstance(obj, list):
+        for index in xrange(len(obj)):
+            obj[key] = _hexify_recursively(obj[key])
+    elif isinstance(obj, bytes):
+        return _hexify(obj)
+    else:
+        return obj
 
 def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
@@ -96,7 +116,10 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
-            yson.loads(response.content)
+            if PY3:
+                yson.loads(response.content, encoding=None)
+            else:
+                yson.loads(response.content)
         except (yson.YsonError, TypeError):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
@@ -191,15 +214,9 @@ class RequestRetrier(Retrier):
         else:
             self.request_url = "'undiscovered'"
 
-        retry_config = {
-            "enable": get_config(client)["proxy"]["request_retry_enable"],
-            "count": get_config(client)["proxy"]["request_retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
+        retry_config = get_config(client)["proxy"]["retries"]
         if timeout is None:
-            timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
-                                get_config(client)["proxy"]["request_timeout"])
+            timeout = get_config(client)["proxy"]["request_timeout"]
         self.requests_timeout = timeout
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 

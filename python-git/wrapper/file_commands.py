@@ -1,5 +1,5 @@
 import yt.logger as logger
-from .config import get_config, get_option
+from .config import get_config, get_option, get_backend_type
 from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value, \
                     update, remove_nones_from_dict
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
@@ -10,7 +10,7 @@ from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_s
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
-from .ypath import FilePath, ypath_join, ypath_dirname
+from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
 
@@ -266,14 +266,8 @@ def _get_cache_path(client):
 
 class PutFileToCacheRetrier(Retrier):
     def __init__(self, params, client=None):
-        retry_config = {
-            "enable": get_config(client)["proxy"]["request_retry_enable"],
-            "count": get_config(client)["proxy"]["request_retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
-                            get_config(client)["proxy"]["request_timeout"])
+        retry_config = get_config(client)["proxy"]["retries"]
+        timeout = get_config(client)["proxy"]["request_timeout"]
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
         chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)
@@ -394,7 +388,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
-        use_legacy = get_config(client)["backend"] == "native" or \
+        use_legacy = get_backend_type(client) == "native" or \
                      "put_file_to_cache" not in get_api_commands(client) or \
                      "get_file_from_cache" not in get_api_commands(client) or \
                      get_config(client)["remote_temp_files_directory"] is not None
@@ -425,6 +419,20 @@ def upload_file_to_cache(filename, hash=None, client=None):
     remove(real_destination, force=True, client=client)
 
     return destination
+
+def _touch_file_in_cache(filepath, client=None):
+    use_legacy = get_config(client)["use_legacy_file_cache"]
+    if use_legacy is None:
+        use_legacy = get_backend_type(client) == "native" or \
+                     "put_file_to_cache" not in get_api_commands(client) or \
+                     "get_file_from_cache" not in get_api_commands(client) or \
+                     get_config(client)["remote_temp_files_directory"] is not None
+
+    if use_legacy:
+        set(filepath + "&/@touched", True, client=client)
+    else:
+        dirname, hash = ypath_split(filepath)
+        get_file_from_cache(hash, client=client)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):

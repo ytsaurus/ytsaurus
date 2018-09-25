@@ -35,7 +35,7 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 """
 
 from .table_helpers import _are_default_empty_table, _remove_tables
-from .common import update, is_prefix, get_value, forbidden_inside_job, remove_nones_from_dict, declare_deprecated
+from .common import update, is_prefix, get_value, forbidden_inside_job, remove_nones_from_dict
 from .retries import Retrier
 from .config import get_config, get_command_param
 from .cypress_commands import get, remove, _make_formatted_transactional_request
@@ -136,13 +136,13 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
                    sync=True, job_io=None, table_writer=None, spec=None,
-                   map_files=None, map_local_files=None, map_yt_files=None,
-                   reduce_files=None, reduce_local_files=None, reduce_yt_files=None,
+                   map_local_files=None, map_yt_files=None,
+                   reduce_local_files=None, reduce_yt_files=None,
                    mapper_memory_limit=None, reducer_memory_limit=None,
                    sort_by=None, reduce_by=None,
                    reduce_combiner=None,
                    reduce_combiner_input_format=None, reduce_combiner_output_format=None,
-                   reduce_combiner_files=None, reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
+                   reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
                    reduce_combiner_memory_limit=None,
                    stderr_table=None,
                    client=None):
@@ -169,12 +169,10 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param dict job_io: job io specification.
     :param dict table_writer: standard operation parameter.
     :param dict spec: standard operation parameter.
-    :param map_files: Deprecated!
     :param map_local_files: paths to map scripts on local machine.
     :type map_local_files: str or list[str]
     :param map_yt_files: paths to map scripts in Cypress.
     :type map_yt_files: str or list[str]
-    :param reduce_files: Deprecated!
     :param reduce_local_files: paths to reduce scripts on local machine.
     :type reduce_combiner_local_files: str or list[str]
     :param reduce_yt_files: paths to reduce scripts in Cypress.
@@ -190,7 +188,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :type reduce_combiner_input_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param reduce_combiner_output_format: output format for reduce combiner.
     :type reduce_combiner_output_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
-    :param reduce_combiner_files: Deprecated!
     :param reduce_combiner_local_files: paths to reduce combiner scripts on local machine.
     :type reduce_combiner_local_files: str or list[str]
     :param reduce_combiner_yt_files: paths to reduce combiner scripts in Cypress.
@@ -201,13 +198,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     """
 
     job_io = _prepare_job_io(job_io, table_writer)
-    declare_deprecated('option "map_files"', '"map_local_files"', map_files is not None)
-    declare_deprecated('option "reduce_files"', '"reduce_local_files"', reduce_files is not None)
-    declare_deprecated('option "reduce_combiner_files"', '"reduce_combiner_local_files"', reduce_combiner_files is not None)
-    map_file_paths = _prepare_operation_files(map_local_files, map_files, map_yt_files)
-    reduce_file_paths = _prepare_operation_files(reduce_local_files, reduce_files, reduce_yt_files)
-    reduce_combiner_file_paths = _prepare_operation_files(reduce_combiner_local_files, reduce_combiner_files,
-                                                          reduce_combiner_yt_files)
+    map_file_paths = _prepare_operation_files(map_local_files, map_yt_files)
+    reduce_file_paths = _prepare_operation_files(reduce_local_files, reduce_yt_files)
+    reduce_combiner_file_paths = _prepare_operation_files(reduce_combiner_local_files, reduce_combiner_yt_files)
 
     spec_builder = MapReduceSpecBuilder() \
         .input_table_paths(source_table) \
@@ -253,7 +246,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 def run_map(binary, source_table, destination_table,
-            files=None, local_files=None, yt_files=None,
+            local_files=None, yt_files=None,
             format=None, input_format=None, output_format=None,
             sync=True,
             job_io=None,
@@ -271,9 +264,8 @@ def run_map(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
-    declare_deprecated('option "files"', '"local_files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
-    file_paths = _prepare_operation_files(local_files, files, yt_files)
+    file_paths = _prepare_operation_files(local_files, yt_files)
 
     spec_builder = MapSpecBuilder() \
         .input_table_paths(source_table) \
@@ -294,7 +286,7 @@ def run_map(binary, source_table, destination_table,
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 def run_reduce(binary, source_table, destination_table,
-               files=None, local_files=None, yt_files=None,
+               local_files=None, yt_files=None,
                format=None, input_format=None, output_format=None,
                sync=True,
                job_io=None,
@@ -312,9 +304,8 @@ def run_reduce(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
-    declare_deprecated('option "files"', '"local_files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
-    file_paths = _prepare_operation_files(local_files, files, yt_files)
+    file_paths = _prepare_operation_files(local_files, yt_files)
 
     spec_builder = ReduceSpecBuilder() \
         .input_table_paths(source_table) \
@@ -338,7 +329,7 @@ def run_reduce(binary, source_table, destination_table,
 
 
 def run_join_reduce(binary, source_table, destination_table,
-                    files=None, local_files=None, yt_files=None,
+                    local_files=None, yt_files=None,
                     format=None, input_format=None, output_format=None,
                     sync=True,
                     job_io=None,
@@ -359,9 +350,8 @@ def run_join_reduce(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
-    declare_deprecated('option "files"', '"local_files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
-    file_paths = _prepare_operation_files(local_files, files, yt_files)
+    file_paths = _prepare_operation_files(local_files, yt_files)
 
     spec_builder = JoinReduceSpecBuilder() \
         .input_table_paths(source_table) \
@@ -413,20 +403,15 @@ def run_remote_copy(source_table, destination_table,
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 class OperationRequestRetrier(Retrier):
-    def __init__(self, command_name, spec, run_with_start_op, client=None):
+    def __init__(self, command_name, spec, run_with_start_op, retry_actions, client=None):
         self.command_name = command_name
         self.spec = spec
         self.run_with_start_op = run_with_start_op
+        self.retry_actions = retry_actions
         self.client = client
 
-        retry_config = {
-            "count": get_config(client)["start_operation_retries"]["retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["start_operation_retries"],
-                              remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["start_operation_retries"]["retry_timeout"],
-                            get_config(client)["start_operation_request_timeout"])
+        retry_config = get_config(client)["start_operation_retries"]
+        timeout = get_config(client)["start_operation_request_timeout"]
 
         super(OperationRequestRetrier, self).__init__(retry_config=retry_config,
                                                       timeout=timeout,
@@ -441,6 +426,8 @@ class OperationRequestRetrier(Retrier):
                                                          client=self.client)
 
     def backoff_action(self, iter_number, sleep_backoff):
+        for action in self.retry_actions:
+            action()
         logger.warning("Failed to start operation since concurrent operation limit exceeded. "
                        "Sleep for %.2lf seconds before next (%d) retry.",
                        sleep_backoff, iter_number)
@@ -448,10 +435,11 @@ class OperationRequestRetrier(Retrier):
 
 def _make_operation_request(command_name, spec, sync,
                             finalization_actions=None,
+                            retry_actions=None,
                             run_with_start_op=None,
                             client=None):
     def _manage_operation(finalization_actions):
-        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, client=client)
+        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, retry_actions=retry_actions, client=client)
         operation_id = retrier.run()
         operation = Operation(operation_id, type=command_name, finalization_actions=finalization_actions, client=client)
 
@@ -586,9 +574,12 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
     if enable_optimizations and spec_builder.operation_type in OPERATION_OPTIMIZERS:
         operations_list = OPERATION_OPTIMIZERS[spec_builder.operation_type](spec, client)
 
-    finalizer = spec_builder.get_finalizer(spec, client=client)
     _, _, finalization_actions = operations_list[-1]
+
+    finalizer = spec_builder.get_finalizer(spec, client=client)
     finalization_actions.append(finalizer)
+
+    retry_actions = [spec_builder.get_toucher()]
 
     if len(operations_list) > 1 and not sync:
         raise YtError(
@@ -602,6 +593,7 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
             result = _make_operation_request(command_name=operation_type,
                                              spec=spec,
                                              finalization_actions=finalization_actions,
+                                             retry_actions=retry_actions,
                                              run_with_start_op=spec_builder.run_with_start_op,
                                              sync=sync,
                                              client=client)

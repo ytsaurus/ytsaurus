@@ -38,8 +38,9 @@ class ClientState(object):
         self._commands = None
         self._is_testing_mode = None
 
-        # Cache for local_mode_fqdn (used to detect local mode in client).
+        # Cache for local_mode related variable (used to detect local mode in client).
         self._local_mode_fqdn = None
+        self._local_mode_proxy_address = None
 
         self._random_generator = SystemRandom()
 

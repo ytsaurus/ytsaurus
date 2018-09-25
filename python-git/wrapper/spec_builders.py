@@ -6,7 +6,7 @@ from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
                      parse_bool, is_prefix, require, YtError, update, deprecated)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
-from .file_commands import LocalFile
+from .file_commands import LocalFile, _touch_file_in_cache
 from .ypath import TablePath
 from .py_wrapper import OperationParameters
 from .table_commands import is_empty, is_sorted
@@ -149,6 +149,17 @@ class Finalizer(object):
                            "combine_chunks=true;"
                            "data_size_per_job={2}"
                         "}}'".format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
+
+class Toucher(object):
+    """Entity for touch operation files in case of retries.
+    """
+    def __init__(self, uploaded_files, client=None):
+        self.uploaded_files = uploaded_files
+        self.client = client
+
+    def __call__(self):
+        for file in self.uploaded_files:
+            _touch_file_in_cache(file, client=self.client)
 
 def spec_option(description=None, nested_spec_builder=None):
     def spec_method_decorator(func):
@@ -377,7 +388,7 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, operation_type, local_files_to_remove, input_format,
+    def _prepare_job_files(self, spec, group_by, operation_type, local_files_to_remove, uploaded_files, input_format,
                            output_format, input_table_count, output_table_count, client):
         file_uploader = FileUploader(client=client)
         local_files = []
@@ -412,6 +423,8 @@ class UserJobSpecBuilder(object):
 
         if local_files_to_remove is not None:
             local_files_to_remove += prepare_result.local_files_to_remove
+        if uploaded_files is not None:
+            uploaded_files += file_uploader.uploaded_files
 
         spec["command"] = binary
 
@@ -430,6 +443,8 @@ class UserJobSpecBuilder(object):
         file_paths += list(imap(lambda path: TablePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
+        if "local_files" in spec:
+            del spec["local_files"]
 
         return spec, tmpfs_size, file_uploader.disk_size
 
@@ -498,25 +513,28 @@ class UserJobSpecBuilder(object):
     def _apply_spec_patch(self, spec):
         self._spec_patch = update(spec, self._spec_patch)
 
-    def build(self, input_tables, output_tables, operation_type, requires_command,
-              local_files_to_remove=None, group_by=None, client=None):
+    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format,
+              local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         spec = update(self._spec_patch, self._deepcopy_spec())
         self._spec_patch = {}
 
         if "command" not in spec and not requires_command:
             return None
-
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
-        format_ = spec.pop("format", None)
-        input_format, output_format = _prepare_operation_formats(
-            format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
-            input_tables, output_tables, client)
-        spec["input_format"] = input_format.to_yson_type()
-        spec["output_format"] = output_format.to_yson_type()
+
+        if requires_format:
+            format_ = spec.pop("format", None)
+            input_format, output_format = _prepare_operation_formats(
+                format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
+                input_tables, output_tables, client)
+            spec["input_format"] = input_format.to_yson_type()
+            spec["output_format"] = output_format.to_yson_type()
+        else:
+            input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove,
+        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove, uploaded_files,
                                                               input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
                         bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
@@ -576,6 +594,7 @@ class SpecBuilder(object):
         self._job_io_types = get_value(job_io_types, [])
 
         self._local_files_to_remove = []
+        self._uploaded_files = []
         self._input_table_paths = []
         self._output_table_paths = []
 
@@ -705,15 +724,17 @@ class SpecBuilder(object):
             spec[output_tables_param] = unlist(spec[output_tables_param])
 
     def _build_user_job_spec(self, spec, job_type, input_tables, output_tables,
-                             requires_command=True, group_by=None, client=None):
+                             requires_command=True, requires_format=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
             spec[job_type] = job_spec_builder.build(group_by=group_by,
                                                     local_files_to_remove=self._local_files_to_remove,
+                                                    uploaded_files=self._uploaded_files,
                                                     operation_type=self.operation_type,
                                                     input_tables=input_tables,
                                                     output_tables=output_tables,
                                                     requires_command=requires_command,
+                                                    requires_format=requires_format,
                                                     client=client)
             if spec[job_type] is None:
                 del spec[job_type]
@@ -820,6 +841,11 @@ class SpecBuilder(object):
     def get_finalizer(self, spec, client=None):
         if self.supports_user_job_spec():
             return Finalizer(self._local_files_to_remove, self._output_table_paths, spec, client=client)
+        return lambda state: None
+
+    def get_toucher(self, client=None):
+        if self.supports_user_job_spec():
+            return Toucher(self._uploaded_files, client=client)
         return lambda state: None
 
 class ReduceSpecBuilder(SpecBuilder):
@@ -1557,7 +1583,8 @@ class VanillaSpecBuilder(SpecBuilder):
                                                       job_type=task,
                                                       input_tables=[],
                                                       output_tables=[],
-                                                      client=client)
+                                                      client=client,
+                                                      requires_format=False)
         return spec
 
     def supports_user_job_spec(self):

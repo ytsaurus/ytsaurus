@@ -182,7 +182,7 @@ b"""
         scheduling_tag_filter_expire_timeout = 100;
         safe_scheduler_online_time = 5000;
 
-        static_orchid_cache_update_period = 100;
+        static_orchid_cache_update_period = 300;
 
         controller_static_orchid_update_period = 0;
 

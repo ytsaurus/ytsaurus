@@ -18,6 +18,21 @@ def get_local_mode_fqdn(client):
 
     return fqdn
 
+def get_local_mode_proxy_address(client):
+    if get_option("_local_mode_proxy_address", client) is not None:
+        return get_option("_local_mode_proxy_address", client)
+
+    address = None
+    try:
+        address = get("//sys/@local_mode_proxy_address", client=client)
+    except YtResponseError as err:
+        if not err.is_resolve_error():
+            raise
+
+    set_option("_local_mode_proxy_address", address, client)
+
+    return address
+
 def is_local_mode(client):
     if get_config(client)["is_local_mode"] is not None:
         return get_config(client)["is_local_mode"]
