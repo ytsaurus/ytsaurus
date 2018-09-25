@@ -10,8 +10,8 @@ TBlobOutput::TBlobOutput()
     : Blob_(TBlobOutputTag())
 { }
 
-TBlobOutput::TBlobOutput(size_t capacity)
-    : TBlobOutput()
+TBlobOutput::TBlobOutput(size_t capacity, size_t alignment)
+    : Blob_(TBlobOutputTag(), 0, true, alignment)
 {
     Reserve(capacity);
 }
