@@ -52,7 +52,7 @@ class TestClient(object):
             client.write_table(table, [{"a": "b"}])
             assert b"a=b\n" == client.read_table(table, format=yt.DsvFormat(), raw=True).read()
 
-            assert set(client.search(TEST_DIR)) == {TEST_DIR, TEST_DIR + "/folder", table}
+            assert set(client.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/folder", table])
 
             other_table = TEST_DIR + "/other_table"
             client.copy(table, other_table)
