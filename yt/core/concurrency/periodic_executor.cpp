@@ -18,8 +18,8 @@ TPeriodicExecutor::TPeriodicExecutor(
     TDuration period,
     EPeriodicExecutorMode mode,
     TDuration splay)
-    : Invoker_(invoker)
-    , Callback_(callback)
+    : Invoker_(std::move(invoker))
+    , Callback_(std::move(callback))
     , Period_(period)
     , Mode_(mode)
     , Splay_(splay)
@@ -213,6 +213,7 @@ void TPeriodicExecutor::OnCallbackFailure()
 
 void TPeriodicExecutor::SetPeriod(TDuration period)
 {
+    TGuard<TSpinLock> guard(SpinLock_);
     Period_ = period;
 }
 
