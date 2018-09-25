@@ -1226,6 +1226,15 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               spec={"sampling": {"sampling_rate": 0.1, "user_limits": {"resource_limits": {"user_slots": 0}}}})
         assert 0 <= get("//tmp/t2/@chunk_count") <= 20
 
+    def test_overlapping_ranges_in_sorted_merge(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
+
+        with pytest.raises(YtError):
+            merge(in_="<ranges=[{};{}]>//tmp/t1",
+                  out="//tmp/t2",
+                  mode="sorted")
 
 ##################################################################
 
