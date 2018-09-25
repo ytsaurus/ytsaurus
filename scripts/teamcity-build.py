@@ -22,20 +22,21 @@ from datetime import datetime
 
 import argparse
 import collections
-import glob
+import fnmatch
 import functools
+import glob
+import json
 import os.path
 import pprint
 import re
+import resource
 import shutil
 import socket
 import tarfile
 import tempfile
-import fnmatch
-import resource
+import urlparse
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
-import urlparse
 
 import urllib3
 urllib3.disable_warnings()
@@ -504,14 +505,19 @@ def package(options, build_context):
                 "yandex-yt-node.json",
                 "yandex-yt-proxy.json",
                 "yandex-yt-perl.json",
-                # "yandex-yt-perl-abi.json",
+                "yandex-yt-perl-abi.json",
                 "yandex-yt-scheduler.json",
                 "yandex-yt-src.json",
             ]
             artifacts_dir = get_artifacts_dir(options)
             with cwd(artifacts_dir):
-                for package_name in PACKAGE_LIST:
-                    package_file = os.path.join(get_bin_dir(options), package_name)
+                for package_file in PACKAGE_LIST:
+                    package_file = os.path.join(get_bin_dir(options), package_file)
+                    with open(package_file) as inf:
+                        try:
+                            package_name = json.load(inf)["meta"]["name"]
+                        except KeyError:
+                            RuntimeError("Bad package file {0}, cannot find /meta/name key".format(package_file))
                     args = [
                         get_ya(options), "package", package_file,
                         "--custom-version", build_context["yt_version"],
@@ -521,7 +527,7 @@ def package(options, build_context):
                     args += ya_make_args(options)
                     run(args, env=ya_make_env(options))
                     expected_tar = "{}.{}.tar.gz".format(
-                        package_name[:-len(".json")], # strip .json extension
+                        package_name,
                         build_context["yt_version"])
                     teamcity_message("Extracting archive {}".format(expected_tar))
                     with tarfile.open(expected_tar) as tarf:
