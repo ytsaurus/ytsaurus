@@ -4660,20 +4660,19 @@ private:
         }
 
         if (operation.RuntimeParameters) {
-            auto pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+            auto pools = GetPoolsFromRuntimeParameters(ConvertToNode(operation.RuntimeParameters));
             textFactors.insert(textFactors.end(), pools.begin(), pools.end());
         }
 
         return to_lower(JoinToString(textFactors, AsStringBuf(" ")));
     }
 
-    std::vector<TString> GetPoolsFromRuntimeParameters(const TYsonString& runtimeParameters)
+    std::vector<TString> GetPoolsFromRuntimeParameters(const INodePtr& runtimeParameters)
     {
         YCHECK(runtimeParameters);
 
         std::vector<TString> result;
-        auto runtimeParametersNode = ConvertToNode(runtimeParameters)->AsMap();
-        if (auto schedulingOptionsNode = runtimeParametersNode->FindChild("scheduling_options_per_pool_tree")) {
+        if (auto schedulingOptionsNode = runtimeParameters->AsMap()->FindChild("scheduling_options_per_pool_tree")) {
             for (const auto& entry : schedulingOptionsNode->AsMap()->GetChildren()) {
                 if (auto poolNode = entry.second->AsMap()->FindChild("pool")) {
                     result.push_back(poolNode->GetValue<TString>());
@@ -4813,7 +4812,10 @@ private:
             operation.RuntimeParameters = nodeAttributes.FindYson("runtime_parameters");
 
             if (operation.RuntimeParameters) {
-                operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+                auto runtimeParametersNode = ConvertToNode(operation.RuntimeParameters);
+                operation.Pools = GetPoolsFromRuntimeParameters(runtimeParametersNode);
+                operation.Owners = ConvertTo<decltype(operation.Owners)>(
+                    runtimeParametersNode->AsMap()->FindChild("owners"));
             }
         }
 
@@ -4851,6 +4853,7 @@ private:
     void DoListOperationsFromCypress(
         TInstant deadline,
         TCountingFilter& countingFilter,
+        const TNullable<THashSet<TString>>& transitiveClosureOfOwnedBy,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
     {
@@ -4900,6 +4903,15 @@ private:
                 return LightAttributes.has(attribute);
             });
 
+        auto areIntersecting = [] (const THashSet<TString>& set, const std::vector<TString>& vector) {
+            for (const auto& element : vector) {
+                if (set.has(element)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
@@ -4936,6 +4948,13 @@ private:
 
                 if (options.FromTime && *operation.StartTime < *options.FromTime ||
                     options.ToTime && *operation.StartTime >= *options.ToTime) {
+                    continue;
+                }
+
+                if (transitiveClosureOfOwnedBy &&
+                    !(operation.AuthenticatedUser && transitiveClosureOfOwnedBy->has(*operation.AuthenticatedUser)) &&
+                    !areIntersecting(*transitiveClosureOfOwnedBy, operation.Owners.Get({})))
+                {
                     continue;
                 }
 
@@ -5272,7 +5291,7 @@ private:
             }
 
             if (operation.RuntimeParameters) {
-                operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
+                operation.Pools = GetPoolsFromRuntimeParameters(ConvertToNode(operation.RuntimeParameters));
             }
 
             if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Events)) {
@@ -5315,6 +5334,10 @@ private:
                 MaxLimit);
         }
 
+        if (options.OwnedBy && options.IncludeArchive) {
+            THROW_ERROR_EXCEPTION("Archive can not be included with \"owned_by\" filter");
+        }
+
         TCountingFilter countingFilter(options);
 
         THashMap<NScheduler::TOperationId, TOperation> idToOperation;
@@ -5322,7 +5345,31 @@ private:
             idToOperation = DoListOperationsFromArchive(deadline, countingFilter, options);
         }
 
-        DoListOperationsFromCypress(deadline, countingFilter, options, &idToOperation);
+        TNullable<THashSet<TString>> transitiveClosureOfOwnedBy;
+        if (options.OwnedBy) {
+            auto writePermissionResult = DoCheckPermission(
+                *options.OwnedBy,
+                NScheduler::GetOperationsPath(),
+                EPermission::Write,
+                TCheckPermissionOptions());
+            // Any user having "write" permission to the operations node
+            // is considered to own all the operations, so the filter must be Null.
+            if (writePermissionResult.Action != ESecurityAction::Allow) {
+                TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+                auto req = TYPathProxy::Get(GetUserPath(*options.OwnedBy) + "/@member_of_closure");
+                auto rspOrError = WaitFor(proxy.Execute(req));
+                if (!rspOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION("User specified in \"owned_by\" is unknown")
+                        << TErrorAttribute("owned_by", *options.OwnedBy)
+                        << rspOrError;
+                }
+                transitiveClosureOfOwnedBy.Emplace(
+                    ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value())));
+                transitiveClosureOfOwnedBy->insert(*options.OwnedBy);
+            }
+        }
+
+        DoListOperationsFromCypress(deadline, countingFilter, transitiveClosureOfOwnedBy, options, &idToOperation);
 
         std::vector<TOperation> operations;
         operations.reserve(idToOperation.size());
