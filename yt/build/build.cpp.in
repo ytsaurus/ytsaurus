@@ -35,14 +35,29 @@ Y_WEAK const char* GetVersion()
     return version.c_str();
 }
 
+const char* GetBuildHost()
+{
+    static auto buildHost = GetYaHostName();
+    return ~buildHost;
+}
+
+const char* GetBuildMachine()
+{
+    return "unknown";
+}
+
+const char* GetBuildTime()
+{
+    static auto buildDate = GetYaBuildDate();
+    return ~buildDate;
+}
+
 #else
 
 Y_WEAK const char* GetVersion()
 {
     return "@YT_VERSION@";
 }
-
-#endif
 
 Y_WEAK const char* GetBuildHost()
 {
@@ -58,6 +73,8 @@ Y_WEAK const char* GetBuildTime()
 {
     return "@YT_BUILD_TIME@";
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
