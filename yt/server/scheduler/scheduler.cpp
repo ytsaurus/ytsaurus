@@ -327,7 +327,7 @@ public:
         return Bootstrap_->GetMasterClient();
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr CreateOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -335,13 +335,18 @@ public:
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
+        YCHECK(StaticOrchidService_);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
-        return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{staticOrchidService, dynamicOrchidService},
+        auto combinedOrchidService = New<TServiceCombiner>(
+            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)},
             Config_->OrchidKeysUpdatePeriod);
+        CombinedOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(combinedOrchidService.Get()));
+        YCHECK(CombinedOrchidService_);
+        return combinedOrchidService;
     }
 
     TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors()
@@ -1300,6 +1305,9 @@ private:
 
     INodePtr OperationsEffectiveAcl_;
 
+    TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
+    TIntrusivePtr<NYTree::ICachedYPathService> CombinedOrchidService_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -1839,6 +1847,8 @@ private:
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
+            StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+            CombinedOrchidService_->SetUpdatePeriod(Config_->OrchidKeysUpdatePeriod);
 
             Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
 
@@ -3177,9 +3187,9 @@ const TOperationsCleanerPtr& TScheduler::GetOperationsCleaner() const
     return Impl_->GetOperationsCleaner();
 }
 
-IYPathServicePtr TScheduler::GetOrchidService() const
+IYPathServicePtr TScheduler::CreateOrchidService() const
 {
-    return Impl_->GetOrchidService();
+    return Impl_->CreateOrchidService();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TScheduler::GetCachedExecNodeDescriptors() const

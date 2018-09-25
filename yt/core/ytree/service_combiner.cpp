@@ -38,6 +38,11 @@ TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, TNull
     }
 }
 
+void TServiceCombiner::SetUpdatePeriod(TDuration period)
+{
+    UpdateKeysExecutor_->SetPeriod(period);
+}
+
 bool TServiceCombiner::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);

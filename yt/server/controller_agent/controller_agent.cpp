@@ -165,7 +165,7 @@ public:
         ScheduleConnect(true);
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr CreateOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -173,6 +173,8 @@ public:
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(Bootstrap_->GetControlInvoker())
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
+        YCHECK(StaticOrchidService_);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(Bootstrap_->GetControlInvoker());
@@ -289,6 +291,8 @@ public:
         if (HeartbeatExecutor_) {
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
+
+        StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
 
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
@@ -765,6 +769,8 @@ private:
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobRequestsInbox_;
+
+    TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -1459,9 +1465,9 @@ void TControllerAgent::Initialize()
     Impl_->Initialize();
 }
 
-IYPathServicePtr TControllerAgent::GetOrchidService()
+IYPathServicePtr TControllerAgent::CreateOrchidService()
 {
-    return Impl_->GetOrchidService();
+    return Impl_->CreateOrchidService();
 }
 
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
