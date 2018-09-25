@@ -106,13 +106,20 @@ private:
             : securityManager->GetAuthenticatedUser();
         auto permission = EPermission(request->permission());
 
+        bool ignoreMissingSubjects = request->ignore_missing_subjects();
+
         context->SetRequestInfo("User: %v, Permission: %v",
             user->GetName(),
             permission);
 
         auto aclNode = ConvertToNode(TYsonString(request->acl()));
         TAccessControlList acl;
-        Deserialize(acl, aclNode, securityManager);
+
+        std::vector<TString> missingSubjects;
+
+        Deserialize(acl, aclNode, securityManager, ignoreMissingSubjects ? &missingSubjects : nullptr);
+
+        ToProto(response->mutable_missing_subjects(), missingSubjects);
 
         auto result = securityManager->CheckPermission(user, permission, acl);
 

@@ -165,7 +165,7 @@ public:
         ScheduleConnect(true);
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr CreateOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -173,6 +173,8 @@ public:
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(Bootstrap_->GetControlInvoker())
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
+        YCHECK(StaticOrchidService_);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(Bootstrap_->GetControlInvoker());
@@ -290,6 +292,8 @@ public:
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
+        StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
             auto controller = operation->GetController();
@@ -361,6 +365,58 @@ public:
             THROW_ERROR_EXCEPTION("No such operation %v", operationId);
         }
         return operation;
+    }
+
+    INodePtr FindOperationAcl(const TOperationId& operationId, EAccessType accessType) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+
+        if (!operation) {
+            return nullptr;
+        }
+
+        switch (accessType) {
+            case EAccessType::Ownership:
+                return BuildYsonNodeFluently()
+                    .BeginList()
+                        .Do([&] (TFluentList fluent) {
+                            NScheduler::BuildOperationAce(
+                                operation->GetOwners(),
+                                operation->GetAuthenticatedUser(),
+                                std::vector<EPermission>{EPermission::Read, EPermission::Write},
+                                fluent);
+                        })
+                        .Items(OperationsEffectiveAcl_->AsList())
+                    .EndList();
+            case EAccessType::IntermediateData:
+                return BuildYsonNodeFluently()
+                    .BeginList()
+                        .Do([&] (TFluentList fluent) {
+                            if (auto intermediateDataAcl = operation->GetSpec()->FindChild("intermediate_data_acl")) {
+                                fluent.Items(intermediateDataAcl->AsList());
+                            } else {
+                                fluent.Items(OperationsEffectiveAcl_->AsList());
+                            }
+                        })
+                    .EndList();
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    INodePtr GetOperationAclFromCypress(const TOperationId& operationId, EAccessType accessType) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto path = GetNewOperationPath(operationId)
+            + (accessType == EAccessType::Ownership ? "/@effective_acl" : "/@full_spec/intermediate_data_acl");
+
+        auto result = WaitFor(Bootstrap_->GetMasterClient()->GetNode(path))
+            .ValueOrThrow();
+
+        return ConvertToNode(result);
     }
 
     const TOperationIdToOperationMap& GetOperations() const
@@ -644,19 +700,26 @@ public:
         return JobSpecSliceThrottler_;
     }
 
-    void ValidateOperationPermission(
+    void ValidateOperationAccess(
         const TString& user,
         const TOperationId& operationId,
-        EPermission permission,
-        const TString& subnodePath = "")
+        EAccessType accessType)
     {
-        NScheduler::ValidateOperationPermission(
+
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operationAcl = FindOperationAcl(operationId, accessType);
+        if (!operationAcl) {
+            operationAcl = GetOperationAclFromCypress(operationId, accessType);
+        }
+
+        NScheduler::ValidateOperationAccess(
             user,
             operationId,
+            accessType,
+            operationAcl,
             Bootstrap_->GetMasterClient(),
-            permission,
-            Logger,
-            subnodePath);
+            Logger);
 
         ValidateConnected();
     }
@@ -707,9 +770,13 @@ private:
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobRequestsInbox_;
 
+    TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
+
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
     TMemoryTagQueue MemoryTagQueue_;
+
+    INodePtr OperationsEffectiveAcl_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -803,9 +870,20 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
+        FetchOperationsEffectiveAcl();
+
         LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
+    }
+
+    void FetchOperationsEffectiveAcl()
+    {
+        LOG_INFO("Fetching //sys/operations/@effective_acl");
+
+        OperationsEffectiveAcl_ = ConvertToNode(
+            WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
+                .ValueOrThrow());
     }
 
     void OnConnected()
@@ -1389,9 +1467,9 @@ void TControllerAgent::Initialize()
     Impl_->Initialize();
 }
 
-IYPathServicePtr TControllerAgent::GetOrchidService()
+IYPathServicePtr TControllerAgent::CreateOrchidService()
 {
-    return Impl_->GetOrchidService();
+    return Impl_->CreateOrchidService();
 }
 
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
@@ -1576,13 +1654,12 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
     return Impl_->GetJobSpecSliceThrottler();
 }
 
-void TControllerAgent::ValidateOperationPermission(
+void TControllerAgent::ValidateOperationAccess(
     const TString& user,
     const TOperationId& operationId,
-    EPermission permission,
-    const TString& subnodePath)
+    EAccessType accessType)
 {
-    return Impl_->ValidateOperationPermission(user, operationId, permission, subnodePath);
+    return Impl_->ValidateOperationAccess(user, operationId, accessType);
 }
 
 

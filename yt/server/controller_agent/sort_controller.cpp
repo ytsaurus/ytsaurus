@@ -2075,8 +2075,7 @@ protected:
 
     void InitJobIOConfigs()
     {
-        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-        InitIntermediateOutputConfig(PartitionJobIOConfig);
+        PartitionJobIOConfig = Spec->PartitionJobIO;
     }
 
     virtual void CustomPrepare() override
@@ -2547,7 +2546,6 @@ private:
         TSortControllerBase::InitJobIOConfigs();
 
         IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
         // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
@@ -3140,11 +3138,9 @@ private:
         TSortControllerBase::InitJobIOConfigs();
 
         // This is not a typo!
-        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-        InitIntermediateOutputConfig(PartitionJobIOConfig);
 
-        IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
+        PartitionJobIOConfig = Spec->PartitionJobIO;
+        IntermediateSortJobIOConfig = Spec->SortJobIO;
 
         // Partition reduce: writer like in merge and reader like in sort.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);

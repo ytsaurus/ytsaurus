@@ -61,7 +61,7 @@ constexpr int MaxColumnGroupLength = 256;
 
 // Only for dynamic tables.
 constexpr int MaxValuesPerRow = 1024;
-constexpr int MaxRowsPerRowset = 1024 * 1024;
+constexpr int MaxRowsPerRowset = 5 * 1024 * 1024;
 constexpr i64 MaxStringValueLength = 16_MB;
 constexpr i64 MaxAnyValueLength = 16_MB;
 constexpr i64 MaxServerVersionedRowDataWeight = 512_MB;

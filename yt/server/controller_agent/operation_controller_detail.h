@@ -819,8 +819,6 @@ protected:
         NScheduler::TJobIOConfigPtr ioConfig,
         const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
-
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
