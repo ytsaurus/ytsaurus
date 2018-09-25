@@ -2147,6 +2147,10 @@ public:
                     ValidatePivotKey(pivotKey, table->GetTableSchema());
                 }
             }
+
+            if (!table->IsPhysicallySorted() && pivotKeys.empty()) {
+                THROW_ERROR_EXCEPTION("Pivot keys must be porovided to reshard a replicated table");
+            }
         } else {
             if (!pivotKeys.empty()) {
                 THROW_ERROR_EXCEPTION("Table is sorted; must provide tablet count");
