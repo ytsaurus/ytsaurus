@@ -29,6 +29,16 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
     return out.Str();
 }
 
+TString GetYaHostName()
+{
+    return BUILD_HOST;
+}
+
+TString GetYaBuildDate()
+{
+    return BUILD_DATE;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
