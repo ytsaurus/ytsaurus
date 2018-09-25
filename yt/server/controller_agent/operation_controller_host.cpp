@@ -283,18 +283,16 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& t
         treeId);
 }
 
-void TOperationControllerHost::ValidateOperationPermission(
+void TOperationControllerHost::ValidateOperationAccess(
     const TString& user,
-    EPermission permission,
-    const TString& subnodePath)
+    EAccessType accessType)
 {
-    WaitFor(BIND(&TControllerAgent::ValidateOperationPermission, Bootstrap_->GetControllerAgent())
+    WaitFor(BIND(&TControllerAgent::ValidateOperationAccess, Bootstrap_->GetControllerAgent())
         .AsyncVia(CancelableControlInvoker_)
         .Run(
             user,
             OperationId_,
-            permission,
-            subnodePath))
+            accessType))
         .ThrowOnError();
 }
 
