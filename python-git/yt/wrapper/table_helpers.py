@@ -23,6 +23,13 @@ import types
 from copy import deepcopy
 
 try:
+    # It is used to checks iterable type.
+    # Since isinstance(StringIO, collections.Iterator) raises an error in python 2.6.
+    from StringIO import StringIO as pythonStringIO
+except ImportError:  # Python 3
+    pythonStringIO = None
+
+try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
@@ -47,6 +54,8 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
         stream = BytesIO(stream)
 
     iterable_types = [list, types.GeneratorType, collections.Iterator, collections.Iterable]
+    if pythonStringIO is not None:
+        iterable_types.insert(0, pythonStringIO)
 
     is_iterable = isinstance(stream, tuple(iterable_types))
     is_filelike = hasattr(stream, "read")
@@ -245,7 +254,7 @@ def _prepare_binary(binary, file_uploader, params, client=None):
     if _is_python_function(binary):
         start_time = time.time()
         if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
-                and set(params.group_by) != {"key"}:
+                and set(params.group_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", params.group_by)
         result = \
             py_wrapper.wrap(function=binary,

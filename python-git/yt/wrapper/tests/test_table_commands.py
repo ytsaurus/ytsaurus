@@ -10,6 +10,8 @@ from yt.wrapper.common import parse_bool
 
 from yt.yson import YsonMap
 
+import yt.zip as zip
+
 from yt.packages.six.moves import xrange, map as imap
 
 from yt.local import start, stop
@@ -22,7 +24,6 @@ import tempfile
 import shutil
 import time
 import uuid
-import gzip
 from io import BytesIO
 from copy import deepcopy
 
@@ -598,7 +599,7 @@ class TestTableCommands(object):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
-        with gzip.GzipFile(filename, "w", 5) as fout:
+        with zip.GzipFile(filename, "w", 5) as fout:
             fout.write(b"x=1\nx=2\nx=3\n")
 
         with open(filename, "rb") as f:
