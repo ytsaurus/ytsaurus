@@ -971,6 +971,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
 
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", 3)
+
+        reshard_table("//tmp/t", [[], [10]])
+
         reshard_table("//tmp/t", [[], [10]])
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 2
