@@ -173,11 +173,9 @@ def make_request(command_name,
 
     if timeout is None:
         if command.is_heavy:
-            request_timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                              get_config(client)["proxy"]["heavy_request_timeout"])
+            request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         else:
-            request_timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
-                              get_config(client)["proxy"]["request_timeout"])
+            request_timeout = get_config(client)["proxy"]["request_timeout"]
         connect_timeout = get_config(client)["proxy"]["connect_timeout"]
 
         timeout = (connect_timeout, request_timeout)

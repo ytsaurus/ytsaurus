@@ -1,6 +1,6 @@
 from .batch_client import BatchClient
 from .batch_response import BatchResponse
-from .common import chunk_iter_list, get_value, remove_nones_from_dict, update
+from .common import chunk_iter_list, get_value
 from .config import get_config, get_option, get_client_state
 from .errors import YtError, YtResponseError
 from .etc_commands import execute_batch
@@ -19,15 +19,8 @@ class YtBatchRequestFailedError(YtError):
 
 class BatchRequestRetrier(Retrier):
     def __init__(self, tasks, responses, max_batch_size, client=None):
-        retry_config = {
-            "enable": get_config(client)["proxy"]["request_retry_enable"],
-            "count": get_config(client)["proxy"]["request_retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["batch_requests_retries"],
-                              remove_nones_from_dict(retry_config))
-        request_timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
-                                    get_config(client)["proxy"]["request_timeout"])
+        retry_config = get_config(client)["batch_requests_retries"]
+        request_timeout = get_config(client)["proxy"]["request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(BatchRequestRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=request_timeout,

@@ -445,13 +445,13 @@ class TestRetries(object):
     def test_write_retries_and_schema(self):
         table = TEST_DIR + "/table"
 
-        old_request_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
+        old_request_retry_timeout = yt.config["proxy"]["request_timeout"]
         old_enable_write_retries = yt.config["write_retries"]["enable"]
         old_chunk_size = yt.config["write_retries"]["chunk_size"]
 
         yt.config["write_retries"]["enable"] = True
         yt.config["write_retries"]["chunk_size"] = 100
-        yt.config["proxy"]["request_retry_timeout"] = 1000
+        yt.config["proxy"]["request_timeout"] = 1000
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
 
         data = [{"x": "y"} for _ in xrange(100)]
@@ -460,7 +460,7 @@ class TestRetries(object):
             yt.write_table("<schema=[{name=x;type=string}]>" + table, data)
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
-            yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout
+            yt.config["proxy"]["request_timeout"] = old_request_retry_timeout
             yt.config["write_retries"]["enable"] = old_enable_write_retries
             yt.config["write_retries"]["chunk_size"] = old_chunk_size
 

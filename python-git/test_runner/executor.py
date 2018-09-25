@@ -5,6 +5,7 @@ import logging.handlers
 import os
 import sys
 
+
 logger = logging.getLogger("Executor")
 
 def _serialize_report(report):
@@ -30,6 +31,13 @@ class Executor(object):
         self.channel = channel
         self.config = config
 
+    def _format_item_location(self, item):
+        location = item.location
+        file_path = location[0]
+        line_number = location[1]
+        function_name = location[2]
+        return "{} at {}:{}".format(function_name, file_path, line_number)
+
     def _send_to_channel(self, data_type, data):
         self.channel.send({"type": data_type, "data": data})
 
@@ -51,7 +59,7 @@ class Executor(object):
 
             self._send_to_channel("next_test_index", index)
 
-            logger.info("Executing %s", str(session.items[test_index]))
+            logger.info("Executing %s", self._format_item_location(session.items[test_index]))
             self.config.hook.pytest_runtest_protocol(
                 item=session.items[test_index],
                 nextitem=next_item)

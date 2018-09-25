@@ -1,7 +1,7 @@
 from . import http_driver
 from . import native_driver
 from .batch_response import apply_function_to_result
-from .common import YtError, update, sanitize_structure
+from .common import YtError, update, simplify_structure
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
 from .http_helpers import get_api_commands
@@ -55,7 +55,7 @@ def make_request(command_name,
 
     params = update(command_params, params)
 
-    params = sanitize_structure(params)
+    params = simplify_structure(params)
 
     enable_request_logging = get_config(client)["enable_request_logging"]
 

@@ -380,18 +380,20 @@ def escape_c(string):
 
     return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
 
-def sanitize_structure(obj):
+def simplify_structure(obj):
+    """Replace all wrapper replacement objects (like :class:`YPath <yt.wrapper.ypath.YPath>`) in the given object
+    with their YSON representations suitable for passing to the driver or to the HTTP request"""
     attributes = None
     is_yson_type = isinstance(obj, yson.YsonType)
     if is_yson_type and obj.attributes:
-        attributes = sanitize_structure(obj.attributes)
+        attributes = simplify_structure(obj.attributes)
 
     if isinstance(obj, list):
         list_cls = yson.YsonList if is_yson_type else list
-        obj = list_cls(imap(sanitize_structure, obj))
+        obj = list_cls(imap(simplify_structure, obj))
     elif isinstance(obj, dict):
         dict_cls = yson.YsonMap if is_yson_type else dict
-        obj = dict_cls((k, sanitize_structure(v)) for k, v in iteritems(obj))
+        obj = dict_cls((k, simplify_structure(v)) for k, v in iteritems(obj))
     elif hasattr(obj, "to_yson_type"):
         obj = obj.to_yson_type()
     else:
