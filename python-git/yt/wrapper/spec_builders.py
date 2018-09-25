@@ -280,11 +280,6 @@ class UserJobSpecBuilder(object):
     def layer_paths(self, paths):
         return _set_spec_value(self, "layer_paths", paths)
 
-    @deprecated(alternative='file_paths with local paths wrapped with LocalFile object '
-                            '(e.g. .file_paths([yt.LocalFile("/home/user/file")]))')
-    def local_files(self, files):
-        return _set_spec_value(self, "local_files", files)
-
     @spec_option("The format of tabular data")
     def format(self, format):
         return _set_spec_value(self, "format", format)
