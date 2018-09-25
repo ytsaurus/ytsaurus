@@ -55,7 +55,9 @@ void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
 void Deserialize(
     TAccessControlList& acl,
     NYTree::INodePtr node,
-    TSecurityManagerPtr securityManager);
+    TSecurityManagerPtr securityManager,
+    // Puts missing subjects in this array. Throws an error on missing subjects if nullptr.
+    std::vector<TString>* missingSubjects = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -590,7 +590,9 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
 {
-    Host->ValidateOperationPermission(user, permission, "/intermediate_data_access");
+    // Permission for IntermediateData can be only Read.
+    YCHECK(permission == EPermission::Read);
+    Host->ValidateOperationAccess(user, EAccessType::IntermediateData);
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -7069,19 +7071,6 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
-{
-    // Don't replicate intermediate output.
-    config->TableWriter->UploadReplicationFactor = Spec_->IntermediateDataReplicationFactor;
-    config->TableWriter->MinUploadReplicationFactor = 1;
-
-    // Cache blocks on nodes.
-    config->TableWriter->PopulateCache = true;
-
-    // Don't sync intermediate chunks.
-    config->TableWriter->SyncOnClose = false;
-}
-
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
 {
     auto options = New<TTableReaderOptions>();
@@ -7422,6 +7411,14 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
     TEdgeDescriptor descriptor;
     descriptor.CellTag = GetIntermediateOutputCellTag();
     descriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
+    descriptor.TableWriterConfig = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
+            .Item("min_upload_replication_factor").Value(1)
+            .Item("populate_cache").Value(true)
+            .Item("sync_on_close").Value(false)
+        .EndMap();
+
     descriptor.RequiresRecoveryInfo = true;
     return descriptor;
 }

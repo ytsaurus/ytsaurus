@@ -3345,6 +3345,7 @@ private:
         }
         req->set_permission(static_cast<int>(permission));
         req->set_acl(ConvertToYsonString(acl).GetData());
+        req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
         SetCachingHeader(req, options);
 
         batchReq->AddRequest(req);
@@ -3358,6 +3359,7 @@ private:
         result.Action = ESecurityAction(rsp->action());
         result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
         result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
+        result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
         return result;
     }
 
