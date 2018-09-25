@@ -233,9 +233,8 @@ def _run_tests(options, python_version):
                     cwd=options.checkout_directory,
                     env=env)
         except ChildHasNonZeroExitCode as err:
-            if err.return_code == 66:
-                teamcity_interact("buildProblem", description="Too many executors crashed during tests. "
-                                                              "Test session was terminated.")
+            teamcity_interact("buildProblem", description="Test session was terminated with non-zero exit code. " \
+                                                          "See build log for more details.")
             failed = True
 
         junit_path = os.path.join(options.working_directory,
