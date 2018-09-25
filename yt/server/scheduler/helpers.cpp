@@ -21,6 +21,8 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/core/ytree/node.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -36,6 +38,7 @@ using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
 using namespace NApi;
+using namespace NLogging;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -241,6 +244,62 @@ TListOperationsResult ListOperations(
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+EPermission GetPermission(EAccessType accessType)
+{
+    // Logic of transforming access type to permissions should not break the existing behavior.
+    switch (accessType) {
+        case EAccessType::Ownership:
+            return EPermission::Write;
+        case EAccessType::IntermediateData:
+            return EPermission::Read;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+void ValidateOperationAccess(
+    const TString& user,
+    const TOperationId& operationId,
+    EAccessType accessType,
+    const INodePtr& acl,
+    const NNative::IClientPtr& client,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+    TCheckPermissionByAclOptions options;
+    options.IgnoreMissingSubjects = true;
+    auto asyncResult = client->CheckPermissionByAcl(
+        user,
+        GetPermission(accessType),
+        acl,
+        options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    if (!result.MissingSubjects.empty()) {
+        LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
+            operationId,
+            result.MissingSubjects);
+    }
+
+    if (result.Action == ESecurityAction::Allow) {
+        LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
+            operationId,
+            user,
+            accessType);
+    } else {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "Access is denied")
+            << TErrorAttribute("user", user)
+            << TErrorAttribute("access_type", accessType)
+            << TErrorAttribute("operation_id", operationId);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

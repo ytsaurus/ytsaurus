@@ -172,7 +172,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",
-        CreateVirtualNode(Scheduler_->GetOrchidService()->Via(GetControlInvoker(EControlQueue::Orchid))));
+        CreateVirtualNode(Scheduler_->CreateOrchidService()->Via(GetControlInvoker(EControlQueue::Orchid))));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
