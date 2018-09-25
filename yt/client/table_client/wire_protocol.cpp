@@ -17,6 +17,8 @@
 
 #include <yt/core/compression/codec.h>
 
+#include <util/system/sanitizers.h>
+
 #include <contrib/libs/protobuf/io/coded_stream.h>
 
 namespace NYT {
@@ -82,6 +84,9 @@ public:
         WriteUint64(size);
         EnsureAlignedUpCapacity(size);
         YCHECK(message.SerializePartialToArray(Current_, size));
+        bzero(Current_ + size, AlignUp(size) - size);
+
+        NSan::CheckMemIsInitialized(Current_, AlignUp(size));
         Current_ += AlignUp(size);
     }
 
@@ -193,7 +198,6 @@ private:
 
     std::vector<TUnversionedValue> PooledValues_;
 
-
     void FlushPreallocated()
     {
         if (!Current_) {
@@ -225,7 +229,12 @@ private:
 
     void UnsafeWriteRaw(const void* buffer, size_t size)
     {
+        NSan::CheckMemIsInitialized(buffer, size);
+
         memcpy(Current_, buffer, size);
+        memset(Current_ + size, 0, AlignUp(size) - size);
+        
+        NSan::CheckMemIsInitialized(Current_, AlignUp(size));
         Current_ += AlignUp(size);
         Y_ASSERT(Current_ <= EndPreallocated_);
     }
@@ -238,6 +247,8 @@ private:
         // Do not use #UnsafeWriteRaw here to allow compiler to optimize memcpy & AlignUp.
         // Both of them are constexprs.
         memcpy(Current_, &value, sizeof(T));
+
+        NSan::CheckMemIsInitialized(Current_, AlignUp(sizeof(T)));
         Current_ += AlignUp(sizeof(T));
         Y_ASSERT(Current_ <= EndPreallocated_);
     }
@@ -279,6 +290,7 @@ private:
         UnsafeWritePod<ui64>(rawValue[0]);
         // Write data in-place.
         if (IsStringLikeType(value.Type)) {
+            NSan::CheckMemIsInitialized(value.Data.String, value.Length);
             UnsafeWriteRaw(value.Data.String, value.Length);
         } else if (IsValueType(value.Type)) {
             UnsafeWritePod(value.Data);

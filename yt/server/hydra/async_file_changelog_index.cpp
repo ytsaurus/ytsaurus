@@ -82,7 +82,7 @@ typename std::vector<T>::const_iterator FirstGreater(
 
 TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     : Capacity_(capacity)
-    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TNull>(capacity * sizeof(TChangelogIndexRecord), false, alignment))
+    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TNull>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
     , Offset_(offset)
 {
     auto maxCurrentIndexRecords = alignment / sizeof(TChangelogIndexRecord);

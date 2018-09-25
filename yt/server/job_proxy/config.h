@@ -61,7 +61,7 @@ class TJobProxyConfig
 {
 public:
     // Job-specific parameters.
-    int SlotIndex;
+    int SlotIndex = -1;
 
     TNullable<TString> TmpfsPath;
     std::vector<NExecAgent::TBindConfigPtr> Binds;
