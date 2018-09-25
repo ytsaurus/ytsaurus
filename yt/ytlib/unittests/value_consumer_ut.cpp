@@ -109,6 +109,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     ExpectConversion("uint64", "42", typeConversionConfig->EnableIntegralTypeConversion, "42u");
     ExpectError("uint64", "-42", typeConversionConfig->EnableIntegralTypeConversion);
     ExpectConversion("uint64", "\"234\"", typeConversionConfig->EnableStringToAllConversion, "234u");
+    ExpectConversion("uint64", "\"234u\"", typeConversionConfig->EnableStringToAllConversion, "234u");
     ExpectError("uint64", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (TString value : {"42u", "%true", "3.14", "#", "{}"}) {
         ExpectConversion("uint64", value, Never);

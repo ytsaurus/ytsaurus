@@ -131,11 +131,18 @@ void TValueConsumerBase::ProcessStringValue(const TUnversionedValue& value, EVal
         try {
             switch (columnType) {
                 case EValueType::Int64:
-                    convertedValue = MakeUnversionedInt64Value(FromString<i64>(stringValue), value.Id);
+                case EValueType::Uint64: {
+                    auto adjustedStringValue = stringValue;
+                    if (!stringValue.empty() && stringValue.back() == 'u') {
+                        adjustedStringValue = TStringBuf(value.Data.String, value.Length - 1);
+                    }
+                    if (columnType == EValueType::Int64) {
+                        convertedValue = MakeUnversionedInt64Value(FromString<i64>(adjustedStringValue), value.Id);
+                    } else {
+                        convertedValue = MakeUnversionedUint64Value(FromString<ui64>(adjustedStringValue), value.Id);
+                    }
                     break;
-                case EValueType::Uint64:
-                    convertedValue = MakeUnversionedUint64Value(FromString<ui64>(stringValue), value.Id);
-                    break;
+                }
                 case EValueType::Double:
                     convertedValue = MakeUnversionedDoubleValue(FromString<double>(stringValue), value.Id);
                     break;
