@@ -59,8 +59,10 @@ class YpTestEnvironment(object):
             path, node_path = arcadia_interop.prepare_yt_environment(destination)
             os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
             os.environ["NODE_PATH"] = node_path
+            self.test_sandbox_path = os.path.join(yatest_common.output_path(), "yp_" + generate_uuid())
+        else:
+            self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
 
-        self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,
                                       local_yt_options=dict(enable_debug_logging=True, node_config=NODE_CONFIG),
