@@ -202,7 +202,7 @@ TFuture<void> TFileWriter::WriteMeta(const NChunkClient::NProto::TChunkMeta& chu
 
             TSharedMutableRef buffer = Buffer_;
             if (buffer.Size() < MetaDataSize_) {
-                auto data = TSharedMutableRef::Allocate<TNull>(MetaDataSize_ + Alignment_, false);
+                auto data = TSharedMutableRef::Allocate<TNull>(MetaDataSize_ + Alignment_, true);
                 data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
                 data = data.Slice(data.Begin(), data.Begin() + MetaDataSize_);
                 buffer = data;
