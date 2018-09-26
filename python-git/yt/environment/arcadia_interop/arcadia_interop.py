@@ -5,20 +5,22 @@ import subprocess
 
 import yatest.common
 
-YT_ABI = "19_3"
+YT_ABI = "19_4"
 
 def prepare_yt_binaries(destination):
-    for binary, server_dir in [("master", "cell_master_program"),
-                               ("scheduler", "programs/scheduler"),
-                               ("node", "cell_node_program"),
-                               ("proxy", "cell_proxy_program"),
-                               ("job-proxy", "job_proxy_program"),
-                               ("exec", "exec_program"),
-                               ("tools", "tools_program"),
-                               ("controller-agent", "programs/controller_agent")]:
-        binary_path = yatest.common.binary_path("yt/{0}/yt/server/{1}/ytserver-{2}"
+    programs = [('master', 'cell_master/bin'),
+                ('node', 'cell_node/bin'),
+                ('job-proxy', 'job_proxy/bin'),
+                ('exec', 'bin/exec'),
+                ('proxy', 'rpc_proxy/bin'),
+                ('http-proxy', 'http_proxy/bin'),
+                ('tools', 'bin/tools'),
+                ('scheduler', 'scheduler/bin'),
+                ('controller-agent', 'controller_agent/bin')]
+    for binary, server_dir in programs:
+        binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
                                                 .format(YT_ABI, server_dir, binary))
-        os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
+        os.symlink(binary_path, os.path.join(destination, 'ytserver-' + binary))
 
     watcher_path = yatest.common.binary_path("yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
