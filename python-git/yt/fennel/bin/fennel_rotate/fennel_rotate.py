@@ -151,7 +151,7 @@ def rotate_archives(archive_size_limit, min_portion_to_archive):
                 logger.info("Moving %s to %s", table, get_next_table(table))
                 yt.move(table, get_next_table(table))
 
-def archive_table(archive_size_limit):
+def archive_table(archive_size_limit, compression_codec, erasure_codec):
     logger.info("Start archivation prefix of event log table")
 
     tables = get_tables()
@@ -169,7 +169,7 @@ def archive_table(archive_size_limit):
 
     with yt.Transaction():
         data_size_per_job = min(10 * 1024 ** 3, int((1024 ** 3) / get_archive_compression_ratio(example_archive)))
-        yt.create("table", TABLE_NAME + ".1", attributes={"erasure_codec": "lrc_12_2_2", "compression_codec": "zlib6"}, ignore_existing=True)
+        yt.create("table", TABLE_NAME + ".1", attributes={"erasure_codec": erasure_codec, "compression_codec": compression_codec}, ignore_existing=True)
         yt.run_merge(yt.TablePath(TABLE_NAME, start_index=0, end_index=row_count_to_archive), yt.TablePath(TABLE_NAME + ".1", append=True),
                      spec={"force_transform": True, "data_size_per_job": data_size_per_job})
         yt.set(TABLE_NAME + "/@archived_row_count", row_count_to_archive)
@@ -197,6 +197,8 @@ def main():
     parser.add_argument("--skip-fennel-check", action="store_true", default=False)
     parser.add_argument("--table-directory", default="//sys/scheduler/")
     parser.add_argument("--table-name", default="event_log")
+    parser.add_argument("--erasure-codec", default="lrc_12_2_2")
+    parser.add_argument("--compression-codec", default="zlib_6")
     parser.add_argument("--log-file", help="path to log file, stderr if not specified")
     parser.add_argument("--log-level", help="log level")
 
@@ -219,7 +221,7 @@ def main():
 
     if erase_archived_prefix():
         rotate_archives(args.archive_size_limit, args.min_portion_to_archive)
-        archive_table(args.archive_size_limit)
+        archive_table(args.archive_size_limit, args.compression_codec, args.erasure_codec)
         erase_archived_prefix()
     else:
         logger.warning("Failed to erase archived prefix of 'event_log' due to lock conflict. Skip rotation.")
