@@ -184,6 +184,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
@@ -580,7 +581,7 @@ public:
         auto state = replica->GetState();
         if (enabled) {
             if (*enabled) {
-                if (state == ETableReplicaState::Enabled) {
+                if (state == ETableReplicaState::Enabled || state == ETableReplicaState::Enabling) {
                     enabled = Null;
                 } else if (state != ETableReplicaState::Disabled) {
                     replica->ThrowInvalidState();
@@ -630,11 +631,11 @@ public:
 
         if (enabled) {
             if (*enabled) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Enabling table replica (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
 
-                replica->SetState(ETableReplicaState::Enabled);
+                replica->SetState(ETableReplicaState::Enabling);
             } else {
                 for (auto* tablet : table->Tablets()) {
                     if (tablet->GetState() == ETabletState::Unmounting) {
@@ -662,11 +663,11 @@ public:
 
             if (enabled) {
                 if (*enabled) {
-                    replicaInfo->SetState(ETableReplicaState::Enabled);
+                    replicaInfo->SetState(ETableReplicaState::Enabling);
                 } else {
                     replicaInfo->SetState(ETableReplicaState::Disabling);
-                    YCHECK(replica->DisablingTablets().insert(tablet).second);
                 }
+                YCHECK(replica->TransitioningTablets().insert(tablet).second);
             }
 
             auto* cell = tablet->GetCell();
@@ -690,7 +691,7 @@ public:
         }
 
         if (enabled) {
-            CheckForReplicaDisabled(replica);
+            CheckTransitioningReplicaTablets(replica);
         }
     }
 
@@ -1695,18 +1696,28 @@ public:
             for (auto& pair : GetPairsSortedByKey(tablet->Replicas())) {
                 auto* replica = pair.first;
                 auto& replicaInfo = pair.second;
-                if (replica->GetState() != ETableReplicaState::Enabled) {
-                    replicaInfo.SetState(ETableReplicaState::Disabled);
-                    continue;
+                switch (replica->GetState()) {
+                    case ETableReplicaState::Enabled:
+                    case ETableReplicaState::Enabling: {
+                        TReqSetTableReplicaEnabled req;
+                        ToProto(req.mutable_tablet_id(), tablet->GetId());
+                        ToProto(req.mutable_replica_id(), replica->GetId());
+                        req.set_enabled(true);
+                        hiveManager->PostMessage(mailbox, req);
+
+                        replicaInfo.SetState(ETableReplicaState::Enabling);
+                        YCHECK(replica->TransitioningTablets().insert(tablet).second);
+                        break;
+                    }
+
+                    case ETableReplicaState::Disabled:
+                    case ETableReplicaState::Disabling:
+                        replicaInfo.SetState(ETableReplicaState::Disabled);
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
                 }
-
-                TReqSetTableReplicaEnabled req;
-                ToProto(req.mutable_tablet_id(), tablet->GetId());
-                ToProto(req.mutable_replica_id(), replica->GetId());
-                req.set_enabled(true);
-                hiveManager->PostMessage(mailbox, req);
-
-                replicaInfo.SetState(ETableReplicaState::Enabled);
             }
         }
 
@@ -2074,7 +2085,7 @@ public:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* replica : replicatedTable->Replicas()) {
                 replica->SetTable(nullptr);
-                replica->DisablingTablets().clear();
+                replica->TransitioningTablets().clear();
                 objectManager->UnrefObject(replica);
             }
             replicatedTable->Replicas().clear();
@@ -4331,6 +4342,45 @@ private:
             replicaInfo->GetCurrentReplicationTimestamp());
     }
 
+    void HydraOnTableReplicaEnabled(TRspEnableTableReplica* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(response->replica_id());
+        auto* replica = FindTableReplica(replicaId);
+        if (!IsObjectAlive(replica)) {
+            return;
+        }
+
+        auto mountRevision = response->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        auto* replicaInfo = tablet->GetReplicaInfo(replica);
+        if (replicaInfo->GetState() != ETableReplicaState::Enabling) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Enabled replica notification received for a replica in a wrong state, "
+                "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
+                tabletId,
+                replicaId,
+                replicaInfo->GetState());
+            return;
+        }
+
+        replicaInfo->SetState(ETableReplicaState::Enabled);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica tablet enabled (TabletId: %v, ReplicaId: %v)",
+            tabletId,
+            replicaId);
+
+        YCHECK(replica->TransitioningTablets().erase(tablet) == 1);
+        CheckTransitioningReplicaTablets(replica);
+    }
+
     void HydraOnTableReplicaDisabled(TRspDisableTableReplica* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
@@ -4352,11 +4402,11 @@ private:
 
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Disabling) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in %Qlv state, "
-                "ignored (TabletId: %v, ReplicaId: %v)",
-                replicaInfo->GetState(),
+            LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in a wrong state, "
+                "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
                 tabletId,
-                replicaId);
+                replicaId,
+                replicaInfo->GetState());
             return;
         }
 
@@ -4366,27 +4416,41 @@ private:
             tabletId,
             replicaId);
 
-        YCHECK(replica->DisablingTablets().erase(tablet) == 1);
-        CheckForReplicaDisabled(replica);
+        YCHECK(replica->TransitioningTablets().erase(tablet) == 1);
+        CheckTransitioningReplicaTablets(replica);
     }
 
-    void CheckForReplicaDisabled(TTableReplica* replica)
+    void CheckTransitioningReplicaTablets(TTableReplica* replica)
     {
-        if (replica->GetState() != ETableReplicaState::Disabling) {
+        auto state = replica->GetState();
+        if (state != ETableReplicaState::Enabling && state != ETableReplicaState::Disabling) {
             return;
         }
 
-        if (!replica->DisablingTablets().empty()) {
+        if (!replica->TransitioningTablets().empty()) {
             return;
         }
 
         auto* table = replica->GetTable();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
-            table->GetId(),
-            replica->GetId());
+        switch (state) {
+            case ETableReplicaState::Enabling:
+                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                    table->GetId(),
+                    replica->GetId());
+                replica->SetState(ETableReplicaState::Enabled);
+                break;
 
-        replica->SetState(ETableReplicaState::Disabled);
+            case ETableReplicaState::Disabling:
+                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
+                    table->GetId(),
+                    replica->GetId());
+                replica->SetState(ETableReplicaState::Disabled);
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
     }
 
     void DoTabletUnmounted(TTablet* tablet)
@@ -5191,11 +5255,10 @@ private:
             for (auto& pair : tablet->Replicas()) {
                 auto replica = pair.first;
                 auto& replicaInfo = pair.second;
-                if (replicaInfo.GetState() != ETableReplicaState::Disabling) {
-                    continue;
-                }
                 replicaInfo.SetState(ETableReplicaState::Disabled);
-                CheckForReplicaDisabled(replica);
+                // NB: result is ignored intentionally.
+                replica->TransitioningTablets().erase(tablet);
+                CheckTransitioningReplicaTablets(replica);
             }
 
             DoTabletUnmounted(tablet);
