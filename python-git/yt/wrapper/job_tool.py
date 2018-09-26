@@ -40,16 +40,9 @@ JOB_TYPE_TO_SPEC_TYPE = {
     "map": "mapper"
 }
 
-ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
-NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
-
 OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
-
-# TODO(asaitgalin): Remove it in favor of special API.
-def get_operation_path(operation_id):
-    return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
 
 def shellquote(s):
     # https://stackoverflow.com/questions/35817/how-to-escape-os-system-calls-in-python
@@ -163,52 +156,10 @@ def download_job_input(operation_id, job_id, job_input_path, mode):
 
     logger.info("Job input is downloaded to %s", job_input_path)
 
-def get_job_info_from_cypress(operation_id, job_id):
-    job_is_running = False
-
-    running_job_info = None
-    try:
-        running_job_info = yt.get(get_operation_path(operation_id) + "/controller_orchid/running_jobs/" + job_id)
-    except yt.YtResponseError as err:
-        if not err.is_resolve_error():
-            raise
-
-    if running_job_info is not None:
-        job_info_on_node = None
-        try:
-            job_info_on_node = yt.get(NODE_ORCHID_JOB_PATH_PATTERN.format(running_job_info["address"], job_id))
-        except yt.YtResponseError as err:
-            if not err.is_resolve_error():
-                raise
-
-        if job_info_on_node is not None:
-            phase = job_info_on_node.get("job_phase")
-            if phase is not None and phase == "running":
-                job_is_running = True
-
-    if job_is_running:
-        return JobInfo(running_job_info["job_type"], is_running=True)
-    else:
-        return JobInfo(yt.get_job(operation_id, job_id)["type"], is_running=False)
-
-def get_job_type_from_dyntable(operation_id, job_id):
-    job_hash_pair = yt.common.uuid_hash_pair(job_id)
-    operation_hash_pair = yt.common.uuid_hash_pair(operation_id)
-    key = {
-        "operation_id_hi": operation_hash_pair.hi,
-        "operation_id_lo": operation_hash_pair.lo,
-        "job_id_hi": job_hash_pair.hi,
-        "job_id_lo": job_hash_pair.lo
-    }
-    rows = list(yt.lookup_rows(OPERATION_ARCHIVE_JOBS_PATH, [key], keep_missing_rows=True, column_names=["type"]))
-    assert len(rows) == 1
-    if rows[0] is None:
-        raise yt.YtError("Cannot find job in job archive table (operation-id: {0}; job-id {1})".format(operation_id, job_id))
-    return rows[0]["type"]
-
-def get_operation_attributes_from_dyntable(operation_id):
-    res = yt.driver.make_request("get_operation", {"operation_id": operation_id})
-    return yson.convert.json_to_yson(json.loads(res))
+def get_job_info(operation_id, job_id):
+    job_info = yt.get_job(operation_id, job_id)
+    job_is_running = job_info["state"] == "running"
+    return JobInfo(job_info["type"], is_running=job_is_running)
 
 def ensure_backend_is_supported():
     backend = yt.config.get_backend_type(yt)
@@ -228,32 +179,27 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     if job_path is None:
         job_path = os.path.join(os.getcwd(), "job_" + job_id)
 
-    if full:
-        attributes = get_operation_attributes_from_dyntable(operation_id)
-    else:
-        attributes = yt.get_operation_attributes(operation_id)
-
-    if attributes["operation_type"] in ["remote_copy", "sort", "merge"]:
+    operation_info = yt.get_operation(operation_id, attributes=["operation_type", "spec"])
+    op_type = operation_info["operation_type"]
+    op_spec = operation_info["spec"]
+    if op_type in ["remote_copy", "sort", "merge"]:
         raise yt.YtError("Operation {0} is {1} operation and does not run user code"
-                         .format(operation_id, attributes["operation_type"]))
+                         .format(operation_id, op_type))
 
     logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
 
+    job_info = get_job_info(operation_id, job_id)
     if full:
-        job_type = get_job_type_from_dyntable(operation_id, job_id)
         mode = "full"
+    elif job_info.is_running:
+        mode = "running"
     else:
-        job_info = get_job_info_from_cypress(operation_id, job_id)
-        job_type = job_info.job_type
-        if job_info.is_running:
-            mode = "running"
-        else:
-            mode = "failed"
+        mode = "failed"
 
-    if job_type not in JOB_TYPE_TO_SPEC_TYPE:
-        raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_type)))
+    if job_info.job_type not in JOB_TYPE_TO_SPEC_TYPE:
+        raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_info.job_type)))
 
-    op_type = JOB_TYPE_TO_SPEC_TYPE[job_type]
+    job_spec_section = JOB_TYPE_TO_SPEC_TYPE[job_info.job_type]
 
     makedirp(job_path)
     job_input_path = os.path.join(job_path, "input")
@@ -264,8 +210,8 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     sandbox_path = os.path.join(job_path, "sandbox")
     makedirp(sandbox_path)
 
-    file_count = len(attributes["spec"][op_type]["file_paths"])
-    for index, file_ in enumerate(attributes["spec"][op_type]["file_paths"]):
+    file_count = len(op_spec[job_spec_section]["file_paths"])
+    for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
         file_original_attrs = yt.get(file_ + "&/@", attributes=["key", "type"])
         file_attrs = yt.get(file_ + "/@", attributes=["key", "type"])
         file_name = file_.attributes.get("file_name", file_original_attrs.get("key"))
@@ -293,14 +239,14 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         logger.info("Job has no files to download")
 
     command_path = os.path.join(job_path, "command")
-    job_command = attributes["spec"][op_type]["command"]
-    job_environment = attributes["spec"][op_type].get("environment", {})
+    job_command = op_spec[job_spec_section]["command"]
+    job_environment = op_spec[job_spec_section].get("environment", {})
     with open(command_path, "w") as fout:
         fout.write(job_command)
     logger.info("Command was written to %s", command_path)
 
-    output_table_count = len(attributes["spec"]["output_table_paths"])
-    use_yamr_descriptors = parse_bool(attributes["spec"][op_type].get("use_yamr_descriptors", False))
+    output_table_count = len(op_spec["output_table_paths"])
+    use_yamr_descriptors = parse_bool(op_spec[job_spec_section].get("use_yamr_descriptors", False))
 
     output_path = os.path.join(job_path, "output")
     run_config = {
@@ -353,4 +299,3 @@ def create_job_tool_parser(parser):
 
     run_job_parser = subparsers.add_parser("run-job", help="runs job binary")
     add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")
-
