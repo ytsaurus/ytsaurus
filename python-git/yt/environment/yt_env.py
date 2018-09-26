@@ -50,6 +50,7 @@ def _parse_version(s):
     return BinaryVersion(abi, literal)
 
 def _add_binaries_to_path():
+    return
     for binary, server_dir in [("master", "cell_master_program"),
                                ("scheduler", "programs/scheduler"),
                                ("node", "cell_node_program"),
@@ -58,7 +59,7 @@ def _add_binaries_to_path():
                                ("exec", "exec_program"),
                                ("tools", "tools_program"),
                                ("controller-agent", "programs/controller_agent")]:
-        relative_path = "yt/19_3/yt/server/{0}/ytserver-{1}".format(server_dir, binary)
+        relative_path = "yt/19_4/yt/server/{0}/ytserver-{1}".format(server_dir, binary)
         add_binary_path(relative_path)
 
 def _which_yt_binaries():
@@ -151,7 +152,7 @@ class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
                  node_count=1, scheduler_count=1, controller_agent_count=None,
                  has_proxy=False, proxy_port=None, has_rpc_proxy=None,
-                 rpc_proxy_port=None, cell_tag=0, skynet_manager_count=0,
+                 rpc_proxy_count=1, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
@@ -201,6 +202,11 @@ class YTInstance(object):
 
         if driver_backend == "rpc" and not has_rpc_proxy:
             raise YtError("Driver with RPC backend is requested but RPC proxies aren't enabled.")
+
+        if has_rpc_proxy and rpc_proxy_count == 0:
+            raise YtError("RPC proxies are enabled but none of them are requested.")
+        if not has_rpc_proxy and rpc_proxy_count > 0:
+            rpc_proxy_count = 0
 
         self._uuid = generate_uuid()
         self._lock = RLock()
@@ -263,6 +269,7 @@ class YTInstance(object):
         self.controller_agent_count = controller_agent_count
         self.has_proxy = has_proxy
         self.has_rpc_proxy = has_rpc_proxy
+        self.rpc_proxy_count = rpc_proxy_count
         self.skynet_manager_count = skynet_manager_count
         self._enable_debug_logging = enable_debug_logging
         self._cell_tag = cell_tag
@@ -277,7 +284,7 @@ class YTInstance(object):
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
-                                  proxy_port, rpc_proxy_port, enable_master_cache, modify_configs_func, enable_structured_master_logging)
+                                  proxy_port, enable_master_cache, modify_configs_func, enable_structured_master_logging)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -332,17 +339,18 @@ class YTInstance(object):
         proxy_dir = os.path.join(self.runtime_data_path, "proxy")
         makedirp(proxy_dir)
 
-        rpc_proxy_dir = os.path.join(self.runtime_data_path, "rpc_proxy")
-        makedirp(rpc_proxy_dir)
+        rpc_proxy_dirs = [os.path.join(self.runtime_data_path, "rpc_proxy", str(i)) for i in xrange(self.rpc_proxy_count)]
+        for dir_ in rpc_proxy_dirs:
+            makedirp(dir_)
 
         skynet_manager_dirs = [os.path.join(self.runtime_data_path, "skynet_manager", str(i)) for i in xrange(self.skynet_manager_count)]
         for dir_ in skynet_manager_dirs:
             makedirp(dir_)
 
-        return master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs
+        return master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dirs, skynet_manager_dirs
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port, rpc_proxy_port,
+                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
                              enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
@@ -354,7 +362,7 @@ class YTInstance(object):
             logger.info("  secondary cells  %d", self.secondary_master_cell_count)
 
         logger.info("  HTTP proxies       %d", int(self.has_proxy))
-        logger.info("  RPC proxies        %d", int(self.has_rpc_proxy))
+        logger.info("  RPC proxies        %d", self.rpc_proxy_count)
         logger.info("  skynet managers    %d", self.skynet_manager_count)
         logger.info("  working dir        %s", self.path)
 
@@ -383,8 +391,7 @@ class YTInstance(object):
         provision["node"]["allow_chunk_storage_in_tmpfs"] = allow_chunk_storage_in_tmpfs
         provision["proxy"]["enable"] = self.has_proxy
         provision["proxy"]["http_port"] = proxy_port
-        provision["rpc_proxy"]["enable"] = self.has_rpc_proxy
-        provision["rpc_proxy"]["rpc_port"] = rpc_proxy_port
+        provision["rpc_proxy"]["count"] = self.rpc_proxy_count
         provision["driver"]["backend"] = self.driver_backend
         provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
@@ -393,7 +400,7 @@ class YTInstance(object):
             provision["enable_master_cache"] = enable_master_cache
         provision["enable_structured_master_logging"] = enable_structured_master_logging
 
-        master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
+        master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dirs, skynet_manager_dirs = self._prepare_directories()
 
         cluster_configuration = configs_provider.build_configs(
             self._get_ports_generator(port_range_start),
@@ -404,7 +411,7 @@ class YTInstance(object):
             node_dirs,
             node_tmpfs_dirs,
             proxy_dir,
-            rpc_proxy_dir,
+            rpc_proxy_dirs,
             skynet_manager_dirs,
             self.logs_path,
             provision)
@@ -425,7 +432,7 @@ class YTInstance(object):
         if self.has_proxy:
             self._prepare_proxy(cluster_configuration["proxy"], proxy_dir)
         if self.has_rpc_proxy:
-            self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dir)
+            self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dirs)
         if self.skynet_manager_count > 0:
             self._prepare_skynet_managers(cluster_configuration["skynet_manager"], skynet_manager_dirs)
 
@@ -478,6 +485,10 @@ class YTInstance(object):
             if not client.exists("//sys/users/application_operations"):
                 client.create("user", attributes={"name": "application_operations"})
                 client.add_member("application_operations", "superusers")
+
+            if self.has_proxy:
+                # NB: it is used to determine proper operation URL in local mode.
+                client.set("//sys/@local_mode_proxy_address", self.get_proxy_address())
 
             self._wait_functions = []
             if on_masters_started_func is not None:
@@ -541,6 +552,7 @@ class YTInstance(object):
             raise YtError("Proxy is not started")
         return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"], "proxy", "port"))
 
+    # XXX(kiselyovp) Only returns one GRPC proxy address even if multiple RPC proxy servers are launched.
     def get_grpc_proxy_address(self):
         if not self.has_rpc_proxy:
             raise YtError("Rpc proxy is not started")
@@ -1117,25 +1129,29 @@ class YTInstance(object):
         self.configs["proxy"] = config
         self.config_paths["proxy"] = config_path
 
-    def _prepare_rpc_proxy(self, rpc_proxy_config, rpc_client_config, rpc_proxy_dir):
-        config_path = os.path.join(self.configs_path, "rpc-proxy.yson")
-        if self._load_existing_environment:
-            if not os.path.isfile(config_path):
-                raise YtError("Rpc proxy config {0} not found".format(config_path))
-            config = read_config(config_path)
-        else:
-            config = rpc_proxy_config
-            write_config(config, config_path)
+    def _prepare_rpc_proxy(self, rpc_proxy_configs, rpc_client_config, rpc_proxy_dirs):
+        self.configs["rpc_proxy"] = []
+        self.config_paths["rpc_proxy"] = []
 
-        self.configs["rpc_proxy"].append(rpc_proxy_config)
-        self.config_paths["rpc_proxy"].append(config_path)
+        for i in xrange(len(rpc_proxy_dirs)):
+            config_path = os.path.join(self.configs_path, "rpc-proxy-{}.yson".format(i))
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Rpc proxy config {0} not found".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = rpc_proxy_configs[i]
+                write_config(config, config_path)
 
-        rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
-        if self._load_existing_environment:
-            if not os.path.isfile(rpc_client_config_path):
-                raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
-        else:
-            write_config(rpc_client_config, rpc_client_config_path)
+            self.configs["rpc_proxy"].append(config)
+            self.config_paths["rpc_proxy"].append(config_path)
+
+            rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
+            if self._load_existing_environment:
+                if not os.path.isfile(rpc_client_config_path):
+                    raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
+            else:
+                write_config(rpc_client_config, rpc_client_config_path)
 
     def _prepare_skynet_managers(self, skynet_manager_configs, skynet_manager_dirs):
         self.configs["skynet_manager"] = []
@@ -1209,7 +1225,7 @@ class YTInstance(object):
             self._validate_processes_are_running("rpc_proxy")
 
             proxies = native_client.get("//sys/rpc_proxies")
-            return len(proxies) == 1 and all("alive" in proxy for proxy in proxies.values())
+            return len(proxies) == self.rpc_proxy_count and all("alive" in proxy for proxy in proxies.values())
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
 

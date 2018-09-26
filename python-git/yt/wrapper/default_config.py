@@ -54,9 +54,6 @@ default_config = {
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
-    # Option for backward compatibility
-    "retry_backoff": retry_backoff_config(),
-
     # Configuration of proxy connection.
     "proxy": {
         "url": None,
@@ -67,17 +64,11 @@ default_config = {
         # "gzip" | "br" | "identity"
         "content_encoding": "gzip",
 
-        # Options for backward compatibility
-        "request_retry_count": None,
-        "request_retry_enable": None,
-        "request_retry_timeout": None,
-        "heavy_request_retry_timeout": None,
-
         # Retries configuration for http requests.
         "retries": retries_config(count=6, enable=True, backoff={
             "policy": "exponential",
             "exponential_policy": {
-                "start_timeout": 2,
+                "start_timeout": 2000,
                 "base": 2,
                 "max_timeout": 20000,
                 "decay_factor_bound": 0.3
@@ -332,14 +323,13 @@ default_config = {
     "remote_temp_files_directory": None,
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
-    "use_legacy_file_cache": None,
-
     # Expiration timeout for temporary objects (in milliseconds).
     "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,
 
     "file_cache": {
         "replication_factor": 10,
     },
+    "use_legacy_file_cache": None,
 
     "operation_tracker": {
         # Operation state check interval.
@@ -362,7 +352,7 @@ default_config = {
         # This parameter is only supported if stderr_download_threading_enable is True.
         "stderr_download_timeout": 60 * 1000,
         # Enables logging in text format operation failed error and job errors.
-        "enable_logging_failed_operation": False,
+        "enable_logging_failed_operation": True,
     },
 
     "read_parallel": {
@@ -432,7 +422,7 @@ default_config = {
     "read_retries": retries_config(count=30, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 2,
+            "start_timeout": 2000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
@@ -440,7 +430,6 @@ default_config = {
         .update_template_dict({
             "allow_multiple_ranges": False,
             "create_transaction_and_take_snapshot_lock": True,
-            "retry_count": None,
             "change_proxy_period": None
         }),
 
@@ -448,7 +437,7 @@ default_config = {
     "write_retries": retries_config(count=6, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 2,
+            "start_timeout": 2000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
@@ -458,7 +447,7 @@ default_config = {
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
-            #
+            # TODO: add comment.
             "rows_chunk_size": 100,
         }),
 
@@ -467,23 +456,18 @@ default_config = {
     "start_operation_retries": retries_config(count=30, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 3,
+            "start_timeout": 3000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
-        }}) \
-        .update_template_dict({
-            # For backward compatibility.
-            "retry_count": None,
-            "retry_timeout": None
-        }),
+        }}),
     "start_operation_request_timeout": 60000,
 
     # Retries for concatenate requests.
     "concatenate_retries": retries_config(count=6, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 20,
+            "start_timeout": 20000,
             "base": 2,
             "max_timeout": 120000,
             "decay_factor_bound": 0.3,

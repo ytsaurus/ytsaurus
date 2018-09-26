@@ -148,6 +148,7 @@ class FileUploader(object):
     def __init__(self, client):
         self.client = client
         self.disk_size = 0
+        self.uploaded_files = []
 
     def __call__(self, files):
         if files is None:
@@ -171,6 +172,7 @@ class FileUploader(object):
                     "executable": is_executable(local_file.path, client=self.client),
                     "file_name": local_file.file_name,
                 }))
+                self.uploaded_files.append(path)
         return file_paths
 
 def _is_python_function(binary):
@@ -280,11 +282,7 @@ def _prepare_job_io(job_io=None, table_writer=None):
         job_io.setdefault("table_writer", table_writer)
     return job_io
 
-def _prepare_operation_files(local_files=None, files=None, yt_files=None):
-    if files is not None:
-        require(local_files is None, lambda: YtError("You cannot specify files and local_files simultaneously"))
-        local_files = files
-
+def _prepare_operation_files(local_files=None, yt_files=None):
     result = []
 
     if yt_files is not None:

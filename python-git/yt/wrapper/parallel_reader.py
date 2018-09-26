@@ -18,13 +18,8 @@ class ParallelReadRetrier(Retrier):
     def __init__(self, command_name, transaction_id, client):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
         retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
-        retry_config = {
-            "count": get_config(client)["read_retries"]["retry_count"],
-            "backoff": get_config(client)["retry_backoff"],
-        }
-        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
-        timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                            get_config(client)["proxy"]["heavy_request_timeout"])
+        retry_config = get_config(client)["read_retries"]
+        timeout = get_config(client)["proxy"]["heavy_request_timeout"]
 
         super(ParallelReadRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=timeout,
@@ -94,13 +89,6 @@ class ParallelReader(object):
             self._transaction.abort()
 
 def make_read_parallel_request(command_name, path, ranges, params, prepare_params_func, unordered, response_parameters, client):
-    title = "Python wrapper: read {0}".format(str(TablePath(path, client=client)))
-    transaction = None
-    if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
-        transaction = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
-    if response_parameters is None:
-        response_parameters = {}
-
     if not ranges:
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
@@ -108,6 +96,13 @@ def make_read_parallel_request(command_name, path, ranges, params, prepare_param
             close=lambda: None,
             process_error=lambda response: None,
             get_response_parameters=lambda: None)
+
+    title = "Python wrapper: read {0}".format(str(TablePath(path, client=client)))
+    transaction = None
+    if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
+        transaction = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
+    if response_parameters is None:
+        response_parameters = {}
 
     thread_count = min(len(ranges), get_config(client)["read_parallel"]["max_thread_count"])
     try:
