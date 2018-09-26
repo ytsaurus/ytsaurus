@@ -50,6 +50,7 @@ def _parse_version(s):
     return BinaryVersion(abi, literal)
 
 def _add_binaries_to_path():
+    return
     for binary, server_dir in [("master", "cell_master_program"),
                                ("scheduler", "programs/scheduler"),
                                ("node", "cell_node_program"),
@@ -58,7 +59,7 @@ def _add_binaries_to_path():
                                ("exec", "exec_program"),
                                ("tools", "tools_program"),
                                ("controller-agent", "programs/controller_agent")]:
-        relative_path = "yt/19_3/yt/server/{0}/ytserver-{1}".format(server_dir, binary)
+        relative_path = "yt/19_4/yt/server/{0}/ytserver-{1}".format(server_dir, binary)
         add_binary_path(relative_path)
 
 def _which_yt_binaries():
