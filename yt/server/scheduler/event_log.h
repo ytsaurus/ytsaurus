@@ -23,6 +23,7 @@ DEFINE_ENUM(ELogEventType,
     (OperationAborted)
     (FairShareInfo)
     (OperationPrepared)
+    (OperationMaterialized)
     (ClusterInfo)
     (NodesInfo)
     (PoolsInfo)
