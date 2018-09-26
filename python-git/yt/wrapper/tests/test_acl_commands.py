@@ -36,8 +36,8 @@ class TestAclCommands(object):
     def test_add_remove_member(self):
         yt.add_member("tester", "testers")
         assert yt.get_attribute("//sys/groups/testers", "members") == ["tester"]
-        assert set(yt.get_attribute("//sys/users/tester", "member_of")) == set(["users", "testers"])
-        assert set(yt.get_attribute("//sys/users/tester", "member_of_closure")) == set(["users", "testers", "everyone"])
+        assert set(yt.get_attribute("//sys/users/tester", "member_of")) == {"users", "testers"}
+        assert set(yt.get_attribute("//sys/users/tester", "member_of_closure")) == {"users", "testers", "everyone"}
 
         yt.remove_member("tester", "testers")
         assert yt.get_attribute("//sys/groups/testers", "members") == []
