@@ -17,32 +17,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr bool USE_NEW_PROTO_FORMAT_DESCRIPTION = true;
-
-////////////////////////////////////////////////////////////////////////////////
-
-int SaveDependencies(
-    FileDescriptorSet& set,
-    THashMap<const FileDescriptor*, int>& saved,
-    const FileDescriptor* fileDescriptor)
-{
-    auto* check = saved.FindPtr(fileDescriptor);
-    if (check) {
-        return *check;
-    }
-
-    for (int i = 0; i < fileDescriptor->dependency_count(); ++i) {
-        SaveDependencies(set, saved, fileDescriptor->dependency(i));
-    }
-
-    auto *fileDescriptorProto = set.add_file();
-    fileDescriptor->CopyTo(fileDescriptorProto);
-
-    int fileIndex = set.file_size() - 1;
-    saved[fileDescriptor] = fileIndex;
-    return fileIndex;
-}
-
 TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescriptor)
 {
     auto config = TNode::CreateMap();
@@ -52,36 +26,7 @@ TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescri
     return config;
 }
 
-TNode MakeProtoFormatConfigOld(const TVector<const Descriptor*>& descriptors)
-{
-    FileDescriptorSet set;
-    THashMap<const FileDescriptor*, int> saved;
-    TVector<int> fileIndices;
-    TVector<int> messageIndices;
-
-    for (auto* descriptor : descriptors) {
-        auto* fileDescriptor = descriptor->file();
-        int fileIndex = SaveDependencies(set, saved, fileDescriptor);
-        fileIndices.push_back(fileIndex);
-        messageIndices.push_back(descriptor->index());
-    }
-
-    TString fileDescriptorSetBytes;
-    set.SerializeToString(&fileDescriptorSetBytes);
-
-    TNode config("protobuf");
-    config.Attributes()
-        ("file_descriptor_set", fileDescriptorSetBytes)
-        ("file_indices", TNode::CreateList()) //  TNode::TListType(fileIndices.cbegin(), fileIndices.cend())))
-        ("message_indices", TNode::CreateList()) //TListType(messageIndices.cbegin(), messageIndices.cend()))
-        ("enums_as_strings", true)
-        ("nested_messages_mode", "protobuf");
-    config.Attributes()["file_indices"].AsList().assign(fileIndices.cbegin(), fileIndices.cend());
-    config.Attributes()["message_indices"].AsList().assign(messageIndices.cbegin(), messageIndices.cend());
-    return config;
-}
-
-TNode MakeProtoFormatConfigNew(const TVector<const Descriptor*>& descriptors)
+TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
 {
     auto enumerations = TNode::CreateMap();
     TVector<TNode> tables;
@@ -116,15 +61,6 @@ TNode MakeProtoFormatConfigNew(const TVector<const Descriptor*>& descriptors)
         ("tables", TNode::CreateList());
     config.Attributes()["tables"].AsList().assign(tables.cbegin(), tables.cend());
     return config;
-}
-
-TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
-{
-    if (USE_NEW_PROTO_FORMAT_DESCRIPTION) {
-        return MakeProtoFormatConfigNew(descriptors);
-    } else {
-        return MakeProtoFormatConfigOld(descriptors);
-    }
 }
 
 } // namespace

@@ -65,11 +65,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr bool USE_GET_OPERATION = true;
-constexpr bool USE_NEW_FILE_CACHE = true;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ApplyFormatHints(
     TFormat* format,
     TMultiFormatDesc::EFormat rowType,
@@ -571,11 +566,7 @@ private:
 
     TYPath GetCachePath() const
     {
-        if (USE_NEW_FILE_CACHE) {
-            return AddPathPrefix(TStringBuilder() << GetFileStorage() << "/new_cache");
-        } else {
-            return AddPathPrefix(TStringBuilder() << GetFileStorage() << "/hash");
-        }
+        return AddPathPrefix(TStringBuilder() << GetFileStorage() << "/new_cache");
     }
 
     void CreateStorage() const
@@ -584,96 +575,6 @@ private:
             TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
-    }
-
-    TString UploadToCacheOld(const IItemToUpload& itemToUpload) const
-    {
-        auto md5Signature = itemToUpload.CalculateMD5();
-        Y_VERIFY(md5Signature.size() == 32);
-
-        TString twoDigits = md5Signature.substr(md5Signature.size() - 2);
-        Y_VERIFY(twoDigits.size() == 2);
-
-        TString symlinkPath = TStringBuilder() << GetCachePath() <<
-            "/" << twoDigits << "/" << md5Signature;
-
-        TString uniquePath = TStringBuilder() << GetFileStorage() <<
-            "/" << twoDigits << "/cpp_" << CreateGuidAsString();
-
-        symlinkPath = AddPathPrefix(symlinkPath);
-        uniquePath = AddPathPrefix(uniquePath);
-
-        int retryCount = 256;
-        for (int attempt = 0; attempt < retryCount; ++attempt) {
-            TNode linkAttrs;
-            if (Exists(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&")) {
-                try {
-                    linkAttrs = Get(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&/@");
-                } catch (TErrorResponse& e) {
-                    if (!e.IsResolveError()) {
-                        throw;
-                    }
-                }
-            }
-
-            try {
-                if (!linkAttrs.IsUndefined()) {
-                    if (linkAttrs["type"] == "link" &&
-                        (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
-                    {
-                        try {
-                            NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&/@touched", "true");
-                            NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "/@touched", "true");
-                        } catch (const TErrorResponse& e) {
-                            if (!e.IsConcurrentTransactionLockConflict()) {
-                                // We might have lock conflict if FileStorageTransactionId is used,
-                                // ignore this error, other transaction is probably touched file.
-                                throw;
-                            }
-                        }
-                        return symlinkPath;
-                    } else {
-                        NYT::NDetail::Remove(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&",
-                            TRemoveOptions().Recursive(true).Force(true));
-                    }
-                }
-
-                NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE,
-                    TCreateOptions()
-                        .IgnoreExisting(true)
-                        .Recursive(true)
-                        .Attributes(
-                            TNode()
-                            ("hash", md5Signature)
-                            ("touched", true)));
-
-                {
-                    // TODO: use file writer
-                    THttpHeader header("PUT", GetWriteFileCommand());
-                    header.SetToken(Auth_.Token);
-                    header.AddPath(uniquePath);
-                    auto streamMaker = [&itemToUpload] () {
-                        return itemToUpload.CreateInputStream();
-                    };
-                    RetryHeavyWriteRequest(Auth_, Options_.FileStorageTransactionId_, header, streamMaker);
-                }
-
-                NYT::NDetail::Link(Auth_, Options_.FileStorageTransactionId_, uniquePath, symlinkPath,
-                    TLinkOptions()
-                        .IgnoreExisting(true)
-                        .Recursive(true)
-                        .Attributes(TNode()("touched", true)));
-
-            } catch (TErrorResponse& e) {
-                if (!e.IsResolveError() || attempt + 1 == retryCount) {
-                    throw;
-                }
-                TWaitProxy::Sleep(TDuration::Seconds(1));
-                continue;
-            }
-            break;
-        }
-        return symlinkPath;
     }
 
     class TRetryPolicyIgnoringLockConflicts
@@ -757,19 +658,15 @@ private:
 
     TString UploadToCache(const IItemToUpload& itemToUpload) const
     {
-        if (USE_NEW_FILE_CACHE) {
-            switch (Options_.FileCacheMode_) {
-                case TOperationOptions::EFileCacheMode::ApiCommandBased:
-                    Y_ENSURE_EX(Options_.FileStorageTransactionId_.IsEmpty(), TApiUsageError() <<
-                        "Default cache mode (API command-based) doesn't allow non-default 'FileStorageTransactionId_'");
-                    return UploadToCacheUsingApi(itemToUpload);
-                case TOperationOptions::EFileCacheMode::CachelessRandomPathUpload:
-                    return UploadToRandomPath(itemToUpload);
-                default:
-                    Y_FAIL("Unknown file cache mode: %d", static_cast<int>(Options_.FileCacheMode_));
-            }
-        } else {
-            return UploadToCacheOld(itemToUpload);
+        switch (Options_.FileCacheMode_) {
+            case TOperationOptions::EFileCacheMode::ApiCommandBased:
+                Y_ENSURE_EX(Options_.FileStorageTransactionId_.IsEmpty(), TApiUsageError() <<
+                    "Default cache mode (API command-based) doesn't allow non-default 'FileStorageTransactionId_'");
+                return UploadToCacheUsingApi(itemToUpload);
+            case TOperationOptions::EFileCacheMode::CachelessRandomPathUpload:
+                return UploadToRandomPath(itemToUpload);
+            default:
+                Y_FAIL("Unknown file cache mode: %d", static_cast<int>(Options_.FileCacheMode_));
         }
     }
 
@@ -860,79 +757,25 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     const size_t maxJobCount = options.MaxJobCount_;
     const i64 stderrTailSize = options.StderrTailSize_;
 
-    if (USE_GET_OPERATION) {
-        const auto jobList = ListJobsOld(auth, operationId, TListJobsOptions()
-            .State(EJobState::Failed)
-            .Limit(maxJobCount))["jobs"].AsList();
-        TVector<TFailedJobInfo> result;
-        for (const auto& jobNode : jobList) {
-            const auto& jobMap = jobNode.AsMap();
-            TFailedJobInfo info;
-            info.JobId = GetGuid(jobMap.at("id").AsString());
-            auto errorIt = jobMap.find("error");
-            info.Error = TYtError(errorIt == jobMap.end() ? "unknown error" : errorIt->second);
-            if (jobMap.count("stderr_size")) {
-                info.Stderr = GetJobStderr(auth, operationId, info.JobId)->ReadAll();
-                if (info.Stderr.Size() > static_cast<size_t>(stderrTailSize)) {
-                    info.Stderr = TString(info.Stderr.Data() + info.Stderr.Size() - stderrTailSize, stderrTailSize);
-                }
+    const auto jobList = ListJobsOld(auth, operationId, TListJobsOptions()
+        .State(EJobState::Failed)
+        .Limit(maxJobCount))["jobs"].AsList();
+    TVector<TFailedJobInfo> result;
+    for (const auto& jobNode : jobList) {
+        const auto& jobMap = jobNode.AsMap();
+        TFailedJobInfo info;
+        info.JobId = GetGuid(jobMap.at("id").AsString());
+        auto errorIt = jobMap.find("error");
+        info.Error = TYtError(errorIt == jobMap.end() ? "unknown error" : errorIt->second);
+        if (jobMap.count("stderr_size")) {
+            info.Stderr = GetJobStderr(auth, operationId, info.JobId)->ReadAll();
+            if (info.Stderr.Size() > static_cast<size_t>(stderrTailSize)) {
+                info.Stderr = TString(info.Stderr.Data() + info.Stderr.Size() - stderrTailSize, stderrTailSize);
             }
-            result.push_back(std::move(info));
         }
-        return result;
-    } else {
-        const auto operationPath = "//sys/operations/" + GetGuidAsString(operationId);
-        const auto jobsPath = operationPath + "/jobs";
-
-        if (!Exists(auth, TTransactionId(), jobsPath)) {
-            return {};
-        }
-
-        auto jobList = List(auth, TTransactionId(), jobsPath, TListOptions().AttributeFilter(
-            TAttributeFilter()
-                .AddAttribute("state")
-                .AddAttribute("error")));
-
-        TVector<TFailedJobInfo> result;
-        for (const auto& job : jobList) {
-            if (result.size() >= maxJobCount) {
-                break;
-            }
-
-            const auto& jobId = job.AsString();
-            auto jobPath = jobsPath + "/" + jobId;
-            auto& attributes = job.GetAttributes().AsMap();
-
-            const auto stateIt = attributes.find("state");
-            if (stateIt == attributes.end() || stateIt->second.AsString() != "failed") {
-                continue;
-            }
-            result.push_back(TFailedJobInfo());
-            auto& cur = result.back();
-            cur.JobId = GetGuid(job.AsString());
-
-            auto errorIt = attributes.find("error");
-            if (errorIt != attributes.end()) {
-                cur.Error = TYtError(errorIt->second);
-            }
-
-            auto stderrPath = jobPath + "/stderr";
-            if (!Exists(auth, TTransactionId(), stderrPath)) {
-                continue;
-            }
-
-            TRichYPath path(stderrPath);
-            i64 stderrSize = Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size").AsInt64();
-            if (stderrSize > stderrTailSize) {
-                path.AddRange(
-                    TReadRange().LowerLimit(
-                        TReadLimit().Offset(stderrSize - stderrTailSize)));
-            }
-            IFileReaderPtr reader = new TFileReader(path, auth, TTransactionId());
-            cur.Stderr = reader->ReadAll();
-        }
-        return result;
+        result.push_back(std::move(info));
     }
+    return result;
 }
 
 using TDescriptorList = TVector<const ::google::protobuf::Descriptor*>;
@@ -1043,73 +886,33 @@ EOperationBriefState CheckOperation(
     const TAuth& auth,
     const TOperationId& operationId)
 {
-    if (USE_GET_OPERATION) {
-        auto attributes = GetOperation(
-            auth,
+    auto attributes = GetOperation(
+        auth,
+        operationId,
+        TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
+            .Add(EOperationAttribute::State)
+            .Add(EOperationAttribute::Result)));
+    Y_VERIFY(attributes.BriefState);
+    if (*attributes.BriefState == EOperationBriefState::Completed) {
+        return EOperationBriefState::Completed;
+    } else if (*attributes.BriefState == EOperationBriefState::Aborted || *attributes.BriefState == EOperationBriefState::Failed) {
+        LOG_ERROR("Operation %s %s (%s)",
+            ~GetGuidAsString(operationId),
+            ~::ToString(*attributes.BriefState),
+            ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
+
+        auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
+
+        Y_VERIFY(attributes.Result && attributes.Result->Error);
+        ythrow TOperationFailedError(
+            *attributes.BriefState == EOperationBriefState::Aborted
+            ? TOperationFailedError::Aborted
+            : TOperationFailedError::Failed,
             operationId,
-            TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
-                .Add(EOperationAttribute::State)
-                .Add(EOperationAttribute::Result)));
-        Y_VERIFY(attributes.BriefState);
-        if (*attributes.BriefState == EOperationBriefState::Completed) {
-            return EOperationBriefState::Completed;
-        } else if (*attributes.BriefState == EOperationBriefState::Aborted || *attributes.BriefState == EOperationBriefState::Failed) {
-            LOG_ERROR("Operation %s %s (%s)",
-                ~GetGuidAsString(operationId),
-                ~::ToString(*attributes.BriefState),
-                ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
-
-            auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
-
-            Y_VERIFY(attributes.Result && attributes.Result->Error);
-            ythrow TOperationFailedError(
-                *attributes.BriefState == EOperationBriefState::Aborted
-                    ? TOperationFailedError::Aborted
-                    : TOperationFailedError::Failed,
-                operationId,
-                *attributes.Result->Error,
-                failedJobInfoList);
-        }
-        return EOperationBriefState::InProgress;
-    } else {
-        auto opIdStr = GetGuidAsString(operationId);
-        auto opPath = Sprintf("//sys/operations/%s", ~opIdStr);
-        auto statePath = opPath + "/@state";
-
-        if (!Exists(auth, TTransactionId(), opPath)) {
-            ythrow yexception() << "Operation " << opIdStr << " does not exist";
-        }
-
-        TString state = Get(auth, TTransactionId(), statePath).AsString();
-
-        if (state == "completed") {
-            return EOperationBriefState::Completed;
-
-        } else if (state == "aborted" || state == "failed") {
-            LOG_ERROR("Operation %s %s (%s)",
-                ~opIdStr,
-                ~state,
-                ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
-
-            auto errorPath = opPath + "/@result/error";
-            TYtError ytError(TString("unknown operation error"));
-            if (Exists(auth, TTransactionId(), errorPath)) {
-                ytError = TYtError(Get(auth, TTransactionId(), errorPath));
-            }
-
-            auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
-
-            ythrow TOperationFailedError(
-                state == "aborted" ?
-                    TOperationFailedError::Aborted :
-                    TOperationFailedError::Failed,
-                operationId,
-                ytError,
-                failedJobInfoList);
-        }
-
-        return EOperationBriefState::InProgress;
+            *attributes.Result->Error,
+            failedJobInfoList);
     }
+    return EOperationBriefState::InProgress;
 }
 
 void WaitForOperation(
@@ -2246,25 +2049,12 @@ public:
 
     virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
-        if (USE_GET_OPERATION) {
-            OperationState_ = batchRequest->GetOperation(
-                OperationImpl_->GetId(),
-                TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
-                    .Add(EOperationAttribute::State)
-                    .Add(EOperationAttribute::BriefProgress)
-                    .Add(EOperationAttribute::Result)));
-        } else {
-            // NOTE: we don't request progress/job_statistics here, because it is huge.
-            auto nodeFuture = batchRequest->Get(TTransactionId(), OperationAttrPath_,
-                TGetOptions().AttributeFilter(
-                    TAttributeFilter()
-                    .AddAttribute("result")
-                    .AddAttribute("state")
-                    .AddAttribute("brief_progress")));
-            OperationState_ = nodeFuture.Apply([&](const NThreading::TFuture<TNode>& nodeFuture) {
-                return ParseOperationAttributes(nodeFuture.GetValue());
-            });
-        }
+        OperationState_ = batchRequest->GetOperation(
+            OperationImpl_->GetId(),
+            TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
+                .Add(EOperationAttribute::State)
+                .Add(EOperationAttribute::BriefProgress)
+                .Add(EOperationAttribute::Result)));
     }
 
     virtual EStatus OnRequestExecuted() override
@@ -2390,26 +2180,14 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
         }
     }
 
-    TOperationAttributes attributes;
-    if (USE_GET_OPERATION) {
-        attributes = NDetail::GetOperation(
-            Auth_,
-            Id_,
-            TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
-                .Add(EOperationAttribute::Result)
-                .Add(EOperationAttribute::Progress)
-                .Add(EOperationAttribute::State)
-                .Add(EOperationAttribute::BriefProgress)));
-    } else {
-        auto node = NYT::NDetail::Get(Auth_, TTransactionId(), "//sys/operations/" + GetGuidAsString(Id_) + "/@",
-            TGetOptions().AttributeFilter(
-                TAttributeFilter()
-                .AddAttribute("result")
-                .AddAttribute("progress")
-                .AddAttribute("state")
-                .AddAttribute("brief_progress")));
-        attributes = ParseOperationAttributes(node);
-    }
+    TOperationAttributes attributes = NDetail::GetOperation(
+        Auth_,
+        Id_,
+        TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
+            .Add(EOperationAttribute::Result)
+            .Add(EOperationAttribute::Progress)
+            .Add(EOperationAttribute::State)
+            .Add(EOperationAttribute::BriefProgress)));
 
     func(attributes);
 
