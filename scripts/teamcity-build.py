@@ -836,9 +836,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
                 cwd=suite_path,
                 env=env)
         except ChildHasNonZeroExitCode as err:
-            if err.return_code == 66:
-                teamcity_interact("buildProblem", description="Too many executors crashed during {0} tests. "
-                                                              "Test session was terminated.".format(suite_name))
+            teamcity_interact("buildProblem", description="Test session was terminated with non-zero exit code during {} pytest run. " \
+                                                          "See build log for more details.".format(suite_name))
 
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
