@@ -6,6 +6,8 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 namespace NYT {
 namespace NLogging {
 
@@ -13,12 +15,82 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRateLimitCounter::TRateLimitCounter(TNullable<size_t> limit, const TMonotonicCounter& bytesCounter, const TMonotonicCounter& skippedEventsCounter)
+    : LastUpdate_(TInstant::Now())
+    , RateLimit_(limit)
+    , BytesCounter_(bytesCounter)
+    , SkippedEventsCounter_(skippedEventsCounter)
+{ }
+
+void TRateLimitCounter::SetRateLimit(TNullable<size_t> rateLimit)
+{
+    RateLimit_ = rateLimit;
+    LastUpdate_ = TInstant::Now();
+    BytesWritten_ = 0;
+}
+
+void TRateLimitCounter::SetBytesCounter(const TMonotonicCounter& counter)
+{
+    BytesCounter_ = counter;
+}
+
+void TRateLimitCounter::SetSkippedEventsCounter(const TMonotonicCounter& counter)
+{
+    SkippedEventsCounter_ = counter;
+}
+
+bool TRateLimitCounter::IsLimitReached()
+{
+    if (!RateLimit_) {
+        return false;
+    } else {
+        if(BytesWritten_ >= *RateLimit_) {
+            LoggingProfiler.Increment(SkippedEventsCounter_, 1);
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+bool TRateLimitCounter::UpdateTime()
+{
+    auto now = TInstant::Now();
+    if (now - LastUpdate_ >= UpdatePeriod_) {
+        LastUpdate_ = now;
+        BytesWritten_ = 0;
+        return true;
+    }
+    return false;
+}
+
+void TRateLimitCounter::UpdateCounter(size_t bytesWritten)
+{
+    BytesWritten_ += bytesWritten;
+    LoggingProfiler.Increment(BytesCounter_, bytesWritten);
+}
+
+i64 TRateLimitCounter::GetLastSkippedEventsCount()
+{
+    i64 old = SkippedEvents_;
+    SkippedEvents_ = SkippedEventsCounter_.GetCurrent();
+    return SkippedEvents_ - old;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const TLogger Logger(SystemLoggingCategoryName);
 static constexpr size_t BufferSize = 1 << 16;
 
 
-TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter)
+TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter, TString name)
     : LogFormatter(std::move(formatter))
+    , Name_(std::move(name))
+    , RateLimit_(
+        Null,
+        TMonotonicCounter(),
+        TMonotonicCounter("/skipped_events", {TProfileManager::Get()->RegisterTag("skipped_by", Name_)})
+    )
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
@@ -30,10 +102,23 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
         return;
     }
     try {
-        LogFormatter->WriteFormatted(stream, event);
+        auto* categoryRateLimit = GetCategoryRateLimitCounter(event.Category->Name);
+        i64 eventsSkipped;
+        if (RateLimit_.UpdateTime() && (eventsSkipped = RateLimit_.GetLastSkippedEventsCount())) {
+            LogFormatter->WriteLogSkippedEvent(stream, eventsSkipped, Name_);
+        }
+        if (categoryRateLimit->UpdateTime() && (eventsSkipped = categoryRateLimit->GetLastSkippedEventsCount())) {
+            LogFormatter->WriteLogSkippedEvent(stream, eventsSkipped, event.Category->Name);
+        }
+        if (!RateLimit_.IsLimitReached() && !categoryRateLimit->IsLimitReached()) {
+            size_t bytesWritten = LogFormatter->WriteFormatted(stream, event);
+            RateLimit_.UpdateCounter(bytesWritten);
+            categoryRateLimit->UpdateCounter(bytesWritten);
+        }
     } catch (const std::exception& ex) {
         OnException(ex);
     }
+    return;
 }
 
 void TStreamLogWriterBase::Flush()
@@ -69,6 +154,32 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     std::terminate();
 }
 
+void TStreamLogWriterBase::SetRateLimit(TNullable<size_t> limit)
+{
+    RateLimit_.SetRateLimit(limit);
+}
+
+void TStreamLogWriterBase::SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits)
+{
+    CategoryToRateLimit_.clear();
+    for (const auto& i : categoryRateLimits) {
+        GetCategoryRateLimitCounter(i.first)->SetRateLimit(i.second);
+    }
+}
+
+TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(const TString& category)
+{
+    auto it = CategoryToRateLimit_.find(category);
+    if (it == CategoryToRateLimit_.end()) {
+        auto tagId = TProfileManager::Get()->RegisterTag("writer_and_category", Name_ + "/" + category);
+        auto skippedTagId = TProfileManager::Get()->RegisterTag("skipped_by", Name_ + "/" + category);
+        TMonotonicCounter bytesCounter("/bytes_written", {tagId});
+        TMonotonicCounter skippedEventsCounter("/skipped_events", {skippedTagId});
+        it = CategoryToRateLimit_.insert({category, TRateLimitCounter(Null, bytesCounter, skippedEventsCounter)}).first;
+    }
+    return &it->second;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
@@ -84,7 +195,7 @@ IOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
 }
 
 TStderrLogWriter::TStderrLogWriter()
-    : TStreamLogWriterBase::TStreamLogWriterBase(std::make_unique<TPlainTextLogFormatter>())
+    : TStreamLogWriterBase::TStreamLogWriterBase(std::make_unique<TPlainTextLogFormatter>(), TString("stderr"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,8 +207,8 @@ IOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileLogWriter::TFileLogWriter(std::unique_ptr<ILogFormatter> formatter, TString fileName)
-    : TStreamLogWriterBase(std::move(formatter))
+TFileLogWriter::TFileLogWriter(std::unique_ptr<ILogFormatter> formatter, TString writerName, TString fileName)
+    : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
 {
     Open();
