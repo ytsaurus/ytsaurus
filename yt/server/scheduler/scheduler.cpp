@@ -1099,6 +1099,8 @@ public:
                             /* setAlert */ false);
                     }
                 }
+                LogEventFluently(ELogEventType::OperationMaterialized)
+                    .Item("operation_id").Value(operation->GetId());
             })
             .Via(operation->GetCancelableControlInvoker()));
     }
