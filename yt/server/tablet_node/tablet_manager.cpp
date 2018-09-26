@@ -1916,7 +1916,8 @@ private:
         auto* replicaInfo = tablet->GetReplicaInfoOrThrow(replicaId);
 
         if (replicaInfo->GetState() != ETableReplicaState::Enabled) {
-            THROW_ERROR_EXCEPTION("Replica %v is not enabled",
+            THROW_ERROR_EXCEPTION("Replica %v is in %Qlv state",
+                replicaInfo->GetState(),
                 replicaId);
         }
 
@@ -3282,6 +3283,14 @@ private:
 
         if (IsLeader()) {
             replicaInfo->GetReplicator()->Enable();
+        }
+
+        {
+            TRspEnableTableReplica response;
+            ToProto(response.mutable_tablet_id(), tablet->GetId());
+            ToProto(response.mutable_replica_id(), replicaInfo->GetId());
+            response.set_mount_revision(tablet->GetMountRevision());
+            PostMasterMutation(tablet->GetId(), response);
         }
     }
 
