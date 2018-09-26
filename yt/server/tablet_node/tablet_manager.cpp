@@ -3223,7 +3223,7 @@ private:
 
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId, "
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tablet->GetId(),
             replicaInfo->GetId(),
