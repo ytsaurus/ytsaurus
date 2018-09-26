@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 import datetime
 import os
 import sys
@@ -121,9 +123,11 @@ class JobEvents(object):
         """ Releases breakpoint so given job or all jobs can continue execution.
 
             job_id: id of a job that should continue execution,
-                    if job_id is None than all jobs continue execution and all future jobs
+                    if job_id is None then all jobs continue execution and all future jobs
                     will skip this breakpoint. """
         self._verify_breakpoint_created(breakpoint_name)
+
+        print("Releasing breakpoint breakpoint_name: {0}, job_id: {1}".format(breakpoint_name, job_id), file=sys.stderr)
 
         if job_id is None:
             with open(self._get_breakpoint_filename(breakpoint_name, self.BREAKPOINT_ALL_RELEASED), "w"):

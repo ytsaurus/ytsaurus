@@ -655,7 +655,7 @@ test_parallel_dstappend()
 
     run_op()
     {
-        timeout 20 $MAPREDUCE_YT -map "cat" -src ignat/table -dstappend ignat/output_table
+        timeout 25 $MAPREDUCE_YT -map "cat" -src ignat/table -dstappend ignat/output_table
         if [ "$?" = 0 ]; then
             echo "xxx" >> sync_file
         fi
@@ -667,7 +667,7 @@ test_parallel_dstappend()
     run_op &
 
     local ok=0
-    for i in {1..21}; do
+    for i in {1..26}; do
         lines=`cat sync_file | wc -l`
         if [ "$lines" = "2" ]; then
             rm -f sync_file
