@@ -809,6 +809,7 @@ private:
             SyncClusterDirectory();
             UpdateConfig();
             PerformHandshake();
+            FetchOperationsEffectiveAcl();
             OnConnected();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error connecting to scheduler");
@@ -873,8 +874,6 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        FetchOperationsEffectiveAcl();
-
         LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
@@ -882,7 +881,7 @@ private:
 
     void FetchOperationsEffectiveAcl()
     {
-        LOG_INFO("Fetching //sys/operations/@effective_acl");
+        LOG_INFO("Fetching operations effective acl");
 
         OperationsEffectiveAcl_ = ConvertToNode(
             WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))

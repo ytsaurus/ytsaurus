@@ -246,6 +246,12 @@ public:
         MasterConnector_->AddGlobalWatcherHandler(BIND(
             &TImpl::HandleConfig,
             Unretained(this)));
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TImpl::RequestOperationsEffectiveAcl,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TImpl::HandleOperationsEffectiveAcl,
+            Unretained(this)));
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestOperationArchiveVersion,
@@ -1399,15 +1405,6 @@ private:
         return activeJobCount;
     }
 
-    void FetchOperationsEffectiveAcl()
-    {
-        LOG_INFO("Fetching //sys/operations/@effective_acl");
-
-        OperationsEffectiveAcl_ = ConvertToNode(
-            WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
-                .ValueOrThrow());
-    }
-
     void OnProfiling()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1594,8 +1591,6 @@ private:
                 AddOperationToTransientQueue(operation);
             }
         }
-
-        FetchOperationsEffectiveAcl();
     }
 
     void OnMasterConnected()
@@ -1790,6 +1785,24 @@ private:
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error updating exec nodes information");
         }
+    }
+
+    void RequestOperationsEffectiveAcl(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
+    {
+        LOG_INFO("Requesting operations effective acl");
+
+        auto req = TYPathProxy::Get("//sys/operations/@effective_acl");
+        batchReq->AddRequest(req, "get_operations_effective_acl");
+    }
+
+    void HandleOperationsEffectiveAcl(const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
+    {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_effective_acl");
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error getting operations effective acl")
+                << rspOrError;
+        }
+        OperationsEffectiveAcl_ = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
     }
 
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
