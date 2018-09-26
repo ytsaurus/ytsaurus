@@ -681,6 +681,8 @@ private:
 
     virtual void OnMyBeginList() override
     {
+        ValidateNotRoot();
+
         const auto* field = FieldStack_.back().Field;
         if (field->IsYsonMap()) {
             THROW_ERROR_EXCEPTION("Map %v cannot be parsed from \"list\" values",
@@ -689,7 +691,6 @@ private:
                 << TErrorAttribute("proto_field", field->GetFullName());
         }
 
-        ValidateNotRoot();
         ValidateRepeated();
     }
 
