@@ -110,7 +110,7 @@ TEST_F(TLoggingTest, FileWriter)
     NFs::Remove("test.log");
 
     TIntrusivePtr<TFileLogWriter> writer;
-    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test.log");
+    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log");
     WritePlainTextEvent(writer.Get());
 
     {
@@ -139,7 +139,7 @@ TEST_F(TLoggingTest, FileWriter)
 TEST_F(TLoggingTest, StreamWriter)
 {
     TStringStream stringOutput;
-    auto writer = New<TStreamLogWriter>(&stringOutput, std::make_unique<TPlainTextLogFormatter>());
+    auto writer = New<TStreamLogWriter>(&stringOutput, std::make_unique<TPlainTextLogFormatter>(), "test_writer");
 
     WritePlainTextEvent(writer.Get());
 
@@ -229,7 +229,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
         .Value("test_message")
         .Finish();
 
-    auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(), "test.log");
+    auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(), "test_writer", "test.log");
     WriteEvent(writer.Get(), event);
     Sleep(TDuration::MilliSeconds(100));
 
