@@ -36,6 +36,7 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 
 using namespace NYT::NYTAlloc;
 
+#if 0
 void* operator new(size_t size)
 {
     return YTAlloc(size);
@@ -75,18 +76,21 @@ void operator delete[](void* ptr, const std::nothrow_t&) noexcept
 {
     YTFree(ptr);
 }
+#endif
 
-extern "C" void* malloc(size_t size)
+#define YTALLOC_WEAK __attribute__((weak))
+
+extern "C" YTALLOC_WEAK void* malloc(size_t size)
 {
     return YTAlloc(size);
 }
 
-extern "C" void* valloc(size_t size)
+extern "C" YTALLOC_WEAK void* valloc(size_t size)
 {
     return YTAllocPageAligned(size);
 }
 
-extern "C" void* aligned_alloc(size_t alignment, size_t size)
+extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
 {
     // Alignment must be a power of two.
     YCHECK((alignment & (alignment - 1)) == 0);
@@ -100,18 +104,18 @@ extern "C" void* aligned_alloc(size_t alignment, size_t size)
     }
 }
 
-extern "C" void* pvalloc(size_t size)
+extern "C" YTALLOC_WEAK void* pvalloc(size_t size)
 {
     return valloc(AlignUp(size, PageSize));
 }
 
-extern "C" int posix_memalign(void** ptrPtr, size_t alignment, size_t size)
+extern "C" YTALLOC_WEAK int posix_memalign(void** ptrPtr, size_t alignment, size_t size)
 {
     *ptrPtr = aligned_alloc(alignment, size);
     return 0;
 }
 
-extern "C" void* memalign(size_t alignment, size_t size)
+extern "C" YTALLOC_WEAK void* memalign(size_t alignment, size_t size)
 {
     return aligned_alloc(alignment, size);
 }
@@ -121,12 +125,12 @@ extern "C" void* __libc_memalign(size_t alignment, size_t size)
     return aligned_alloc(alignment, size);
 }
 
-extern "C" void free(void* ptr)
+extern "C" YTALLOC_WEAK void free(void* ptr)
 {
     YTFree(ptr);
 }
 
-extern "C" void* calloc(size_t n, size_t elemSize)
+extern "C" YTALLOC_WEAK void* calloc(size_t n, size_t elemSize)
 {
     // Overflow check.
     auto size = n * elemSize;
@@ -139,12 +143,12 @@ extern "C" void* calloc(size_t n, size_t elemSize)
     return result;
 }
 
-extern "C" void cfree(void* ptr)
+extern "C" YTALLOC_WEAK void cfree(void* ptr)
 {
     YTFree(ptr);
 }
 
-extern "C" void* realloc(void* oldPtr, size_t newSize)
+extern "C" YTALLOC_WEAK void* realloc(void* oldPtr, size_t newSize)
 {
     if (!oldPtr) {
         return YTAlloc(newSize);
