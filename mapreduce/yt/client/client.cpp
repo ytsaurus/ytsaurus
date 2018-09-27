@@ -585,15 +585,21 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 ::TIntrusivePtr<INodeWriterImpl> TClientBase::CreateNodeWriter(
     const TRichYPath& path, const TTableWriterOptions& options)
 {
+    auto format = TFormat::YsonBinary();
+    ApplyFormatHints<TNode>(&format, options.FormatHints_);
+
     return new TNodeTableWriter(
-        CreateClientWriter(path, TFormat::YsonBinary(), options));
+        CreateClientWriter(path, format, options));
 }
 
 ::TIntrusivePtr<IYaMRWriterImpl> TClientBase::CreateYaMRWriter(
     const TRichYPath& path, const TTableWriterOptions& options)
 {
+    auto format = TFormat::YaMRLenval();
+    ApplyFormatHints<TYaMRRow>(&format, options.FormatHints_);
+
     return new TYaMRTableWriter(
-        CreateClientWriter(path, TFormat::YaMRLenval(), options));
+        CreateClientWriter(path, format, options));
 }
 
 ::TIntrusivePtr<IProtoWriterImpl> TClientBase::CreateProtoWriter(
@@ -605,11 +611,14 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     descriptors.push_back(prototype->GetDescriptor());
 
     if (TConfig::Get()->UseClientProtobuf) {
+        auto format = TFormat::YsonBinary();
+        ApplyFormatHints<TNode>(&format, options.FormatHints_);
         return new TProtoTableWriter(
-            CreateClientWriter(path, TFormat::YsonBinary(), options),
+            CreateClientWriter(path, format, options),
             std::move(descriptors));
     } else {
         auto format = TFormat::Protobuf({prototype->GetDescriptor()});
+        ApplyFormatHints<::google::protobuf::Message>(&format, options.FormatHints_);
         return new TLenvalProtoTableWriter(
             CreateClientWriter(path, format, options),
             std::move(descriptors));
