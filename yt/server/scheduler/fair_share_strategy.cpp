@@ -3232,7 +3232,8 @@ private:
         for (const auto& pair : operationIdToTreeSet) {
             const auto& operationId = pair.first;
             const auto& treeSet = pair.second;
-            if (treeSet.empty()) {
+            bool isOperationExists = OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end();
+            if (treeSet.empty() && isOperationExists) {
                 Host->AbortOperation(
                     operationId,
                     TError("No suitable fair-share trees to schedule operation"));
