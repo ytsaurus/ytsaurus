@@ -2153,7 +2153,7 @@ public:
             }
         } else {
             if (!pivotKeys.empty()) {
-                THROW_ERROR_EXCEPTION("Table is sorted; must provide tablet count");
+                THROW_ERROR_EXCEPTION("Table is ordered; must provide tablet count");
             }
         }
 
@@ -4069,6 +4069,12 @@ private:
         auto* table = node->As<TTableNode>();
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check request received (TableId: %v, LastMountTransactionId %v, PrimaryLastMountTransactionId %v)",
+            table->GetId(),
+            table->GetLastMountTransactionId(),
+            table->GetPrimaryLastMountTransactionId());
+
         UpdateTabletState(table);
     }
 
@@ -4091,11 +4097,15 @@ private:
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetExternalCellTag());
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check requested (TableId: %v, LastMountTransactionId %v)",
+                table->GetId(),
+                table->GetLastMountTransactionId());
             return;
         }
 
         // TODO(savrus): Remove this after testing multicell on real cluster is done.
-        LOG_DEBUG("Check table tablet state (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
+        LOG_DEBUG("Table tablet state check started (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
             table->GetId(),
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId(),
@@ -4142,32 +4152,41 @@ private:
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId());
 
-        if (!Bootstrap_->IsPrimaryMaster()) {
+        table->SetActualTabletState(actualState);
+        if (expectedState) {
+            table->SetExpectedTabletState(*expectedState);
+        }
+
+        if (!table->IsForeign()) {
+            YCHECK(!table->GetPrimaryLastMountTransactionId());
+            table->SetLastMountTransactionId(TTransactionId());
+        } else {
+            YCHECK(Bootstrap_->IsSecondaryMaster());
+
+            // Check that primary master is waiting to clear LastMountTransactionId.
+            bool clearLastMountTransactionId = table->GetLastMountTransactionId() &&
+                table->GetLastMountTransactionId() == table->GetPrimaryLastMountTransactionId();
+
             // Statistics should be correct before setting the tablet state.
             SendTableStatisticsUpdates(table);
 
             TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
-            ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
             request.set_actual_tablet_state(static_cast<i32>(actualState));
+            if (clearLastMountTransactionId) {
+                ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
+            }
             if (expectedState) {
                 request.set_expected_tablet_state(static_cast<i32>(*expectedState));
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, PrimaryMasterCellTag);
-        }
 
-        table->SetActualTabletState(actualState);
-        if (expectedState) {
-            table->SetExpectedTabletState(*expectedState);
-        }
-
-        if (!table->IsForeign() ||
-            table->GetLastMountTransactionId() == table->GetPrimaryLastMountTransactionId())
-        {
-            table->SetLastMountTransactionId(TTransactionId());
-            table->SetPrimaryLastMountTransactionId(TTransactionId());
+            if (clearLastMountTransactionId) {
+                table->SetLastMountTransactionId(TTransactionId());
+                table->SetPrimaryLastMountTransactionId(TTransactionId());
+            }
         }
     }
 
