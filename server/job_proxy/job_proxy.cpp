@@ -358,16 +358,6 @@ void TJobProxy::Run()
                     schedulerResultExt->ShortDebugString());
             } else {
                 if (result.error().code() == 0) {
-                    auto getPrimaryDataSliceCount = [&] () {
-                        int result = 0;
-                        for (const auto& inputTableSpec : JobSpecHelper_->GetSchedulerJobSpecExt().input_table_specs()) {
-                            result += inputTableSpec.chunk_spec_count_per_data_slice_size();
-                        }
-                        return result;
-                    };
-
-                    YCHECK(getPrimaryDataSliceCount() == interruptDescriptor.UnreadDataSliceDescriptors.size());
-
                     ToProto(
                         result.mutable_error(),
                         TError(EErrorCode::JobNotPrepared, "Job did not read anything"));

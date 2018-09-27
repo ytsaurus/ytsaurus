@@ -87,6 +87,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("max_rows_per_write_request", MaxRowsPerWriteRequest)
         .GreaterThan(0)
         .Default(1000);
+    RegisterParameter("max_data_weight_per_write_request", MaxDataWeightPerWriteRequest)
+        .GreaterThan(0)
+        .Default(64_MB);
     RegisterParameter("max_rows_per_transaction", MaxRowsPerTransaction)
         .GreaterThan(0)
         .Default(100000);

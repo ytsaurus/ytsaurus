@@ -819,8 +819,6 @@ protected:
         NScheduler::TJobIOConfigPtr ioConfig,
         const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
-
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
@@ -1127,6 +1125,7 @@ private:
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     bool IsTreeTentative(const TString& treeId) const;
+    void MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

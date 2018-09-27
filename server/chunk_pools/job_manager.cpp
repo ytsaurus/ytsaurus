@@ -608,6 +608,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
                 currentJobStub->GetPrimaryDataWeight());
             for (int index : joinedJobCookies) {
                 Jobs_[index].Invalidate();
+                Jobs_[index].UpdateCounters(&TProgressCounter::Decrement);
             }
             newJobs.emplace_back(std::move(currentJobStub));
         } else {

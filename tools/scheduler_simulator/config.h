@@ -61,12 +61,11 @@ class TSchedulerSimulatorConfig
 {
 public:
     int HeartbeatPeriod;
+    TString NodeGroupsFilename;
     TString PoolTreesFilename;
     TString OperationsStatsFilename;
     TString EventLogFilename;
-
-    NScheduler::TSchedulerConfigPtr SchedulerConfig;
-    std::vector<TNodeGroupConfigPtr> NodeGroups;
+    TString SchedulerConfigFilename;
 
     NLogging::TLogConfigPtr Logging;
     bool EnableFullEventLog;
@@ -77,19 +76,16 @@ public:
 
     TSchedulerSimulatorConfig()
     {
-        RegisterParameter("node_groups", NodeGroups);
-
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(5000)
             .GreaterThan(0);
 
+        RegisterParameter("node_groups_file", NodeGroupsFilename);
         RegisterParameter("pool_trees_file", PoolTreesFilename)
             .Alias("pools_file");
         RegisterParameter("operations_stats_file", OperationsStatsFilename);
         RegisterParameter("event_log_file", EventLogFilename);
-
-        RegisterParameter("scheduler", SchedulerConfig)
-            .DefaultNew();
+        RegisterParameter("scheduler_config_file", SchedulerConfigFilename);
 
         RegisterParameter("logging", Logging)
             .DefaultNew();

@@ -590,7 +590,9 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
 {
-    Host->ValidateOperationPermission(user, permission, "/intermediate_data_access");
+    // Permission for IntermediateData can be only Read.
+    YCHECK(permission == EPermission::Read);
+    Host->ValidateOperationAccess(user, EAccessType::IntermediateData);
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -997,6 +999,7 @@ ITransactionPtr TOperationControllerBase::AttachTransaction(
     TTransactionAttachOptions options;
     options.Ping = ping;
     options.PingAncestors = false;
+    options.PingPeriod = Config->OperationTransactionPingPeriod;
     return client->AttachTransaction(transactionId, options);
 }
 
@@ -1108,6 +1111,7 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
         options.PrerequisiteTransactionIds.push_back(prerequisiteTransactionId);
     }
     options.Timeout = Config->OperationTransactionTimeout;
+    options.PingPeriod = Config->OperationTransactionPingPeriod;
 
     auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
 
@@ -1980,12 +1984,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->SplitJobCount);
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    MaybeBanInTentativeTree(joblet, taskResult);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
@@ -2066,12 +2065,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    MaybeBanInTentativeTree(joblet, taskResult);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
@@ -2160,12 +2154,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    if (taskResult.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-    }
+    MaybeBanInTentativeTree(joblet, taskResult);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -3674,6 +3663,19 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
     return Spec_->TentativePoolTrees.has(treeId);
+}
+
+void TOperationControllerBase::MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result)
+{
+    if (result.BanTree) {
+        Host->OnOperationBannedInTentativeTree(
+            joblet->TreeId,
+            GetJobIdsByTreeId(joblet->TreeId)
+        );
+        auto error = TError("Operation was banned from tentative tree")
+            << TErrorAttribute("tree_id", joblet->TreeId);
+        SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
+    }
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
@@ -7069,19 +7071,6 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
-{
-    // Don't replicate intermediate output.
-    config->TableWriter->UploadReplicationFactor = Spec_->IntermediateDataReplicationFactor;
-    config->TableWriter->MinUploadReplicationFactor = 1;
-
-    // Cache blocks on nodes.
-    config->TableWriter->PopulateCache = true;
-
-    // Don't sync intermediate chunks.
-    config->TableWriter->SyncOnClose = false;
-}
-
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
 {
     auto options = New<TTableReaderOptions>();
@@ -7422,6 +7411,14 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
     TEdgeDescriptor descriptor;
     descriptor.CellTag = GetIntermediateOutputCellTag();
     descriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
+    descriptor.TableWriterConfig = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
+            .Item("min_upload_replication_factor").Value(1)
+            .Item("populate_cache").Value(true)
+            .Item("sync_on_close").Value(false)
+        .EndMap();
+
     descriptor.RequiresRecoveryInfo = true;
     return descriptor;
 }

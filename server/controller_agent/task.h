@@ -170,6 +170,9 @@ protected:
 
     TTentativeTreeEligibility TentativeTreeEligibility_;
 
+    mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
+    mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
+
     virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
@@ -262,9 +265,6 @@ private:
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
-
-    mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
-    mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
 
     TInputChunkMappingPtr InputChunkMapping_;
 

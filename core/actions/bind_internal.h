@@ -43,8 +43,8 @@ namespace NDetail {
 //
 // === T(Bound)Args ===
 // A function type that is being (ab)used to store the types of set of
-// arguments. The "return" type is always void here. We use this hack so 
-// that we do not need a new type name for each arity of type. (eg., BindState1, 
+// arguments. The "return" type is always void here. We use this hack so
+// that we do not need a new type name for each arity of type. (eg., BindState1,
 // BindState2, ...). This makes forward declarations and friending much much easier.
 //
 //
@@ -203,27 +203,6 @@ private:
     R (*Function)(TArgs...);
 };
 
-// Noexcept Function Adapter
-template <class R, class... TArgs>
-class TRunnableAdapter<R(*)(TArgs...) noexcept>
-{
-public:
-    enum { Arity = sizeof...(TArgs) };
-    typedef R (TSignature)(TArgs...);
-
-    explicit TRunnableAdapter(R(*function)(TArgs...) noexcept)
-        : Function(function)
-    { }
-
-    R Run(TArgs&&... args) noexcept
-    {
-        return Function(std::forward<TArgs>(args)...);
-    }
-
-private:
-    R (*Function)(TArgs...) noexcept;
-};
-
 // Bound Method Adapter
 template <class R, class T, class... TArgs>
 class TRunnableAdapter<R(T::*)(TArgs...)>
@@ -270,6 +249,8 @@ private:
     R (T::*Method)(TArgs...) const;
 };
 
+#ifdef YT_IN_ARCADIA
+
 // Noexcept Bound Method Adapter
 template <class R, class T, class... TArgs>
 class TRunnableAdapter<R(T::*)(TArgs...) noexcept>
@@ -315,6 +296,7 @@ public:
 private:
     R (T::*Method)(TArgs...) const noexcept;
 };
+#endif
 
 
 // Callback Adapter

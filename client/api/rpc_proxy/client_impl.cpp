@@ -100,7 +100,10 @@ ITransactionPtr TClient::AttachTransaction(
     const TTransactionAttachOptions& options)
 {
     if (options.Sticky) {
-        return GetRpcProxyConnection()->GetStickyTransaction(transactionId);
+        auto result = GetRpcProxyConnection()->GetStickyTransaction(transactionId);
+        if (result) {
+            return result;
+        } // Else sticky transaction pool may have been disabled.
     }
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();

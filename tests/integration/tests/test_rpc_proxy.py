@@ -13,7 +13,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 class TestRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
 
     def test_non_sticky_transactions_dont_stick(self):
         tx = start_transaction(timeout=1000)
@@ -122,7 +121,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         self._prepare_output_table()
 
-        assert select_rows("* from [//tmp/t_out]") == original_table
+        assert select_rows("* from [//tmp/t_out] LIMIT " + str(2 * size)) == original_table
 
     def test_abort_operation(self):
         op = self._start_simple_operation_with_breakpoint()
@@ -403,7 +402,7 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
                     "output_format": "json"
                 },
                 "max_failed_job_count": 1
-        })
+            })
 
         jobs = events_on_fs().wait_breakpoint()
 
@@ -420,9 +419,10 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         op.track()
         self._prepare_output_table()
 
-        assert select_rows("* from [//tmp/t_out]") == [{"index": self._sample_index, "str": self._sample_text},
-                                                       {"index": self._sample_index + 1, "str": "SIGUSR1"},
-                                                       {"index": self._sample_index + 2, "str": "SIGUSR2"}]
+        assert select_rows("* from [//tmp/t_out] LIMIT 5") ==\
+               [{"index": self._sample_index, "str": self._sample_text},
+                {"index": self._sample_index + 1, "str": "SIGUSR1"},
+                {"index": self._sample_index + 2, "str": "SIGUSR2"}]
 
     @unix_only
     def test_signal_job_with_job_restart(self):

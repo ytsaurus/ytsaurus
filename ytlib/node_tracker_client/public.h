@@ -42,7 +42,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
     ((BlobSession)                 (6))
-    ((CachedVersionedChunkMeta)    (7))
+    ((VersionedChunkMeta)          (7))
     ((SystemJobs)                  (8))
     ((Query)                       (9))
 );

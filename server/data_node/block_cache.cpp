@@ -33,9 +33,6 @@ public:
             Config_->BlockCache,
             EBlockType::UncompressedData,
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/block_cache")))
-    { }
-
-    void Initialize()
     {
         auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
             EMemoryCategory::BlockCache,
@@ -92,9 +89,7 @@ IBlockCachePtr CreateServerBlockCache(
     TDataNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    auto blockCache = New<TServerBlockCache>(config, bootstrap);
-    blockCache->Initialize();
-    return blockCache;
+    return New<TServerBlockCache>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

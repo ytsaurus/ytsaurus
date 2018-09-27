@@ -116,6 +116,11 @@ private:
 //! Parse string and return boolean formula.
 TBooleanFormula MakeBooleanFormula(const TString& formula);
 
+//! Make conjunction, disjunction and negation of formulas.
+TBooleanFormula operator&(const TBooleanFormula& lhs, const TBooleanFormula& rhs);
+TBooleanFormula operator|(const TBooleanFormula& lhs, const TBooleanFormula& rhs);
+TBooleanFormula operator!(const TBooleanFormula& formula);
+
 void Serialize(const TBooleanFormula& booleanFormula, NYson::IYsonConsumer* consumer);
 void Deserialize(TBooleanFormula& booleanFormula, NYTree::INodePtr node);
 

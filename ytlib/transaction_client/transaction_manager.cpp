@@ -309,7 +309,7 @@ public:
         return SendAbort(options);
     }
 
-    TFuture<void> Ping(bool enableRetries)
+    TFuture<void> Ping(const TTransactionPingOptions& options = {})
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -318,7 +318,7 @@ public:
                 Atomicity_));
         }
 
-        return SendPing(enableRetries);
+        return SendPing(options.EnableRetries);
     }
 
     void Detach()
@@ -1030,9 +1030,8 @@ private:
             LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
                 Id_);
 
-            TDelayedExecutor::Submit(
-                BIND(&TImpl::RunPeriodicPings, MakeWeak(this)),
-                PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod));
+            auto pingPeriod = std::min(PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod), GetTimeout() / 2);
+            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingPeriod);
         }));
     }
 
@@ -1238,9 +1237,9 @@ void TTransaction::Detach()
     Impl_->Detach();
 }
 
-TFuture<void> TTransaction::Ping(bool enableRetries)
+TFuture<void> TTransaction::Ping(const TTransactionPingOptions& options)
 {
-    return Impl_->Ping(enableRetries);
+    return Impl_->Ping(options);
 }
 
 ETransactionType TTransaction::GetType() const

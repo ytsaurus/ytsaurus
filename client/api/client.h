@@ -247,7 +247,9 @@ struct TCheckPermissionByAclOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
     , public TPrerequisiteOptions
-{ };
+{
+    bool IgnoreMissingSubjects = false;
+};
 
 struct TCheckPermissionByAclResult
 {
@@ -256,6 +258,7 @@ struct TCheckPermissionByAclResult
     NSecurityClient::ESecurityAction Action;
     NSecurityClient::TSubjectId SubjectId;
     TNullable<TString> SubjectName;
+    std::vector<TString> MissingSubjects;
 };
 
 // TODO(lukyan): Use TTransactionalOptions as base class
@@ -330,6 +333,11 @@ struct TTransactionCommitOptions
     //! and also relies on ETransactionCoordinatorCommitMode::Lazy transactions whose commit may be delayed
     //! for an arbitrary period of time in case of replica failure.
     bool GeneratePrepareTimestamp = true;
+};
+
+struct TTransactionPingOptions
+{
+    bool EnableRetries = true;
 };
 
 struct TTransactionCommitResult
