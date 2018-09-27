@@ -1380,6 +1380,18 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         snapshot.Blocks.size(),
         snapshot.Version);
 
+    // Snapshot loading must be synchronous.
+    TOneShotContextSwitchGuard guard(
+        BIND([this, this_ = MakeStrong(this)] {
+            TStringBuilder stackTrace;
+            DumpStackTrace([&stackTrace] (const char* buffer, int length) {
+                stackTrace.AppendString(TStringBuf(buffer, length));
+            });
+            LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
+                stackTrace.Flush());
+        })
+    );
+
     TChunkedInputStream input(snapshot.Blocks);
 
     TLoadContext context;
