@@ -281,7 +281,7 @@ void TTask::ScheduleJob(
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
-                      sliceCount);
+                sliceCount);
             chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingJobSpecThrottling);
             scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
             return;
