@@ -570,7 +570,7 @@ message TCondition {
 }
 
 message TWorkloadStatus {
-    reserved 13;
+    reserved 5, 13;
 
     // уникальный в рамках pod идентификатор Workload
     string Id = 1;
@@ -582,7 +582,7 @@ message TWorkloadStatus {
     //Добавить валидацию, что указан непустой start
     TContainerStatus Start = 4;
 
-    TContainerStatus Stop = 5;
+    TStopStatus StopStatus = 14;
 
     TReadinessStatus ReadinessStatus = 6;
 
@@ -599,19 +599,19 @@ message TWorkloadStatus {
     uint32 Revision = 12;
 }
 
-enum EHttpCheckState {
-    EHttpCheckState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+enum EHttpGetState {
+    EHttpGetState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
     // Ошибка во время выполнения(превышен таймаут, ошибка соединения, ...)
-    EHttpCheckState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
+    EHttpGetState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
     // Ответ не равен THttpGet::ExpectedAnswer
-    EHttpCheckState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
+    EHttpGetState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
 
-    EHttpCheckState_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
+    EHttpGetState_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
     // Ожидание истечения InitialDelayMs
-    EHttpCheckState_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
+    EHttpGetState_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
     // Ожидание истечения restart period - см. TTimeLimit
-    EHttpCheckState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
+    EHttpGetState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
 }
 
 enum ETcpCheckState {
@@ -639,10 +639,17 @@ message TTcpCheckStatus {
 message THttpGetStatus {
     reserved 2, 3, 4;
 
-    EHttpCheckState State = 1;
+    EHttpGetState State = 1;
 
     TTimeLimitStatus TimeLimit = 5;
     string FailReason = 6;
+}
+
+message TStopStatus {
+    oneof Status {
+        TContainerStatus ContainerStatus = 1;
+        THttpGetStatus HttpStopStatus = 2;
+    }
 }
 
 message TReadinessStatus {
