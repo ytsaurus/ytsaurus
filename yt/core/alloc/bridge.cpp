@@ -34,6 +34,8 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 ////////////////////////////////////////////////////////////////////////////////
 // Malloc bridge
 
+#ifndef _darwin_
+
 using namespace NYT::NYTAlloc;
 
 #define YTALLOC_WEAK __attribute__((weak))
@@ -123,5 +125,7 @@ extern "C" YTALLOC_WEAK void* realloc(void* oldPtr, size_t newSize)
     YTFree(oldPtr);
     return newPtr;
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
