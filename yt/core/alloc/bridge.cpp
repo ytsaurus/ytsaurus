@@ -36,48 +36,6 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 
 using namespace NYT::NYTAlloc;
 
-#if 0
-void* operator new(size_t size)
-{
-    return YTAlloc(size);
-}
-
-void* operator new(size_t size, const std::nothrow_t&) noexcept
-{
-    return YTAlloc(size);
-}
-
-void operator delete(void* ptr) noexcept
-{
-    YTFree(ptr);
-}
-
-void operator delete(void* ptr, const std::nothrow_t&) noexcept
-{
-    YTFree(ptr);
-}
-
-void* operator new[](size_t size)
-{
-    return YTAlloc(size);
-}
-
-void* operator new[](size_t size, const std::nothrow_t&) noexcept
-{
-    return YTAlloc(size);
-}
-
-void operator delete[](void* ptr) noexcept
-{
-    YTFree(ptr);
-}
-
-void operator delete[](void* ptr, const std::nothrow_t&) noexcept
-{
-    YTFree(ptr);
-}
-#endif
-
 #define YTALLOC_WEAK __attribute__((weak))
 
 extern "C" YTALLOC_WEAK void* malloc(size_t size)
