@@ -39,7 +39,7 @@ def main():
     setup(
         name = "yandex-yt",
         version = version,
-        packages = ["yt", "yt.wrapper", "yt.yson", "yt.ypath"] + recursive("yt/packages"),
+        packages = ["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff"] + recursive("yt/packages"),
         scripts = scripts,
 
         author = "Ignat Kolesnichenko",
