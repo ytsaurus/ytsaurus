@@ -35,7 +35,6 @@ namespace NControllerAgent {
 DEFINE_ENUM(EOperationControllerQueue,
     (Default)
     (GetJobSpec)
-    (ScheduleJob)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
