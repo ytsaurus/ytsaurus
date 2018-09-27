@@ -219,7 +219,6 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         makedirp(os.path.join(sandbox_path, *file_name_parts[:-1]))
         logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
         destination_path = os.path.join(sandbox_path, *file_name_parts)
-        download_file(file_, destination_path)
         node_type = file_attrs["type"]
         if node_type == "file":
             download_file(file_, destination_path)
