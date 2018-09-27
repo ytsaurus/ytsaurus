@@ -61,7 +61,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, CellBundle);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::ETabletCellLifeStage, TabletCellLifeStage, NTabletClient::ETabletCellLifeStage::Running);
 
 public:
     explicit TTabletCell(TTabletCellId id);
@@ -102,6 +102,12 @@ public:
 
     //! Helper to calculate aggregated health.
     static ETabletCellHealth CombineHealths(ETabletCellHealth lhs, ETabletCellHealth rhs);
+
+    //! Returns |true| if decommission requested.
+    bool DecommissionStarted() const;
+
+    //! Returns |true| if cell reported that it is decommissioned.
+    bool DecommissionCompleted() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

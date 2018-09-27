@@ -482,8 +482,11 @@ public:
                 }
             }
 
-            DynamicOptions_ = std::move(dynamicOptions);
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
+            {
+                TGuard<TSpinLock> guard(DynamicOptionsLock);
+                DynamicOptions_ = std::move(dynamicOptions);
+            }
 
             YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
                 DynamicConfigVersion_);
@@ -719,7 +722,17 @@ public:
 
     double GetUsedCpu(double cpuPerTabletSlot) const
     {
-        return DynamicOptions_->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
+        return GetDynamicOptions()->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
+    }
+
+    const TDynamicTabletCellOptionsPtr GetDynamicOptions() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(DynamicOptionsLock);
+        auto options = DynamicOptions_;
+        guard.Release();
+        return options;
     }
 
 private:
@@ -744,6 +757,8 @@ private:
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
+
+    TSpinLock DynamicOptionsLock;
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
 
     int DynamicConfigVersion_ = -1;
@@ -810,6 +825,10 @@ private:
             ->AddChild("memory_usage", IYPathService::FromMethod(
                 &TImpl::GetMemoryUsage,
                 MakeWeak(this)))
+            ->AddChild("life_stage", IYPathService::FromMethod(
+                &TTabletManager::GetTabletCellLifeStage,
+                MakeWeak(TabletManager_))
+                ->Via(GetAutomatonInvoker()))
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetOrchidService())
             ->AddChild("hive", HiveManager_->GetOrchidService())
@@ -828,13 +847,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Options_;
-    }
-
-    const TDynamicTabletCellOptionsPtr& GetDynamicOptions() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return DynamicOptions_;
     }
 
     TYsonString GetMemoryUsage() const
@@ -1105,6 +1117,11 @@ const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
 double TTabletSlot::GetUsedCpu(double cpuPerTabletSlot) const
 {
     return Impl_->GetUsedCpu(cpuPerTabletSlot);
+}
+
+TDynamicTabletCellOptionsPtr TTabletSlot::GetDynamicOptions() const
+{
+    return Impl_->GetDynamicOptions();
 }
 
 int TTabletSlot::GetDynamicConfigVersion() const

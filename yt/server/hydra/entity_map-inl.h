@@ -163,6 +163,12 @@ size_t TReadOnlyEntityMap<TValue>::size() const
     return GetSize();
 }
 
+template <class TValue>
+bool TReadOnlyEntityMap<TValue>::empty() const
+{
+    return Map_.empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDynamicEntityDataTag

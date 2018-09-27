@@ -86,6 +86,9 @@ public:
     TTimestamp GetMinPrepareTimestamp();
     TTimestamp GetMinCommitTimestamp();
 
+    void Decommission();
+    bool IsDecommissioned() const;
+
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:

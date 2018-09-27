@@ -28,6 +28,7 @@
 #include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/transaction_supervisor.h>
 #include <yt/server/hive/helpers.h>
 #include <yt/server/hive/proto/transaction_supervisor.pb.h>
 
@@ -64,14 +65,16 @@
 #include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/compression/codec.h>
 
+#include <yt/core/misc/finally.h>
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
-#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
@@ -164,6 +167,10 @@ public:
             EMemoryCategory::TabletDynamic,
             0,
             MemoryUsageGranularity))
+        , DecommissionCheckExecutor_(New<TPeriodicExecutor>(
+            Slot_->GetAutomatonInvoker(),
+            BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
+            Config_->TabletCellDecommissionCheckPeriod))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -208,6 +215,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaMode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCell, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabetCellDecommissioned, Unretained(this)));
     }
 
     void Initialize()
@@ -510,6 +519,10 @@ public:
         return WriteLogsMemoryTrackerGuard_.GetSize();
     }
 
+    ETabletCellLifeStage GetTabletCellLifeStage() const
+    {
+        return CellLifeStage_;
+    }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
 
@@ -642,6 +655,7 @@ private:
 
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
+    ETabletCellLifeStage CellLifeStage_ = ETabletCellLifeStage::Running;
 
     TRingQueue<TTablet*> PrelockedTablets_;
 
@@ -651,6 +665,8 @@ private:
     TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard StaticStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
+
+    TPeriodicExecutorPtr DecommissionCheckExecutor_;
 
     const IYPathServicePtr OrchidService_;
 
@@ -667,6 +683,7 @@ private:
         using NYT::Save;
 
         TabletMap_.SaveValues(context);
+        Save(context, CellLifeStage_);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -701,6 +718,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadValues(context);
+
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 100010) {
+            Load(context, CellLifeStage_);
+        } else {
+            CellLifeStage_ = ETabletCellLifeStage::Running;
+        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -818,6 +842,8 @@ private:
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
         }
+
+        DecommissionCheckExecutor_->Start();
     }
 
 
@@ -834,6 +860,8 @@ private:
             PrelockedTablets_.pop();
             UnlockTablet(tablet);
         }
+
+        DecommissionCheckExecutor_->Stop();
     }
 
 
@@ -1223,6 +1251,11 @@ private:
         PrelockedTablets_.pop();
         YCHECK(tablet->GetId() == writeRecord.TabletId);
 
+        auto finally = Finally([&]() {
+            UnlockTablet(tablet);
+            CheckIfTabletFullyUnlocked(tablet);
+        });
+
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG("Mount revision changed during mutation batch; has tablet been forcefully unmounted? "
                 "(TabletId: %v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
@@ -1230,9 +1263,6 @@ private:
                 transactionId,
                 mountRevision,
                 tablet->GetMountRevision());
-
-            UnlockTablet(tablet);
-            CheckIfTabletFullyUnlocked(tablet);
             return;
         }
 
@@ -1314,9 +1344,6 @@ private:
             default:
                 Y_UNREACHABLE();
         }
-
-        UnlockTablet(tablet);
-        CheckIfTabletFullyUnlocked(tablet);
     }
 
     void HydraFollowerWriteRows(TReqWriteRows* request) noexcept
@@ -2056,6 +2083,64 @@ private:
             request->new_replication_timestamp());
     }
 
+    void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* request)
+    {
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet cell is decommissioning");
+
+        CellLifeStage_ = ETabletCellLifeStage::DecommissioningOnNode;
+        Slot_->GetTransactionManager()->Decommission();
+        Slot_->GetTransactionSupervisor()->Decommission();
+    }
+
+    void OnCheckTabletCellDecommission()
+    {
+        if (CellLifeStage_ != ETabletCellLifeStage::DecommissioningOnNode) {
+            return;
+        }
+
+        if (Slot_->GetDynamicOptions()->SuppressTabletCellDecommission.value_or(false)) {
+            return;
+        }
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Checking if tablet cell is decommissioned "
+            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissined: %v, TransactionSupervisorDecommissioned: %v)",
+            CellLifeStage_,
+            TabletMap_.empty(),
+            Slot_->GetTransactionManager()->IsDecommissioned(),
+            Slot_->GetTransactionSupervisor()->IsDecommissioned());
+
+        if (!TabletMap_.empty()) {
+            return;
+        }
+
+        if (!Slot_->GetTransactionManager()->IsDecommissioned()) {
+            return;
+        }
+
+        if (!Slot_->GetTransactionSupervisor()->IsDecommissioned()) {
+            return;
+        }
+
+        CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellDecommissioned())
+            ->CommitAndLog(Logger);
+    }
+
+    void HydraOnTabetCellDecommissioned(TReqOnTabletCellDecommissioned* request)
+    {
+        if (CellLifeStage_ != ETabletCellLifeStage::DecommissioningOnNode) {
+            return;
+        }
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet cell decommissioned");
+
+        CellLifeStage_ = ETabletCellLifeStage::Decommissioned;
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = Slot_->GetMasterMailbox();
+        TRspDecommissionTabletCellOnNode response;
+        ToProto(response.mutable_cell_id(), Slot_->GetCellId());
+        hiveManager->PostMessage(mailbox, response);
+    }
 
     static void ValidateReplicaWritable(TTablet* tablet, const TTableReplicaInfo& replicaInfo)
     {
@@ -3574,6 +3659,11 @@ i64 TTabletManager::GetStaticStoresMemoryUsage() const
 i64 TTabletManager::GetWriteLogsMemoryUsage() const
 {
     return Impl_->GetWriteLogsMemoryUsage();
+}
+
+ETabletCellLifeStage TTabletManager::GetTabletCellLifeStage() const
+{
+    return Impl_->GetTabletCellLifeStage();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

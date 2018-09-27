@@ -313,7 +313,7 @@ private:
     {
         std::vector<const TTabletCell*> cells;
         for (const auto* cell : bundle->TabletCells()) {
-            if (IsObjectAlive(cell) && !cell->GetDecommissioned() && cell->GetCellBundle() == bundle) {
+            if (IsObjectAlive(cell) && !cell->DecommissionStarted() && cell->GetCellBundle() == bundle) {
                 cells.push_back(cell);
             }
         }

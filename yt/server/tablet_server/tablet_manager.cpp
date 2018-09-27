@@ -196,6 +196,9 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCellOnMaster, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissionedOnNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissionedOnMaster, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -2949,13 +2952,88 @@ public:
         return cell;
     }
 
-    void DecomissionTabletCell(TTabletCell* cell)
+    void RemoveTabletCell(TTabletCell* cell, bool force)
     {
-        if (cell->GetDecommissioned()) {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing tablet cell (TabletCellId: %v, Force: %v)",
+            cell->GetId(),
+            force);
+
+        switch (cell->GetTabletCellLifeStage()) {
+            case ETabletCellLifeStage::Running: {
+                // Decommission tablet cell on primary master.
+                DecommissionTabletCell(cell);
+
+                // Decommission tablet cell on secondary masters.
+                TReqDecommissionTabletCellOnMaster req;
+                ToProto(req.mutable_cell_id(), cell->GetId());
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                multicellManager->PostToMasters(req, multicellManager->GetRegisteredMasterCellTags());
+
+                // Decommission tablet cell on node.
+                if (force) {
+                    OnTabletCellDecommissionedOnNode(cell);
+                }
+
+                break;
+            }
+
+            case ETabletCellLifeStage::DecommissioningOnMaster:
+            case ETabletCellLifeStage::DecommissioningOnNode:
+                if (force) {
+                    OnTabletCellDecommissionedOnNode(cell);
+                }
+
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    void HydraOnTabletCellDecommissionedOnMaster(TReqOnTabletCellDecommisionedOnMaster* request)
+    {
+        auto cellId = FromProto<TTabletId>(request->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
             return;
         }
 
-        cell->SetDecommissioned(true);
+        if (cell->GetTabletCellLifeStage() != ETabletCellLifeStage::DecommissioningOnMaster) {
+            return;
+        }
+
+        // Decommission tablet cell on node.
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting tablet cell decommission on node (TabletCellId: %v)",
+            cell->GetId());
+
+        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnNode);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        hiveManager->PostMessage(mailbox, TReqDecommissionTabletCellOnNode());
+    }
+
+    void HydraDecommissionTabletCellOnMaster(TReqDecommissionTabletCellOnMaster* request)
+    {
+        auto cellId = FromProto<TTabletId>(request->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+        DecommissionTabletCell(cell);
+        OnTabletCellDecommissionedOnNode(cell);
+    }
+
+    void DecommissionTabletCell(TTabletCell* cell)
+    {
+        if (cell->DecommissionStarted()) {
+            return;
+        }
+
+        cell->SetTabletCellLifeStage(ETabletCellLifeStage::DecommissioningOnMaster);
         cell->LocalStatistics().Decommissioned = true;
 
         auto actions = cell->Actions();
@@ -2964,6 +3042,28 @@ public:
             UnbindTabletActionFromCells(action);
             OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
         }
+    }
+
+    void HydraOnTabletCellDecommissionedOnNode(TRspDecommissionTabletCellOnNode* response)
+    {
+        auto cellId = FromProto<TTabletId>(response->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+        OnTabletCellDecommissionedOnNode(cell);
+    }
+
+    void OnTabletCellDecommissionedOnNode(TTabletCell* cell)
+    {
+        if (cell->DecommissionCompleted()) {
+            return;
+        }
+
+        cell->SetTabletCellLifeStage(ETabletCellLifeStage::Decommissioned);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell decommissioned (TabletCellId: %v)",
+            cell->GetId());
     }
 
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
@@ -3128,8 +3228,11 @@ private:
         if (CleanupExecutor_) {
             CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
         }
-        if (TabletCellDecommissioner_ && dynamicConfig->TabletCellDecommissioner) {
-            TabletCellDecommissioner_->Reconfigure(dynamicConfig->TabletCellDecommissioner);
+        if (TabletCellDecommissioner_) {
+            auto& config = dynamicConfig->TabletCellDecommissioner
+                ? dynamicConfig->TabletCellDecommissioner
+                : Config_->TabletCellDecommissioner;
+            TabletCellDecommissioner_->Reconfigure(config);
         }
         if (auto gossipConfig = dynamicConfig->MulticellGossipConfig) {
             TableStatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
@@ -3332,7 +3435,7 @@ private:
             for (const auto& pair : TabletCellMap_) {
                 auto* cell = pair.second;
                 cell->LocalStatistics() = NTabletServer::TTabletCellStatistics();
-                cell->LocalStatistics().Decommissioned = cell->GetDecommissioned();
+                cell->LocalStatistics().Decommissioned = cell->DecommissionCompleted();
                 for (const auto& tablet : cell->Tablets()) {
                     cell->LocalStatistics() += GetTabletStatistics(tablet);
                 }
@@ -5226,7 +5329,7 @@ private:
 
     bool IsCellActive(TTabletCell* cell)
     {
-        return IsObjectAlive(cell) && !cell->GetDecommissioned();
+        return IsObjectAlive(cell) && !cell->DecommissionStarted();
     }
 
     std::vector<std::pair<TTablet*, TTabletCell*>> ComputeTabletAssignment(
@@ -6245,9 +6348,9 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
     return Impl_->GetTabletCellOrThrow(id);
 }
 
-void TTabletManager::DecomissionTabletCell(TTabletCell* cell)
+void TTabletManager::RemoveTabletCell(TTabletCell* cell, bool force)
 {
-    return Impl_->DecomissionTabletCell(cell);
+    return Impl_->RemoveTabletCell(cell, force);
 }
 
 TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const TString& name)

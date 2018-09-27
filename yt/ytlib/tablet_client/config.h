@@ -41,10 +41,13 @@ class TDynamicTabletCellOptions
 {
 public:
     std::optional<double> CpuPerTabletSlot;
+    std::optional<bool> SuppressTabletCellDecommission;
 
     TDynamicTabletCellOptions()
     {
         RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+            .Optional();
+        RegisterParameter("suppress_tablet_cell_decommission", SuppressTabletCellDecommission)
             .Optional();
     }
 };

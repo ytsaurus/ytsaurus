@@ -44,6 +44,9 @@ public:
         TTransactionId transactionId,
         bool force = false);
 
+    void Decommission();
+    bool IsDecommissioned() const;
+
 private:
     class TImpl;
     using TImplPtr = TIntrusivePtr<TImpl>;

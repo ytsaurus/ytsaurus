@@ -133,6 +133,9 @@ class TTabletCellDecommissionerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    bool EnableTabletCellDecommission;
+    bool EnableTabletCellRemoval;
+
     TDuration DecommissionCheckPeriod;
     TDuration OrphansCheckPeriod;
 
@@ -141,6 +144,10 @@ public:
 
     TTabletCellDecommissionerConfig()
     {
+        RegisterParameter("enable_tablet_cell_decommission", EnableTabletCellDecommission)
+            .Default(true);
+        RegisterParameter("enable_tablet_cell_removal", EnableTabletCellRemoval)
+            .Default(true);
         RegisterParameter("decommission_check_period", DecommissionCheckPeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("orphans_check_period", OrphansCheckPeriod)

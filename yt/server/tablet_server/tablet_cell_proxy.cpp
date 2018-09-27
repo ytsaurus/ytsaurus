@@ -31,6 +31,7 @@ using namespace NObjectServer;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTabletClient;
 
 using NYT::ToProto;
 
@@ -92,8 +93,13 @@ private:
     {
         const auto* cell = GetThisImpl();
 
+        if (!cell->DecommissionCompleted()) {
+            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on node",
+                cell->GetId());
+        }
+
         if (!cell->ClusterStatistics().Decommissioned) {
-            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned",
+            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on all masters",
                 cell->GetId());
         }
 
@@ -106,7 +112,7 @@ private:
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
     {
         auto* cell = GetThisImpl();
-        if (cell->GetDecommissioned()) {
+        if (cell->DecommissionCompleted()) {
             TBase::RemoveSelf(request, response, context);
         } else {
             ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
@@ -115,9 +121,8 @@ private:
                 THROW_ERROR_EXCEPTION("Tablet cell is the primary world object and cannot be removed by a secondary master");
             }
 
-            auto req = TYPathProxy::Set("/@decommissioned");
-            req->set_value(ConvertToYsonString(true).GetData());
-            SyncExecuteVerb(this, req);
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            tabletManager->RemoveTabletCell(cell, request->force());
 
             context->Reply();
         }
@@ -146,9 +151,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Decommissioned)
-            .SetReplicated(true)
-            .SetWritable(true));
+        descriptors->push_back(EInternedAttributeKey::TabletCellLifeStage);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
             .SetOpaque(true));
     }
@@ -265,9 +268,9 @@ private:
                     .Value(cell->GetCellBundle()->GetName());
                 return true;
 
-            case EInternedAttributeKey::Decommissioned:
+            case EInternedAttributeKey::TabletCellLifeStage:
                 BuildYsonFluently(consumer)
-                    .Value(cell->GetDecommissioned());
+                    .Value(cell->GetTabletCellLifeStage());
                 return true;
 
             default:
@@ -332,30 +335,6 @@ private:
         }
 
         return TBase::GetBuiltinAttributeAsync(key);
-    }
-
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
-    {
-        auto* cell = GetThisImpl();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-        switch (key) {
-            case EInternedAttributeKey::Decommissioned: {
-                ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
-
-                auto decommissioned = ConvertTo<bool>(value);
-
-                if (decommissioned) {
-                    tabletManager->DecomissionTabletCell(cell);
-                } else if (cell->GetDecommissioned()) {
-                    THROW_ERROR_EXCEPTION("Tablet cell cannot be undecommissioned");
-                }
-
-                return true;
-            }
-        }
-
-        return TBase::SetBuiltinAttribute(key, value);
     }
 };
 
