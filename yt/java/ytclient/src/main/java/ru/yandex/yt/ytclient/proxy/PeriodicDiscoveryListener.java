@@ -7,4 +7,5 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 public interface PeriodicDiscoveryListener {
     void onProxiesAdded(Set<RpcClient> proxies);
     void onProxiesRemoved(Set<RpcClient> proxies);
+    void onError(Throwable e);
 }
