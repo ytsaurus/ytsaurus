@@ -163,6 +163,18 @@ public:
                 RootUserName));
     }
 
+    void Decommission()
+    {
+        YT_LOG_DEBUG("Decommission transaction supervisor");
+
+        Decommissioned_ = true;
+    }
+
+    bool IsDecommissioned() const
+    {
+        return Decommissioned_ && PersistentCommitMap_.empty();
+    }
+
 private:
     const TTransactionSupervisorConfigPtr Config_;
     const IInvokerPtr TrackerInvoker_;
@@ -180,6 +192,8 @@ private:
     TEntityMap<TCommit> PersistentCommitMap_;
 
     THashMap<TTransactionId, TAbort> TransientAbortMap_;
+
+    bool Decommissioned_ = false;
 
 
     class TWrappedParticipant
@@ -940,17 +954,27 @@ private:
         auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
         const auto& userName = request->user_name();
+        TCommit* commit;
 
         // Ensure commit existence (possibly moving it from transient to persistent).
-        auto* commit = GetOrCreatePersistentCommit(
-            transactionId,
-            mutationId,
-            participantCellIds,
-            true,
-            generatePrepareTimestamp,
-            inheritCommitTimestamp,
-            coordindatorCommitMode,
-            userName);
+        try {
+            commit = GetOrCreatePersistentCommit(
+                transactionId,
+                mutationId,
+                participantCellIds,
+                true,
+                generatePrepareTimestamp,
+                inheritCommitTimestamp,
+                coordindatorCommitMode,
+                userName);
+        } catch (const std::exception& ex) {
+            if (auto commit = FindCommit(transactionId)) {
+                YCHECK(!commit->GetPersistent());
+                SetCommitFailed(commit, ex);
+                RemoveTransientCommit(commit);
+            }
+            throw;
+        }
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
@@ -1270,6 +1294,11 @@ private:
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         const TString& userName)
     {
+        if (Decommissioned_) {
+            THROW_ERROR_EXCEPTION("Tablet cell %v is decommissioned",
+                SelfCellId_);
+        }
+
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
         if (commit) {
@@ -1795,12 +1824,13 @@ private:
             version == 3 ||
             version == 4 ||
             version == 5 || // babenko
-            version == 6;   // savrus: Add User to TCommit
+            version == 6 || // savrus: Add User to TCommit
+            version == 7;   // savrus: Add tablet cell life stage
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 6;
+        return 7;
     }
 
 
@@ -1867,6 +1897,7 @@ private:
     void SaveValues(TSaveContext& context) const
     {
         PersistentCommitMap_.SaveValues(context);
+        Save(context, Decommissioned_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -1877,6 +1908,12 @@ private:
     void LoadValues(TLoadContext& context)
     {
         PersistentCommitMap_.LoadValues(context);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 7) {
+            Load(context, Decommissioned_);
+        } else {
+            Decommissioned_ = false;
+        }
     }
 };
 
@@ -1933,6 +1970,16 @@ TFuture<void> TTransactionSupervisor::AbortTransaction(
     return Impl_->AbortTransaction(
         transactionId,
         force);
+}
+
+void TTransactionSupervisor::Decommission()
+{
+    Impl_->Decommission();
+}
+
+bool TTransactionSupervisor::IsDecommissioned() const
+{
+    return Impl_->IsDecommissioned();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

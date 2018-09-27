@@ -78,6 +78,7 @@ public:
     i64 GetStaticStoresMemoryUsage() const;
     i64 GetWriteLogsMemoryUsage() const;
 
+    NTabletClient::ETabletCellLifeStage GetTabletCellLifeStage() const;
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId id);

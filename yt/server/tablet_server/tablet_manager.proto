@@ -39,6 +39,24 @@ message TReqSetLeadingPeer
     required int32 peer_id = 2;
 }
 
+message TReqOnTabletCellDecommisionedOnMaster
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
+message TReqDecommissionTabletCellOnMaster
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
+message TReqDecommissionTabletCellOnNode
+{ }
+
+message TRspDecommissionTabletCellOnNode
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
 message TRspMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;

@@ -114,7 +114,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
                 object_ids_to_remove.append(object.attributes["id"])
 
         for result in yt_commands.execute_batch([
-                yt_commands.make_batch_request("remove", path="#" + id) for id in object_ids_to_remove
+                yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
             ], driver=driver):
             assert yt_commands.get_batch_output(result) is None
 
@@ -123,14 +123,22 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 def _restore_globals(driver=None):
     def do():
         for response in yt_commands.execute_batch([
-                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
-                    "changelog_account": "sys",
-                    "snapshot_account": "sys"
-                }),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
                 yt_commands.make_batch_request("set", path="//sys/@config", input={}),
                 yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
+            ], driver=driver):
+            assert yt_commands.get_batch_output(response) is None
+
+    _retry_with_gc_collect(do, driver=driver)
+
+def _restore_default_bundle_options(driver=None):
+    def do():
+        for response in yt_commands.execute_batch([
+                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
+                    "changelog_account": "sys",
+                    "snapshot_account": "sys"
+                }),
             ], driver=driver):
             assert yt_commands.get_batch_output(response) is None
 
@@ -683,9 +691,11 @@ class YTEnvSetup(object):
 
             yt_commands.gc_collect(driver=driver)
 
+            _restore_globals(driver=driver)
+
             _remove_objects(enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index), driver=driver)
 
-            _restore_globals(driver=driver)
+            _restore_default_bundle_options(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
 

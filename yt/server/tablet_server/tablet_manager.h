@@ -158,7 +158,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
-    void DecomissionTabletCell(TTabletCell* cell);
+    void RemoveTabletCell(TTabletCell* cell, bool force);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId);

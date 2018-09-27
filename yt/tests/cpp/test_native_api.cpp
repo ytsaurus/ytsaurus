@@ -1,7 +1,7 @@
 //%NUM_MASTERS=1
 //%NUM_NODES=3
 //%NUM_SCHEDULERS=0
-//%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100},"tablet_manager":{"tablet_cell_decommissioner":{"decommission_check_period":100,"orphans_check_period":100}}}
+//%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>

@@ -240,6 +240,7 @@
     XX(TabletCellBundle, tablet_cell_bundle) \
     XX(TabletCellCount, tablet_cell_count) \
     XX(TabletCellIds, tablet_cell_ids) \
+    XX(TabletCellLifeStage, tablet_cell_life_stage) \
     XX(TabletCount, tablet_count) \
     XX(TabletCountByState, tablet_count_by_state) \
     XX(TabletCountByExpectedState, tablet_count_by_expected_state) \

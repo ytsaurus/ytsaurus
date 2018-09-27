@@ -185,5 +185,8 @@ message TReqReplicateRows
     required uint64 new_replication_timestamp = 4;
 }
 
+message TReqOnTabletCellDecommissioned
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 

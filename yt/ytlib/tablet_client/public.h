@@ -27,6 +27,13 @@ DEFINE_ENUM(ETabletBackgroundActivity,
     ((Preload)        (3))
 );
 
+DEFINE_ENUM(ETabletCellLifeStage,
+    (Running)
+    (DecommissioningOnMaster)
+    (DecommissioningOnNode)
+    (Decommissioned)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TypicalTabletSlotCount = 10;

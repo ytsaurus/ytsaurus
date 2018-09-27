@@ -113,6 +113,7 @@ public:
     TIterator begin() const;
     TIterator end() const;
     size_t size() const;
+    bool empty() const;
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);

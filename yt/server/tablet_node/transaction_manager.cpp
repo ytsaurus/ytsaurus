@@ -234,6 +234,8 @@ public:
                 transactionId);
         }
 
+        ValidateNotDecommissioned();
+
         if (fresh) {
             *fresh = true;
         }
@@ -267,6 +269,8 @@ public:
     TTransaction* MakeTransactionPersistent(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
+            ValidateNotDecommissioned();
+
             transaction->SetTransient(false);
             if (IsLeader()) {
                 CreateLease(transaction);
@@ -491,6 +495,18 @@ public:
         return MinCommitTimestamp_.value_or(GetLatestTimestamp());
     }
 
+    void Decommission()
+    {
+        YT_LOG_DEBUG("Decommission transaction manager");
+
+        Decommissioned_ = true;
+    }
+
+    bool IsDecommissioned() const
+    {
+        return Decommissioned_ && PersistentTransactionMap_.empty();
+    }
+
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
@@ -509,6 +525,8 @@ private:
     THashMap<TCellTag, TTimestamp> LastSerializedCommitTimestamps_;
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
     std::optional<TTimestamp> MinCommitTimestamp_;
+
+    bool Decommissioned_ = false;
 
     IYPathServicePtr OrchidService_;
 
@@ -744,6 +762,7 @@ private:
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
         Save(context, LastSerializedCommitTimestamps_);
+        Save(context, Decommissioned_);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -785,6 +804,12 @@ private:
             Load(context, LastSerializedCommitTimestamps_);
         } else {
             Load(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
+        }
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 100010) {
+            Load(context, Decommissioned_);
+        } else {
+            Decommissioned_ = false;
         }
     }
 
@@ -1010,6 +1035,13 @@ private:
         MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.value_or(timestamp));
     }
 
+    void ValidateNotDecommissioned()
+    {
+        if (Decommissioned_) {
+            THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
+        }
+    }
+
     static bool SerializingTransactionHeapComparer(
         const TTransaction* lhs,
         const TTransaction* rhs)
@@ -1124,6 +1156,16 @@ TTimestamp TTransactionManager::GetMinPrepareTimestamp()
 TTimestamp TTransactionManager::GetMinCommitTimestamp()
 {
     return Impl_->GetMinCommitTimestamp();
+}
+
+void TTransactionManager::Decommission()
+{
+    Impl_->Decommission();
+}
+
+bool TTransactionManager::IsDecommissioned() const
+{
+    return Impl_->IsDecommissioned();
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

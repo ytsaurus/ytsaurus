@@ -369,6 +369,8 @@ public:
     TDuration ReplicatorSoftBackoffTime;
     TDuration ReplicatorHardBackoffTime;
 
+    TDuration TabletCellDecommissionCheckPeriod;
+
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
@@ -398,6 +400,9 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("tablet_cell_decommission_check_period", TabletCellDecommissionCheckPeriod)
+            .Default(TDuration::Seconds(10));
     }
 };
 

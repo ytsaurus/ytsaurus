@@ -919,7 +919,15 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
     def test_mount_with_target_cell_ids(self, external):
         cells = sync_create_cells(4)
 
-        set("//sys/tablet_cells/{}/@decommissioned".format(cells[3]), True)
+        decommissioner_config = {
+            "enable_tablet_cell_decommission": False,
+            "decommission_check_period": 100,
+            "orphans_check_period": 100,
+        }
+
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner", decommissioner_config)
+        remove("#{0}".format(cells[3]))
+        assert get("#{0}/@tablet_cell_life_stage".format(cells[3])) != "running"
 
         if external:
             self._create_sorted_table("//tmp/t", external_cell_tag=1)
@@ -945,6 +953,7 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         # Target cells may not be decommissioned.
         with pytest.raises(YtError):
             sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0, target_cell_ids=[cells[3]])
+        assert exists("#{0}".format(cells[3]))
 
         target_cell_ids = [cells[0], cells[0], cells[1]]
         sync_mount_table("//tmp/t", target_cell_ids=target_cell_ids)
@@ -987,6 +996,75 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         wait(lambda: get("//tmp/t/@access_time") != time_before)
         time_after = get("//tmp/t/@access_time")
         assert time_after > time_before
+
+    def test_remove_tablet_cell(self):
+        cells = sync_create_cells(1)
+        remove("#" + cells[0])
+        wait(lambda: not exists("//sys/tablet_cells/{0}".format(cells[0])))
+
+    def test_tablet_cell_decommission(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(2)]
+        rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(2)]
+        keys = [{"key": i} for i in xrange(2)]
+
+        insert_rows("//tmp/t", rows1)
+
+        decommissioner_config = {
+            "enable_tablet_cell_removal": False,
+            "decommission_check_period": 100,
+            "orphans_check_period": 100,
+        }
+
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner", decommissioner_config)
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+
+        version = get("//sys/tablet_cell_bundles/b/@dynamic_config_version")
+        wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/dynamic_config_version".format(address, cell)) == version)
+
+        remove("#{0}".format(cell))
+        wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioning_on_node")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", rows2)
+
+        self._create_sorted_table("//tmp/t2", tablet_cell_bundle="b")
+        with pytest.raises(YtError):
+            mount_table("//tmp/t2")
+
+        assert get("#{0}/@tablet_cell_life_stage".format(cell)) == "decommissioning_on_node"
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", False)
+        wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioned")
+
+        remove("//sys/@config/tablet_manager/tablet_cell_decommissioner")
+        wait(lambda: not exists("#{0}".format(cell)))
+
+    def test_force_remove_tablet_cell(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
+        cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
+
+        remove("#{0}".format(cell), force=True)
+        wait(lambda: not exists("#" + cell))
+
+    def test_force_remove_tablet_cell_after_decommission(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
+        cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
+
+        remove("#{0}".format(cell))
+        wait(lambda: get("#{0}/@tablet_cell_life_stage".format(cell)) == "decommissioning_on_node")
+
+        remove("#{0}".format(cell), force=True)
+        wait(lambda: not exists("#" + cell))
 
 ##################################################################
 
