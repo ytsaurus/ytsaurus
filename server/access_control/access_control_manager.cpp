@@ -132,7 +132,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TGroupSpec, Spec);
 
 public:
-    TGroup(TObjectId id, NClient::NApi::NProto::TGroupSpec spec)
+    explicit TGroup(TObjectId id, NClient::NApi::NProto::TGroupSpec spec = {})
         : TSubject(std::move(id), EObjectType::Group)
         , Spec_(std::move(spec))
     { }
@@ -151,16 +151,43 @@ TGroup* TSubject::AsGroup()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool ContainsPermission(const NClient::NApi::NProto::TAccessControlEntry& ace, EAccessControlPermission permission)
+{
+    return std::find(
+        ace.permissions().begin(),
+        ace.permissions().end(),
+        static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission)) !=
+        ace.permissions().end();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClusterSnapshot
     : public TRefCounted
 {
 public:
-    void AddSubject(std::unique_ptr<TSubject> subject)
+    TClusterSnapshot()
     {
-        auto id = subject->GetId();
-        if (!IdToSubject_.emplace(std::move(id), std::move(subject)).second) {
+        auto everyoneGroup = std::make_unique<TGroup>(EveryoneSubjectId);
+        EveryoneGroup_ = everyoneGroup.get();
+        AddSubject(std::move(everyoneGroup));
+    }
+
+    void AddSubject(std::unique_ptr<TSubject> subjectHolder)
+    {
+        auto* subject = subjectHolder.get();
+        const auto& id = subject->GetId();
+        if (!IdToSubject_.emplace(id, std::move(subjectHolder)).second) {
             THROW_ERROR_EXCEPTION("Duplicate subject %Qv",
                 id);
+        }
+
+        if (subject->GetType() == EObjectType::User) {
+            YCHECK(EveryoneGroup_->RecursiveUserIds().insert(id).second);
         }
     }
 
@@ -181,6 +208,16 @@ public:
     {
         auto it = IdToSubject_.find(id);
         return it == IdToSubject_.end() ? nullptr : it->second.get();
+    }
+
+    TGroup* GetSuperusersGroup()
+    {
+        return SuperusersGroup_;
+    }
+
+    TGroup* GetEveryoneGroup()
+    {
+        return EveryoneGroup_;
     }
 
     void Prepare()
@@ -228,6 +265,7 @@ public:
 private:
     THashMap<TObjectId, std::unique_ptr<TSubject>> IdToSubject_;
     TGroup* SuperusersGroup_ = nullptr;
+    TGroup* EveryoneGroup_ = nullptr;
 
 private:
     void ComputeRecursiveUsers(
@@ -262,20 +300,11 @@ private:
         EAccessControlPermission permission,
         const TObjectId& userId)
     {
-        if (std::find(
-            ace.permissions().begin(),
-            ace.permissions().end(),
-            static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission)) ==
-            ace.permissions().end())
-        {
+        if (!ContainsPermission(ace, permission)) {
             return Null;
         }
 
         for (const auto& subjectId : ace.subjects()) {
-            if (subjectId == EveryoneSubjectId) {
-                return std::make_tuple(static_cast<EAccessControlAction>(ace.action()), EveryoneSubjectId);
-            }
-
             auto* subject = FindSubject(subjectId);
             if (!subject) {
                 continue;
@@ -344,34 +373,103 @@ public:
             return result;
         }
 
-        while (object) {
-            const auto& acl = object->Acl().Load();
-            auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
-            if (subresult) {
-                result.ObjectId = object->GetId();
-                result.ObjectType = object->GetType();
-                result.SubjectId = std::get<1>(*subresult);
-                switch (std::get<0>(*subresult)) {
-                    case EAccessControlAction::Allow:
-                        if (result.Action == EAccessControlAction::Deny) {
-                            result.Action = EAccessControlAction::Allow;
-                            result.SubjectId = std::get<1>(*subresult);
-                        }
-                        break;
-                    case EAccessControlAction::Deny:
-                        result.Action = EAccessControlAction::Deny;
-                        return result;
-                    default:
-                        Y_UNREACHABLE();
+        InvokeForAccessControlHierarchy(
+            object,
+            [&] (auto* object) {
+                const auto& acl = object->Acl().Load();
+                auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
+                if (subresult) {
+                    result.ObjectId = object->GetId();
+                    result.ObjectType = object->GetType();
+                    result.SubjectId = std::get<1>(*subresult);
+                    switch (std::get<0>(*subresult)) {
+                        case EAccessControlAction::Allow:
+                            if (result.Action == EAccessControlAction::Deny) {
+                                result.Action = EAccessControlAction::Allow;
+                                result.SubjectId = std::get<1>(*subresult);
+                            }
+                            break;
+                        case EAccessControlAction::Deny:
+                            result.Action = EAccessControlAction::Deny;
+                            return false;
+                        default:
+                            Y_UNREACHABLE();
+                    }
                 }
-            }
+                return true;
+            });
 
-            if (!object->InheritAcl().Load()) {
-                break;
-            }
+        return result;
+    }
 
-            auto* typeHandler = object->GetTypeHandler();
-            object = typeHandler->GetAccessControlParent(object);
+    TUserIdList GetObjectAccessAllowedFor(
+        TObject* object,
+        EAccessControlPermission permission)
+    {
+        auto snapshot = GetClusterSnapshot();
+
+        THashSet<TObjectId> allowedForUserIds;
+        THashSet<TObjectId> deniedForUserIds;
+        InvokeForAccessControlHierarchy(
+            object,
+            [&] (auto* object) {
+                const auto& acl = object->Acl().Load();
+                for (const auto& ace : acl) {
+                    if (!ContainsPermission(ace, permission)) {
+                        continue;
+                    }
+
+                    auto handleUserId = [&] (const auto& userId) {
+                        switch (ace.action()) {
+                            case NClient::NApi::NProto::ACA_ALLOW:
+                                allowedForUserIds.insert(userId);
+                                break;
+                            case NClient::NApi::NProto::ACA_DENY:
+                                deniedForUserIds.insert(userId);
+                                break;
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    };
+
+                    for (const auto& subjectId : ace.subjects()) {
+                        auto* subject = snapshot->FindSubject(subjectId);
+                        if (!subject) {
+                            continue;
+                        }
+                        switch (subject->GetType()) {
+                            case EObjectType::User:
+                                handleUserId(subjectId);
+                                break;
+
+                            case EObjectType::Group:
+                                for (const auto& userId : subject->AsGroup()->RecursiveUserIds()) {
+                                    handleUserId(userId);
+                                }
+                                break;
+
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+                }
+                return true;
+            });
+
+        const auto* superusersGroup = snapshot->GetSuperusersGroup();
+        if (superusersGroup) {
+            for (const auto& userId : superusersGroup->RecursiveUserIds()) {
+                allowedForUserIds.insert(userId);
+                deniedForUserIds.erase(userId);
+            }
+        }
+
+        std::vector<TObjectId> result;
+        result.reserve(allowedForUserIds.size());
+        for (const auto& id : allowedForUserIds) {
+            if (deniedForUserIds.count(id) == 0) {
+                result.push_back(id);
+            }
         }
 
         return result;
@@ -394,7 +492,7 @@ public:
                 userId,
                 subject->GetType());
         }
-        auto* user = subject->AsUser();
+        const auto* user = subject->AsUser();
         if (user->Spec().banned()) {
             THROW_ERROR_EXCEPTION(
                 NClient::NApi::EErrorCode::UserBanned,
@@ -446,7 +544,7 @@ public:
                     object->GetId());
             }
             error.Attributes().Set("permission", permission);
-            error.Attributes().Set("user", userId);
+            error.Attributes().Set("user_id", userId);
             error.Attributes().Set("object_type", object->GetType());
             error.Attributes().Set("object_id", object->GetId());
             if (result.ObjectId) {
@@ -457,6 +555,19 @@ public:
                 error.Attributes().Set("denied_for", result.SubjectId);
             }
             THROW_ERROR(error);
+        }
+    }
+
+    void ValidateSuperuser()
+    {
+        auto userId = GetAuthenticatedUser();
+        auto snapshot = GetClusterSnapshot();
+        if (!snapshot->IsSuperuser(userId)) {
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::AuthorizationError,
+                "User %Qv must be a superuser to do that",
+                userId)
+                << TErrorAttribute("user_id", userId);
         }
     }
 
@@ -474,6 +585,25 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
+    template <class F>
+    void InvokeForAccessControlHierarchy(
+        TObject* object,
+        F func)
+    {
+        while (object) {
+            if (!func(object)) {
+                break;
+            }
+
+            if (!object->InheritAcl().Load()) {
+                break;
+            }
+
+            auto* typeHandler = object->GetTypeHandler();
+            object = typeHandler->GetAccessControlParent(object);
+        }
+    }
+
     TClusterSnapshotPtr GetClusterSnapshot()
     {
         TReaderGuard guard(ClusterSnapshotLock_);
@@ -650,6 +780,15 @@ TPermissionCheckResult TAccessControlManager::CheckPermission(
         permission);
 }
 
+TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
+    TObject* object,
+    EAccessControlPermission permission)
+{
+    return Impl_->GetObjectAccessAllowedFor(
+        object,
+        permission);
+}
+
 void TAccessControlManager::SetAuthenticatedUser(const TObjectId& userId)
 {
     Impl_->SetAuthenticatedUser(userId);
@@ -668,6 +807,11 @@ TObjectId TAccessControlManager::GetAuthenticatedUser()
 void TAccessControlManager::ValidatePermission(TObject* object, EAccessControlPermission permission)
 {
     Impl_->ValidatePermission(object, permission);
+}
+
+void TAccessControlManager::ValidateSuperuser()
+{
+    return Impl_->ValidateSuperuser();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

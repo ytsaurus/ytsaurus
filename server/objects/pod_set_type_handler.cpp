@@ -39,7 +39,8 @@ public:
                     ->SetUpdatable(),
 
                 MakeAttributeSchema("account_id")
-                    ->SetAttribute(TPodSet::TSpec::AccountSchema)
+                    ->SetAttribute(TPodSet::TSpec::AccountSchema
+                        .SetNullable(false))
                     ->SetUpdatable()
                     ->SetUpdateHandler<TPodSet>(std::bind(&TPodSetTypeHandler::OnAccountUpdated, this, _1, _2))
                     ->SetValidator<TPodSet>(std::bind(&TPodSetTypeHandler::ValidateAccount, this, _1, _2))
@@ -78,7 +79,7 @@ private:
     }
 
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
@@ -90,16 +91,19 @@ private:
         accessControlManager->ValidatePermission(tmpAccount, EAccessControlPermission::Use);
 
         tmpAccount->PodSets().Add(podSet);
+
+        auto* defaultNodeSegment = transaction->GetNodeSegment(DefaultNodeSegmentId);
+        defaultNodeSegment->PodSets().Add(podSet);
     }
 
-    void ValidateAccount(const TTransactionPtr& /*transaction*/, TPodSet* podSet)
+    void ValidateAccount(TTransaction* /*transaction*/, TPodSet* podSet)
     {
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         auto* account = podSet->Spec().Account().Load();
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
     }
 
-    void OnAccountUpdated(const TTransactionPtr& transaction, TPodSet* podSet)
+    void OnAccountUpdated(TTransaction* transaction, TPodSet* podSet)
     {
         for (auto* pod : podSet->Pods().Load()) {
             transaction->ScheduleValidateAccounting(pod);

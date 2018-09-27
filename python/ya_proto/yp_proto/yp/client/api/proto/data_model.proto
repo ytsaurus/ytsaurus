@@ -113,9 +113,15 @@ message TPerSegmentResourceTotals
         optional int64 capacity = 1;
     }
 
+    message TInternetAddressTotals
+    {
+        optional int64 capacity = 1;
+    }
+
     optional TMemoryTotals memory = 1;
     optional TMemoryTotals cpu = 2;
     map<string, TDiskTotals> disk_per_storage_class = 3 [(NYT.NYson.NProto.yson_map) = true];
+    optional TInternetAddressTotals internet_address = 4;
 }
 
 message TResourceTotals
@@ -350,10 +356,6 @@ message TNodeSpec
     // "sas1-3329" for "sas1-3329.search.yandex.net".
     optional string short_name = 3;
 
-    // Calibrated compute power of a single "physical" CPU core.
-    // Typically "physical" CPU cores are, in fact, HT threads.
-    optional double cpu_to_vcpu_factor = 4;
-
     message THfsm
     {
         // Setting this to false prevents automatic HFSM status updates.
@@ -452,6 +454,10 @@ enum EPodCurrentState
 
     PCS_STOPPED = 400
     [(NYT.NYson.NProto.enum_value_name) = "stopped"];
+
+    // Pod could not be started (for example, the received spec was invalid).
+    PCS_START_FAILED = 500
+    [(NYT.NYson.NProto.enum_value_name) = "start_failed"];
 }
 
 enum EPodTargetState
@@ -499,11 +505,26 @@ message TPodSpec
     message TPodAgentDeploymentMeta
     {
         // URL to download pod agent binary from.
+        // This might be unified with TLayer now, but they may diverge later, so leave it here.
         optional string url = 1;
+
         // <scheme>:<hex value>. Supported schemes are "MD5" and "EMPTY".
         optional string checksum = 2;
+
         // Arguments to be passed to pod agent via command line.
         map<string, string> configuration = 3 [(NYT.NYson.NProto.yson_map) = true];
+
+        message TLayer
+        {
+            // URL to download layer from.
+            optional string url = 1;
+
+            // <scheme>:<hex value>. Supported schemes are "MD5" and "EMPTY".
+            optional string checksum = 2;
+        }
+
+        // List of layers to construct pod chroot fs from, from top to bottom (same order as used by porto).
+        repeated TLayer layers = 5;
     }
 
     message TPodAgentPayload

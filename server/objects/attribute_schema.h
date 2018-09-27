@@ -79,20 +79,20 @@ public:
 
     template <class TTypedObject, class TTypedValue>
     TAttributeSchema* SetSetter(std::function<void(
-        const TTransactionPtr&,
+        TTransaction*,
         TTypedObject*,
         const NYT::NYPath::TYPath&,
         const TTypedValue&,
         bool)> setter);
     template <class TTypedObject, class TTypedValue>
     TAttributeSchema* SetControl(std::function<void(
-        const TTransactionPtr&,
+        TTransaction*,
         TTypedObject*,
         const TTypedValue&)> control);
 
     bool HasSetter() const;
     void RunSetter(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         const NYT::NYPath::TYPath& path,
         const NYT::NYTree::INodePtr& value,
@@ -100,34 +100,34 @@ public:
 
     bool HasInitializer() const;
     void RunInitializer(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object);
 
     template <class TTypedObject>
     TAttributeSchema* SetUpdateHandler(std::function<void(
-        const TTransactionPtr&,
+        TTransaction*,
         TTypedObject*)> handler);
     void RunUpdateHandlers(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object);
 
     template <class TTypedObject>
     TAttributeSchema* SetValidator(std::function<void(
-        const TTransactionPtr&,
+        TTransaction*,
         TTypedObject*)> handler);
     void RunValidators(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object);
 
     bool HasRemover() const;
     void RunRemover(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         const NYT::NYPath::TYPath& path);
 
     bool HasPreloader() const;
     void RunPreloader(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         const TUpdateRequest& request);
 
@@ -140,21 +140,21 @@ public:
 
     template <class TTypedObject>
     TAttributeSchema* SetPreevaluator(std::function<void(
-        const TTransactionPtr&,
+        TTransaction*,
         TTypedObject*)> preevaluator);
     bool HasPreevaluator() const;
     void RunPreevaluator(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object);
 
     template <class TTypedObject>
     TAttributeSchema* SetEvaluator(std::function<void(
-        const TTransactionPtr&,
+        TTransaction*,
         TTypedObject*,
         NYson::IYsonConsumer*)> evaluator);
     bool HasEvaluator() const;
     void RunEvaluator(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         NYson::IYsonConsumer* consumer);
 
@@ -166,15 +166,15 @@ private:
     TAttributeSchema* FallbackChild_ = nullptr;
     TAttributeSchema* Parent_ = nullptr;
 
-    std::function<void(const TTransactionPtr&, TObject*, const NYT::NYPath::TYPath&, const NYT::NYTree::INodePtr&, bool)> Setter_;
-    std::function<void(const TTransactionPtr&, TObject*)> Initializer_;
-    std::vector<std::function<void(const TTransactionPtr&, TObject*)>> UpdateHandlers_;
-    std::vector<std::function<void(const TTransactionPtr&, TObject*)>> Validators_;
-    std::function<void(const TTransactionPtr&, TObject*, const NYT::NYPath::TYPath&)> Remover_;
-    std::function<void(const TTransactionPtr&, TObject*, const TUpdateRequest&)> Preloader_;
+    std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&, const NYT::NYTree::INodePtr&, bool)> Setter_;
+    std::function<void(TTransaction*, TObject*)> Initializer_;
+    std::vector<std::function<void(TTransaction*, TObject*)>> UpdateHandlers_;
+    std::vector<std::function<void(TTransaction*, TObject*)>> Validators_;
+    std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> Remover_;
+    std::function<void(TTransaction*, TObject*, const TUpdateRequest&)> Preloader_;
     std::function<NYT::NQueryClient::NAst::TExpressionPtr(IQueryContext*, const NYT::NYPath::TYPath&)> ExpressionBuilder_;
-    std::function<void(const TTransactionPtr&, TObject*)> Preevaluator_;
-    std::function<void(const TTransactionPtr&, TObject*, NYson::IYsonConsumer*)> Evaluator_;
+    std::function<void(TTransaction*, TObject*)> Preevaluator_;
+    std::function<void(TTransaction*, TObject*, NYson::IYsonConsumer*)> Evaluator_;
 
     bool Composite_ = false;
     bool Mandatory_ = false;

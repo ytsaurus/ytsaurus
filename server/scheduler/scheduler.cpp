@@ -17,6 +17,8 @@
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/node.h>
 
+#include <yp/server/accounting/accounting_manager.h>
+
 #include <yp/server/net/net_manager.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -65,8 +67,6 @@ public:
         return Cluster_;
     }
 
-    DEFINE_SIGNAL(void(), ClusterReconciled);
-
 private:
     TBootstrap* const Bootstrap_;
     const TSchedulerConfigPtr Config_;
@@ -91,12 +91,31 @@ private:
 
         void Run()
         {
-            ReconcileState();
-            RequestPodEvictionAtNodesWithRequestedMaintenance();
-            RevokePodsWithAcknowledgedEviction();
-            AcknowledgeNodeMaintenance();
-            SchedulePods();
-            Commit();
+            PROFILE_TIMING("/loop/time/reconcile_state") {
+                ReconcileState();
+            }
+            const auto& accountingManager = Owner_->Bootstrap_->GetAccountingManager();
+            PROFILE_TIMING("/loop/time/update_node_segments_status") {
+                accountingManager->UpdateNodeSegmentsStatus(Owner_->Cluster_);
+            }
+            PROFILE_TIMING("/loop/time/update_accounts_status") {
+                accountingManager->UpdateAccountsStatus(Owner_->Cluster_);
+            }
+            PROFILE_TIMING("/loop/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
+                RequestPodEvictionAtNodesWithRequestedMaintenance();
+            }
+            PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
+                RevokePodsWithAcknowledgedEviction();
+            }
+            PROFILE_TIMING("/loop/time/acknowledge_node_maintenance") {
+                AcknowledgeNodeMaintenance();
+            }
+            PROFILE_TIMING("/loop/time/schedule_pods") {
+                SchedulePods();
+            }
+            PROFILE_TIMING("/loop/time/commit") {
+                Commit();
+            }
         }
 
     private:
@@ -124,13 +143,12 @@ private:
                 }
             }
 
+            // TODO(babenko): profiling
             AllocationPlan_.Clear();
             InternetAddressManager_.ReconcileState(Owner_->Cluster_);
             Allocator_.ReconcileState(Owner_->Cluster_);
 
             LOG_DEBUG("State reconciled");
-
-            Owner_->ClusterReconciled_.Fire();
         }
 
         void RequestPodEvictionAtNodesWithRequestedMaintenance()
@@ -490,8 +508,6 @@ const TClusterPtr& TScheduler::GetCluster() const
 {
     return Impl_->GetCluster();
 }
-
-DELEGATE_SIGNAL(TScheduler, void(), ClusterReconciled, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

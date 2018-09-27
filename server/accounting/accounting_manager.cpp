@@ -5,7 +5,6 @@
 
 #include <yp/server/master/bootstrap.h>
 
-#include <yp/server/scheduler/scheduler.h>
 #include <yp/server/scheduler/cluster.h>
 #include <yp/server/scheduler/node.h>
 #include <yp/server/scheduler/node_segment.h>
@@ -47,10 +46,7 @@ public:
     { }
 
     void Initialize()
-    {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->SubscribeClusterReconciled(BIND(&TImpl::OnClusterReconciled, MakeWeak(this)));
-    }
+    { }
 
     void PrepareValidateAccounting(NObjects::TPod* pod)
     {
@@ -98,25 +94,8 @@ public:
         LOG_DEBUG("Finished accounting validation");
     }
 
-private:
-    NMaster::TBootstrap* const Bootstrap_;
-    const TAccountingManagerConfigPtr Config_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(SchedulerThread);
-
-
-    void OnClusterReconciled()
+    void UpdateNodeSegmentsStatus(const TClusterPtr& cluster)
     {
-        VERIFY_THREAD_AFFINITY(SchedulerThread);
-
-        UpdateNodeSegmentsStatus();
-        UpdateAccountsStatus();
-    }
-
-    void UpdateNodeSegmentsStatus()
-    {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        const auto& cluster = scheduler->GetCluster();
         auto nodeSegments = cluster->GetNodeSegments();
 
         LOG_DEBUG("Started committing node segments status update");
@@ -152,6 +131,8 @@ private:
 
                     totals->mutable_cpu()->set_capacity(totalCpuCapacity);
                     totals->mutable_memory()->set_capacity(totalMemoryCapacity);
+
+                    totals->mutable_disk_per_storage_class()->clear();
                     for (const auto& pair : storageClassToTotalDiskCapacity) {
                         auto& disk = (*totals->mutable_disk_per_storage_class())[pair.first];
                         disk.set_capacity(pair.second);
@@ -172,10 +153,8 @@ private:
         }
     }
 
-    void UpdateAccountsStatus()
+    void UpdateAccountsStatus(const TClusterPtr& cluster)
     {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        const auto& cluster = scheduler->GetCluster();
         auto nodeSegments = cluster->GetNodeSegments();
 
         LOG_DEBUG("Started committing accounts status update");
@@ -237,6 +216,32 @@ private:
         }
     }
 
+private:
+    NMaster::TBootstrap* const Bootstrap_;
+    const TAccountingManagerConfigPtr Config_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(SchedulerThread);
+
+
+    bool IsIncreasingDelta(const TPerSegmentResourceTotals& delta)
+    {
+        if (delta.memory().capacity() > 0) {
+            return true;
+        }
+        if (delta.cpu().capacity() > 0) {
+            return true;
+        }
+        if (delta.internet_address().capacity() > 0) {
+            return true;
+        }
+        for (const auto& diskPair : delta.disk_per_storage_class()) {
+            if (diskPair.second.capacity() > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void ComputeRecursiveAccountUsage(
         TAccount* currentAccount,
         THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals>* accountToUsage,
@@ -286,6 +291,11 @@ private:
                     return it == totals.per_segment().end() ? Default : it->second;
                 };
 
+                const auto& deltaPerSegment = getPerSegmentTotals(usageDelta);
+                if (!IsIncreasingDelta(deltaPerSegment)) {
+                    continue;
+                }
+
                 const auto& usagePerSegment = getPerSegmentTotals(usage);
                 const auto& limitsPerSegment = getPerSegmentTotals(limits);
 
@@ -307,6 +317,16 @@ private:
                         segmentId)
                         << TErrorAttribute("usage", usagePerSegment.memory().capacity())
                         << TErrorAttribute("limit", limitsPerSegment.memory().capacity());
+                }
+
+                if (limitsPerSegment.has_internet_address() && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity()) {
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::AccountLimitExceeded,
+                        "Account %Qv is over internet address limit in segment %Qv",
+                        currentAccount->GetId(),
+                        segmentId)
+                        << TErrorAttribute("usage", usagePerSegment.internet_address().capacity())
+                        << TErrorAttribute("limit", limitsPerSegment.internet_address().capacity());
                 }
 
                 for (const auto& perStorageClassPair : usagePerSegment.disk_per_storage_class()) {
@@ -360,6 +380,16 @@ void TAccountingManager::PrepareValidateAccounting(NObjects::TPod* pod)
 void TAccountingManager::ValidateAccounting(const std::vector<NObjects::TPod*>& pods)
 {
     Impl_->ValidateAccounting(pods);
+}
+
+void TAccountingManager::UpdateNodeSegmentsStatus(const TClusterPtr& cluster)
+{
+    Impl_->UpdateNodeSegmentsStatus(cluster);
+}
+
+void TAccountingManager::UpdateAccountsStatus(const TClusterPtr& cluster)
+{
+    Impl_->UpdateAccountsStatus(cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

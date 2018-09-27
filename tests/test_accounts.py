@@ -30,3 +30,21 @@ class TestAccounts(object):
         for account in accounts:
             with pytest.raises(YtResponseError):
                 yp_client.remove_object("account", account)
+
+    def test_cannot_set_null_account(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod_set" ,pod_set_id, set_updates=[{"path": "/spec/account_id", "value": ""}])
+
+    def test_cannot_create_with_null_account(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("pod_set", attributes={
+                    "spec": {
+                        "account_id": ""
+                    }
+                })
+

@@ -1,4 +1,5 @@
 SET(YT_SRCS
-  resources_ut.cpp
+  allocation_plan_ut.cpp
   porto_ut.cpp
+  resources_ut.cpp
 )

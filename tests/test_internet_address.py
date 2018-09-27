@@ -1,7 +1,9 @@
 import pytest
 
-from yt.yson import YsonEntity, YsonUint64
-from yt.environment.helpers import wait
+from yp.common import wait, YtResponseError
+from yt.yson import YsonEntity
+
+from yt.packages.six.moves import xrange
 
 @pytest.mark.usefixtures("yp_env")
 class TestInternetAddresses(object):
@@ -21,7 +23,7 @@ class TestInternetAddresses(object):
             return False
         wait(func)
 
-    def _prepare_objects(self, yp_client):
+    def _prepare_objects(self, yp_client, account_id=None):
         yp_client.create_object("network_project", attributes={
             "meta": {
                 "id": "somenet"
@@ -31,11 +33,13 @@ class TestInternetAddresses(object):
             }
         })
 
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-            "spec": {
-                "node_segment_id": "default"
-            }
-        })
+        pod_set_spec = {
+            "node_segment_id": "default"
+        }
+        if account_id is not None:
+            pod_set_spec["account_id"] = account_id
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": pod_set_spec})
 
         return pod_set_id
 
@@ -155,6 +159,78 @@ class TestInternetAddresses(object):
         for pod_id in pod_ids:
             self._wait_scheduled_state(yp_client, [pod_id], "assigned")
             assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] in node_ids
+
+    def test_internet_address_resource_limit(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        account_id = yp_client.create_object("account", attributes={
+            "spec": {
+                "resource_limits": {
+                    "per_segment": {
+                        "default": {
+                            "memory": { "capacity": 1000000000 },
+                            "cpu": { "capacity": 1000000000 },
+                        }
+                    }
+                }
+            }
+        })
+
+        pod_set_id = self._prepare_objects(yp_client, account_id=account_id)
+        node_id = self._create_node(yp_client, "netmodule1")
+
+        for i in xrange(3):
+            self._create_inet_addr(yp_client, "netmodule1", "1.2.3.{}".format(i))
+
+        pod_id1 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+        self._wait_scheduled_state(yp_client, [pod_id1], "assigned")
+        assert yp_client.get_object("pod", pod_id1, selectors=["/status/scheduling/node_id"])[0] == node_id
+        assert yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] == 1
+        yp_client.remove_object("pod", pod_id1)
+
+        wait(lambda: yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] != 1)
+
+        yp_client.update_object("account", account_id, set_updates=[
+            {
+                "path": "/spec/resource_limits/per_segment/default/internet_address",
+                "value": { "capacity": 0 }
+            }])
+
+        with pytest.raises(YtResponseError):
+            pod_id2 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+
+        yp_client.update_object("account", account_id, set_updates=[
+            {
+                "path": "/spec/resource_limits/per_segment/default/internet_address",
+                "value": { "capacity": 1 }
+            }])
+
+        pod_id3 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+        self._wait_scheduled_state(yp_client, [pod_id3], "assigned")
+        assert yp_client.get_object("pod", pod_id3, selectors=["/status/scheduling/node_id"])[0] == node_id
+
+        yp_client.update_object("account", account_id, set_updates=[
+            {
+                "path": "/spec/resource_limits/per_segment/default/internet_address",
+                "value": { "capacity": 3 }
+            }])
+
+        pod_id4 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+        self._wait_scheduled_state(yp_client, [pod_id4], "assigned")
+
+        pod_id5 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+        self._wait_scheduled_state(yp_client, [pod_id5], "assigned")
+
+        wait(lambda: yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] == 3)
+
+        yp_client.update_object("account", account_id, set_updates=[
+            {
+                "path": "/spec/resource_limits/per_segment/default/internet_address",
+                "value": { "capacity": 1 }
+            }])
+        yp_client.remove_object("pod", pod_id4)
+
+        wait(lambda: yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] == 2)
 
     def test_reassign_internet_address(self, yp_env):
         yp_client = yp_env.yp_client

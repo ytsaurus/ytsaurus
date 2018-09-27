@@ -30,19 +30,19 @@ struct IObjectTypeHandler
         ISession* session) = 0;
 
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) = 0;
 
     virtual void AfterObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) = 0;
 
     virtual void BeforeObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) = 0;
 
     virtual void AfterObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) = 0;
 };
 

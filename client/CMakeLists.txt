@@ -8,8 +8,8 @@ add_library(yp-library-client ${YP_SRCS_RESOLVED})
 
 set(PROTO_TARGETS "")
 
-foreach(proto_file "object_service.proto" "data_model.proto" "discovery_service.proto"
-                   "cluster_api.proto" "pod_agent.proto")
+foreach(proto_file "object_service.proto" "data_model.proto" "object_type.proto" "discovery_service.proto"
+                   "cluster_api.proto" "pod_agent.proto" "replica_set.proto")
   prepare_proto(${PROJECT_SOURCE_DIR}/yp/python yp/client/api/proto/${proto_file} PROTO_TARGETS)
 endforeach(proto_file)
 

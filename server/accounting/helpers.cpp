@@ -34,6 +34,17 @@ ui64 DiskCapacityFromRequest(const NClient::NApi::NProto::TPodSpec::TDiskVolumeR
     }
 }
 
+ui64 InternetAddressCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecOther& spec)
+{
+    ui64 result = 0;
+    for (const auto& request : spec.ip6_address_requests()) {
+        if (request.enable_internet()) {
+            ++result;
+        }
+    }
+    return result;
+}
+
 } // namespace
 
 TResourceTotals ResourceUsageFromPodSpec(
@@ -44,6 +55,7 @@ TResourceTotals ResourceUsageFromPodSpec(
     auto& perSegmentUsage = (*usage.mutable_per_segment())[segmentId];
     perSegmentUsage.mutable_cpu()->set_capacity(perSegmentUsage.cpu().capacity() + CpuCapacityFromSpec(spec));
     perSegmentUsage.mutable_memory()->set_capacity(perSegmentUsage.memory().capacity() + MemoryCapacityFromSpec(spec));
+    perSegmentUsage.mutable_internet_address()->set_capacity(perSegmentUsage.internet_address().capacity() + InternetAddressCapacityFromSpec(spec));
     for (const auto& volumeRequest : spec.disk_volume_requests()) {
         const auto& storageClass = volumeRequest.storage_class();
         auto& diskTotals = (*perSegmentUsage.mutable_disk_per_storage_class())[storageClass];
@@ -76,6 +88,7 @@ void Aggregate(
 {
     lhs.mutable_cpu()->set_capacity(lhs.cpu().capacity() + rhs.cpu().capacity() * multiplier);
     lhs.mutable_memory()->set_capacity(lhs.memory().capacity() + rhs.memory().capacity() * multiplier);
+    lhs.mutable_internet_address()->set_capacity(lhs.internet_address().capacity() + rhs.internet_address().capacity() * multiplier);
     for (const auto& pair : rhs.disk_per_storage_class()) {
         auto& diskTotals = (*lhs.mutable_disk_per_storage_class())[pair.first];
         diskTotals.set_capacity(diskTotals.capacity() + pair.second.capacity() * multiplier);
@@ -178,6 +191,8 @@ void FormatValue(TStringBuilder* builder, const TPerSegmentResourceTotals& total
         totals.cpu().capacity());
     globalDelimitedBuilder->AppendFormat("Memory: %v",
         totals.memory().capacity());
+    globalDelimitedBuilder->AppendFormat("InternetAddress: %v",
+        totals.internet_address().capacity());
     
     {
         globalDelimitedBuilder->AppendString("PerStorageClass = {");

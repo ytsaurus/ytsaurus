@@ -64,7 +64,7 @@ int TAllocationPlan::GetNodeCount() const
 void TAllocationPlan::EmplaceRequest(TNode* node, const TPodRequest& request)
 {
     auto range = NodeToRequests_.equal_range(node);
-    if (range.first != range.second) {
+    if (range.first == range.second) {
         ++NodeCount_;
     }
     NodeToRequests_.emplace(node, request);

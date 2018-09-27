@@ -39,7 +39,7 @@ def setup_package(name, python_dependent_requires):
         version = version,
         packages = ["yp"] + recursive("yp/packages") + recursive("yp_proto"),
         package_data = {
-            name: ["yp/YandexInternalRootCA.crt", "yp/enums.bc"],
+            "yp": ["YandexInternalRootCA.crt", "enums.bc"],
         },
         scripts = scripts,
 

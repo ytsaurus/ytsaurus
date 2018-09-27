@@ -9,6 +9,8 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
+#include <yt/core/phdr_cache/phdr_cache.h>
+
 namespace NYP {
 namespace NServer {
 namespace NMaster {
@@ -35,6 +37,7 @@ protected:
 
         ConfigureSignals();
         ConfigureCrashHandler();
+        EnablePhdrCache();
 
         if (HandlePdeathsigOptions()) {
             return;

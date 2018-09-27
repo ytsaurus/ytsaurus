@@ -6,6 +6,8 @@
 
 #include <yp/server/master/public.h>
 
+#include <yp/server/scheduler/public.h>
+
 #include <yt/core/rpc/public.h>
 
 namespace NYP {
@@ -26,6 +28,9 @@ public:
 
     void PrepareValidateAccounting(NObjects::TPod* pod);
     void ValidateAccounting(const std::vector<NObjects::TPod*>& pods);
+
+    void UpdateNodeSegmentsStatus(const NScheduler::TClusterPtr& cluster);
+    void UpdateAccountsStatus(const NScheduler::TClusterPtr& cluster);
 
 private:
     class TImpl;

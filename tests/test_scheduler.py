@@ -1,8 +1,11 @@
 import pytest
 
-from yp.common import YtResponseError
+from yp.common import YtResponseError, wait, WaitFailed
+
 from yt.yson import YsonEntity, YsonUint64
-from yt.environment.helpers import wait
+
+from yt.packages.six.moves import xrange
+
 from collections import defaultdict
 
 DEFAULT_POD_SET_SPEC = {
@@ -12,7 +15,16 @@ DEFAULT_POD_SET_SPEC = {
 
 @pytest.mark.usefixtures("yp_env")
 class TestScheduler(object):
-    def _create_nodes(self, yp_env, node_count, rack_count = 1, hfsm_state="up"):
+    def _create_nodes(
+            self,
+            yp_env,
+            node_count,
+            rack_count=1,
+            hfsm_state="up",
+            cpu_total_capacity=100,
+            memory_total_capacity=1000000000,
+            disk_total_capacity=100000000000,
+            disk_total_volume_slots=10):
         yp_client = yp_env.yp_client
 
         node_ids = []
@@ -26,7 +38,7 @@ class TestScheduler(object):
                     "labels" : {
                         "topology": {
                             "node": "node-{}".format(i),
-                            "rack": "rack-{}".format(i / (node_count / rack_count)),
+                            "rack": "rack-{}".format(i // (node_count // rack_count)),
                             "dc": "butovo"
                         }
                     }
@@ -39,7 +51,7 @@ class TestScheduler(object):
                     },
                     "spec": {
                         "cpu": {
-                            "total_capacity": 100
+                            "total_capacity": cpu_total_capacity,
                         }
                     }
                 })
@@ -49,7 +61,7 @@ class TestScheduler(object):
                     },
                     "spec": {
                         "memory": {
-                            "total_capacity": 1000000000
+                            "total_capacity": memory_total_capacity,
                         }
                     }
                 })
@@ -59,8 +71,10 @@ class TestScheduler(object):
                     },
                     "spec": {
                         "disk": {
-                            "total_capacity": 100000000000,
-                            "storage_class": "hdd"
+                            "total_capacity": disk_total_capacity,
+                            "total_volume_slots": disk_total_volume_slots,
+                            "storage_class": "hdd",
+                            "supported_policies": ["quota", "exclusive"],
                         }
                     }
                 })
@@ -448,3 +462,74 @@ class TestScheduler(object):
         })
 
         wait(lambda: "error" in yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0])
+
+    def _test_schedule_pod_with_exclusive_disk_usage(self, yp_env, exclusive_first):
+        yp_client = yp_env.yp_client
+
+        disk_total_capacity = 2 * (10 ** 10)
+        self._create_nodes(yp_env, node_count=1, disk_total_capacity=disk_total_capacity)
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+
+        exclusive_pod_attributes = {
+            "meta": {
+                "pod_set_id": pod_set_id,
+            },
+            "spec": {
+                "enable_scheduling": True,
+                "disk_volume_requests": [
+                    {
+                        "id": "hdd1",
+                        "storage_class": "hdd",
+                        "exclusive_policy": {
+                            "min_capacity": disk_total_capacity // 2,
+                        },
+                    },
+                ],
+            },
+        }
+
+        nonexclusive_pod_attributes = {
+            "meta": {
+                "pod_set_id": pod_set_id,
+            },
+            "spec": {
+                "enable_scheduling": True,
+                "disk_volume_requests": [
+                    {
+                        "id": "hdd1",
+                        "storage_class": "hdd",
+                        "quota_policy": {
+                            "capacity": disk_total_capacity // 2,
+                        },
+                    },
+                ],
+            },
+        }
+
+        def get_scheduling_status(pod_id):
+            return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0]
+
+        def wait_for_scheduling_status(pod_id, check_status):
+            try:
+                wait(lambda: check_status(get_scheduling_status(pod_id)))
+            except WaitFailed as exception:
+                raise WaitFailed("Wait for pod scheduling failed: /status/scheduling = '{}')".format(
+                    get_scheduling_status(pod_id)))
+
+        if exclusive_first:
+            exclusive_pod_id = yp_client.create_object("pod", attributes=exclusive_pod_attributes)
+            wait_for_scheduling_status(exclusive_pod_id, lambda status: status["state"] == "assigned" and "error" not in status)
+            nonexclusive_pod_id = yp_client.create_object("pod", attributes=nonexclusive_pod_attributes)
+            wait_for_scheduling_status(nonexclusive_pod_id, lambda status: status["state"] == "pending" and "error" in status)
+        else:
+            nonexclusive_pod_id = yp_client.create_object("pod", attributes=nonexclusive_pod_attributes)
+            wait_for_scheduling_status(nonexclusive_pod_id, lambda status: status["state"] == "assigned" and "error" not in status)
+            exclusive_pod_id = yp_client.create_object("pod", attributes=exclusive_pod_attributes)
+            wait_for_scheduling_status(exclusive_pod_id, lambda status: status["state"] == "pending" and "error" in status)
+
+    def test_schedule_pod_with_exclusive_disk_usage_before_nonexclusive(self, yp_env):
+        self._test_schedule_pod_with_exclusive_disk_usage(yp_env, exclusive_first=True)
+
+    def test_schedule_pod_with_exclusive_disk_usage_after_nonexclusive(self, yp_env):
+        self._test_schedule_pod_with_exclusive_disk_usage(yp_env, exclusive_first=False)

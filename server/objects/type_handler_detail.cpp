@@ -116,7 +116,7 @@ TAttributeSchema* TObjectTypeHandlerBase::GetParentIdAttributeSchema()
 }
 
 void TObjectTypeHandlerBase::BeforeObjectCreated(
-    const TTransactionPtr& /*transaction*/,
+    TTransaction* /*transaction*/,
     TObject* object)
 {
     for (auto* attribute : object->Attributes()) {
@@ -141,12 +141,12 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
 }
 
 void TObjectTypeHandlerBase::AfterObjectCreated(
-    const TTransactionPtr& /*transaction*/,
+    TTransaction* /*transaction*/,
     TObject* /*object*/)
 { }
 
 void TObjectTypeHandlerBase::BeforeObjectRemoved(
-    const TTransactionPtr& /*transaction*/,
+    TTransaction* /*transaction*/,
     TObject* object)
 {
     if (object->IsBuiltin()) {
@@ -157,7 +157,7 @@ void TObjectTypeHandlerBase::BeforeObjectRemoved(
 }
 
 void TObjectTypeHandlerBase::AfterObjectRemoved(
-    const TTransactionPtr& /*transaction*/,
+    TTransaction* /*transaction*/,
     TObject* /*object*/)
 { }
 

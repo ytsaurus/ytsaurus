@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/object_type.proto";
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "ReplicaSet";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaSetMeta
+{
+    string id = 1;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TReplicaSetSpec
+{
+    string revision_id = 1;
+    uint32 replica_count = 2;
+
+    message TPodTemplateSpec
+    {
+        TPodSpec spec = 1;
+    }
+
+    TPodTemplateSpec pod_template_spec = 3;
+
+    message TDeploymentStrategy
+    {
+        uint32 min_available = 1;
+        uint32 max_unavailable = 2;
+        uint32 max_surge = 3;
+    }
+
+    TDeploymentStrategy deployment_strategy = 4;
+    string account_id = 5;
+
+    message TConstraints
+    {
+        repeated TAntiaffinityConstraint antiaffinity_constraints = 1;
+    }
+
+    TConstraints constraints = 6;
+}
+
+message TReplicaSetStatus
+{
+    message TCondition
+    {
+        string status = 1;
+        string reason = 2;
+        string message = 3;
+        google.protobuf.Timestamp last_transition_time = 4;
+    }
+
+    message TAggregatedCondition
+    {
+        uint32 pod_count = 1;
+        TCondition condition = 2;
+    }
+
+    TAggregatedCondition in_progress = 1;
+    TAggregatedCondition ready = 2;
+
+    message TRevision
+    {
+        string revision_id = 1;
+
+        TAggregatedCondition in_progress = 2;
+        TAggregatedCondition ready = 3;
+
+        message TAggregatedVolumeStatus
+        {
+            string id = 1;
+            TAggregatedCondition in_progress = 2;
+            TAggregatedCondition ready = 3;
+        }
+
+        repeated TAggregatedVolumeStatus volumes = 4;
+
+        message TAggregatedResourceStatus
+        {
+            string id = 1;
+            TAggregatedCondition in_progress = 2;
+            TAggregatedCondition ready = 3;
+        }
+
+        repeated TAggregatedResourceStatus resources = 5;
+
+        message TAggregatedWorkloadStatus
+        {
+            string id = 1;
+            TAggregatedCondition in_progress = 2;
+            TAggregatedCondition ready = 3;
+        }
+
+        repeated TAggregatedWorkloadStatus workloads = 6;
+
+        message TAggregatedBoxStatus
+        {
+            string id = 1;
+            TAggregatedCondition in_progress = 2;
+            TAggregatedCondition ready = 3;
+        }
+
+        repeated TAggregatedBoxStatus boxes = 7;
+    }
+
+    map<string, TRevision> revisions = 3 [(NYT.NYson.NProto.yson_map) = true];
+}
+
+message TReplicaSet
+{
+    TReplicaSetMeta meta = 1;
+    TReplicaSetSpec spec = 2;
+    TReplicaSetStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

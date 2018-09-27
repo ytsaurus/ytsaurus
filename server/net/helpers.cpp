@@ -102,7 +102,7 @@ TIP6Network MakeMtnNetwork(
     THostSubnet hostSubnet,
     TNonce nonce)
 {
-    static const auto Mask = TIP6Address::FromString("ffffffff:ffffffff:ffffffff:ffff0000");
+    static const auto Mask = TIP6Address::FromString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:0000");
     return TIP6Network(
         MakeMtnAddress(hostSubnet, 0, nonce),
         Mask);

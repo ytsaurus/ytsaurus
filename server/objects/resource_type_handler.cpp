@@ -115,7 +115,7 @@ private:
     }
 
     static void ValidateSpec(
-        const TTransactionPtr& /*transaction*/,
+        TTransaction* /*transaction*/,
         TResource* resource,
         const TResource::TSpec& spec)
     {
@@ -130,7 +130,7 @@ private:
     }
 
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
@@ -141,7 +141,7 @@ private:
     }
 
     virtual void AfterObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
@@ -156,7 +156,7 @@ private:
     }
 
     virtual void BeforeObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);

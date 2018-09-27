@@ -25,6 +25,7 @@ message TPodSpecOther
     repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
     optional NYP.NClient.NApi.NProto.TPodSpec.TVirtualServiceOptions virtual_service_options = 13;
+    optional NYP.NClient.NApi.NProto.EPodHostNameKind host_name_kind = 15;
 }
 
 // Cf. NYP.NClient.NApi.NProto.TPodStatus
@@ -43,7 +44,7 @@ message TPodStatusOther
 message TPodAgentStatusOther
 {
     optional NYT.NProto.TError execution_error = 6;
-    repeated NYT.NProto.TError validation_errors = 8;
+    repeated string validation_failures = 8;
     optional uint64 last_heartbeat_time = 7;
 }
 

@@ -1,10 +1,11 @@
-from yp.common import YtResponseError
+from __future__ import print_function
+
+from yp.common import YtResponseError, wait
 from yp.local import YpInstance, ACTUAL_DB_VERSION
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
 from yt.wrapper.retries import run_with_retries
-from yt.environment.helpers import wait
 
 import pytest
 
@@ -24,6 +25,10 @@ if yatest_common is not None:
 else:
     arcadia_interop = None
 
+if yatest_common is None:
+    sys.path.insert(0, os.path.abspath('../../python'))
+    pytest_plugins = "yt.test_runner.plugin"
+
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 OBJECT_TYPES = [
@@ -38,16 +43,9 @@ OBJECT_TYPES = [
     "user",
     "group",
     "internet_address",
-    "account"
+    "account",
+    "replica_set",
 ]
-
-NODE_CONFIG = {
-    "tablet_node": {
-        "resource_limits": {
-            "tablet_static_memory": 100 * 1024 * 1024,
-        }
-    }
-}
 
 logger.setLevel(logging.DEBUG)
 
@@ -65,7 +63,6 @@ class YpTestEnvironment(object):
 
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,
-                                      local_yt_options=dict(enable_debug_logging=True, node_config=NODE_CONFIG),
                                       enable_ssl=enable_ssl,
                                       db_version=db_version)
         if start:
@@ -97,10 +94,10 @@ class YpTestEnvironment(object):
         self.yp_instance.stop()
 
 def test_method_setup(yp_env):
-    print >>sys.stderr, "\n"
+    print("\n", file=sys.stderr)
 
 def test_method_teardown(yp_env):
-    print >>sys.stderr, "\n"
+    print("\n", file=sys.stderr)
     yp_client = yp_env.yp_client
     for object_type in OBJECT_TYPES:
         if object_type == "schema":
@@ -120,6 +117,10 @@ def test_method_teardown(yp_env):
                 if object_type == "node_segment" and object_id == "default":
                     continue
                 yp_client.remove_object(object_type, object_id)
+            yp_client.update_object("group", "superusers", set_updates=[
+                    {"path": "/spec/members", "value": ["root"]}
+                ])
+
         run_with_retries(do, exceptions=(YtResponseError,))
 
 

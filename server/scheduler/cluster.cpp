@@ -239,13 +239,18 @@ public:
         try {
             LOG_DEBUG("Started loading cluster snapshot");
 
-            Clear();
+            PROFILE_TIMING("/cluster_snapshot/time/clear") {
+                Clear();
+            }
 
             LOG_DEBUG("Starting snapshot transaction");
 
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
-                .ValueOrThrow();
+            TTransactionPtr transaction;
+            PROFILE_TIMING("/cluster_snapshot/time/start_transaction") {
+                const auto& transactionManager = Bootstrap_->GetTransactionManager();
+                transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
+                    .ValueOrThrow();
+            }
 
             Timestamp_ = transaction->GetStartTimestamp();
 
@@ -254,7 +259,7 @@ public:
 
             auto* session = transaction->GetSession();
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_internet_addresses") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -271,7 +276,7 @@ public:
                 session->FlushLoads();
             }
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_nodes") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -288,7 +293,7 @@ public:
                 session->FlushLoads();
             }
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_accounts") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -305,7 +310,7 @@ public:
                 session->FlushLoads();
             }
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_accounts_hierarchy") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -332,7 +337,7 @@ public:
                 objectManager->GetTypeHandler(EObjectType::Node),
                 GetSchedulableNodes());
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_node_segments") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -349,7 +354,7 @@ public:
                 session->FlushLoads();
             }
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_pod_sets") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -366,7 +371,7 @@ public:
                 session->FlushLoads();
             }
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_pods") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -383,7 +388,7 @@ public:
                 session->FlushLoads();
             }
 
-            {
+            PROFILE_TIMING("/cluster_snapshot/time/load_resources") {
                 session->ScheduleLoad(
                     [&] (ILoadContext* context) {
                         context->ScheduleSelect(
@@ -886,7 +891,7 @@ private:
     {
         TObjectId podSetId;
         TYsonString labels;
-        std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint> antiaffinityConstraints;
+        std::vector<NClient::NApi::NProto::TAntiaffinityConstraint> antiaffinityConstraints;
         TObjectId nodeSegmentId;
         TObjectId accountId;
         FromUnversionedRow(

@@ -46,7 +46,7 @@ message TPodStatus
 
     // List of validation errors for latest pod spec.
     // May be non-empty even if payload field is set if the agent is maintaining an older valid version.
-    repeated NYT.NProto.TError validation_errors = 5;
+    repeated string validation_failures = 5;
 }
 
 message TPodSpec
@@ -80,6 +80,18 @@ message TPodSpec
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 7;
 
     optional NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 8;
+
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 10;
+
+    message TSecret
+    {
+        required string id = 1;
+        required bytes value = 2;
+    }
+
+    // Contains (raw, unencrypted) secrets to be injected into the pod.
+    // These are obtained via TVM magic from secret descriptors provided in /pod/spec/secrets.
+    repeated TSecret secrets = 11;
 }
 
 message TReqHeartbeat

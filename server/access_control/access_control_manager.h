@@ -29,6 +29,8 @@ struct TPermissionCheckResult
     NObjects::TObjectId SubjectId;
 };
 
+using TUserIdList = std::vector<NObjects::TObjectId>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A simple RAII guard for setting the current authenticated user.
@@ -71,6 +73,10 @@ public:
         const NObjects::TObjectId& subjectId,
         NObjects::TObject* object,
         EAccessControlPermission permission);
+
+    TUserIdList GetObjectAccessAllowedFor(
+        NObjects::TObject* object,
+        EAccessControlPermission permission);
     
     void SetAuthenticatedUser(const NObjects::TObjectId& userId);
     void ResetAuthenticatedUser();
@@ -79,6 +85,7 @@ public:
     void ValidatePermission(
         NObjects::TObject* object,
         EAccessControlPermission permission);
+    void ValidateSuperuser();
 
 private:
     class TImpl;

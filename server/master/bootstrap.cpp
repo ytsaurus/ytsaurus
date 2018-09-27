@@ -205,7 +205,6 @@ private:
     TAuthenticationManagerPtr AuthenticationManager_;
     TSchedulerPtr Scheduler_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
 
     NRpc::IServicePtr ObjectService_;
     NRpc::IServicePtr ClientDiscoveryService_;
@@ -292,8 +291,6 @@ private:
         MonitoringManager_->Register(
             "/ref_counted",
             CreateRefCountedTrackerStatisticsProducer());
-
-        LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
         auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
         SetNodeByYPath(

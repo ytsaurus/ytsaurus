@@ -13,7 +13,7 @@ TPodSet::TPodSet(
     TYsonString labels,
     TNodeSegment* nodeSegment,
     TAccount* account,
-    std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint> antiaffinityConstraints)
+    std::vector<NClient::NApi::NProto::TAntiaffinityConstraint> antiaffinityConstraints)
     : TObject(id, std::move(labels))
     , NodeSegment_(nodeSegment)
     , Account_(account)

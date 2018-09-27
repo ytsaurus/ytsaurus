@@ -7,6 +7,11 @@ import yp_proto.yp.client.api.proto.object_type_pb2 as object_type_pb2
 
 import yt.yson as yson
 
+try:
+    from itertools import imap
+except ImportError:  # Python 3
+    imap = map
+
 @pytest.mark.usefixtures("yp_env")
 class TestGrpcStubs(object):
     def _test_some_methods(self, yp_client):
@@ -31,7 +36,7 @@ class TestGrpcStubs(object):
         req.selector.paths[:] = ["/status/agent/state", "/meta/id", "/meta/pod_set_id"]
         rsp = object_stub.GetObject(req)
 
-        assert map(yson.loads, rsp.result.values) == ["unknown", pod_id, pod_set_id]
+        assert list(imap(yson._loads_from_native_str, rsp.result.values)) == ["unknown", pod_id, pod_set_id]
 
     def test_grpc_client(self, yp_env):
         self._test_some_methods(yp_env.yp_client)

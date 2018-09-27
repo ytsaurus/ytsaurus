@@ -3,6 +3,8 @@
 #error "Direct inclusion of this file is not allowed, include attribute_schema.h"
 #endif
 
+#include "helpers.h"
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/convert.h>
@@ -22,7 +24,7 @@ namespace NObjects {
 
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetSetter(std::function<void(
-    const TTransactionPtr&,
+    TTransaction*,
     TTypedObject*,
     const NYT::NYPath::TYPath&,
     const TTypedValue&,
@@ -30,7 +32,7 @@ TAttributeSchema* TAttributeSchema::SetSetter(std::function<void(
 {
     Setter_ =
         [=] (
-            const TTransactionPtr& transaction,
+            TTransaction* transaction,
             TObject* object,
             const NYT::NYPath::TYPath& path,
             const NYT::NYTree::INodePtr& value,
@@ -46,13 +48,13 @@ TAttributeSchema* TAttributeSchema::SetSetter(std::function<void(
 
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetControl(std::function<void(
-    const TTransactionPtr&,
+    TTransaction*,
     TTypedObject*,
     const TTypedValue&)> control)
 {
     Updatable_ = true;
     SetSetter<TTypedObject, TTypedValue>([=, control = std::move(control)] (
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TTypedObject* object,
         const NYT::NYPath::TYPath& path,
         const TTypedValue& value,
@@ -67,11 +69,11 @@ TAttributeSchema* TAttributeSchema::SetControl(std::function<void(
 
 template <class TTypedObject>
 TAttributeSchema* TAttributeSchema::SetUpdateHandler(std::function<void(
-    const TTransactionPtr&,
+    TTransaction*,
     TTypedObject*)> handler)
 {
     UpdateHandlers_.push_back(
-        [=] (const TTransactionPtr& transaction, TObject* object) {
+        [=] (TTransaction* transaction, TObject* object) {
             auto* typedObject = object->template As<TTypedObject>();
             handler(transaction, typedObject);
         });
@@ -80,11 +82,11 @@ TAttributeSchema* TAttributeSchema::SetUpdateHandler(std::function<void(
 
 template <class TTypedObject>
 TAttributeSchema* TAttributeSchema::SetValidator(std::function<void(
-    const TTransactionPtr&,
+    TTransaction*,
     TTypedObject*)> handler)
 {
     Validators_.push_back(
-        [=] (const TTransactionPtr& transaction, TObject* object) {
+        [=] (TTransaction* transaction, TObject* object) {
             auto* typedObject = object->template As<TTypedObject>();
             handler(transaction, typedObject);
         });
@@ -93,11 +95,11 @@ TAttributeSchema* TAttributeSchema::SetValidator(std::function<void(
 
 template <class TTypedObject>
 TAttributeSchema* TAttributeSchema::SetPreevaluator(std::function<void(
-    const TTransactionPtr&,
+    TTransaction*,
     TTypedObject*)> preevaluator)
 {
     Preevaluator_ =
-        [=] (const TTransactionPtr& transaction, TObject* object) {
+        [=] (TTransaction* transaction, TObject* object) {
             auto* typedObject = object->template As<TTypedObject>();
             preevaluator(transaction, typedObject);
         };
@@ -106,12 +108,12 @@ TAttributeSchema* TAttributeSchema::SetPreevaluator(std::function<void(
 
 template <class TTypedObject>
 TAttributeSchema* TAttributeSchema::SetEvaluator(std::function<void(
-    const TTransactionPtr&,
+    TTransaction*,
     TTypedObject*,
     NYson::IYsonConsumer*)> evaluator)
 {
     Evaluator_ =
-        [=] (const TTransactionPtr& transaction, TObject* object, NYson::IYsonConsumer* consumer) {
+        [=] (TTransaction* transaction, TObject* object, NYson::IYsonConsumer* consumer) {
             auto* typedObject = object->template As<TTypedObject>();
             evaluator(transaction, typedObject, consumer);
         };
@@ -134,7 +136,7 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
 {
     Setter_ =
         [=] (
-            const TTransactionPtr& transaction,
+            TTransaction* transaction,
             TObject* many,
             const NYT::NYPath::TYPath& path,
             const NYT::NYTree::INodePtr& value,
@@ -162,6 +164,10 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
                 auto* inverseAttribute = schema.InverseAttributeGetter(typedOne);
                 inverseAttribute->Add(typedMany);
             } else {
+                if (!schema.Nullable) {
+                    THROW_ERROR_EXCEPTION("Cannot set null %v",
+                        GetLowercaseHumanReadableTypeName(TOne::Type));
+                }
                 auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
                 auto* currentTypedOne = forwardAttribute->Load();
                 if (currentTypedOne) {
@@ -179,12 +185,12 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetProtobufEvaluator(const TScalarAttributeSchema<TTypedObject, TString>& schema)
 {
-    SetPreevaluator<TTypedObject>([=] (const TTransactionPtr& /*transaction*/, TTypedObject* object) {
+    SetPreevaluator<TTypedObject>([=] (TTransaction* /*transaction*/, TTypedObject* object) {
         auto* attribute = schema.AttributeGetter(object);
         attribute->ScheduleLoad();
     });
 
-    SetEvaluator<TTypedObject>([=] (const TTransactionPtr& /*transaction*/, TTypedObject* object, NYson::IYsonConsumer* consumer) {
+    SetEvaluator<TTypedObject>([=] (TTransaction* /*transaction*/, TTypedObject* object, NYson::IYsonConsumer* consumer) {
         auto* attribute = schema.AttributeGetter(object);
         auto protobuf = attribute->Load();
         google::protobuf::io::ArrayInputStream inputStream(protobuf.data(), protobuf.length());
@@ -204,7 +210,7 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
 
     Setter_ =
         [=] (
-            const TTransactionPtr& transaction,
+            TTransaction* transaction,
             TObject* object,
             const NYT::NYPath::TYPath& path,
             const NYT::NYTree::INodePtr& value,
@@ -258,7 +264,7 @@ void TAttributeSchema::InitPreloader(const TSchema& schema)
 {
     Preloader_ =
         [=] (
-            const TTransactionPtr& /*transaction*/,
+            TTransaction* /*transaction*/,
             TObject* object,
             const TUpdateRequest& /*request*/)
         {
@@ -279,7 +285,7 @@ template <class TTypedObject, class TTypedValue>
 struct TAttributeValidatorTraits<TScalarAttributeSchema<TTypedObject, TTypedValue>>
 {
     static void Run(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TTypedObject* typedObject,
         const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema,
         TScalarAttribute<TTypedValue>* attribute,
@@ -299,7 +305,7 @@ void TAttributeSchema::InitSetter(const TSchema& schema)
 {
     Setter_ =
         [=] (
-            const TTransactionPtr& transaction,
+            TTransaction* transaction,
             TObject* object,
             const NYT::NYPath::TYPath& path,
             const NYT::NYTree::INodePtr& value,
@@ -335,7 +341,7 @@ void TAttributeSchema::InitInitializer(const TSchema& schema)
     }
     Initializer_ =
         [=] (
-            const TTransactionPtr& transaction,
+            TTransaction* transaction,
             TObject* object)
         {
             auto* typedObject = object->template As<TTypedObject>();
@@ -352,7 +358,7 @@ void TAttributeSchema::InitRemover(const TSchema& schema)
 {
     Remover_ =
         [=] (
-            const TTransactionPtr& transaction,
+            TTransaction* transaction,
             TObject* object,
             const NYT::NYPath::TYPath& path)
         {

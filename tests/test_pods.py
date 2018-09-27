@@ -1,7 +1,10 @@
 import pytest
 
 from yp.common import YtResponseError, YpNoSuchObjectError
+
 from yt.yson import YsonEntity, YsonUint64
+
+from yt.packages.six.moves import xrange
 
 @pytest.mark.usefixtures("yp_env")
 class TestPods(object):

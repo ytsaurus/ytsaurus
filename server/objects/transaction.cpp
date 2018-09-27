@@ -350,7 +350,7 @@ public:
         TAttributeFetcherContext fetcherContext;
         auto fetchers = BuildAttributeFetchers(
             typeHandler,
-            MakeStrong(Owner_),
+            Owner_,
             query.get(),
             &fetcherContext,
             &queryContext,
@@ -413,7 +413,7 @@ public:
         TAttributeFetcherContext fetcherContext;
         auto fetchers = BuildAttributeFetchers(
             typeHandler,
-            MakeStrong(Owner_),
+            Owner_,
             query.get(),
             &fetcherContext,
             &queryContext,
@@ -671,7 +671,7 @@ public:
         EnsureReadWrite();
         if (PodsAwaitingSpecUpdate_.insert(pod).second) {
             const auto& resourceManager = Bootstrap_->GetResourceManager();
-            resourceManager->PrepareUpdatePodSpec(MakeStrong(Owner_), pod);
+            resourceManager->PrepareUpdatePodSpec(Owner_, pod);
 
             LOG_DEBUG("Pod spec update scheduled (PodId: %v)",
                 pod->GetId());
@@ -751,7 +751,8 @@ private:
     protected:
         TTransaction::TImpl* const Transaction_;
 
-        const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+        struct TRowBufferTag { };
+        const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TRowBufferTag());
 
 
         explicit TPersistenceContextBase(TTransaction::TImpl* transaction)
@@ -884,7 +885,6 @@ private:
                         subrequest.ResultColumnIds.push_back(resultId);
                     }
                 }
-
                 options.ColumnFilter = TColumnFilter(std::move(filterIndexes));
 
                 request.Tag = Format("Path: %v, Columns: %v, Keys: %v",
@@ -1275,7 +1275,7 @@ private:
             object->InitializeCreating();
             CreatedObjects_.push_back(object);
 
-            typeHandler->BeforeObjectCreated(MakeStrong(Owner_->Owner_), object);
+            typeHandler->BeforeObjectCreated(Owner_->Owner_, object);
 
             if (parentType != EObjectType::Null) {
                 auto* parent = GetObject(parentType, parentId);
@@ -1339,7 +1339,7 @@ private:
                 return;
             }
 
-            object->GetTypeHandler()->BeforeObjectRemoved(MakeStrong(Owner_->Owner_), object);
+            object->GetTypeHandler()->BeforeObjectRemoved(Owner_->Owner_, object);
 
             if (state == EObjectState::Created) {
                 object->SetState(EObjectState::CreatedRemoving);
@@ -1351,7 +1351,7 @@ private:
                 object->GetId(),
                 object->GetType());
 
-            object->GetTypeHandler()->AfterObjectRemoved(MakeStrong(Owner_->Owner_), object);
+            object->GetTypeHandler()->AfterObjectRemoved(Owner_->Owner_, object);
 
             for (auto* attribute : object->Attributes()) {
                 attribute->OnObjectRemoved();
@@ -1459,8 +1459,6 @@ private:
         {
             LOG_DEBUG("Started validating created object");
 
-            auto owner = MakeStrong(Owner_->Owner_);
-
             std::vector<std::unique_ptr<TObjectExistenceChecker>> checkers;
             std::vector<std::pair<TObject*, TObject*>> objectParentPairs;
             for (auto* object : CreatedObjects_) {
@@ -1480,7 +1478,7 @@ private:
                     objectParentPairs.emplace_back(object, parent);
                 }
 
-                typeHandler->AfterObjectCreated(owner, object);
+                typeHandler->AfterObjectCreated(Owner_->Owner_, object);
             }
 
             FlushLoads();
@@ -1736,8 +1734,6 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
-        auto transaction = MakeStrong(Owner_);
-
         class TAttributeMatcher
         {
         public:
@@ -1887,7 +1883,7 @@ private:
         auto* object = Session_.CreateObject(type, matcher.GetId(), matcher.GetParentId());
 
         for (const auto& match : matcher.Matches()) {
-            PreloadAttribute(transaction, object, match);
+            PreloadAttribute(Owner_, object, match);
         }
 
         THashSet<TAttributeSchema*> updatedAttributes;
@@ -1897,7 +1893,7 @@ private:
             context->AddSetter([=] {
                 try {
                     schema->RunSetter(
-                        transaction,
+                        Owner_,
                         object,
                         request.Path,
                         request.Value,
@@ -1916,7 +1912,7 @@ private:
         }
 
         for (auto* schema : matcher.PendingInitializerAttributes()) {
-            schema->RunInitializer(transaction, object);
+            schema->RunInitializer(Owner_, object);
         }
 
         OnAttributesUpdated(object, updatedAttributes, context);
@@ -1936,7 +1932,6 @@ private:
         object->ValidateExists();
 
         auto* typeHandler = object->GetTypeHandler();
-        auto transaction = MakeStrong(Owner_);
 
         std::vector<TAttributeUpdateMatch> matches;
         matches.reserve(requests.size());
@@ -1945,13 +1940,13 @@ private:
         }
 
         for (const auto& match : matches) {
-            PreloadAttribute(transaction, object, match);
+            PreloadAttribute(Owner_, object, match);
         }
 
         THashSet<TAttributeSchema*> updatedAttributes;
         for (const auto& match : matches) {
             context->AddSetter([=] {
-                ApplyAttributeUpdate(transaction, object, match);
+                ApplyAttributeUpdate(Owner_, object, match);
             });
 
             auto* current = match.Schema;
@@ -1974,13 +1969,12 @@ private:
         const THashSet<TAttributeSchema*>& attributes,
         IUpdateContext* context)
     {
-        auto transaction = MakeStrong(Owner_);
         for (auto* schema : attributes) {
             context->AddFinalizer([=] {
-                schema->RunUpdateHandlers(transaction, object);
+                schema->RunUpdateHandlers(Owner_, object);
             });
             Validators_.push_back([=] {
-                schema->RunValidators(transaction, object);
+                schema->RunValidators(Owner_, object);
             });
         }
     }
@@ -2033,7 +2027,7 @@ private:
     }
 
     void PreloadAttribute(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         const TAttributeUpdateMatch& match)
     {
@@ -2053,7 +2047,7 @@ private:
     }
 
     void ApplyAttributeUpdate(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         const TAttributeUpdateMatch& match)
     {
@@ -2088,7 +2082,7 @@ private:
     }
 
     void ApplyAttributeSetUpdate(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         TAttributeSchema* schema,
         const TSetUpdateRequest& request)
@@ -2108,7 +2102,7 @@ private:
     }
 
     void ApplyAttributeRemoveUpdate(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object,
         TAttributeSchema* schema,
         const TRemoveUpdateRequest& request)
@@ -2139,7 +2133,7 @@ private:
 
     static std::vector<TAttributeFetcher> BuildAttributeFetchers(
         IObjectTypeHandler* typeHandler,
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TQuery* query,
         TAttributeFetcherContext* fetcherContext,
         IQueryContext* queryContext,

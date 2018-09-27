@@ -276,21 +276,21 @@ struct TScalarAttributeSchema
         , AttributeGetter(std::move(attributeGetter))
     { }
 
-    TScalarAttributeSchema SetInitializer(std::function<void(const TTransactionPtr&, TTypedObject*, TTypedValue*)> initializer) const
+    TScalarAttributeSchema SetInitializer(std::function<void(TTransaction*, TTypedObject*, TTypedValue*)> initializer) const
     {
         auto result = *this;
         result.Initializer = std::move(initializer);
         return result;
     }
 
-    TScalarAttributeSchema SetValidator(std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&, const TTypedValue&)> validator) const
+    TScalarAttributeSchema SetValidator(std::function<void(TTransaction*, TTypedObject*, const TTypedValue&, const TTypedValue&)> validator) const
     {
         auto result = *this;
         result.OldNewValueValidator = std::move(validator);
         return result;
     }
 
-    TScalarAttributeSchema SetValidator(std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&)> validator) const
+    TScalarAttributeSchema SetValidator(std::function<void(TTransaction*, TTypedObject*, const TTypedValue&)> validator) const
     {
         auto result = *this;
         result.NewValueValidator = std::move(validator);
@@ -299,9 +299,9 @@ struct TScalarAttributeSchema
 
 
     std::function<TScalarAttribute<TTypedValue>*(TTypedObject*)> AttributeGetter;
-    std::function<void(const TTransactionPtr&, TTypedObject*, TTypedValue*)> Initializer;
-    std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&, const TTypedValue&)> OldNewValueValidator;
-    std::function<void(const TTransactionPtr&, TTypedObject*, const TTypedValue&)> NewValueValidator;
+    std::function<void(TTransaction*, TTypedObject*, TTypedValue*)> Initializer;
+    std::function<void(TTransaction*, TTypedObject*, const TTypedValue&, const TTypedValue&)> OldNewValueValidator;
+    std::function<void(TTransaction*, TTypedObject*, const TTypedValue&)> NewValueValidator;
 };
 
 template <class T>
@@ -379,6 +379,14 @@ struct TManyToOneAttributeSchema
     const TDBField* Field;
     std::function<TManyToOneAttribute<TMany, TOne>*(TMany*)> ForwardAttributeGetter;
     std::function<TOneToManyAttribute<TOne, TMany>*(TOne*)> InverseAttributeGetter;
+    bool Nullable = true;
+
+    TManyToOneAttributeSchema SetNullable(bool value) const
+    {
+        auto result = *this;
+        result.Nullable = value;
+        return result;
+    }
 };
 
 template <class TMany, class TOne>

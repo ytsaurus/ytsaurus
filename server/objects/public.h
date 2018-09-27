@@ -63,6 +63,7 @@ class TPodSet;
 class TEndpoint;
 class TEndpointSet;
 class TNetworkProject;
+class TReplicaSet;
 class TNodeSegment;
 class TVirtualService;
 class TSubject;
@@ -127,6 +128,7 @@ DEFINE_ENUM(EObjectType,
     ((Group)          (10))
     ((InternetAddress)(11))
     ((Account)        (12))
+    ((ReplicaSet)     (13))
     ((Schema)        (256))
 );
 

@@ -18,14 +18,15 @@ target_link_libraries(yp-library-server
 ### master
 
 add_executable(ypserver-master
-  ${CMAKE_CURRENT_LIST_DIR}/master_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bin/master/main.cpp
 )
 
 target_link_libraries(ypserver-master
+  yt-core-phdr-cache
   yp-library-server
   yp-build
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
+  yt-core-alloc
 )
 
 install(

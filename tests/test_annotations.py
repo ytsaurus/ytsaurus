@@ -4,6 +4,8 @@ from yt.yson import YsonEntity
 
 from yp.common import YtResponseError
 
+from yt.packages.six.moves import xrange
+
 @pytest.mark.usefixtures("yp_env")
 class TestAnnotations(object):
     def test_set_on_create(self, yp_env):

@@ -11,6 +11,19 @@ import yt.yson as yson
 import json
 
 
+class CustomSession(requests.Session):
+    def __init__(self, *args, **kwargs):
+        super(CustomSession, self).__init__(*args, **kwargs)
+        self._request_count = 0
+
+    def get_request_count(self):
+        return self._request_count
+
+    def request(self, *args, **kwargs):
+        self._request_count += 1
+        return super(CustomSession, self).request(*args, **kwargs)
+
+
 @pytest.mark.usefixtures("yp_env")
 class TestHttpApi(object):
     def test_error_headers(self, yp_env):
@@ -73,7 +86,7 @@ class TestHttpApi(object):
         rsp.raise_for_status()
         assert rsp.headers["Content-Type"] == "application/json"
 
-        json.loads(rsp.content)
+        json.loads(rsp.text)
 
     def test_client(self, yp_env):
         client = YpClient(address=yp_env.yp_instance.yp_http_address, transport="http")
@@ -91,3 +104,12 @@ class TestHttpApi(object):
         client.commit_transaction(tx_id)
 
         assert client.get_object("pod_set", id, selectors=["/annotations/a"]) == [[1, 2]]
+
+    def test_custom_session(self, yp_env):
+        session = CustomSession()
+        assert session.get_request_count() == 0
+        client = YpClient(address=yp_env.yp_instance.yp_http_address, transport="http", _http_session=session)
+        ts1 = client.generate_timestamp()
+        ts2 = client.generate_timestamp()
+        assert ts1 < ts2
+        assert session.get_request_count() > 0

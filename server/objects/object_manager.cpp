@@ -15,6 +15,7 @@
 #include "group_type_handler.h"
 #include "internet_address_type_handler.h"
 #include "account_type_handler.h"
+#include "replica_set_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -83,6 +84,7 @@ public:
         RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));

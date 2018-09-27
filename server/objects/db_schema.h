@@ -202,6 +202,26 @@ extern const struct TAnnotationsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TReplicaSetsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TReplicaSetsTable()
+        : TDBTable("replica_sets")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec{"spec"};
+        TDBField Status{"status"};
+    } Fields;
+} ReplicaSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TNetworkProjectsTable
     : public TDBTable
     , public TObjectTableBase

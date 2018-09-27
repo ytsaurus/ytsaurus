@@ -63,6 +63,9 @@ bool TDiskResource::TryAllocate(
     NClient::NApi::NProto::EDiskVolumePolicy policy,
     const TResourceCapacities& capacities)
 {
+    if (UsedExclusively_) {
+        return false;
+    }
     if (Used_ && exclusive) {
         return false;
     }

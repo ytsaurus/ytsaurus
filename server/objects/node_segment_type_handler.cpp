@@ -44,7 +44,7 @@ public:
     }
 
     virtual void BeforeObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);

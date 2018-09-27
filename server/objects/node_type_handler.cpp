@@ -82,7 +82,7 @@ public:
     }
 
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
@@ -93,7 +93,7 @@ public:
     }
 
     virtual void BeforeObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);
@@ -108,13 +108,13 @@ public:
     }
 
 private:
-    static void OnSpecUpdated(const TTransactionPtr& transaction, TNode* node)
+    static void OnSpecUpdated(TTransaction* transaction, TNode* node)
     {
         transaction->ScheduleValidateNodeResources(node);
     }
 
     static void InitializeSpec(
-        const TTransactionPtr& /*transaction*/,
+        TTransaction* /*transaction*/,
         TNode* node,
         NClient::NApi::NProto::TNodeSpec* spec)
     {
@@ -124,13 +124,10 @@ private:
         if (!spec->hfsm().has_enable_sync()) {
             spec->mutable_hfsm()->set_enable_sync(true);
         }
-        if (!spec->has_cpu_to_vcpu_factor()) {
-            spec->set_cpu_to_vcpu_factor(1.0);
-        }
     }
 
     static void ValidateSpec(
-        const TTransactionPtr& /*transaction*/,
+        TTransaction* /*transaction*/,
         TNode* /*node*/,
         const NClient::NApi::NProto::TNodeSpec& spec)
     {
@@ -144,7 +141,7 @@ private:
     }
 
     static void UpdateHfsmState(
-        const TTransactionPtr& /*transaction*/,
+        TTransaction* /*transaction*/,
         TNode* node,
         const NClient::NApi::NProto::TNodeControl_TUpdateHfsmState& control)
     {

@@ -16,6 +16,7 @@ const TPodSetsTable PodSetsTable;
 const TNodeToPodsTable NodeToPodsTable;
 const TAnnotationsTable AnnotationsTable;
 const TNetworkProjectsTable NetworkProjectsTable;
+const TReplicaSetsTable ReplicaSetsTable;
 const TIP6NoncesTable IP6NoncesTable;
 const TEndpointsTable EndpointsTable;
 const TEndpointSetsTable EndpointSetsTable;
@@ -40,6 +41,7 @@ const std::vector<const TDBTable*> Tables = {
     &NodeToPodsTable,
     &AnnotationsTable,
     &NetworkProjectsTable,
+    &ReplicaSetsTable,
     &IP6NoncesTable,
     &EndpointsTable,
     &EndpointSetsTable,

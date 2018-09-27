@@ -31,7 +31,7 @@ public:
     TNodeSegment* GetNodeSegmentOrThrow(const TObjectId& id);
 
     std::vector<TInternetAddress*> GetInternetAddresses();
-    
+
     std::vector<TAccount*> GetAccounts();
 
     void LoadSnapshot();

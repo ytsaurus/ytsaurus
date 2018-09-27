@@ -179,4 +179,135 @@ class TestAcls(object):
                 "value": [{"action": "allow", "permissions": ["write"], "subjects": ["u1"]}]
             }])
 
-        yp_client1.create_object("endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}})            
+        yp_client1.create_object("endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}})   
+
+    def test_get_object_access_allowed_for(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        yp_client.create_object("user", attributes={"meta": {"id": "u2"}})
+        yp_client.create_object("user", attributes={"meta": {"id": "u3"}})
+
+        yp_client.create_object("group", attributes={"meta": {"id": "g1"}, "spec": {"members": ["u1", "u2"]}})
+        yp_client.create_object("group", attributes={"meta": {"id": "g2"}, "spec": {"members": ["u2", "u3"]}})
+        yp_client.create_object("group", attributes={"meta": {"id": "g3"}, "spec": {"members": ["g1", "g2"]}})
+
+        yp_env.sync_access_control()
+
+        endpoint_set_id = yp_client.create_object("endpoint_set", attributes={"meta": {"inherit_acl": False}})
+
+        assert_items_equal(
+            yp_client.get_object_access_allowed_for([
+                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
+            ])[0]["user_ids"],
+            ["root"])
+
+        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
+                "path": "/meta/acl",
+                "value": [{"action": "allow", "permissions": ["read"], "subjects": ["u1", "u2"]}]
+            }])
+
+        assert_items_equal(
+            yp_client.get_object_access_allowed_for([
+                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
+            ])[0]["user_ids"],
+            ["root", "u1", "u2"])
+
+        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
+                "path": "/meta/acl",
+                "value": [{"action": "deny", "permissions": ["read"], "subjects": ["root"]}]
+            }])
+
+        assert_items_equal(
+            yp_client.get_object_access_allowed_for([
+                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
+            ])[0]["user_ids"],
+            ["root"])
+
+        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
+                "path": "/meta/acl",
+                "value": [
+                    {"action": "allow", "permissions": ["read"], "subjects": ["g3"]},
+                    {"action": "deny", "permissions": ["read"], "subjects": ["g2"]}
+                ]
+            }])
+
+        assert_items_equal(
+            yp_client.get_object_access_allowed_for([
+                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
+            ])[0]["user_ids"],
+            ["root", "u1"])
+
+    def test_only_superuser_can_force_assign_pod1(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+
+        yp_env.sync_access_control()
+        
+        node_id = yp_client.create_object("node")
+        pod_set_id = yp_client.create_object("pod_set", attributes={
+                "meta": {
+                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
+                }
+            })
+        
+        yp_client1 = yp_env.yp_instance.create_client(config={"user": "u"})
+
+        def try_create():
+            yp_client1.create_object("pod", attributes={
+                    "meta": {
+                        "pod_set_id": pod_set_id
+                    },
+                    "spec": {
+                        "node_id": node_id
+                    }
+                })
+
+        with pytest.raises(YpAuthorizationError):
+            try_create()
+
+        yp_client.update_object("group", "superusers", set_updates=[
+                {"path": "/spec/members", "value": ["u"]}
+            ])
+
+        yp_env.sync_access_control()
+
+        try_create()
+
+    def test_only_superuser_can_force_assign_pod2(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+
+        yp_env.sync_access_control()
+        
+        node_id = yp_client.create_object("node")
+        pod_set_id = yp_client.create_object("pod_set", attributes={
+                "meta": {
+                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
+                }
+            })
+        pod_id = yp_client.create_object("pod", attributes={
+                "meta": {
+                    "pod_set_id": pod_set_id
+                }
+            })
+
+        yp_client1 = yp_env.yp_instance.create_client(config={"user": "u"})
+
+        def try_update():
+            yp_client1.update_object("pod", pod_id, set_updates=[
+                    {"path": "/spec/node_id", "value": node_id}
+                ])
+
+        with pytest.raises(YpAuthorizationError):
+            try_update()
+
+        yp_client.update_object("group", "superusers", set_updates=[
+                {"path": "/spec/members", "value": ["u"]}
+            ])
+
+        yp_env.sync_access_control()
+
+        try_update()

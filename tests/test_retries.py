@@ -2,6 +2,10 @@ import pytest
 
 import yp.retries as yp_retries
 
+from yt.wrapper.errors import YtRetriableError as ChaosMonkeyError
+
+from yt.packages.six.moves import xrange
+
 from copy import deepcopy
 import itertools
 import random
@@ -52,7 +56,7 @@ class TestRetries(object):
         retries_config["count"] = 2
         yp_flaky_client_with_retries = yp_env.yp_instance.create_client(config=config, transport=transport)
 
-        with pytest.raises(yp_retries.ChaosMonkeyError):
+        with pytest.raises(ChaosMonkeyError):
             callback(yp_flaky_client)
 
         check_result(callback(yp_flaky_client_with_retries))
@@ -78,7 +82,7 @@ class TestRetries(object):
             chaos_monkey_values = generate(RETRIES_COUNT)
             chaos_monkey.set_values(chaos_monkey_values)
             if all(chaos_monkey_values):
-                with pytest.raises(yp_retries.ChaosMonkeyError):
+                with pytest.raises(ChaosMonkeyError):
                     callback(yp_client)
             else:
                 check_result(callback(yp_client))

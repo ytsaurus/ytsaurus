@@ -1,8 +1,10 @@
 import pytest
 
-from yp.common import YtResponseError
-from yt.environment.helpers import wait
+from yp.common import YtResponseError, wait
+
 from yt.yson import YsonEntity
+
+from yt.packages.six.moves import xrange
 
 @pytest.mark.usefixtures("yp_env")
 class TestResources(object):

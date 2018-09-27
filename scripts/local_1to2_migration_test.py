@@ -13,14 +13,6 @@ from yt.wrapper.common import generate_uuid
 from yt.wrapper.errors import YtOperationFailedError
 from yt.wrapper.operation_commands import format_operation_stderrs
 
-NODE_CONFIG = {
-    "tablet_node": {
-        "resource_limits": {
-            "tablet_static_memory": 100 * 1024 * 1024,
-        }
-    }
-}
-
 def wait_result(callback, iter=300, sleep_backoff=0.3):
     for _ in xrange(iter - 1):
         try:
@@ -43,7 +35,6 @@ def run_test(args):
     assert dump_meta["version"] == 1
 
     yp_instance = YpInstance(args.sandbox_path,
-                             local_yt_options=dict(enable_debug_logging=True, node_config=NODE_CONFIG),
                              enable_ssl=True,
                              db_version=1)
     yp_instance.prepare()

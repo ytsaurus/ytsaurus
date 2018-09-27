@@ -4,8 +4,10 @@ YP_PROTOS="
     yp/client/api/proto/cluster_api.proto
     yp/client/api/proto/pod_agent.proto
     yp/client/api/proto/data_model.proto
+    yp/client/api/proto/object_type.proto
     yp/client/api/proto/discovery_service.proto
     yp/client/api/proto/object_service.proto
+    yp/client/api/proto/replica_set.proto
 "
 
 PROTO_PATHS=""
@@ -23,4 +25,4 @@ for path in $YP_PROTOS; do
     python ../../replace-imports.py <"../../$path" >"ya_proto/yp_proto/$path"
 done
 
-echo "SET(PROTO_SRCS${PROTO_PATHS}\n)" >ya_proto/ya.make.inc
+echo -e "SET(PROTO_SRCS${PROTO_PATHS}\n)" >ya_proto/ya.make.inc

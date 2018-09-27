@@ -57,7 +57,7 @@ private:
             nodeId,
             address);
 
-        ValidateAgentIdentity(context, nodeId);
+        ValidateAgentCertificate(context, nodeId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -91,7 +91,7 @@ private:
             epochId,
             sequenceNumber);
 
-        ValidateAgentIdentity(context, nodeId);
+        ValidateAgentCertificate(context, nodeId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -114,21 +114,35 @@ private:
     }
 
 
-    void ValidateAgentIdentity(const NRpc::IServiceContextPtr& context, const TObjectId& nodeId)
+    void ValidateAgentCertificate(const NRpc::IServiceContextPtr& context, const TObjectId& nodeId)
     {
-        if (!Config_->ValidateAgentIdentity) {
+        if (!Config_->ValidateAgentCertificate) {
             return;
         }
 
         const auto& ext = context->GetRequestHeader().GetExtension(NYT::NRpc::NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
+
         if (!ext.has_peer_identity()) {
-            THROW_ERROR_EXCEPTION("Node %Qv did not provide an SSL identity",
+            THROW_ERROR_EXCEPTION("Node %Qv did not provide SSL credentials",
                 nodeId);
         }
         if (ext.peer_identity() != nodeId) {
             THROW_ERROR_EXCEPTION("Node %Qv has provided a wrong SSL identity %Qv",
                 nodeId,
                 ext.peer_identity());
+        }
+
+        if (Config_->AgentCertificateIssuer) {
+            if (!ext.has_issuer()) {
+                THROW_ERROR_EXCEPTION("Unable to determine an SSL certificate issuer for node %Qv",
+                    nodeId);
+            }
+            if (ext.issuer() != *Config_->AgentCertificateIssuer) {
+                THROW_ERROR_EXCEPTION("Node %Qv has provided an SSL certificate with a wrong issuer: expected %Qv, found %Qv",
+                    nodeId,
+                    *Config_->AgentCertificateIssuer,
+                    ext.issuer());
+            }
         }
     }
 };

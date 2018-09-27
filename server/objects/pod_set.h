@@ -34,7 +34,7 @@ public:
     public:
         explicit TSpec(TPodSet* podSet);
 
-        using TAntiaffinityConstraints = std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint>;
+        using TAntiaffinityConstraints = std::vector<NClient::NApi::NProto::TAntiaffinityConstraint>;
         static const TScalarAttributeSchema<TPodSet, TAntiaffinityConstraints> AntiaffinityConstraintsSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TAntiaffinityConstraints>, AntiaffinityConstraints);
 

@@ -45,7 +45,7 @@ public:
     TAttributeFetcher(
         IObjectTypeHandler* typeHandler,
         const TResolveResult& resolveResult,
-        TTransactionPtr transaction,
+        TTransaction* transaction,
         TAttributeFetcherContext* fetcherContext,
         IQueryContext* queryContext);
 
@@ -55,7 +55,7 @@ public:
 private:
     IObjectTypeHandler* const TypeHandler_;
     const TResolveResult RootResolveResult_;
-    const TTransactionPtr Transaction_;
+    TTransaction* const Transaction_;
     TAttributeFetcherContext* const FetcherContext_;
     const int StartIndex_;
     

@@ -22,6 +22,7 @@ DEFINE_ENUM(EAccessControlPermission,
     ((SshAccess)     (4))
     ((RootSshAccess) (5))
     ((Use)           (6))
+    ((GetQypVMStatus)(7))
 );
 
 struct TPermissionCheckResult;

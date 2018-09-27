@@ -16,10 +16,10 @@ public:
 
 protected:
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override;
     virtual void AfterObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override;
 };
 

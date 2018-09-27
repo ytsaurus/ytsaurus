@@ -1,8 +1,8 @@
 import pytest
 
+from yp.common import YtResponseError, YpNoSuchObjectError, wait
+
 from yt.yson import YsonEntity
-from yp.common import YtResponseError, YpNoSuchObjectError
-from yt.environment.helpers import wait
 
 @pytest.mark.usefixtures("yp_env")
 class TestNet(object):
@@ -233,6 +233,24 @@ class TestNet(object):
         assert allocations[0]["address"].startswith("1:2:3:4:0:7b:")
         assert allocations[0]["manual"] == False
 
+    def test_assign_pod_ip6_subnet_scheduler(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
+            "ip6_subnet_requests": [
+                {"vlan_id": "somevlan"},
+            ],
+            "enable_scheduling": True
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_subnet_allocations"])[0]
+        assert len(allocations) == 1
+        assert allocations[0]["vlan_id"] == "somevlan"
+        assert allocations[0]["subnet"].startswith("1:2:3:4::")
+        assert allocations[0]["subnet"].endswith("/112")
+
     def test_update_assigned_pod_with_removed_network_project(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -246,7 +264,7 @@ class TestNet(object):
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
         yp_client.remove_object("network_project", "somenet")
         # Must not throw
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss_payload", "value": "123"}])        
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss_payload", "value": "123"}])
 
     def test_virtual_service_tunnel(self, yp_env):
         yp_client = yp_env.yp_client

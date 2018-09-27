@@ -20,9 +20,6 @@ public:
 
     void Initialize();
 
-    //! Raised within scheduler thread each time cluster state is reconciled.
-    DECLARE_SIGNAL(void(), ClusterReconciled);
-
     //! Returns the cluster state. Note that this state is being updated
     //! from a dedicated scheduler thread.
     const TClusterPtr& GetCluster() const;

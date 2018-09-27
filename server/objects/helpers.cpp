@@ -134,7 +134,7 @@ TExpressionPtr BuildAttributeSelector(
 TAttributeFetcher::TAttributeFetcher(
     IObjectTypeHandler* typeHandler,
     const TResolveResult& resolveResult,
-    TTransactionPtr transaction,
+    TTransaction* transaction,
     TAttributeFetcherContext* fetcherContext,
     IQueryContext* queryContext)
     : TypeHandler_(typeHandler)
@@ -298,6 +298,9 @@ void TAttributeFetcher::DoFetch(
                     virtual void OnMyEndMap() override
                     { }
 
+                    virtual void OnMyEntity() override
+                    { }
+
                 private:
                     IYsonConsumer* const Underlying_;
                 } unwrappingConsumer(consumer);
@@ -457,6 +460,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Resource");
         case EObjectType::NetworkProject:
             return AsStringBuf("Network project");
+        case EObjectType::ReplicaSet:
+            return AsStringBuf("Replica set");
         case EObjectType::Endpoint:
             return AsStringBuf("Endpoint");
         case EObjectType::EndpointSet:
@@ -493,6 +498,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("resource");
         case EObjectType::NetworkProject:
             return AsStringBuf("network project");
+        case EObjectType::ReplicaSet:
+            return AsStringBuf("replica set");
         case EObjectType::Endpoint:
             return AsStringBuf("endpoint");
         case EObjectType::EndpointSet:

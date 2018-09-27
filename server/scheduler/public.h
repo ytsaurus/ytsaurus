@@ -16,7 +16,6 @@ namespace NScheduler {
 
 DECLARE_REFCOUNTED_CLASS(TCluster)
 class TObject;
-class TPod;
 class TNode;
 class TTopologyZone;
 class TPod;

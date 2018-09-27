@@ -36,19 +36,19 @@ public:
     virtual TAttributeSchema* GetParentIdAttributeSchema() override;
 
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override;
 
     virtual void AfterObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override;
 
     virtual void BeforeObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override;
 
     virtual void AfterObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override;
 
 protected:

@@ -17,7 +17,7 @@ class TestYsonProto(object):
 
         attribute = TAttribute()
         attribute.key = "host"
-        attribute.value = "localhost"
+        attribute.value = b"localhost"
         error.attributes.attributes.extend([attribute])
 
         error_dict = loads(dumps_proto(error))

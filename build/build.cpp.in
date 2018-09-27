@@ -32,14 +32,31 @@ const char* GetVersion()
     return version.c_str();
 }
 
+const char* GetBuildHost()
+{
+    static auto buildHost = GetYaHostName();
+    return ~buildHost;
+}
+
+const char* GetBuildMachine()
+{
+    return "unknown";
+}
+
+const char* GetBuildTime()
+{
+    static auto buildDate = GetYaBuildDate();
+    return ~buildDate;
+}
+
+// Reuse GetBuildHost, GetBuildMachine, GetBuildTime from yt/build
+
 #else
 
 const char* GetVersion()
 {
     return "@YP_VERSION@";
 }
-
-#endif
 
 const char* GetBuildHost()
 {
@@ -55,6 +72,8 @@ const char* GetBuildTime()
 {
     return "@YP_BUILD_TIME@";
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

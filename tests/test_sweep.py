@@ -1,7 +1,8 @@
+from __future__ import print_function
+
 import pytest
 
-from yt.environment.helpers import wait
-from yp.common import YpNoSuchObjectError
+from yp.common import YpNoSuchObjectError, wait
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestSweep(object):
@@ -19,7 +20,7 @@ class TestSweep(object):
         node_id = yp_client.create_object(object_type="node")
         yp_client.remove_object("node", node_id)
         with pytest.raises(YpNoSuchObjectError):
-            print yp_client.get_object("node", node_id, selectors=["/meta/id"])
+            print(yp_client.get_object("node", node_id, selectors=["/meta/id"]))
         assert len(list(yp_client.select_objects("node", selectors=["/meta/id"], filter="[/meta/id] = \"{}\"".format(node_id)))) == 0
         assert len(list(yt_client.select_rows("* from [//yp/db/nodes] where [meta.id] = \"{}\"".format(node_id)))) == 1
 
@@ -33,7 +34,7 @@ class TestSweep(object):
         pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
         yp_client.remove_object("pod", pod_id)
         with pytest.raises(YpNoSuchObjectError):
-            print yp_client.get_object("pod", pod_id, selectors=["/meta/id"])
+            print(yp_client.get_object("pod", pod_id, selectors=["/meta/id"]))
         assert len(list(yp_client.select_objects("pod", selectors=["/meta/id"], filter="[/meta/id] = \"{}\"".format(pod_id)))) == 0
         assert len(list(yt_client.select_rows("* from [//yp/db/pods] where [meta.pod_set_id] = \"{}\" and [meta.id] = \"{}\"".format(pod_set_id, pod_id)))) == 1
 

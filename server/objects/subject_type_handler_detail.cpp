@@ -14,7 +14,7 @@ using namespace NAccessControl;
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSubjectTypeHandlerBase::BeforeObjectCreated(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object)
 {
     const auto& id = object->GetId();
@@ -63,7 +63,7 @@ void TSubjectTypeHandlerBase::BeforeObjectCreated(
 }
 
 void TSubjectTypeHandlerBase::AfterObjectRemoved(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object)
 {
     TObjectTypeHandlerBase::AfterObjectRemoved(transaction, object);

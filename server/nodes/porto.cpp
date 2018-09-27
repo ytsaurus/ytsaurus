@@ -266,7 +266,6 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
 }
 
 std::vector<std::pair<TString, TString>> BuildPortoProperties(
-    const NClient::NApi::NProto::TNodeSpec& nodeSpec,
     const NClient::NApi::NProto::TResourceSpec_TCpuSpec& cpuSpec,
     const NProto::TPodSpecOther& podSpecOther,
     const NProto::TPodStatusOther& podStatusOther)
@@ -301,7 +300,16 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     const auto virtualServicesProps = CreateVirtualServicesProperties(podSpecOther, podStatusOther);
 
     // Network
-    result.emplace_back("hostname", podStatusOther.dns().transient_fqdn());
+    switch (podSpecOther.host_name_kind()) {
+        case NClient::NApi::NProto::PHNK_TRANSIENT:
+            result.emplace_back("hostname", podStatusOther.dns().transient_fqdn());
+            break;
+        case NClient::NApi::NProto::PHNK_PERSISTENT:
+            result.emplace_back("hostname", podStatusOther.dns().persistent_fqdn());
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
 
     std::vector<TString> netTokens;
     netTokens.emplace_back("L3 veth");
@@ -325,6 +333,9 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     }
     for (const auto& vsTunnel : virtualServicesProps.Addresses) {
         addresses.emplace_back(vsTunnel);
+    }
+    for (const auto& ip6Subnet : podStatusOther.ip6_subnet_allocations()) {
+        addresses.emplace_back(Format("veth %v", ip6Subnet.subnet()));
     }
     if (!addresses.empty()) {
         result.emplace_back("ip", JoinToString(addresses.begin(), addresses.end(), AsStringBuf(";")));

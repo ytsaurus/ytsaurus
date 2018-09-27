@@ -169,7 +169,9 @@ public:
                     LOG_DEBUG("Pod status update received (PodId: %v, CurrentState: %v)",
                         podId,
                         currentState);
+                    
                     pod->Status().Agent().State() = currentState;
+                    
                     // COMPAT(babenko)
                     if (podEntry.status().has_iss_payload()) {
                         pod->Status().Agent().IssPayload() = podEntry.status().iss_payload();
@@ -177,15 +179,15 @@ public:
                     if (podEntry.status().has_pod_agent_payload()) {
                         pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
                     }
-                }
 
-                if (podEntry.status().execution_error().code() != NYT::EErrorCode::OK) {
-                    *pod->Status().Agent().Other()->mutable_execution_error() = podEntry.status().execution_error();
-                } else {
-                    pod->Status().Agent().Other()->clear_execution_error();
-                }
+                    if (podEntry.status().execution_error().code() != NYT::EErrorCode::OK) {
+                        *pod->Status().Agent().Other()->mutable_execution_error() = podEntry.status().execution_error();
+                    } else {
+                        pod->Status().Agent().Other()->clear_execution_error();
+                    }
 
-                *pod->Status().Agent().Other()->mutable_validation_errors() = podEntry.status().validation_errors();
+                    *pod->Status().Agent().Other()->mutable_validation_failures() = podEntry.status().validation_failures();
+                }
 
                 pod->Status().Agent().Other()->set_last_heartbeat_time(ToProto<ui64>(now));
 
@@ -311,7 +313,6 @@ private:
 
         auto* cpuResource = node->GetCpuResourceOrThrow();
         auto properties = BuildPortoProperties(
-            node->Spec().Load(),
             cpuResource->Spec().Load().cpu(),
             pod->Spec().Other().Load(),
             pod->Status().Other().Load());
@@ -341,6 +342,7 @@ private:
         protoSpec->mutable_ip6_address_allocations()->CopyFrom(statusOther.ip6_address_allocations());
         protoSpec->mutable_ip6_subnet_allocations()->CopyFrom(statusOther.ip6_subnet_allocations());
         protoSpec->mutable_dns()->CopyFrom(statusOther.dns());
+        protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusOther.disk_volume_allocations());
     }
 };
 

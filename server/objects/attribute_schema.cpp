@@ -27,7 +27,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Setter_ =
         [=] (
-            const TTransactionPtr& /*transaction*/,
+            TTransaction* /*transaction*/,
             TObject* object,
             const TYPath& path,
             const INodePtr& value,
@@ -91,7 +91,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Remover_ =
         [=] (
-            const TTransactionPtr& /*transaction*/,
+            TTransaction* /*transaction*/,
             TObject* object,
             const TYPath& path)
         {
@@ -175,7 +175,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Preevaluator_ =
         [=] (
-            const TTransactionPtr& /*transaction*/,
+            TTransaction* /*transaction*/,
             TObject* object)
         {
             object->Annotations().ScheduleLoadAll();
@@ -183,7 +183,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
     Evaluator_ =
         [=] (
-            const TTransactionPtr& /*transaction*/,
+            TTransaction* /*transaction*/,
             TObject* object,
             IYsonConsumer* consumer)
         {
@@ -327,7 +327,7 @@ bool TAttributeSchema::HasSetter() const
 }
 
 void TAttributeSchema::RunSetter(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object,
     const TYPath& path,
     const INodePtr& value,
@@ -342,14 +342,14 @@ bool TAttributeSchema::HasInitializer() const
 }
 
 void TAttributeSchema::RunInitializer(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object)
 {
     Initializer_(transaction, object);
 }
 
 void TAttributeSchema::RunUpdateHandlers(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object)
 {
     for (const auto& handler : UpdateHandlers_) {
@@ -358,7 +358,7 @@ void TAttributeSchema::RunUpdateHandlers(
 }
 
 void TAttributeSchema::RunValidators(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object)
 {
     for (const auto& validator : Validators_) {
@@ -371,7 +371,7 @@ bool TAttributeSchema::HasRemover() const
     return Remover_.operator bool();
 }
 
-void TAttributeSchema::RunRemover(const TTransactionPtr& transaction, TObject* object, const TYPath& path)
+void TAttributeSchema::RunRemover(TTransaction* transaction, TObject* object, const TYPath& path)
 {
     Remover_(transaction, object, path);
 }
@@ -382,7 +382,7 @@ bool TAttributeSchema::HasPreloader() const
 }
 
 void TAttributeSchema::RunPreloader(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object,
     const TUpdateRequest& request)
 {
@@ -419,7 +419,7 @@ bool TAttributeSchema::HasPreevaluator() const
     return Preevaluator_.operator bool();
 }
 
-void TAttributeSchema::RunPreevaluator(const TTransactionPtr& transaction, TObject* object)
+void TAttributeSchema::RunPreevaluator(TTransaction* transaction, TObject* object)
 {
     Preevaluator_(transaction, object);
 }
@@ -430,7 +430,7 @@ bool TAttributeSchema::HasEvaluator() const
 }
 
 void TAttributeSchema::RunEvaluator(
-    const TTransactionPtr& transaction,
+    TTransaction* transaction,
     TObject* object,
     NYson::IYsonConsumer* consumer)
 {

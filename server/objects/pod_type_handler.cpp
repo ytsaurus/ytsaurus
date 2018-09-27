@@ -14,6 +14,8 @@
 #include <yp/server/scheduler/resource_manager.h>
 #include <yp/server/scheduler/helpers.h>
 
+#include <yp/server/access_control/access_control_manager.h>
+
 #include <yp/client/api/proto/cluster_api.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -163,7 +165,7 @@ public:
     }
 
     virtual void BeforeObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
@@ -179,7 +181,7 @@ public:
     }
 
     virtual void AfterObjectCreated(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
@@ -212,7 +214,7 @@ public:
     }
 
     virtual void AfterObjectRemoved(
-        const TTransactionPtr& transaction,
+        TTransaction* transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::AfterObjectRemoved(transaction, object);
@@ -237,25 +239,30 @@ private:
         return {};
     }
 
-    void PreevaluateMasterSpecTimestamp(const TTransactionPtr& /*transaction*/, TPod* pod)
+    void PreevaluateMasterSpecTimestamp(TTransaction* /*transaction*/, TPod* pod)
     {
         pod->Spec().UpdateTimestamp().ScheduleLoad();
     }
 
-    void EvaluateMasterSpecTimestamp(const TTransactionPtr& /*transaction*/, TPod* pod, IYsonConsumer* consumer)
+    void EvaluateMasterSpecTimestamp(TTransaction* /*transaction*/, TPod* pod, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
             .Value(pod->Spec().UpdateTimestamp().Load());
     }
 
-    void OnSpecUpdated(const TTransactionPtr& transaction, TPod* pod)
+    void OnSpecUpdated(TTransaction* transaction, TPod* pod)
     {
         transaction->ScheduleUpdatePodSpec(pod);
         transaction->ScheduleValidateAccounting(pod);
     }
 
-    void ValidateSpec(const TTransactionPtr& /*transaction*/, TPod* pod)
+    void ValidateSpec(TTransaction* /*transaction*/, TPod* pod)
     {
+        if (pod->Spec().Node().IsChanged()) {
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            accessControlManager->ValidateSuperuser();
+        }
+
         if (pod->Spec().EnableScheduling().IsChanged() &&
             pod->Spec().EnableScheduling().Load() &&
             pod->Spec().Node().IsChanged() &&
@@ -283,7 +290,7 @@ private:
     }
 
     static void AcknowledgeEviction(
-        const TTransactionPtr& /*transaction*/,
+        TTransaction* /*transaction*/,
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TAcknowledgeEviction& control)
     {
