@@ -262,6 +262,27 @@ public:
     // Useful for sparse tables which have many columns in schema
     // but only few columns are set in any row.
     FLUENT_FIELD_DEFAULT(bool, SkipNullValuesForTNode, false);
+
+    // https://wiki.yandex-team.ru/yt/userdoc/formats/#preobrazovanieprimitivnyxtipovprivzaimodejjstviicherezformaty
+    //
+    // Enable type conversions when writing data to static tables
+    // or inserting/looking up/deleting data from dynamic tables.
+    //
+    // Convert string to numeric and boolean types (e.g. "42u" -> 42u, "false" -> %false).
+    FLUENT_FIELD_OPTION(bool, EnableStringToAllConversion);
+
+    // Convert numeric and boolean types to string (e.g., 3.14 -> "3.14", %true -> "true").
+    FLUENT_FIELD_OPTION(bool, EnableAllToStringConversion);
+
+    // Convert uint64 <-> int64. On overflow the corresponding error with be raised.
+    // NOTE: this options is enabled by default.
+    FLUENT_FIELD_OPTION(bool, EnableIntegralTypeConversion);
+
+    // Convert uint64 and int64 to double (e.g. 42 -> 42.0).
+    FLUENT_FIELD_OPTION(bool, EnableIntegralToDoubleConversion);
+
+    // Shortcut for enabling all type conversions.
+    FLUENT_FIELD_OPTION(bool, EnableTypeConversion);
 };
 
 struct TTableReaderOptions

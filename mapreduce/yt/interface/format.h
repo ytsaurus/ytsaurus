@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Data format for communication with YT proxies
+// Data format for communication with YT proxies.
 struct TFormat {
 public:
     TNode Config;
@@ -16,7 +16,7 @@ public:
 public:
     explicit TFormat(const TNode& config = TNode());
 
-    // Prefer using these methods to create your formats
+    // Prefer using these methods to create your formats.
     static TFormat YsonText();
     static TFormat YsonBinary();
     static TFormat YaMRLenval();

@@ -19,22 +19,6 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-class TConfigSaver
-{
-public:
-    TConfigSaver()
-        : OldConfig_(*TConfig::Get())
-    { }
-
-    ~TConfigSaver()
-    {
-        *TConfig::Get() = OldConfig_;
-    }
-
-private:
-    NYT::TConfig OldConfig_;
-};
-
 static TString RandomBytes() {
     static TReallyFastRng32 RNG(42);
     ui64 value = RNG.GenRand64();
@@ -580,7 +564,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(EmptyHosts)
     {
-        TConfigSaver configSaver;
+        TConfigSaverGuard configGuard;
 
         auto client = CreateTestClient();
         {
@@ -1150,5 +1134,116 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         };
         readFile(4 * 1024 * 1024); // no exception
         UNIT_ASSERT_EXCEPTION(readFile(100500), yexception);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+Y_UNIT_TEST_SUITE(TableIoEnableTypeConversion) {
+
+    TTableSchema CreateSchemaForTypeConversion()
+    {
+        return TTableSchema()
+            .Strict(true)
+            .AddColumn(TColumnSchema().Name("String").Type(VT_STRING))
+            .AddColumn(TColumnSchema().Name("Int64").Type(VT_INT64))
+            .AddColumn(TColumnSchema().Name("Uint64").Type(VT_UINT64))
+            .AddColumn(TColumnSchema().Name("Double").Type(VT_DOUBLE));
+    }
+
+    template <typename TRow>
+    void CheckRowAfterWriting(
+        const TFormatHints& hints,
+        const TRow& writtenRow,
+        const TRow& expectedRow)
+    {
+        auto client = CreateTestClient();
+
+        auto writer = client->CreateTableWriter<TRow>(
+            TRichYPath("//testing/table").Schema(CreateSchemaForTypeConversion()),
+            TTableWriterOptions().FormatHints(hints));
+        writer->AddRow(writtenRow);
+        writer->Finish();
+
+        auto reader = client->CreateTableReader<TRow>("//testing/table");
+        UNIT_ASSERT(reader->IsValid());
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), expectedRow);
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
+    template <typename TRow>
+    void WriteRowAndAssertException(
+        const TFormatHints& hints,
+        const TRow& row)
+    {
+        auto client = CreateTestClient();
+
+        auto writer = client->CreateTableWriter<TRow>(
+            TRichYPath("//testing/table").Schema(CreateSchemaForTypeConversion()),
+            TTableWriterOptions().FormatHints(hints));
+        writer->AddRow(row);
+        UNIT_ASSERT_EXCEPTION(writer->Finish(), TErrorResponse);
+    }
+
+    Y_UNIT_TEST(AllToStringNode)
+    {
+        CheckRowAfterWriting(
+            TFormatHints().EnableAllToStringConversion(true),
+            TNode()("String", 123),
+            TNode()("String", "123")("Int64", TNode::CreateEntity())("Uint64", TNode::CreateEntity())("Double", TNode::CreateEntity()));
+
+        WriteRowAndAssertException(
+            TFormatHints().EnableAllToStringConversion(false),
+            TNode()("String", 123));
+    }
+
+    Y_UNIT_TEST(StringToAllNode)
+    {
+        CheckRowAfterWriting(
+            TFormatHints().EnableStringToAllConversion(true),
+            TNode()("Int64", "-123")("Uint64", "45")("Double", "3.14"),
+            TNode()("String", TNode::CreateEntity())("Int64", -123)("Uint64", ui64(45))("Double", 3.14));
+
+        WriteRowAndAssertException(
+            TFormatHints().EnableStringToAllConversion(false),
+            TNode()("Int64", "-123"));
+    }
+
+    Y_UNIT_TEST(IntegralTypeNode)
+    {
+        CheckRowAfterWriting(
+            TFormatHints().EnableIntegralTypeConversion(true),
+            TNode()("Int64", ui64(123))("Uint64", 45),
+            TNode()("String", TNode::CreateEntity())("Int64", 123)("Uint64", ui64(45))("Double", TNode::CreateEntity()));
+
+        WriteRowAndAssertException(
+            TFormatHints().EnableIntegralTypeConversion(false),
+            TNode()("Int64", 123u));
+    }
+
+    Y_UNIT_TEST(IntegralToDoubleNode)
+    {
+        CheckRowAfterWriting(
+            TFormatHints().EnableIntegralToDoubleConversion(true),
+            TNode()("Int64", 123)("Uint64", ui64(45))("Double", 3),
+            TNode()("String", TNode::CreateEntity())("Int64", 123)("Uint64", ui64(45))("Double", 3.0));
+
+        WriteRowAndAssertException(
+            TFormatHints().EnableIntegralToDoubleConversion(false),
+            TNode()("Double", 123));
+
+    }
+
+    Y_UNIT_TEST(AllNode)
+    {
+        CheckRowAfterWriting(
+            TFormatHints().EnableTypeConversion(true),
+            TNode()("String", 178)("Int64", "-123")("Uint64", "45")("Double", 3),
+            TNode()("String", "178")("Int64", -123)("Uint64", ui64(45))("Double", 3.0));
+
+        WriteRowAndAssertException(
+            TFormatHints().EnableTypeConversion(false),
+            TNode()("String", 178));
     }
 }
