@@ -278,3 +278,25 @@ class TestJobTool(object):
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
+
+    def test_table_download(self, yt_env_job_archive):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        TABLE_AS_FILE_DATA = {"key": "42", "value": "forty two"}
+        table_as_file = TEST_DIR + "/table_as_file"
+        yt.write_table(table_as_file, [TABLE_AS_FILE_DATA])
+
+        command = self.get_ok_command() + """ ; if [ ! -f table_as_file.json ] ; then echo "CANNOT FIND table_as_file.json" >&2 ; exit 1 ; fi """
+        op = yt.run_map(command, table, TEST_DIR + "/output",
+                        format=self.TEXT_YSON,
+                        yt_files=["<file_name=\"table_as_file.json\";format=json>" + table_as_file])
+        job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"OK_COMMAND\n".encode("ascii")
+
+        with open(os.path.join(path, "sandbox", "table_as_file.json")) as inf:
+            table_as_file_saved = json.load(inf)
+            assert table_as_file_saved == TABLE_AS_FILE_DATA
