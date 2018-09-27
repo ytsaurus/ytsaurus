@@ -103,6 +103,24 @@ public:
             Host_->GetOutBandwidthThrottler());
     }
 
+    virtual NJobTrackerClient::NProto::TJobResult Run() override
+    {
+        try {
+            return TSimpleJobBase::Run();
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NTableClient::EErrorCode::SortOrderViolation)) {
+                // We assume that sort order violation happens only in cases similar to YT-9487
+                // when there are overlapping ranges specified for the same table. Note that
+                // we cannot reliably detect such a situation in controller.
+                THROW_ERROR_EXCEPTION(
+                    "Sort order violation in a sorted merge job detected; one of the possible reasons is "
+                    "that there are overlapping ranges specified on one of the input tables that is not allowed")
+                    << ex;
+            }
+            throw;
+        }
+    }
+
 private:
     const TMergeJobSpecExt& MergeJobSpecExt_;
 

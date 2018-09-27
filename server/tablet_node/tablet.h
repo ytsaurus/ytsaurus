@@ -239,6 +239,7 @@ struct ITabletContext
 class TTableReplicaInfo
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TTableReplicaId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TString, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
@@ -252,7 +253,9 @@ public:
 
 public:
     TTableReplicaInfo() = default;
-    explicit TTableReplicaInfo(const TTableReplicaId& id);
+    TTableReplicaInfo(
+        TTablet* tablet,
+        TTableReplicaId id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

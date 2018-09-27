@@ -56,7 +56,7 @@ def init_drivers(clusters):
             if instance._cluster_name == "primary":
                 yt_driver_bindings.configure_logging(instance.driver_logging_config)
 
-            prefix = "" if instance._driver_backend == "native" else "rpc_"
+            prefix = "" if instance.driver_backend == "native" else "rpc_"
             secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
                                         for i in xrange(instance.secondary_master_cell_count)]
             driver = Driver(config=instance.configs[prefix + "driver"])

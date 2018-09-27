@@ -290,7 +290,8 @@ private:
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
         if (!tabletSnapshot) {
-            THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
+            LOG_INFO("Tablet snapshot is missing");
+            return;
         }
 
         try {
@@ -327,6 +328,12 @@ private:
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
+        } catch (const TFiberCanceledException&) {
+            LOG_DEBUG("Preload cancelled");
+            throw;
+        } catch (...) {
+            LOG_DEBUG("Unknown exception in preload");
+            throw;
         }
 
         slotManager->RegisterTabletSnapshot(slot, tablet);

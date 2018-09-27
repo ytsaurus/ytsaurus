@@ -54,36 +54,59 @@ class TestChunkServer(YTEnvSetup):
     def _test_decommission(self, path, replica_count, node_to_decommission_count=1):
         assert replica_count >= node_to_decommission_count
 
-        def id_to_hash(id):
-            return id.split('-')[3]
-
-        def nodes_have_chunk(nodes, id):
-            for node in nodes:
-                if not (id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]):
-                    return False
-            return True
-
         chunk_ids = get(path + "/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
+        nodes_to_decommission = self._decommission_chunk_replicas(chunk_id, replica_count, node_to_decommission_count)
+
+        wait(lambda: not self._nodes_have_chunk(nodes_to_decommission, chunk_id) and
+                     len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
+
+    def _decommission_chunk_replicas(self, chunk_id, replica_count, node_to_decommission_count):
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
 
         nodes_to_decommission = get("#%s/@stored_replicas" % chunk_id)
         assert len(nodes_to_decommission) == replica_count
         nodes_to_decommission = nodes_to_decommission[:node_to_decommission_count]
-        assert nodes_have_chunk(nodes_to_decommission, chunk_id)
+        assert self._nodes_have_chunk(nodes_to_decommission, chunk_id)
 
         for node in nodes_to_decommission:
             set_node_decommissioned(node, True)
 
-        wait(lambda: not nodes_have_chunk(nodes_to_decommission, chunk_id) and
-                     len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
+        return nodes_to_decommission
+
+    def _nodes_have_chunk(self, nodes, id):
+        def id_to_hash(id):
+            return id.split('-')[3]
+
+        for node in nodes:
+            if not (id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]):
+                return False
+        return True
 
     def test_decommission_regular(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 3)
+
+    def test_decommission_regular2(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 4})
+        write_table("//tmp/t", {"a" : "b"})
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        self._decommission_chunk_replicas(chunk_id, 4, 2)
+        set("//tmp/t/@replication_factor", 3)
+        # Now 2 replicas are decommissioned and 2 aren't.
+        # The chunk should be both under- and overreplicated.
+
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
+        nodes = get("#%s/@stored_replicas" % chunk_id)
+        for node in nodes:
+            assert not get("//sys/nodes/%s/@decommissioned" % node)
 
     def test_decommission_erasure(self):
         create("table", "//tmp/t")

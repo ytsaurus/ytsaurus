@@ -327,7 +327,7 @@ public:
         return Bootstrap_->GetMasterClient();
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr CreateOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -335,13 +335,18 @@ public:
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
+        YCHECK(StaticOrchidService_);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
-        return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{staticOrchidService, dynamicOrchidService},
+        auto combinedOrchidService = New<TServiceCombiner>(
+            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)},
             Config_->OrchidKeysUpdatePeriod);
+        CombinedOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(combinedOrchidService.Get()));
+        YCHECK(CombinedOrchidService_);
+        return combinedOrchidService;
     }
 
     TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors()
@@ -444,6 +449,45 @@ public:
         return operation;
     }
 
+    INodePtr FindOperationAcl(const TOperationId& operationId, EAccessType accessType) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // IntermediateDate is not supported in the scheduler.
+        YCHECK(accessType != EAccessType::IntermediateData);
+
+        auto operation = FindOperation(operationId);
+
+        if (!operation) {
+            return nullptr;
+        }
+
+        return BuildYsonNodeFluently()
+            .BeginList()
+                .Do([&] (TFluentList fluent) {
+                    NScheduler::BuildOperationAce(
+                        operation->GetOwners(),
+                        operation->GetAuthenticatedUser(),
+                        std::vector<EPermission>{EPermission::Read, EPermission::Write},
+                        fluent);
+                })
+                .Items(OperationsEffectiveAcl_->AsList())
+            .EndList();
+    }
+
+    INodePtr GetOperationAclFromCypress(const TOperationId& operationId, EAccessType accessType) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto path = GetNewOperationPath(operationId)
+            + (accessType == EAccessType::Ownership ? "/@effective_acl" : "/@full_spec/intermediate_data_acl");
+
+        auto result = WaitFor(GetMasterClient()->GetNode(path))
+            .ValueOrThrow();
+
+        return ConvertToNode(result);
+    }
+
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -502,14 +546,31 @@ public:
         LOG_DEBUG("Pool permission successfully validated");
     }
 
-    void ValidateOperationPermission(
+    void ValidateOperationAccess(
         const TString& user,
         const TOperationId& operationId,
-        EPermission permission) override
+        EAccessType accessType) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        NScheduler::ValidateOperationPermission(user, operationId, GetMasterClient(), permission, Logger);
+        // IntermediateData is not supported in the scheduler.
+        YCHECK(accessType != EAccessType::IntermediateData);
+
+        auto operationAcl = WaitFor(BIND(&TImpl::FindOperationAcl, MakeStrong(this))
+            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+            .Run(operationId, accessType))
+            .ValueOrThrow();
+        if (!operationAcl) {
+            operationAcl = GetOperationAclFromCypress(operationId, accessType);
+        }
+
+        NScheduler::ValidateOperationAccess(
+            user,
+            operationId,
+            accessType,
+            operationAcl,
+            GetMasterClient(),
+            Logger);
 
         ValidateConnected();
     }
@@ -603,7 +664,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -627,7 +688,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
@@ -653,7 +714,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -689,7 +750,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -841,7 +902,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
         auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
         Deserialize(userRuntimeParams, parameters);
@@ -1038,6 +1099,8 @@ public:
                             /* setAlert */ false);
                     }
                 }
+                LogEventFluently(ELogEventType::OperationMaterialized)
+                    .Item("operation_id").Value(operation->GetId());
             })
             .Via(operation->GetCancelableControlInvoker()));
     }
@@ -1242,6 +1305,11 @@ private:
     TEnumIndexedVector<std::vector<TOperationPtr>, EOperationState> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
 
+    INodePtr OperationsEffectiveAcl_;
+
+    TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
+    TIntrusivePtr<NYTree::ICachedYPathService> CombinedOrchidService_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -1330,6 +1398,14 @@ private:
         return activeJobCount;
     }
 
+    void FetchOperationsEffectiveAcl()
+    {
+        LOG_INFO("Fetching //sys/operations/@effective_acl");
+
+        OperationsEffectiveAcl_ = ConvertToNode(
+            WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
+                .ValueOrThrow());
+    }
 
     void OnProfiling()
     {
@@ -1517,6 +1593,8 @@ private:
                 AddOperationToTransientQueue(operation);
             }
         }
+
+        FetchOperationsEffectiveAcl();
     }
 
     void OnMasterConnected()
@@ -1783,6 +1861,8 @@ private:
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
+            StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+            CombinedOrchidService_->SetUpdatePeriod(Config_->OrchidKeysUpdatePeriod);
 
             Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
 
@@ -3121,9 +3201,9 @@ const TOperationsCleanerPtr& TScheduler::GetOperationsCleaner() const
     return Impl_->GetOperationsCleaner();
 }
 
-IYPathServicePtr TScheduler::GetOrchidService() const
+IYPathServicePtr TScheduler::CreateOrchidService() const
 {
-    return Impl_->GetOrchidService();
+    return Impl_->CreateOrchidService();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TScheduler::GetCachedExecNodeDescriptors() const

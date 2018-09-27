@@ -2,14 +2,12 @@
     thread_count = 10;
 
     heartbeat_period = 5000;
+    node_groups_file = "nodes_info.yson";
     pools_file = "pools.yson";
+    scheduler_config_file = "scheduler_config.yson";
     operations_stats_file = "operations_stats.csv";
     event_log_file = "scheduler_event_log.txt";
     enable_full_event_log = %false;
-
-    scheduler = { };
-
-    node_groups = [];
 
     logging = {
         flush_period = 1000;

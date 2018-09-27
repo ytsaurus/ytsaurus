@@ -43,10 +43,10 @@ struct INodeShardHost
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual void ValidateOperationPermission(
+    virtual void ValidateOperationAccess(
         const TString& user,
         const TOperationId& operationId,
-        NYTree::EPermission permission) = 0;
+        EAccessType accessType) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,

@@ -53,7 +53,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    NYTree::IYPathServicePtr GetOrchidService();
+    NYTree::IYPathServicePtr CreateOrchidService();
 
     /*!
      *  \note Thread affinity: any
@@ -152,13 +152,12 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
 
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: ControlThread
      */
-    void ValidateOperationPermission(
+    void ValidateOperationAccess(
         const TString& user,
         const TOperationId& operationId,
-        NYTree::EPermission permission,
-        const TString& subnodePath = "");
+        const NScheduler::EAccessType accessType);
 
     //! Raised when connection prcoess starts.
     //! Subscribers may throw and yield.

@@ -165,7 +165,7 @@ public:
     }
 
     virtual TFuture<void> Pwrite(
-        const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, i64 priority) override
     {
         TWallTimer timer;
 
@@ -347,11 +347,11 @@ private:
         return data.Slice(delta, delta + Min(result, numBytes));
     }
 
-    void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, TWallTimer timer)
+    void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, TWallTimer timer)
     {
         AddWriteWaitTimeSample(timer.GetElapsedTime());
 
-        const ui8* buf = reinterpret_cast<ui8*>(data.Begin());
+        const ui8* buf = reinterpret_cast<const ui8*>(data.Begin());
         size_t numBytes = data.Size();
 
         NFS::ExpectIOErrors([&]() {
@@ -567,7 +567,7 @@ class TAioWriteOperation
 public:
     TAioWriteOperation(
         const std::shared_ptr<TFileHandle>& fh,
-        const TSharedMutableRef& data,
+        const TSharedRef& data,
         i64 offset,
         i64 alignment)
         : Data_(data)
@@ -593,7 +593,7 @@ public:
     }
 
 private:
-    TSharedMutableRef Data_;
+    TSharedRef Data_;
     std::shared_ptr<TFileHandle> Fh_;
 
     TPromise<void> Result_ = NewPromise<void>();
@@ -659,7 +659,7 @@ public:
     }
 
     virtual TFuture<void> Pwrite(
-        const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, i64 priority) override
     {
         auto op = New<TAioWriteOperation>(fh, data, offset, Alignment_);
         Submit(op);

@@ -124,6 +124,13 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)
 
+class ICachedYPathService
+    : public virtual TRefCounted
+{
+public:
+    virtual void SetUpdatePeriod(TDuration period) = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

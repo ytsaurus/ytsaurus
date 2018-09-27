@@ -95,7 +95,7 @@ void TCachedVersionedChunkMeta::Init(
     if (memoryTracker) {
         MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
             memoryTracker,
-            EMemoryCategory::CachedVersionedChunkMeta,
+            EMemoryCategory::VersionedChunkMeta,
             GetMemoryUsage());
     }
 }

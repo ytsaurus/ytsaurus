@@ -251,5 +251,5 @@ class TestGrpcProxy(YTEnvSetup):
 
     def test_discovery(self):
         proxies = discover_proxies(type_="grpc", driver=self.driver)["proxies"]
-        assert len(proxies) == 1
-        assert proxies[0] == self.grpc_proxy_address
+        assert len(proxies) == self.NUM_RPC_PROXIES
+        assert self.grpc_proxy_address in proxies

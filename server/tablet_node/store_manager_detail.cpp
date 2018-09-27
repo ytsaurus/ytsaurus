@@ -108,7 +108,9 @@ void TStoreManagerBase::StopEpoch()
             auto chunkStore = store->AsChunk();
             chunkStore->SetCompactionState(EStoreCompactionState::None);
 
-            if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
+            if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled ||
+                chunkStore->GetPreloadState() == EStorePreloadState::Running)
+            {
                 chunkStore->SetPreloadState(EStorePreloadState::None);
             }
         }

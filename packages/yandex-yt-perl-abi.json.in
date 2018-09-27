@@ -1,0 +1,41 @@
+{
+    "meta": {
+        "name": "yandex-yt-perl-@YT_VERSION_MAJOR@.@YT_VERSION_MINOR@",
+        "maintainer": "YT Team <yt@yandex-team.ru>",
+        "description": "YT. This package provides server-side software",
+        "pre-depends": [],
+        "depends": ["libc6 (>= 2.15)"],
+        "conflicts": ["yandex-yt"],
+        "homepage": "https://wiki.yandex-team.ru/yt/"
+    },
+    "build": {
+        "targets": [
+            "perl"
+        ],
+        "flags": [
+            {
+                "name": "YT_VERSION_PATCH",
+                "value": "@YT_VERSION_PATCH@"
+            },
+            {
+                "name": "YT_VERSION_BRANCH",
+                "value": "@YT_VERSION_BRANCH"
+            },
+            {
+                "name": "YT_ENABLE_GDB_INDEX",
+                "value": "yes"
+            }
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "perl/YT_@YT_ABI_VERSION@.so"
+            },
+            "destination": {
+                "path": "/usr/share/perl5/YT_@YT_ABI_VERSION@.so"
+            }
+        }
+    ]
+}

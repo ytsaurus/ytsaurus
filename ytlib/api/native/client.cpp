@@ -3345,6 +3345,7 @@ private:
         }
         req->set_permission(static_cast<int>(permission));
         req->set_acl(ConvertToYsonString(acl).GetData());
+        req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
         SetCachingHeader(req, options);
 
         batchReq->AddRequest(req);
@@ -3358,6 +3359,7 @@ private:
         result.Action = ESecurityAction(rsp->action());
         result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
         result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
+        result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
         return result;
     }
 
@@ -3990,10 +3992,6 @@ private:
         const TGetOperationOptions& options)
     {
         auto attributes = options.Attributes.Get(SupportedOperationAttributes);
-
-        if (DoGetOperationsArchiveVersion() < 22) {
-            attributes.erase("runtime_parameters");
-        }
         // Ignoring memory_usage and suspended in archive.
         attributes.erase("memory_usage");
         attributes.erase("suspended");
@@ -4601,13 +4599,11 @@ private:
             }
         }
 
-        if (DoGetOperationsArchiveVersion() >= 21) {
-            ValidateJobAcl(jobId);
+        ValidateJobAcl(jobId);
 
-            auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId);
-            if (failContextRef) {
-                return failContextRef;
-            }
+        auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId);
+        if (failContextRef) {
+            return failContextRef;
         }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job fail context is not found")
@@ -5038,28 +5034,16 @@ private:
             THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
         }
 
-        int version = DoGetOperationsArchiveVersion();
-
-        if (options.Pool && version < 15) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to get operation's pool: operations archive version is too old: expected >= 15, got %v",
-                version);
-        }
-
-        if (version < 9) {
-            THROW_ERROR_EXCEPTION("Operations archive version is too old: expected >= 9, got %v",
-                version);
-        }
-
-        const auto archiveHasPools = (version >= 24);
-
         if (options.IncludeCounters) {
             TQueryBuilder builder;
             builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
 
-            for (const auto selectExpr : {"pool_or_pools", "authenticated_user", "state", "operation_type", "pool", "sum(1) AS count"}) {
-                builder.AddSelectExpression(selectExpr);
-            }
+            auto poolsIndex = builder.AddSelectExpression("pools_str");
+            auto authenticatedUserIndex = builder.AddSelectExpression("authenticated_user");
+            auto stateIndex = builder.AddSelectExpression("state");
+            auto operationTypeIndex = builder.AddSelectExpression("operation_type");
+            auto poolIndex = builder.AddSelectExpression("pool");
+            auto countIndex = builder.AddSelectExpression("sum(1) AS count");
 
             builder.AddWhereExpression(Format("start_time > %v AND start_time <= %v",
                 (*options.FromTime).MicroSeconds(),
@@ -5070,8 +5054,7 @@ private:
                     Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
             }
 
-            const TString poolQueryExpression = archiveHasPools ? "any_to_yson_string(pools)" : "pool";
-            builder.SetGroupByExpression(poolQueryExpression + " AS pool_or_pools, authenticated_user, state, operation_type, pool");
+            builder.SetGroupByExpression("any_to_yson_string(pools) AS pools_str, authenticated_user, state, operation_type, pool");
 
             TSelectRowsOptions selectOptions;
             selectOptions.Timeout = deadline - Now();
@@ -5081,21 +5064,19 @@ private:
 
             for (auto row : resultCounts.Rowset->GetRows()) {
                 TNullable<std::vector<TString>> pools;
-                if (row[0].Type != EValueType::Null) {
-                    pools = archiveHasPools
-                        ? ConvertTo<std::vector<TString>>(TYsonString(row[0].Data.String, row[0].Length))
-                        : std::vector<TString>{FromUnversionedValue<TString>(row[0])};
+                if (row[poolsIndex].Type != EValueType::Null) {
+                    pools = ConvertTo<std::vector<TString>>(TYsonString(row[poolsIndex].Data.String, row[poolsIndex].Length));
                 }
-                auto user = TStringBuf(row[1].Data.String, row[1].Length);
-                auto state = ParseEnum<EOperationState>(TStringBuf(row[2].Data.String, row[2].Length));
-                auto type = ParseEnum<EOperationType>(TStringBuf(row[3].Data.String, row[3].Length));
-                if (row[4].Type != EValueType::Null) {
+                auto user = FromUnversionedValue<TStringBuf>(row[authenticatedUserIndex]);
+                auto state = ParseEnum<EOperationState>(FromUnversionedValue<TStringBuf>(row[stateIndex]));
+                auto type = ParseEnum<EOperationType>(FromUnversionedValue<TStringBuf>(row[operationTypeIndex]));
+                if (row[poolIndex].Type != EValueType::Null) {
                     if (!pools) {
                         pools.Emplace();
                     }
-                    pools->push_back(FromUnversionedValue<TString>(row[4]));
+                    pools->push_back(FromUnversionedValue<TString>(row[poolIndex]));
                 }
-                auto count = row[5].Data.Int64;
+                auto count = FromUnversionedValue<i64>(row[countIndex]);
 
                 countingFilter.Filter(pools, user, state, type, count);
             }
@@ -5133,9 +5114,7 @@ private:
         }
 
         if (options.Pool) {
-            builder.AddWhereExpression(archiveHasPools
-                ? Format("list_contains(pools, %Qv) or pool = %Qv", *options.Pool, *options.Pool)
-                : Format("pool = %Qv", *options.Pool));
+            builder.AddWhereExpression(Format("list_contains(pools, %Qv) or pool = %Qv", *options.Pool, *options.Pool));
         }
 
         if (options.StateFilter) {
@@ -5187,10 +5166,6 @@ private:
 
         auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
         bool needBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
-
-        if (version < 22) {
-            attributesToRequest.erase("runtime_parameters");
-        }
 
         std::vector<int> columns;
         for (const auto columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
@@ -5292,14 +5267,12 @@ private:
                 operation.Progress = getYson(row[*indexOrNull]);
             }
 
-            if (DoGetOperationsArchiveVersion() >= 22) {
-                if (auto indexOrNull = columnFilter.FindPosition(tableIndex.RuntimeParameters)) {
-                    operation.RuntimeParameters = getYson(row[*indexOrNull]);
-                }
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.RuntimeParameters)) {
+                operation.RuntimeParameters = getYson(row[*indexOrNull]);
+            }
 
-                if (operation.RuntimeParameters) {
-                    operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
-                }
+            if (operation.RuntimeParameters) {
+                operation.Pools = GetPoolsFromRuntimeParameters(operation.RuntimeParameters);
             }
 
             if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Events)) {
@@ -5471,8 +5444,6 @@ private:
     {
         std::vector<TJob> jobs;
 
-        int archiveVersion = DoGetOperationsArchiveVersion();
-
         TQueryBuilder itemsQueryBuilder;
         itemsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
         itemsQueryBuilder.SetLimit(options.Offset + options.Limit);
@@ -5491,9 +5462,7 @@ private:
         auto jobIdHiIndex = itemsQueryBuilder.AddSelectExpression("job_id_hi");
         auto jobIdLoIndex = itemsQueryBuilder.AddSelectExpression("job_id_lo");
         auto typeIndex = itemsQueryBuilder.AddSelectExpression("type AS job_type");
-        auto stateIndex = archiveVersion >= 16
-            ? itemsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state")
-            : itemsQueryBuilder.AddSelectExpression("state AS job_state");
+        auto stateIndex = itemsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state");
         auto startTimeIndex = itemsQueryBuilder.AddSelectExpression("start_time");
         auto finishTimeIndex = itemsQueryBuilder.AddSelectExpression("finish_time");
         auto addressIndex = itemsQueryBuilder.AddSelectExpression("address");
@@ -5501,21 +5470,14 @@ private:
         auto statisticsIndex = itemsQueryBuilder.AddSelectExpression("statistics");
         auto stderrSizeIndex = itemsQueryBuilder.AddSelectExpression("stderr_size");
         auto hasSpecIndex = itemsQueryBuilder.AddSelectExpression("has_spec");
-        auto hasFailContextIndex = itemsQueryBuilder.AddSelectExpression("has_fail_context");
+        auto failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
 
-        TNullable<int> failContextSizeIndex;
-        if (archiveVersion >= 23) {
-            failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
-        }
-
-        if (archiveVersion >= 18) {
-            auto updateTimeExpression = Format(
-                "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
-                "OR (NOT is_null(update_time) AND update_time >= %v))",
-                (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
-            itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
-            statisticsQueryBuilder.AddWhereExpression(updateTimeExpression);
-        }
+        auto updateTimeExpression = Format(
+            "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
+            "OR (NOT is_null(update_time) AND update_time >= %v))",
+            (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
+        itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
+        statisticsQueryBuilder.AddWhereExpression(updateTimeExpression);
 
         if (options.WithStderr) {
             if (*options.WithStderr) {
@@ -5525,7 +5487,7 @@ private:
             }
         }
 
-        if (archiveVersion >= 20 && options.WithSpec) {
+        if (options.WithSpec) {
             if (*options.WithSpec) {
                 itemsQueryBuilder.AddWhereExpression("(has_spec AND NOT is_null(has_spec))");
             } else {
@@ -5534,20 +5496,10 @@ private:
         }
 
         if (options.WithFailContext) {
-            if (archiveVersion >= 23) {
-                if (*options.WithFailContext) {
-                    itemsQueryBuilder.AddWhereExpression("(fail_context_size != 0 AND NOT is_null(fail_context_size))");
-                } else {
-                    itemsQueryBuilder.AddWhereExpression("(fail_context_size = 0 OR is_null(fail_context_size))");
-                }
-            } else if (archiveVersion >= 21) {
-                if (*options.WithFailContext) {
-                    itemsQueryBuilder.AddWhereExpression("(has_fail_context AND NOT is_null(has_fail_context))");
-                } else {
-                    itemsQueryBuilder.AddWhereExpression("(NOT has_fail_context OR is_null(has_fail_context))");
-                }
+            if (*options.WithFailContext) {
+                itemsQueryBuilder.AddWhereExpression("(fail_context_size != 0 AND NOT is_null(fail_context_size))");
             } else {
-                itemsQueryBuilder.AddWhereExpression("false");
+                itemsQueryBuilder.AddWhereExpression("(fail_context_size = 0 OR is_null(fail_context_size))");
             }
         }
 
@@ -5608,11 +5560,7 @@ private:
             statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }
         statisticsQueryBuilder.AddSelectExpression("type as job_type");
-        if (archiveVersion >= 16) {
-            statisticsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state");
-        } else {
-            statisticsQueryBuilder.AddSelectExpression("state as job_state");
-        }
+        statisticsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state");
         statisticsQueryBuilder.AddSelectExpression("SUM(1) AS count");
         statisticsQueryBuilder.SetGroupByExpression("job_type, job_state");
         auto statisticsQuery = statisticsQueryBuilder.Build();
@@ -5671,14 +5619,8 @@ private:
                     job.StderrSize = row[stderrSizeIndex].Data.Uint64;
                 }
 
-                if (failContextSizeIndex) {
-                    if (row[*failContextSizeIndex].Type != EValueType::Null) {
-                        job.FailContextSize = row[*failContextSizeIndex].Data.Uint64;
-                    }
-                } else {
-                    if (row[hasFailContextIndex].Type != EValueType::Null && row[hasFailContextIndex].Data.Boolean) {
-                        job.FailContextSize = 1024;
-                    }
+                if (row[failContextSizeIndex].Type != EValueType::Null) {
+                    job.FailContextSize = row[failContextSizeIndex].Data.Uint64;
                 }
 
                 if (row[hasSpecIndex].Type != EValueType::Null) {
@@ -6318,7 +6260,7 @@ private:
         "events",
     };
 
-    std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
+    std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes)
     {
         std::vector<TString> result;
         result.reserve(attributes.size() + 2); // Plus 2 as operation_id and job_id are split into hi and lo.
@@ -6329,11 +6271,11 @@ private:
             if (attribute.EndsWith("_id")) {
                 result.push_back(attribute + "_hi");
                 result.push_back(attribute + "_lo");
+            } else if (attribute == "state") {
+                result.push_back("state");
+                result.push_back("transient_state");
             } else {
                 result.push_back(attribute);
-                if (attribute == "state" && archiveVersion > 16) {
-                    result.push_back("transient_state");
-                }
             }
         }
         return result;
@@ -6346,8 +6288,6 @@ private:
     {
         auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetJobTimeout);
         auto deadline = timeout.ToDeadLine();
-
-        int archiveVersion = DoGetOperationsArchiveVersion();
 
         TJobTableDescriptor table;
         auto rowBuffer = New<TRowBuffer>();
@@ -6376,7 +6316,7 @@ private:
         };
 
         std::vector<int> columnIndexes;
-        auto fields = MakeJobArchiveAttributes(options.Attributes.Get(DefaultAttributes), archiveVersion);
+        auto fields = MakeJobArchiveAttributes(options.Attributes.Get(DefaultAttributes));
         for (const auto& field : fields) {
             columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
         }
@@ -6409,7 +6349,7 @@ private:
                 state = FromUnversionedValue<TStringBuf>(row[*indexOrNull]);
             }
         }
-        if (!state.IsInited() && archiveVersion >= 16) {
+        if (!state.IsInited()) {
             auto indexOrNull = columnFilter.FindPosition(table.Index.TransientState);
             if (indexOrNull && row[*indexOrNull].Type != EValueType::Null) {
                 state = FromUnversionedValue<TStringBuf>(row[*indexOrNull]);

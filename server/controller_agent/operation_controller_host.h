@@ -88,10 +88,9 @@ public:
     virtual void OnOperationSuspended(const TError& error) override;
     virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) override;
 
-    virtual void ValidateOperationPermission(
+    virtual void ValidateOperationAccess(
         const TString& user,
-        NYTree::EPermission permission,
-        const TString& subnodePath) override;
+        NScheduler::EAccessType accessType) override;
 
 private:
     const TOperationId OperationId_;

@@ -59,7 +59,6 @@ DEFINE_ENUM(EBasicCounter,
 );
 
 using ESystemCounter = EBasicCounter;
-using ETotalCounter = EBasicCounter;
 using ESmallCounter = EBasicCounter;
 using ELargeCounter = EBasicCounter;
 
@@ -99,6 +98,14 @@ DEFINE_ENUM(EHugeCounter,
     (BlobsAllocated)
     (BlobsFreed)
     (BlobsUsed)
+);
+
+DEFINE_ENUM(ETotalCounter,
+    (BytesAllocated)
+    (BytesFreed)
+    (BytesUsed)
+    (BytesCommitted)
+    (BytesLazyFree)
 );
 
 // Returns statistics for all user allocations.

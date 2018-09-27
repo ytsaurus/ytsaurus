@@ -115,6 +115,7 @@ DEFINE_ENUM(EOperationAlertType,
     (OperationTooLong)
     (OperationPending)
     (OperationCompletedByUserRequest)
+    (OperationBannedInTentativeTree)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,6 +162,13 @@ DEFINE_ENUM(EControlQueue,
 DEFINE_ENUM(EControllerAgentPickStrategy,
     (Random)
     (MemoryUsageBalanced)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAccessType,
+    (Ownership)
+    (IntermediateData)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

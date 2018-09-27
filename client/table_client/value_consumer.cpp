@@ -131,11 +131,18 @@ void TValueConsumerBase::ProcessStringValue(const TUnversionedValue& value, EVal
         try {
             switch (columnType) {
                 case EValueType::Int64:
-                    convertedValue = MakeUnversionedInt64Value(FromString<i64>(stringValue), value.Id);
+                case EValueType::Uint64: {
+                    auto adjustedStringValue = stringValue;
+                    if (!stringValue.empty() && stringValue.back() == 'u') {
+                        adjustedStringValue = TStringBuf(value.Data.String, value.Length - 1);
+                    }
+                    if (columnType == EValueType::Int64) {
+                        convertedValue = MakeUnversionedInt64Value(FromString<i64>(adjustedStringValue), value.Id);
+                    } else {
+                        convertedValue = MakeUnversionedUint64Value(FromString<ui64>(adjustedStringValue), value.Id);
+                    }
                     break;
-                case EValueType::Uint64:
-                    convertedValue = MakeUnversionedUint64Value(FromString<ui64>(stringValue), value.Id);
-                    break;
+                }
                 case EValueType::Double:
                     convertedValue = MakeUnversionedDoubleValue(FromString<double>(stringValue), value.Id);
                     break;
@@ -332,14 +339,27 @@ TWritingValueConsumer::TWritingValueConsumer(
 
 TFuture<void> TWritingValueConsumer::Flush()
 {
-    return Writer_->GetReadyEvent()
-        .Apply(BIND([=, rows = std::move(Rows_)] () {
+    if (RowBuffer_->GetSize() == 0) {
+        return VoidFuture;
+    }
+
+    // We could have multiple value consumers writing into the same Writer.
+    // It means, that there could be multiple subscribers waiting to flush data on the same ready event.
+    // To make writing safe, we must double check that the writer is really ready, before flushing rows.
+
+    return
+        BIND([=, rows = std::move(Rows_)] () {
+            while (!Writer_->GetReadyEvent().IsSet() || !Writer_->GetReadyEvent().Get().IsOK()) {
+                WaitFor(Writer_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
             Writer_->Write(rows);
             RowBuffer_->Clear();
             return Writer_->GetReadyEvent();
         })
-        // All the work with Writer must happen from the same thread, so should get back to this thread to do actual Writing.
-        .AsyncVia(GetCurrentInvoker()));
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
 }
 
 const TNameTablePtr& TWritingValueConsumer::GetNameTable() const

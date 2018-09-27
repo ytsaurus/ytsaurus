@@ -112,9 +112,10 @@ void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
 void Deserialize(
     TAccessControlList& acl,
     INodePtr node,
-    TSecurityManagerPtr securityManager)
+    TSecurityManagerPtr securityManager,
+    std::vector<TString>* missingSubjects)
 {
-    auto serializableAces = ConvertTo< std::vector<TSerializableAccessControlEntryPtr> >(node);
+    auto serializableAces = ConvertTo<std::vector<TSerializableAccessControlEntryPtr>>(node);
     for (const auto& serializableAce : serializableAces) {
         TAccessControlEntry ace;
 
@@ -124,6 +125,10 @@ void Deserialize(
         // Subject
         for (const auto& name : serializableAce->Subjects) {
             auto* subject = securityManager->FindSubjectByName(name);
+            if (missingSubjects && !subject) {
+                missingSubjects->push_back(name);
+                continue;
+            }
             if (!IsObjectAlive(subject)) {
                 THROW_ERROR_EXCEPTION("No such subject %Qv",
                     name);
