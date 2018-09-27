@@ -1763,7 +1763,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-
+    
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             # Unrecognized alert often interferes with the alerts that
@@ -1774,6 +1774,8 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
     }
 
     def teardown_method(self, method):
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{}/@resource_limits_overrides".format(node), {})
         remove("//sys/pool_trees/*")
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
@@ -1814,6 +1816,37 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         remove("//sys/pool_trees/default")
 
         wait(lambda: op.get_state() in ["aborted", "aborting"])
+
+    def test_abort_many_orphaned_operations(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/{}/@resource_limits_overrides".format(node), {"cpu": 10, "user_slots": 10})
+
+        ops = []
+        for i in xrange(10):
+            create("table", "//tmp/t_out" + str(i))
+            ops.append(map(
+                command="sleep 1000; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                dont_track=True))
+
+        for op in ops:
+            wait(lambda: op.get_state() == "running")
+
+        remove("//sys/pool_trees/@default_tree")
+        remove("//sys/pool_trees/default")
+
+        for op in reversed(ops):
+            try:
+                op.abort()
+            except YtError:
+                pass
+
+        for op in ops:
+            wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
