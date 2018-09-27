@@ -80,6 +80,11 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                 }
 
                 @Override
+                public void onError(Throwable e) {
+                    wakeUp(e);
+                }
+
+                @Override
                 public void onProxiesRemoved(Set<RpcClient> proxies) {
                     dc.removeProxies(proxies);
                 }
@@ -139,6 +144,11 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                 public void onProxiesAdded(Set<RpcClient> proxies) {
                     dc.addProxies(proxies);
                     wakeUp();
+                }
+
+                @Override
+                public void onError(Throwable e) {
+                    wakeUp(e);
                 }
 
                 @Override
@@ -207,6 +217,15 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
             }
         }
     }
+
+    private void wakeUp(Throwable e) {
+        synchronized (waiting) {
+            while (!waiting.isEmpty()) {
+                waiting.pop().completeExceptionally(e);
+            }
+        }
+    }
+
 
     public CompletableFuture<Void> waitProxies() {
         int proxies = 0;

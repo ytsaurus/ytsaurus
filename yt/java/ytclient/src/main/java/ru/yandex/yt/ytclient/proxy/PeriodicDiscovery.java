@@ -115,6 +115,10 @@ public class PeriodicDiscovery implements AutoCloseable {
                     logger.warn("Cannot remove proxy: {}", addr);
                 }
             } catch (Throwable e) {
+                for (PeriodicDiscoveryListener listener : listenerOpt) {
+                    listener.onError(e);
+                }
+
                 logger.error("Error on proxy remove {}: {}", addr, e, e);
             }
         }
@@ -137,6 +141,10 @@ public class PeriodicDiscovery implements AutoCloseable {
                 proxies.put(addr, client);
                 addList.add(client.getClient());
             } catch (Throwable e) {
+                for (PeriodicDiscoveryListener listener : listenerOpt) {
+                    listener.onError(e);
+                }
+
                 logger.error("Error on address parse {}: {}", addr, e, e);
             }
         }
@@ -182,7 +190,26 @@ public class PeriodicDiscovery implements AutoCloseable {
         responseFuture.addListener(() -> {
             try {
                 Response response = responseFuture.get();
-                String body = new String(response.getResponseBodyAsBytes());
+
+                if (response.getStatusCode() != 200) {
+                    StringBuilder builder = new StringBuilder();
+                    builder.append("Error: ");
+                    builder.append(response.getStatusCode());
+                    builder.append("\n");
+
+                    for (Map.Entry<String, String> entry : response.getHeaders()) {
+                        builder.append(entry.getKey());
+                        builder.append("=");
+                        builder.append(entry.getValue());
+                        builder.append("\n");
+                    }
+
+                    builder.append(new String(response.getResponseBodyAsBytes()));
+                    builder.append("\n");
+
+                    throw new RuntimeException(builder.toString());
+                }
+
                 YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
                 List<HostPort> proxies = node
                         .asMap()
@@ -193,6 +220,10 @@ public class PeriodicDiscovery implements AutoCloseable {
 
                 processProxies(new HashSet<>(proxies));
             } catch (Throwable e) {
+                for (PeriodicDiscoveryListener listener : listenerOpt) {
+                    listener.onError(e);
+                }
+
                 logger.error("Error on process proxies {}", e, e);
             } finally {
                 if (running.get()) {
