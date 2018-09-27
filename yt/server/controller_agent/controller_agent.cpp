@@ -1305,7 +1305,7 @@ private:
 
                 auto controller = operation->GetController();
                 GuardedInvoke(
-                    controller->GetCancelableInvoker(EOperationControllerQueue::ScheduleJob),
+                    controller->GetCancelableInvoker(),
                     BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
