@@ -1,5 +1,5 @@
-yandex-yt>=0.8.16-0
-yandex-yt-tools>=0.2.109-0
+yandex-yt==0.8.46-0
+yandex-yt-tools>=0.2.127-0
 raven>=5.0.0
 statbox_bindings2>=0.22.0
-yandex-yt-yson-bindings>=0.3.6-2
+yandex-yt-yson-bindings>=0.3.20-0
