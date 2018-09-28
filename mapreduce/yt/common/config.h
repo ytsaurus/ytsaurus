@@ -70,7 +70,6 @@ struct TConfig
     TString RemoteTempFilesDirectory;
     TString RemoteTempTablesDirectory;
 
-    TString JobBinary;
 
     bool UseClientProtobuf;
     ENodeReaderFormat NodeReaderFormat;
@@ -82,6 +81,11 @@ struct TConfig
     // Testing options, should never be used in user programs.
     bool UseAbortableResponse = false;
     bool EnableDebugMetrics = false;
+
+    //
+    // There is optimization used with local YT that enables to skip binary upload and use real binary path.
+    // When EnableLocalModeOptimization is set to false this optimization is completely disabled.
+    bool EnableLocalModeOptimization = true;
 
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
@@ -96,6 +100,7 @@ struct TConfig
     void LoadToken();
     void LoadSpec();
     void LoadTimings();
+    TJobBinaryConfig GetJobBinary() const;
 
     TConfig();
 
