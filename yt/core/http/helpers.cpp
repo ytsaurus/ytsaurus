@@ -220,7 +220,7 @@ TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
     auto sourcePort = headers->Find("X-Source-Port-Y");
 
     if (forwardedFor && sourcePort) {
-        return Format("%v:%v", *forwardedFor, *sourcePort);
+        return Format("[%v]:%v", *forwardedFor, *sourcePort);
     }
 
     return {};
