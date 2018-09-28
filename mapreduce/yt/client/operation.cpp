@@ -115,8 +115,12 @@ ui64 RoundUpFileSize(ui64 size)
     return (size + roundUpTo - 1) & ~(roundUpTo - 1);
 }
 
-bool IsLocalMode(const TAuth& auth)
+bool UseLocalModeOptimization(const TAuth& auth)
 {
+    if (!TConfig::Get()->EnableLocalModeOptimization) {
+        return false;
+    }
+
     static THashMap<TString, bool> localModeMap;
     static TRWMutex mutex;
 
@@ -459,16 +463,17 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        auto binaryPath = GetExecPath();
-        if (TConfig::Get()->JobBinary) {
-            binaryPath = TConfig::Get()->JobBinary;
+        auto jobBinary = TConfig::Get()->GetJobBinary();
+        if (!Spec_.GetJobBinary().Is<TJobBinaryDefault>()) {
+            jobBinary = Spec_.GetJobBinary();
         }
-        if (Spec_.JobBinary_) {
-            binaryPath = *Spec_.JobBinary_;
+        if (jobBinary.Is<TJobBinaryDefault>()) {
+            if (GetInitStatus() != EInitStatus::FullInitialization) {
+                ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
+            }
+            jobBinary = TJobBinaryLocalPath{GetExecPath()};
         }
-        if (binaryPath == GetExecPath() && GetInitStatus() != EInitStatus::FullInitialization) {
-            ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
-        }
+        Y_ASSERT(!jobBinary.Is<TJobBinaryDefault>());
 
         CreateStorage();
         auto cypressFileList = CanonizePaths(auth, spec.Files_);
@@ -487,11 +492,11 @@ public:
         }
 
         TString binaryPathInsideJob;
-        if (!IsLocalMode(auth)) {
-            UploadBinary(binaryPath);
-            binaryPathInsideJob = "./cppbinary";
+        if (UseLocalModeOptimization(auth) && jobBinary.Is<TJobBinaryLocalPath>()) {
+            binaryPathInsideJob = TFsPath(jobBinary.As<TJobBinaryLocalPath>().Path).RealPath();
         } else {
-            binaryPathInsideJob = binaryPath;
+            UploadBinary(jobBinary);
+            binaryPathInsideJob = "./cppbinary";
         }
 
         TString jobCommandPrefix = options.JobCommandPrefix_;
@@ -708,19 +713,20 @@ private:
         Files_.push_back(cypressPath);
     }
 
-    void UploadBinary(const TString& binaryPath)
+    void UploadBinary(const TJobBinaryConfig& jobBinary)
     {
-        if (ShouldMountSandbox()) {
-            TFsPath path(binaryPath);
-            TFileStat stat;
-            path.Stat(stat);
-            TotalFileSize_ += RoundUpFileSize(stat.Size);
+        if (jobBinary.Is<TJobBinaryLocalPath>()) {
+            auto binaryLocalPath = jobBinary.As<TJobBinaryLocalPath>().Path;
+            UploadLocalFile(binaryLocalPath, TAddLocalFileOptions().PathInJob("cppbinary"));
+        } else if (jobBinary.Is<TJobBinaryCypressPath>()) {
+            auto binaryCypressPath = jobBinary.As<TJobBinaryCypressPath>().Path;
+            UseFileInCypress(
+                TRichYPath(binaryCypressPath)
+                    .FileName("cppbinary")
+                    .Executable(true));
+        } else {
+            Y_FAIL("%s", ~(TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.Index()));
         }
-
-        auto cachePath = UploadToCache(TFileToUpload(binaryPath));
-        Files_.push_back(TRichYPath(cachePath)
-            .FileName("cppbinary")
-            .Executable(true));
     }
 
     TMaybe<TSmallJobFile> GetJobState(IJob* job)
@@ -920,7 +926,7 @@ void WaitForOperation(
     const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval =
-        IsLocalMode(auth) ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
+        UseLocalModeOptimization(auth) ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
 
     while (true) {
         auto status = CheckOperation(auth, operationId);

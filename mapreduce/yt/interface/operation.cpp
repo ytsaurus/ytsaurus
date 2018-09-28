@@ -32,6 +32,23 @@ TUserJobSpec& TUserJobSpec::AddLocalFile(
     return *this;
 }
 
+TUserJobSpec& TUserJobSpec::JobBinaryLocalPath(TString path)
+{
+    JobBinary_ = TJobBinaryLocalPath{path};
+    return *this;
+}
+
+TUserJobSpec& TUserJobSpec::JobBinaryCypressPath(TString path)
+{
+    JobBinary_ = TJobBinaryCypressPath{path};
+    return *this;
+}
+
+const TJobBinaryConfig& TUserJobSpec::GetJobBinary() const
+{
+    return JobBinary_;
+}
+
 TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> TUserJobSpec::GetLocalFiles() const
 {
     return LocalFiles_;

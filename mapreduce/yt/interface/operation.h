@@ -8,9 +8,25 @@
 #include <library/threading/future/future.h>
 
 #include <util/system/file.h>
+#include <util/generic/variant.h>
 #include <util/generic/vector.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobBinaryDefault
+{ };
+
+struct TJobBinaryLocalPath
+{
+    TString Path;
+};
+
+struct TJobBinaryCypressPath
+{
+    TYPath Path;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,7 +283,19 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(double, CpuLimit);
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
 
-    FLUENT_FIELD_OPTION(TString, JobBinary);
+    //
+    // JobBinary allows to specify path to executable that is to be used inside jobs.
+    // Provided executable must use C++ YT API library (this library)
+    // and implement job class that is going to be used.
+    //
+    // This option might be useful if we want to start operation from nonlinux machines
+    // (in that case we use JobBinary to provide path to the same program compiled for linux).
+    // Other example of using this option is uploading executable to cypress in advance
+    // and save the time required to upload current executable to cache.
+    TUserJobSpec& JobBinaryLocalPath(TString path);
+    TUserJobSpec& JobBinaryCypressPath(TString path);
+    const TJobBinaryConfig& GetJobBinary() const;
+
     // Prefix and suffix for specific kind of job
     // Overrides common prefix and suffix in TOperationOptions
     FLUENT_FIELD(TString, JobCommandPrefix);
@@ -275,6 +303,7 @@ struct TUserJobSpec
 
 private:
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;
+    TJobBinaryConfig JobBinary_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

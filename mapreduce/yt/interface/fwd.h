@@ -297,4 +297,15 @@ namespace NYT {
     enum class EFinishedJobState : int;
 
     enum class EJobType : int;
+
+    struct TJobBinaryDefault;
+
+    struct TJobBinaryLocalPath;
+
+    struct TJobBinaryCypressPath;
+
+    using TJobBinaryConfig = ::TVariant<
+        TJobBinaryDefault,
+        TJobBinaryLocalPath,
+        TJobBinaryCypressPath>;
 }

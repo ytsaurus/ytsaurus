@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 #include <mapreduce/yt/node/node_builder.h>
+#include <mapreduce/yt/interface/operation.h>
 
 #include <library/json/json_reader.h>
 #include <library/svnversion/svnversion.h>
@@ -181,14 +182,22 @@ TConfig::TConfig()
     RemoteTempTablesDirectory = GetEnv("YT_TEMP_TABLES_STORAGE",
         "//tmp/yt_wrapper/table_storage");
 
-    JobBinary = GetEnv("YT_JOB_BINARY");
-
     UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", false);
     NodeReaderFormat = ENodeReaderFormat::Auto;
 
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
 
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
+}
+
+TJobBinaryConfig TConfig::GetJobBinary() const
+{
+    auto jobBinary = GetEnv("YT_JOB_BINARY");
+    if (!jobBinary.empty()) {
+        return TJobBinaryLocalPath{jobBinary};
+    } else {
+        return TJobBinaryConfig();
+    }
 }
 
 TConfig* TConfig::Get()
