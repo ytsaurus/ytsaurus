@@ -1,0 +1,24 @@
+{
+    "meta": {
+        "name": "yandex-yt-fennel",
+        "maintainer": "Kolesnichenko Ignat <ignat@yandex-team.ru>",
+        "description": "Fennel reliably push rows from an YT scheduler event log table to the Logbroker",
+        "version": "{revision}"
+    },
+    "build": {
+        "targets": [
+            "yt/python/yt/fennel/bin/new_fennel"
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/python/yt/fennel/bin/new_fennel/new_fennel"
+            },
+            "destination": {
+                "path": "/usr/bin/new_fennel"
+            }
+        }
+    ]
+}
