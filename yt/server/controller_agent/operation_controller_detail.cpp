@@ -5255,7 +5255,8 @@ void TOperationControllerBase::ParseInputQuery(
         }
 
         if (!Config->UdfRegistryPath) {
-            THROW_ERROR_EXCEPTION("External UDF registry is not configured");
+            THROW_ERROR_EXCEPTION("External UDF registry is not configured")
+                << TErrorAttribute("extenal_names", externalNames);
         }
 
         auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetClient());
