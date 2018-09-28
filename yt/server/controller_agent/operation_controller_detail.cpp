@@ -616,13 +616,15 @@ void TOperationControllerBase::InitializeOrchid()
 {
     auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            auto strongThis = weakThis.Lock();
-            if (!strongThis) {
-                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
-            }
-            BuildYsonFluently(consumer)
-                .Do(fluentMethod);
-        }));
+                auto strongThis = weakThis.Lock();
+                if (!strongThis) {
+                    THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
+                }
+                BuildYsonFluently(consumer)
+                    .Do(fluentMethod);
+            }),
+            Config->ControllerStaticOrchidUpdatePeriod
+        );
     };
 
     // Methods like BuildProgress, BuildBriefProgress, buildJobsYson and BuildJobSplitterInfo build map fragment,
@@ -639,8 +641,7 @@ void TOperationControllerBase::InitializeOrchid()
 
     auto createCachedMapService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return createService(wrapWithMap(std::move(fluentMethod)))
-            ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default))
-            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
+            ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
     };
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper

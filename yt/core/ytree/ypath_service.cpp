@@ -5,6 +5,8 @@
 #include "ypath_client.h"
 #include "ypath_detail.h"
 
+#include <yt/core/profiling/timing.h>
+
 #include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/yson/async_consumer.h>
@@ -26,10 +28,12 @@ using namespace NConcurrency;
 class TFromProducerYPathService
     : public TYPathServiceBase
     , public TSupportsGet
+    , public ICachedYPathService
 {
 public:
-    explicit TFromProducerYPathService(TYsonProducer producer)
+    TFromProducerYPathService(TYsonProducer producer, TDuration cachePeriod)
         : Producer_(std::move(producer))
+        , CachePeriod_(cachePeriod)
     { }
 
     virtual TResolveResult Resolve(
@@ -44,9 +48,17 @@ public:
         }
     }
 
+    virtual void SetCachePeriod(TDuration period) override
+    {
+        CachePeriod_ = period;
+    }
+
 private:
     const TYsonProducer Producer_;
 
+    TYsonString CachedValue_;
+    TDuration CachePeriod_;
+    TInstant LastUpdateTime_;
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
@@ -81,6 +93,13 @@ private:
 
     TYsonString BuildStringFromProducer()
     {
+        if (CachePeriod_ == TDuration()) {
+            auto now = NProfiling::GetInstant();
+            if (LastUpdateTime_ + CachePeriod_ > now) {
+                return CachedValue_;
+            }
+        }
+
         TStringStream stream;
         TBufferedBinaryYsonWriter writer(&stream);
         Producer_.Run(&writer);
@@ -91,7 +110,14 @@ private:
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No data is available");
         }
 
-        return TYsonString(str);
+        auto result = TYsonString(str);
+
+        if (CachePeriod_ == TDuration()) {
+            CachedValue_ = result;
+            LastUpdateTime_ = NProfiling::GetInstant();
+        }
+
+        return result;
     }
 
     INodePtr BuildNodeFromProducer()
@@ -100,9 +126,9 @@ private:
     }
 };
 
-IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer)
+IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer, TDuration cachePeriod)
 {
-    return New<TFromProducerYPathService>(producer);
+    return New<TFromProducerYPathService>(producer, cachePeriod);
 }
 
 TYsonProducer IYPathService::ToProducer()
@@ -175,7 +201,7 @@ public:
             updatePeriod))
     {
         YCHECK(UnderlyingService_);
-        SetUpdatePeriod(updatePeriod);
+        SetCachePeriod(updatePeriod);
     }
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
@@ -183,7 +209,7 @@ public:
         return TResolveResultHere{path};
     }
 
-    virtual void SetUpdatePeriod(TDuration period)
+    virtual void SetCachePeriod(TDuration period)
     {
         if (period == TDuration::Zero()) {
             if (IsCacheEnabled_) {
