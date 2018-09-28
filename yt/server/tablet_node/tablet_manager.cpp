@@ -1917,8 +1917,8 @@ private:
 
         if (replicaInfo->GetState() != ETableReplicaState::Enabled) {
             THROW_ERROR_EXCEPTION("Replica %v is in %Qlv state",
-                replicaInfo->GetState(),
-                replicaId);
+                replicaId,
+                replicaInfo->GetState());
         }
 
         if (replicaInfo->GetPreparedReplicationTransactionId()) {
