@@ -101,10 +101,12 @@ public:
     TElectionManager(
         IInvokerPtr controlInvoker,
         IElectionCallbacksPtr callbacks,
-        TCellManagerPtr cellManager)
+        TCellManagerPtr cellManager,
+        NLogging::TLogger logger)
         : ControlInvoker_(std::move(controlInvoker))
         , Callbacks_(std::move(callbacks))
         , CellManager_(std::move(cellManager))
+        , Logger(std::move(logger))
     {
         CellManager_->SubscribePeerReconfigured(
             BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this))
@@ -149,6 +151,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IElectionCallbacksPtr Callbacks_;
     const TCellManagerPtr CellManager_;
+    const NLogging::TLogger Logger;
 
     TEpochId EpochId_;
     TEpochContextPtr EpochContext_;
@@ -157,6 +160,8 @@ private:
     void DoParticipate()
     {
         DoAbandon();
+
+        LOG_INFO("Starting election epoch");
 
         EpochContext_ = New<TEpochContext>();
         EpochContext_->LeaderId = GetLeaderId();
@@ -176,6 +181,8 @@ private:
             return;
         }
 
+        LOG_INFO("Abandoning election epoch");
+
         EpochContext_->CancelableContext->Cancel();
 
         if (IsLeader()) {
@@ -192,6 +199,9 @@ private:
         if (!EpochContext_) {
             return;
         }
+
+        LOG_INFO("Peer reconfigured (PeerId: %v)",
+            peerId);
 
         auto selfId = CellManager_->GetSelfPeerId();
         if (peerId == selfId || EpochContext_->LeaderId == selfId || EpochContext_->LeaderId == peerId) {
@@ -567,7 +577,8 @@ public:
             ElectionManager_ = New<TElectionManager>(
                 Bootstrap_->GetControlInvoker(),
                 HydraManager_->GetElectionCallbacks(),
-                CellManager_);
+                CellManager_,
+                Logger);
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             ElectionManager_->Initialize();
 
