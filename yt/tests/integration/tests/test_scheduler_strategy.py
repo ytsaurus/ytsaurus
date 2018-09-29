@@ -1423,23 +1423,30 @@ class TestSchedulerPools(YTEnvSetup):
         create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
 
-        time.sleep(2.0)
+        def check_events():
+            events = []
+            for row in read_table("//sys/scheduler/event_log"):
+                event_type = row["event_type"]
+                if event_type.startswith("operation_") and
+                    event_type != "operation_prepared" and
+                    event_type != "operation_materialized" and
+                    row["operation_id"] == op.id:
+                    events.append(row["event_type"])
+                    if event_type == "operation_started":
+                        assert row["pool"]
+            return events == ["operation_started", "operation_completed"]:
+        wait(lambda: check_events())
 
-        events = []
-        for row in read_table("//sys/scheduler/event_log"):
-            event_type = row["event_type"]
-            if event_type.startswith("operation_") and event_type != "operation_prepared" and row["operation_id"] == op.id:
-                events.append(row["event_type"])
-                if event_type == "operation_started":
-                    assert row["pool"]
-
-        assert events == ["operation_started", "operation_completed"]
-        pools_info = [row for row in read_table("//sys/scheduler/event_log")
-                      if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
-        assert len(pools_info) == 1
-        custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
-        assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
-        assert custom_pool_info["mode"] == "fair_share"
+        def check_pools():
+            pools_info = [row for row in read_table("//sys/scheduler/event_log")
+                          if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
+            if len(pools_info) != 1:
+                return False
+            custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
+            assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
+            assert custom_pool_info["mode"] == "fair_share"
+            return True
+        wait(lambda: check_pools())
 
     def run_vanilla_with_sleep(self, spec):
         spec["tasks"] = {
