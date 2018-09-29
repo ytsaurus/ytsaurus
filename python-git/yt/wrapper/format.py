@@ -312,30 +312,22 @@ class Format(object):
                     cl_dict[name].__doc__ = Format.__dict__[name].__doc__
 
     @staticmethod
-    def _process_input_rows(rows, process_table_index, control_attributes_mode,
+    def _process_input_rows(rows, control_attributes_mode,
                             extract_control_attributes, table_index_column_name, transform_column_name):
         table_index_attribute_name, row_index_attribute_name, range_index_attribute_name = \
             list(imap(transform_column_name, [b"table_index", b"row_index", b"range_index"]))
         table_index_column_name, range_index_column_name, row_index_column_name = \
             list(imap(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
 
-        if process_table_index is None:
-            if control_attributes_mode == "row_fields":
-                return rows_generator(rows, extract_control_attributes,
-                                      table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
-                                      table_index_column_name, row_index_column_name, range_index_column_name)
-            elif control_attributes_mode == "iterator":
-                return RowsIterator(rows, extract_control_attributes,
-                                    table_index_attribute_name, row_index_attribute_name, range_index_attribute_name)
-            else:
-                return rows
-        elif process_table_index:
+        if control_attributes_mode == "row_fields":
             return rows_generator(rows, extract_control_attributes,
                                   table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
                                   table_index_column_name, row_index_column_name, range_index_column_name)
+        elif control_attributes_mode == "iterator":
+            return RowsIterator(rows, extract_control_attributes,
+                                table_index_attribute_name, row_index_attribute_name, range_index_attribute_name)
         else:
             return rows
-
 
 class SkiffFormat(Format):
     """Efficient schemaful format
@@ -558,14 +550,12 @@ class YsonFormat(Format):
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
 
-    def __init__(self, format=None, process_table_index=None, control_attributes_mode=None,
+    def __init__(self, format=None, control_attributes_mode=None,
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
                  require_yson_bindings=None, lazy=None):
         """
         :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
-        :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
-         and `load_rows`. See `wiki <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_.
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
         ["row_fields", "iterator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
         as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
@@ -587,15 +577,11 @@ class YsonFormat(Format):
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
 
         if control_attributes_mode is None:
-            # Deprecated, only for transition period.
-            control_attributes_mode = os.environ.get("YT_YSON_CONTROL_ATTRIBUTES_MODE")
-        if control_attributes_mode is None:
             control_attributes_mode = "iterator"
 
         if control_attributes_mode not in ["row_fields", "iterator", "none"]:
             raise YtFormatError("Incorrect control attributes mode: {0}".format(control_attributes_mode))
 
-        self.process_table_index = process_table_index
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
@@ -637,7 +623,7 @@ class YsonFormat(Format):
         if raw:
             return rows
         else:
-            return self._process_input_rows(rows, self.process_table_index, self.control_attributes_mode,
+            return self._process_input_rows(rows, self.control_attributes_mode,
                                             control_attributes_extractor, self._coerced_table_index_column,
                                             self._coerce_column_key)
 
@@ -662,7 +648,7 @@ class YsonFormat(Format):
 
     def _dump_rows(self, rows, stream_or_streams):
         self._check_bindings()
-        if (self.process_table_index is None and self.control_attributes_mode == "row_fields") or self.process_table_index:
+        if self.control_attributes_mode == "row_fields":
             rows = self._process_output_rows(rows)
 
         kwargs = {}
@@ -941,11 +927,9 @@ class JsonFormat(Format):
 
         return JsonFormat._wrap_json_module(module)
 
-    def __init__(self, process_table_index=None, control_attributes_mode="generator",
+    def __init__(self, control_attributes_mode=None,
                  table_index_column="@table_index", attributes=None, raw=None, enable_ujson=False):
         """
-        :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
-         and `load_rows`. See `wiki <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_.
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
         ["row_fields", "iterator", "generator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
         as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
@@ -954,7 +938,10 @@ class JsonFormat(Format):
         """
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
-        self.process_table_index = process_table_index
+        
+        if control_attributes_mode is None:
+            control_attributes_mode = "iterator"
+
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
@@ -1004,7 +991,7 @@ class JsonFormat(Format):
         if raw:
             return rows
         else:
-            return self._process_input_rows(rows, self.process_table_index, self.control_attributes_mode,
+            return self._process_input_rows(rows, self.control_attributes_mode,
                                             control_attributes_extractor, self.table_index_column,
                                             to_native_str)
 
@@ -1026,7 +1013,7 @@ class JsonFormat(Format):
             yield row
 
     def _dump_rows(self, rows, stream_or_streams):
-        if (self.process_table_index is None and self.control_attributes_mode == "row_fields") or self.process_table_index:
+        if self.control_attributes_mode == "row_fields":
             rows = self._process_output_rows(rows)
 
         if not isinstance(stream_or_streams, list):

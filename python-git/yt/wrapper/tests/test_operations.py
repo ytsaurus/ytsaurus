@@ -320,7 +320,7 @@ class TestOperations(object):
 
         yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
                       reduce_by=["x","y"], join_by=["x"],
-                      format=yt.YsonFormat(process_table_index=None))
+                      format=yt.YsonFormat())
         check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
         # Reduce with join_by, but without foreign tables
