@@ -1427,14 +1427,14 @@ class TestSchedulerPools(YTEnvSetup):
             events = []
             for row in read_table("//sys/scheduler/event_log"):
                 event_type = row["event_type"]
-                if event_type.startswith("operation_") and
-                    event_type != "operation_prepared" and
-                    event_type != "operation_materialized" and
+                if event_type.startswith("operation_") and \
+                    event_type != "operation_prepared" and \
+                    event_type != "operation_materialized" and \
                     row["operation_id"] == op.id:
                     events.append(row["event_type"])
                     if event_type == "operation_started":
                         assert row["pool"]
-            return events == ["operation_started", "operation_completed"]:
+            return events == ["operation_started", "operation_completed"]
         wait(lambda: check_events())
 
         def check_pools():
