@@ -109,8 +109,7 @@ public:
         , Logger(std::move(logger))
     {
         CellManager_->SubscribePeerReconfigured(
-            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this))
-                .Via(ControlInvoker_));
+            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this)));
     }
 
     virtual void Initialize() override
