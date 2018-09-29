@@ -64,7 +64,7 @@ def _add_binaries_to_path():
 
 def _which_yt_binaries():
     result = {}
-    binaries = ["ytserver", "ytserver-master", "ytserver-node", "ytserver-scheduler"]
+    binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
     for binary in binaries:
         if which(binary):
             version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)
@@ -170,17 +170,9 @@ class YTInstance(object):
         self._use_porto_for_servers = use_porto_for_servers
 
         self._binaries = _which_yt_binaries()
-        if "ytserver" in self._binaries:
-            # Pre-19 era.
-            logger.info('Using single binary "ytserver"')
-            logger.info("  ytserver  %s", self._binaries["ytserver"].literal)
-
-            self.abi_version = self._binaries["ytserver"].abi
-        elif (
-            "ytserver-master" in self._binaries and
+        if ("ytserver-master" in self._binaries and
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
-            # Post-19 era.
             logger.info("Using multiple YT binaries with the following versions:")
             logger.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
             logger.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
@@ -191,7 +183,7 @@ class YTInstance(object):
                 raise YtError("Mismatching YT versions. Make sure that all binaries are of compatible versions.")
             self.abi_version = abi_versions.pop()
         else:
-            raise YtError("Failed to find YT binaries (ytserver, ytserver-*) in $PATH. Make sure that YT is installed.")
+            raise YtError("Failed to find YT binaries (ytserver-*) in $PATH. Make sure that YT is installed.")
 
         valid_driver_backends = ("native", "rpc")
         if driver_backend not in valid_driver_backends:
@@ -742,13 +734,6 @@ class YTInstance(object):
             self._all_processes[p.pid] = (p, args)
             self._append_pid(p.pid)
 
-    def _supports_pdeath_signal(self):
-        if hasattr(self, "_supports_pdeath_signal_result"):
-            return self._supports_pdeath_signal_result
-        help_output = subprocess.check_output(["ytserver", "--help"])
-        self._supports_pdeath_signal_result = "--pdeath-signal" in help_output
-        return self._supports_pdeath_signal_result
-
     def _run_yt_component(self, component, name=None):
         if name is None:
             name = component
@@ -758,11 +743,7 @@ class YTInstance(object):
         for i in xrange(len(self.configs[name])):
             args = None
             cgroup_paths = None
-            if self.abi_version[0] == 18:
-                args = ["ytserver", "--" + component]
-                if self._kill_child_processes and self._supports_pdeath_signal():
-                    args.extend(["--pdeath-signal", str(signal.SIGTERM)])
-            elif self.abi_version[0] == 19:
+            if self.abi_version[0] == 19:
                 args = ["ytserver-" + component]
                 if self._kill_child_processes:
                     args.extend(["--pdeathsig", str(signal.SIGKILL)])
