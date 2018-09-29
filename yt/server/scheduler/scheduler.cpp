@@ -332,9 +332,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
-        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(GetControlInvoker(EControlQueue::Orchid))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -342,9 +340,12 @@ public:
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
         auto combinedOrchidService = New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)},
+            std::vector<IYPathServicePtr>{
+                staticOrchidService->Via(GetControlInvoker(EControlQueue::Orchid)),
+                std::move(dynamicOrchidService)
+            },
             Config_->OrchidKeysUpdatePeriod);
-        CombinedOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(combinedOrchidService.Get()));
+        CombinedOrchidService_.Reset(combinedOrchidService.Get());
         YCHECK(CombinedOrchidService_);
         return combinedOrchidService;
     }
@@ -1308,7 +1309,7 @@ private:
     INodePtr OperationsEffectiveAcl_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
-    TIntrusivePtr<NYTree::ICachedYPathService> CombinedOrchidService_;
+    TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1861,7 +1862,7 @@ private:
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
-            StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+            StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
             CombinedOrchidService_->SetUpdatePeriod(Config_->OrchidKeysUpdatePeriod);
 
             Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
