@@ -65,17 +65,6 @@ def _get_statistic_from_output_tables(statistic, output):
     return sum(table[statistic] for table in itervalues(output))
 
 
-def _trim_statistics_tree(tree):
-    """Remove sum/min/max/count fields on the lower level of statistics tree"""
-    if not hasattr(tree, "items"):
-        return
-    for key, branch in iteritems(tree):
-        if isinstance(branch, Iterable) and "sum" in branch:
-            tree[key] = branch["sum"]
-        else:
-            _trim_statistics_tree(branch)
-            
-
 def _nested_dict_find(data, path):
     cur_data = data
     path_segments = path.split("/")
@@ -91,15 +80,13 @@ def _aggregate(jobset, func, statistic):
 
 
 def _get_statistics(job_info, statistic):
-    path_segments = statistic.split("/")
-    if path_segments[0] != "statistics" and path_segments[0] != "$":
+    if statistic.startswith("statistics/"):
+        statistic = statistic.replace("statistics", "$", 1)
+    if statistic.startswith("$/"):
+        statistic_id = JobInfo.statistic_ids.get(statistic, -1)
+        return job_info.statistics.get(statistic_id, None)
+    else:
         return getattr(job_info, statistic, None)
-    data = getattr(job_info, "statistics")
-    for segment in path_segments[1:]:
-        if not isinstance(data, Iterable) or segment not in data:
-            return None
-        data = data[segment]
-    return data
 
 
 def _data_is_correct(jobsets, statistic=None):
@@ -158,9 +145,11 @@ def _get_hline(x0=0, x1=0, y=0, color="green", name="", showlegend=True, visible
 @total_ordering
 class JobInfo(object):
     """Object for job representation"""
+    statistic_ids = {}
+    
     def __init__(self, job_info, operation_start=0):
-        _trim_statistics_tree(job_info["statistics"])
-        self.statistics = job_info["statistics"]
+        self.statistics = {}
+        self.tree_traversal(job_info["statistics"], "$")
         
         self.operation_start = float(operation_start)
         self.start_time = float(_get_event_time("created", job_info["events"]) - operation_start)
@@ -214,7 +203,22 @@ class JobInfo(object):
         self.input_busy_time = float(_nested_dict_find(
             job_info["statistics"], "user_job/pipes/input/busy_time"
         )) / 1000
-        
+    
+    def insert_statistic(self, statistic, value):
+        if statistic not in JobInfo.statistic_ids:
+            JobInfo.statistic_ids[statistic] = len(JobInfo.statistic_ids)
+        self.statistics[JobInfo.statistic_ids[statistic]] = value
+    
+    def tree_traversal(self, tree, path):
+        if not hasattr(tree, "items"):
+            self.insert_statistic(path, tree)
+            return
+        for key, branch in iteritems(tree):
+            if isinstance(branch, Iterable) and "sum" in branch:
+                self.insert_statistic("{}/{}".format(path, key), branch["sum"])
+                tree[key] = branch["sum"]
+            else:
+                self.tree_traversal(branch, "{}/{}".format(path, key))
     
     def __str__(self):
         return "{}: {} [{} - {}]".format(
