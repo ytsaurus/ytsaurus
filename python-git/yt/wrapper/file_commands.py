@@ -1,7 +1,6 @@
 import yt.logger as logger
 from .config import get_config, get_option, get_backend_type
-from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value, \
-                    update, remove_nones_from_dict
+from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request

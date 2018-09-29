@@ -35,7 +35,7 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 """
 
 from .table_helpers import _are_default_empty_table, _remove_tables
-from .common import update, is_prefix, get_value, forbidden_inside_job, remove_nones_from_dict
+from .common import is_prefix, get_value, forbidden_inside_job
 from .retries import Retrier
 from .config import get_config, get_command_param
 from .cypress_commands import get, remove, _make_formatted_transactional_request

@@ -1,6 +1,5 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import (require, get_value, total_seconds, generate_uuid, update,
-                     remove_nones_from_dict)
+from .common import require, get_value, total_seconds, generate_uuid
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut,
