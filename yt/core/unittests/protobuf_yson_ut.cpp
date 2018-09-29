@@ -263,6 +263,12 @@ TEST(TYsonToProtobufTest, Failure)
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
+            .BeginList()
+            .EndList();
+    }, "/");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
             .BeginMap()
                 .Item("int32_field").Value(true)
             .EndMap();

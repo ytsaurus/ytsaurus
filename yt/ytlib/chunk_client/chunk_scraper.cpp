@@ -116,7 +116,7 @@ private:
 
         LocateFuture_ = Throttler_->Throttle(chunkCount)
             .Apply(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this))
-                .Via(Invoker_));
+                .AsyncVia(Invoker_));
     }
 
     void DoLocateChunks(const TError& error)
@@ -141,7 +141,6 @@ private:
         auto startIndex = NextChunkIndex_;
         auto req = Proxy_.LocateChunks();
         req->SetHeavy(true);
-
 
         constexpr int maxSampleChunkCount = 5;
         SmallVector<TChunkId, maxSampleChunkCount> sampleChunkIds;

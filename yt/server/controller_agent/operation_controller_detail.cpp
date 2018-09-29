@@ -616,13 +616,15 @@ void TOperationControllerBase::InitializeOrchid()
 {
     auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            auto strongThis = weakThis.Lock();
-            if (!strongThis) {
-                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
-            }
-            BuildYsonFluently(consumer)
-                .Do(fluentMethod);
-        }));
+                auto strongThis = weakThis.Lock();
+                if (!strongThis) {
+                    THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
+                }
+                BuildYsonFluently(consumer)
+                    .Do(fluentMethod);
+            }),
+            Config->ControllerStaticOrchidUpdatePeriod
+        );
     };
 
     // Methods like BuildProgress, BuildBriefProgress, buildJobsYson and BuildJobSplitterInfo build map fragment,
@@ -639,8 +641,7 @@ void TOperationControllerBase::InitializeOrchid()
 
     auto createCachedMapService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return createService(wrapWithMap(std::move(fluentMethod)))
-            ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default))
-            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
+            ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
     };
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
@@ -1389,6 +1390,18 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         GetByteSize(snapshot.Blocks),
         snapshot.Blocks.size(),
         snapshot.Version);
+
+    // Snapshot loading must be synchronous.
+    TOneShotContextSwitchGuard guard(
+        BIND([this, this_ = MakeStrong(this)] {
+            TStringBuilder stackTrace;
+            DumpStackTrace([&stackTrace] (const char* buffer, int length) {
+                stackTrace.AppendString(TStringBuf(buffer, length));
+            });
+            LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
+                stackTrace.Flush());
+        })
+    );
 
     TChunkedInputStream input(snapshot.Blocks);
 
@@ -5273,7 +5286,8 @@ void TOperationControllerBase::ParseInputQuery(
         }
 
         if (!Config->UdfRegistryPath) {
-            THROW_ERROR_EXCEPTION("External UDF registry is not configured");
+            THROW_ERROR_EXCEPTION("External UDF registry is not configured")
+                << TErrorAttribute("extenal_names", externalNames);
         }
 
         auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetClient());

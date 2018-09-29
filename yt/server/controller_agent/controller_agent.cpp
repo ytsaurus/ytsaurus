@@ -170,9 +170,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
-        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(Bootstrap_->GetControlInvoker())
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -180,7 +178,10 @@ public:
             ->Via(Bootstrap_->GetControlInvoker());
 
         return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)});
+            std::vector<IYPathServicePtr>{
+                staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
+                std::move(dynamicOrchidService)
+            });
     }
 
     bool IsConnected() const
@@ -292,7 +293,7 @@ public:
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
-        StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+        StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
 
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;

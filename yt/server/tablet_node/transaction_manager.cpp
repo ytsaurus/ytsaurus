@@ -157,9 +157,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
 
-        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)))
-            ->Via(Slot_->GetGuardedAutomatonInvoker())
-            ->Cached(TDuration::Seconds(1));
+        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
+            ->Via(Slot_->GetGuardedAutomatonInvoker());
     }
 
     std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
