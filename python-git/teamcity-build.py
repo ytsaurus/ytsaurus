@@ -291,8 +291,7 @@ def build_packages(options):
         return
 
     packages = ["yandex-yt-python", "yandex-yt-python-tools",
-                "yandex-yt-transfer-manager-client",
-                "yandex-yt-fennel", "yandex-yt-local"]
+                "yandex-yt-transfer-manager-client", "yandex-yt-local"]
 
     for package in packages:
         with cwd(options.checkout_directory, package):
