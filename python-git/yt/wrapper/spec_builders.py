@@ -3,7 +3,7 @@ from .batch_response import apply_function_to_result
 from .config import get_config
 from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
                      get_value, unlist, get_started_by, bool_to_string,
-                     parse_bool, is_prefix, require, YtError, update, deprecated)
+                     parse_bool, is_prefix, require, YtError, update)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
