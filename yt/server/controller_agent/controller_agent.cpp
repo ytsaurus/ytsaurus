@@ -470,7 +470,7 @@ public:
         const auto& controller = operation->GetController();
         if (controller) {
             WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
-                .AsyncVia(controller->GetInvoker())
+                .AsyncVia(controller->GetCancelableInvoker())
                 .Run())
                 .ThrowOnError();
         }
