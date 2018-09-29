@@ -183,14 +183,14 @@ def test_yamr_record_index():
     assert list(format.load_rows(BytesIO(data))) == records
 
 def test_json_format():
-    format = yt.JsonFormat(process_table_index=False, enable_ujson=False)
+    format = yt.JsonFormat(enable_ujson=False)
     check_format(format, b'{"a": 1}', {"a": 1})
 
     stream = BytesIO(b'{"a": 1}\n{"b": 2}')
     assert list(format.load_rows(stream)) == [{"a": 1}, {"b": 2}]
 
 def test_json_format_table_index():
-    format = yt.JsonFormat(process_table_index=True, enable_ujson=False)
+    format = yt.JsonFormat(control_attributes_mode="row_fields", enable_ujson=False)
 
     stream = BytesIO()
     format.dump_rows([{"a": 1, "@table_index": 1}], stream)
@@ -202,7 +202,7 @@ def test_json_format_table_index():
                                       b'{"a": 1}')))
 
 def test_json_format_row_index():
-    format = yt.JsonFormat(process_table_index=None, control_attributes_mode="row_fields", enable_ujson=False)
+    format = yt.JsonFormat(control_attributes_mode="row_fields", enable_ujson=False)
     assert [{"@table_index": 1, "@row_index": 5, "a": 1},
             {"@table_index": 1, "@row_index": 6, "a": 2}] == \
         list(format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1, "row_index": 5}}\n'
@@ -210,7 +210,7 @@ def test_json_format_row_index():
                                       b'{"a": 2}')))
 
 def test_json_format_row_iterator():
-    format = yt.JsonFormat(process_table_index=None, control_attributes_mode="iterator", enable_ujson=False)
+    format = yt.JsonFormat(control_attributes_mode="iterator", enable_ujson=False)
     iterator = format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1, "row_index": 5}}\n'
                                         b'{"a": 1}\n'
                                         b'{"a": 2}'))

@@ -245,7 +245,7 @@ class TestTableCommands(object):
             schema = '<schema=[{"name"="x";"type"="int64"}; {"name"="y";"type"="int64"}; {"name"="z";"type"="int64"}]>'
             return list(yt.select_rows(
                 "* from [{0}{1}]".format(schema, table),
-                format=yt.YsonFormat(format="text", process_table_index=False),
+                format=yt.YsonFormat(format="text"),
                 raw=False))
 
         yt.remove(table, force=True)
