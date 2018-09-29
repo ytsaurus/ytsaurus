@@ -108,35 +108,49 @@ public:
         , CellManager_(std::move(cellManager))
         , Logger(std::move(logger))
     {
+        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+
         CellManager_->SubscribePeerReconfigured(
             BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this)));
     }
 
     virtual void Initialize() override
-    { }
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+    }
 
     virtual void Finalize() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         Abandon();
     }
 
     virtual void Participate() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         ControlInvoker_->Invoke(BIND(&TElectionManager::DoParticipate, MakeStrong(this)));
     }
 
     virtual void Abandon() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         ControlInvoker_->Invoke(BIND(&TElectionManager::DoAbandon, MakeStrong(this)));
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         Y_UNREACHABLE();
     }
 
     void SetEpochId(const TEpochId& epochId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(epochId);
         if (EpochId_ == epochId) {
             return;
@@ -155,9 +169,13 @@ private:
     TEpochId EpochId_;
     TEpochContextPtr EpochContext_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 
     void DoParticipate()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         DoAbandon();
 
         LOG_INFO("Starting election epoch");
@@ -176,6 +194,8 @@ private:
 
     void DoAbandon()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!EpochContext_) {
             return;
         }
@@ -195,6 +215,8 @@ private:
 
     void OnPeerReconfigured(TPeerId peerId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!EpochContext_) {
             return;
         }
