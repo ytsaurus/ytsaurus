@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param, update, remove_nones_from_dict
+from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
