@@ -470,7 +470,9 @@ public:
         const auto& controller = operation->GetController();
         if (controller) {
             WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
-                .AsyncVia(controller->GetCancelableInvoker())
+                // It is called in regular invoker since controller is canceled
+                // but we want to make some final actions.
+                .AsyncVia(controller->GetInvoker())
                 .Run())
                 .ThrowOnError();
         }
