@@ -116,7 +116,7 @@ def download_file(path, destination_path):
 
 def download_table(path, destination_path):
     with open(destination_path, "wb") as f:
-        for r in yt.read_table(path, format=yson.dumps(path.attributes["format"]), raw=True):
+        for r in yt.read_table(path, format=path.attributes["format"], raw=True):
             f.write(r)
 
 def run_job(job_path):
