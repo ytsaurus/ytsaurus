@@ -338,6 +338,14 @@ def gather_build_info(options, build_context):
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(get_bin_dir(options), binary)
+        if options.build_system == "ya":
+            # Binaries in bindir are hardlinks to files stored in ya cache directory.
+            # we don't want to change their owner and permissions since
+            # it will also affect files in ya cache directory.
+            # That can make ya crazy. So we replace hard links with real copy of these files.
+            copy_path = path + ".copy"
+            shutil.copy(path, copy_path)
+            shutil.move(copy_path, path)
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
