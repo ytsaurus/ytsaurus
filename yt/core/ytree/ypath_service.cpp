@@ -93,7 +93,7 @@ private:
 
     TYsonString BuildStringFromProducer()
     {
-        if (CachePeriod_ == TDuration()) {
+        if (CachePeriod_ != TDuration()) {
             auto now = NProfiling::GetInstant();
             if (LastUpdateTime_ + CachePeriod_ > now) {
                 return CachedValue_;
@@ -112,7 +112,7 @@ private:
 
         auto result = TYsonString(str);
 
-        if (CachePeriod_ == TDuration()) {
+        if (CachePeriod_ != TDuration()) {
             CachedValue_ = result;
             LastUpdateTime_ = NProfiling::GetInstant();
         }
