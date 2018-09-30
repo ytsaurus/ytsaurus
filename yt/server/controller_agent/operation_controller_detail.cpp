@@ -6101,7 +6101,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
 
 void TOperationControllerBase::Dispose()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
     LOG_INFO("Releasing jobs on controller disposal (HeadCookie: %v)",
