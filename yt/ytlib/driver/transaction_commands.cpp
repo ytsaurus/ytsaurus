@@ -61,6 +61,8 @@ void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
 
     if (!Options.Sticky) {
         transaction->Detach();
+    } else {
+        context->GetDriver()->GetStickyTransactionPool()->RegisterTransaction(transaction);
     }
 
     ProduceSingleOutputValue(context, "transaction_id", transaction->GetId());
