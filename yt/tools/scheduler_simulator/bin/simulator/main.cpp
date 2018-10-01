@@ -10,33 +10,15 @@
 #include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/core/misc/shutdown.h>
+#include <yt/core/logging/public.h>
 
-#include <yt/core/logging/config.h>
-#include <yt/core/logging/log_manager.h>
-
-#include <yt/core/profiling/timing.h>
-
-#include <yt/core/yson/lexer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/null_consumer.h>
-#include <yt/core/yson/stream.h>
-
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_pool.h>
 
+#include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/property.h>
 
-#include <util/stream/buffered.h>
-#include <util/stream/file.h>
-
-#include <fstream>
-#include <atomic>
 
 namespace NYT {
 
