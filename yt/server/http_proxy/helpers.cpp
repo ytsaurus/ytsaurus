@@ -49,7 +49,6 @@ TNullable<TString> GatherHeader(const THeadersPtr& headers, const TString& heade
             buffer += *part;
             continue;
         }
-        
 
         if (i == 0) {
             return {};
@@ -80,11 +79,6 @@ std::vector<TStringBuf> TokenizeQueryArgumentName(TStringBuf argument)
                 << TErrorAttribute("argument", argument);
         }
 
-        if (openBracket + 1 == closingBracket) {
-            THROW_ERROR_EXCEPTION("Empty key inside a bracket in query argument name")
-                << TErrorAttribute("argument", argument);
-        }
-
         parts.push_back(argument.substr(openBracket + 1, closingBracket - openBracket - 1));
         openBracket = closingBracket + 1;
 
@@ -105,19 +99,23 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
 
     const int MaxListSize = 128;
     for (size_t i = 0; i < at.size(); ++i) {
-        i64 intValue;
-        if (TryFromString(at[i], intValue)) {
+        i64 intValue = 0;
+        if (at[i] == "" || TryFromString(at[i], intValue)) {
             if (intValue < 0 || intValue > MaxListSize) {
                 THROW_ERROR_EXCEPTION("Invalid list index in query argument")
                     << TErrorAttribute("index", intValue);
             }
-        
+
             if (!current) {
                 current = factory->CreateList();
                 linkBack(current);
             }
 
             auto listNode = current->AsList();
+            if (at[i] == "") {
+                intValue = listNode->GetChildCount();
+            }
+
             current = listNode->FindChild(intValue);
             linkBack = [intValue, listNode] (const INodePtr& node) {
                 listNode->AddChild(node, intValue);
@@ -178,7 +176,7 @@ INodePtr DecodeAttributesFromJson(INodePtr node)
             return mapNode;
         }
         mapNode->RemoveChild("$value");
-        
+
         auto attributes = mapNode->FindChild("$attributes");
         if (attributes) {
             mapNode->RemoveChild("$attributes");
