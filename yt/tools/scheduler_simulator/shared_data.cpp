@@ -457,5 +457,5 @@ void TSharedSchedulingStrategy::DoUpdateAndLogAt(TInstant updateTime)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NSchedulerSimulator
-} // namesapce NYT
+} // namespace NSchedulerSimulator
+} // namespace NYT

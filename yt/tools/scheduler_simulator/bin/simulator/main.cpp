@@ -183,7 +183,7 @@ void Run(const char* configFilename)
 
     LOG_INFO("Discovered %v nodes", execNodes.size());
 
-    YCHECK(execNodes.size() > 0);
+    YCHECK(!execNodes.empty());
 
     const auto operations = LoadOperations();
     const auto operationDescriptions = CreateOperationDescriptions(operations);
