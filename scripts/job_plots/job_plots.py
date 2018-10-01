@@ -63,7 +63,7 @@ def _get_event_time(phase, events):
 def _get_statistic_from_output_tables(statistic, output):
     """Get particular statistic from all output tables as a list"""
     return sum(table[statistic] for table in itervalues(output))
-
+            
 
 def _nested_dict_find(data, path):
     cur_data = data
@@ -149,7 +149,7 @@ class JobInfo(object):
     
     def __init__(self, job_info, operation_start=0):
         self.statistics = {}
-        self.tree_traversal(job_info["statistics"], "$")
+        self._flatten_statistics_tree(job_info["statistics"], "$")
         
         self.operation_start = float(operation_start)
         self.start_time = float(_get_event_time("created", job_info["events"]) - operation_start)
@@ -204,21 +204,21 @@ class JobInfo(object):
             job_info["statistics"], "user_job/pipes/input/busy_time"
         )) / 1000
     
-    def insert_statistic(self, statistic, value):
+    def _insert_statistic(self, statistic, value):
         if statistic not in JobInfo.statistic_ids:
             JobInfo.statistic_ids[statistic] = len(JobInfo.statistic_ids)
         self.statistics[JobInfo.statistic_ids[statistic]] = value
     
-    def tree_traversal(self, tree, path):
-        if not hasattr(tree, "items"):
-            self.insert_statistic(path, tree)
+    def _flatten_statistics_tree(self, tree, path):
+        if not isinstance(tree, Iterable):
+            self._insert_statistic(path, tree)
             return
         for key, branch in iteritems(tree):
             if isinstance(branch, Iterable) and "sum" in branch:
-                self.insert_statistic("{}/{}".format(path, key), branch["sum"])
+                self._insert_statistic("{}/{}".format(path, key), branch["sum"])
                 tree[key] = branch["sum"]
             else:
-                self.tree_traversal(branch, "{}/{}".format(path, key))
+                self._flatten_statistics_tree(branch, "{}/{}".format(path, key))
     
     def __str__(self):
         return "{}: {} [{} - {}]".format(
