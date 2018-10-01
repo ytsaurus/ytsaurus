@@ -34,7 +34,8 @@ const TNullable<TString>& TPoolName::GetParentPool() const
     return ParentPool;
 }
 
-TPoolName TPoolName::FromString(const TString& value) {
+TPoolName TPoolName::FromString(const TString& value)
+{
     std::vector<TString> parts;
     SplitStringTo(value, DELIMITER, &parts);
     switch (parts.size()) {
