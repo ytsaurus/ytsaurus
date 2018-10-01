@@ -12,6 +12,7 @@
 
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/connection.h>
+#include <yt/client/api/sticky_transaction_pool.h>
 
 #include <yt/core/yson/null_consumer.h>
 
@@ -107,6 +108,7 @@ public:
         : TSyncSlruCacheBase(config->ClientCache)
         , Config_(std::move(config))
         , Connection_(std::move(connection))
+        , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
         YCHECK(Config_);
         YCHECK(Connection_);
@@ -334,6 +336,11 @@ public:
         Connection_->ClearMetadataCaches();
     }
 
+    virtual IStickyTransactionPoolPtr GetStickyTransactionPool() override
+    {
+        return StickyTransactionPool_;
+    }
+
     virtual IConnectionPtr GetConnection() override
     {
         return Connection_;
@@ -362,6 +369,8 @@ private:
     const TDriverConfigPtr Config_;
 
     IConnectionPtr Connection_;
+
+    const IStickyTransactionPoolPtr StickyTransactionPool_;
 
     struct TCommandEntry
     {
@@ -446,8 +455,7 @@ private:
             return Client_;
         }
 
-        virtual const IDriverPtr& GetDriver() override
-        {
+        virtual const IDriverPtr& GetDriver() override {
             return Driver_;
         }
 
@@ -515,7 +523,6 @@ private:
 
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;
-
     };
 };
 

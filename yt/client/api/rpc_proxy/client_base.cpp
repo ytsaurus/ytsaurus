@@ -116,9 +116,6 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
                 pingPeriod,
                 sticky);
 
-            if (sticky) {
-                return connection->RegisterStickyTransaction(transaction);
-            }
             return transaction;
         }));
 }

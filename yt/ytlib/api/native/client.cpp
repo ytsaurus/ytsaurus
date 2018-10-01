@@ -472,9 +472,6 @@ public:
         return TransactionManager_->Start(type, options).Apply(
             BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) {
                 auto wrappedTransaction = CreateTransaction(this_, transaction, Logger);
-                if (options.Sticky) {
-                    Connection_->RegisterStickyTransaction(wrappedTransaction);
-                }
                 return wrappedTransaction;
             }));
     }
@@ -483,12 +480,8 @@ public:
         const TTransactionId& transactionId,
         const TTransactionAttachOptions& options) override
     {
-        if (options.Sticky) {
-            return Connection_->GetStickyTransaction(transactionId);
-        } else {
-            auto wrappedTransaction = TransactionManager_->Attach(transactionId, options);
-            return CreateTransaction(this, std::move(wrappedTransaction), Logger);
-        }
+        auto wrappedTransaction = TransactionManager_->Attach(transactionId, options);
+        return CreateTransaction(this, std::move(wrappedTransaction), Logger);
     }
 
     virtual TFuture<NApi::ITransactionPtr> StartTransaction(
