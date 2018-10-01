@@ -75,5 +75,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NSchedulerSimulator
-} // namesapce NYT
+} // namespace NSchedulerSimulator
+} // namespace NYT
