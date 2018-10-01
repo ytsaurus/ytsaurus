@@ -102,8 +102,8 @@ def print_pretty(fout, obj, depth, indent=0):
         return
     if isinstance(obj, yson.YsonList):
         write(get_path(obj))
-        write(yson.dumps(format(obj.attributes.get("erasure_stat", {})), indent="  "))
-        write(yson.dumps(format(obj.attributes.get("compression_stat", {})), indent="  "))
+        write(yson.dumps(format(obj.attributes.get("erasure_stat", {})), indent=2))
+        write(yson.dumps(format(obj.attributes.get("compression_stat", {})), indent=2))
         fout.write("\n")
     for value in obj:
         print_pretty(fout, value, depth - 1, indent + 8)
