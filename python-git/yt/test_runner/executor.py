@@ -36,7 +36,9 @@ class Executor(object):
         self.config = config
 
     def _send_to_channel(self, data_type, data):
+        logger.debug("Start sending event to channel (EventType: %s, DataSize: %d)", data_type, len(str(data)))
         self.channel.send({"type": data_type, "data": data})
+        logger.debug("End sending event to channel (EventType: %s)", data_type)
 
     def pytest_collection_finish(self, session):
         logger.info("Sending discovered test count to master")
@@ -106,13 +108,16 @@ class Executor(object):
             if sys.version_info[0] < 3:
                 stderr = stderr.encode("utf-8")
 
-            with open(os.path.join(path, file_name), "a") as fout:
+            file_path = os.path.join(path, file_name)
+            logger.debug("Start writing stderr to file (Path: %s, Size: %d)", file_path, len(stderr))
+            with open(file_path, "a") as fout:
                 fout.write(stderr + "\n")
+            logger.debug("End writing stderr to file (Path %s)", file_path)
 
         self._send_to_channel("report", _serialize_report(report))
 
 def _configure_logger(config):
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     logger.propagate = False
     if not logger.handlers:
         if config.option.debug:
