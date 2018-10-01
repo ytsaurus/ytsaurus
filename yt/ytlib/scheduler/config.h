@@ -36,7 +36,8 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolName {
+class TPoolName
+{
 public:
     TPoolName();
     TPoolName(TString pool, TNullable<TString> parent);
