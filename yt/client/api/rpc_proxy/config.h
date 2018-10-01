@@ -35,6 +35,7 @@ public:
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
     bool EnableStickyTransactionPool;
+    bool EnableProxyDiscovery;
 
     TConnectionConfig();
 };
