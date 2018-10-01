@@ -47,6 +47,10 @@ private:
     const int WorkerId_;
 
     NLogging::TLogger Logger;
+
+    void OnHeartbeat(const TSchedulerEvent& event);
+    void OnOperationStarted(const TSchedulerEvent& event);
+    void OnJobFinished(const TSchedulerEvent& event);
 };
 
 } // namespace NSchedulerSimulator
