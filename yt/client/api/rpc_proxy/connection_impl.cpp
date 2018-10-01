@@ -147,7 +147,9 @@ TConnection::TConnection(TConnectionConfigPtr config)
     DiscoveryPromise_ = NewPromise<std::vector<TString>>();
     ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
 
-    if (!Config_->Addresses.empty()) {
+    if (!Config_->EnableProxyDiscovery) {
+        DiscoveryPromise_.Set(Config_->Addresses);
+    } else if (!Config_->Addresses.empty()) {
         UpdateProxyListExecutor_->Start();
     }
 }
