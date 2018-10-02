@@ -849,6 +849,23 @@ class TestControllerAgent(YTEnvSetup):
     def _wait_for_state(self, op, state):
         wait(lambda: get("//sys/operations/" + op.id + "/@state") == state)
 
+    @flaky(max_runs=3)
+    def test_connection_time():
+        def get_connection_time():
+            controller_agents = ls("//sys/controller_agents")
+            assert len(controller_agents) == 1
+            return datetime.strptime(get("//sys/controller_agents/{}/@connection_time").format(controller_agents[0]), "%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+        time.sleep(3)
+
+        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
+
+        self.Env.kill_controller_agents()
+        self.Env.start_controller_agents()
+
+        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
+
     def test_abort_operation_without_controller_agent(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
