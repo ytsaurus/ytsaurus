@@ -277,6 +277,10 @@ struct TRichYPath
     // Allows to start cross-transactional operations.
     FLUENT_FIELD_OPTION(TTransactionId, TransactionId);
 
+    // Specifies columnar mapping which will be applied to columns before transfer to job.
+    using TRenameColumnsDescriptor = THashMap<TString, TString>;
+    FLUENT_FIELD_OPTION(TRenameColumnsDescriptor, RenameColumns);
+
     TRichYPath()
     { }
 

@@ -216,6 +216,14 @@ void Deserialize(TReadRange& readRange, const TNode& node)
     DESERIALIZE_ITEM("exact", readRange.Exact_);
 }
 
+void Serialize(const THashMap<TString, TString>& renameColumns, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .DoMapFor(renameColumns, [] (TFluentMap fluent, const auto& item) {
+            fluent.Item(item.first).Value(item.second);
+        });
+}
+
 void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginAttributes()
@@ -270,6 +278,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.TransactionId_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("transaction_id").Value(GetGuidAsString(*path.TransactionId_));
         })
+        .DoIf(path.RenameColumns_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("rename_columns").Value(*path.RenameColumns_);
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
@@ -294,6 +305,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("erasure_codec", path.ErasureCodec_);
     DESERIALIZE_ATTR("optimize_for", path.OptimizeFor_);
     DESERIALIZE_ATTR("transaction_id", path.TransactionId_);
+    DESERIALIZE_ATTR("rename_columns", path.RenameColumns_);
     Deserialize(path.Path_, node);
 }
 

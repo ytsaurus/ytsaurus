@@ -85,7 +85,12 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
                 CreateSimpleTypeSchema(EWireType::Nothing),
                 CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type_))});
         }
-        skiffColumn->SetName(column.Name_);
+        if (options.RenameColumns_) {
+            auto maybeName = options.RenameColumns_->find(column.Name_);
+            skiffColumn->SetName(maybeName == options.RenameColumns_->end() ? column.Name_ : maybeName->second);
+        } else {
+            skiffColumn->SetName(column.Name_);
+        }
         skiffColumns.push_back(skiffColumn);
     }
 
@@ -250,7 +255,13 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
             default:
                 Y_FAIL("Unexpected node reader format: %d", static_cast<int>(nodeReaderFormat));
         }
-        schemas.push_back(CreateSkiffSchema(attributes["schema"], options));
+        if (tablePaths[tableIndex].RenameColumns_) {
+            auto customOptions = options;
+            customOptions.RenameColumns(*tablePaths[tableIndex].RenameColumns_);
+            schemas.push_back(CreateSkiffSchema(attributes["schema"], customOptions));
+        } else {
+            schemas.push_back(CreateSkiffSchema(attributes["schema"], options));
+        }
     }
     return NSkiff::CreateVariant16Schema(std::move(schemas));
 }
