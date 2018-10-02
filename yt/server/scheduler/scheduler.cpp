@@ -332,7 +332,9 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
-        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
+            ->Via(GetControlInvoker(EControlQueue::Orchid))
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidActionQueue_->GetInvoker());
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -341,7 +343,7 @@ public:
 
         auto combinedOrchidService = New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
-                staticOrchidService->Via(GetControlInvoker(EControlQueue::Orchid)),
+                staticOrchidService,
                 std::move(dynamicOrchidService)
             },
             Config_->OrchidKeysUpdatePeriod);
@@ -1255,7 +1257,7 @@ private:
 
     TOperationsCleanerPtr OperationsCleaner_;
 
-    TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
+    TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
 
     ISchedulerStrategyPtr Strategy_;
 
