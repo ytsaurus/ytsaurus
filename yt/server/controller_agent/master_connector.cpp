@@ -412,6 +412,12 @@ private:
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
+        {
+            auto req = TYPathProxy::Set(path + "/@connection_time");
+            req->set_value(ConvertToYsonString(TInstant::Now()).GetData());
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
