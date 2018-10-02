@@ -562,6 +562,36 @@ Y_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_EXCEPTION(writer->AddRow(TNode()("value", "a")), TApiUsageError);
     }
 
+    Y_UNIT_TEST(HostsSlash)
+    {
+        TConfigSaverGuard configGuard;
+
+        const TVector<TNode> tableData = {
+            TNode()("foo", "bar"),
+            TNode()("foo", "baz"),
+        };
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            for (const auto& row : tableData) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        TConfig::Get()->Hosts = "/hosts";
+        TConfig::Get()->UseHosts = true;
+        TConfig::Get()->RetryCount = 1;
+        TConfig::Get()->ReadRetryCount = 1;
+
+        TVector<TNode> actual;
+        auto reader = client->CreateTableReader<TNode>("//testing/table");
+        for (; reader->IsValid(); reader->Next()) {
+            actual.push_back(reader->GetRow());
+        }
+        UNIT_ASSERT_VALUES_EQUAL(actual, tableData);
+    }
+
     Y_UNIT_TEST(EmptyHosts)
     {
         TConfigSaverGuard configGuard;

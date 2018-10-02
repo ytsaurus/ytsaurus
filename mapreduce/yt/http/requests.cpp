@@ -187,7 +187,11 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
     }
 
     TVector<TString> hosts;
-    THttpHeader header("GET", TConfig::Get()->Hosts, false);
+    TString hostsEndpoint = TConfig::Get()->Hosts;
+    while (hostsEndpoint.StartsWith("/")) {
+        hostsEndpoint = hostsEndpoint.substr(1);
+    }
+    THttpHeader header("GET", hostsEndpoint, false);
     TString response = RetryRequest(auth, header);
     ParseJsonStringArray(response, hosts);
     if (hosts.empty()) {
