@@ -84,6 +84,9 @@ struct IObjectTypeHandler
         const TObjectId& hintId,
         NYTree::IAttributeDictionary* attributes) = 0;
 
+    //! Constructs a new instance of the type (and, unlike #CreateObject, does little else).
+    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& id) = 0;
+
     //! Raised when the strong ref-counter of the object decreases to zero.
     virtual void ZombifyObject(TObjectBase* object) noexcept = 0;
 

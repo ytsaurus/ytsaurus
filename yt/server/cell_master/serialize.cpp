@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 717; // This version is fixed in 19.3. Please do master development in branch 19.4.
+    return 718; // This version is fixed in 19.3. Please do master development in branch 19.4.
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -77,7 +77,8 @@ bool ValidateSnapshotVersion(int version)
         version == 714 || // savrus: Change TReqKickOrphanedTabletActions
         version == 715 || // ifsmirnov: Fix tablet_error_count lag
         version == 716 || // savrus: Add dynamic tablet cell options
-        version == 717;   // aozeritsky: Add replicated table options
+        version == 717 || // aozeritsky: Add replicated table options
+        version == 718;   // shakurov: weak ghosts save/load
 }
 
 ////////////////////////////////////////////////////////////////////////////////
