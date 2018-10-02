@@ -9,6 +9,8 @@
 
 #include <yt/server/object_server/object_manager.pb.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/misc/collection_helpers.h>
 
 namespace NYT {
@@ -17,6 +19,7 @@ namespace NObjectServer {
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,24 +62,78 @@ void TGarbageCollector::Stop()
     CollectPromise_.Reset();
 }
 
-void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
+void TGarbageCollector::SaveKeys(NCellMaster::TSaveContext& context) const
 {
-    using NYT::Save;
+    // NB: normal THashMap serialization won't do. Weak ghosts are already
+    // destroyed. Only TObjectBase part of the objects should be saved.
 
-    Save(context, Zombies_);
-    Save(context, WeakGhosts_);
+    TSizeSerializer::Save(context, WeakGhosts_.size());
+
+    auto saveIterators = GetSortedIterators(WeakGhosts_);
+
+    for (auto it : saveIterators) {
+        Save(context, it->first);
+        // Save only the base object part!
+        const auto& object = *static_cast<TObjectBase*>(it->second);
+        Save(context, object);
+    }
 }
 
-void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
+void TGarbageCollector::SaveValues(NCellMaster::TSaveContext& context) const
+{
+    Save(context, Zombies_);
+}
+
+void TGarbageCollector::LoadKeys(NCellMaster::TLoadContext& context)
+{
+    if (context.GetVersion() < 718) {
+        return;
+    }
+
+    auto size = TSizeSerializer::LoadSuspended(context);
+    SERIALIZATION_DUMP_WRITE(context, "map[%v]", size);
+    WeakGhosts_.clear();
+    WeakGhosts_.reserve(size);
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (size_t i = 0; i < size; ++i) {
+            auto objectId = Load<TObjectId>(context);
+
+            SERIALIZATION_DUMP_WRITE(context, "=>");
+
+            const auto& handler = objectManager->GetHandler(TypeFromId(objectId));
+            auto objectHolder = handler->InstantiateObject(objectId);
+            SERIALIZATION_DUMP_INDENT(context) {
+                Load(context, *objectHolder);
+            }
+            objectHolder->SetDestroyed();
+
+            YCHECK(WeakGhosts_.emplace(objectId, objectHolder.get()).second);
+
+            objectHolder.release();
+        }
+    }
+}
+
+void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     using NYT::Load;
 
     Load(context, Zombies_);
-    if (context.GetVersion() >= 705) {
+
+    // COMPAT(shakurov)
+    if (705 <= context.GetVersion() && context.GetVersion() < 718) {
+        THashSet<TObjectBase*> weakGhosts;
+        for (const auto& pair : WeakGhosts_) {
+            weakGhosts.insert(pair.second);
+        }
         NYT::Load(context, WeakGhosts_);
     }
+
     YCHECK(EphemeralGhosts_.empty());
 }
 
@@ -169,12 +226,12 @@ int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
             if (ephemeralRefCounter == 0) {
                 LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost disposed (ObjectId: %v)",
                     object->GetId());
-                YCHECK(WeakGhosts_.erase(object) == 1);
+                YCHECK(WeakGhosts_.erase(object->GetId()) == 1);
                 delete object;
             } else {
                 LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost became ephemeral ghost (ObjectId: %v)",
                     object->GetId());
-                YCHECK(WeakGhosts_.erase(object) == 1);
+                YCHECK(WeakGhosts_.erase(object->GetId()) == 1);
                 YCHECK(EphemeralGhosts_.insert(object).second);
             }
         }
@@ -227,7 +284,7 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
             object->GetId(),
             ephemeralRefCounter,
             weakRefCounter);
-        YCHECK(WeakGhosts_.insert(object).second);
+        YCHECK(WeakGhosts_.emplace(object->GetId(), object).second);
         object->SetDestroyed();
     } else if (ephemeralRefCounter > 0) {
         Y_ASSERT(weakRefCounter == 0);
@@ -242,6 +299,13 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
             object->GetId());
         delete object;
     }
+}
+
+TObjectBase* TGarbageCollector::GetWeakGhostObject(const TObjectId& id)
+{
+    auto it = WeakGhosts_.find(id);
+    YCHECK(it != WeakGhosts_.end());
+    return it->second;
 }
 
 void TGarbageCollector::Reset()
@@ -269,7 +333,8 @@ void TGarbageCollector::ClearEphemeralGhosts()
 void TGarbageCollector::ClearWeakGhosts()
 {
     LOG_INFO("Started deleting weak ghost objects (Count: %v)", WeakGhosts_.size());
-    for (auto* object : WeakGhosts_) {
+    for (const auto& pair : WeakGhosts_) {
+        auto* object = pair.second;
         YCHECK(object->IsDestroyed());
         delete object;
     }
