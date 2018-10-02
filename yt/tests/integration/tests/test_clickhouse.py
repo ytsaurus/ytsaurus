@@ -26,7 +26,12 @@ class TestClickhouse(YTEnvSetup):
                     "memory_watchdog_period": 100,
                     "supported_cgroups": ["cpuacct", "blkio", "cpu"],
                 },
-            }
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "memory": 10 * 2**30,
+                },
+            },
         }
     }
 
@@ -35,7 +40,7 @@ class TestClickhouse(YTEnvSetup):
                                                           host_ytserver_clickhouse_path=self._ytserver_clickhouse_binary,
                                                           max_failed_job_count=max_failed_job_count,
                                                           *kwargs)
-        spec = sanitize_structure(spec_builder.build())
+        spec = simplify_structure(spec_builder.build())
         op = start_op("vanilla",
                       spec=spec,
                       dont_track=True)
