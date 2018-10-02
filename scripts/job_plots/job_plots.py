@@ -44,13 +44,23 @@ def _ts_to_time_str(ts):
 def _get_operation_info(op_id, client):
     """Get job statistics from the archive"""
     hi_id, lo_id = uuid_to_parts(op_id)
-    operation_info = client.select_rows(
-        """type, state, transient_state, start_time, finish_time, address,
+    start_job_id_hi, start_job_id_lo = 0, 0
+    chunk_size = 5000
+    operation_info = []
+    while True:
+        chunk = list(client.select_rows(
+            """
+            type, state, transient_state, start_time, finish_time, address,
             job_id_hi, job_id_lo, events, statistics from [//sys/operations_archive/jobs]
-            where operation_id_lo = {}u and operation_id_hi = {}u""".format(lo_id, hi_id)
-    )
-    return list(operation_info)
-
+            where operation_id_lo = {}u and operation_id_hi = {}u and 
+            (job_id_hi, job_id_lo) > ({}, {}) limit {}
+            """.format(lo_id, hi_id, start_job_id_hi, start_job_id_lo, chunk_size)
+        ))
+        if not chunk:
+            break
+        start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
+        operation_info += chunk
+    return operation_info
 
 def _get_event_time(phase, events):
     """Get starting time of some phase for particular job"""
