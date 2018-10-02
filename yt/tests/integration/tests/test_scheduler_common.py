@@ -1327,6 +1327,12 @@ class TestSchedulerCommon(YTEnvSetup):
         assert all(job.attributes["state"] == "failed" for job in jobs)
         assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
 
+    def test_update_lock_transaction_timeout(self):
+        lock_tx = get("//sys/scheduler/lock/@locks/0/transaction_id")
+        new_timeout = get("#{}/@timeout".format(lock_tx)) + 1234
+        set("//sys/scheduler/config/lock_transaction_timeout", new_timeout, recursive=True)
+        wait(lambda: get("#{}/@timeout".format(lock_tx)) == new_timeout)
+
 ##################################################################
 
 class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
