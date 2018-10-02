@@ -90,8 +90,6 @@ using namespace NContainers;
 
 using NJobTrackerClient::TStatistics;
 
-const TString SlotBindPath("/slot");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
@@ -117,9 +115,7 @@ TString TJobProxy::GetPreparationPath() const
 
 TString TJobProxy::GetSlotPath() const
 {
-    return Config_->RootPath && !Config_->TestRootFS
-       ? SlotBindPath
-       : NFs::CurrentWorkingDirectory();
+    return NFs::CurrentWorkingDirectory();
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
@@ -432,7 +428,6 @@ TJobResult TJobProxy::DoRun()
             TRootFS rootFS;
             rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
-            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
 
             for (const auto& bind : Config_->Binds) {
                 rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
@@ -441,6 +436,8 @@ TJobResult TJobProxy::DoRun()
             if (Config_->TmpfsPath) {
                 rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
             }
+
+            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), NFs::CurrentWorkingDirectory(), false});
 
             // Temporary workaround for nirvana - make tmp directories writable.
             auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
