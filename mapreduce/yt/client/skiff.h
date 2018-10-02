@@ -25,6 +25,9 @@ struct TCreateSkiffSchemaOptions
 
     FLUENT_FIELD_DEFAULT(bool, HasKeySwitch, false);
     FLUENT_FIELD_DEFAULT(bool, HasRangeIndex, false);
+
+    using TRenameColumnsDescriptor = THashMap<TString, TString>;
+    FLUENT_FIELD_OPTION(TRenameColumnsDescriptor, RenameColumns);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

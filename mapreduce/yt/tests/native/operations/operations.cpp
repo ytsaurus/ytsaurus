@@ -465,6 +465,52 @@ REGISTER_MAPPER(TIdMapperFailingFirstJob);
 
 Y_UNIT_TEST_SUITE(Operations)
 {
+    void TestRenameColumns(ENodeReaderFormat nodeReaderFormat)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
+
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                    .Schema(TTableSchema()
+                        .AddColumn(TColumnSchema().Name("OldKey").Type(VT_STRING))
+                        .AddColumn(TColumnSchema().Name("Value").Type(VT_STRING))
+                        .Strict(true)));
+            writer->AddRow(TNode()("OldKey", "key")("Value", "value"));
+            writer->Finish();
+        }
+
+        THashMap<TString, TString> columnMapping;
+        columnMapping["OldKey"] = "NewKey";
+
+        client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>(
+                TRichYPath("//testing/input")
+                    .RenameColumns(columnMapping))
+            .AddOutput<TNode>("//testing/output"),
+            new TIdMapper);
+
+        auto reader = client->CreateTableReader<TNode>("//testing/output");
+        UNIT_ASSERT(reader->IsValid());
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("NewKey", "key")("Value", "value"));
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
+    Y_UNIT_TEST(RenameColumns_Yson)
+    {
+        TestRenameColumns(ENodeReaderFormat::Yson);
+    }
+
+    Y_UNIT_TEST(RenameColumns_Skiff)
+    {
+        TestRenameColumns(ENodeReaderFormat::Skiff);
+    }
+
     Y_UNIT_TEST(IncorrectTableId)
     {
         auto client = CreateTestClient();
