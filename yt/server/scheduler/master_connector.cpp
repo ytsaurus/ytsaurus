@@ -389,6 +389,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (State_ == EMasterConnectorState::Connected &&
+            Config_->LockTransactionTimeout != config->LockTransactionTimeout)
+        {
+            BIND(&TImpl::UpdateLockTransactionTimeout, MakeStrong(this), config->LockTransactionTimeout)
+                .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
+                .Run();
+        }
+
         Config_ = config;
 
         if (OperationNodesUpdateExecutor_) {
@@ -1610,6 +1618,35 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
+    }
+
+    void UpdateLockTransactionTimeout(TDuration timeout)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(LockTransaction_);
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+        auto req = TYPathProxy::Set(FromObjectId(LockTransaction_->GetId()) + "/@timeout");
+        req->set_value(ConvertToYsonString(timeout.MilliSeconds()).GetData());
+        auto rspOrError = WaitFor(proxy.Execute(req));
+
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                LOG_WARNING(rspOrError, "Error updating lock transaction timeout (TransactionId: %v)",
+                    LockTransaction_->GetId());
+            } else {
+                THROW_ERROR_EXCEPTION("Error updating lock transaction timeout")
+                    << rspOrError
+                    << TErrorAttribute("transaction_id", LockTransaction_->GetId());
+            }
+            return;
+        }
+
+        LOG_DEBUG("Lock transaction timeout updated (TransactionId: %v, Timeout: %v)",
+            LockTransaction_->GetId(),
+            timeout.MilliSeconds());
     }
 };
 
