@@ -12,7 +12,7 @@ static const auto& Logger = SchedulerSimulatorLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerStrategyHost::TSchedulerStrategyHost(
-    std::vector<NScheduler::TExecNodePtr>* execNodes,
+    const std::vector<NScheduler::TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream)
     : ExecNodes_(execNodes)
     , TotalResourceLimits_(ZeroJobResources())

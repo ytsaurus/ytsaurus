@@ -3,39 +3,43 @@
 #include "shared_data.h"
 #include "config.h"
 #include "scheduling_context.h"
+#include "control_thread.h"
 
 #include <yt/server/scheduler/public.h>
 
 #include <yt/core/logging/public.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
+
 namespace NYT {
 namespace NSchedulerSimulator {
 
-class TNodeShard
+class TSimulatorNodeShard
     : public NYT::TRefCounted
 {
 public:
-    TNodeShard(
-        std::vector<NScheduler::TExecNodePtr>* execNodes,
-        TSharedSchedulerEvents* events,
-        TSharedSchedulingStrategy* schedulingData,
-        TSharedOperationStatistics* operationsStatistics,
+    TSimulatorNodeShard(
+        const std::vector<NScheduler::TExecNodePtr>* execNodes,
+        TSharedEventQueue* events,
+        TSharedSchedulerStrategy* schedulingStrategy,
+        TSharedOperationStatistics* operationStatistics,
         TSharedOperationStatisticsOutput* operationStatisticsOutput,
         TSharedRunningOperationsMap* runningOperationsMap,
-        TSharedJobAndOperationCounter* jobOperationCounter,
+        TSharedJobAndOperationCounter* jobAndOperationCounter,
         const TSchedulerSimulatorConfigPtr& config,
         const NScheduler::TSchedulerConfigPtr& schedulerConfig,
         TInstant earliestTime,
-        int workerId);
+        int shardId);
 
-    void Run();
+    const IInvokerPtr& GetInvoker() const;
 
-    void RunOnce();
+    TFuture<void> AsyncRun();
 
 private:
-    std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
-    TSharedSchedulerEvents* Events_;
-    TSharedSchedulingStrategy* SchedulingStrategy_;
+    const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
+    TSharedEventQueue* Events_;
+    TSharedSchedulerStrategy* SchedulingStrategy_;
     TSharedOperationStatistics* OperationStatistics_;
     TSharedOperationStatisticsOutput* OperationStatisticsOutput_;
     TSharedRunningOperationsMap* RunningOperationsMap_;
@@ -44,13 +48,16 @@ private:
     const TSchedulerSimulatorConfigPtr Config_;
     const NScheduler::TSchedulerConfigPtr SchedulerConfig_;
     const TInstant EarliestTime_;
-    const int WorkerId_;
+    const int ShardId_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
 
     NLogging::TLogger Logger;
 
-    void OnHeartbeat(const TSchedulerEvent& event);
-    void OnOperationStarted(const TSchedulerEvent& event);
-    void OnJobFinished(const TSchedulerEvent& event);
+    void Run();
+    void RunOnce();
+
+    void OnHeartbeat(const TNodeShardEvent& event);
+    void OnJobFinished(const TNodeShardEvent& event);
 };
 
 } // namespace NSchedulerSimulator

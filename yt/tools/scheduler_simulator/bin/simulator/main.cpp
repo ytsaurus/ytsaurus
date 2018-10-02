@@ -6,6 +6,7 @@
 #include "scheduler_strategy_host.h"
 #include "shared_data.h"
 #include "node_shard.h"
+#include "control_thread.h"
 
 #include <yt/server/scheduler/public.h>
 
@@ -14,7 +15,7 @@
 #include <yt/core/logging/public.h>
 
 #include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/property.h>
@@ -36,7 +37,7 @@ static const auto& Logger = SchedulerSimulatorLogger;
 
 namespace {
 
-TJobResources GetNodeResourceLimit(TNodeResourcesConfigPtr config)
+TJobResources GetNodeResourceLimit(const TNodeResourcesConfigPtr& config)
 {
     TJobResources resourceLimits;
     resourceLimits.SetMemory(config->Memory);
@@ -133,15 +134,6 @@ std::vector<TOperationDescription> LoadOperations()
     return operations;
 }
 
-TOperationDescriptions CreateOperationDescriptions(const std::vector<TOperationDescription>& operations)
-{
-    TOperationDescriptions operationDescriptions;
-    for (const auto& operation : operations) {
-        operationDescriptions[operation.Id] = operation;
-    }
-    return operationDescriptions;
-}
-
 TInstant FindEarliestTime(const std::vector<TOperationDescription>& operations)
 {
     auto earliestTime = TInstant::Max();
@@ -149,6 +141,16 @@ TInstant FindEarliestTime(const std::vector<TOperationDescription>& operations)
         earliestTime = std::min(earliestTime, operation.StartTime);
     }
     return earliestTime;
+}
+
+INodePtr LoadPoolTrees(const TString& poolTreesFilename)
+{
+    try {
+        TIFStream configStream(poolTreesFilename);
+        return ConvertToNode(&configStream);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading pool trees") << ex;
+    }
 }
 
 } // namespace
@@ -168,63 +170,24 @@ void Run(const char* configFilename)
     YCHECK(!execNodes.empty());
 
     const auto operations = LoadOperations();
-    const auto operationDescriptions = CreateOperationDescriptions(operations);
-    TSharedOperationStatistics operationStatistics(operationDescriptions);
-    TSharedOperationStatisticsOutput operationStatisticsOutput(config->OperationsStatsFilename);
-    TSharedRunningOperationsMap runningOperationsMap;
-
     const TInstant earliestTime = FindEarliestTime(operations);
 
-    TSharedSchedulerEvents events(operations, config->HeartbeatPeriod, earliestTime, execNodes.size(), config->ThreadCount);
-    TSharedJobAndOperationCounter jobAndOperationCounter(operations.size());
-
-    TFixedBufferFileOutput eventLogFile(config->EventLogFilename);
-    TSchedulerStrategyHost strategyHost(&execNodes, &eventLogFile);
-
-    TThreadPoolPtr threadPool = New<TThreadPool>(config->ThreadCount, "Workers");
-    auto invoker = threadPool->GetInvoker();
+    TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);
 
     auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
+    auto poolTreesNode = LoadPoolTrees(config->PoolTreesFilename);
 
-    TSharedSchedulingStrategy schedulingData(
-        strategyHost,
-        invoker,
+    auto simulatorControlThread = New<TSimulatorControlThread>(
+        &execNodes,
+        &eventLogOutputStream,
         config,
         schedulerConfig,
-        earliestTime,
-        config->ThreadCount);
+        operations,
+        earliestTime);
 
-    LOG_INFO("Simulation started using %v threads", config->ThreadCount);
-
-    operationStatisticsOutput.PrintHeader();
-
-    std::vector<TFuture<void>> asyncWorkerResults;
-    for (int workerId = 0; workerId < config->ThreadCount; ++workerId) {
-        auto worker = New<NSchedulerSimulator::TNodeShard>(
-            &execNodes,
-            &events,
-            &schedulingData,
-            &operationStatistics,
-            &operationStatisticsOutput,
-            &runningOperationsMap,
-            &jobAndOperationCounter,
-            config,
-            schedulerConfig,
-            earliestTime,
-            workerId);
-        asyncWorkerResults.emplace_back(
-            BIND(&NSchedulerSimulator::TNodeShard::Run, worker)
-                .AsyncVia(invoker)
-                .Run());
-    }
-
-    WaitFor(Combine(asyncWorkerResults))
+    simulatorControlThread->Init(poolTreesNode);
+    WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
-
-    LOG_INFO("Simulation finished");
-
-    schedulingData.OnMasterDisconnected(invoker);
-    threadPool->Shutdown();
 }
 
 } // namespace NYT

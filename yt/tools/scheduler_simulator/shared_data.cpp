@@ -13,7 +13,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerEvent::TSchedulerEvent(EEventType type, TInstant time)
+TNodeShardEvent::TNodeShardEvent(EEventType type, TInstant time)
     : Type(type)
     , Time(time)
     , OperationId(TGuid())
@@ -21,56 +21,65 @@ TSchedulerEvent::TSchedulerEvent(EEventType type, TInstant time)
     , Job(nullptr)
 { }
 
-TSchedulerEvent TSchedulerEvent::OperationStarted(TInstant time, TOperationId id)
+TNodeShardEvent TNodeShardEvent::Heartbeat(TInstant time, int nodeIndex, bool scheduledOutOfBand)
 {
-    TSchedulerEvent event(EEventType::OperationStarted, time);
-    event.OperationId = id;
-    return event;
-}
-
-TSchedulerEvent TSchedulerEvent::Heartbeat(TInstant time, int nodeIndex, bool scheduledOutOfBand)
-{
-    TSchedulerEvent event(EEventType::Heartbeat, time);
+    TNodeShardEvent event(EEventType::Heartbeat, time);
     event.NodeIndex = nodeIndex;
     event.ScheduledOutOfBand = scheduledOutOfBand;
     return event;
 }
 
-TSchedulerEvent TSchedulerEvent::JobFinished(
+TNodeShardEvent TNodeShardEvent::JobFinished(
     TInstant time,
-    TJobPtr job,
-    TExecNodePtr execNode,
+    const TJobPtr& job,
+    const TExecNodePtr& execNode,
     int nodeIndex)
 {
-    TSchedulerEvent event(EEventType::JobFinished, time);
+    TNodeShardEvent event(EEventType::JobFinished, time);
     event.Job = job;
     event.JobNode = execNode;
     event.NodeIndex = nodeIndex;
     return event;
 }
 
-bool operator<(const TSchedulerEvent& lhs, const TSchedulerEvent& rhs)
+bool operator<(const TNodeShardEvent& lhs, const TNodeShardEvent& rhs)
 {
     return lhs.Time < rhs.Time;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto TSharedOperationStatistics::InitializeOperationsStorage(const TOperationDescriptions& operationDescriptions) -> TOperationStorage
-{
-    TOperationStorage operationStorage;
+namespace {
 
-    for (const auto& operationEntry : operationDescriptions) {
-        auto operationId = operationEntry.first;
+THashMap<TOperationId, TOperationDescription> CreateOperationDescriptionByIdMap(
+    const std::vector<TOperationDescription>& operations)
+{
+    THashMap<NScheduler::TOperationId, TOperationDescription> operationDescriptionById;
+    for (const auto& operation : operations) {
+        operationDescriptionById[operation.Id] = operation;
+    }
+    return operationDescriptionById;
+}
+
+THashMap<TOperationId, TMutable<TOperationStatistics>> CreateOperationsStorage(
+    const THashMap<TOperationId, TOperationDescription>& operationDescriptionById)
+{
+    THashMap<TOperationId, TMutable<TOperationStatistics>> operationStorage;
+
+    for (const auto& pair : operationDescriptionById) {
+        auto operationId = pair.first;
         operationStorage.emplace(operationId, TOperationStatistics());
     }
 
     return operationStorage;
 }
 
-TSharedOperationStatistics::TSharedOperationStatistics(const TOperationDescriptions& operationDescriptions)
-    : OperationDescriptions_(operationDescriptions)
-    , OperationStorage_(InitializeOperationsStorage(operationDescriptions))
+} // namespace
+
+
+TSharedOperationStatistics::TSharedOperationStatistics(const std::vector<TOperationDescription>& operations)
+    : OperationDescriptionById_(CreateOperationDescriptionByIdMap(operations))
+    , OperationStorage_(CreateOperationsStorage(OperationDescriptionById_))
 { }
 
 void TSharedOperationStatistics::OnJobStarted(const TOperationId& operationId, TDuration duration)
@@ -121,8 +130,8 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
         stats->StartTime = startTime;
         stats->FinishTime = finishTime;
 
-        auto it = OperationDescriptions_.find(operationId);
-        YCHECK(it != OperationDescriptions_.end());
+        auto it = OperationDescriptionById_.find(operationId);
+        YCHECK(it != OperationDescriptionById_.end());
 
         stats->RealDuration = it->second.Duration;
         stats->OperationType = it->second.Type;
@@ -136,85 +145,78 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
 const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(const TOperationId& operationId) const
 {
     // No synchronization needed.
-    auto it = OperationDescriptions_.find(operationId);
-    YCHECK(it != OperationDescriptions_.end());
+    auto it = OperationDescriptionById_.find(operationId);
+    YCHECK(it != OperationDescriptionById_.end());
     return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedSchedulerEvents::TSharedSchedulerEvents(
-    const std::vector<TOperationDescription>& operations,
+TSharedEventQueue::TSharedEventQueue(
     int heartbeatPeriod,
     TInstant earliestTime,
     int execNodeCount,
-    int workerCount)
-    : LocalEvents_(workerCount)
+    int nodeShardCount,
+    TDuration maxAllowedOutrunning)
+    : NodeShardEvents_(nodeShardCount)
+    , ControlThreadTime_(earliestTime)
+    , NodeShardClocks_(nodeShardCount)
+    , MaxAllowedOutrunning_(maxAllowedOutrunning)
 {
-    for (const auto& operation : operations) {
-        SharedEvents_.insert(TSchedulerEvent::OperationStarted(operation.StartTime, operation.Id));
+    for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
+        NodeShardClocks_[shardId]->store(earliestTime);
     }
 
     auto heartbeatsStartTime = earliestTime - TDuration::MilliSeconds(heartbeatPeriod);
     for (int nodeIndex = 0; nodeIndex < execNodeCount; ++nodeIndex) {
-        const int workerId = nodeIndex % workerCount;
+        const int workerId = nodeIndex % nodeShardCount;
         const auto heartbeatStartDelay = TDuration::MilliSeconds((heartbeatPeriod * nodeIndex) / execNodeCount);
-        auto heartbeat = TSchedulerEvent::Heartbeat(heartbeatsStartTime + heartbeatStartDelay, nodeIndex, false);
-        LocalEvents_[workerId]->insert(heartbeat);
+        auto heartbeat = TNodeShardEvent::Heartbeat(heartbeatsStartTime + heartbeatStartDelay, nodeIndex, false);
+        NodeShardEvents_[workerId]->insert(heartbeat);
     }
 }
 
-void TSharedSchedulerEvents::InsertEvent(int workerId, TSchedulerEvent event)
+void TSharedEventQueue::InsertNodeShardEvent(int workerId, TNodeShardEvent event)
 {
-    YCHECK(event.Type != EEventType::OperationStarted);
-    LocalEvents_[workerId]->insert(event);
+    NodeShardEvents_[workerId]->insert(event);
 }
 
-TNullable<TSchedulerEvent> TSharedSchedulerEvents::PopEvent(int workerId)
+TNullable<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
 {
-    auto guard = Guard(SharedEventsLock_);
-    if (PreferLocalEvent(workerId)) {
-        guard.Release();
-        return PopLocalEvent(workerId);
-    }
-    return PopSharedEvent();
-}
-
-TNullable<TSchedulerEvent> TSharedSchedulerEvents::PopLocalEvent(int workerId)
-{
-    auto& localEventsSet = LocalEvents_[workerId];
+    auto& localEventsSet = NodeShardEvents_[workerId];
     if (localEventsSet->empty()) {
         return Null;
     }
     auto beginIt = localEventsSet->begin();
     auto event = *beginIt;
+
+    if (event.Time > ControlThreadTime_.load() + MaxAllowedOutrunning_) {
+        return Null;
+    }
+
+    NodeShardClocks_[workerId]->store(event.Time);
     localEventsSet->erase(beginIt);
     return event;
 }
 
-// SharedEventsLock_ must be acquired.
-TNullable<TSchedulerEvent> TSharedSchedulerEvents::PopSharedEvent()
+void TSharedEventQueue::WaitForStrugglingNodeShards(TInstant timeBarrier)
 {
-    if (SharedEvents_.empty()) {
-        return Null;
+    for (auto& nodeShardClock : NodeShardClocks_) {
+        // Actively waiting.
+        while (nodeShardClock->load() < timeBarrier) {
+            Yield();
+        }
     }
-    auto beginIt = SharedEvents_.begin();
-    auto event = *beginIt;
-    SharedEvents_.erase(beginIt);
-    return event;
 }
 
-// SharedEventsLock_ must be acquired.
-bool TSharedSchedulerEvents::PreferLocalEvent(int workerId)
+void TSharedEventQueue::UpdateControlThreadTime(TInstant time)
 {
-    auto& localEventsSet = LocalEvents_[workerId];
-    if (SharedEvents_.empty()) {
-        return true;
-    }
-    if (localEventsSet->empty()) {
-        return false;
-    }
-    return localEventsSet->begin()->Time < SharedEvents_.begin()->Time;
+    ControlThreadTime_.store(time);
+}
+
+void TSharedEventQueue::OnNodeShardSimulationFinished(int workerId)
+{
+    NodeShardClocks_[workerId]->store(TInstant::Max());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,59 +324,27 @@ void TSharedOperationStatisticsOutput::PrintEntry(const TOperationId& id, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-INodePtr LoadPoolTrees(const TString& poolTreesFilename)
-{
-    try {
-        TIFStream configStream(poolTreesFilename);
-        return ConvertToNode(&configStream);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading pool trees ") << ex;
-    }
-}
-
-} // namespace
-
-
-TSharedSchedulingStrategy::TSharedSchedulingStrategy(
+TSharedSchedulerStrategy::TSharedSchedulerStrategy(
+    const ISchedulerStrategyPtr& schedulerStrategy,
     TSchedulerStrategyHost& strategyHost,
-    const IInvokerPtr& invoker,
-    const TSchedulerSimulatorConfigPtr& config,
-    const TSchedulerConfigPtr& schedulerConfig,
-    TInstant earliestTime,
-    int workerCount)
-    : StrategyHost_(strategyHost)
-    , LastFairShareUpdateTime_(earliestTime)
-    , FairShareUpdateAndLogPeriod_(schedulerConfig->FairShareUpdatePeriod)
-    , MaxAllowedOutrunningPeriod_(FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
-    , EnableFullEventLog_(config->EnableFullEventLog)
-    , WorkerClocks_(workerCount)
-{
-    for (int workerId = 0; workerId < workerCount; ++workerId) {
-        WorkerClocks_[workerId]->store(earliestTime);
-    }
+    const IInvokerPtr& controlThreadInvoker)
+    : SchedulerStrategy_(schedulerStrategy)
+    , StrategyHost_(strategyHost)
+    , ControlThreadInvoker_(controlThreadInvoker)
+{ }
 
-    SchedulerStrategy_ = CreateFairShareStrategy(schedulerConfig, &strategyHost, {invoker});
-    WaitFor(
-        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, LoadPoolTrees(config->PoolTreesFilename))
-            .AsyncVia(invoker)
-            .Run())
-        .ThrowOnError();
-}
-
-void TSharedSchedulingStrategy::ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
+void TSharedSchedulerStrategy::ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
 {
     WaitFor(SchedulerStrategy_->ScheduleJobs(schedulingContext))
         .ThrowOnError();
 }
 
-void TSharedSchedulingStrategy::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
+void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
 {
     StrategyHost_.PreemptJob(job, shouldLogEvent);
 }
 
-void TSharedSchedulingStrategy::ProcessJobUpdates(
+void TSharedSchedulerStrategy::ProcessJobUpdates(
     const std::vector<TJobUpdate>& jobUpdates,
     std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
     std::vector<TJobId>* jobsToAbort)
@@ -383,76 +353,13 @@ void TSharedSchedulingStrategy::ProcessJobUpdates(
     SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort, &snapshotRevision);
 }
 
-void TSharedSchedulingStrategy::InitOperationRuntimeParameters(
-    const TOperationRuntimeParametersPtr& runtimeParameters,
-    const TOperationSpecBasePtr& spec,
-    const TString& user,
-    EOperationType type)
-{
-    SchedulerStrategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user, type);
-}
-
-void TSharedSchedulingStrategy::OnEvent(int workerId, const TSchedulerEvent& event)
-{
-    SetWorkerTime(workerId, event.Time);
-
-    auto needToUpdateTree = [&] () {
-        return LastFairShareUpdateTime_ + MaxAllowedOutrunningPeriod_ < event.Time;
-    };
-
-    while (needToUpdateTree()) {
-        auto updateGuard = TTryGuard<TSpinLock>(FairShareUpdateLock_);
-        if (updateGuard.WasAcquired()) {
-            while (needToUpdateTree()) {
-                auto updateTime = LastFairShareUpdateTime_ + FairShareUpdateAndLogPeriod_;
-                WaitForOldEventsAt(updateTime);
-                DoUpdateAndLogAt(updateTime);
-                LastFairShareUpdateTime_ = updateTime;
-            }
-            break;
-        }
-    }
-}
-
-void TSharedSchedulingStrategy::OnSimulationFinished(int workerId)
-{
-    SetWorkerTime(workerId, TInstant::Max());
-}
-
-// This method is supposed to be called only after the simulation is finished.
-void TSharedSchedulingStrategy::OnMasterDisconnected(const IInvokerPtr& invoker)
+void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationStrategyHost* operation)
 {
     WaitFor(
-        BIND(&ISchedulerStrategy::OnMasterDisconnected, SchedulerStrategy_)
-            .AsyncVia(invoker)
+        BIND(&ISchedulerStrategy::UnregisterOperation, SchedulerStrategy_, operation)
+            .AsyncVia(ControlThreadInvoker_)
             .Run())
         .ThrowOnError();
-}
-
-void TSharedSchedulingStrategy::SetWorkerTime(int workerId, TInstant currentWorkerTime)
-{
-    WorkerClocks_[workerId]->store(currentWorkerTime);
-}
-
-void TSharedSchedulingStrategy::WaitForOldEventsAt(TInstant timeBarrier)
-{
-    for (auto& workerClock : WorkerClocks_) {
-        while (workerClock->load() < timeBarrier) {
-            // Actively waiting.
-        }
-    }
-}
-
-void TSharedSchedulingStrategy::DoUpdateAndLogAt(TInstant updateTime)
-{
-    auto strategyGuard = Guard(StrategyLock_);
-
-    SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
-    if (EnableFullEventLog_) {
-        SchedulerStrategy_->OnFairShareLoggingAt(updateTime);
-    } else {
-        SchedulerStrategy_->OnFairShareEssentialLoggingAt(updateTime);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

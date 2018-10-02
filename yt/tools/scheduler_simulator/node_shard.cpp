@@ -38,86 +38,70 @@ NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentJobEvent(cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TNodeShard)
+DEFINE_REFCOUNTED_TYPE(TSimulatorNodeShard)
 
-TNodeShard::TNodeShard(
-    std::vector<TExecNodePtr>* execNodes,
-    TSharedSchedulerEvents* events,
-    TSharedSchedulingStrategy* schedulingData,
-    TSharedOperationStatistics* operationsStatistics,
+TSimulatorNodeShard::TSimulatorNodeShard(
+    const std::vector<TExecNodePtr>* execNodes,
+    TSharedEventQueue* events,
+    TSharedSchedulerStrategy* schedulingStrategy,
+    TSharedOperationStatistics* operationStatistics,
     TSharedOperationStatisticsOutput* operationStatisticsOutput,
     TSharedRunningOperationsMap* runningOperationsMap,
-    TSharedJobAndOperationCounter* jobOperationCounter,
+    TSharedJobAndOperationCounter* jobAndOperationCounter,
     const TSchedulerSimulatorConfigPtr& config,
     const TSchedulerConfigPtr& schedulerConfig,
     TInstant earliestTime,
-    int workerId)
+    int shardId)
     : ExecNodes_(execNodes)
     , Events_(events)
-    , SchedulingStrategy_(schedulingData)
-    , OperationStatistics_(operationsStatistics)
+    , SchedulingStrategy_(schedulingStrategy)
+    , OperationStatistics_(operationStatistics)
     , OperationStatisticsOutput_(operationStatisticsOutput)
     , RunningOperationsMap_(runningOperationsMap)
-    , JobAndOperationCounter_(jobOperationCounter)
+    , JobAndOperationCounter_(jobAndOperationCounter)
     , Config_(config)
     , SchedulerConfig_(schedulerConfig)
     , EarliestTime_(earliestTime)
-    , WorkerId_(workerId)
+    , ShardId_(shardId)
+    , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", shardId)))
     , Logger(TLogger(NSchedulerSimulator::Logger)
-        .AddTag("WorkerId: %v", workerId))
+        .AddTag("ShardId: %v", shardId))
 { }
 
-
-void TNodeShard::Run()
+const IInvokerPtr& TSimulatorNodeShard::GetInvoker() const
 {
-    int iter = 0;
+    return ActionQueue_->GetInvoker();
+}
+
+TFuture<void> TSimulatorNodeShard::AsyncRun()
+{
+    return BIND(&TSimulatorNodeShard::Run, MakeStrong(this))
+        .AsyncVia(GetInvoker())
+        .Run();
+}
+
+void TSimulatorNodeShard::Run()
+{
     while (JobAndOperationCounter_->HasUnfinishedOperations()) {
-        iter += 1;
-        if (iter % Config_->CyclesPerFlush == 0) {
-            LOG_INFO(
-                "Simulated %v cycles (FinishedOperations: %v, RunningOperation: %v, "
-                "TotalOperations: %v, RunningJobs: %v)",
-                iter,
-                JobAndOperationCounter_->GetFinishedOperationCount(),
-                JobAndOperationCounter_->GetStartedOperationCount(),
-                JobAndOperationCounter_->GetTotalOperationCount(),
-                JobAndOperationCounter_->GetRunningJobCount());
-
-            if (WorkerId_ == 0) {
-                RunningOperationsMap_->ApplyRead([this] (const auto& pair) {
-                    const auto& operation = pair.second;
-                    LOG_INFO("%v, (OperationId: %v)",
-                        operation->GetController()->GetLoggingProgress(),
-                        operation->GetId());
-                });
-            }
-        }
-
         RunOnce();
         Yield();
     }
 
-    SchedulingStrategy_->OnSimulationFinished(WorkerId_);
+    Events_->OnNodeShardSimulationFinished(ShardId_);
 }
 
 
-void TNodeShard::RunOnce()
+void TSimulatorNodeShard::RunOnce()
 {
-    auto eventNullable = Events_->PopEvent(WorkerId_);
+    auto eventNullable = Events_->PopNodeShardEvent(ShardId_);
     if (!eventNullable) {
         return;
     }
     auto event = eventNullable.Get();
 
-    SchedulingStrategy_->OnEvent(WorkerId_, event);
     switch (event.Type) {
         case EEventType::Heartbeat: {
             OnHeartbeat(event);
-            break;
-        }
-
-        case EEventType::OperationStarted: {
-            OnOperationStarted(event);
             break;
         }
 
@@ -128,11 +112,11 @@ void TNodeShard::RunOnce()
     }
 }
 
-void TNodeShard::OnHeartbeat(const TSchedulerEvent& event)
+void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
 {
     LOG_DEBUG("Heartbeat started (NodeIndex: %v)", event.NodeIndex);
 
-    auto& node = (*ExecNodes_)[event.NodeIndex];
+    const auto& node = (*ExecNodes_)[event.NodeIndex];
 
     // Prepare scheduling context.
     const auto& jobsSet = node->Jobs();
@@ -154,8 +138,6 @@ void TNodeShard::OnHeartbeat(const TSchedulerEvent& event)
         // Notify scheduler.
         job->SetState(EJobState::Running);
 
-        auto operation = RunningOperationsMap_->Get(job->GetOperationId());
-
         LOG_DEBUG("Job started (JobId: %v, OperationId: %v, FinishTime: %v, NodeIndex: %v)",
             job->GetId(),
             job->GetOperationId(),
@@ -163,12 +145,12 @@ void TNodeShard::OnHeartbeat(const TSchedulerEvent& event)
             event.NodeIndex);
 
         // Schedule new event.
-        auto jobFinishedEvent = TSchedulerEvent::JobFinished(
+        auto jobFinishedEvent = TNodeShardEvent::JobFinished(
             event.Time + duration,
             job,
             node,
             event.NodeIndex);
-        Events_->InsertEvent(WorkerId_, jobFinishedEvent);
+        Events_->InsertNodeShardEvent(ShardId_, jobFinishedEvent);
 
         // Update stats.
         OperationStatistics_->OnJobStarted(job->GetOperationId(), duration);
@@ -196,38 +178,12 @@ void TNodeShard::OnHeartbeat(const TSchedulerEvent& event)
     if (!event.ScheduledOutOfBand) {
         auto nextHeartbeat = event;
         nextHeartbeat.Time += TDuration::MilliSeconds(Config_->HeartbeatPeriod);
-        Events_->InsertEvent(WorkerId_, nextHeartbeat);
+        Events_->InsertNodeShardEvent(ShardId_, nextHeartbeat);
     }
     LOG_DEBUG("Heartbeat finished (NodeIndex: %v)", event.NodeIndex);
 }
 
-void TNodeShard::OnOperationStarted(const TSchedulerEvent& event)
-{
-    const auto& description = OperationStatistics_->GetOperationDescription(event.OperationId);
-
-    auto runtimeParameters = New<TOperationRuntimeParameters>();
-    SchedulingStrategy_->InitOperationRuntimeParameters(
-        runtimeParameters,
-        NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(description.Spec),
-        description.AuthenticatedUser,
-        description.Type);
-    auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
-
-    auto operationController = CreateSimulatorOperationController(operation.Get(), &description);
-    operation->SetController(operationController);
-
-    RunningOperationsMap_->Insert(operation->GetId(), operation);
-    OperationStatistics_->OnOperationStarted(operation->GetId());
-    LOG_INFO("Operation started (OperationId: %v)", operation->GetId());
-
-    // Notify scheduler.
-    SchedulingStrategy_->RegisterOperation(operation.Get());
-    SchedulingStrategy_->EnableOperation(operation.Get());
-
-    JobAndOperationCounter_->OnOperationStarted();
-}
-
-void TNodeShard::OnJobFinished(const TSchedulerEvent& event)
+void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
 {
     auto job = event.Job;
 
@@ -280,12 +236,12 @@ void TNodeShard::OnJobFinished(const TSchedulerEvent& event)
     }
 
     // Schedule out of band heartbeat.
-    Events_->InsertEvent(WorkerId_, TSchedulerEvent::Heartbeat(event.Time, event.NodeIndex, true));
+    Events_->InsertNodeShardEvent(ShardId_, TNodeShardEvent::Heartbeat(event.Time, event.NodeIndex, true));
 
     // Update statistics.
     OperationStatistics_->OnJobFinished(operation->GetId(), event.Time - job->GetStartTime());
 
-    auto& node = (*ExecNodes_)[event.NodeIndex];
+    const auto& node = (*ExecNodes_)[event.NodeIndex];
     YCHECK(node == event.JobNode);
     node->SetResourceUsage(node->GetResourceUsage() - job->ResourceUsage());
 
