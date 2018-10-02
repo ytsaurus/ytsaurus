@@ -56,7 +56,8 @@ public:
 private:
     const TYsonProducer Producer_;
 
-    TYsonString CachedValue_;
+    TYsonString CachedString_;
+    INodePtr CachedNode_;
     TDuration CachePeriod_;
     TInstant LastUpdateTime_;
 
@@ -93,10 +94,10 @@ private:
 
     TYsonString BuildStringFromProducer()
     {
-        if (CachePeriod_ == TDuration()) {
+        if (CachePeriod_ != TDuration()) {
             auto now = NProfiling::GetInstant();
             if (LastUpdateTime_ + CachePeriod_ > now) {
-                return CachedValue_;
+                return CachedString_;
             }
         }
 
@@ -112,8 +113,8 @@ private:
 
         auto result = TYsonString(str);
 
-        if (CachePeriod_ == TDuration()) {
-            CachedValue_ = result;
+        if (CachePeriod_ != TDuration()) {
+            CachedString_ = result;
             LastUpdateTime_ = NProfiling::GetInstant();
         }
 
@@ -122,7 +123,21 @@ private:
 
     INodePtr BuildNodeFromProducer()
     {
-        return ConvertTo<INodePtr>(BuildStringFromProducer());
+        if (CachePeriod_ != TDuration()) {
+            auto now = NProfiling::GetInstant();
+            if (LastUpdateTime_ + CachePeriod_ > now) {
+                return CachedNode_;
+            }
+        }
+
+        auto result = ConvertTo<INodePtr>(BuildStringFromProducer());
+
+        if (CachePeriod_ != TDuration()) {
+            CachedNode_ = result;
+            LastUpdateTime_ = NProfiling::GetInstant();
+        }
+
+        return result;
     }
 };
 

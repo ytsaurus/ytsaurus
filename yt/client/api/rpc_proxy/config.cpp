@@ -41,9 +41,6 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
 
-    RegisterParameter("enable_sticky_transaction_pool", EnableStickyTransactionPool)
-        .Default(false);
-
     RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
         .Default(true);
 

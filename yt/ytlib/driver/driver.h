@@ -126,6 +126,9 @@ struct IDriver
 
     virtual void ClearMetadataCaches() = 0;
 
+    //! Returns the pool of sticky transactions stored in the driver.
+    virtual NApi::IStickyTransactionPoolPtr GetStickyTransactionPool() = 0;
+
     //! Returns the underlying connection.
     virtual NApi::IConnectionPtr GetConnection() = 0;
 
