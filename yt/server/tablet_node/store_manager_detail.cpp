@@ -111,6 +111,9 @@ void TStoreManagerBase::StopEpoch()
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled ||
                 chunkStore->GetPreloadState() == EStorePreloadState::Running)
             {
+                // Running preloads are cancelled in cancellable invoker. There are no
+                // concurrent preloads when this code is running, because execution is
+                // serialized in one thread.
                 chunkStore->SetPreloadState(EStorePreloadState::None);
             }
         }
@@ -344,7 +347,6 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
     YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
 
     store->SetPreloadFuture(TFuture<void>());
-    store->UpdatePreloadAttempt(true);
     store->SetPreloadState(EStorePreloadState::Scheduled);
     Tablet_->PreloadStoreIds().push_back(store->GetId());
 }
