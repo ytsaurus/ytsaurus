@@ -4450,6 +4450,9 @@ void TOperationControllerBase::GetInputTablesAttributes()
         cellTagToTables[table.CellTag].push_back(&table);
     }
 
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    std::vector<TTagId> cellTags;
+
     for (const auto& pair : cellTagToTables) {
         auto cellTag = pair.first;
         const auto& tables = pair.second;
@@ -4479,7 +4482,18 @@ void TOperationControllerBase::GetInputTablesAttributes()
             }
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        asyncResults.push_back(batchReq->Invoke());
+        cellTags.push_back(cellTag);
+    }
+
+    auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
+    THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error getting attributes of input tables");
+    auto& combinedResult = combinedResultOrError.Value();
+
+    for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
+        auto& tables = cellTagToTables[cellTags[cellIndex]];
+        auto& batchRspOrError = combinedResult[cellIndex];
+
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of input tables");
         const auto& batchRsp = batchRspOrError.Value();
 
