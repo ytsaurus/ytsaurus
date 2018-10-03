@@ -3507,10 +3507,10 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
         # resulting in about 20mb of memory.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6 and
-                     get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 15 * 10**6)
+        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 12 * 10**6 and
+                     get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 12 * 10**6)
 
-        assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 15 * 10**6
+        assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 12 * 10**6
 
         op.track()
 
