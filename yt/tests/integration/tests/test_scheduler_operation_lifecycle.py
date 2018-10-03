@@ -850,12 +850,11 @@ class TestControllerAgent(YTEnvSetup):
         wait(lambda: get("//sys/operations/" + op.id + "/@state") == state)
 
     @flaky(max_runs=3)
-    def test_connection_time():
+    def test_connection_time(self):
         def get_connection_time():
             controller_agents = ls("//sys/controller_agents")
             assert len(controller_agents) == 1
             return datetime.strptime(get("//sys/controller_agents/{}/@connection_time").format(controller_agents[0]), "%Y-%m-%dT%H:%M:%S.%fZ")
-
 
         time.sleep(3)
 
