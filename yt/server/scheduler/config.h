@@ -20,6 +20,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/re2/re2.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -119,6 +121,8 @@ public:
 
     //! Enables profiling strategy attributes for operations.
     bool EnableOperationsProfiling;
+
+    NRe2::TRe2Ptr CustomProfilingTagFilter;
 
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;

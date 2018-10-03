@@ -9,6 +9,8 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int MaxAllowedProfilingTagCount = 200;
+
 TPoolName::TPoolName()
 { }
 
@@ -1086,6 +1088,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("ephemeral_subpools_mode", EphemeralSubpoolsMode)
         .Default(ESchedulingMode::FairShare);
+
+    RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
+        .Default();
 }
 
 void TPoolConfig::Validate()
@@ -1096,6 +1101,11 @@ void TPoolConfig::Validate()
             "max_running_operation_count",
             *MaxOperationCount,
             *MaxRunningOperationCount);
+    }
+    if (AllowedProfilingTags.size() > MaxAllowedProfilingTagCount) {
+        THROW_ERROR_EXCEPTION("Limit for the number of allowed profiling tags exceeded")
+            << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
+            << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount);
     }
 }
 
@@ -1117,6 +1127,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .DefaultNew();
     RegisterParameter("update_preemptable_jobs_list_logging_period", UpdatePreemptableJobsListLoggingPeriod)
         .Default(1000);
+    RegisterParameter("custom_profiling_tag", CustomProfilingTag)
+        .Default();
 }
 
 TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()

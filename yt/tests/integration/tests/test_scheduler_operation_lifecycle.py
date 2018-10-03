@@ -445,10 +445,28 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             result = max(result, value["value"])
         return result
 
-    def _get_operation_last_metric_value(self, metric_key, pool, slot_index):
+    def _get_operation_by_slot_last_metric_value(self, metric_key, pool, slot_index):
         results = []
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations/" + metric_key, verbose=False)):
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_slot/" + metric_key, verbose=False)):
             if value["tags"]["pool"] != pool or value["tags"]["slot_index"] != str(slot_index):
+                continue
+            results.append((value["value"], value["time"]))
+        last_metric = sorted(results, key=lambda x: x[1])[-1]
+        return last_metric[0]
+
+    def _get_operation_by_user_last_metric_value(self, metric_key, pool, user):
+        results = []
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_user/" + metric_key, verbose=False)):
+            if value["tags"]["pool"] != pool or value["tags"]["user_name"] != user:
+                continue
+            results.append((value["value"], value["time"]))
+        last_metric = sorted(results, key=lambda x: x[1])[-1]
+        return last_metric[0]
+
+    def _get_operation_by_custom_tag_last_metric_value(self, metric_key, pool, custom_tag):
+        results = []
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_user/" + metric_key, verbose=False)):
+            if value["tags"]["pool"] != pool or "custom" not in value["tags"] or value["tags"]["custom"] != custom_tag:
                 continue
             results.append((value["value"], value["time"]))
         last_metric = sorted(results, key=lambda x: x[1])[-1]
@@ -468,7 +486,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
 
-    def test_operations_profiling(self):
+    def test_operations_by_slot_profiling(self):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
         for i in xrange(2):
@@ -488,32 +506,79 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         range_ = (49999, 50000, 50001)
 
-        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_)
-        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000)
-        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000)
-        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_)
-        wait(lambda: self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1)
-        wait(lambda: self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1)
-        wait(lambda: self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1)
-        wait(lambda: self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1)
 
-        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_)
-        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0)
-        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_)
-        wait(lambda: self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0)
-        wait(lambda: self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0)
-        wait(lambda: self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1)
-        wait(lambda: self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1)
 
         op1.abort()
 
         time.sleep(2.0)
 
-        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000)
+
+    def test_operations_by_user_profiling(self):
+        create_user("vasya")
+        create_user("petya")
+
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+        for i in xrange(2):
+            self._create_table("//tmp/t_out_" + str(i + 1))
+
+        create("map_node", "//sys/pools/some_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="vasya")
+        wait(lambda: op1.get_job_count("running") == 1)
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool", "custom_profiling_tag": "world"}, dont_track=True, authenticated_user="petya")
+        wait(lambda: op2.get_state() == "running")
+
+        range_ = (49999, 50000, 50001)
+
+        for func, value in ((self._get_operation_by_user_last_metric_value, "vasya"), (self._get_operation_by_custom_tag_last_metric_value, "hello")):
+            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) in range_)
+            wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) in range_)
+            wait(lambda: func("resource_usage/cpu", "some_pool", value) == 1)
+            wait(lambda: func("resource_usage/user_slots", "some_pool", value) == 1)
+            wait(lambda: func("resource_demand/cpu", "some_pool", value) == 1)
+            wait(lambda: func("resource_demand/user_slots", "some_pool", value) == 1)
+
+        for func, value in ((self._get_operation_by_user_last_metric_value, "petya"), (self._get_operation_by_custom_tag_last_metric_value, "world")):
+            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) in range_)
+            wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 0)
+            wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) in range_)
+            wait(lambda: func("resource_usage/cpu", "some_pool", value) == 0)
+            wait(lambda: func("resource_usage/user_slots", "some_pool", value) == 0)
+            wait(lambda: func("resource_demand/cpu", "some_pool", value) == 1)
+            wait(lambda: func("resource_demand/user_slots", "some_pool", value) == 1)
+
+        op1.abort()
+
+        time.sleep(2.0)
+
+        for func, value in ((self._get_operation_by_user_last_metric_value, "petya"), (self._get_operation_by_custom_tag_last_metric_value, "world")):
+            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) == 100000)
 
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")

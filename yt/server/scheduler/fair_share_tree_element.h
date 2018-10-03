@@ -403,6 +403,9 @@ public:
 
     virtual void IncreaseOperationCount(int delta);
     virtual void IncreaseRunningOperationCount(int delta);
+
+    virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -510,6 +513,8 @@ public:
     virtual bool AreImmediateOperationsForbidden() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+
+    virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
 private:
     TPoolConfigPtr Config_;
@@ -809,6 +814,8 @@ public:
 
     int GetSlotIndex() const;
 
+    TString GetUserName() const;
+
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
     void OnJobFinished(const TJobId& jobId);
 
@@ -819,6 +826,8 @@ public:
     void OnOperationDeactivated(EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
+
+    TNullable<NProfiling::TTagId> GetCustomProfilingTag();
 
     void Disable();
     void Enable();
@@ -915,6 +924,8 @@ public:
 
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
     virtual bool AreImmediateOperationsForbidden() const override;
+
+    virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();
