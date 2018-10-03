@@ -38,6 +38,7 @@ using namespace NYson;
 using namespace NHttp;
 using namespace NCypressClient;
 using namespace NNative;
+using namespace NProfiling;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
