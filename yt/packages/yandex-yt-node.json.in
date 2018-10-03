@@ -11,7 +11,11 @@
     },
     "build": {
         "targets": [
-            "yt/server/cell_node/bin"
+            "yt/server/bin/core_forwarder",
+            "yt/server/bin/exec",
+            "yt/server/bin/tools",
+            "yt/server/cell_node/bin",
+            "yt/server/job_proxy/bin"
         ],
         "flags": [
             {
@@ -32,10 +36,66 @@
         {
             "source": {
                 "type": "BUILD_OUTPUT",
+                "path": "yt/server/bin/core_forwarder/ytserver-core-forwarder"
+            },
+            "destination": {
+                "path": "/usr/bin/ytserver-core-forwarder",
+                "attributes": {
+                    "mode": {
+                        "value": "4755"
+                    }
+                }
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/server/bin/exec/ytserver-exec"
+            },
+            "destination": {
+                "path": "/usr/bin/ytserver-exec",
+                "attributes": {
+                    "mode": {
+                        "value": "4755"
+                    }
+                }
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/server/bin/tools/ytserver-tools"
+            },
+            "destination": {
+                "path": "/usr/bin/ytserver-tools",
+                "attributes": {
+                    "mode": {
+                        "value": "4755"
+                    }
+                }
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
                 "path": "yt/server/cell_node/bin/ytserver-node"
             },
             "destination": {
                 "path": "/usr/bin/ytserver-node",
+                "attributes": {
+                    "mode": {
+                        "value": "4755"
+                    }
+                }
+            }
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "path": "yt/server/job_proxy/bin/ytserver-job-proxy"
+            },
+            "destination": {
+                "path": "/usr/bin/ytserver-job-proxy",
                 "attributes": {
                     "mode": {
                         "value": "4755"
