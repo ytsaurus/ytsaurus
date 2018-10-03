@@ -852,9 +852,9 @@ class TestControllerAgent(YTEnvSetup):
     @flaky(max_runs=3)
     def test_connection_time(self):
         def get_connection_time():
-            controller_agents = ls("//sys/controller_agents")
+            controller_agents = ls("//sys/controller_agents/instances")
             assert len(controller_agents) == 1
-            return datetime.strptime(get("//sys/controller_agents/{}/@connection_time").format(controller_agents[0]), "%Y-%m-%dT%H:%M:%S.%fZ")
+            return datetime.strptime(get("//sys/controller_agents/instances/{}/@connection_time".format(controller_agents[0])), "%Y-%m-%dT%H:%M:%S.%fZ")
 
         time.sleep(3)
 
