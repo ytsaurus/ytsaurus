@@ -18,19 +18,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EDeactivationReason,
-    (IsNotAlive)
-    (UnmatchedSchedulingTag)
-    (IsNotStarving)
-    (IsBlocked)
-    (TryStartScheduleJobFailed)
-    (ScheduleJobFailed)
-    (NoBestLeafDescendant)
-    (MinNeededResourcesUnsatisfied)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TSchedulableAttributes
 {
     NNodeTrackerClient::EResourceType DominantResource = NNodeTrackerClient::EResourceType::Cpu;
@@ -596,6 +583,10 @@ public:
 
     void OnOperationDeactivated(EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
+    void ResetDeactivationReasonsFromLastNonStarvingTime();
+    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
+
+    TInstant GetLastScheduleJobSuccessTime() const;
 
     TJobResources Disable();
     void Enable();
@@ -726,6 +717,9 @@ private:
     std::atomic<int> ScheduledJobCount_ = {0};
     TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
 
+    TInstant LastScheduleJobSuccessTime_;
+    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime_;
+
     bool Enabled_ = false;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
@@ -807,8 +801,11 @@ public:
     int GetAggressivelyPreemptableJobCount() const;
 
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
-   
+
     int GetScheduledJobCount() const;
+
+    TInstant GetLastNonStarvingTime() const;
+    TInstant GetLastScheduleJobSuccessTime() const;
 
     int GetSlotIndex() const;
 
@@ -821,6 +818,7 @@ public:
 
     void OnOperationDeactivated(EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
+    TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
     void Disable();
     void Enable();
@@ -829,11 +827,14 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
-    TSchedulingTagFilter SchedulingTagFilter_;
-
 private:
     TOperationElementSharedStatePtr SharedState_;
     TFairShareStrategyOperationControllerPtr Controller_;
+
+    TSchedulingTagFilter SchedulingTagFilter_;
+
+    TInstant LastNonStarvingTime_;
+    TInstant LastScheduleJobSuccessTime_;
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
@@ -841,7 +842,7 @@ private:
 
     TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
 
-    bool TryStartScheduleJob(
+    TNullable<EDeactivationReason> TryStartScheduleJob(
         NProfiling::TCpuInstant now,
         const TJobResources& minNeededResources,
         const TFairShareContext& context,
