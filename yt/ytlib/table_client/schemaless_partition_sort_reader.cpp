@@ -134,9 +134,10 @@ public:
             return false;
         }
 
+        bool mergeFinished = MergeFinished_.load();
         i64 sortedRowCount = SortedRowCount_.load();
         for (int spinCounter = 1; ; ++spinCounter) {
-            if (sortedRowCount > ReadRowCount_ || MergeFinished_) {
+            if (sortedRowCount > ReadRowCount_ || mergeFinished) {
                 break;
             }
             if (spinCounter % SpinsBetweenYield == 0) {
@@ -145,10 +146,11 @@ public:
                 SpinLockPause();
             }
 
+            mergeFinished = MergeFinished_.load();
             sortedRowCount = SortedRowCount_.load();
         }
 
-        if (MergeFinished_ && !MergeError_.IsOK()) {
+        if (mergeFinished && !MergeError_.IsOK()) {
             ReadyEvent_ = MakeFuture(MergeError_);
             return true;
         }
