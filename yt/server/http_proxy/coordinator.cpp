@@ -273,6 +273,8 @@ void TCoordinator::Update()
             }
         }
 
+        HttpProxyProfiler.Enqueue("/banned", Self_->IsBanned ? 1 : 0, {});
+
         FirstUpdateIterationFinished_.TrySet();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Coordinator update failed");
