@@ -2080,7 +2080,12 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     UnregisterJoblet(joblet);
 
-    LogProgress();
+    if (Spec_->FailOnJobRestart) {
+        OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
+            << TErrorAttribute("job_id", joblet->JobId)
+            << error);
+    }
 
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
@@ -2097,13 +2102,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     CheckFailedJobsStatusReceived();
 
-    if (Spec_->FailOnJobRestart) {
-        OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
-            << TErrorAttribute("job_id", joblet->JobId)
-            << error);
-    }
-
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
             LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
@@ -2112,6 +2110,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
                 joblet->NodeDescriptor.Address);
         }
     }
+
+    LogProgress();
 
     ReleaseJobs({jobId});
 }
@@ -2168,13 +2168,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     UnregisterJoblet(joblet);
 
-    if (abortReason == EAbortReason::AccountLimitExceeded) {
-        Host->OnOperationSuspended(TError("Account limit exceeded"));
-    }
-
-    CheckFailedJobsStatusReceived();
-    LogProgress();
-
     if (Spec_->FailOnJobRestart &&
         !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
     {
@@ -2184,6 +2177,13 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("abort_reason", abortReason));
     }
+
+    if (abortReason == EAbortReason::AccountLimitExceeded) {
+        Host->OnOperationSuspended(TError("Account limit exceeded"));
+    }
+
+    CheckFailedJobsStatusReceived();
+    LogProgress();
 
     if (!byScheduler) {
         ReleaseJobs({jobId});
