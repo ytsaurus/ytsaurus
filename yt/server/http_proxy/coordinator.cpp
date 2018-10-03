@@ -273,7 +273,7 @@ void TCoordinator::Update()
             }
         }
 
-        HttpProxyProfiler.Enqueue("/banned", Self_->IsBanned ? 1 : 0, EMetricCount::Gauge);
+        HttpProxyProfiler.Enqueue("/banned", Self_->IsBanned ? 1 : 0, EMetricType::Gauge);
 
         FirstUpdateIterationFinished_.TrySet();
     } catch (const std::exception& ex) {
