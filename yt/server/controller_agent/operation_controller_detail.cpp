@@ -4500,8 +4500,9 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 // Validate that timestamp is correct.
                 ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            LOG_INFO("Input table locked (Path: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
+            LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
                 path,
+                table->ObjectId,
                 table->Schema,
                 table->IsDynamic,
                 table->ChunkCount);
