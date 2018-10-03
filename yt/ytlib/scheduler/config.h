@@ -153,6 +153,8 @@ public:
 
     ESchedulingMode EphemeralSubpoolsMode;
 
+    THashSet<TString> AllowedProfilingTags;
+
     TPoolConfig();
 
     void Validate();
@@ -242,6 +244,8 @@ public:
     TTentativeTreeEligibilityConfigPtr TentativeTreeEligibility;
 
     int UpdatePreemptableJobsListLoggingPeriod;
+
+    TNullable<TString> CustomProfilingTag;
 
     TStrategyOperationSpec();
 

@@ -66,6 +66,20 @@ TTagId GetSlotIndexProfilingTag(int slotIndex)
     return it->second;
 };
 
+TTagId GetUserNameProfilingTag(const TString& userName)
+{
+    static THashMap<TString, TTagId> userNameToTagIdMap;
+
+    auto it = userNameToTagIdMap.find(userName);
+    if (it == userNameToTagIdMap.end()) {
+        it = userNameToTagIdMap.emplace(
+            userName,
+            TProfileManager::Get()->RegisterTag("user_name", userName)
+        ).first;
+    }
+    return it->second;
+};
+
 class TFairShareStrategyOperationState
     : public TIntrinsicRefCounted
 {
@@ -2019,10 +2033,26 @@ private:
 
     void ProfileOperationElement(TOperationElementPtr element) const
     {
-        auto poolTag = element->GetParent()->GetProfilingTag();
-        auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
+        {
+            auto poolTag = element->GetParent()->GetProfilingTag();
+            auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
 
-        ProfileSchedulerElement(element, "/operations", {poolTag, slotIndexTag, TreeIdProfilingTag});
+            ProfileSchedulerElement(element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag});
+        }
+
+        auto parent = element->GetParent();
+        while (parent != nullptr) {
+            auto poolTag = parent->GetProfilingTag();
+            auto userNameTag = GetUserNameProfilingTag(element->GetUserName());
+            TTagIdList byUserTags = {poolTag, userNameTag, TreeIdProfilingTag};
+            auto customTag = element->GetCustomProfilingTag();
+            if (customTag) {
+                byUserTags.push_back(*customTag);
+            }
+            ProfileSchedulerElement(element, "/operations_by_user", byUserTags);
+
+            parent = parent->GetParent();
+        }
     }
 
     void ProfileCompositeSchedulerElement(TCompositeSchedulerElementPtr element) const

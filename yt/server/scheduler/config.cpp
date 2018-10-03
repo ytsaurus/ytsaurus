@@ -105,6 +105,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
         .Default(true);
 
+    RegisterParameter("custom_profiling_tag_filter", CustomProfilingTagFilter)
+        .Default();
+
     RegisterParameter("threshold_to_enable_max_possible_usage_regularization", ThresholdToEnableMaxPossibleUsageRegularization)
         .InRange(0.0, 1.0)
         .Default(0.5);
