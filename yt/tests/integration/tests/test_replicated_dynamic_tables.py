@@ -817,7 +817,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_replication_trim(self, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", min_replication_log_ttl=ttl, dynamic_store_auto_flush_period=1000)
+        self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000)
 
         sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
@@ -853,8 +853,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: check_chunks())
 
         sync_unmount_table("//tmp/t")
-
-        wait(lambda: get("//tmp/t/@chunk_count") == chunk_count)
 
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 1
