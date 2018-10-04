@@ -335,6 +335,10 @@ void THostsHandler::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
+    if (MaybeHandleCors(req, rsp)) {
+        return;
+    }
+
     TNullable<TString> role;
     TNullable<TString> suffix;
     bool returnJson = true;
@@ -416,6 +420,10 @@ void TPingHandler::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
+    if (MaybeHandleCors(req, rsp)) {
+        return;
+    }
+
     rsp->SetStatus(Coordinator_->IsBanned() ? EStatusCode::ServiceUnavailable : EStatusCode::OK);
     WaitFor(rsp->Close())
         .ThrowOnError();

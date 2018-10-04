@@ -35,6 +35,10 @@ THttpAuthenticator::THttpAuthenticator(
 
 void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
+    if (MaybeHandleCors(req, rsp)) {
+        return;
+    }
+
     auto auth = WaitFor(Authenticate(req))
         .ValueOrThrow();
 
