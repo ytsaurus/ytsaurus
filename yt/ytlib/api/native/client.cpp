@@ -5446,7 +5446,11 @@ private:
             clauses.push_back(Format("FROM [%v]", Source_));
             if (!WhereExpressions_.empty()) {
                 clauses.push_back("WHERE");
-                clauses.push_back(JoinSeq(" AND ", WhereExpressions_));
+                std::vector<TString> whereExpressions;
+                for (const auto& expression : WhereExpressions_) {
+                    whereExpressions.push_back("(" + expression + ")");
+                }
+                clauses.push_back(JoinSeq(" AND ", whereExpressions));
             }
             if (!OrderByExpression_.empty()) {
                 clauses.push_back("ORDER BY");
