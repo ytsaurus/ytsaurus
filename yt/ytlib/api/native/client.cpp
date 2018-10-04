@@ -14,21 +14,38 @@
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/operation_archive_schema.h>
-#include <yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/client/api/file_reader.h>
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
 
+#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/security_client/helpers.h>
+
+#include <yt/client/table_client/helpers.h>
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
+
+#include <yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/api/native/tablet_helpers.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/medium_directory.pb.h>
-#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -49,12 +66,12 @@
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/query_builder.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
@@ -68,27 +85,17 @@
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/client/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/client/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/client/table_client/wire_protocol.h>
-#include <yt/client/table_client/proto/wire_protocol.pb.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 #include <yt/ytlib/tablet_client/master_tablet_service.h>
-
-#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -5048,7 +5055,7 @@ private:
         }
 
         if (options.IncludeCounters) {
-            TQueryBuilder builder;
+            NQueryClient::TQueryBuilder builder;
             builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
 
             auto poolsIndex = builder.AddSelectExpression("pools_str");
@@ -5056,18 +5063,22 @@ private:
             auto stateIndex = builder.AddSelectExpression("state");
             auto operationTypeIndex = builder.AddSelectExpression("operation_type");
             auto poolIndex = builder.AddSelectExpression("pool");
-            auto countIndex = builder.AddSelectExpression("sum(1) AS count");
+            auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
-            builder.AddWhereExpression(Format("start_time > %v AND start_time <= %v",
+            builder.AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
                 (*options.FromTime).MicroSeconds(),
                 (*options.ToTime).MicroSeconds()));
 
             if (options.SubstrFilter) {
-                builder.AddWhereExpression(
+                builder.AddWhereConjunct(
                     Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
             }
 
-            builder.SetGroupByExpression("any_to_yson_string(pools) AS pools_str, authenticated_user, state, operation_type, pool");
+            builder.AddGroupByExpression("any_to_yson_string(pools)", "pools_str");
+            builder.AddGroupByExpression("authenticated_user");
+            builder.AddGroupByExpression("state");
+            builder.AddGroupByExpression("operation_type");
+            builder.AddGroupByExpression("pool");
 
             TSelectRowsOptions selectOptions;
             selectOptions.Timeout = deadline - Now();
@@ -5095,51 +5106,58 @@ private:
             }
         }
 
-        TQueryBuilder builder;
+        NQueryClient::TQueryBuilder builder;
         builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
 
         builder.AddSelectExpression("id_hi");
         builder.AddSelectExpression("id_lo");
 
-        builder.AddWhereExpression(Format("start_time > %v AND start_time <= %v",
+        builder.AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
             (*options.FromTime).MicroSeconds(),
             (*options.ToTime).MicroSeconds()));
 
         if (options.SubstrFilter) {
-            builder.AddWhereExpression(
+            builder.AddWhereConjunct(
                 Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
         }
 
-        builder.SetOrderByExpression("start_time");
+        TNullable<EOrderByDirection> orderByDirection;
 
-        if (options.CursorDirection == EOperationSortDirection::Past) {
-            if (options.CursorTime) {
-                builder.AddWhereExpression(Format("start_time <= %v", (*options.CursorTime).MicroSeconds()));
-            }
-            builder.SetOrderByDirection("DESC");
+        switch (options.CursorDirection) {
+            case EOperationSortDirection::Past:
+                if (options.CursorTime) {
+                    builder.AddWhereConjunct(Format("start_time <= %v", (*options.CursorTime).MicroSeconds()));
+                }
+                orderByDirection = EOrderByDirection::Descending;
+                break;
+            case EOperationSortDirection::Future:
+                if (options.CursorTime) {
+                    builder.AddWhereConjunct(Format("start_time > %v", (*options.CursorTime).MicroSeconds()));
+                }
+                orderByDirection = EOrderByDirection::Ascending;
+                break;
+            case EOperationSortDirection::None:
+                break;
+            default:
+                Y_UNREACHABLE();
         }
 
-        if (options.CursorDirection == EOperationSortDirection::Future) {
-            if (options.CursorTime) {
-                builder.AddWhereExpression(Format("start_time > %v", (*options.CursorTime).MicroSeconds()));
-            }
-            builder.SetOrderByDirection("ASC");
-        }
+        builder.AddOrderByExpression("start_time", orderByDirection);
 
         if (options.Pool) {
-            builder.AddWhereExpression(Format("list_contains(pools, %Qv) or pool = %Qv", *options.Pool, *options.Pool));
+            builder.AddWhereConjunct(Format("list_contains(pools, %Qv) OR pool = %Qv", *options.Pool, *options.Pool));
         }
 
         if (options.StateFilter) {
-            builder.AddWhereExpression(Format("state = %Qv", FormatEnum(*options.StateFilter)));
+            builder.AddWhereConjunct(Format("state = %Qv", FormatEnum(*options.StateFilter)));
         }
 
         if (options.TypeFilter) {
-            builder.AddWhereExpression(Format("operation_type = %Qv", FormatEnum(*options.TypeFilter)));
+            builder.AddWhereConjunct(Format("operation_type = %Qv", FormatEnum(*options.TypeFilter)));
         }
 
         if (options.UserFilter) {
-            builder.AddWhereExpression(Format("authenticated_user = %Qv", *options.UserFilter));
+            builder.AddWhereConjunct(Format("authenticated_user = %Qv", *options.UserFilter));
         }
 
         // Retain more operations than limit to track (in)completeness of the response.
@@ -5399,89 +5417,6 @@ private:
         return result;
     }
 
-    class TQueryBuilder
-    {
-    public:
-        void SetSource(const TString& source)
-        {
-            Source_ = source;
-        }
-
-        int AddSelectExpression(const TString& expression)
-        {
-            SelectExpressions_.push_back(expression);
-            return SelectExpressions_.size() - 1;
-        }
-
-        int AddWhereExpression(const TString& expression)
-        {
-            WhereExpressions_.push_back(expression);
-            return WhereExpressions_.size() - 1;
-        }
-
-        void SetGroupByExpression(const TString& expression)
-        {
-            GroupByExpression_ = expression;
-        }
-
-        void SetOrderByExpression(const TString& expression)
-        {
-            OrderByExpression_ = expression;
-        }
-
-        void SetOrderByDirection(const TString& direction)
-        {
-            OrderByDirection_ = direction;
-        }
-
-        void SetLimit(int limit)
-        {
-            Limit_ = limit;
-        }
-
-        TString Build()
-        {
-            std::vector<TString> clauses;
-            clauses.reserve(8);
-            clauses.push_back(JoinSeq(", ", SelectExpressions_));
-            clauses.push_back(Format("FROM [%v]", Source_));
-            if (!WhereExpressions_.empty()) {
-                clauses.push_back("WHERE");
-                std::vector<TString> whereExpressions;
-                for (const auto& expression : WhereExpressions_) {
-                    whereExpressions.push_back("(" + expression + ")");
-                }
-                clauses.push_back(JoinSeq(" AND ", whereExpressions));
-            }
-            if (!OrderByExpression_.empty()) {
-                clauses.push_back("ORDER BY");
-                clauses.push_back(OrderByExpression_);
-                if (!OrderByDirection_.empty()) {
-                    clauses.push_back(OrderByDirection_);
-                }
-            }
-            if (!GroupByExpression_.empty()) {
-                clauses.push_back("GROUP BY");
-                clauses.push_back(GroupByExpression_);
-            }
-            if (Limit_ >= 0) {
-                clauses.push_back(Format("LIMIT %v", Limit_));
-            }
-            return JoinSeq(" ", clauses);
-        }
-
-    private:
-        TString Source_;
-        std::vector<TString> SelectExpressions_;
-        std::vector<TString> WhereExpressions_;
-        TString OrderByExpression_;
-        TString OrderByDirection_;
-        TString GroupByExpression_;
-
-        int Limit_ = -1;
-    };
-
-
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
         const TOperationId& operationId,
         TInstant deadline,
@@ -5489,11 +5424,11 @@ private:
     {
         std::vector<TJob> jobs;
 
-        TQueryBuilder itemsQueryBuilder;
+        NQueryClient::TQueryBuilder itemsQueryBuilder;
         itemsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
         itemsQueryBuilder.SetLimit(options.Offset + options.Limit);
 
-        TQueryBuilder statisticsQueryBuilder;
+        NQueryClient::TQueryBuilder statisticsQueryBuilder;
         statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
 
         auto operationIdExpression = Format(
@@ -5501,13 +5436,13 @@ private:
             operationId.Parts64[0],
             operationId.Parts64[1]);
 
-        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
-        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
+        itemsQueryBuilder.AddWhereConjunct(operationIdExpression);
+        statisticsQueryBuilder.AddWhereConjunct(operationIdExpression);
 
         auto jobIdHiIndex = itemsQueryBuilder.AddSelectExpression("job_id_hi");
         auto jobIdLoIndex = itemsQueryBuilder.AddSelectExpression("job_id_lo");
-        auto typeIndex = itemsQueryBuilder.AddSelectExpression("type AS job_type");
-        auto stateIndex = itemsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state");
+        auto typeIndex = itemsQueryBuilder.AddSelectExpression("type", "job_type");
+        auto stateIndex = itemsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state)", "job_state");
         auto startTimeIndex = itemsQueryBuilder.AddSelectExpression("start_time");
         auto finishTimeIndex = itemsQueryBuilder.AddSelectExpression("finish_time");
         auto addressIndex = itemsQueryBuilder.AddSelectExpression("address");
@@ -5518,96 +5453,104 @@ private:
         auto failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
 
         auto updateTimeExpression = Format(
-            "(job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
-            "OR (NOT is_null(update_time) AND update_time >= %v))",
+            "job_state = \"aborted\" OR job_state = \"failed\" OR job_state = \"completed\" OR job_state = \"lost\" "
+            "OR (NOT is_null(update_time) AND update_time >= %v)",
             (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
-        itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
-        statisticsQueryBuilder.AddWhereExpression(updateTimeExpression);
+        itemsQueryBuilder.AddWhereConjunct(updateTimeExpression);
+        statisticsQueryBuilder.AddWhereConjunct(updateTimeExpression);
 
         if (options.WithStderr) {
             if (*options.WithStderr) {
-                itemsQueryBuilder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
+                itemsQueryBuilder.AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
             } else {
-                itemsQueryBuilder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
+                itemsQueryBuilder.AddWhereConjunct("stderr_size = 0 OR is_null(stderr_size)");
             }
         }
 
         if (options.WithSpec) {
             if (*options.WithSpec) {
-                itemsQueryBuilder.AddWhereExpression("(has_spec AND NOT is_null(has_spec))");
+                itemsQueryBuilder.AddWhereConjunct("has_spec AND NOT is_null(has_spec)");
             } else {
-                itemsQueryBuilder.AddWhereExpression("(NOT has_spec OR is_null(has_spec))");
+                itemsQueryBuilder.AddWhereConjunct("NOT has_spec OR is_null(has_spec)");
             }
         }
 
         if (options.WithFailContext) {
             if (*options.WithFailContext) {
-                itemsQueryBuilder.AddWhereExpression("(fail_context_size != 0 AND NOT is_null(fail_context_size))");
+                itemsQueryBuilder.AddWhereConjunct("fail_context_size != 0 AND NOT is_null(fail_context_size)");
             } else {
-                itemsQueryBuilder.AddWhereExpression("(fail_context_size = 0 OR is_null(fail_context_size))");
+                itemsQueryBuilder.AddWhereConjunct("fail_context_size = 0 OR is_null(fail_context_size)");
             }
         }
 
         if (options.Address) {
-            itemsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
+            itemsQueryBuilder.AddWhereConjunct(Format("address = %Qv", *options.Address));
         }
 
         if (options.Type) {
-            itemsQueryBuilder.AddWhereExpression(Format("job_type = %Qv", FormatEnum(*options.Type)));
+            itemsQueryBuilder.AddWhereConjunct(Format("job_type = %Qv", FormatEnum(*options.Type)));
         }
 
         if (options.State) {
-            itemsQueryBuilder.AddWhereExpression(Format("job_state = %Qv", FormatEnum(*options.State)));
+            itemsQueryBuilder.AddWhereConjunct(Format("job_state = %Qv", FormatEnum(*options.State)));
         }
 
         if (options.SortField != EJobSortField::None) {
-            switch (options.SortField) {
-                case EJobSortField::Type:
-                    itemsQueryBuilder.SetOrderByExpression("job_type");
-                    break;
-                case EJobSortField::State:
-                    itemsQueryBuilder.SetOrderByExpression("job_state");
-                    break;
-                case EJobSortField::StartTime:
-                    itemsQueryBuilder.SetOrderByExpression("start_time");
-                    break;
-                case EJobSortField::FinishTime:
-                    itemsQueryBuilder.SetOrderByExpression("finish_time");
-                    break;
-                case EJobSortField::Address:
-                    itemsQueryBuilder.SetOrderByExpression("address");
-                    break;
-                case EJobSortField::Duration:
-                    itemsQueryBuilder.SetOrderByExpression(Format(
-                        "if(is_null(finish_time), %v, finish_time) - start_time",
-                        TInstant::Now().MicroSeconds()));
-                    break;
-                case EJobSortField::Id:
-                    itemsQueryBuilder.SetOrderByExpression("format_guid(job_id_hi, job_id_lo)");
-                    break;
-                // XXX: progress is not presented in archive table.
-                default:
-                    break;
-            }
+            EOrderByDirection orderByDirection;
             switch (options.SortOrder) {
                 case EJobSortDirection::Ascending:
-                    itemsQueryBuilder.SetOrderByDirection("ASC");
+                    orderByDirection = EOrderByDirection::Ascending;
                     break;
                 case EJobSortDirection::Descending:
-                    itemsQueryBuilder.SetOrderByDirection("DESC");
+                    orderByDirection = EOrderByDirection::Descending;
                     break;
+                default:
+                    Y_UNREACHABLE();
+            }
+            switch (options.SortField) {
+                case EJobSortField::Type:
+                    itemsQueryBuilder.AddOrderByExpression("job_type", orderByDirection);
+                    break;
+                case EJobSortField::State:
+                    itemsQueryBuilder.AddOrderByExpression("job_state", orderByDirection);
+                    break;
+                case EJobSortField::StartTime:
+                    itemsQueryBuilder.AddOrderByExpression("start_time", orderByDirection);
+                    break;
+                case EJobSortField::FinishTime:
+                    itemsQueryBuilder.AddOrderByExpression("finish_time", orderByDirection);
+                    break;
+                case EJobSortField::Address:
+                    itemsQueryBuilder.AddOrderByExpression("address", orderByDirection);
+                    break;
+                case EJobSortField::Duration:
+                    itemsQueryBuilder.AddOrderByExpression(
+                        Format(
+                            "if(is_null(finish_time), %v, finish_time) - start_time",
+                            TInstant::Now().MicroSeconds()),
+                        orderByDirection);
+                    break;
+                case EJobSortField::Id:
+                    itemsQueryBuilder.AddOrderByExpression("format_guid(job_id_hi, job_id_lo)", orderByDirection);
+                    break;
+                case EJobSortField::Progress:
+                    // XXX: progress is not present in archive table.
+                    break;
+                default:
+                    Y_UNREACHABLE();
             }
         }
 
         auto itemsQuery = itemsQueryBuilder.Build();
 
         if (options.Address) {
-            statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
+            statisticsQueryBuilder.AddWhereConjunct(Format("address = %Qv", *options.Address));
         }
-        statisticsQueryBuilder.AddSelectExpression("type as job_type");
-        statisticsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state");
-        statisticsQueryBuilder.AddSelectExpression("SUM(1) AS count");
-        statisticsQueryBuilder.SetGroupByExpression("job_type, job_state");
+        statisticsQueryBuilder.AddSelectExpression("type", "job_type");
+        statisticsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state)", "job_state");
+        statisticsQueryBuilder.AddSelectExpression("sum(1)", "count");
+        statisticsQueryBuilder.AddGroupByExpression("job_type");
+        statisticsQueryBuilder.AddGroupByExpression("job_state");
         auto statisticsQuery = statisticsQueryBuilder.Build();
 
         TSelectRowsOptions selectRowsOptions;
