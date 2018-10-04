@@ -167,7 +167,7 @@ private:
         {
             auto entry = Find(key);
             if (entry) {
-                if (refreshRevision && entry->GetRevision() && *entry->GetRevision() <= *refreshRevision)
+                if (refreshRevision && entry->GetRevision() && *entry->GetRevision() <= *refreshRevision) {
                     LOG_DEBUG("Cache entry refresh requested (Key: %v, RefreshRevision: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                         key,
                         refreshRevision,
@@ -178,7 +178,7 @@ private:
 
                     TryRemove(entry);
 
-                if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
+                } else if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
                     LOG_DEBUG("Cache entry expired (Key: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                         key,
                         entry->GetRevision(),
@@ -194,6 +194,7 @@ private:
                         entry->GetSuccess(),
                         successExpirationTime,
                         failureExpirationTime);
+
                     return MakeFuture(TErrorOr<TSubrequestResponse>(std::make_pair(
                         entry->GetResponseMessage(),
                         entry->GetRevision())));
