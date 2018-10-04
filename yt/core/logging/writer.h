@@ -28,11 +28,12 @@ public:
     void SetBytesCounter(const NProfiling::TMonotonicCounter& counter);
     void SetSkippedEventsCounter(const NProfiling::TMonotonicCounter& counter);
     bool IsLimitReached();
-    bool UpdateTime();
-    void UpdateCounter(size_t bytesWritten);
-    i64 GetLastSkippedEventsCount();
+    bool IsIntervalPassed();
+    i64 GetAndResetLastSkippedEventsCount();
 
-protected:
+    void UpdateCounter(size_t bytesWritten);
+
+private:
     size_t BytesWritten_ = 0;
     i64 SkippedEvents_ = 0;
     TDuration UpdatePeriod_ = TDuration::Seconds(1);

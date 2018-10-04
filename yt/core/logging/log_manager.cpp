@@ -967,11 +967,11 @@ private:
 
     TMonotonicCounter* GetCategoryEventsCounter(const TString& category)
     {
-        auto it = CategoryToEventsCounter_.find(category);
-        if (it == CategoryToEventsCounter_.end()) {
+        auto it = CategoryToEvents_.find(category);
+        if (it == CategoryToEvents_.end()) {
             auto tagId = TProfileManager::Get()->RegisterTag("category", category);
             TMonotonicCounter counter("/log_events_enqueued", {tagId});
-            it = CategoryToEventsCounter_.insert({category, counter}).first;
+            it = CategoryToEvents_.insert({category, counter}).first;
         }
         return &it->second;
     }
@@ -1004,7 +1004,7 @@ private:
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
-    THashMap<TString, TMonotonicCounter> CategoryToEventsCounter_;
+    THashMap<TString, TMonotonicCounter> CategoryToEvents_;
 
     std::atomic<ui64> EnqueuedEvents_ = {0};
     std::atomic<ui64> WrittenEvents_ = {0};
