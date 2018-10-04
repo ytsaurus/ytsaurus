@@ -1021,10 +1021,12 @@ private:
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
 
-        for (auto& pair : tablet->Replicas()) {
-            auto& replicaInfo = pair.second;
-            StopTableReplicaEpoch(&replicaInfo);
-            StartTableReplicaEpoch(tablet, &replicaInfo);
+        if (!IsRecovery()) {
+            for (auto& pair : tablet->Replicas()) {
+                auto& replicaInfo = pair.second;
+                StopTableReplicaEpoch(&replicaInfo);
+                StartTableReplicaEpoch(tablet, &replicaInfo);
+            }
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
