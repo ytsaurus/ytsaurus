@@ -178,7 +178,7 @@ private:
 
                     TryRemove(entry);
 
-                if (!IsExpired(entry, successExpirationTime, failureExpirationTime)) {
+                if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
                     LOG_DEBUG("Cache entry expired (Key: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                         key,
                         entry->GetRevision(),
