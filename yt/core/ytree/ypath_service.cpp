@@ -207,11 +207,14 @@ class TCachedYPathService
 public:
     TCachedYPathService(
         IYPathServicePtr underlyingService,
-        TDuration updatePeriod)
+        TDuration updatePeriod,
+        IInvokerPtr workerInvoker)
         : UnderlyingService_(std::move(underlyingService))
-        , IsCacheEnabled_(false)
+        , WorkerInvoker_(workerInvoker
+            ? workerInvoker
+            : NRpc::TDispatcher::Get()->GetHeavyInvoker())
         , PeriodicExecutor_(New<TPeriodicExecutor>(
-            GetWorkerInvoker(),
+            WorkerInvoker_,
             BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
             updatePeriod))
     {
@@ -234,16 +237,19 @@ public:
         } else {
             PeriodicExecutor_->SetPeriod(period);
             if (!IsCacheEnabled_) {
-                RebuildCache();
-                PeriodicExecutor_->Start();
+                IsCacheValid_ = false;
                 IsCacheEnabled_ = true;
+                PeriodicExecutor_->Start();
             }
         }
     }
 
 private:
     const IYPathServicePtr UnderlyingService_;
-    std::atomic<bool> IsCacheEnabled_;
+    const IInvokerPtr WorkerInvoker_;
+
+    std::atomic<bool> IsCacheEnabled_ = {false};
+    std::atomic<bool> IsCacheValid_ = {false};
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
@@ -251,8 +257,8 @@ private:
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
-        if (IsCacheEnabled_) {
-            GetWorkerInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)]() {
+        if (IsCacheEnabled_ && IsCacheValid_) {
+            WorkerInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)]() {
                 try {
                     auto cachedTree = GetCachedTree().ValueOrThrow();
                     ExecuteVerb(cachedTree, context);
@@ -298,18 +304,14 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
             std::swap(CachedTreeOrError_, oldCachedTreeOrError);
             CachedTreeOrError_ = cachedTreeOrError;
+            IsCacheValid_ = true;
         }
-    }
-
-    static IInvokerPtr GetWorkerInvoker()
-    {
-        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 };
 
-IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
+IYPathServicePtr IYPathService::Cached(TDuration updatePeriod, IInvokerPtr workerInvoker)
 {
-    return New<TCachedYPathService>(this, updatePeriod);
+    return New<TCachedYPathService>(this, updatePeriod, workerInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

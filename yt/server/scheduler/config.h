@@ -25,6 +25,19 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDeactivationReason,
+    (IsNotAlive)
+    (UnmatchedSchedulingTag)
+    (IsNotStarving)
+    (IsBlocked)
+    (ScheduleJobFailed)
+    (NoBestLeafDescendant)
+    (MinNeededResourcesUnsatisfied)
+    (ResourceLimitsExceeded)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -150,6 +163,9 @@ public:
 
     //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
     int OperationUnschedulableMinScheduleJobAttempts;
+
+    //! Reasons that consider as unsuccessfull in schedule job attempts.
+    THashSet<EDeactivationReason> OperationUnschedulableDeactiovationReasons;
 
     //! List of operation types, which have disabled tentative pool trees option.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;

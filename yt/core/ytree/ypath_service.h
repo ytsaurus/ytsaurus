@@ -105,8 +105,10 @@ struct IYPathService
     IYPathServicePtr Via(IInvokerPtr invoker);
 
     //! Creates a wrapper that makes ephemeral snapshots to cache
-    //! the underlying service.
-    IYPathServicePtr Cached(TDuration updatePeriod);
+    //! the underlying service. 
+    //! Building tree from underlying service is performed in #invoker,
+    //! HeavyRpc invoker is used by default.
+    IYPathServicePtr Cached(TDuration updatePeriod, IInvokerPtr workerInvoker = nullptr);
 
     //! Creates a wrapper that calls given callback on each invocation
     //! in order to validate user permission to query the ypath service.
