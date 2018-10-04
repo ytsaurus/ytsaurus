@@ -3,7 +3,7 @@ from yt_commands import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_datetime, date_string_to_timestamp
+from yt.common import date_string_to_datetime, date_string_to_timestamp, update
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -2774,15 +2774,18 @@ class TestSecureVault(YTEnvSetup):
         "composite": {"token1": "SeNsItIvE", "token2": "InFo"},
     }
 
-    def run_map_with_secure_vault(self):
+    def run_map_with_secure_vault(self, spec=None):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
+        merged_spec = {"secure_vault": self.secure_vault, "max_failed_job_count": 1}
+        if spec is not None:
+            merged_spec = update(merged_spec, spec)
         op = map(
             dont_track=True,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"secure_vault": self.secure_vault, "max_failed_job_count": 1},
+            spec=merged_spec,
             command="""
                 echo {YT_SECURE_VAULT=$YT_SECURE_VAULT}\;;
                 echo {YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64}\;;
@@ -2827,6 +2830,14 @@ class TestSecureVault(YTEnvSetup):
 
     def test_secure_vault_with_revive(self):
         op = self.run_map_with_secure_vault()
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    def test_secure_vault_with_revive_with_new_storage_scheme(self):
+        op = self.run_map_with_secure_vault(spec={"enable_compatible_storage_mode": True})
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
         op.track()
