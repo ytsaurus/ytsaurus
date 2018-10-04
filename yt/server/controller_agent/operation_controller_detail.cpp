@@ -2080,6 +2080,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     UnregisterJoblet(joblet);
 
+    // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
         OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
@@ -2168,12 +2169,13 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     UnregisterJoblet(joblet);
 
+    // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart &&
         !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
     {
         OnOperationFailed(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job aborted; operation failed because spec option fail_on_job_restart is set")
+            "Job aborted; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("abort_reason", abortReason));
     }
