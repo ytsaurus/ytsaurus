@@ -262,7 +262,7 @@ void RemoveDirContentAsRoot(const TString& path)
         std::vector<TError> innerErrors;
         {
             TDirIterator dir(path);
-            for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            for (auto it = dir.begin(); it != dir.end(); ++it) {
                 try {
                     if (isRemovable(it)) {
                         NFS::Remove(it->fts_path);
@@ -277,7 +277,7 @@ void RemoveDirContentAsRoot(const TString& path)
         std::vector<TString> unremovableItems;
         {
             TDirIterator dir(path);
-            for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            for (auto it = dir.begin(); it != dir.end(); ++it) {
                 if (isRemovable(it)) {
                     unremovableItems.push_back(it->fts_path);
                 }

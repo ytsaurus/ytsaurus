@@ -46,7 +46,7 @@ TGpuManager::TGpuManager()
 
     auto dirName = TString("/dev");
     TDirIterator dir(dirName, TDirIterator::TOptions().SetMaxLevel(1));
-    for (auto file = dir.Begin(); file != dir.End(); ++file) {
+    for (auto file = dir.begin(); file != dir.end(); ++file) {
         if (file->fts_pathlen == file->fts_namelen || file->fts_pathlen <= dirName.length()) {
             continue;
         }
