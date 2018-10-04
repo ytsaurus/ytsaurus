@@ -95,7 +95,7 @@ private:
         const auto& refreshPrimaryRevision = key.RefreshPrimaryRevision;
         const auto& refreshSecondaryRevision = key.RefreshSecondaryRevision;
 
-        LOG_DEBUG("Requesting table mount info (Path: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
+        LOG_DEBUG("Requesting table mount info from primary master (Path: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
             path,
             refreshPrimaryRevision,
             refreshSecondaryRevision);
@@ -143,6 +143,12 @@ private:
             THROW_ERROR_EXCEPTION("Table %v is not dynamic",
                 path);
         }
+
+        LOG_DEBUG("Requesting table mount info from secondary master (Path: %v, CellTag: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
+            path,
+            cellTag,
+            refreshPrimaryRevision,
+            refreshSecondaryRevision);
 
         channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache, cellTag);
         auto secondaryProxy = TObjectServiceProxy(channel);

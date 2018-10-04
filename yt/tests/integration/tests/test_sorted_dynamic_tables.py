@@ -2438,6 +2438,19 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t1", rows)
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
+    def test_lookup_from_removed_table(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        remove("//tmp/t")
+        self._create_simple_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        actual = lookup_rows("//tmp/t", [{"key": 0}])
+        assert actual == []
+
 ##################################################################
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
