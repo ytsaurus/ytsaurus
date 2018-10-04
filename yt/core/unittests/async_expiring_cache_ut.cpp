@@ -101,7 +101,7 @@ TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
     int duration = (end - start).MilliSeconds();
     int expected = duration / interval;
 
-    EXPECT_LE(std::abs(expected - actual), 1);
+    EXPECT_LE(std::abs(expected - actual), 10);
 }
 
 TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
