@@ -64,15 +64,21 @@ def comma_separated_set(s):
 def process_core_dumps(options, suite_name, suite_path):
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, suite_name]))
-    # Copy artifacts.
+
+    # Prepare artifact paths.
     artifact_path = os.path.join(sandbox_archive, "artifacts")
-    artifacts = copy_artifacts(options.working_directory, artifact_path)
+    artifacts = copy_artifacts(options.working_directory, artifact_path, dry_run=True)
 
     search_paths = [suite_path]
     if hasattr(options, "core_path"):
         search_paths.append(options.core_path)
 
-    return find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive)
+    if find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive):
+        # Copy artifacts if cores are presented.
+        copy_artifacts(options.working_directory, artifact_path)
+        return True
+
+    return False
 
 def only_for_projects(*projects):
     def decorator(func):
