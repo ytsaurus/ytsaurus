@@ -854,41 +854,6 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
     OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
 }
 
-TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = GetJobOrThrow(jobId);
-
-    TShellParameters shellParameters;
-    Deserialize(shellParameters, ConvertToNode(parameters));
-    if (shellParameters.Operation == EShellOperation::Spawn) {
-        Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
-    }
-
-    LOG_DEBUG("Polling job shell (JobId: %v, OperationId: %v, Parameters: %v)",
-        job->GetId(),
-        job->GetOperationId(),
-        ConvertToYsonString(parameters, EYsonFormat::Text));
-
-    auto proxy = CreateJobProberProxy(job);
-    auto req = proxy.PollJobShell();
-    ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_parameters(), parameters.GetData());
-
-    auto rspOrError = WaitFor(req->Invoke());
-    if (!rspOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error polling job shell for job %v", jobId)
-            << rspOrError
-            << TErrorAttribute("parameters", parameters);
-    }
-
-    const auto& rsp = rspOrError.Value();
-    return TYsonString(rsp->result());
-}
-
 void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());

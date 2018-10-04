@@ -2279,7 +2279,7 @@ private:
     {
         auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
-        
+
         {
             auto req = TTableYPathProxy::Get(path + "/@");
             std::vector<TString> attributeKeys{"id", "external_cell_tag"};
@@ -3286,7 +3286,7 @@ private:
             TTableId tableId;
             ResolveExternalNode(*path, &tableId, &cellTag);
 
-            auto newAttributes = options.Attributes->Clone();   
+            auto newAttributes = options.Attributes->Clone();
             newAttributes->Set("table_path", FromObjectId(tableId));
 
             attributes = std::move(newAttributes);
@@ -6474,13 +6474,24 @@ private:
         const TYsonString& parameters,
         const TPollJobShellOptions& options)
     {
-        auto req = JobProberProxy_->PollJobShell();
+        TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
+        auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
+
+        LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
+
+        NJobProberClient::TJobProberServiceProxy proxy(nodeChannel);
+        auto req = proxy.PollJobShell();
         ToProto(req->mutable_job_id(), jobId);
         ToProto(req->mutable_parameters(), parameters.GetData());
 
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error polling job shell")
+                << TErrorAttribute("job_id", jobId)
+                << rspOrError;
+        }
 
+        const auto& rsp = rspOrError.Value();
         return TYsonString(rsp->result());
     }
 
