@@ -808,7 +808,7 @@ private:
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
-                    auto secureVaultPath = GetSecureVaultPath(operationId);
+                    auto secureVaultPath = GetNewSecureVaultPath(operationId);
 
                     // Retrieve operation attributes.
                     {
@@ -1015,7 +1015,7 @@ private:
             for (const auto& operation : operations) {
                 const auto& operationId = operation->GetId();
                 auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
-                auto secureVaultPath = GetSecureVaultPath(operationId);
+                auto secureVaultPath = GetNewSecureVaultPath(operationId);
 
                 // Retrieve operation attributes.
                 {
