@@ -185,10 +185,10 @@ public:
     template <class TDerived>
     const TDerived* As() const;
 
-protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+protected:
     const TObjectId Id_;
 
     int RefCounter_ = 0;
