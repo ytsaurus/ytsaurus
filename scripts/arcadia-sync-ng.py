@@ -77,6 +77,7 @@ PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
 class LocalSvn(object):
     def __init__(self, root):
         self.root = os.path.realpath(root)
+        self.ya = os.path.join(self.root, "ya")
         assert os.path.isdir(os.path.join(self.root, '.svn'))
 
     def iter_status(self, path):
@@ -90,7 +91,7 @@ class LocalSvn(object):
         SvnStatusEntry = collections.namedtuple("SvnStatusEntry", ["abspath", "relpath", "status"])
 
         path = os.path.join(self.root, path)
-        xml_status = subprocess.check_output(['svn', 'status', '--xml', '--verbose', path])
+        xml_status = subprocess.check_output([self.ya, 'svn', 'status', '--xml', '--verbose', path])
         tree = ElementTree.fromstring(xml_status)
         for item in tree.findall("target/entry"):
             abspath = item.get("path")
@@ -105,16 +106,16 @@ class LocalSvn(object):
         for p in paths:
             if p.startswith('/') or not os.path.exists(self.abspath(p)):
                 raise ValueError("Path '{}' must be relative to svn root".format(p))
-        subprocess.check_call(["svn", "add", "--parents"] + [self.abspath(p) for p in paths])
+        subprocess.check_call([self.ya, "svn", "add", "--parents"] + [self.abspath(p) for p in paths])
 
     def remove(self, *paths):
         for p in paths:
             if p.startswith('/'):
                 raise ValueError("Path '{}' must be relative to svn root".format(p))
-        subprocess.check_call(["svn", "remove"] + [self.abspath(p) for p in paths])
+        subprocess.check_call([self.ya, "svn", "remove"] + [self.abspath(p) for p in paths])
 
     def revert(self, path):
-        subprocess.check_call(["svn", "revert", "--recursive", self.abspath(path)])
+        subprocess.check_call([self.ya, "svn", "revert", "--recursive", self.abspath(path)])
 
 
 def verify_recent_svn_revision_merged(git, git_svn_id):
