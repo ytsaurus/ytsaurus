@@ -385,7 +385,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         request->disk_info());
 
     if (node->GetMasterState() != ENodeState::Online) {
-        context->Reply(TError("Node is not online"));
+        auto error = TError("Node is not online");
+        if (!node->GetRegistrationError().IsOK()) {
+            error = error << node->GetRegistrationError();
+        }
+        context->Reply(error);
         return;
     }
 
@@ -528,10 +532,11 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 }
 
-void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState)
+void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState, TError error)
 {
     auto oldState = node->GetMasterState();
     node->SetMasterState(newState);
+    node->SetRegistrationError(error);
 
     if (oldState != newState) {
         LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v -> %v)",
@@ -600,15 +605,17 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         if ((oldState != ENodeState::Online && newState == ENodeState::Online) || execNode->Tags() != tags) {
             auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
-                LOG_WARNING(updateResult, "Node tags update failed (NodeId: %v, Address: %v, NewTags: %v)",
-                    nodeId,
-                    address,
-                    tags);
+                auto error = TError("Node tags update failed")
+                    << TErrorAttribute("node_id", nodeId)
+                    << TErrorAttribute("address", address)
+                    << TErrorAttribute("tags", tags)
+                    << updateResult;
+                LOG_WARNING(error);
 
                 if (oldState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
                     AbortAllJobsAtNode(execNode);
-                    UpdateNodeState(execNode, ENodeState::Offline);
+                    UpdateNodeState(execNode, ENodeState::Offline, error);
                 }
             } else {
                 if (oldState != ENodeState::Online && newState == ENodeState::Online) {

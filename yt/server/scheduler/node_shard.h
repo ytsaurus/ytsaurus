@@ -362,7 +362,7 @@ private:
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
-    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
+    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, TError error = TError());
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
