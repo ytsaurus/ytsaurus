@@ -8,6 +8,8 @@
 
 #include <yt/server/table_server/public.h>
 
+#include <yt/server/object_server/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 #include <yt/client/object_client/helpers.h>
 
@@ -42,15 +44,7 @@ public:
 public:
     explicit TLoadContext(TBootstrap* bootstrap);
 
-    template <class T>
-    T* Get(const NObjectClient::TObjectId& id) const;
-
-    template <class T>
-    T* Get(const NObjectClient::TVersionedObjectId& id) const;
-
-    template <class T>
-    T* Get(NChunkServer::TNodeId id) const;
-
+    NObjectServer::TObjectBase* GetWeakGhostObject(const NObjectServer::TObjectId& id) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
