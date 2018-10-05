@@ -210,7 +210,7 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                                             {"a": "42", "b": "2"},
                                             {"a": "42", "b": "3"}]
 
-        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        completed = get(op.get_path() + "/@progress/jobs/completed")
         assert completed["total"] == 1 # Actualy all rows should be in one job despite job_count > 1
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -603,7 +603,7 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = remove_asan_warning(read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0])))
@@ -642,7 +642,7 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
@@ -1027,7 +1027,7 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
@@ -1319,9 +1319,9 @@ echo {v = 2} >&7
                     "format": yson.loads("<format=text>yson"),
                 }})
 
-        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        job_ids = ls(op.get_path() + "/jobs")
         assert len(job_ids) == 1
-        output = read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0]))
+        output = read_file(op.get_path() + "/jobs/{}/stderr".format(job_ids[0]))
         assert output == \
 """<"table_index"=0;>#;
 {"key"=0;"value"="0";};
@@ -1390,7 +1390,7 @@ echo {v = 2} >&7
         job_indexes = []
         row_table_count = {}
 
-        assert get("//sys/operations/{0}/@progress/jobs/pending".format(op.id)) == 0
+        assert get(op.get_path() + "/@progress/jobs/pending") == 0
 
         for row in result:
             if row["value"] == "(job)":
@@ -1404,7 +1404,7 @@ echo {v = 2} >&7
             assert job_indexes[1] == 4
         else:
             assert job_indexes[1] == 3
-        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id)) == len(result) - 2
+        assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum") == len(result) - 2
 
     def test_query_filtering(self):
         create("table", "//tmp/t1", attributes={
@@ -1474,7 +1474,7 @@ done
 
         op.track()
 
-        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        completed = get(op.get_path() + "/@progress/jobs/completed")
         interrupted = completed["interrupted"]
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
@@ -1490,7 +1490,7 @@ done
 
         time.sleep(2)
 
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = op.get_path()
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 

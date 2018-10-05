@@ -669,6 +669,20 @@ class Operation(object):
 
         return get(self.get_path() + "/@state", **kwargs)
 
+    def wait_for_state(self, state, **kwargs):
+        wait(lambda: self.get_state(**kwargs) == state)
+
+    def get_alerts(self):
+        try:
+            return get(self.get_path() + "/@alerts")
+        except YtResponseError as err:
+            if err.is_resolve_error():
+                return {}
+            raise
+
+    def read_stderr(self, job_id):
+        return remove_asan_warning(read_file(self.get_path() + "/jobs/{}/stderr".format(job_id)))
+
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
@@ -1126,7 +1140,7 @@ def remove_asan_warning(string):
     return re.sub(_ASAN_WARNING_PATTERN, '', string)
 
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
-    jobs_path = get_operation_cypress_path(op.id) + "/jobs"
+    jobs_path = op.get_path() + "/jobs"
     assert get(jobs_path + "/@count") == expected_count
     for job_id in ls(jobs_path):
         stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)

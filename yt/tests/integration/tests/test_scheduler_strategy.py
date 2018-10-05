@@ -215,7 +215,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             spec={"job_count": 3, "resource_limits": {"user_slots": 1}})
         self._check_running_jobs(op, 1)
 
-        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 2})
+        set(op.get_path() + "/@resource_limits", {"user_slots": 2})
         self._check_running_jobs(op, 2)
 
     def test_max_possible_resource_usage(self):
@@ -873,7 +873,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"pool": "test_pool"})
         op2.track()
         op1.track()
-        assert get("//sys/operations/" + op1.id + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
+        assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
 
     def test_min_share_ratio(self):
         create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
@@ -1071,7 +1071,7 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
 
         wait(lambda: op.get_state() == "failed")
 
-        assert "unschedulable" in str(get(get_operation_cypress_path(op.id) + "/@result"))
+        assert "unschedulable" in str(get(op.get_path() + "/@result"))
 
 
 ##################################################################
@@ -2260,10 +2260,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 yield job_id, job_is_tentative
 
         def operation_completed():
-            return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
+            return op.get_state() == "completed"
 
         def operations_failed_or_aborted():
-            return get("//sys/operations/{0}/@state".format(op.id)) in ["failed", "aborted"]
+            return op.get_state() in ["failed", "aborted"]
 
         time.sleep(5)
 
@@ -2379,7 +2379,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 yield job_id, job_is_tentative
 
         def operation_completed():
-            return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
+            return op.get_state()  == "completed"
 
         job_aborted = False
         for iter in xrange(20):

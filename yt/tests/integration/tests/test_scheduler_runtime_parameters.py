@@ -28,23 +28,22 @@ class TestRuntimeParameters(YTEnvSetup):
             dont_track=True)
         wait(lambda: op.get_state() == "running", iter=10)
 
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
+        assert check_permission("u", "write", op.get_path())["action"] == "deny"
         update_op_parameters(op.id, parameters={"owners": ["u"]})
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
+        assert check_permission("u", "write", op.get_path())["action"] == "allow"
 
         update_op_parameters(op.id, parameters={"owners": ["missing_user"]})
-        get_alerts = lambda: get("//sys/operations/{0}/@alerts".format(op.id))
-        wait(get_alerts)
-        assert get_alerts().keys() == ["invalid_acl"]
+        wait(lambda: op.get_alerts())
+        assert op.get_alerts().keys() == ["invalid_acl"]
 
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
         time.sleep(0.1)
 
-        assert get_alerts().keys() == ["invalid_acl"]
+        assert op.get_alerts().keys() == ["invalid_acl"]
 
         update_op_parameters(op.id, parameters={"owners": []})
-        wait(lambda: not get_alerts())
+        wait(lambda: not op.get_alerts())
 
     def test_update_runtime_parameters(self):
         create_test_tables()
@@ -71,7 +70,7 @@ class TestRuntimeParameters(YTEnvSetup):
             }
         })
 
-        default_tree_parameters_path = "//sys/operations/{0}/@runtime_parameters/scheduling_options_per_pool_tree/default".format(op.id)
+        default_tree_parameters_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default"
 
         assert are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0)
         assert get(default_tree_parameters_path + "/resource_limits/user_slots") == 0
