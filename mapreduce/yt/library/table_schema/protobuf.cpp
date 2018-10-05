@@ -68,6 +68,7 @@ namespace NYT {
                 column.SortOrder(SO_ASCENDING);
                 ++keyIt;
             }
+            column.Required(field->is_required());
             result.AddColumn(column);
         }
         return result;

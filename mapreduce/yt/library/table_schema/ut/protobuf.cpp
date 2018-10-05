@@ -60,6 +60,17 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[2], "BoolField", EValueType::VT_BOOLEAN);
     }
 
+    Y_UNIT_TEST(TWithRequired) {
+        const auto schema = CreateTableSchema<NTesting::TWithRequired>();
+
+        UNIT_ASSERT_EQUAL(2, schema.Columns_.size());
+
+        TEST_FIELD(schema.Columns_[0], "RequiredField", EValueType::VT_STRING);
+        UNIT_ASSERT(schema.Columns_[0].Required_);
+        TEST_FIELD(schema.Columns_[1], "NotRequiredField", EValueType::VT_STRING);
+        UNIT_ASSERT(!schema.Columns_[1].Required_);
+    }
+
     Y_UNIT_TEST(TAggregated) {
         const auto schema = CreateTableSchema<NTesting::TAggregated>();
 
