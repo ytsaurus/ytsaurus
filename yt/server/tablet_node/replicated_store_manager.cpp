@@ -199,9 +199,10 @@ bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
 
 TStoreFlushCallback  TReplicatedStoreManager::BeginStoreFlush(
     IDynamicStorePtr store,
-    TTabletSnapshotPtr tabletSnapshot)
+    TTabletSnapshotPtr tabletSnapshot,
+    bool isUnmountWorkflow)
 {
-    return LogStoreManager_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot));
+    return LogStoreManager_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot), isUnmountWorkflow);
 }
 
 void TReplicatedStoreManager::EndStoreFlush(IDynamicStorePtr store)

@@ -189,12 +189,13 @@ IDynamicStore* TOrderedStoreManager::GetActiveStore() const
 
 TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
-    TTabletSnapshotPtr tabletSnapshot)
+    TTabletSnapshotPtr tabletSnapshot,
+    bool isUnmountWorkflow)
 {
     auto orderedDynamicStore = store->AsOrderedDynamic();
     auto reader = orderedDynamicStore->CreateFlushReader();
 
-    auto inMemoryMode = GetInMemoryMode();
+    auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);

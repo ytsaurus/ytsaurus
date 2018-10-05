@@ -237,7 +237,11 @@ private:
             return;
         }
 
-        auto flushCallback = storeManager->BeginStoreFlush(dynamicStore, tabletSnapshot);
+        auto state = tablet->GetState();
+        auto flushCallback = storeManager->BeginStoreFlush(
+            dynamicStore,
+            tabletSnapshot,
+            IsInUnmountWorkflow(state));
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,

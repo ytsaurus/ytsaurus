@@ -42,7 +42,8 @@ public:
     virtual bool IsStoreFlushable(IStorePtr store) const override;
     virtual TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot) override;
+        TTabletSnapshotPtr tabletSnapshot,
+        bool isUnmountWorkflow) override;
     virtual void EndStoreFlush(IDynamicStorePtr store) override;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) override;
 
@@ -104,7 +105,8 @@ protected:
 
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot) = 0;
+        TTabletSnapshotPtr tabletSnapshot,
+        bool isUnmountWorkflow) = 0;
 
     virtual void CreateActiveStore() = 0;
 
