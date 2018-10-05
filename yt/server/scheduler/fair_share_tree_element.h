@@ -279,6 +279,7 @@ public:
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
     double ComputeLocalSatisfactionRatio() const;
+    double ComputeLocalSatisfactionRatioWithGuarantees() const;
 
 private:
     TSchedulerElementSharedStatePtr SharedState_;

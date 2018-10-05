@@ -568,6 +568,34 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
     }
 }
 
+double TSchedulerElement::ComputeLocalSatisfactionRatioWithGuarantees() const
+{
+    double minShareRatio = Attributes_.AdjustedMinShareRatio;
+    double promisedShareRatio = Attributes_.FairShareRatio;
+    if (TreeConfig_->DisablePreemptionUnderGuaranteedRatio) {
+        promisedShareRatio = std::max(promisedShareRatio, Attributes_.GuaranteedResourcesRatio);
+    }
+    double usageRatio = GetLocalResourceUsageRatio();
+
+    // Check for corner cases.
+    if (promisedShareRatio < RatioComputationPrecision) {
+        return std::numeric_limits<double>::max();
+    }
+
+    // Starvation is disabled for operations in FIFO pool.
+    if (Attributes_.FifoIndex >= 0) {
+        return std::numeric_limits<double>::max();
+    }
+
+    if (minShareRatio > RatioComputationPrecision && usageRatio < minShareRatio) {
+        // Needy element, negative satisfaction.
+        return usageRatio / minShareRatio - 1.0;
+    } else {
+        // Regular element, positive satisfaction.
+        return usageRatio / promisedShareRatio;
+    }
+}
+
 ESchedulableStatus TSchedulerElement::GetStatus(double defaultTolerance) const
 {
     double usageRatio = GetLocalResourceUsageRatio();
@@ -2420,7 +2448,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
             : config->PreemptionSatisfactionThreshold;
 
         // NB: we want to use <s>local</s> satisfaction here.
-        if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
+        if (element->ComputeLocalSatisfactionRatioWithGuarantees() < threshold + RatioComparisonPrecision) {
             SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParent);
             return false;
         }
