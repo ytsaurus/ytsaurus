@@ -74,7 +74,7 @@ def process_core_dumps(options, suite_name, suite_path):
         search_paths.append(options.core_path)
 
     if find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive):
-        # Copy artifacts if cores are presented.
+        # Copy artifacts if cores are present.
         copy_artifacts(options.working_directory, artifact_path)
         return True
 
