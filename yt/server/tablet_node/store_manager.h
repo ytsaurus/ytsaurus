@@ -74,7 +74,8 @@ struct IStoreManager
     virtual bool IsStoreFlushable(IStorePtr store) const = 0;
     virtual TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot) = 0;
+        TTabletSnapshotPtr tabletSnapshot,
+        bool isUnmountWorkflow) = 0;
     virtual void EndStoreFlush(IDynamicStorePtr store) = 0;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) = 0;
 
