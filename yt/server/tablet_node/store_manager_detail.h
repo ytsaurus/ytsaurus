@@ -31,6 +31,7 @@ public:
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
+    virtual void InitializeRotation() override;
     virtual bool IsRotationScheduled() const override;
     virtual void ScheduleRotation() override;
 

@@ -85,12 +85,7 @@ void TStoreManagerBase::StartEpoch(TTabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
 
-    const auto& config = Tablet_->GetConfig();
-    if (config->DynamicStoreAutoFlushPeriod) {
-        LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
-    }
-
-    RotationScheduled_ = false;
+    InitializeRotation();
 
     UpdateInMemoryMode();
 }
@@ -120,6 +115,16 @@ void TStoreManagerBase::StopEpoch()
     }
 
     Tablet_->PreloadStoreIds().clear();
+}
+
+void TStoreManagerBase::InitializeRotation()
+{
+    const auto& config = Tablet_->GetConfig();
+    if (config->DynamicStoreAutoFlushPeriod) {
+        LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
+    }
+
+    RotationScheduled_ = false;
 }
 
 bool TStoreManagerBase::IsRotationScheduled() const

@@ -1084,6 +1084,9 @@ private:
 
         tablet->SetState(ETabletState::Mounted);
 
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->InitializeRotation();
+
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         PostMasterMutation(tabletId, response);
