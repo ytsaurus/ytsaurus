@@ -850,9 +850,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
                 cwd=suite_path,
                 env=env)
         except ChildHasNonZeroExitCode as err:
-            teamcity_interact("buildProblem", description="Test session was terminated with non-zero exit code during {} pytest run. " \
-                                                          "See build log for more details.".format(suite_name))
-
+            teamcity_interact("buildProblem", description="Pytest '{}' failed, exit code {}".format(suite_name, err.return_code))
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
