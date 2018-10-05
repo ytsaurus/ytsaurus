@@ -662,7 +662,7 @@ class Operation(object):
 
     def get_state(self, **kwargs):
         try:
-            return get("//sys/operations/" + self.id + "/@state", verbose_error=False, **kwargs)
+            return get(self.get_path() + "/@state", verbose_error=False, **kwargs)
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
@@ -672,9 +672,8 @@ class Operation(object):
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
-            error = get("//sys/operations/{0}/@result/error".format(self.id), verbose=False, is_raw=True)
-
-            jobs_path = "//sys/operations/{0}/jobs".format(self.id)
+            error = get(self.get_path() + "/@result/error", verbose=False, is_raw=True)
+            jobs_path = self.get_path() + "/jobs"
             jobs = get(jobs_path, verbose=False)
             for job in jobs:
                 job_error_path = jobs_path + "/{0}/@error".format(job)
@@ -689,7 +688,7 @@ class Operation(object):
 
     def build_progress(self):
         try:
-            progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
+            progress = get(self.get_path() + "/@brief_progress/jobs", verbose=False)
         except YtError:
             return ""
 
@@ -702,8 +701,6 @@ class Operation(object):
         return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
 
     def track(self):
-        jobs_path = "//sys/operations/{0}/jobs".format(self.id)
-
         counter = 0
         while True:
             state = self.get_state(verbose=False)
@@ -1129,7 +1126,7 @@ def remove_asan_warning(string):
     return re.sub(_ASAN_WARNING_PATTERN, '', string)
 
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
-    jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+    jobs_path = get_operation_cypress_path(op.id) + "/jobs"
     assert get(jobs_path + "/@count") == expected_count
     for job_id in ls(jobs_path):
         stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
