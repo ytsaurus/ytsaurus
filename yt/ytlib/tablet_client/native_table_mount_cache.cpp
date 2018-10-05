@@ -144,8 +144,9 @@ private:
                 path);
         }
 
-        LOG_DEBUG("Requesting table mount info from secondary master (Path: %v, CellTag: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
+        LOG_DEBUG("Requesting table mount info from secondary master (Path: %v, TableId: %v, CellTag: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
             path,
+            tableId,
             cellTag,
             refreshPrimaryRevision,
             refreshSecondaryRevision);
