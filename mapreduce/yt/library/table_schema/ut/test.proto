@@ -37,6 +37,11 @@ message TOneOf {
   optional bool BoolField = 3;
 }
 
+message TWithRequired {
+  required string RequiredField = 1;
+  optional string NotRequiredField = 2;
+};
+
 message TAggregated {
   optional string StringField = 1;
   optional bytes BytesField = 2;
