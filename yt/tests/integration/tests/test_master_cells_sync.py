@@ -5,7 +5,7 @@ from yt_commands import *
 
 class TestMasterCellsSync(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = True
-    ENABLE_MULTICELL_TEARDOWN = False
+    ENABLE_SECONDARY_CELLS_CLEANUP = False
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 0
 
