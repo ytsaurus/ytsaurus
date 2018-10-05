@@ -66,6 +66,7 @@ def main(argv):
             yield modify_pod_set_id(row, "parent_id", pod_sets_mapping)
         else:
             yield row
+    table_preparer.run_map("parents", modify_parents)
 
     table_preparer.mount_all_tables()
 
