@@ -551,7 +551,7 @@ def package(options, build_context):
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
-        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(build_context["yt_version"]))
+        teamcity_interact("buildStatus", text="Package: {0}; {{build.status.text}}".format(build_context["yt_version"]))
 
         share_packages(options, build_context)
 
@@ -719,7 +719,7 @@ def run_sandbox_upload(options, build_context):
     teamcity_interact("setParameter", name="yt.sandbox_task_id", value=task_id)
     teamcity_interact("setParameter", name="yt.sandbox_task_url",
                       value="https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
-    status = "{{build.status.text}}; Package: {0}; SB: {1}".format(build_context["yt_version"], task_id)
+    status = "Package: {0}; SB: {1}; {{build.status.text}}".format(build_context["yt_version"], task_id)
     teamcity_interact("buildStatus", text=status)
 
 @build_step
