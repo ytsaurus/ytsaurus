@@ -2826,7 +2826,9 @@ public:
     static void* Allocate(size_t size)
     {
         InitializeGlobals();
-        if (size < HugeSizeThreshold) {
+        // NB: Account for the header. Also note that we may safely ignore the alignment since
+        // HugeSizeThreshold is already page-aligned.
+        if (size < HugeSizeThreshold - sizeof(TLargeBlobHeader)) {
             auto* result = LargeBlobAllocator->Allocate(size);
             PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
             return result;
