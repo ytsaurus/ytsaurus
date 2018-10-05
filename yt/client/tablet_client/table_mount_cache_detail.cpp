@@ -33,7 +33,8 @@ TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::InvalidMountRevision,
                     "Tablet mount revision %llx is outdated",
-                    tabletInfo->MountRevision);
+                    tabletInfo->MountRevision)
+                    << TErrorAttribute("tablet_id", tabletInfo->TabletId);
             }
 
             for (const auto& owner : existingTabletInfo->Owners) {
@@ -140,8 +141,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
         NTabletClient::EErrorCode::NoSuchTablet,
         NTabletClient::EErrorCode::TabletNotMounted,
         NTabletClient::EErrorCode::InvalidMountRevision,
-        NYTree::EErrorCode::ResolveError,
-        NRpc::EErrorCode::NoSuchService
+        NYTree::EErrorCode::ResolveError
     };
 
     if (!error.IsOK()) {
