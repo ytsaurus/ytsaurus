@@ -309,10 +309,10 @@ protected:
         return TNontemplateCypressNodeProxyBase::LockThisImpl<TActualImpl>(request, recursive);
     }
 
-    void ValidateSetCommand(const NYTree::TYPath& path) const
+    void ValidateSetCommand(const NYTree::TYPath& path, bool force) const
     {
         const auto& Logger = CypressServerLogger;
-        bool forbidden = TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand;
+        bool forbidden = TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand && !force;
         if (path) {
             LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, Forbidden: %v)",
                 path,
@@ -375,7 +375,7 @@ private:
     { \
         Y_UNUSED(response); \
         context->SetRequestInfo(); \
-        ValidateSetCommand(NYTree::FindRequestYPath(context->RequestHeader())); \
+        ValidateSetCommand(NYTree::FindRequestYPath(context->RequestHeader()), request->force()); \
         DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
         context->Reply(); \
     }

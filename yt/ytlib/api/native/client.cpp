@@ -2717,6 +2717,7 @@ private:
         writer.Flush();
         req->set_value(stream.Str());
         req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
 
         batchReq->AddRequest(req);
 

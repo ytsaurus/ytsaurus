@@ -1821,6 +1821,10 @@ class TestCypressWithoutSet(YTEnvSetup):
         set("//tmp/doc", 10)
         assert get("//tmp/doc") == 10
 
+    def test_force(self):
+        create("int64_node", "//tmp/integer")
+        set("//tmp/integer", 20, force=True)
+
 ##################################################################
 
 class TestCypressApiVersion4(YTEnvSetup):

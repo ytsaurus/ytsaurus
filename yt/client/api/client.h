@@ -429,6 +429,7 @@ struct TSetNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
 };
 
 struct TRemoveNodeOptions
