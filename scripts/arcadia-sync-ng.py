@@ -432,7 +432,8 @@ def action_svn_commit(ctx, args):
             outf.write("\nREVIEW:new\n")
 
     print >>sys.stderr, "Commit is prepared, now run:\n"
-    print >>sys.stderr, "$ svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
+    print >>sys.stderr, "$ {ya_path} svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
+        ya_path=os.path.join(args.arcadia, "ya"),
         arcadia_yp_path=local_svn.abspath(ctx.svn_relpath),
         commit_message_file_name=commit_message_file_name)
 
