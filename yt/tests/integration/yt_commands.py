@@ -697,7 +697,7 @@ class Operation(object):
                 else:
                     print >>sys.stderr
             if state == "failed":
-                error = get(self.get_path() + "/@result/error".format(self.id), verbose=False, is_raw=True)
+                error = get(self.get_path() + "/@result/error", verbose=False, is_raw=True)
                 jobs = get(jobs_path, verbose=False)
                 for job in jobs:
                     job_error_path = jobs_path + "/{0}/@error".format(job)
