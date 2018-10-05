@@ -30,7 +30,9 @@ TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
     if (it != Map_.end()) {
         if (auto existingTabletInfo = it->second.Lock()) {
             if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
-                THROW_ERROR_EXCEPTION("Tablet mount revision %llx is outdated",
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::InvalidMountRevision,
+                    "Tablet mount revision %llx is outdated",
                     tabletInfo->MountRevision);
             }
 
