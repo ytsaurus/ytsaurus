@@ -136,10 +136,12 @@ void TTableMountCacheBase::InvalidateTablet(TTabletInfoPtr tabletInfo)
 
 std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TError& error)
 {
-    static std::vector<NTabletClient::EErrorCode> retriableCodes = {
+    static std::vector<TErrorCode> retriableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
         NTabletClient::EErrorCode::TabletNotMounted,
-        NTabletClient::EErrorCode::InvalidMountRevision
+        NTabletClient::EErrorCode::InvalidMountRevision,
+        NYTree::EErrorCode::ResolveError,
+        NRpc::EErrorCode::NoSuchService
     };
 
     if (!error.IsOK()) {
