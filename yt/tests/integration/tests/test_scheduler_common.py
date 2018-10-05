@@ -115,7 +115,7 @@ class TestEventLog(YTEnvSetup):
             out="//tmp/t2",
             command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0
         assert get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None
         assert get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0
@@ -209,7 +209,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 
         while True:
             try:
-                jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
+                jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
                 assert jobs["running"] == 0
                 assert jobs["completed"]["total"] == 0
                 if jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0:
@@ -306,7 +306,7 @@ class TestJobStderr(YTEnvSetup):
             command="cat > /dev/null; python -c 'print \"head\" + \"0\" * 10000000; print \"1\" * 10000000 + \"tail\"' >&2;",
             spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}})
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
         stderr = remove_asan_warning(read_file(stderr_path, verbose=False).strip())
@@ -338,17 +338,17 @@ class TestJobStderr(YTEnvSetup):
             spec={"job_count": 10, "max_stderr_count": 0})
 
         def enough_jobs_completed():
-            if not exists("//sys/operations/{0}/@progress".format(op.id)):
+            if not exists(op.get_path() + "/@progress"):
                 return False
-            progress = get("//sys/operations/{0}/@progress".format(op.id))
+            progress = get(op.get_path() + "/@progress")
             if "jobs" in progress and "completed" in progress["jobs"]:
                 return progress["jobs"]["completed"]["total"] > 8
             return False
 
         wait(enough_jobs_completed)
 
-        stderr_tx = get("//sys/operations/{}/@async_scheduler_transaction_id".format(op.id))
-        staged_objects = get("//sys/transactions/{}/@staged_object_ids".format(stderr_tx))
+        stderr_tx = get(op.get_path() + "/@async_scheduler_transaction_id")
+        staged_objects = get("//sys/transactions/{0}/@staged_object_ids".format(stderr_tx))
         assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
 
     def test_stderr_of_failed_jobs(self):
@@ -406,11 +406,10 @@ class TestJobStderr(YTEnvSetup):
         assert resource_usage["chunk_count"] >= 1
         assert resource_usage["disk_space_per_medium"].get("default", 0) > 0
 
-        jobs = ls("//sys/operations/{0}/jobs".format(op.id))
-        get("//sys/operations/{0}/jobs/{1}".format(op.id, jobs[0]))
-        get("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, jobs[0]))
-        recursive_resource_usage = get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage" \
-            .format(op.id, jobs[0]))
+        jobs = ls(op.get_path() + "/jobs")
+        get(op.get_path() + "/jobs/{}".format(jobs[0]))
+        get(op.get_path() + "/jobs/{}/stderr".format(jobs[0]))
+        recursive_resource_usage = get(op.get_path() + "/jobs/{0}/@recursive_resource_usage".format(jobs[0]))
 
         assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"]
         assert recursive_resource_usage["disk_space_per_medium"]["default"] == \
@@ -743,7 +742,7 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        for job_desc in ls("//sys/operations/{0}/jobs".format(op.id), attributes=["error"]):
+        for job_desc in ls(op.get_path() + "/jobs", attributes=["error"]):
             print >>sys.stderr, job_desc.attributes
             print >>sys.stderr, job_desc.attributes["error"]["inner_errors"][0]["message"]
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
@@ -800,7 +799,7 @@ class TestSchedulerCommon(YTEnvSetup):
         sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
         op = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
 
-        statistics = get("//sys/operations/{0}/@progress/estimated_input_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/estimated_input_statistics")
         for key in ["uncompressed_data_size", "compressed_data_size", "row_count", "data_weight"]:
             assert statistics[key] > 0
         assert statistics["unavailable_chunk_count"] == 0
@@ -836,7 +835,7 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
             assert read_file(jobs_path + "/" + job_id + "/fail_context") == get_job_fail_context(op.id, job_id)
@@ -930,7 +929,7 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         for job_id in ls(jobs_path):
             assert remove_asan_warning(read_file(jobs_path + "/" + job_id + "/stderr")) == \
@@ -946,7 +945,7 @@ class TestSchedulerCommon(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output")
 
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum") == 15
         assert get_statistics(statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum") == 15
 
@@ -1264,15 +1263,14 @@ class TestSchedulerCommon(YTEnvSetup):
         for job_id in jobs[:3]:
             release_breakpoint(job_id=job_id)
 
-        path = "//sys/operations/{0}/@state".format(op.id)
-        assert get(path) != "completed"
+        assert op.get_state() != "completed"
         wait(lambda: op.get_job_count("completed") >= 3)
 
         op.complete()
-        assert get(path) == "completed"
+        assert op.get_state() == "completed"
         op.track()
         assert len(read_table("//tmp/t2")) == 3
-        assert "operation_completed_by_user_request" in ls("//sys/operations/{0}/@alerts".format(op.id))
+        assert "operation_completed_by_user_request" in op.get_alerts()
 
     def test_abort_op(self):
         create("table", "//tmp/t")
@@ -1283,10 +1281,8 @@ class TestSchedulerCommon(YTEnvSetup):
             out="//tmp/t",
             command="sleep 1")
 
-        path = "//sys/operations/%s/@state" % op.id
-        # check running
         op.abort()
-        assert get(path) == "aborted"
+        assert op.get_state() == "aborted"
 
     def test_input_with_custom_transaction(self):
         custom_tx = start_transaction()
@@ -1323,7 +1319,7 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        jobs = ls("//sys/operations/{}/jobs".format(op.id), attributes=["state", "address"])
+        jobs = ls(op.get_path() + "/jobs", attributes=["state", "address"])
         assert all(job.attributes["state"] == "failed" for job in jobs)
         assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
 
@@ -1384,9 +1380,8 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         for id in jobs:
             release_breakpoint(job_id=id)
 
-        cypress_path = "//sys/operations/{0}".format(op.id)
-        wait(lambda: get("{0}/@progress/jobs/failed".format(cypress_path)) == 1)
-        wait(lambda: get("{0}/@progress/jobs/aborted/scheduled/node_banned".format(cypress_path)) == 9)
+        wait(lambda: get(op.get_path() + "/@progress/jobs/failed") == 1)
+        wait(lambda: get(op.get_path() + "/@progress/jobs/aborted/scheduled/node_banned") == 9)
 
     def test_fail_on_all_nodes_banned(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
@@ -1557,7 +1552,7 @@ class TestSchedulerRevive(YTEnvSetup):
                     op.track()
                     assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}]
                 except YtError:
-                    assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
+                    assert op.get_state() == "failed"
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(2)
@@ -1591,7 +1586,7 @@ class TestSchedulerRevive(YTEnvSetup):
                     op.track()
                     assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}]
                 except YtError:
-                    assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
+                    assert op.get_state() == "failed"
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(2)
@@ -1650,17 +1645,15 @@ class TestSchedulerRevive(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_cypress_path(op.id)
-
-        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
-        assert exists(operation_path + "/output_0", tx=async_transaction_id)
+        async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+        assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
 
         release_breakpoint(job_id=jobs[0])
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        wait(lambda: len(read_table(operation_path + "/output_0", tx=async_transaction_id)) == 2)
-        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+        wait(lambda: len(read_table(op.get_path() + "/output_0", tx=async_transaction_id)) == 2)
+        live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
         assert all(record in data for record in live_preview_data)
 
         self.Env.kill_schedulers()
@@ -1671,12 +1664,12 @@ class TestSchedulerRevive(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running")
 
-        new_async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
+        new_async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
         assert new_async_transaction_id != async_transaction_id
 
         async_transaction_id = new_async_transaction_id
-        assert exists(operation_path + "/output_0", tx=async_transaction_id)
-        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+        assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
+        live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
         assert all(record in data for record in live_preview_data)
 
         release_breakpoint()
@@ -1771,7 +1764,6 @@ class TestJobRevival(TestJobRevivalBase):
         self._kill_and_start(components_to_kill)
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
-        cypress_path = "//sys/operations/{0}".format(op.id)
 
         wait(lambda: exists(orchid_path), "Operation did not re-appear")
 
@@ -1780,7 +1772,7 @@ class TestJobRevival(TestJobRevivalBase):
         events_on_fs().notify_event("scheduler_reconnected")
         op.track()
 
-        assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 0
+        assert get("{0}/@progress/jobs/aborted/total".format(op.get_path())) == 0
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
     @pytest.mark.skipif("True", reason="YT-8635")
@@ -1848,7 +1840,7 @@ class TestJobRevival(TestJobRevivalBase):
         if aborted_job_count != aborted_on_revival_job_count:
             print >>sys.stderr, "There were aborted jobs other than during the revival process:"
             for op in ops:
-                pprint.pprint(dict(get("//sys/operations/{0}/@progress/jobs/aborted".format(op.id))), stream=sys.stderr)
+                pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=sys.stderr)
 
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
@@ -1900,7 +1892,7 @@ class TestJobRevival(TestJobRevivalBase):
 
             for j in xrange(10):
                 try:
-                    jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
+                    jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
                     break
                 except:
                     time.sleep(0.1)
@@ -1967,7 +1959,6 @@ class TestDisabledJobRevival(TestJobRevivalBase):
             out="//tmp/t_out")
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
-        cypress_path = "//sys/operations/{0}".format(op.id)
 
         job_id = self._wait_for_single_job(op.id)
 
@@ -1983,7 +1974,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         op.track()
 
         # And here.
-        assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) >= 1
+        assert get("{0}/@progress/jobs/aborted/total".format(op.get_path())) >= 1
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
 
@@ -2088,16 +2079,16 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         assert data + data == read_table("//tmp/out")
 
         # Must be 2 jobs since input has 2 chunks.
-        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+        assert get(op.get_path() + "/@progress/jobs/total") == 2
 
         op = map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
-        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+        assert get(op.get_path() + "/@progress/jobs/total") == 2
 
         op = merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
-        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+        assert get(op.get_path() + "/@progress/jobs/total") == 2
 
         op = reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
-        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+        assert get(op.get_path() + "/@progress/jobs/total") == 2
 
 ##################################################################
 
@@ -2141,18 +2132,16 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
 
-        operation_path = "//sys/operations/" + op.id
         for iter in xrange(100):
-            jobs_exist = exists(operation_path + "/@progress/jobs")
+            jobs_exist = exists(op.get_path() + "/@progress/jobs")
             if jobs_exist:
-                completed_jobs = get(operation_path + "/@progress/jobs/completed/total")
+                completed_jobs = get(op.get_path() + "/@progress/jobs/completed/total")
                 if completed_jobs == 2:
                     break
             time.sleep(0.1)
 
-        operation_path = get_operation_cypress_path(op.id)
-        transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-        wait(lambda: get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2)
+        transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+        wait(lambda: get(op.get_path() + "/output_0/@row_count", tx=transaction_id) == 2)
 
         release_breakpoint()
         op.track()
@@ -2242,10 +2231,10 @@ class TestSchedulingTags(YTEnvSetup):
         op = map(command="cat; echo 'AAA' >&2", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
-        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        job_ids = ls(op.get_path() + "/jobs")
         assert len(job_ids) == 1
         for job_id in job_ids:
-            job_addr = get("//sys/operations/{0}/jobs/{1}/@address".format(op.id, job_id))
+            job_addr = get(op.get_path() + "/jobs/{}/@address".format(job_id))
             assert "tagA" in get("//sys/nodes/{0}/@user_tags".format(job_addr))
 
         # We do not support detection of the fact that no node satisfies pool scheduling tag filter.
@@ -2296,7 +2285,7 @@ class TestSchedulingTags(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) > 0)
 
         now = datetime.utcnow()
-        snapshot_path = get_operation_cypress_path(op.id) + "/snapshot"
+        snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
 
         self.Env.kill_schedulers()
@@ -2395,10 +2384,10 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
-        wait(lambda: exists("//sys/operations/{0}/@full_spec".format(op.id)))
+        wait(lambda: exists(op.get_path() + "/@full_spec"))
         # XXX(ignat)
         for spec_type in ("full_spec",):
-            assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 2000
+            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 2000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 2000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
         op.abort()
@@ -2408,7 +2397,7 @@ class TestSchedulerConfig(YTEnvSetup):
         time.sleep(1)
         # XXX(ignat)
         for spec_type in ("full_spec",):
-            assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
+            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
 
@@ -2419,7 +2408,7 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: op.get_state() == "running")
         # XXX(ignat)
         for spec_type in ("full_spec",):
-            assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
+            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
 
@@ -2431,8 +2420,8 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
 
-        wait(lambda: exists("//sys/operations/{0}/@unrecognized_spec".format(op.id)))
-        assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
+        wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
+        assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
 
     def test_brief_progress(self):
         create("table", "//tmp/t_in")
@@ -2440,8 +2429,8 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
 
-        wait(lambda: exists("//sys/operations/{0}/@brief_progress".format(op.id)))
-        assert list(get("//sys/operations/{0}/@brief_progress".format(op.id))) == ["jobs"]
+        wait(lambda: exists(op.get_path() + "/@brief_progress"))
+        assert list(get(op.get_path() + "/@brief_progress")) == ["jobs"]
 
     def test_cypress_config(self):
         create("table", "//tmp/t_in")
@@ -2449,8 +2438,8 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
-        assert get("//sys/operations/{0}/@full_spec/data_weight_per_job".format(op.id)) == 2000
-        assert get("//sys/operations/{0}/@full_spec/max_failed_job_count".format(op.id)) == 10
+        assert get(op.get_path() + "/@full_spec/data_weight_per_job") == 2000
+        assert get(op.get_path() + "/@full_spec/max_failed_job_count") == 10
 
         set("//sys/controller_agents/config", {
             "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
@@ -2469,8 +2458,8 @@ class TestSchedulerConfig(YTEnvSetup):
             assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
-        assert get("//sys/operations/{0}/@full_spec/data_weight_per_job".format(op.id)) == 2000
-        assert get("//sys/operations/{0}/@full_spec/max_failed_job_count".format(op.id)) == 50
+        assert get(op.get_path() + "/@full_spec/data_weight_per_job") == 2000
+        assert get(op.get_path() + "/@full_spec/max_failed_job_count") == 50
 
 ##################################################################
 
@@ -3062,7 +3051,7 @@ class TestPoolMetrics(YTEnvSetup):
         assert pool_metrics["child2"] == op2_writes > 0
         assert pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
 
-        jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
+        jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
 
     def test_time_metrics(self):
@@ -3186,8 +3175,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         set("//sys/nodes/{0}/@resource_limits_overrides/cpu".format(address), 0)
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
+        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
+        assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
 
     def test_memory_override_with_preemption(self):
         create("table", "//tmp/t_input")
@@ -3210,8 +3199,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         set("//sys/nodes/{0}/@resource_limits_overrides/user_memory".format(address), 99 * 1024 * 1024)
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
+        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
+        assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
 
 ##################################################################
 
@@ -3270,7 +3259,7 @@ fi
 
         for op in ops:
             wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
-            wait(lambda: get(get_operation_cypress_path(op.id) + "/@state") == "running")
+            wait(lambda: get(op.get_path() + "/@state") == "running")
             assert op.get_job_count("failed") == 1
 
     def test_attributes(self):
@@ -3302,12 +3291,12 @@ fi
         wait(lambda: get(state_path) == "running", ignore_exceptions=True)
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
 
-        assert get(get_operation_cypress_path(op.id) + "/@state") == "running"
+        assert get(op.get_path() + "/@state") == "running"
         assert get("//sys/operations/" + op.id + "/@state") == "running"
         complete_op(op.id, authenticated_user="u")
         # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
         assert not exists("//sys/operations/" + op.id + "/@committed")
-        assert exists(get_operation_cypress_path(op.id) + "/@committed")
+        assert exists(op.get_path() + "/@committed")
 
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
@@ -3342,15 +3331,15 @@ fi
             return op
 
         get_async_scheduler_tx_path = lambda op: "//sys/operations/" + op.id + "/@async_scheduler_transaction_id"
-        get_async_scheduler_tx_path_new = lambda op: get_operation_cypress_path(op.id) + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path_new = lambda op: op.get_path() + "/@async_scheduler_transaction_id"
 
-        get_output_path_new = lambda op: get_operation_cypress_path(op.id) + "/output_0"
+        get_output_path_new = lambda op: op.get_path() + "/output_0"
 
         get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
-        get_stderr_path_new = lambda op, job_id: get_operation_cypress_path(op.id) + "/jobs/" + job_id + "/stderr"
+        get_stderr_path_new = lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/stderr"
 
         get_fail_context_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/fail_context"
-        get_fail_context_path_new = lambda op, job_id: get_operation_cypress_path(op.id) + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path_new = lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/fail_context"
 
         # Compatible mode or simple hash buckets mode.
         op = _run_op()
@@ -3449,7 +3438,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
         op = self._run_op()
         clean_operations(client)
         assert not exists("//sys/operations/" + op.id)
-        assert not exists(get_operation_cypress_path(op.id))
+        assert not exists(op.get_path())
         _check_attributes(op)
 
     def test_get_job_stderr(self):
@@ -3457,7 +3446,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
         op = self._run_op()
         jobs_old = ls("//sys/operations/" + op.id + "/jobs")
-        jobs_new = ls(get_operation_cypress_path(op.id) + "/jobs")
+        jobs_new = ls(op.get_path() + "/jobs")
         assert __builtin__.set(jobs_old) == __builtin__.set(jobs_new)
         job_id = jobs_new[-1]
 
@@ -3715,15 +3704,13 @@ class TestNewLivePreview(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = op.get_path()
-
-        assert exists(operation_path + "/controller_orchid")
+        assert exists(op.get_path() + "/controller_orchid")
 
         release_breakpoint(job_id=jobs[0])
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        live_preview_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
+        live_preview_data = read_table(op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
         assert len(live_preview_data) == 2
 
         assert all(record in data for record in live_preview_data)
@@ -3750,18 +3737,16 @@ class TestNewLivePreview(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = op.get_path()
-
-        assert exists(operation_path + "/controller_orchid")
+        assert exists(op.get_path() + "/controller_orchid")
 
         release_breakpoint(job_id=jobs[0])
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
+        read_table(op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
 
         with pytest.raises(YtError):
-            read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
+            read_table(op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
 
     def test_new_live_preview_ranges(self):
         create("table", "//tmp/t1")
@@ -3783,11 +3768,9 @@ class TestNewLivePreview(YTEnvSetup):
 
         wait(lambda: op.get_job_count("completed") == 3)
 
-        operation_path = op.get_path()
+        assert exists(op.get_path() + "/controller_orchid")
 
-        assert exists(operation_path + "/controller_orchid")
-
-        live_preview_path = operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
+        live_preview_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
         live_preview_data = read_table(live_preview_path)
 
         assert len(live_preview_data) == 9
@@ -3857,10 +3840,8 @@ class TestNewLivePreview(YTEnvSetup):
 
         wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_cypress_path(op.id)
-
-        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
-        assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+        async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+        assert not exists(op.get_path() + "/output_0", tx=async_transaction_id)
 
 
 class TestConnectToMaster(YTEnvSetup):

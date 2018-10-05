@@ -59,7 +59,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                       "partition_count": 10,
                   })
 
-        print get("//sys/operations/{0}/@unrecognized_spec".format(op.id))
+        print get(op.get_path() + "/@unrecognized_spec")
 
         result = read_table("//tmp/t_out")
 

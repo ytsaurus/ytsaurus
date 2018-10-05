@@ -1352,7 +1352,6 @@ private:
             for (const auto& operationPath : paths) {
                 // Set operation acl.
                 if (operation->GetShouldFlushAcl()) {
-                    operation->SetShouldFlushAcl(false);
                     auto aclBatchReq = StartObjectBatchRequest();
                     auto req = TYPathProxy::Set(operationPath + "/@acl");
                     req->set_value(BuildYsonStringFluently()
@@ -1421,6 +1420,8 @@ private:
 
                 batchReq->AddRequest(multisetReq, "update_op_node");
             }
+                    
+            operation->SetShouldFlushAcl(false);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));

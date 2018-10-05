@@ -47,7 +47,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             spec={"mapper":{"custom_statistics_count_limit": 3}},
             command='cat; echo "{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};" >&5')
 
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
         assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 2
         assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
@@ -64,7 +64,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             out="//tmp/t2",
             spec={"max_failed_job_count": 1},
             command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5')
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "custom.name/with/slashes.@table_index.$.completed.map.max") == 42
 
         # But the empty keys are not ok (as well as for any other map nodes).
@@ -114,7 +114,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"} for i in range(2)])
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.count") == 2
 
     @require_ytserver_root_privileges
@@ -141,7 +141,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         count = None
 
         while count is None and tries <= 100:
-            statistics = get("//sys/operations/{0}/@progress".format(op.id))
+            statistics = get(op.get_path() + "/@progress")
             tries += 1
             try:
                 count = get_statistics(statistics["job_statistics"], counter_name)
@@ -153,7 +153,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        statistics = get("//sys/operations/{0}/@progress".format(op.id))
+        statistics = get(op.get_path() + "/@progress")
         count = get_statistics(statistics["job_statistics"], counter_name)
         assert count == 2
 
