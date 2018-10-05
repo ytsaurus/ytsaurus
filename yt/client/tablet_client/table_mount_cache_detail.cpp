@@ -160,7 +160,6 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                             }
                         }));
 
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
                     InvalidateTablet(tabletInfo);
                 }
                 return std::make_pair(true, tabletInfo);
