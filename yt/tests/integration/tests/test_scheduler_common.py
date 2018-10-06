@@ -65,7 +65,7 @@ def get_pool_metrics(metric_key, start_time):
     return result
 
 def get_cypress_metrics(operation_id, key):
-    statistics = get("//sys/operations/" + operation_id + "/@progress/job_statistics")
+    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
     return get_statistics(statistics, "{0}.$.completed.map.sum".format(key))
 
 ##################################################################
@@ -1804,11 +1804,15 @@ class TestJobRevival(TestJobRevivalBase):
 
         def get_total_job_count(category):
             total_job_count = 0
-            for op_id in get("//sys/operations", verbose=False).keys():
-                total_job_count += \
-                    get("//sys/operations/{0}/@progress/jobs/{1}".format(op_id, category),
-                        default=0,
-                        verbose=False)
+            operations = get("//sys/operations", verbose=False)
+            for key in operations:
+                if len(key) != 2:
+                    continue
+                for op_id in operations[key]:
+                    total_job_count += \
+                        get(get_operation_cypress_path(op_id) + "/@progress/jobs/{}".format(category),
+                            default=0,
+                            verbose=False)
             return total_job_count
 
         # We will switch scheduler when there are 40, 80, 120, ..., 400 completed jobs.
