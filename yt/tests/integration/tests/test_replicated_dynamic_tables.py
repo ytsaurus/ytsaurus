@@ -275,6 +275,28 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         remove_table_replica(replica_id)
         assert not exists("#{0}/@".format(replica_id))
 
+    def test_none_state_after_unmount(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", mount=False)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+
+        sync_mount_table("//tmp/t")
+        sync_enable_table_replica(replica_id)
+        
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "enabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][0]["state"] == "enabled"
+
+        sync_unmount_table("//tmp/t")
+        
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "enabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][0]["state"] == "none"
+
     def test_enable_disable_replica_unmounted(self):
         self._create_replicated_table("//tmp/t", mount=False)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -652,7 +674,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
-
 
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
