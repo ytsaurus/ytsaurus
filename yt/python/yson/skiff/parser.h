@@ -38,9 +38,9 @@ public:
 
     static void InitType();
 
-private:
     using TBase = TRowsIteratorBase<TSkiffIterator, TPythonSkiffRecordBuilder, NSkiff::TSkiffMultiTableParser<TPythonSkiffRecordBuilder>>;
 
+private:
     static constexpr const char FormatName[] = "Skiff";
 
     std::unique_ptr<IInputStream> InputStreamHolder_;
