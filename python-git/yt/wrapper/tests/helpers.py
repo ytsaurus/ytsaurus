@@ -235,3 +235,7 @@ def remove_asan_warning(str_or_bytes):
         return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes.encode("utf-8")).decode("utf-8")
     assert isinstance(str_or_bytes, bytes)
     return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes)
+
+def get_operation_path(operation_id):
+    return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
+

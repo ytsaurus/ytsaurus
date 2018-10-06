@@ -188,10 +188,13 @@ class TestMutations(object):
             time.sleep(1.0) # Wait for aborting transactions
 
         def get_operation_count():
-            return len([
-                elem
-                for elem in yt.list("//sys/operations", attributes=["state"])
-                if "state" in elem.attributes])
+            operations = yt.get("//sys/operations")
+            count = 0
+            for key in operations:
+                if len(key) != 2:
+                    continue
+                count += len(operations[key])
+            return count
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"

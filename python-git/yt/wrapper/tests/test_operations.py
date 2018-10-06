@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning)
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning, get_operation_path)
 
 # Necessary for tests.
 try:
@@ -36,7 +36,6 @@ import logging
 import os
 import pytest
 import random
-import re
 import signal
 import string
 import sys
@@ -595,7 +594,7 @@ print(op.id)
 
         op_id = subprocess.check_output([get_python(), file.name, table, table],
                                         env=self.env, stderr=sys.stderr).strip()
-        wait(lambda: yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted")
+        wait(lambda: yt.get(get_operation_path(op_id) + "/@state") == "aborted")
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
@@ -718,7 +717,7 @@ print(op.id)
         yt.write_table(table, [{"x": 1}])
         try:
             op = yt.run_map("sleep 1; cat", table, table, sync=False)
-            spec = yt.get_attribute("//sys/operations/{0}".format(op.id), "spec")
+            spec = yt.get_attribute(get_operation_path(op.id), "spec")
             assert spec["mapper"]["memory_limit"] == 123
             assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
             assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
@@ -1025,7 +1024,7 @@ print(op.id)
             yield rec
 
         def get_spec_option(id, name):
-            return yt.get("//sys/operations/{0}/@spec/".format(id) + name)
+            return yt.get("{}/@spec/{}".format(get_operation_path(id), name))
 
         with set_config_option("mount_sandbox_in_tmpfs/enable", True):
             table = TEST_DIR + "/table"
