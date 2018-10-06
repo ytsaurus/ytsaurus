@@ -1,7 +1,7 @@
 import yt_commands
 
 from yt.environment import YTInstance, init_operation_archive
-from yt.common import makedirp, YtError, format_error
+from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.test_helpers import wait
 
@@ -73,6 +73,14 @@ def _reset_nodes(driver=None):
     for response in responses:
         assert yt_commands.get_batch_output(response) is None
 
+def _retry_with_gc_collect(func, driver=None):
+    while True:
+        try:
+            func()
+            break
+        except YtResponseError:
+            yt_commands.gc_collect(driver=driver)
+
 def _remove_objects(enable_secondary_cells_cleanup, driver=None):
     TYPES = [
         "accounts",
@@ -89,7 +97,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
             "tablet_actions"
         ]
 
-    while True:
+    def do():
         list_objects_results = yt_commands.execute_batch([
             yt_commands.make_batch_request("list", path="//sys/" + type,
                 attributes=["id", "builtin"]) for type in TYPES],
@@ -105,30 +113,28 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
                     continue 
                 object_ids_to_remove.append(object.attributes["id"])
 
-        all_ok = True
         for result in yt_commands.execute_batch([
                 yt_commands.make_batch_request("remove", path="#" + id) for id in object_ids_to_remove
             ], driver=driver):
-            if yt_commands.get_batch_error(result) != None:
-                all_ok = False
+            assert yt_commands.get_batch_output(result) is None
 
-        if all_ok:
-            break
-
-        yt_commands.gc_collect(driver=driver)
+    _retry_with_gc_collect(do, driver=driver)
 
 def _restore_globals(driver=None):
-    for response in yt_commands.execute_batch([
-            yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
-                "changelog_account": "sys",
-                "snapshot_account": "sys"
-            }),
-            yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
-            yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
-            yt_commands.make_batch_request("set", path="//sys/@config", input={}),
-            yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
-        ], driver=driver):
-        assert yt_commands.get_batch_output(response) is None
+    def do():
+        for response in yt_commands.execute_batch([
+                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
+                    "changelog_account": "sys",
+                    "snapshot_account": "sys"
+                }),
+                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
+                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
+                yt_commands.make_batch_request("set", path="//sys/@config", input={}),
+                yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
+            ], driver=driver):
+            assert yt_commands.get_batch_output(response) is None
+
+    _retry_with_gc_collect(do, driver=driver)
 
 def _remove_operations(driver=None):
     if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
