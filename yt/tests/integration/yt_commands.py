@@ -555,6 +555,12 @@ def execute_batch(requests, **kwargs):
     kwargs["requests"] = requests
     return yson.loads(execute_command("execute_batch", kwargs))
 
+def get_batch_error(result):
+    if "error" in result:
+        return result["error"]
+    else:
+        return None
+
 def get_batch_output(result):
     if "error" in result:
         raise YtResponseError(result["error"])

@@ -31,6 +31,7 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 ##################################################################
 
 def _abort_transactions(driver=None):
+    requests = []
     for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
         title = tx.attributes.get("title", "")
         id = str(tx)
@@ -40,10 +41,8 @@ def _abort_transactions(driver=None):
             continue
         if "Lease for node" in title:
             continue
-        try:
-            yt_commands.abort_transaction(id, driver=driver)
-        except:
-            pass
+        requests.append(yt_commands.make_batch_request("abort_tx", transaction_id=id))
+    yt_commands.execute_batch(requests, driver=driver)
 
 def _reset_nodes(driver=None):
     boolean_attributes = [
@@ -59,35 +58,105 @@ def _reset_nodes(driver=None):
     ]
     nodes = yt_commands.ls("//sys/nodes", attributes=attributes, driver=driver)
 
+    requests = []
     for node in nodes:
         node_name = str(node)
         for attribute in boolean_attributes:
             if node.attributes[attribute]:
-                yt_commands.set("//sys/nodes/{0}/@{1}".format(node_name, attribute), False, driver=driver)
+                requests.append(yt_commands.make_batch_request("set", path="//sys/nodes/{0}/@{1}".format(node_name, attribute), input=False))
         if node.attributes["resource_limits_overrides"] != {}:
-            yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {}, driver=driver)
+            requests.append(yt_commands.make_batch_request("set", path="//sys/nodes/%s/@resource_limits_overrides" % node_name, input={}))
         if node.attributes["user_tags"] != []:
-            yt_commands.set("//sys/nodes/%s/@user_tags" % node_name, [], driver=driver)
+            requests.append(yt_commands.make_batch_request("set", path="//sys/nodes/%s/@user_tags" % node_name, input=[]))
+
+    responses = yt_commands.execute_batch(requests)
+    for response in responses:
+        assert yt_commands.get_batch_output(response) is None
+
+def _remove_objects(enable_secondary_cells_cleanup, driver=None):
+    TYPES = [
+        "accounts",
+        "users",
+        "groups",
+        "racks",
+        "data_centers",
+        "tablet_cells",
+        "tablet_cell_bundles",
+    ]
+
+    if enable_secondary_cells_cleanup:
+        TYPES = TYPES + [
+            "tablet_actions"
+        ]
+
+    while True:
+        list_objects_results = yt_commands.execute_batch([
+            yt_commands.make_batch_request("list", path="//sys/" + type,
+                attributes=["id", "builtin"]) for type in TYPES],
+                driver=driver)
+        
+        object_ids_to_remove = []
+        for index, type in enumerate(TYPES):
+            objects = yt_commands.get_batch_output(list_objects_results[index])
+            for object in objects:
+                if object.attributes["builtin"]:
+                    continue
+                if type == "users" and str(object) == "application_operations":
+                    continue 
+                object_ids_to_remove.append(object.attributes["id"])
+
+        all_ok = True
+        for result in yt_commands.execute_batch([
+                yt_commands.make_batch_request("remove", path="#" + id) for id in object_ids_to_remove
+            ], driver=driver):
+            if yt_commands.get_batch_error(result) != None:
+                all_ok = False
+
+        if all_ok:
+            break
+
+        yt_commands.gc_collect(driver=driver)
+
+def _restore_globals(driver=None):
+    for response in yt_commands.execute_batch([
+            yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
+                "changelog_account": "sys",
+                "snapshot_account": "sys"
+            }),
+            yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
+            yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
+            yt_commands.make_batch_request("set", path="//sys/@config", input={}),
+            yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
+        ], driver=driver):
+        assert yt_commands.get_batch_output(response) is None
 
 def _remove_operations(driver=None):
     if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
         return
 
-    operation_from_orchid = []
+    operations_from_orchid = []
     try:
-        operation_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
+        operations_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
     except YtError as err:
         print >>sys.stderr, format_error(err)
 
-    for operation_id in operation_from_orchid:
-        try:
-            yt_commands.abort_op(operation_id, driver=driver)
-        except YtError as err:
+    requests = []
+    for operation_id in operations_from_orchid:
+        requests.append(yt_commands.make_batch_request("abort_op", operation_id=operation_id))
+
+    responses = yt_commands.execute_batch(requests, driver=driver)
+    for response in responses:
+        err = yt_commands.get_batch_error(response)
+        if err is not None:
             print >>sys.stderr, format_error(err)
 
     _abort_transactions(driver=driver)
-    yt_commands.remove("//sys/operations/*", driver=driver)
-    yt_commands.remove("//sys/operations_archive", force=True, driver=driver)
+
+    for response in yt_commands.execute_batch([
+            yt_commands.make_batch_request("remove", path="//sys/operations/*"),
+            yt_commands.make_batch_request("remove", path="//sys/operations_archive", force=True)
+        ], driver=driver):
+        assert yt_commands.get_batch_output(response) is None
 
 def _wait_for_jobs_to_vanish(driver=None):
     def check_no_jobs():
@@ -96,67 +165,7 @@ def _wait_for_jobs_to_vanish(driver=None):
             if jobs.get("scheduler", 0) > 0:
                 return False
         return True
-
     wait(check_no_jobs)
-
-def _reset_dynamic_cluster_config(driver=None):
-    yt_commands.set("//sys/@config", {}, driver=driver)
-
-def _remove_accounts(driver=None):
-    accounts = yt_commands.ls("//sys/accounts", attributes=["builtin", "resource_usage"], driver=driver)
-    for account in accounts:
-        if not account.attributes["builtin"]:
-            print >>sys.stderr, account.attributes["resource_usage"]
-            yt_commands.remove_account(str(account), driver=driver)
-
-def _remove_users(driver=None):
-    users = yt_commands.ls("//sys/users", attributes=["builtin"], driver=driver)
-    for user in users:
-        if not user.attributes["builtin"] and str(user) != "application_operations":
-            yt_commands.remove_user(str(user), driver=driver)
-
-def _remove_groups(driver=None):
-    groups = yt_commands.ls("//sys/groups", attributes=["builtin"], driver=driver)
-    for group in groups:
-        if not group.attributes["builtin"]:
-            yt_commands.remove_group(str(group), driver=driver)
-
-def _remove_tablet_cells(driver=None):
-    cells = yt_commands.get_tablet_cells(driver=driver)
-    yt_commands.sync_remove_tablet_cells(cells, driver=driver)
-
-def _remove_tablet_cell_bundles(driver=None):
-    bundles = yt_commands.ls("//sys/tablet_cell_bundles", attributes=["builtin"], driver=driver)
-    for bundle in bundles:
-        try:
-            if not bundle.attributes["builtin"]:
-                yt_commands.remove_tablet_cell_bundle(str(bundle), driver=driver)
-            else:
-                yt_commands.set("//sys/tablet_cell_bundles/{0}/@options".format(bundle), {
-                    "changelog_account": "sys",
-                    "snapshot_account": "sys"})
-                yt_commands.set("//sys/tablet_cell_bundles/{0}/@dynamic_options".format(bundle), {})
-                yt_commands.set("//sys/tablet_cell_bundles/{0}/@tablet_balancer_config".format(bundle), {})
-        except:
-            pass
-
-def _remove_racks(driver=None):
-    racks = yt_commands.get_racks(driver=driver)
-    for rack in racks:
-        yt_commands.remove_rack(rack, driver=driver)
-
-def _remove_data_centers(driver=None):
-    data_centers = yt_commands.get_data_centers(driver=driver)
-    for dc in data_centers:
-        yt_commands.remove_data_center(dc, driver=driver)
-
-def _restore_default_pool_tree(driver=None):
-    yt_commands.remove("//sys/pool_trees/default/*", driver=driver)
-
-def _remove_tablet_actions(driver=None):
-    actions = yt_commands.get_tablet_actions()
-    for action in actions:
-        yt_commands.remove_tablet_action(action, driver=driver)
 
 def find_ut_file(file_name):
     unittester_path = find_executable("unittester-ytlib")
@@ -338,7 +347,7 @@ class YTEnvSetup(object):
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
-    ENABLE_MULTICELL_TEARDOWN = True
+    ENABLE_SECONDARY_CELLS_CLEANUP = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
     NUM_CONTROLLER_AGENTS = None
@@ -635,32 +644,30 @@ class YTEnvSetup(object):
                 continue
 
             _reset_nodes(driver=driver)
+            
             if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 _remove_operations(driver=driver)
                 _wait_for_jobs_to_vanish(driver=driver)
-                _restore_default_pool_tree(driver=driver)
+            
             _abort_transactions(driver=driver)
-            yt_commands.remove("//tmp", driver=driver)
+            
             yt_commands.create("map_node", "//tmp",
-                               attributes={
-                                "account": "tmp",
-                                "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
-                                "opaque": True
-                               },
-                               driver=driver)
-            _remove_accounts(driver=driver)
-            _remove_users(driver=driver)
-            _remove_groups(driver=driver)
-            if cls.get_param("USE_DYNAMIC_TABLES", cluster_index):
-                yt_commands.gc_collect(driver=driver)
-                _remove_tablet_cells(driver=driver)
-                _remove_tablet_cell_bundles(driver=driver)
-                _remove_tablet_actions(driver=driver)
-            _remove_racks(driver=driver)
-            _remove_data_centers(driver=driver)
-            _reset_dynamic_cluster_config(driver=driver)
+                attributes={
+                    "account": "tmp",
+                    "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                    "opaque": True
+                },
+                force=True,
+                driver=driver)
 
             yt_commands.gc_collect(driver=driver)
+
+            _remove_objects(enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index), driver=driver)
+
+            _restore_globals(driver=driver)
+
+            yt_commands.gc_collect(driver=driver)
+
             yt_commands.clear_metadata_caches(driver=driver)
 
     def setup_method(self, method):

@@ -1721,7 +1721,7 @@ class TestCypress(YTEnvSetup):
         # Most inheritable attributes are inheritable by all chunk owners.
         # These, however, are only inheritable by tables (values don't matter):
         attrs = (("commit_ordering", "strong"), ("in_memory_mode", "uncompressed"), ("optimize_for", "scan"), ("tablet_cell_bundle", "b"))
-        create_tablet_cell_bundle("b3")
+        create_tablet_cell_bundle("b")
         for attr_name, attr_val in attrs:
             set("//tmp/dir1/@" + attr_name, attr_val)
 
