@@ -300,7 +300,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(false);
 
     RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
-        .Default(true);
+        .Default(false);
 
     RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
         .Default(true);
