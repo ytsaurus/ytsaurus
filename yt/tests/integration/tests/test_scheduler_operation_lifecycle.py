@@ -194,7 +194,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             spec={'time_limit': 1000})
 
         # Have to wait for process termination, job proxy can't kill user process when cgroups are not enabled.
-        time.sleep(3.2)
+        time.sleep(4.0)
         assert get("//sys/operations/{0}/@state".format(op1.id)) not in ["failing", "failed"]
         assert get("//sys/operations/{0}/@state".format(op2.id)) in ["failing", "failed"]
 
