@@ -70,10 +70,10 @@ TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::~TRowsIteratorBase() = de
 template <class TIteratorClass, class TConsumer, class TParser>
 void TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::InitType(const TString& formatName)
 {
-    auto name = formatName + " iterator";
-    auto doc = "Iterates over stream with " + formatName + " rows";
-    TBase::behaviors().name(name.c_str());
-    TBase::behaviors().doc(doc.c_str());
+    Name_ = formatName + " iterator";
+    Doc_ = "Iterates over stream with " + formatName + " rows";
+    TBase::behaviors().name(Name_.c_str());
+    TBase::behaviors().doc(Doc_.c_str());
     TBase::behaviors().supportGetattro();
     TBase::behaviors().supportSetattro();
     TBase::behaviors().supportIter();
