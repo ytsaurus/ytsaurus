@@ -349,6 +349,7 @@ b"""
             {
                 min_level = debug;
                 writers = [ debug ];
+                exclude_categories = "Bus";
             };
         ];
         writers = {
