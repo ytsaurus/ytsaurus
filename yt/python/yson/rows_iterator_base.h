@@ -31,6 +31,9 @@ public:
 protected:
     static void InitType(const TString& formatName);
 
+    static TString Name_;
+    static TString Doc_;
+
     // These fields must be initialized in derived class.
     IInputStream* InputStream_;
     std::unique_ptr<TConsumer> Consumer_;
