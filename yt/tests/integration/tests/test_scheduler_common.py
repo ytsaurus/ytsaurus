@@ -414,10 +414,7 @@ class TestJobStderr(YTEnvSetup):
         assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"]
         assert recursive_resource_usage["disk_space_per_medium"]["default"] == \
             resource_usage["disk_space_per_medium"]["default"]
-        # NOTE: Diving by two here because of compatible operations storage schema:
-        # stderrs are stored in both //sys/operations/<op_id>/jobs/<job_id>/stderr
-        # and //sys/operations/<hash>/<op_id>/jobs/<job_id>/stderr.
-        assert recursive_resource_usage["node_count"] == resource_usage["node_count"] // 2
+        assert recursive_resource_usage["node_count"] == resource_usage["node_count"]
 
         set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
         set("//sys/accounts/test_account/@resource_limits/node_count", 0)
@@ -2813,7 +2810,7 @@ class TestSecureVault(YTEnvSetup):
 
     def test_secure_vault_not_visible(self):
         op = self.run_map_with_secure_vault()
-        cypress_info = str(get("//sys/operations/{0}/@".format(op.id)))
+        cypress_info = str(op.get_path() + "/@")
         scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
         op.track()
 
@@ -3208,7 +3205,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
 
 ##################################################################
 
-class TestSchedulerOperationStorage(YTEnvSetup):
+class DISABLED_TestSchedulerOperationStorage(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -3450,9 +3447,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
         client = self.Env.create_native_client()
 
         op = self._run_op()
-        jobs_old = ls("//sys/operations/" + op.id + "/jobs")
         jobs_new = ls(op.get_path() + "/jobs")
-        assert __builtin__.set(jobs_old) == __builtin__.set(jobs_new)
         job_id = jobs_new[-1]
 
         clean_operations(client)
