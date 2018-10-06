@@ -67,15 +67,20 @@ public:
         TBase::InitType(FormatName);
     }
 
-private:
     using TBase = TRowsIteratorBase<TYsonIterator, NYTree::TPythonObjectBuilder, NYson::TYsonParser>;
 
+private:
     static constexpr const char FormatName[] = "Yson";
 
     std::unique_ptr<IInputStream> InputStreamHolder_;
 };
 
 constexpr const char TYsonIterator::FormatName[];
+
+template<>
+TString TYsonIterator::TBase::Name_ = TString();
+template<>
+TString TYsonIterator::TBase::Doc_ = TString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,7 +127,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("Yson iterator");
+        behaviors().name("Raw yson iterator");
         behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
@@ -182,7 +187,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("Yson iterator");
+        behaviors().name("Lazy yson iterator");
         behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
