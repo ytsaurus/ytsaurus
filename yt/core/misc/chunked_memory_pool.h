@@ -4,19 +4,6 @@
 #include "ref.h"
 
 namespace NYT {
-namespace NYTAlloc {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Support build without YTAlloc
-Y_WEAK size_t YTGetSize(void* ptr)
-{
-    return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYTAlloc
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,38 +21,12 @@ public:
     TAllocationHolder(TAllocationHolder&&) = default;
     virtual ~TAllocationHolder();
 
-    void operator delete(void* ptr) noexcept
-    {
-        ::free(ptr);
-    }
+    void operator delete(void* ptr) noexcept;
 
-    TMutableRef GetRef() const
-    {
-        return Ref_;
-    }
+    TMutableRef GetRef() const;
 
     template <class TDerived>
-    static TDerived* Allocate(size_t size, TRefCountedTypeCookie cookie)
-    {
-        auto requestedSize = sizeof(TDerived) + size;
-        auto* ptr = ::malloc(requestedSize);
-        auto allocatedSize = NYTAlloc::YTGetSize(ptr);
-        if (allocatedSize) {
-            size += allocatedSize - requestedSize;
-        }
-
-        auto* instance = static_cast<TDerived*>(ptr);
-
-        try {
-            new (instance) TDerived(TMutableRef(instance + 1, size), cookie);
-        } catch (const std::exception& ex) {
-            // Do not forget to free the memory.
-            ::free(ptr);
-            throw;
-        }
-
-        return instance;
-    }
+    static TDerived* Allocate(size_t size, TRefCountedTypeCookie cookie);
 
 private:
     const TMutableRef Ref_;
@@ -74,6 +35,8 @@ private:
     TRefCountedTypeCookie Cookie_ = NullRefCountedTypeCookie;
 #endif
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct IMemoryChunkProvider
     : public TIntrinsicRefCounted
@@ -84,6 +47,8 @@ struct IMemoryChunkProvider
 DEFINE_REFCOUNTED_TYPE(IMemoryChunkProvider)
 
 IMemoryChunkProviderPtr CreateMemoryChunkProvider();
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChunkedMemoryPool
     : private TNonCopyable
@@ -97,21 +62,12 @@ public:
         IMemoryChunkProviderPtr chunkProvider,
         size_t startChunkSize = DefaultStartChunkSize);
 
-    TChunkedMemoryPool()
-        : TChunkedMemoryPool(
-            GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>(),
-            CreateMemoryChunkProvider())
-    { }
+    TChunkedMemoryPool();
 
     template <class TTag>
     explicit TChunkedMemoryPool(
         TTag,
-        size_t startChunkSize = DefaultStartChunkSize)
-        : TChunkedMemoryPool(
-            GetRefCountedTypeCookie<TTag>(),
-            CreateMemoryChunkProvider(),
-            startChunkSize)
-    { }
+        size_t startChunkSize = DefaultStartChunkSize);
 
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);

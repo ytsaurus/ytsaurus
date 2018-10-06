@@ -6,8 +6,75 @@
 #include "serialize.h"
 
 namespace NYT {
+namespace NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Support build without YTAlloc
+Y_WEAK size_t YTGetSize(void* /*ptr*/)
+{
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTAlloc
+} // namespace NYT
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void TAllocationHolder::operator delete(void* ptr) noexcept
+{
+    ::free(ptr);
+}
+
+inline TMutableRef TAllocationHolder::GetRef() const
+{
+    return Ref_;
+}
+
+template <class TDerived>
+TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
+{
+    auto requestedSize = sizeof(TDerived) + size;
+    auto* ptr = ::malloc(requestedSize);
+    auto allocatedSize = NYTAlloc::YTGetSize(ptr);
+    if (allocatedSize) {
+        size += allocatedSize - requestedSize;
+    }
+
+    auto* instance = static_cast<TDerived*>(ptr);
+
+    try {
+        new (instance) TDerived(TMutableRef(instance + 1, size), cookie);
+    } catch (const std::exception& ex) {
+        // Do not forget to free the memory.
+        ::free(ptr);
+        throw;
+    }
+
+    return instance;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TChunkedMemoryPool::TChunkedMemoryPool()
+    : TChunkedMemoryPool(
+        GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>(),
+        CreateMemoryChunkProvider())
+{ }
+
+template <class TTag>
+inline TChunkedMemoryPool::TChunkedMemoryPool(
+    TTag,
+    size_t startChunkSize)
+    : TChunkedMemoryPool(
+        GetRefCountedTypeCookie<TTag>(),
+        CreateMemoryChunkProvider(),
+        startChunkSize)
+{ }
 
 inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 {
