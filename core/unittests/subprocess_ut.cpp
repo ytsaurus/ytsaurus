@@ -65,7 +65,7 @@ TEST(TSubprocessTest, PipeBigOutput)
         TSubprocess subprocess("/bin/bash");
 
         subprocess.AddArgument("-c");
-        subprocess.AddArgument("for i in `seq 100000`; do echo hello; done; echo world");
+        subprocess.AddArgument("for i in `/usr/bin/seq 100000`; do echo hello; done; echo world");
 
         auto result = subprocess.Execute();
         return result.Status.IsOK();
@@ -83,7 +83,7 @@ TEST(TSubprocessTest, PipeBigError)
         TSubprocess subprocess("/bin/bash");
 
         subprocess.AddArgument("-c");
-        subprocess.AddArgument("for i in `seq 100000`; do echo hello 1>&2; done; echo world");
+        subprocess.AddArgument("for i in `/usr/bin/seq 100000`; do echo hello 1>&2; done; echo world");
 
         auto result = subprocess.Execute();
         return result;
