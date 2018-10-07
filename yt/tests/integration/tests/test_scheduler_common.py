@@ -2299,6 +2299,7 @@ class TestSchedulingTags(YTEnvSetup):
         self.Env.start_schedulers()
 
         wait(lambda: self._get_slots_by_filter("tagC") == 0)
+        time.sleep(2)
 
         running_jobs = list(op.get_running_jobs())
         if running_jobs:
