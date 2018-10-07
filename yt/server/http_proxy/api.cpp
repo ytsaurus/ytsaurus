@@ -124,6 +124,7 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
     counters->RequestCount = { "/request_count", counters->Tags };
     counters->BytesIn = { "/bytes_in", counters->Tags };
     counters->BytesOut = { "/bytes_out", counters->Tags };
+    counters->RequestDuration = { "/request_duration", counters->Tags };
 
     TWriterGuard guard(CountersLock_);
     auto result = Counters_.emplace(key, std::move(counters));
