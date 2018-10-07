@@ -3095,17 +3095,16 @@ class TestPoolMetrics(YTEnvSetup):
         # Wait for metrics update.
         wait(lambda: get_pool_metrics("time_completed", start_time)["child"] > 0)
 
-        completed_metrics = get_pool_metrics("time_completed", start_time)
-        aborted_metrics = get_pool_metrics("time_aborted", start_time)
+        def check_metrics(get_metrics):
+            metrics = get_metrics()
+            for p in ("parent", "child"):
+                if metrics[p] == 0:
+                    continue
+            return metrics["parent"] == metrics["child"]
 
-        for p in ("parent", "child"):
-            if completed_metrics[p] == 0:
-                return False
-            if aborted_metrics[p] == 0:
-                return False
-
-        assert completed_metrics["parent"] == completed_metrics["child"]
-        assert aborted_metrics["parent"] == aborted_metrics["child"]
+        # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
+        wait(lambda: check_metrics(lambda: get_pool_metrics("time_completed", start_time)))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("time_aborted", start_time)))
 
 ##################################################################
 
