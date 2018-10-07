@@ -198,6 +198,36 @@ void FixupNodesWithAttributes(const IMapNodePtr& node)
     }
 }
 
+NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters)
+{
+    std::vector<TString> secretParameters = {
+        "/spec/secure_vault",
+    };
+
+    if (commandName == "poll_job_shell") {
+        secretParameters.push_back("/environment");
+    }
+
+    bool needCleanup = false;
+    for (const auto& ypath : secretParameters) {
+        if (FindNodeByYPath(parameters, ypath)) {
+            needCleanup = true;
+        }
+    }
+
+    if (!needCleanup) {
+        return parameters;
+    }
+
+    parameters = CloneNode(parameters)->AsMap();
+    for (const auto& ypath : secretParameters) {
+        if (FindNodeByYPath(parameters, ypath)) {
+            SetNodeByYPath(parameters, ypath, ConvertToNode("***"));
+        }
+    }
+    return parameters;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNullable<TNetworkStatistics> GetNetworkStatistics()
@@ -219,7 +249,6 @@ TNullable<TNetworkStatistics> GetNetworkStatistics()
         return {};
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

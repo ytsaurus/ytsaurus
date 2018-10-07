@@ -673,7 +673,9 @@ void TContext::LogRequest()
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
-        ConvertToYsonString(DriverRequest_.Parameters, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(
+            HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+            EYsonFormat::Text).GetData(),
         ConvertToYsonString(InputFormat_, EYsonFormat::Text).GetData(),
         InputCompression_,
         ConvertToYsonString(OutputFormat_, EYsonFormat::Text).GetData(),
