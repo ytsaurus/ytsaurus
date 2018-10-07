@@ -3256,7 +3256,8 @@ fi
             # Wait till snapshot index is incremented (snapshot is built)
             snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
             snapshot_index = get(snapshot_index_path)
-            wait(lambda: get(snapshot_index_path) > snapshot_index)
+            # '+1' since snapshot building can be started before job has failed.
+            wait(lambda: get(snapshot_index_path) > snapshot_index + 1)
 
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
