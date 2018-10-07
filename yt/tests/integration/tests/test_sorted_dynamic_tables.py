@@ -2132,8 +2132,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         chunk_id = get("//tmp/t/@chunk_ids")[0]
         sync_reshard_table("//tmp/t", [[], [1], [2]])
-        root_chunk_list = get("//tmp/t/@chunk_list_id")
-        tablet_chunk_lists = get("#{0}/@child_ids".format(root_chunk_list))
+
+        def get_tablet_chunk_lists():
+            return get("#{0}/@child_ids".format(get("//tmp/t/@chunk_list_id")))
 
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
@@ -2143,9 +2144,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@forced_compaction_revision", 1)
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
+        tablet_chunk_lists = get_tablet_chunk_lists()
         wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
+
         sync_unmount_table("//tmp/t")
 
+        tablet_chunk_lists = get_tablet_chunk_lists()
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[0])) == [chunk_id]
         assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
