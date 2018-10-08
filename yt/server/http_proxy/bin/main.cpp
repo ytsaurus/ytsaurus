@@ -8,7 +8,9 @@
 
 #include <yt/core/json/json_parser.h>
 
-#include <util/system/mlock.h>
+#include <yt/core/phdr_cache/phdr_cache.h>
+
+#include <yt/core/alloc/alloc.h>
 
 namespace NYT {
 
@@ -39,12 +41,10 @@ protected:
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
-
-        try {
-            LockAllMemory(ELockAllMemoryFlag::LockCurrentMemory | ELockAllMemoryFlag::LockFutureMemory);
-        } catch (const std::exception& ex) {
-            OnError(Format("Failed to lock memory: %v", ex.what()));
-        }
+        ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;
