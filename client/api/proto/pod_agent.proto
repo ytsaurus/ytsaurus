@@ -354,6 +354,7 @@ message THttpGet {
 
     // Путь к ручке, например: "/ping"
     string Path = 2;
+    // Только для Readiness check и Liveness check
     string ExpectedAnswer = 3;
 
     //@see TimeLimit
@@ -602,7 +603,7 @@ enum EHttpGetState {
 
     // Ошибка во время выполнения(превышен таймаут, ошибка соединения, ...)
     EHttpGetState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
-    // Ответ не равен THttpGet::ExpectedAnswer
+    // Ответ не равен THttpGet::ExpectedAnswer, только для Readiness check и Liveness check
     EHttpGetState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
 
     EHttpGetState_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
