@@ -3572,8 +3572,8 @@ private:
         const TString& expectedMD5,
         const TPutFileToCacheOptions& options)
     {
-        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
-        auto Logger = logger;
+        NLogging::TLogger logger = Logger;
+        auto Logger = logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
 
         int retryAttempts = 0;
         while (true) {
