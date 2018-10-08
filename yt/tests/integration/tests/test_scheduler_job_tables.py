@@ -810,7 +810,7 @@ class TestCoreTable(YTEnvSetup):
         ret_dict = {}
         t = self._send_core(uid, "user_process", 42, queue_iterator(q), ret_dict)
         q.put("abc")
-        time.sleep(7)
+        time.sleep(10)
         q.put(None)
         t.join()
 
