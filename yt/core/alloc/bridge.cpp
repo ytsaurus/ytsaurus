@@ -1,5 +1,7 @@
 #include "core.cpp"
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +36,7 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 ////////////////////////////////////////////////////////////////////////////////
 // Malloc bridge
 
-#ifndef _darwin_
+#if !defined(_darwin_) and !defined(_asan_enabled_)
 
 using namespace NYT::NYTAlloc;
 
