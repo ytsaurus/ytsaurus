@@ -51,6 +51,15 @@
         },
         {
             "source": {
+                "type": "SYMLINK"
+            },
+            "destination": {
+                "path": "/usr/bin/ytnodejs",
+                "target": "/usr/bin/ytnode"
+            }
+        },
+        {
+            "source": {
                 "type": "BUILD_OUTPUT",
                 "path": "yt/nodejs/targets/package",
                 "files": [
