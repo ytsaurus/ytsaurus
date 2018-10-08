@@ -716,6 +716,9 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Alias("data_size_per_sort_job")
         .Default(2_GB)
         .GreaterThan(0);
+    RegisterParameter("max_chunk_slice_per_shuffle_job", MaxChunkSlicePerShuffleJob)
+        .Default(8000)
+        .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
         .Default(0.75)
         .InRange(0.0, 1.0);

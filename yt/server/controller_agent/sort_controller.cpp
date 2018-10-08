@@ -1612,7 +1612,8 @@ protected:
     {
         ShufflePool = CreateShuffleChunkPool(
             static_cast<int>(Partitions.size()),
-            Spec->DataWeightPerShuffleJob);
+            Spec->DataWeightPerShuffleJob,
+            Spec->MaxChunkSlicePerShuffleJob);
 
         ShuffleChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::Unordered);
 
