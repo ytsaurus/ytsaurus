@@ -338,7 +338,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         output_rows = read_table("//tmp/t_out")
         assert sorted(output_rows) == output_rows
-        assert len(output_rows) < 100
+        assert len(output_rows) < 200
         assert len(output_rows) >= 10
 
     def test_with_intermediate_account(self):
