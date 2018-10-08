@@ -648,6 +648,9 @@ Y_POD_THREAD(ui64) TTimingGuard::ElapsedLockingTime_;
 template <class T>
 Y_FORCE_INLINE TGuard<T> GuardWithTiming(const T& lock)
 {
+    if (!ConfigurationManager->IsLoggingEnabled()) {
+        return Guard(lock);
+    }
     NProfiling::TWallTimer timer;
     TGuard<T> guard(lock);
     TTimingGuard::ChargeLockingTime(timer.GetElapsedTime());
