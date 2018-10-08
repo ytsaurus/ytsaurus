@@ -513,6 +513,7 @@ def package(options, build_context):
             run(["make", "version"])
         else:
             PACKAGE_LIST = [
+                "yandex-yt-python-skynet-driver.json",
                 "yandex-yt-controller-agent.json",
                 "yandex-yt-http-proxy.json",
                 "yandex-yt-master.json",
