@@ -36,7 +36,7 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 ////////////////////////////////////////////////////////////////////////////////
 // Malloc bridge
 
-#if !defined(_darwin_) and !defined(_asan_enabled_) !defined(_msan_enabled_)
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_)
 
 using namespace NYT::NYTAlloc;
 
