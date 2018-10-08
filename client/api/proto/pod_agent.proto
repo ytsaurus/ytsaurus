@@ -17,7 +17,7 @@ option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 
 //TODO: добавить секреты
 //TODO: itype (labels)
-//TODO: propabilty + core dump
+//TODO: probabilty + core dump
 
 // NOTE: На первой итерации хочется выкристаллизовать минималистичный /spec /status интерфейс и по мере проработки use case
 // добавлять дополнительные поля.
