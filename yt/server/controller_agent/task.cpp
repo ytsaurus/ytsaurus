@@ -860,13 +860,13 @@ void TTask::FinishTaskInput(const TTaskPtr& task)
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 {
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
+    auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
 
-    BuildJobSpec(joblet, &jobSpec);
-    jobSpec.set_version(GetJobSpecVersion());
-    TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
+    BuildJobSpec(joblet, jobSpec.get());
+    jobSpec->set_version(GetJobSpecVersion());
+    TaskHost_->CustomizeJobSpec(joblet, jobSpec.get());
 
-    auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
         schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
@@ -891,7 +891,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
