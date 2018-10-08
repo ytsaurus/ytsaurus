@@ -109,6 +109,8 @@ message TPodAgentDebugStatus {
 
 //============================== SPEC ==========================
 message TComputeResources {
+    reserved 1;
+
     // Ограничения по CPU, в виртуальных миллиядрах (vcpu). Тем самым, заказав vcpu = 1000, мы получим одно виртуальное ядро.
     uint64 VCpuGuarantee = 2;
     uint64 VCpuLimit = 3;
@@ -117,10 +119,6 @@ message TComputeResources {
     uint64 MemoryGuarantee = 4;
     uint64 MemoryLimit = 5;
     uint64 AnonymousMemoryLimit = 6;
-
-    // Свойства porto-контейнеров, задаваемые непосредственно.
-    // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 // Проверки целостности ресурса
