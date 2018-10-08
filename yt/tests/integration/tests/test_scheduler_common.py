@@ -3021,6 +3021,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         start_time = time.time()
 
+        start_pool_metrics =  get_pool_metrics("disk_writes", start_time)
+
         op11 = map(
             in_="//t_input",
             out="//t_output",
@@ -3041,7 +3043,7 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        wait(lambda: get_pool_metrics("disk_writes", start_time)["parent"] > 0)
+        wait(lambda: get_pool_metrics("disk_writes", start_time)["parent"] - start_pool_metrics["parent"] > 0)
 
         pool_metrics = get_pool_metrics("disk_writes", start_time)
 
@@ -3049,9 +3051,9 @@ class TestPoolMetrics(YTEnvSetup):
         op12_writes = get_cypress_metrics(op12.id, "user_job.block_io.io_write")
         op2_writes = get_cypress_metrics(op2.id, "user_job.block_io.io_write")
 
-        assert pool_metrics["child1"] == op11_writes + op12_writes > 0
-        assert pool_metrics["child2"] == op2_writes > 0
-        assert pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
+        assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
+        assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
+        assert pool_metrics["parent"] - start_pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
 
         jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
@@ -3069,6 +3071,9 @@ class TestPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
         start_time = time.time()
+
+        start_completed_metrics =  get_pool_metrics("time_completed", start_time)
+        start_aborted_metrics =  get_pool_metrics("time_aborted", start_time)
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
@@ -3092,16 +3097,16 @@ class TestPoolMetrics(YTEnvSetup):
         # Wait for metrics update.
         wait(lambda: get_pool_metrics("time_completed", start_time)["child"] > 0)
 
-        def check_metrics(get_metrics):
+        def check_metrics(get_metrics, start_metrics):
             metrics = get_metrics()
             for p in ("parent", "child"):
                 if metrics[p] == 0:
                     continue
-            return metrics["parent"] == metrics["child"]
+            return metrics["parent"] - start_metrics["parent"] == metrics["child"] - start_metrics["child"]
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(lambda: get_pool_metrics("time_completed", start_time)))
-        wait(lambda: check_metrics(lambda: get_pool_metrics("time_aborted", start_time)))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("time_completed", start_time), start_completed_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("time_aborted", start_time), start_aborted_metrics))
 
 ##################################################################
 
