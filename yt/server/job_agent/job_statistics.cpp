@@ -73,11 +73,11 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonAtributesStripper
+class TYsonAttributesStripper
     : public IYsonConsumer
 {
 public:
-    TYsonAtributesStripper(IYsonConsumer* output)
+    TYsonAttributesStripper(IYsonConsumer* output)
         : Output_(output)
     { }
 
@@ -191,7 +191,7 @@ TYsonString StripAttributes(const TYsonString& yson)
 {
     TStringStream outputStream;
     TYsonWriter writer(&outputStream);
-    TYsonAtributesStripper stripper(&writer);
+    TYsonAttributesStripper stripper(&writer);
     ParseYsonStringBuffer(yson.GetData(), yson.GetType(), &stripper);
     return TYsonString(outputStream.Str(), yson.GetType());
 }
