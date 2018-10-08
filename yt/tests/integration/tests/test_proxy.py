@@ -38,16 +38,19 @@ class TestHttpProxy(YTEnvSetup):
     def test_hosts(self):
         proxy = ls("//sys/proxies")[0]
 
-        assert [proxy] == yson.loads(requests.get(self.proxy_address() + "/hosts").text)
-        assert [proxy] == yson.loads(requests.get(self.proxy_address() + "/hosts?role=data").text)
-        assert [] == yson.loads(requests.get(self.proxy_address() + "/hosts?role=control").text)
+        def get_yson(url):
+            return yson.loads(requests.get(url).text)
+
+        assert [proxy] == get_yson(self.proxy_address() + "/hosts")
+        assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=data")
+        assert [] == get_yson(self.proxy_address() + "/hosts?role=control")
 
         set("//sys/proxies/" + proxy + "/@role", "control")
-        time.sleep(1.0) # > proxy_config["coordination"]["heartbeat_interval"].
 
-        assert [] == yson.loads(requests.get(self.proxy_address() + "/hosts").text)
-        assert [] == yson.loads(requests.get(self.proxy_address() + "/hosts?role=data").text)
-        assert [proxy] == yson.loads(requests.get(self.proxy_address() + "/hosts?role=control").text)
+        # Wait until the proxy entry will be updated on the coordinator.
+        wait(lambda: [] == get_yson(self.proxy_address() + "/hosts"))
+        assert [] == get_yson(self.proxy_address() + "/hosts?role=data")
+        assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=control")
 
         hosts = requests.get(self.proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1
