@@ -838,6 +838,9 @@ public:
     //! Data size per shuffle job.
     i64 DataWeightPerShuffleJob;
 
+    //! Limit number of chunk slices per shuffle job.
+    i64 MaxChunkSlicePerShuffleJob;
+
     //! The expected ratio of data size after partitioning to data size before partitioning.
     //! For sort operations, this is always 1.0.
     double MapSelectivityFactor;
