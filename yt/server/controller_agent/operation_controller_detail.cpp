@@ -546,15 +546,15 @@ void TOperationControllerBase::InitializeStructures()
 
         auto layerPaths = userJobSpec->LayerPaths;
         if (Config->SystemLayerPath && !layerPaths.empty()) {
-            layerPaths.emplace_back(*Config->SystemLayerPath);
+            // This must be the top layer, so insert in the beginning.
+            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
         }
         for (const auto& path : layerPaths) {
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = true;
-            // This must be the top layer, so insert in the beginning.
-            files.insert(files.begin(), std::move(file));
+            files.emplace_back(std::move(file));
         }
     }
 
