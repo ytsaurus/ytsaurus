@@ -275,9 +275,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     : TSchemalessSortedMergingReaderBase(sortKeyColumnCount, reduceKeyColumnCount)
 {
     YCHECK(!readers.empty());
-    int rowsPerSession = RowBufferSize / readers.size();
-
-    YCHECK(rowsPerSession > 0);
+    int rowsPerSession = std::max<int>(RowBufferSize / readers.size(), 2);
 
     SessionHolder_.reserve(readers.size());
     SessionHeap_.reserve(readers.size());
