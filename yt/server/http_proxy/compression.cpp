@@ -154,12 +154,12 @@ DEFINE_REFCOUNTED_TYPE(TCompressingOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompressingInputStream
+class TDecompressingInputStream
     : public IAsyncInputStream
     , private IInputStream
 {
 public:
-    TCompressingInputStream(
+    TDecompressingInputStream(
         IAsyncZeroCopyInputStreamPtr underlying,
         EContentEncoding contentEncoding)
         : Underlying_(underlying)
@@ -236,7 +236,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCompressingInputStream)
+DEFINE_REFCOUNTED_TYPE(TDecompressingInputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,11 +247,11 @@ IAsyncOutputStreamPtr CreateCompressingAdapter(
     return New<TCompressingOutputStream>(underlying, contentEncoding);
 }
 
-IAsyncInputStreamPtr CreateCompressingAdapter(
+IAsyncInputStreamPtr CreateDecompressingAdapter(
     IAsyncZeroCopyInputStreamPtr underlying,
     EContentEncoding contentEncoding)
 {
-    return New<TCompressingInputStream>(underlying, contentEncoding);
+    return New<TDecompressingInputStream>(underlying, contentEncoding);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

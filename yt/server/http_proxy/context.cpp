@@ -687,7 +687,7 @@ void TContext::SetupInputStream()
     if (EContentEncoding::None == InputCompression_) {
         DriverRequest_.InputStream = CreateCopyingAdapter(Request_);
     } else {
-        DriverRequest_.InputStream = CreateCompressingAdapter(Request_, *InputCompression_);
+        DriverRequest_.InputStream = CreateDecompressingAdapter(Request_, *InputCompression_);
     }
 }
 
