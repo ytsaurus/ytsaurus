@@ -462,19 +462,26 @@ TString ToString(const TNetworkAddress& address, bool withPort)
 bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 {
     auto lhsAddr = lhs.GetSockAddr();
-    auto lhsSize = lhs.GetLength();
-
     auto rhsAddr = rhs.GetSockAddr();
-    auto rhsSize = rhs.GetLength();
-
-    if (lhsSize != rhsSize) {
+    if (lhsAddr->sa_family != rhsAddr->sa_family) {
         return false;
     }
 
-    TStringBuf rawLhs{reinterpret_cast<const char*>(lhsAddr), lhsSize};
-    TStringBuf rawRhs{reinterpret_cast<const char*>(rhsAddr), rhsSize};
-
-    return rawLhs == rawRhs;
+    switch (lhsAddr->sa_family) {
+        case AF_INET:
+            return reinterpret_cast<const sockaddr_in*>(lhsAddr)->sin_addr.s_addr ==
+                reinterpret_cast<const sockaddr_in*>(rhsAddr)->sin_addr.s_addr;
+        case AF_INET6: {
+            const auto& lhsAddrIn6 = reinterpret_cast<const sockaddr_in6*>(lhsAddr)->sin6_addr;
+            const auto& rhsAddrIn6 = reinterpret_cast<const sockaddr_in6*>(rhsAddr)->sin6_addr;
+            return memcmp(
+                reinterpret_cast<const char*>(&lhsAddrIn6),
+                reinterpret_cast<const char*>(&rhsAddrIn6),
+                sizeof(lhsAddrIn6)) == 0;
+        }
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
