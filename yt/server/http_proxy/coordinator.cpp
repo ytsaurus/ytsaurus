@@ -339,7 +339,7 @@ void THostsHandler::HandleRequest(
         return;
     }
 
-    TNullable<TString> role = "data";
+    TNullable<TString> role{"data"};
     TNullable<TString> suffix;
     bool returnJson = true;
 
