@@ -3058,6 +3058,8 @@ void YTFree(void* ptr)
     }
 }
 
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_)
+
 size_t YTGetSize(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
@@ -3080,6 +3082,8 @@ size_t YTGetSize(void* ptr)
         Y_UNREACHABLE();
     }
 }
+
+#endif
 
 void EnableLogging()
 {
