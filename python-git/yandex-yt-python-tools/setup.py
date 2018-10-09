@@ -3,7 +3,7 @@ from helpers import get_version, prepare_files
 from setuptools import setup
 
 def main():
-    requires = ["yandex-yt >= 0.8.4", "sh", "subprocess32"]
+    requires = ["yandex-yt >= 0.8.43", "sh", "subprocess32"]
 
     scripts, data_files = prepare_files([
         "yt/tools/bin/yt_add_user.py",
