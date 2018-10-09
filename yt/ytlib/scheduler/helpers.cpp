@@ -244,13 +244,13 @@ const TYPath& GetPoolTreesPath()
     return path;
 }
 
-const TYPath& GetOperationsArchivePathOrderedById()
+const TYPath& GetOperationsArchiveOrderedByIdPath()
 {
     static TYPath path = "//sys/operations_archive/ordered_by_id";
     return path;
 }
 
-const TYPath& GetOperationsArchivePathOrderedByStartTime()
+const TYPath& GetOperationsArchiveOrderedByStartTimePath()
 {
     static TYPath path = "//sys/operations_archive/ordered_by_start_time";
     return path;

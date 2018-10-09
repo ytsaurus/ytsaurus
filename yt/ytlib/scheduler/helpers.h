@@ -57,8 +57,8 @@ std::vector<NYPath::TYPath> GetOperationPaths(
     const TString& resourceName = {});
 
 const NYPath::TYPath& GetPoolTreesPath();
-const NYPath::TYPath& GetOperationsArchivePathOrderedById();
-const NYPath::TYPath& GetOperationsArchivePathOrderedByStartTime();
+const NYPath::TYPath& GetOperationsArchiveOrderedByIdPath();
+const NYPath::TYPath& GetOperationsArchiveOrderedByStartTimePath();
 const NYPath::TYPath& GetOperationsArchiveVersionPath();
 const NYPath::TYPath& GetOperationsArchiveJobsPath();
 const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
