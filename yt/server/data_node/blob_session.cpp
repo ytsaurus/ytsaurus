@@ -313,12 +313,15 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
 
         auto writeTime = timer.GetElapsedTime();
 
-        LOG_DEBUG("Finished writing block (BlockIndex: %v)", blockIndex);
+        LOG_DEBUG("Finished writing block (BlockIndex: %v, Time: %v)",
+            blockIndex,
+            writeTime);
 
-        auto& locationProfiler = Location_->GetProfiler();
-        locationProfiler.Enqueue("/blob_block_write_size", block.Size(), EMetricType::Gauge);
-        locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds(), EMetricType::Gauge);
-        locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()), EMetricType::Gauge);
+        const auto& locationProfiler = Location_->GetProfiler();
+        auto& performanceCounters = Location_->GetPerformanceCounters();
+        locationProfiler.Update(performanceCounters.BlobBlockWriteSize, block.Size());
+        locationProfiler.Update(performanceCounters.BlobBlockWriteTime, NProfiling::DurationToValue(writeTime));
+        locationProfiler.Update(performanceCounters.BlobBlockWriteThroughput, block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
 
         Location_->IncreaseCompletedIOSize(EIODirection::Write, Options_.WorkloadDescriptor, block.Size());
 

@@ -70,10 +70,7 @@ public:
     TFileReaderPtr GetReader(IChunkPtr chunk)
     {
         auto guard = TChunkReadGuard::AcquireOrThrow(chunk.Get());
-
         auto location = chunk->GetLocation();
-        const auto& Profiler = location->GetProfiler();
-
         auto chunkId = chunk->GetId();
         auto cookie = BeginInsert({location->GetId(), chunkId});
         if (cookie.IsActive()) {
@@ -82,7 +79,8 @@ public:
                 location->GetId(),
                 chunkId);
 
-            PROFILE_TIMING ("/blob_chunk_reader_open_time") {
+            {
+                NProfiling::TAggregatedTimingGuard(&location->GetProfiler(), &location->GetPerformanceCounters().BlobChunkReaderOpenTime);
                 try {
                     auto reader = New<TCachedReader>(location->GetIOEngine(), location->GetId(), chunkId, fileName, Config_->ValidateBlockChecksums);
                     cookie.EndInsert(reader);
