@@ -11,12 +11,10 @@ try:
     import yt.json_wrapper as json
 except ImportError:
     import yt.json as json
-import yt.logger as logger
 
 from yt.packages.six.moves import map as imap
 
 import argparse
-import logging
 from functools import partial
 
 DESCRIPTION = """Command-line utility for working with Transfer Manager.
@@ -39,8 +37,6 @@ $ transfer-manager restart-task <task_id>
 See also:
     Transfer Manager wiki page:    https://wiki.yandex-team.ru/yt/userdoc/transfermanager/
 """
-
-logger.LOGGER.setLevel(logging.INFO)
 
 def _load_and_pop_task_params(kwargs):
     params = kwargs.pop("params", None)
