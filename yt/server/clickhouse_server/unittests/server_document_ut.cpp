@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse/server/document.h>
+#include <yt/server/clickhouse_server/server/document.h>
 
 #include <yt/core/ytree/convert.h>
 
