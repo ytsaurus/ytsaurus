@@ -89,6 +89,10 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
         config->AsMap()->AddChild("address_resolver", CloneNode(node));
     }
 
+    if (auto node = proxy->FindChild("chunk_client_dispatcher")) {
+        config->AsMap()->AddChild("chunk_client_dispatcher", CloneNode(node));
+    }
+
     if (auto node = legacyConfig->AsMap()->FindChild("show_ports")) {
         config->AsMap()->GetChild("coordinator")->AsMap()->AddChild("show_ports", CloneNode(node));
     }
