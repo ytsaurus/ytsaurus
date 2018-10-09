@@ -4417,14 +4417,14 @@ private:
 
             std::vector<TUnversionedRow> keys;
             auto key = rowBuffer->AllocateUnversioned(4);
-            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
-            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
-            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
-            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Index.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Index.JobIdLo);
             keys.push_back(key);
 
             TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.Stderr});
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.Stderr});
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
@@ -4495,14 +4495,14 @@ private:
 
             std::vector<TUnversionedRow> keys;
             auto key = rowBuffer->AllocateUnversioned(4);
-            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
-            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
-            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
-            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Index.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Index.JobIdLo);
             keys.push_back(key);
 
             TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.FailContext});
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.FailContext});
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(

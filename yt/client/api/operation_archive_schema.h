@@ -136,7 +136,7 @@ struct TJobStderrTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 struct TJobFailContextTableDescriptor
@@ -155,7 +155,7 @@ struct TJobFailContextTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
