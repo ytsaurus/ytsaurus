@@ -110,6 +110,7 @@ DEFINE_ENUM(EErrorCode,
     ((RowWeightLimitExceeded)     (308))
     ((InvalidColumnFilter)        (309))
     ((InvalidColumnRenaming)      (310))
+    ((IncompatibleKeyColumns)     (311))
 );
 
 DEFINE_ENUM(EControlAttribute,

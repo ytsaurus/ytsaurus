@@ -397,27 +397,33 @@ int GetSystemColumnCount(TChunkReaderOptionsPtr options)
     return systemColumnCount;
 }
 
-void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns, bool requireUniqueKeys)
+void ValidateKeyColumns(
+    const TKeyColumns& keyColumns,
+    const TKeyColumns& chunkKeyColumns,
+    bool requireUniqueKeys,
+    bool validateColumnNames)
 {
     if (requireUniqueKeys) {
         if (chunkKeyColumns.size() > keyColumns.size()) {
-            THROW_ERROR_EXCEPTION("Chunk has more key columns than requested: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Chunk has more key columns than requested: actual %v, expected %v",
                 chunkKeyColumns,
                 keyColumns);
         }
     } else {
         if (chunkKeyColumns.size() < keyColumns.size()) {
-            THROW_ERROR_EXCEPTION("Chunk has less key columns than requested: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Chunk has less key columns than requested: actual %v, expected %v",
                 chunkKeyColumns,
                 keyColumns);
         }
     }
 
-    for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
-        if (chunkKeyColumns[i] != keyColumns[i]) {
-            THROW_ERROR_EXCEPTION("Incompatible key columns: actual %v, expected %v",
-                chunkKeyColumns,
-                keyColumns);
+    if (validateColumnNames) {
+        for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
+            if (chunkKeyColumns[i] != keyColumns[i]) {
+                THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Incompatible key columns: actual %v, expected %v",
+                    chunkKeyColumns,
+                    keyColumns);
+            }
         }
     }
 }
