@@ -623,7 +623,6 @@ void TChunkStore::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto* profilingManager = NProfiling::TProfileManager::Get();
     for (const auto& location : Locations_) {
         const auto& profiler = location->GetProfiler();
         for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
