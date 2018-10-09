@@ -854,6 +854,7 @@ void TContext::DispatchNotFound(const TString& message)
 void TContext::FakeError(const TString& message)
 {
     LOG_DEBUG("Request finished with error (Message: %v)", message);
+    FillYTErrorHeaders(Response_, Error_);
     DispatchJson([&] (auto consumer) {
         BuildYsonFluently(consumer)
             .Value(TError(message));
