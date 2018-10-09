@@ -812,7 +812,12 @@ private:
                 format == ETableChunkFormat::VersionedSimple ||
                 format == ETableChunkFormat::VersionedColumnar;
 
-            ValidateKeyColumns(keyColumns, chunkKeyColumns, isVersioned);
+            // NB(psushin): we don't validate key names, because possible column renaming could have happened.
+            ValidateKeyColumns(
+                keyColumns,
+                chunkKeyColumns,
+                isVersioned,
+                /* validateColumnNames */ false);
 
             auto slices = SliceChunk(
                 sliceRequest,
