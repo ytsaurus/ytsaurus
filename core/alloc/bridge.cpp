@@ -1,5 +1,7 @@
 #include "core.cpp"
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,49 +36,9 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 ////////////////////////////////////////////////////////////////////////////////
 // Malloc bridge
 
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_)
+
 using namespace NYT::NYTAlloc;
-
-#if 0
-void* operator new(size_t size)
-{
-    return YTAlloc(size);
-}
-
-void* operator new(size_t size, const std::nothrow_t&) noexcept
-{
-    return YTAlloc(size);
-}
-
-void operator delete(void* ptr) noexcept
-{
-    YTFree(ptr);
-}
-
-void operator delete(void* ptr, const std::nothrow_t&) noexcept
-{
-    YTFree(ptr);
-}
-
-void* operator new[](size_t size)
-{
-    return YTAlloc(size);
-}
-
-void* operator new[](size_t size, const std::nothrow_t&) noexcept
-{
-    return YTAlloc(size);
-}
-
-void operator delete[](void* ptr) noexcept
-{
-    YTFree(ptr);
-}
-
-void operator delete[](void* ptr, const std::nothrow_t&) noexcept
-{
-    YTFree(ptr);
-}
-#endif
 
 #define YTALLOC_WEAK __attribute__((weak))
 
@@ -165,5 +127,7 @@ extern "C" YTALLOC_WEAK void* realloc(void* oldPtr, size_t newSize)
     YTFree(oldPtr);
     return newPtr;
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////

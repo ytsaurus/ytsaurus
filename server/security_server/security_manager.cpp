@@ -126,6 +126,8 @@ public:
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
+    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& id) override;
+
 private:
     TImpl* const Owner_;
 
@@ -2551,6 +2553,11 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     auto* account = Owner_->CreateAccount(name, hintId);
     account->SetLifeStage(lifeStage);
     return account;
+}
+
+std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(const TObjectId& id)
+{
+    return std::make_unique<TAccount>(id);
 }
 
 IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(

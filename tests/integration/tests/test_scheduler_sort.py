@@ -59,7 +59,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                       "partition_count": 10,
                   })
 
-        print get("//sys/operations/{0}/@unrecognized_spec".format(op.id))
+        print get(op.get_path() + "/@unrecognized_spec")
 
         result = read_table("//tmp/t_out")
 
@@ -317,6 +317,29 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == rows
         assert get("//tmp/t_out/@chunk_count") >= 10
+
+    def test_sort_with_row_count_limit(self):
+        create("table", "//tmp/t_in")
+        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        shuffled_rows = rows[::]
+        shuffle(shuffled_rows)
+        write_table("//tmp/t_in", shuffled_rows)
+
+        create("table", "//tmp/t_out")
+
+        sort(in_="//tmp/t_in",
+             out="<row_count_limit=10>//tmp/t_out",
+             sort_by="key",
+             spec={"partition_count": 5,
+                   "partition_job_count": 100,
+                   "data_size_per_sort_job": 1,
+                   "partition_job_io" : {"table_writer" :
+                        {"desired_chunk_size" : 1, "block_size" : 1024}}})
+
+        output_rows = read_table("//tmp/t_out")
+        assert sorted(output_rows) == output_rows
+        assert len(output_rows) < 200
+        assert len(output_rows) >= 10
 
     def test_with_intermediate_account(self):
         v1 = {"key" : "aaa"}

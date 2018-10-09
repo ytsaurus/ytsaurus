@@ -102,41 +102,56 @@ public:
     TElectionManager(
         IInvokerPtr controlInvoker,
         IElectionCallbacksPtr callbacks,
-        TCellManagerPtr cellManager)
+        TCellManagerPtr cellManager,
+        NLogging::TLogger logger)
         : ControlInvoker_(std::move(controlInvoker))
         , Callbacks_(std::move(callbacks))
         , CellManager_(std::move(cellManager))
+        , Logger(std::move(logger))
     {
+        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+
         CellManager_->SubscribePeerReconfigured(
-            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this))
-                .Via(ControlInvoker_));
+            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this)));
     }
 
     virtual void Initialize() override
-    { }
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+    }
 
     virtual void Finalize() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         Abandon();
     }
 
     virtual void Participate() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         ControlInvoker_->Invoke(BIND(&TElectionManager::DoParticipate, MakeStrong(this)));
     }
 
     virtual void Abandon() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         ControlInvoker_->Invoke(BIND(&TElectionManager::DoAbandon, MakeStrong(this)));
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         Y_UNREACHABLE();
     }
 
     void SetEpochId(const TEpochId& epochId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(epochId);
         if (EpochId_ == epochId) {
             return;
@@ -150,14 +165,21 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IElectionCallbacksPtr Callbacks_;
     const TCellManagerPtr CellManager_;
+    const NLogging::TLogger Logger;
 
     TEpochId EpochId_;
     TEpochContextPtr EpochContext_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 
     void DoParticipate()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         DoAbandon();
+
+        LOG_INFO("Starting election epoch");
 
         EpochContext_ = New<TEpochContext>();
         EpochContext_->LeaderId = GetLeaderId();
@@ -173,9 +195,13 @@ private:
 
     void DoAbandon()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!EpochContext_) {
             return;
         }
+
+        LOG_INFO("Abandoning election epoch");
 
         EpochContext_->CancelableContext->Cancel();
 
@@ -190,9 +216,14 @@ private:
 
     void OnPeerReconfigured(TPeerId peerId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!EpochContext_) {
             return;
         }
+
+        LOG_INFO("Peer reconfigured (PeerId: %v)",
+            peerId);
 
         auto selfId = CellManager_->GetSelfPeerId();
         if (peerId == selfId || EpochContext_->LeaderId == selfId || EpochContext_->LeaderId == peerId) {
@@ -577,7 +608,8 @@ public:
             ElectionManager_ = New<TElectionManager>(
                 Bootstrap_->GetControlInvoker(),
                 HydraManager_->GetElectionCallbacks(),
-                CellManager_);
+                CellManager_,
+                Logger);
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             ElectionManager_->Initialize();
 

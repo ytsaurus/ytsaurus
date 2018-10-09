@@ -270,7 +270,7 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         LOG_DEBUG(authResult, "Authentication error");
 
-        Response_->SetStatus(EStatusCode::ServiceUnavailable);
+        Response_->SetStatus(EStatusCode::InternalServerError);
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(authResult));
@@ -338,7 +338,7 @@ bool TContext::TryCheckMethod()
 bool TContext::TryCheckAvailability()
 {
     if (Api_->GetCoordinator()->IsBanned()) {
-        DispatchLater("60", "This proxy is banned");
+        DispatchUnavailable("60", "This proxy is banned");
         return false;
     }
     
@@ -355,7 +355,7 @@ bool TContext::TryRedirectHeavyRequests()
         !isBrowserRequest)
     {
         if (Descriptor_->InputType != NFormats::EDataType::Null) {
-            DispatchLater("60", "Control proxy may not serve heavy requests with input data");
+            DispatchUnavailable("60", "Control proxy may not serve heavy requests with input data");
             return false;
         }
 
@@ -380,7 +380,7 @@ bool TContext::TryRedirectHeavyRequests()
 
             return false;
         } else {
-            DispatchLater("60", "There are no data proxies available");
+            DispatchUnavailable("60", "There are no data proxies available");
             return false;
         }
     }
@@ -523,7 +523,7 @@ bool TContext::TryAcquireConcurrencySemaphore()
 {
     SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, DriverRequest_.CommandName);
     if (!SemaphoreGuard_) {
-        DispatchLater(
+        DispatchUnavailable(
             "60",
             "There are too many concurrent requests being served at the moment; "
             "please try another proxy or try again later");
@@ -673,7 +673,9 @@ void TContext::LogRequest()
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
-        ConvertToYsonString(DriverRequest_.Parameters, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(
+            HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+            EYsonFormat::Text).GetData(),
         ConvertToYsonString(InputFormat_, EYsonFormat::Text).GetData(),
         InputCompression_,
         ConvertToYsonString(OutputFormat_, EYsonFormat::Text).GetData(),
@@ -836,7 +838,7 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
     FakeError(message);
 }
 
-void TContext::DispatchLater(const TString& retryAfter, const TString& message)
+void TContext::DispatchUnavailable(const TString& retryAfter, const TString& message)
 {
     Response_->SetStatus(EStatusCode::ServiceUnavailable);
     Response_->GetHeaders()->Set("Retry-After", retryAfter);

@@ -1,8 +1,6 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 
-#include <yt/server/misc/public.h>
-
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
@@ -46,8 +44,6 @@ protected:
 
         bool dumpSnapshot = parseResult.Has("dump-snapshot");
         bool validateSnapshot = parseResult.Has("validate-snapshot");
-
-        InitMasterInternedAttributes();
 
         ConfigureUids();
         ConfigureSignals();

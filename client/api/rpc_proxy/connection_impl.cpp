@@ -133,10 +133,6 @@ TConnection::TConnection(TConnectionConfigPtr config)
     , ChannelPool_(New<TDynamicChannelPool>(ChannelFactory_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
-    , StickyTransactionPool_(
-        Config_->EnableStickyTransactionPool
-            ? CreateStickyTransactionPool<NApi::ITransactionPtr>(Logger)
-            : nullptr)
     , UpdateProxyListExecutor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
@@ -147,7 +143,9 @@ TConnection::TConnection(TConnectionConfigPtr config)
     DiscoveryPromise_ = NewPromise<std::vector<TString>>();
     ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
 
-    if (!Config_->Addresses.empty()) {
+    if (!Config_->EnableProxyDiscovery) {
+        DiscoveryPromise_.Set(Config_->Addresses);
+    } else if (!Config_->Addresses.empty()) {
         UpdateProxyListExecutor_->Start();
     }
 }
@@ -191,25 +189,6 @@ NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipan
     const TTransactionParticipantOptions&)
 {
     Y_UNIMPLEMENTED();
-}
-
-ITransactionPtr TConnection::RegisterStickyTransaction(ITransactionPtr transaction)
-{
-
-    if (StickyTransactionPool_) {
-        return StickyTransactionPool_->RegisterTransaction(transaction);
-    } else {
-        return transaction;
-    }
-}
-
-ITransactionPtr TConnection::GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId)
-{
-    if (StickyTransactionPool_) {
-        return StickyTransactionPool_->GetTransactionAndRenewLease(transactionId);
-    } else {
-        return {};
-    }
 }
 
 void TConnection::ClearMetadataCaches()

@@ -60,6 +60,7 @@ DEFINE_ENUM(ETableReplicaState,
     ((None)                     (0))
     ((Disabling)                (1))
     ((Disabled)                 (2))
+    ((Enabling)                 (4))
     ((Enabled)                  (3))
 );
 

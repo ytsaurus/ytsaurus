@@ -170,9 +170,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
-        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(Bootstrap_->GetControlInvoker())
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -180,7 +178,10 @@ public:
             ->Via(Bootstrap_->GetControlInvoker());
 
         return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)});
+            std::vector<IYPathServicePtr>{
+                staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
+                std::move(dynamicOrchidService)
+            });
     }
 
     bool IsConnected() const
@@ -292,7 +293,7 @@ public:
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
-        StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+        StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
 
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
@@ -469,6 +470,8 @@ public:
         const auto& controller = operation->GetController();
         if (controller) {
             WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+                // It is called in regular invoker since controller is canceled
+                // but we want to make some final actions.
                 .AsyncVia(controller->GetInvoker())
                 .Run())
                 .ThrowOnError();
@@ -806,6 +809,7 @@ private:
             SyncClusterDirectory();
             UpdateConfig();
             PerformHandshake();
+            FetchOperationsEffectiveAcl();
             OnConnected();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error connecting to scheduler");
@@ -870,8 +874,6 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        FetchOperationsEffectiveAcl();
-
         LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
@@ -879,7 +881,7 @@ private:
 
     void FetchOperationsEffectiveAcl()
     {
-        LOG_INFO("Fetching //sys/operations/@effective_acl");
+        LOG_INFO("Fetching operations effective acl");
 
         OperationsEffectiveAcl_ = ConvertToNode(
             WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))

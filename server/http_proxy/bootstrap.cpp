@@ -136,6 +136,10 @@ void TBootstrap::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
+    if (MaybeHandleCors(req, rsp)) {
+        return;
+    }
+
     rsp->SetStatus(EStatusCode::OK);
     if (req->GetUrl().Path == "/service") {
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {

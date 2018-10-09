@@ -7,6 +7,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/skynet.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/persistent_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/sticky_transaction_pool.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/api/rpc_proxy/admin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/rpc_proxy/public.cpp

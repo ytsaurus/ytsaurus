@@ -108,7 +108,7 @@ class TestLayers(YTEnvSetup):
                 }
             })
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         for job_id in ls(jobs_path):
             stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
@@ -133,7 +133,7 @@ class TestLayers(YTEnvSetup):
                 }
             })
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         for job_id in ls(jobs_path):
             stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)

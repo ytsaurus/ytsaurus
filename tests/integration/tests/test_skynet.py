@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
+from flaky import flaky
+
 import yt.yson as yson
 import yt.packages.requests as requests
 
@@ -390,6 +392,7 @@ class TestSkynetManager(YTEnvSetup):
 
         raise RuntimeError("Failed to share {} in 60 seconds".format(path))
 
+    @flaky(max_runs=5)
     def test_create_share(self):
         self.prepare_table("//tmp/table")
         rbtorrentid = self.share("//tmp/table")
@@ -400,6 +403,7 @@ class TestSkynetManager(YTEnvSetup):
         with pytest.raises(YtError):
             self.share("//tmp/no_table")
 
+    @flaky(max_runs=5)
     def test_empty_file(self):
         create("table", "//tmp/table_with_empty_file", attributes={
             "enable_skynet_sharing": True,
@@ -462,6 +466,7 @@ class TestSkynetManager(YTEnvSetup):
 
         wait(share_is_replicated)
 
+    @flaky(max_runs=5)
     def test_recovery(self):
         self.prepare_table("//tmp/recovered_table")
         rbtorrentid = self.share("//tmp/recovered_table")
@@ -471,6 +476,7 @@ class TestSkynetManager(YTEnvSetup):
 
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_1", rbtorrentid])
 
+    @flaky(max_runs=5)
     def test_many_shards(self):
         create("table", "//tmp/sharded_table", attributes={
             "enable_skynet_sharing": True,
@@ -490,6 +496,7 @@ class TestSkynetManager(YTEnvSetup):
         subprocess.check_call(["sky", "get", "-t", "60", "-p", "-d", self.path_to_run + "/test_download_2", rbtorrentid1])
         assert second_file == open(self.path_to_run + "/test_download_2/a").read()
 
+    @flaky(max_runs=5)
     def test_share_many(self):
         create("table", "//tmp/many_share_table", attributes={
             "enable_skynet_sharing": True,
