@@ -1182,10 +1182,10 @@ protected:
         void AbortAllActiveJoblets(const TError& error)
         {
             if (Finished_) {
-                LOG_WARNING(error, "Chunk mapping has been invalidated, but the task has already finished");
+                LOG_INFO(error, "Chunk mapping has been invalidated, but the task has already finished");
                 return;
             }
-            LOG_WARNING(error, "Aborting all jobs in task because of chunk mapping invalidation");
+            LOG_INFO(error, "Aborting all jobs in task because of chunk mapping invalidation");
             for (const auto& joblet : ActiveJoblets_) {
                 Controller->Host->AbortJob(
                     joblet->JobId,

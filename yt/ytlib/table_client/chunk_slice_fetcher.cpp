@@ -178,7 +178,7 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_WARNING("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
+            LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
                 NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
                 nodeId);
 

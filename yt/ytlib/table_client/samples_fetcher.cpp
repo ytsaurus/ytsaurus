@@ -170,7 +170,7 @@ void TSamplesFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
+        LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, requestedChunkIndexes);
