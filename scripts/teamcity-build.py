@@ -315,7 +315,7 @@ def configure(options, build_context):
                 "-DBUILD_SHARED_LIBS=OFF",
                 options.checkout_directory
             ],
-            cwd=build_directory,
+            cwd=options.build_directory,
         )
     else:
         assert options.build_system == "ya"
