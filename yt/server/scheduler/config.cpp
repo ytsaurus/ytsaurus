@@ -186,7 +186,7 @@ TTestingOptions::TTestingOptions()
 TOperationsCleanerConfig::TOperationsCleanerConfig()
 {
     RegisterParameter("enable", Enable)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_archivation", EnableArchivation)
         .Default(true);
     RegisterParameter("clean_delay", CleanDelay)
