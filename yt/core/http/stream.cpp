@@ -60,6 +60,7 @@ void THttpParser::Reset()
     FirstLine_.Reset();
     NextField_.Reset();
     NextValue_.Reset();
+    LastBodyChunk_ = {};
     YCHECK(FirstLine_.GetLength() == 0);
     YCHECK(NextField_.GetLength() == 0);
     YCHECK(NextValue_.GetLength() == 0);
