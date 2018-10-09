@@ -101,7 +101,11 @@ TUnversionedValue MakeUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns, bool requireUniqueKeys);
+void ValidateKeyColumns(
+    const TKeyColumns& keyColumns,
+    const TKeyColumns& chunkKeyColumns,
+    bool requireUniqueKeys,
+    bool validateColumnNames);
 TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
 
