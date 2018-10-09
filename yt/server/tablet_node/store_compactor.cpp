@@ -1180,9 +1180,11 @@ private:
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
         try {
-            i64 dataSize = 0;
+            i64 inputDataSize = 0;
+            i64 inputRowCount = 0;
             for (const auto& store : stores) {
-                dataSize += store->GetCompressedDataSize();
+                inputDataSize += store->GetCompressedDataSize();
+                inputRowCount += store->GetRowCount();
                 storeManager->BeginStoreCompaction(store);
             }
 
@@ -1201,12 +1203,13 @@ private:
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
             LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
-                "CompressedDataSize: %v, ChunkCount: %v, "
+                "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
-                dataSize,
+                inputRowCount,
+                inputDataSize,
                 stores.size(),
                 currentTimestamp,
                 majorTimestamp,
@@ -1261,8 +1264,9 @@ private:
                 .Run();
 
             IVersionedMultiChunkWriterPtr writer;
-            int rowCount;
-            std::tie(writer, rowCount) = WaitFor(asyncResult)
+            i64 outputRowCount;
+            i64 outputDataSize;
+            std::tie(writer, outputRowCount, outputDataSize) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
             auto endInstant = TInstant::Now();
@@ -1310,8 +1314,9 @@ private:
                 blockReadOptions.ChunkReaderStatistics,
                 CompactionTag_);
 
-            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
-                rowCount,
+            LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
+                outputRowCount,
+                outputDataSize,
                 storeIdsToAdd,
                 storeIdsToRemove,
                 endInstant - beginInstant);
@@ -1345,7 +1350,7 @@ private:
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }
 
-    std::tuple<IVersionedMultiChunkWriterPtr, int> DoCompactPartition(
+    std::tuple<IVersionedMultiChunkWriterPtr, i64, i64> DoCompactPartition(
         const IVersionedReaderPtr& reader,
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITransactionPtr& transaction,
@@ -1386,8 +1391,8 @@ private:
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerRead);
 
-        int readRowCount = 0;
-        int writeRowCount = 0;
+        i64 readRowCount = 0;
+        i64 writeRowCount = 0;
 
         while (reader->Read(&rows)) {
             readRowCount += rows.size();
@@ -1421,7 +1426,8 @@ private:
 
         YCHECK(readRowCount == writeRowCount);
 
-        return std::make_tuple(writer, readRowCount);
+        i64 dataSize = writer->GetDataStatistics().compressed_data_size();
+        return std::make_tuple(writer, readRowCount, dataSize);
     }
 
     static bool IsCompactionForced(const TSortedChunkStorePtr& store)
