@@ -591,13 +591,14 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
         TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
     }
 
-    // NB: when job is aborted due to revival confirmation timeout we can only release its chunk lists
-    // when the information about abortion gets to the snapshot. Otherwise this job may revive in a
-    // different controller with an invalidated chunk list id.
+    // NB: when job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
+    // revival) it may become completed, and you will bite your elbows if you unstage its chunk lists too early (e.g.
+    // job is aborted due to node gone offline, but after revival it happily comes back and job successfully completes).
+    // So better keep it simple and wait for the snapshot.
     ReinstallJob(
         joblet,
         BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
-        jobSummary.AbortReason == EAbortReason::RevivalConfirmationTimeout /* waitForSnapshot */);
+        true /* waitForSnapshot */);
 
     return result;
 }
