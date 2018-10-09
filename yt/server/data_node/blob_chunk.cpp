@@ -280,13 +280,13 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Options.WorkloadDescriptor,
             session->Options.ReadSessionId);
 
-        TWallTimer timer;
+        TWallTimer readTimer;
         auto blocksOrError = WaitFor(reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
             blocksToRead,
             Null));
-        auto readTime = timer.GetElapsedTime();
+        auto readTime = readTimer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {
             auto error = TError(
@@ -305,6 +305,7 @@ void TBlobChunkBase::DoReadBlockSet(
         YCHECK(blocks.size() == blocksToRead);
 
         i64 bytesRead = 0;
+        TWallTimer populateCacheTimer;
         for (int index = beginIndex; index < endIndex; ++index) {
             auto data = blocks[index - beginIndex];
             bytesRead += data.Size();
@@ -326,15 +327,17 @@ void TBlobChunkBase::DoReadBlockSet(
                 entry.Cookie.EndInsert(cachedBlock);
             }
         }
+        auto populateCacheTime = populateCacheTimer.GetElapsedTime();
 
         LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
-            "Time: %v, ReadSessionId: %v)",
+            "ReadTime: %v, PopulateCacheTime: %v, ReadSessionId: %v)",
             Id_,
             firstBlockIndex + beginIndex,
             firstBlockIndex + endIndex - 1,
             Location_->GetId(),
             bytesRead,
             readTime,
+            populateCacheTime,
             session->Options.ReadSessionId);
 
         const auto& locationProfiler = Location_->GetProfiler();
