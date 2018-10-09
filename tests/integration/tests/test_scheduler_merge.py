@@ -305,42 +305,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
-    def test_sorted_row_count_limit(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        create("table", "//tmp/t3")
-
-        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
-        write_table("//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
-        write_table("//tmp/t3", [{"k": "b", "s": 1}, {"k": "b", "s": 2}], sorted_by=["k", "s"])
-
-        create("table", "//tmp/out")
-        merge(mode="sorted",
-              in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
-              out="<row_count_limit=2>//tmp/out",
-              merge_by=["k", "s"])
-
-        assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1},
-                                           {"k": "b", "s": 1}, {"k": "b", "s": 2},
-                                           {"k": "b", "s": 2}, {"k": "c", "s": 0}]
-
-    def test_sorted_row_count_limit_2(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        create("table", "//tmp/t3")
-
-        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
-        write_table("//tmp/t2", [{"k": "b", "s": 3}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
-        write_table("//tmp/t3", [{"k": "b", "s": 2}, {"k": "b", "s": 4}], sorted_by=["k", "s"])
-
-        create("table", "//tmp/out")
-        merge(mode="sorted",
-              in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
-              out="<row_count_limit=2>//tmp/out",
-              merge_by=["k", "s"])
-
-        assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1}]
-
     # TODO(max42): eventually remove this test as it duplicates unittests TSortedChunkPoolTest/SortedMergeTeleport*.
     def test_sorted_passthrough(self):
         create("table", "//tmp/t1")
@@ -1149,7 +1113,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         interrupt_job(jobs[0])
         op.track()
         rows = read_table("//tmp/t_out")
-        assert get(op.get_path() + "/@progress/jobs/completed/total") == 2
+        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 2
         assert rows == [{"a" : i} for i in range(25)]
 
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
@@ -1185,7 +1149,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         op.track()
 
-        completed = get(op.get_path() + "/@progress/jobs/completed")
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
         interrupted = completed["interrupted"]
         assert completed["total"] >= 2
         assert interrupted["job_split"] >= 1
@@ -1206,12 +1170,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               mode=mode,
               spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
                     "combine_chunks": True,
-                    "data_weight_per_job": 10**9,
-                    "enable_job_splitting": False})
+                    "data_weight_per_job": 10**9})
         assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
         assert get("//tmp/t2/@chunk_count") == 1
-        assert get(op.get_path() + "/@progress/jobs/total") == \
-            get(op.get_path() + "/@progress/jobs/completed/total")
+        assert get("//sys/operations/{}/@progress/jobs/total".format(op.id)) == \
+            get("//sys/operations/{}/@progress/jobs/completed/total".format(op.id))
 
 
         op = merge(in_="//tmp/t1",
@@ -1219,12 +1182,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               mode=mode,
               spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
                     "job_count": 10,
-                    "combine_chunks": True,
-                    "enable_job_splitting": False})
+                    "combine_chunks": True})
         assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
         assert get("//tmp/t2/@chunk_count") > 1
-        assert get(op.get_path() + "/@progress/jobs/total") == \
-               get(op.get_path() + "/@progress/jobs/completed/total")
+        assert get("//sys/operations/{}/@progress/jobs/total".format(op.id)) == \
+               get("//sys/operations/{}/@progress/jobs/completed/total".format(op.id))
 
         if mode != "unordered":
             op = merge(in_="//tmp/t1",
@@ -1233,24 +1195,22 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**7},
                         "job_count": 10,
                         "combine_chunks": True,
-                        "data_weight_per_job": 10**9,
-                        "enable_job_splitting": False,})
+                        "data_weight_per_job": 10**9})
             assert get("//tmp/t2/@row_count") in [0, 10000]
             assert get("//tmp/t2/@chunk_count") in [0, 1]
-            assert get(op.get_path() + "/@progress/jobs/total") == \
-                   get(op.get_path() + "/@progress/jobs/completed/total")
+            assert get("//sys/operations/{}/@progress/jobs/total".format(op.id)) == \
+                   get("//sys/operations/{}/@progress/jobs/completed/total".format(op.id))
 
             op = merge(in_="//tmp/t1",
                   out="//tmp/t2",
                   mode=mode,
                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 1, "max_total_slice_count": 1},
                         "job_count": 10,
-                        "combine_chunks": True,
-                        "enable_job_splitting": False})
+                        "combine_chunks": True})
             assert get("//tmp/t2/@row_count") in [0, 10000]
             assert get("//tmp/t2/@chunk_count") in [0, 1]
-            assert get(op.get_path() + "/@progress/jobs/total") == \
-                   get(op.get_path() + "/@progress/jobs/completed/total")
+            assert get("//sys/operations/{}/@progress/jobs/total".format(op.id)) == \
+                   get("//sys/operations/{}/@progress/jobs/completed/total".format(op.id))
 
 
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
@@ -1263,8 +1223,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(in_="//tmp/t1",
               out="//tmp/t2",
               mode=mode,
-              spec={"sampling": {"sampling_rate": 0.1, "user_limits": {"resource_limits": {"user_slots": 0}}},
-                    "enable_job_splitting": False})
+              spec={"sampling": {"sampling_rate": 0.1, "user_limits": {"resource_limits": {"user_slots": 0}}}})
         assert 0 <= get("//tmp/t2/@chunk_count") <= 20
 
     def test_overlapping_ranges_in_sorted_merge(self):

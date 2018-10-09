@@ -83,7 +83,6 @@ public:
     virtual void FinishInput();
 
     void CheckCompleted();
-    void ForceComplete();
 
     virtual bool ValidateChunkCount(int chunkCount);
 

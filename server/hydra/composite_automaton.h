@@ -15,28 +15,15 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int NullObjectSerializationIndex = -1;
-constexpr int DestroyedObjectSerializationIndex = -2;
-
 struct TEntitySerializationKey
 {
     TEntitySerializationKey()
-        : Index(NullObjectSerializationIndex)
+        : Index(-1)
     { }
 
     explicit TEntitySerializationKey(int index)
         : Index(index)
     { }
-
-    static TEntitySerializationKey NullObjectKey()
-    {
-        return TEntitySerializationKey();
-    }
-
-    static TEntitySerializationKey DestroyedObjectKey()
-    {
-        return TEntitySerializationKey(DestroyedObjectSerializationIndex);
-    }
 
 #define DEFINE_OPERATOR(op) \
     bool operator op (TEntitySerializationKey other) const \

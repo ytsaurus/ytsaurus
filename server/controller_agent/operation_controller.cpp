@@ -434,16 +434,6 @@ public:
         return Underlying_->WriteCoreDump();
     }
 
-    virtual void RegisterOutputRows(i64 count, int tableIndex) override
-    {
-        return Underlying_->RegisterOutputRows(count, tableIndex);
-    }
-
-    virtual TNullable<int> GetRowCountLimitTableIndex() override
-    {
-        return Underlying_->GetRowCountLimitTableIndex();
-    }
-
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

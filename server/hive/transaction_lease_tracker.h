@@ -66,14 +66,6 @@ public:
      */
     void UnregisterTransaction(const TTransactionId& transactionId);
 
-    //! Sets the transaction timeout. Current lease is not renewed.
-    /*!
-     *  This method can only be called when the instance is active.
-     *
-     *  Thread affinity: any
-     */
-    void SetTimeout(const TTransactionId& transactionId, TDuration timeout);
-
     //! Pings a transaction, i.e. renews its lease.
     /*!
      *  When it is not active, throws an error with #NYT::EErrorCode::NRpc::Unavailable code.
@@ -119,18 +111,11 @@ private:
         TTransactionId TransactionId;
     };
 
-    struct TSetTimeoutRequest
-    {
-        TTransactionId TransactionId;
-        TDuration Timeout;
-    };
-
     using TRequest = TVariant<
         TStartRequest,
         TStopRequest,
         TRegisterRequest,
-        TUnregisterRequest,
-        TSetTimeoutRequest
+        TUnregisterRequest
     >;
 
     TMultipleProducerSingleConsumerLockFreeStack<TRequest> Requests_;
@@ -164,7 +149,6 @@ private:
     void ProcessStopRequest(const TStopRequest& request);
     void ProcessRegisterRequest(const TRegisterRequest& request);
     void ProcessUnregisterRequest(const TUnregisterRequest& request);
-    void ProcessSetTimeoutRequest(const TSetTimeoutRequest& request);
     void ProcessDeadlines();
 
     TTransactionDescriptor* FindDescriptor(const TTransactionId& transactionId);

@@ -166,7 +166,7 @@ public:
 
     ~TImpl()
     {
-        LOG_DEBUG("Destroying transaction (TransactionId: %v)",
+        LOG_DEBUG("Destroy transaction (TransactionId: %v)",
             Id_);
 
         Unregister();

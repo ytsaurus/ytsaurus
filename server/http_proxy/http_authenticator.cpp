@@ -35,25 +35,21 @@ THttpAuthenticator::THttpAuthenticator(
 
 void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
-    auto result = WaitFor(Authenticate(req))
+    auto auth = WaitFor(Authenticate(req))
         .ValueOrThrow();
 
     rsp->SetStatus(EStatusCode::OK);
-    if (result.CsrfToken) {
+    if (auth.CsrfToken) {
         ProtectCsrfToken(rsp);
     }
     
     ReplyJson(rsp, [&] (NYson::IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("login").Value(result.Login)
-                .Item("realm").Value(result.Realm)
-                .DoIf(result.CsrfToken.HasValue(), [&] (auto fluent) {
-                    fluent.Item("csrf_token").Value(result.CsrfToken);
+                .Item("login").Value(auth.Login)
+                .Item("realm").Value(auth.Realm)
+                .DoIf(auth.CsrfToken.HasValue(), [&] (auto fluent) {
+                    fluent.Item("csrf_token").Value(auth.CsrfToken);
                 })
             .EndMap();
     });

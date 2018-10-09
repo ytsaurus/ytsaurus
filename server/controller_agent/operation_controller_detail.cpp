@@ -616,15 +616,13 @@ void TOperationControllerBase::InitializeOrchid()
 {
     auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-                auto strongThis = weakThis.Lock();
-                if (!strongThis) {
-                    THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
-                }
-                BuildYsonFluently(consumer)
-                    .Do(fluentMethod);
-            }),
-            Config->ControllerStaticOrchidUpdatePeriod
-        );
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
+                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
+            }
+            BuildYsonFluently(consumer)
+                .Do(fluentMethod);
+        }));
     };
 
     // Methods like BuildProgress, BuildBriefProgress, buildJobsYson and BuildJobSplitterInfo build map fragment,
@@ -641,7 +639,8 @@ void TOperationControllerBase::InitializeOrchid()
 
     auto createCachedMapService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return createService(wrapWithMap(std::move(fluentMethod)))
-            ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+            ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default))
+            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
     };
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
@@ -1391,18 +1390,6 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         snapshot.Blocks.size(),
         snapshot.Version);
 
-    // Snapshot loading must be synchronous.
-    TOneShotContextSwitchGuard guard(
-        BIND([this, this_ = MakeStrong(this)] {
-            TStringBuilder stackTrace;
-            DumpStackTrace([&stackTrace] (const char* buffer, int length) {
-                stackTrace.AppendString(TStringBuf(buffer, length));
-            });
-            LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
-                stackTrace.Flush());
-        })
-    );
-
     TChunkedInputStream input(snapshot.Blocks);
 
     TLoadContext context;
@@ -2008,11 +1995,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         jobSummary->ArchiveJobSpec = true;
     }
 
-    // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
-    TNullable<i64> maybeRowCount; 
-    if (RowCountLimitTableIndex) {
-        maybeRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
-    }
+    // Statistics job state saved from jobSummary before moving jobSummary to ProcessFinishedJobResult.
+    auto statisticsState = GetStatisticsJobState(joblet, jobSummary->State);
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
 
@@ -2027,18 +2011,20 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    if (RowCountLimitTableIndex && maybeRowCount) {
+    auto statisticsSuffix = JobHelper.GetStatisticsSuffix(statisticsState, joblet->JobType);
+
+    if (RowCountLimitTableIndex) {
         switch (joblet->JobType) {
             case EJobType::Map:
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
             case EJobType::JoinReduce:
-            case EJobType::PartitionReduce:
-            case EJobType::OrderedMerge:
-            case EJobType::UnorderedMerge:
-            case EJobType::SortedMerge:
-            case EJobType::FinalSort: {
-                RegisterOutputRows(*maybeRowCount, *RowCountLimitTableIndex);
+            case EJobType::PartitionReduce: {
+                auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, statisticsSuffix);
+                i64 count = GetNumericValue(JobStatistics, path);
+                if (count >= RowCountLimit) {
+                    OnOperationCompleted(true /* interrupted */);
+                }
                 break;
             }
             default:
@@ -2091,13 +2077,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     UnregisterJoblet(joblet);
 
-    // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart) {
-        OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
-            << TErrorAttribute("job_id", joblet->JobId)
-            << error);
-    }
+    LogProgress();
 
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
@@ -2114,6 +2094,13 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     CheckFailedJobsStatusReceived();
 
+    if (Spec_->FailOnJobRestart) {
+        OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
+            << TErrorAttribute("job_id", joblet->JobId)
+            << error);
+    }
+
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
             LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
@@ -2122,8 +2109,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
                 joblet->NodeDescriptor.Address);
         }
     }
-
-    LogProgress();
 
     ReleaseJobs({jobId});
 }
@@ -2180,23 +2165,22 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     UnregisterJoblet(joblet);
 
-    // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart &&
-        !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
-    {
-        OnOperationFailed(TError(
-            NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job aborted; failing operation since \"fail_on_job_restart\" spec option is set")
-            << TErrorAttribute("job_id", joblet->JobId)
-            << TErrorAttribute("abort_reason", abortReason));
-    }
-
     if (abortReason == EAbortReason::AccountLimitExceeded) {
         Host->OnOperationSuspended(TError("Account limit exceeded"));
     }
 
     CheckFailedJobsStatusReceived();
     LogProgress();
+
+    if (Spec_->FailOnJobRestart &&
+        !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
+    {
+        OnOperationFailed(TError(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Job aborted; operation failed because spec option fail_on_job_restart is set")
+            << TErrorAttribute("job_id", joblet->JobId)
+            << TErrorAttribute("abort_reason", abortReason));
+    }
 
     if (!byScheduler) {
         ReleaseJobs({jobId});
@@ -2240,7 +2224,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             MakeStrong(this),
             joblet,
             Config->SuspiciousJobs)
-            .Via(GetCancelableInvoker()));
+            .Via(GetInvoker()));
     }
 }
 
@@ -4452,9 +4436,6 @@ void TOperationControllerBase::GetInputTablesAttributes()
         cellTagToTables[table.CellTag].push_back(&table);
     }
 
-    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-    std::vector<TTagId> cellTags;
-
     for (const auto& pair : cellTagToTables) {
         auto cellTag = pair.first;
         const auto& tables = pair.second;
@@ -4484,18 +4465,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
             }
         }
 
-        asyncResults.push_back(batchReq->Invoke());
-        cellTags.push_back(cellTag);
-    }
-
-    auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
-    THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error getting attributes of input tables");
-    auto& combinedResult = combinedResultOrError.Value();
-
-    for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
-        auto& tables = cellTagToTables[cellTags[cellIndex]];
-        auto& batchRspOrError = combinedResult[cellIndex];
-
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of input tables");
         const auto& batchRsp = batchRspOrError.Value();
 
@@ -4516,9 +4486,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 // Validate that timestamp is correct.
                 ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
+            LOG_INFO("Input table locked (Path: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
                 path,
-                table->ObjectId,
                 table->Schema,
                 table->IsDynamic,
                 table->ChunkCount);
@@ -5304,8 +5273,7 @@ void TOperationControllerBase::ParseInputQuery(
         }
 
         if (!Config->UdfRegistryPath) {
-            THROW_ERROR_EXCEPTION("External UDF registry is not configured")
-                << TErrorAttribute("extenal_names", externalNames);
+            THROW_ERROR_EXCEPTION("External UDF registry is not configured");
         }
 
         auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetClient());
@@ -5978,8 +5946,6 @@ void TOperationControllerBase::RegisterTeleportChunk(
     if (IsOutputLivePreviewSupported()) {
         AttachToLivePreview(chunkSpec->ChunkId(), table.LivePreviewTableId);
     }
-
-    RegisterOutputRows(chunkSpec->GetRowCount(), tableIndex);
 
     LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
@@ -7542,24 +7508,6 @@ TString TOperationControllerBase::WriteCoreDump() const
         THROW_ERROR_EXCEPTION("Core dumper is not set up");
     }
     return coreDumper->WriteCoreDump(CoreNotes_).Path;
-}
-
-void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
-{
-    if (RowCountLimitTableIndex && *RowCountLimitTableIndex == tableIndex && State != EControllerState::Finished) {
-        CompletedRowCount_ += count;
-        if (CompletedRowCount_ >= RowCountLimit) {
-            LOG_INFO("Row count limit is reached (CompletedRowCount: %v, RowCountLimit: %v).",
-                CompletedRowCount_,
-                RowCountLimit);
-            OnOperationCompleted(true /* interrupted */);
-        }
-    }
-}
-
-TNullable<int> TOperationControllerBase::GetRowCountLimitTableIndex()
-{
-    return RowCountLimitTableIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

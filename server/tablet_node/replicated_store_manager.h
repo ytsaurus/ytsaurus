@@ -47,7 +47,6 @@ public:
     virtual bool IsForcedRotationPossible() const override;
     virtual bool IsRotationScheduled() const override;
     virtual bool IsFlushNeeded() const override;
-    virtual void InitializeRotation() override;
     virtual void ScheduleRotation() override;
     virtual void Rotate(bool createNewStore) override;
 
@@ -71,8 +70,7 @@ public:
     virtual bool IsStoreFlushable(IStorePtr store) const override;
     virtual TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) override;
+        TTabletSnapshotPtr tabletSnapshot) override;
     virtual void EndStoreFlush(IDynamicStorePtr store) override;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) override;
 

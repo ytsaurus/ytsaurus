@@ -61,15 +61,11 @@ NApi::ITransactionPtr TTransactionalCommandBase<
         return nullptr;
     }
 
-    if (this->Options.Sticky) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
-    } else {
-        NApi::TTransactionAttachOptions options;
-        options.Ping = false;
-        options.PingAncestors = this->Options.PingAncestors;
-        options.Sticky = false;
-        return context->GetClient()->AttachTransaction(transactionId, options);
-    }
+    NApi::TTransactionAttachOptions options;
+    options.Ping = false;
+    options.PingAncestors = this->Options.PingAncestors;
+    options.Sticky = this->Options.Sticky;
+    return context->GetClient()->AttachTransaction(transactionId, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +174,9 @@ NApi::IClientBasePtr TTabletReadCommandBase<
 {
     const auto& transactionId = this->Options.TransactionId;
     if (transactionId) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
+        NApi::TTransactionAttachOptions options;
+        options.Sticky = true;
+        return context->GetClient()->AttachTransaction(transactionId, options);
     } else {
         return context->GetClient();
     }
@@ -206,7 +204,9 @@ NApi::ITransactionPtr TTabletWriteCommandBase<
 {
     const auto& transactionId = this->Options.TransactionId;
     if (transactionId) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
+        NApi::TTransactionAttachOptions options;
+        options.Sticky = true;
+        return context->GetClient()->AttachTransaction(transactionId, options);
     } else {
         NApi::TTransactionStartOptions options;
         options.Atomicity = this->Options.Atomicity;

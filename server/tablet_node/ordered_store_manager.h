@@ -54,8 +54,7 @@ private:
 
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) override;
+        TTabletSnapshotPtr tabletSnapshot) override;
 
     i64 ComputeStartingRowIndex() const;
     virtual void CreateActiveStore() override;

@@ -1237,39 +1237,45 @@ private:
     struct THolder
         : public TAllocationHolder
     {
-        THolder(TMutableRef ref, TRefCountedTypeCookie cookie)
-            : TAllocationHolder(ref, cookie)
-        { }
-
         NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard;
     };
 
 public:
-    explicit TTrackedMemoryChunkProvider(
+    TTrackedMemoryChunkProvider(
+        size_t size,
         NNodeTrackerClient::EMemoryCategory mainCategory,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr)
-        : MainCategory_(mainCategory)
+        : Size_(size)
+        , MainCategory_(mainCategory)
         , MemoryTracker_(memoryTracker)
     { }
 
-    virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
+    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie)
     {
-        std::unique_ptr<THolder> result(TAllocationHolder::Allocate<THolder>(size, cookie));
+        std::shared_ptr<THolder> result(
+            TAllocationHolder::Allocate<THolder>(Size_));
 
+        result->SetCookie(cookie);
         if (MemoryTracker_) {
             auto guardOrError = NNodeTrackerClient::TNodeMemoryTrackerGuard::TryAcquire(
                 MemoryTracker_,
                 MainCategory_,
-                size);
+                Size_);
 
             result->MemoryTrackerGuard = std::move(guardOrError.ValueOrThrow());
         }
-        YCHECK(result->GetRef().Size() != 0);
+        YCHECK(result->Size() != 0);
 
         return result;
     }
 
+    virtual size_t GetChunkSize() const
+    {
+        return Size_;
+    }
+
 private:
+    size_t Size_;
     NNodeTrackerClient::EMemoryCategory MainCategory_;
     NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
 
@@ -1293,6 +1299,7 @@ public:
             Config_,
             QueryAgentProfiler,
             New<TTrackedMemoryChunkProvider>(
+                PoolChunkSize,
                 EMemoryCategory::Query,
                 Bootstrap_->GetMemoryUsageTracker())))
         , ColumnEvaluatorCache_(Bootstrap_

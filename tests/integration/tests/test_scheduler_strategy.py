@@ -215,7 +215,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             spec={"job_count": 3, "resource_limits": {"user_slots": 1}})
         self._check_running_jobs(op, 1)
 
-        set(op.get_path() + "/@resource_limits", {"user_slots": 2})
+        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 2})
         self._check_running_jobs(op, 2)
 
     def test_max_possible_resource_usage(self):
@@ -873,7 +873,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"pool": "test_pool"})
         op2.track()
         op1.track()
-        assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
+        assert get("//sys/operations/" + op1.id + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
 
     def test_min_share_ratio(self):
         create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
@@ -1071,7 +1071,7 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
 
         wait(lambda: op.get_state() == "failed")
 
-        assert "unschedulable" in str(get(op.get_path() + "/@result"))
+        assert "unschedulable" in str(get(get_operation_cypress_path(op.id) + "/@result"))
 
 
 ##################################################################
@@ -1423,30 +1423,23 @@ class TestSchedulerPools(YTEnvSetup):
         create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
 
-        def check_events():
-            events = []
-            for row in read_table("//sys/scheduler/event_log"):
-                event_type = row["event_type"]
-                if event_type.startswith("operation_") and \
-                    event_type != "operation_prepared" and \
-                    event_type != "operation_materialized" and \
-                    row["operation_id"] == op.id:
-                    events.append(row["event_type"])
-                    if event_type == "operation_started":
-                        assert row["pool"]
-            return events == ["operation_started", "operation_completed"]
-        wait(lambda: check_events())
+        time.sleep(2.0)
 
-        def check_pools():
-            pools_info = [row for row in read_table("//sys/scheduler/event_log")
-                          if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
-            if len(pools_info) != 1:
-                return False
-            custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
-            assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
-            assert custom_pool_info["mode"] == "fair_share"
-            return True
-        wait(lambda: check_pools())
+        events = []
+        for row in read_table("//sys/scheduler/event_log"):
+            event_type = row["event_type"]
+            if event_type.startswith("operation_") and event_type != "operation_prepared" and row["operation_id"] == op.id:
+                events.append(row["event_type"])
+                if event_type == "operation_started":
+                    assert row["pool"]
+
+        assert events == ["operation_started", "operation_completed"]
+        pools_info = [row for row in read_table("//sys/scheduler/event_log")
+                      if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]]
+        assert len(pools_info) == 1
+        custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
+        assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
+        assert custom_pool_info["mode"] == "fair_share"
 
     def run_vanilla_with_sleep(self, spec):
         spec["tasks"] = {
@@ -1770,7 +1763,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             # Unrecognized alert often interferes with the alerts that
@@ -1781,8 +1774,6 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
     }
 
     def teardown_method(self, method):
-        for node in ls("//sys/nodes"):
-            set("//sys/nodes/{}/@resource_limits_overrides".format(node), {})
         remove("//sys/pool_trees/*")
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
@@ -1823,37 +1814,6 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         remove("//sys/pool_trees/default")
 
         wait(lambda: op.get_state() in ["aborted", "aborting"])
-
-    def test_abort_many_orphaned_operations(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": 1}])
-
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/{}/@resource_limits_overrides".format(node), {"cpu": 10, "user_slots": 10})
-
-        ops = []
-        for i in xrange(10):
-            create("table", "//tmp/t_out" + str(i))
-            ops.append(map(
-                command="sleep 1000; cat",
-                in_="//tmp/t_in",
-                out="//tmp/t_out" + str(i),
-                dont_track=True))
-
-        for op in ops:
-            wait(lambda: op.get_state() == "running")
-
-        remove("//sys/pool_trees/@default_tree")
-        remove("//sys/pool_trees/default")
-
-        for op in reversed(ops):
-            try:
-                op.abort()
-            except YtError:
-                pass
-
-        for op in ops:
-            wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
@@ -2260,10 +2220,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 yield job_id, job_is_tentative
 
         def operation_completed():
-            return op.get_state() == "completed"
+            return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
 
         def operations_failed_or_aborted():
-            return op.get_state() in ["failed", "aborted"]
+            return get("//sys/operations/{0}/@state".format(op.id)) in ["failed", "aborted"]
 
         time.sleep(5)
 
@@ -2379,7 +2339,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 yield job_id, job_is_tentative
 
         def operation_completed():
-            return op.get_state()  == "completed"
+            return get("//sys/operations/{0}/@state".format(op.id)) == "completed"
 
         job_aborted = False
         for iter in xrange(20):

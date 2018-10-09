@@ -108,9 +108,6 @@ public:
     //! Finds object by id, throws if nothing is found.
     TObjectBase* GetObjectOrThrow(const TObjectId& id);
 
-    //! Find weak ghost object by id, fails if nothing is found.
-    TObjectBase* GetWeakGhostObject(const TObjectId& id);
-
     //! Creates a cross-cell read-only proxy for the object with the given #id.
     NYTree::IYPathServicePtr CreateRemoteProxy(const TObjectId& id);
 

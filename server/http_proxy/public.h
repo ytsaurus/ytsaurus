@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/core/misc/ref_counted.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NHttpProxy {
@@ -40,7 +42,7 @@ DEFINE_ENUM(EContentEncoding,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr size_t DefaultStreamBufferSize = 32_KB;
+static constexpr size_t DefaultStreamBufferSize = 1 << 15;
 
 ////////////////////////////////////////////////////////////////////////////////
 

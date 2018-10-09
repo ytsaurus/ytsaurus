@@ -22,11 +22,9 @@ class ListOperationsSetup(YTEnvSetup):
     _archive_version = None # Latest
 
     @classmethod
-    def _create_operation(cls, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, owners=None, **kwargs):
-        if title is not None:
+    def _create_operation(cls, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, **kwargs):
+        if title:
             set_branch(kwargs, ["spec", "title"], title)
-        if owners is not None:
-            set_branch(kwargs, ["spec", "owners"], owners)
 
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
 
@@ -54,34 +52,24 @@ class ListOperationsSetup(YTEnvSetup):
     @classmethod
     def _create_operations(cls):
         cls.op1 = cls._create_operation("map", command="exit 0", user="user1")
-        cls.op2 = cls._create_operation("map", command="exit 0", user="user2", owners=["group1", "user3"])
+        cls.op2 = cls._create_operation("map", command="exit 0", user="user2")
         cls.op3 = cls._create_operation(
             "map_reduce",
             mapper_command="exit 1",
             reducer_command="exit 0",
             user="user3",
-            owners=["group2"],
             can_fail=True,
             sort_by="key",
             title="op3 title",
-            spec={"max_failed_job_count": 2},
-        )
+            spec={"max_failed_job_count": 2})
 
         op4_spec = {
             "pool_trees": ["default", "other"],
             "scheduling_options_per_pool_tree": {
-                "other": {"pool": "some_pool"},
-            },
+                "other": {"pool": "some_pool"}
+            }
         }
-        cls.op4 = cls._create_operation(
-            "reduce",
-            command="sleep 1000",
-            user="user3",
-            owners=["large_group"],
-            reduce_by="key",
-            abort=True,
-            spec=op4_spec,
-        )
+        cls.op4 = cls._create_operation("reduce", command="sleep 1000", user="user3", reduce_by="key", abort=True, spec=op4_spec)
 
         cls.op5 = cls._create_operation("sort", user="user4", sort_by="key")
 
@@ -119,20 +107,9 @@ class ListOperationsSetup(YTEnvSetup):
 
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 
-        # Create users and groups.
+        # Create users.
         for i in range(1,5):
             create_user("user{0}".format(i))
-        create_group("group1")
-        create_group("group2")
-        create_group("large_group")
-        create_group("admins")
-        set("//sys/operations/@acl/end", make_ace("allow", "admins", ["write"]))
-        add_member("user1", "group1")
-        add_member("user2", "group2")
-        add_member("group1", "large_group")
-        add_member("group2", "large_group")
-        add_member("user4", "admins")
-
         set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
         cls._create_operations()
@@ -144,14 +121,14 @@ class _TestListOperationsBase(ListOperationsSetup):
     NUM_SCHEDULERS = 1
     SINGLE_SETUP_TEARDOWN = True
 
-    # The following tests expect five operations to be present
+    # This following tests expect five operations to be present
     # in Cypress (and/or in the archive if |self.include_archive| is |True|):
-    #     TYPE       -    STATE   - USER  -   POOLS            - FAILED JOBS - OWNERS
-    #  1. map        - completed  - user1 -   user1            - False       -  []
-    #  2. map        - completed  - user2 -   user2            - False       - [group1, user3]
-    #  3. map_reduce - failed     - user3 -   user3            - True        - [group2]
-    #  4. reduce     - aborted    - user3 - [user3, some_pool] - False       - [large_group]
-    #  5. sort       - completed  - user4 -   user4            - False       -  []
+    #     TYPE       -    STATE   - USER  -   POOLS    - HAS FAILED JOBS
+    #  1. map        - completed  - user1 -   user1   - False
+    #  2. map        - completed  - user2 -   user2   - False
+    #  3. map_reduce - failed     - user3 -   user3   - True
+    #  4. reduce     - aborted    - user3 -   user3   - False
+    #  5. sort       - completed  - user4 -   user4   - False
     # Moreover, |self.op3| is expected to have title "op3 title".
 
     def test_invalid_arguments(self):
@@ -353,31 +330,12 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
     check_failed_jobs_count = True
 
     def test_no_filters(self, read_from):
-        res = list_operations(include_archive=self.include_archive)
+        res = list_operations(include_archive=False)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
         assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
         assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
         assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
-
-    def test_owned_by_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user3", read_from=read_from)
-        assert res["pool_counts"] == {"user2": 1, "user3": 2, "some_pool": 1}
-        assert res["user_counts"] == {"user2": 1, "user3": 2}
-        assert res["state_counts"] == {"completed": 1, "failed": 1, "aborted": 1}
-        assert res["type_counts"] == {"map": 1, "map_reduce": 1, "reduce": 1}
-        if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user1", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id, self.op1.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user2", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user4", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
 
@@ -393,10 +351,6 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
             list_operations(include_archive=True, to_time=self.op5.finish_time)
         with pytest.raises(YtError):
             list_operations(include_archive=True, from_time=self.op1.before_start_time)
-
-    def test_owned_by_filter_is_not_supported(self):
-        with pytest.raises(YtError):
-            list_operations(include_archive=True, owned_by="root")
 
 
 class TestListOperationsArchiveOnly(_TestListOperationsBase):
@@ -434,7 +388,3 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
             return False
 
         wait(lambda: not has_operations())
-
-    def test_owned_by_filter_is_not_supported(self):
-        with pytest.raises(YtError):
-            list_operations(include_archive=True, owned_by="root")

@@ -116,6 +116,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
                 pingPeriod,
                 sticky);
 
+            if (sticky) {
+                return connection->RegisterStickyTransaction(transaction);
+            }
             return transaction;
         }));
 }
@@ -280,7 +283,6 @@ TFuture<void> TClientBase::SetNode(
     req->set_path(path);
     req->set_value(value.GetData());
     req->set_recursive(options.Recursive);
-    req->set_force(options.Force);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);

@@ -51,12 +51,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         op.track()
 
-        data_flow_graph_path = op.get_path() + "/@progress/data_flow_graph"
-        get(data_flow_graph_path)
-        assert get(data_flow_graph_path + "/vertices/master/job_type") == "vanilla"
-        assert get(data_flow_graph_path + "/vertices/master/job_counter/completed/total") == 1
-        assert get(data_flow_graph_path + "/vertices/slave/job_type") ==  "vanilla"
-        assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 2
+        get("//sys/operations/{0}/@progress/data_flow_graph".format(op.id))
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/master/job_type".format(op.id)) == "vanilla"
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/master/job_counter/completed/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_type".format(op.id)) ==  "vanilla"
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_counter/completed/total".format(op.id)) == 2
 
     def test_task_job_index(self):
         master_command = " ; ".join([
@@ -94,12 +93,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         op.track()
 
-        data_flow_graph_path = op.get_path() + "/@progress/data_flow_graph"
-        get(data_flow_graph_path)
-        assert get(data_flow_graph_path + "/vertices/master/job_type") == "vanilla"
-        assert get(data_flow_graph_path + "/vertices/master/job_counter/completed/total") == 1
-        assert get(data_flow_graph_path + "/vertices/slave/job_type") ==  "vanilla"
-        assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 3
+        get("//sys/operations/{0}/@progress/data_flow_graph".format(op.id))
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/master/job_type".format(op.id)) == "vanilla"
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/master/job_counter/completed/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_type".format(op.id)) ==  "vanilla"
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_counter/completed/total".format(op.id)) == 3
 
     def test_files(self):
         create("file", "//tmp/a")
@@ -145,8 +143,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         table_stderrs = read_table("//tmp/stderr")
         table_stderrs_per_task = Counter(remove_asan_warning(row["data"]) for row in table_stderrs)
 
-        job_ids = ls(op.get_path() + "/jobs")
-        cypress_stderrs_per_task = Counter(remove_asan_warning(read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id))) for job_id in job_ids)
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        cypress_stderrs_per_task = Counter(remove_asan_warning(read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_id))) for job_id in job_ids)
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}

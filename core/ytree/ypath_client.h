@@ -159,7 +159,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath FindRequestYPath(const NRpc::NProto::TRequestHeader& header);
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
 

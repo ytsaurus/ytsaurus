@@ -23,7 +23,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_builder_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/protobuf_format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/protobuf_format_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp

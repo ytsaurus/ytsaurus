@@ -24,21 +24,27 @@ std::vector<TDataSliceDescriptorList> SplitUnversionedChunks(
         result.emplace_back(std::move(dataSliceDescriptors));
     };
 
-    // TODO(max42): rework.
     if (maxTableParts > 1) {
+        ui64 totalRowCount = 0;
         ui64 totalDataWeight = 0;
         for (const auto& chunkSpec: chunkSpecs) {
+            totalRowCount += chunkSpec.row_count_override();
             totalDataWeight += chunkSpec.data_weight_override();
         }
 
+        ui64 currentRowCount = 0;
         ui64 currentDataWeight = 0;
         TChunkSpecList currentChunkSpecs;
 
         for (auto& chunkSpec: chunkSpecs) {
+            currentRowCount += chunkSpec.row_count_override();
             currentDataWeight += chunkSpec.data_weight_override();
             currentChunkSpecs.emplace_back(std::move(chunkSpec));
 
-            if (currentDataWeight > totalDataWeight / maxTableParts) {
+            if (currentRowCount > totalRowCount / maxTableParts
+                || currentDataWeight > totalDataWeight / maxTableParts)
+            {
+                currentRowCount = 0;
                 currentDataWeight = 0;
                 createJob(std::move(currentChunkSpecs));
             }

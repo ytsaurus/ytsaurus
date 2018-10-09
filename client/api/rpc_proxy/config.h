@@ -34,8 +34,7 @@ public:
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
-    bool EnableProxyDiscovery;
-
+    bool EnableStickyTransactionPool;
 
     TConnectionConfig();
 };

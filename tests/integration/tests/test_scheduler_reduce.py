@@ -210,7 +210,7 @@ class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
                                             {"a": "42", "b": "2"},
                                             {"a": "42", "b": "3"}]
 
-        completed = get(op.get_path() + "/@progress/jobs/completed")
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
         assert completed["total"] == 1 # Actualy all rows should be in one job despite job_count > 1
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -603,7 +603,7 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = op.get_path() + "/jobs"
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = remove_asan_warning(read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0])))
@@ -642,7 +642,7 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
-        jobs_path = op.get_path() + "/jobs"
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
@@ -1027,7 +1027,7 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = op.get_path() + "/jobs"
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
@@ -1082,59 +1082,6 @@ echo {v = 2} >&7
             })
 
         assert len(read_table("//tmp/output")) == 3
-
-    @unix_only
-    def test_reduce_row_count_limit_teleport(self):
-        create("table", "//tmp/in1", attributes = {
-            "schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}])
-            })
-        create("table", "//tmp/in2", attributes = {
-            "schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}])
-            })
-        write_table("//tmp/in1", [{"key": 1}, {"key" : 3}])
-        write_table("<append=true>//tmp/in1", [{"key": 5}, {"key" : 7}])
-        write_table("//tmp/in2", [{"key": 6}, {"key" : 10}, {"key" : 11}])
-        create("table", "//tmp/out")
-
-        reduce(
-            in_=["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2"],
-            out="<teleport=true;row_count_limit=1>//tmp/out",
-            command = "cat",
-            reduce_by=["key"],
-            spec={
-                "reducer": {
-                    "format": "dsv"
-                }
-            })
-
-        assert read_table("//tmp/out") == [{"key": 1}, {"key": 3}]
-
-    @unix_only
-    def test_reduce_row_count_limit_teleport_2(self):
-        create("table", "//tmp/in1", attributes = {
-            "schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}])
-            })
-        create("table", "//tmp/in2", attributes = {
-            "schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}])
-            })
-        write_table("//tmp/in1", [{"key": 1}, {"key" : 3}])
-        write_table("<append=true>//tmp/in1", [{"key": 5}, {"key" : 7}])
-        write_table("//tmp/in2", [{"key": 6}, {"key" : 10}, {"key" : 11}])
-        create("table", "//tmp/out1")
-        create("table", "//tmp/out2")
-
-        reduce(
-            in_=["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2"],
-            out=["<row_count_limit=1>//tmp/out1", "<teleport=true>//tmp/out2"],
-            command = "cat",
-            reduce_by=["key"])
-
-        assert sorted(read_table("//tmp/out1")) == [{"key": 5}, {"key" : 7}]
-        assert sorted(read_table("//tmp/out2")) == [{"key": 1}, {"key" : 3}, {"key": 6}, {"key" : 10}, {"key" : 11}]
 
     @unix_only
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
@@ -1319,9 +1266,9 @@ echo {v = 2} >&7
                     "format": yson.loads("<format=text>yson"),
                 }})
 
-        job_ids = ls(op.get_path() + "/jobs")
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
         assert len(job_ids) == 1
-        output = read_file(op.get_path() + "/jobs/{}/stderr".format(job_ids[0]))
+        output = read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0]))
         assert output == \
 """<"table_index"=0;>#;
 {"key"=0;"value"="0";};
@@ -1390,7 +1337,7 @@ echo {v = 2} >&7
         job_indexes = []
         row_table_count = {}
 
-        assert get(op.get_path() + "/@progress/jobs/pending") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/pending".format(op.id)) == 0
 
         for row in result:
             if row["value"] == "(job)":
@@ -1404,7 +1351,7 @@ echo {v = 2} >&7
             assert job_indexes[1] == 4
         else:
             assert job_indexes[1] == 3
-        assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum") == len(result) - 2
+        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id)) == len(result) - 2
 
     def test_query_filtering(self):
         create("table", "//tmp/t1", attributes={
@@ -1474,7 +1421,7 @@ done
 
         op.track()
 
-        completed = get(op.get_path() + "/@progress/jobs/completed")
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
         interrupted = completed["interrupted"]
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
@@ -1490,7 +1437,7 @@ done
 
         time.sleep(2)
 
-        operation_path = op.get_path()
+        operation_path = get_operation_cypress_path(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 

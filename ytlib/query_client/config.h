@@ -23,8 +23,7 @@ public:
             .DefaultNew();
 
         RegisterPreprocessor([&] () {
-            CGCache->Capacity = 512;
-            CGCache->ShardCount = 1;
+            CGCache->Capacity = 100;
         });
     }
 };
@@ -43,8 +42,7 @@ public:
             .DefaultNew();
 
         RegisterPreprocessor([&] () {
-            CGCache->Capacity = 512;
-            CGCache->ShardCount = 1;
+            CGCache->Capacity = 100;
         });
     }
 };

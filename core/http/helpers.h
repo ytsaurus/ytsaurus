@@ -25,10 +25,6 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 
 void ProtectCsrfToken(const IResponseWriterPtr& rsp);
 
-TNullable<TString> GetBalancerRequestId(const IRequestPtr& req);
-
-TNullable<TString> GetBalancerRealIP(const IRequestPtr& req);
-
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer);
 
 ////////////////////////////////////////////////////////////////////////////////

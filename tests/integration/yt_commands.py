@@ -555,12 +555,6 @@ def execute_batch(requests, **kwargs):
     kwargs["requests"] = requests
     return yson.loads(execute_command("execute_batch", kwargs))
 
-def get_batch_error(result):
-    if "error" in result:
-        return result["error"]
-    else:
-        return None
-
 def get_batch_output(result):
     if "error" in result:
         raise YtResponseError(result["error"])
@@ -668,32 +662,19 @@ class Operation(object):
 
     def get_state(self, **kwargs):
         try:
-            return get(self.get_path() + "/@state", verbose_error=False, **kwargs)
+            return get("//sys/operations/" + self.id + "/@state", verbose_error=False, **kwargs)
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
 
         return get(self.get_path() + "/@state", **kwargs)
 
-    def wait_for_state(self, state, **kwargs):
-        wait(lambda: self.get_state(**kwargs) == state)
-
-    def get_alerts(self):
-        try:
-            return get(self.get_path() + "/@alerts")
-        except YtResponseError as err:
-            if err.is_resolve_error():
-                return {}
-            raise
-
-    def read_stderr(self, job_id):
-        return remove_asan_warning(read_file(self.get_path() + "/jobs/{}/stderr".format(job_id)))
-
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
-            error = get(self.get_path() + "/@result/error", verbose=False, is_raw=True)
-            jobs_path = self.get_path() + "/jobs"
+            error = get("//sys/operations/{0}/@result/error".format(self.id), verbose=False, is_raw=True)
+
+            jobs_path = "//sys/operations/{0}/jobs".format(self.id)
             jobs = get(jobs_path, verbose=False)
             for job in jobs:
                 job_error_path = jobs_path + "/{0}/@error".format(job)
@@ -708,7 +689,7 @@ class Operation(object):
 
     def build_progress(self):
         try:
-            progress = get(self.get_path() + "/@brief_progress/jobs", verbose=False)
+            progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
         except YtError:
             return ""
 
@@ -721,6 +702,8 @@ class Operation(object):
         return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
 
     def track(self):
+        jobs_path = "//sys/operations/{0}/jobs".format(self.id)
+
         counter = 0
         while True:
             state = self.get_state(verbose=False)
@@ -1146,7 +1129,7 @@ def remove_asan_warning(string):
     return re.sub(_ASAN_WARNING_PATTERN, '', string)
 
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
-    jobs_path = op.get_path() + "/jobs"
+    jobs_path = "//sys/operations/{0}/jobs".format(op.id)
     assert get(jobs_path + "/@count") == expected_count
     for job_id in ls(jobs_path):
         stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)

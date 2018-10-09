@@ -7,7 +7,6 @@
 #include <yt/core/misc/mpl.h>
 
 #include <yt/server/object_server/object.h>
-#include <yt/server/object_server/public.h>
 
 #include <yt/server/cypress_server/node.h>
 
@@ -26,21 +25,11 @@ struct TNonversionedObjectRefSerializer
     static void Save(C& context, T object)
     {
         if (object) {
-            // Zombies are serialized as usual, but ghosts need special treatment.
-            if (object->IsDestroyed()) {
-                // Ephemeral ghosts aren't supposed to be a part of the
-                // persistent state. Weak ghosts are.
-                YCHECK(object->GetObjectWeakRefCounter() > 0);
-                auto key = NHydra::TEntitySerializationKey::DestroyedObjectKey();
-                NYT::Save(context, key);
-                NYT::Save(context, object->GetId());
-            } else {
-                auto key = object->GetDynamicData()->SerializationKey;
-                Y_ASSERT(key != NHydra::TEntitySerializationKey::NullObjectKey());
-                NYT::Save(context, key);
-            }
+            auto key = object->GetDynamicData()->SerializationKey;
+            Y_ASSERT(key != NHydra::TEntitySerializationKey());
+            NYT::Save(context, key);
         } else {
-            NYT::Save(context, NHydra::TEntitySerializationKey::NullObjectKey());
+            NYT::Save(context, NHydra::TEntitySerializationKey());
         }
     }
 
@@ -49,13 +38,9 @@ struct TNonversionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = LoadSuspended<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::NullObjectKey()) {
+        if (key == NHydra::TEntitySerializationKey()) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-        } else if (key == NHydra::TEntitySerializationKey::DestroyedObjectKey()) {
-            auto objectId = LoadSuspended<NObjectServer::TObjectId>(context);
-            object = context.GetWeakGhostObject(objectId)->template As<TObject>();
-            SERIALIZATION_DUMP_WRITE(context, "objref %v <destroyed>", objectId);
         } else {
             object = context.template GetEntity<TObject>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
@@ -72,7 +57,7 @@ struct TVersionedObjectRefSerializer
     {
         auto key = object
             ? object->GetDynamicData()->SerializationKey
-            : NHydra::TEntitySerializationKey::NullObjectKey();
+            : NHydra::TEntitySerializationKey();
         NYT::Save(context, key);
     }
 
@@ -81,7 +66,7 @@ struct TVersionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::NullObjectKey()) {
+        if (key == NHydra::TEntitySerializationKey()) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else {

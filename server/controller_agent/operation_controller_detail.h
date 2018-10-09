@@ -340,11 +340,6 @@ public:
 
     virtual TString WriteCoreDump() const override;
 
-    //! Needed for row_count_limit.
-    virtual void RegisterOutputRows(i64 count, int tableIndex) override;
-
-    virtual TNullable<int> GetRowCountLimitTableIndex() override;
-
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -869,13 +864,6 @@ protected:
     NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 
     int GetForeignInputTableCount() const;
-    
-    //! One output table can have row_count_limit attribute in operation.
-    TNullable<int> RowCountLimitTableIndex;
-    i64 RowCountLimit = std::numeric_limits<i64>::max();
-
-    // Current row count in table with attribute row_count_limit.
-    i64 CompletedRowCount_ = 0;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -942,6 +930,10 @@ private:
 
     //! Deadline after which schedule job statistics can be logged.
     NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
+
+    //! One output table can have row count limit on operation.
+    TNullable<int> RowCountLimitTableIndex;
+    i64 RowCountLimit = std::numeric_limits<i64>::max();
 
     //! Runs periodic time limit checks that fail operation on timeout.
     NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;

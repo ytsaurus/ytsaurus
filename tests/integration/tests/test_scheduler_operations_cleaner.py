@@ -65,7 +65,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         return rows[0]
 
     def _operation_exist(self, op_id):
-        return exists(get_operation_cypress_path(op_id))
+        return exists("//sys/operations/" + op_id) and exists(get_operation_cypress_path(op_id))
 
     def _get_removed_operations(self, ops):
         removed = []

@@ -31,7 +31,6 @@ public:
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
-    virtual void InitializeRotation() override;
     virtual bool IsRotationScheduled() const override;
     virtual void ScheduleRotation() override;
 
@@ -43,8 +42,7 @@ public:
     virtual bool IsStoreFlushable(IStorePtr store) const override;
     virtual TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) override;
+        TTabletSnapshotPtr tabletSnapshot) override;
     virtual void EndStoreFlush(IDynamicStorePtr store) override;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) override;
 
@@ -106,8 +104,7 @@ protected:
 
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) = 0;
+        TTabletSnapshotPtr tabletSnapshot) = 0;
 
     virtual void CreateActiveStore() = 0;
 

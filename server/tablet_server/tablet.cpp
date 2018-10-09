@@ -534,7 +534,6 @@ bool TTablet::IsActive() const
 {
     return
         State_ == ETabletState::Mounting ||
-        State_ == ETabletState::FrozenMounting ||
         State_ == ETabletState::Mounted ||
         State_ == ETabletState::Freezing ||
         State_ == ETabletState::Frozen ||

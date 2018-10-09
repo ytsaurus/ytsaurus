@@ -68,9 +68,6 @@ public:
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
-    //! Error of node registration.
-    DEFINE_BYVAL_RW_PROPERTY(TError, RegistrationError);
-
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 

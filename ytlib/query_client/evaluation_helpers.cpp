@@ -25,22 +25,17 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t BufferLimit = 512_KB;
-static const size_t MaxTopCollectorLimit = 2_MB;
+static const i64 BufferLimit = 16 * PoolChunkSize;
+static const i64 MaxTopCollectorLimit = 2 * 1024 * 1024;
 
 struct TTopCollectorBufferTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTopCollector::TTopCollector(
-    i64 limit,
-    TComparerFunction* comparer,
-    size_t rowSize,
-    IMemoryChunkProviderPtr memoryChunkProvider)
+TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize)
     : Comparer_(comparer)
     , RowSize_(rowSize)
-    , MemoryChunkProvider_(std::move(memoryChunkProvider))
 {
     if (limit > MaxTopCollectorLimit) {
         THROW_ERROR_EXCEPTION("Maximum ORDER BY limit exceeded")
@@ -62,7 +57,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_);
+            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -89,7 +84,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_));
+            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio));
         }
     }
 
@@ -160,7 +155,7 @@ TJoinClosure::TJoinClosure(
     int keySize,
     int primaryRowSize,
     size_t batchSize)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         lookupHasher,

@@ -93,8 +93,7 @@ private:
 
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) override;
+        TTabletSnapshotPtr tabletSnapshot) override;
 
     virtual void CreateActiveStore() override;
 

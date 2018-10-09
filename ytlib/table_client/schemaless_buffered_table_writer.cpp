@@ -147,7 +147,7 @@ private:
         void Clear()
         {
             Rows_.clear();
-            RowBuffer_->Clear();
+            RowBuffer_->Purge();
         }
 
         i64 GetSize() const

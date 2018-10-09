@@ -711,8 +711,7 @@ public:
             .Default(512_MB);
 
         RegisterParameter("store_locations", StoreLocations)
-            .Default({});
-
+            .NonEmpty();
         RegisterParameter("cache_locations", CacheLocations)
             .NonEmpty();
 

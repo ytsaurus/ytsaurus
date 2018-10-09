@@ -105,12 +105,12 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
         // TODO(ignat): migrate here to cancelable invoker (introduce CombineAll that ignores cancellation of combined futures).
         onSnapshotStartedFutures.push_back(BIND([weakController = job->WeakController] {
-                if (auto controller = weakController.Lock()) {
-                    return controller->OnSnapshotStarted();
-                } else {
-                    THROW_ERROR_EXCEPTION("Controller was destroyed before OnSnapshotStarted was called");
-                }
-            })
+            if (auto controller = weakController.Lock()) {
+                return controller->OnSnapshotStarted();
+            } else {
+                THROW_ERROR_EXCEPTION("Controller was destroyed before OnSnapshotStarted was called");
+            }
+        })
             .AsyncVia(controller->GetInvoker())
             .Run());
         operationIds.push_back(operationId);

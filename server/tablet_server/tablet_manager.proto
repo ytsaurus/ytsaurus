@@ -78,13 +78,6 @@ message TReqUpdateTableReplicaStatistics
     required NTabletClient.NProto.TTableReplicaStatistics statistics = 4;
 }
 
-message TRspEnableTableReplica
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid replica_id = 2;
-    required int64 mount_revision = 3;
-}
-
 message TRspDisableTableReplica
 {
     required NYT.NProto.TGuid tablet_id = 1;

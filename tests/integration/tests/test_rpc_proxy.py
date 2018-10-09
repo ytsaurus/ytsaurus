@@ -172,11 +172,11 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         wait(lambda: op.get_state() == "running")
 
         op.suspend(abort_running_jobs=True)
-        wait(lambda: get(op.get_path() + "/@suspended"))
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)))
         assert op.get_state() == "running"
         events_on_fs().release_breakpoint()
         time.sleep(2)
-        assert get(op.get_path() + "/@suspended")
+        assert get("//sys/operations/{0}/@suspended".format(op.id))
         assert op.get_state() == "running"
 
         op.resume()
@@ -188,8 +188,8 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         op = self._start_simple_operation_with_breakpoint()
         events_on_fs().wait_breakpoint()
 
-        wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
+        wait(lambda: exists(get_operation_cypress_path(op.id)))
+        wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
         self._check_get_operation(op)
 
@@ -205,7 +205,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         create_user("u")
 
         update_op_parameters(op.id, parameters={"owners": ["u"]})
-        wait(lambda: check_permission("u", "write", op.get_path())["action"] == "allow")
+        wait(lambda: check_permission("u", "write", "//sys/operations/{0}".format(op.id))["action"] == "allow")
 
         events_on_fs().release_breakpoint()
         op.track()
@@ -251,8 +251,8 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         op = self._start_simple_operation_with_breakpoint()
         events_on_fs().wait_breakpoint()
 
-        wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
+        wait(lambda: exists(get_operation_cypress_path(op.id)))
+        wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
         get_result = op.get_running_jobs()
         job_id = get_result.keys()[0]
@@ -277,13 +277,13 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
             op = self._start_simple_operation_with_breakpoint(cmd_with_breakpoint)
             events_on_fs().wait_breakpoint()
 
-            wait(lambda: exists(op.get_path()))
-            wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
+            wait(lambda: exists(get_operation_cypress_path(op.id)))
+            wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
             job_id = self._get_first_job_id(op)
             func(job_id)
 
-            wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 0)
+            wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 0)
 
             events_on_fs().release_breakpoint()
             op.track()
@@ -304,8 +304,8 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         op = self._start_simple_operation_with_breakpoint("BREAKPOINT ; cat")
         events_on_fs().wait_breakpoint()
 
-        wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
+        wait(lambda: exists(get_operation_cypress_path(op.id)))
+        wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
         job_id = self._get_first_job_id(op)
         abort_job(job_id)
@@ -316,8 +316,8 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         self._prepare_output_table()
         assert len(select_rows("* from [//tmp/t_out]")) == 1
 
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
 
     def test_strace_job(self):
         op = self._start_simple_operation("{notify_running} ; sleep 5000".
@@ -413,8 +413,8 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         events_on_fs().release_breakpoint()
         op.track()
 
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
 
         op.track()
         self._prepare_output_table()
@@ -445,10 +445,10 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
 
         op.track()
 
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/user_request") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
 
         self._prepare_output_table()
         assert select_rows("* from [//tmp/t_out]") == [self._sample_line]

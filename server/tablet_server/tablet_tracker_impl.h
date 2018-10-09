@@ -37,7 +37,7 @@ private:
     void SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer);
     void SchedulePeerRevocation(TTabletCell* cell, ITabletCellBalancer* balancer);
 
-    TError IsFailed(
+    bool IsFailed(
         const TTabletCell::TPeer& peer,
         const TBooleanFormula& nodeTagFilter,
         TDuration timeout);

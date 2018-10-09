@@ -51,6 +51,9 @@ struct IConnection
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 
+    virtual ITransactionPtr RegisterStickyTransaction(NNative::ITransactionPtr transaction) = 0;
+    virtual ITransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
+
     virtual void Terminate() = 0;
     virtual bool IsTerminated() = 0;
 };

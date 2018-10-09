@@ -1933,8 +1933,7 @@ public:
             if (Mapping_) {
                 Mapping_->push_back(TColumnDescriptor{
                     formattedName,
-                    SourceTableSchema_.GetColumnIndex(*column)
-                });
+                    size_t(SourceTableSchema_.GetColumnIndex(*column))});
             }
 
             return TBaseColumn(formattedName, column->GetPhysicalType());

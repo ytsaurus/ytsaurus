@@ -19,7 +19,6 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/variant.h>
 
-#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
@@ -751,21 +750,18 @@ private:
 
             switch (config->Type) {
                 case EWriterType::Stdout:
-                    writer = New<TStdoutLogWriter>(std::move(formatter), name);
+                    writer = New<TStdoutLogWriter>(std::move(formatter));
                     break;
                 case EWriterType::Stderr:
-                    writer = New<TStderrLogWriter>(std::move(formatter), name);
+                    writer = New<TStderrLogWriter>(std::move(formatter));
                     break;
                 case EWriterType::File:
-                    writer = New<TFileLogWriter>(std::move(formatter), name, config->FileName);
+                    writer = New<TFileLogWriter>(std::move(formatter), config->FileName);
                     watch = CreateNotificationWatch(writer, config->FileName);
                     break;
                 default:
                     Y_UNREACHABLE();
             }
-
-            writer->SetRateLimit(config->RateLimit);
-            writer->SetCategoryRateLimits(Config_->CategoryRateLimits);
 
             YCHECK(Writers_.insert(std::make_pair(name, std::move(writer))).second);
 
@@ -789,7 +785,6 @@ private:
             ReopenRequested_ = false;
             ReloadWriters();
         }
-        LoggingProfiler.Increment(*GetCategoryEventsCounter(event.Category->Name), 1);
         for (const auto& writer : GetWriters(event)) {
             writer->Write(event);
         }
@@ -965,17 +960,6 @@ private:
         position->CurrentVersion = GetVersion();
     }
 
-    TMonotonicCounter* GetCategoryEventsCounter(const TString& category)
-    {
-        auto it = CategoryToEvents_.find(category);
-        if (it == CategoryToEvents_.end()) {
-            auto tagId = TProfileManager::Get()->RegisterTag("category", category);
-            TMonotonicCounter counter("/log_events_enqueued", {tagId});
-            it = CategoryToEvents_.insert({category, counter}).first;
-        }
-        return &it->second;
-    }
-
 private:
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr EventQueue_;
@@ -1003,8 +987,6 @@ private:
     std::once_flag Started_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
-
-    THashMap<TString, TMonotonicCounter> CategoryToEvents_;
 
     std::atomic<ui64> EnqueuedEvents_ = {0};
     std::atomic<ui64> WrittenEvents_ = {0};

@@ -573,7 +573,6 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("enable_tablet_cell_balancer", [True, False])
     def test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
-        set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
@@ -757,7 +756,6 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         assert get("//tmp/t/@tablet_error_count") == 1
 
         sync_unmount_table("//tmp/t")
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
@@ -1991,8 +1989,8 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0])) == 1
 
         tablet = get("//tmp/t/@tablets/0")
-        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver) == [tablet["tablet_id"]]
-        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [tablet["tablet_id"]]
+        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver) == [tablet["tablet_id"]] 
+        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [tablet["tablet_id"]] 
 
         multicell_sleep()
 

@@ -129,6 +129,7 @@ public:
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
     void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
     void AbandonJob(const TJobId& jobId, const TString& user);
+    NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
     void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
@@ -361,7 +362,7 @@ private:
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
-    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, TError error = TError());
+    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

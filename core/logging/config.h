@@ -17,7 +17,6 @@ public:
     EWriterType Type;
     TString FileName;
     ELogMessageFormat AcceptedMessageFormat;
-    TNullable<size_t> RateLimit;
 
     TWriterConfig()
     {
@@ -26,8 +25,6 @@ public:
             .Default();
         RegisterParameter("accepted_message_format", AcceptedMessageFormat)
             .Default(ELogMessageFormat::PlainText);
-        RegisterParameter("rate_limit", RateLimit)
-            .Default();
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
@@ -99,7 +96,6 @@ public:
     std::vector<TRuleConfigPtr> Rules;
     THashMap<TString, TWriterConfigPtr> WriterConfigs;
     std::vector<TString> SuppressedMessages;
-    THashMap<TString, size_t> CategoryRateLimits;
 
     TLogConfig()
     {
@@ -114,18 +110,16 @@ public:
             .Default(5_GB);
         RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
             .GreaterThan(0)
-            .Default(10'000'000);
+            .Default(10000000);
         RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
             .GreaterThan(0)
-            .Default(1'000'000);
+            .Default(1000000);
         RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
         RegisterParameter("suppressed_messages", SuppressedMessages)
-            .Default();
-        RegisterParameter("category_rate_limits", CategoryRateLimits)
             .Default();
 
         RegisterPostprocessor([&] () {

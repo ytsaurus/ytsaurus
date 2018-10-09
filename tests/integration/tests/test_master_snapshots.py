@@ -53,45 +53,16 @@ def check_forked_schema():
     assert get("//tmp/forked_schema_table/@schema") == schema2
     assert get("//tmp/forked_schema_table/@schema", tx=tx) == schema1
 
-def check_removed_account():
-    create_account("a1")
-    create_account("a2")
-
-    for i in xrange(0, 5):
-        table = "//tmp/a1_table{0}".format(i)
-        create("table", table, attributes={"account": "a1"})
-        write_table(table, {"a": "b"})
-        copy(table, "//tmp/a2_table{0}".format(i), attributes={"account": "a2"})
-
-    for i in xrange(0, 5):
-        chunk_ids = get("//tmp/a2_table{0}/@chunk_ids".format(i))
-        assert(len(chunk_ids) == 1)
-        chunk_id = chunk_ids[0]
-        wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 2)
-
-    for i in xrange(0, 5):
-        remove("//tmp/a1_table" + str(i))
-
-    remove_account("a1")
-
-    yield
-
-    for i in xrange(0, 5):
-        chunk_ids = get("//tmp/a2_table{0}/@chunk_ids".format(i))
-        assert(len(chunk_ids) == 1)
-        chunk_id = chunk_ids[0]
-        wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
 class TestSnapshot(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 5
+    NUM_NODES = 0
 
     def test(self):
         CHECKER_LIST = [
             check_simple_node,
             check_schema,
             check_forked_schema,
-            check_removed_account # keep this item last as it's sensitive to timings
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

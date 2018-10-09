@@ -5,78 +5,66 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t TChunkedMemoryPool::DefaultStartChunkSize = 4_KB;
-const size_t TChunkedMemoryPool::RegularChunkSize = 36_KB - 512;
+const i64 TChunkedMemoryPool::DefaultChunkSize = 4096;
+const double TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio = 0.25;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TAllocationHolder::TAllocationHolder(TMutableRef ref, TRefCountedTypeCookie cookie)
-    : Ref_(ref)
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie_(cookie)
-#endif
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    if (Cookie_ != NullRefCountedTypeCookie) {
-        TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
-        TRefCountedTrackerFacade::AllocateSpace(Cookie_, Ref_.Size());
-    }
-#endif
-}
-
-TAllocationHolder::~TAllocationHolder()
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    if (Cookie_ != NullRefCountedTypeCookie) {
-        TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
-        TRefCountedTrackerFacade::FreeSpace(Cookie_, Ref_.Size());
-    }
-#endif
-}
-
-    ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryChunkProvider
     : public IMemoryChunkProvider
 {
 public:
-    virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
+    explicit TMemoryChunkProvider(i64 chunkSize)
+        : ChunkSize_(chunkSize)
+    { }
+
+    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie) override
     {
-        return std::unique_ptr<TAllocationHolder>(TAllocationHolder::Allocate<TAllocationHolder>(size, cookie));
+        std::shared_ptr<TAllocationHolder> result(TAllocationHolder::Allocate<TAllocationHolder>(ChunkSize_));
+        result->SetCookie(cookie);
+        return result;
     }
+
+    virtual size_t GetChunkSize() const
+    {
+        return ChunkSize_;
+    }
+
+private:
+    const size_t ChunkSize_;
 };
 
-IMemoryChunkProviderPtr CreateMemoryChunkProvider()
+IMemoryChunkProviderPtr CreateMemoryChunkProvider(i64 chunkSize)
 {
-    return New<TMemoryChunkProvider>();
+    return New<TMemoryChunkProvider>(chunkSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkedMemoryPool::TChunkedMemoryPool(
+    double maxSmallBlockSizeRatio,
     TRefCountedTypeCookie tagCookie,
-    IMemoryChunkProviderPtr chunkProvider,
-    size_t startChunkSize)
-    : TagCookie_(tagCookie)
+    IMemoryChunkProviderPtr chunkProvider)
+    : ChunkSize_(chunkProvider->GetChunkSize())
+    , MaxSmallBlockSize_(static_cast<i64>(ChunkSize_ * maxSmallBlockSizeRatio))
+    , TagCookie_(tagCookie)
     , ChunkProvider_(std::move(chunkProvider))
-    , NextSmallSize_(startChunkSize)
 {
-    FreeZoneBegin_ = nullptr;
-    FreeZoneEnd_ = nullptr;
+    SetupFreeZone();
 }
 
 void TChunkedMemoryPool::Purge()
 {
     Chunks_.clear();
-    OtherBlocks_.clear();
+    LargeBlocks_.clear();
     Size_ = 0;
     Capacity_ = 0;
-    NextChunkIndex_ = 0;
-    FreeZoneBegin_ = nullptr;
-    FreeZoneEnd_ = nullptr;
+    CurrentChunkIndex_ = 0;
+    FirstChunkBegin_ = FirstChunkEnd_ = nullptr;
+    SetupFreeZone();
 }
 
-char* TChunkedMemoryPool::AllocateUnalignedSlow(size_t size)
+char* TChunkedMemoryPool::AllocateUnalignedSlow(i64 size)
 {
     auto* large = AllocateSlowCore(size);
     if (large) {
@@ -85,7 +73,7 @@ char* TChunkedMemoryPool::AllocateUnalignedSlow(size_t size)
     return AllocateUnaligned(size);
 }
 
-char* TChunkedMemoryPool::AllocateAlignedSlow(size_t size, int align)
+char* TChunkedMemoryPool::AllocateAlignedSlow(i64 size, int align)
 {
     // NB: Do not rely on any particular alignment of chunks.
     auto* large = AllocateSlowCore(size + align);
@@ -95,51 +83,68 @@ char* TChunkedMemoryPool::AllocateAlignedSlow(size_t size, int align)
     return AllocateAligned(size, align);
 }
 
-char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
+char* TChunkedMemoryPool::AllocateSlowCore(i64 size)
 {
-    if (size > RegularChunkSize) {
-        auto block = ChunkProvider_->Allocate(size, TagCookie_);
-        auto result = block->GetRef().Begin();
-        OtherBlocks_.push_back(std::move(block));
+    if (size > MaxSmallBlockSize_) {
+        auto block = TSharedMutableRef::Allocate(size, false, TagCookie_);
+        LargeBlocks_.push_back(block);
         Size_ += size;
         Capacity_ += size;
-        return result;
+        return block.Begin();
     }
 
-    YCHECK(NextChunkIndex_ <= Chunks_.size());
+    if (CurrentChunkIndex_ + 1 >= Chunks_.size()) {
+        auto chunk = ChunkProvider_->Allocate(TagCookie_);
 
-    TMutableRef ref;
-
-    if (NextSmallSize_ < RegularChunkSize) {
-        auto block = ChunkProvider_->Allocate(std::max(NextSmallSize_, size), TagCookie_);
-        ref = block->GetRef();
-        OtherBlocks_.push_back(std::move(block));
-        NextSmallSize_ = 2 * ref.Size();
-    } else if (NextChunkIndex_ == Chunks_.size()) {
-        auto chunk = ChunkProvider_->Allocate(RegularChunkSize, TagCookie_);
-        Capacity_ += RegularChunkSize;
-        ref = chunk->GetRef();
+        if (Chunks_.empty()) {
+            FirstChunkBegin_ = chunk->Begin();
+            FirstChunkEnd_ = chunk->End();
+        }
         Chunks_.push_back(std::move(chunk));
-        ++NextChunkIndex_;
+
+        Capacity_ += ChunkSize_;
+        CurrentChunkIndex_ = static_cast<int>(Chunks_.size()) - 1;
     } else {
-        ref = Chunks_[NextChunkIndex_++]->GetRef();
+        ++CurrentChunkIndex_;
     }
 
-    Capacity_ += ref.Size();
-    FreeZoneBegin_ = ref.Begin();
-    FreeZoneEnd_ = ref.End();
+    SetupFreeZone();
 
     return nullptr;
 }
 
-size_t TChunkedMemoryPool::GetSize() const
+void TChunkedMemoryPool::ClearSlow()
+{
+    CurrentChunkIndex_ = 0;
+    Size_ = 0;
+    SetupFreeZone();
+
+    for (const auto& block : LargeBlocks_) {
+        Capacity_ -= block.Size();
+    }
+    LargeBlocks_.clear();
+}
+
+i64 TChunkedMemoryPool::GetSize() const
 {
     return Size_;
 }
 
-size_t TChunkedMemoryPool::GetCapacity() const
+i64 TChunkedMemoryPool::GetCapacity() const
 {
     return Capacity_;
+}
+
+void TChunkedMemoryPool::SetupFreeZone()
+{
+    if (CurrentChunkIndex_ >= Chunks_.size()) {
+        FreeZoneBegin_ = nullptr;
+        FreeZoneEnd_ = nullptr;
+    } else {
+        auto& chunk = Chunks_[CurrentChunkIndex_];
+        FreeZoneBegin_ = chunk->Begin();
+        FreeZoneEnd_ = chunk->End();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

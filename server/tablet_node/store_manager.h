@@ -51,7 +51,6 @@ struct IStoreManager
     virtual bool IsForcedRotationPossible() const = 0;
     virtual bool IsRotationScheduled() const = 0;
     virtual bool IsFlushNeeded() const = 0;
-    virtual void InitializeRotation() = 0;
     virtual void ScheduleRotation() = 0;
     virtual void Rotate(bool createNewStore) = 0;
 
@@ -75,8 +74,7 @@ struct IStoreManager
     virtual bool IsStoreFlushable(IStorePtr store) const = 0;
     virtual TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
-        TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) = 0;
+        TTabletSnapshotPtr tabletSnapshot) = 0;
     virtual void EndStoreFlush(IDynamicStorePtr store) = 0;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) = 0;
 
