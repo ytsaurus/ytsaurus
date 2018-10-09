@@ -2788,7 +2788,6 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         }
     }
 
-
     if (!AvailableExecNodesObserved_ && !foundMatching) {
         OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
@@ -2802,6 +2801,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             GetKeys(PoolTreeToSchedulingTagFilter_)));
         return;
     }
+
+    LOG_DEBUG("Available nodes were observed");
 
     AvailableExecNodesObserved_ = true;
     LastAvailableExecNodesCheckTime_ = now;
@@ -3202,6 +3203,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->StartDescriptor) {
+        AvailableExecNodesObserved_ = true;
         JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
