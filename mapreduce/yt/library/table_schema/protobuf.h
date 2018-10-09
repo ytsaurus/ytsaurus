@@ -16,4 +16,15 @@ namespace NYT {
         static_assert(std::is_base_of<::google::protobuf::Message, TProtoType>::value, "Should be base of google::protobuf::Message");
         return CreateTableSchema(*TProtoType::descriptor(), keyColumns, keepFieldsWithoutExtension);
     }
+
+    template <class T>
+    TRichYPath WithSchema(const TRichYPath& path, const TKeyColumns& sortBy = TKeyColumns()) {
+        TRichYPath schemedPath(path);
+        if constexpr(std::is_base_of<::google::protobuf::Message, T>::value) {
+            if (!schemedPath.Schema_) {
+                schemedPath.Schema(CreateTableSchema<T>(sortBy));
+            }
+        }
+        return schemedPath;
+    }
 }
