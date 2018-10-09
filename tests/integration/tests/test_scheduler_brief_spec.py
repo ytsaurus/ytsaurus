@@ -4,8 +4,8 @@ from yt_commands import *
 ##################################################################
 
 def check_attributes(op, options):
-    spec_path = op.get_path() + "/@spec"
-    brief_spec_path = op.get_path() + "/@brief_spec"
+    spec_path = "//sys/operations/" + op.id + "/@spec"
+    brief_spec_path = "//sys/operations/" + op.id + "/@brief_spec"
 
     if "pool" in options:
         assert get(spec_path + "/pool") == get(brief_spec_path + "/pool")

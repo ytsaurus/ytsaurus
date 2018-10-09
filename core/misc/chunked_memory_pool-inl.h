@@ -6,77 +6,10 @@
 #include "serialize.h"
 
 namespace NYT {
-namespace NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Support build without YTAlloc
-Y_WEAK size_t YTGetSize(void* /*ptr*/)
-{
-    return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYTAlloc
-} // namespace NYT
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline void TAllocationHolder::operator delete(void* ptr) noexcept
-{
-    ::free(ptr);
-}
-
-inline TMutableRef TAllocationHolder::GetRef() const
-{
-    return Ref_;
-}
-
-template <class TDerived>
-TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
-{
-    auto requestedSize = sizeof(TDerived) + size;
-    auto* ptr = ::malloc(requestedSize);
-    auto allocatedSize = NYTAlloc::YTGetSize(ptr);
-    if (allocatedSize) {
-        size += allocatedSize - requestedSize;
-    }
-
-    auto* instance = static_cast<TDerived*>(ptr);
-
-    try {
-        new (instance) TDerived(TMutableRef(instance + 1, size), cookie);
-    } catch (const std::exception& ex) {
-        // Do not forget to free the memory.
-        ::free(ptr);
-        throw;
-    }
-
-    return instance;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline TChunkedMemoryPool::TChunkedMemoryPool()
-    : TChunkedMemoryPool(
-        GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>(),
-        CreateMemoryChunkProvider())
-{ }
-
-template <class TTag>
-inline TChunkedMemoryPool::TChunkedMemoryPool(
-    TTag,
-    size_t startChunkSize)
-    : TChunkedMemoryPool(
-        GetRefCountedTypeCookie<TTag>(),
-        CreateMemoryChunkProvider(),
-        startChunkSize)
-{ }
-
-inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
+inline char* TChunkedMemoryPool::AllocateUnaligned(i64 size)
 {
     // Fast path.
     if (FreeZoneEnd_ >= FreeZoneBegin_ + size) {
@@ -89,7 +22,7 @@ inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
     return AllocateUnalignedSlow(size);
 }
 
-inline char* TChunkedMemoryPool::AllocateAligned(size_t size, int align)
+inline char* TChunkedMemoryPool::AllocateAligned(i64 size, int align)
 {
     // NB: This can lead to FreeZoneBegin_ >= FreeZoneEnd_ in which case the chunk is full.
     FreeZoneBegin_ = AlignUp(FreeZoneBegin_, align);
@@ -131,22 +64,16 @@ inline void TChunkedMemoryPool::Free(char* from, char* to)
 
 inline void TChunkedMemoryPool::Clear()
 {
-    Size_ = 0;
-
-    if (Chunks_.empty()) {
-        FreeZoneBegin_ = nullptr;
-        FreeZoneEnd_ = nullptr;
-        NextChunkIndex_ = 0;
-    } else {
-        FreeZoneBegin_ = Chunks_.front()->GetRef().Begin();
-        FreeZoneEnd_ = Chunks_.front()->GetRef().End();
-        NextChunkIndex_ = 1;
+    // Fast path.
+    if (CurrentChunkIndex_ == 0 && LargeBlocks_.empty()) {
+        FreeZoneBegin_ = FirstChunkBegin_;
+        FreeZoneEnd_ = FirstChunkEnd_;
+        Size_ = 0;
+        return;
     }
 
-    for (const auto& block : OtherBlocks_) {
-        Capacity_ -= block->GetRef().Size();
-    }
-    OtherBlocks_.clear();
+    // Slow path.
+    ClearSlow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

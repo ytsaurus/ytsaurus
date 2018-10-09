@@ -70,7 +70,7 @@ public:
             });
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual bool Read(std::vector<TUnversionedRow> *rows) override
     {
         YCHECK(rows->capacity() > 0);
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {

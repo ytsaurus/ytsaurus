@@ -101,8 +101,8 @@ class TestJobProber(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
     @unix_only
@@ -132,10 +132,10 @@ class TestJobProber(YTEnvSetup):
 
         op.track()
 
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/user_request") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
         # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
         check_all_stderrs(op, "stderr\n", 1, substring=True)
@@ -376,10 +376,10 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
         assert len(read_table("//tmp/t2")) == 5
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/user_request") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
 
         end_profiling = self.get_job_count_profiling()
 

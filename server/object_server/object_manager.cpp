@@ -560,13 +560,12 @@ int TObjectManager::GetObjectWeakRefCounter(TObjectBase* object)
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveKeys(context);
-    GarbageCollector_->SaveKeys(context);
 }
 
 void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveValues(context);
-    GarbageCollector_->SaveValues(context);
+    GarbageCollector_->Save(context);
 }
 
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
@@ -574,7 +573,6 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     SchemaMap_.LoadKeys(context);
-    GarbageCollector_->LoadKeys(context);
 }
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
@@ -594,7 +592,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
     InitSchemas();
 
-    GarbageCollector_->LoadValues(context);
+    GarbageCollector_->Load(context);
 }
 
 void TObjectManager::Clear()
@@ -705,12 +703,6 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
     }
 
     return object;
-}
-
-TObjectBase* TObjectManager::GetWeakGhostObject(const TObjectId& id)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    return GarbageCollector_->GetWeakGhostObject(id);
 }
 
 IYPathServicePtr TObjectManager::CreateRemoteProxy(const TObjectId& id)

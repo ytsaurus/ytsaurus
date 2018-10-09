@@ -429,7 +429,6 @@ struct TSetNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
-    bool Force = false;
 };
 
 struct TRemoveNodeOptions
@@ -684,11 +683,6 @@ struct TListOperationsOptions
     TNullable<TInstant> CursorTime;
     EOperationSortDirection CursorDirection = EOperationSortDirection::Past;
     TNullable<TString> UserFilter;
-
-    // XXX(lesysotsky): OwnedBy filter is currently supported only
-    // for Cypress operations, so IncludeArchive must be |false|.
-    TNullable<TString> OwnedBy;
-
     TNullable<NScheduler::EOperationState> StateFilter;
     TNullable<NScheduler::EOperationType> TypeFilter;
     TNullable<TString> SubstrFilter;
@@ -836,7 +830,6 @@ struct TOperation
     TNullable<TInstant> FinishTime;
 
     TNullable<TString> AuthenticatedUser;
-    TNullable<std::vector<TString>> Owners;
 
     TNullable<std::vector<TString>> Pools;
 

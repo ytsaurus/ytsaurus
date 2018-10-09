@@ -134,6 +134,10 @@ private:
 
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
+        if (table->IsExternal()) {
+            return;
+        }
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->PrepareMountTable(
             table,
@@ -174,6 +178,10 @@ private:
 
         table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
+
+        if (table->IsExternal()) {
+            return;
+        }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->MountTable(

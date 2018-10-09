@@ -65,11 +65,6 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& /*id*/) override
-    {
-        Y_UNREACHABLE();
-    }
-
     virtual void ZombifyObject(TObjectBase* object) noexcept override
     {
         DoZombifyObject(object->As<TObject>());

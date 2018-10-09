@@ -291,9 +291,6 @@ private:
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
         if (!tabletSnapshot) {
             LOG_INFO("Tablet snapshot is missing");
-
-            store->UpdatePreloadAttempt(false);
-            storeManager->BackoffStorePreload(store);
             return;
         }
 
@@ -324,7 +321,6 @@ private:
             // SetInMemoryMode with other mode was called during current action execution.
 
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            store->UpdatePreloadAttempt(true);
             storeManager->BackoffStorePreload(store);
 
             auto error = TError(ex)

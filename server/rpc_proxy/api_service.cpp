@@ -13,7 +13,6 @@
 
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
-#include <yt/client/api/sticky_transaction_pool.h>
 
 #include <yt/client/api/rpc_proxy/public.h>
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
@@ -370,7 +369,6 @@ public:
             bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
         , Coordinator_(bootstrap->GetProxyCoordinator())
-        , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -451,7 +449,6 @@ private:
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
     THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
-    const IStickyTransactionPoolPtr StickyTransactionPool_;
 
     THashMap<TTransactionId, TModifyRowsSlidingWindowPtr> TransactionToModifyRowsSlidingWindow_;
 
@@ -548,9 +545,7 @@ private:
             return nullptr;
         }
 
-        auto transaction = options.Sticky
-            ? StickyTransactionPool_->GetTransactionAndRenewLease(transactionId)
-            : client->AttachTransaction(transactionId, options);
+        auto transaction = client->AttachTransaction(transactionId, options);
 
         if (!transaction) {
             context->Reply(TError(
@@ -672,14 +667,10 @@ private:
         CompleteCallWith(
             context,
             client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
-            [options, this_ = MakeStrong(this), this] (const auto& context, const auto& transaction) {
+            [] (const auto& context, const auto& transaction) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_id(), transaction->GetId());
                 response->set_start_timestamp(transaction->GetStartTimestamp());
-
-                if (options.Sticky) {
-                    StickyTransactionPool_->RegisterTransaction(transaction);
-                }
 
                 context->SetResponseInfo("TransactionId: %v, StartTimestamp: %v",
                     transaction->GetId(),

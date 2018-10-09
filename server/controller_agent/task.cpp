@@ -218,15 +218,6 @@ void TTask::CheckCompleted()
     }
 }
 
-void TTask::ForceComplete()
-{
-    if (!CompletedFired_) {
-        LOG_DEBUG("Task is forcefully completed");
-        CompletedFired_ = true;
-        OnTaskCompleted();
-    }
-}
-
 TUserJobSpecPtr TTask::GetUserJobSpec() const
 {
     return nullptr;
@@ -290,7 +281,7 @@ void TTask::ScheduleJob(
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
-                sliceCount);
+                      sliceCount);
             chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingJobSpecThrottling);
             scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
             return;
@@ -860,13 +851,13 @@ void TTask::FinishTaskInput(const TTaskPtr& task)
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 {
-    auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
+    NJobTrackerClient::NProto::TJobSpec jobSpec;
 
-    BuildJobSpec(joblet, jobSpec.get());
-    jobSpec->set_version(GetJobSpecVersion());
-    TaskHost_->CustomizeJobSpec(joblet, jobSpec.get());
+    BuildJobSpec(joblet, &jobSpec);
+    jobSpec.set_version(GetJobSpecVersion());
+    TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
 
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
         schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
@@ -891,7 +882,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const

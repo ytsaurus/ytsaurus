@@ -57,7 +57,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::SecondaryCellTags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timeout)
             .SetPresent(transaction->GetTimeout().HasValue())
-            .SetWritable(true));
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastPingTime)
             .SetPresent(transaction->GetTimeout().HasValue()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Title)
@@ -184,25 +184,6 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
-    }
-
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
-    {
-        auto* transaction = GetThisImpl();
-
-        switch (key) {
-            case EInternedAttributeKey::Timeout:
-                Bootstrap_
-                    ->GetTransactionManager()
-                    ->SetTransactionTimeout(
-                        transaction,
-                        TDuration::MilliSeconds(ConvertTo<i64>(value)));
-                return true;
-            default:
-                break;
-        }
-
-        return TBase::SetBuiltinAttribute(key, value);
     }
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override

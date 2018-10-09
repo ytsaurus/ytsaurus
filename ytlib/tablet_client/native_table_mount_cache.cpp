@@ -80,11 +80,8 @@ private:
             return MakeFuture<TTableMountInfoPtr>(error);
         }
 
-        auto invoker = connection->GetInvoker();
-        auto session = New<TGetSession>(this, std::move(connection), key, Logger);
-
-        return BIND(&TGetSession::Run, std::move(session))
-            .AsyncVia(std::move(invoker))
+        return BIND(&TTableMountCache::DoDoGet, MakeStrong(this), connection, key)
+            .AsyncVia(connection->GetInvoker())
             .Run();
     }
 
@@ -92,241 +89,188 @@ private:
     const TWeakPtr<IConnection> Connection_;
     const TCellDirectoryPtr CellDirectory_;
 
-    class TGetSession
-        : public TRefCounted
+    TFuture<TTableMountInfoPtr> DoDoGet(IConnectionPtr connection, const TTableMountCacheKey& key)
     {
-    public:
-        TGetSession(
-            TTableMountCache* owner,
-            IConnectionPtr connection,
-            const TTableMountCacheKey& key,
-            const NLogging::TLogger& logger)
-            : Owner_(owner)
-            , Connection_(std::move(connection))
-            , Key_(key)
-            , Logger(logger)
-        {
-            Logger.AddTag("Path: %v, CacheSessionId: %v",
-                Key_.Path,
-                TGuid::Create());
-        }
+        const auto& path = key.Path;
+        const auto& refreshPrimaryRevision = key.RefreshPrimaryRevision;
+        const auto& refreshSecondaryRevision = key.RefreshSecondaryRevision;
 
-        TTableMountInfoPtr Run()
-        {
-            WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
-                .ThrowOnError();
-            auto batchRspOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
-            auto error = GetCumulativeError(batchRspOrError);
+        LOG_DEBUG("Requesting table mount info (Path: %v, RefreshPrimaryRevision: %v, RefreshSecondaryRevision: %v)",
+            path,
+            refreshPrimaryRevision,
+            refreshSecondaryRevision);
 
-            if (!error.IsOK() && PrimaryRevision_) {
-                WaitFor(RequestTableAttributes(PrimaryRevision_))
-                    .ThrowOnError();
-                batchRspOrError = WaitFor(RequestMountInfo(Null));
-                error = GetCumulativeError(batchRspOrError);
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+        auto primaryProxy = TObjectServiceProxy(channel);
+        auto batchReq = primaryProxy.ExecuteBatch();
+        
+        auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        balancingHeaderExt->set_enable_stickness(true);
+        balancingHeaderExt->set_sticky_group_size(1);
+
+        {
+            auto req = TTableYPathProxy::Get(path + "/@");
+            std::vector<TString> attributeKeys{
+                "id",
+                "dynamic",
+                "external_cell_tag"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            if (refreshPrimaryRevision) {
+                cachingHeaderExt->set_refresh_revision(*refreshPrimaryRevision);
             }
 
-            if (!error.IsOK()) {
-                auto wrappedError = TError("Error getting mount info for %v",
-                    Key_.Path)
-                    << error;
-                LOG_WARNING(wrappedError);
-                THROW_ERROR wrappedError;
-            }
-
-            return OnTableMountInfoReceived(batchRspOrError.Value());
+            batchReq->AddRequest(req, "get_attributes");
         }
 
-    private:
-        const TIntrusivePtr<TTableMountCache> Owner_;
-        const IConnectionPtr Connection_;
-        const TTableMountCacheKey Key_;
-        NLogging::TLogger Logger;
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attriubtes of table %v", path);
+        const auto& batchRsp = batchRspOrError.Value();
+        auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+        auto& rsp = getAttributesRspOrError.Value();
+        auto primaryRevision = batchRsp->GetRevision(0);
 
-        TTableId TableId_;
-        TCellTag CellTag_;
-        TNullable<i64> PrimaryRevision_;
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        auto cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
+        auto tableId = attributes->Get<TObjectId>("id");
+        auto dynamic = attributes->Get<bool>("dynamic", false);
 
-        TFuture<void> RequestTableAttributes(TNullable<i64> refreshPrimaryRevision)
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Table %v is not dynamic",
+                path);
+        }
+
+        channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Cache, cellTag);
+        auto secondaryProxy = TObjectServiceProxy(channel);
+        batchReq = secondaryProxy.ExecuteBatch();
+
         {
-            LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
-                refreshPrimaryRevision);
+            auto req = TTableYPathProxy::GetMountInfo(FromObjectId(tableId));
 
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
-            auto primaryProxy = TObjectServiceProxy(channel);
-            auto batchReq = primaryProxy.ExecuteBatch();
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+            if (refreshSecondaryRevision) {
+                cachingHeaderExt->set_refresh_revision(*refreshSecondaryRevision);
+            }
 
-            auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-            balancingHeaderExt->set_enable_stickness(true);
-            balancingHeaderExt->set_sticky_group_size(1);
+            batchReq->AddRequest(req, "get_mount_info");
+        }
 
-            {
-                auto req = TTableYPathProxy::Get(Key_.Path + "/@");
-                std::vector<TString> attributeKeys{
-                    "id",
-                    "dynamic",
-                    "external_cell_tag"
-                };
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-
-                auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterSuccessfulUpdateTime));
-                cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterFailedUpdateTime));
-                if (refreshPrimaryRevision) {
-                    cachingHeaderExt->set_refresh_revision(*refreshPrimaryRevision);
+        return batchReq->Invoke().Apply(
+            BIND([= , this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto error = GetCumulativeError(batchRspOrError);
+                if (!error.IsOK()) {
+                    auto wrappedError = TError("Error getting mount info for %v",
+                        path)
+                        << error;
+                    LOG_WARNING(wrappedError);
+                    THROW_ERROR wrappedError;
                 }
 
-                batchReq->AddRequest(req, "get_attributes");
-            }
+                const auto& batchRsp = batchRspOrError.Value();
+                const auto& rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGetMountInfo>(0);
+                const auto& rsp = rspOrError.Value();
 
-            return batchReq->Invoke()
-                .Apply(BIND(&TGetSession::OnTableAttributesReceived, MakeStrong(this)));
-        }
+                auto tableInfo = New<TTableMountInfo>();
+                tableInfo->Path = path;
+                tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+                tableInfo->SecondaryRevision = batchRsp->GetRevision(0);
+                tableInfo->PrimaryRevision = primaryRevision;
 
-        void OnTableAttributesReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-        {
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attriubtes of table %v", Key_.Path);
-            const auto& batchRsp = batchRspOrError.Value();
-            auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-            auto& rsp = getAttributesRspOrError.Value();
+                auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+                primarySchema = FromProto<TTableSchema>(rsp->schema());
 
-            PrimaryRevision_ = batchRsp->GetRevision(0);
+                tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema.ToWrite();
+                tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema.ToVersionedWrite();
+                tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
+                tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
+                tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
 
-            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-            CellTag_ = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
-            TableId_ = attributes->Get<TObjectId>("id");
-            auto dynamic = attributes->Get<bool>("dynamic", false);
+                tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
+                tableInfo->Dynamic = rsp->dynamic();
+                tableInfo->NeedKeyEvaluation = primarySchema.HasComputedColumns();
 
-            if (!dynamic) {
-                THROW_ERROR_EXCEPTION("Table %v is not dynamic",
-                    Key_.Path);
-            }
-        }
+                for (const auto& protoTabletInfo : rsp->tablets()) {
+                    auto tabletInfo = New<TTabletInfo>();
+                    tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
+                    tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
+                    tabletInfo->MountRevision = protoTabletInfo.mount_revision();
+                    tabletInfo->State = ETabletState(protoTabletInfo.state());
+                    tabletInfo->UpdateTime = Now();
 
-        TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> RequestMountInfo(TNullable<i64> refreshSecondaryRevision)
-        {
-            LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
-                TableId_,
-                CellTag_,
-                refreshSecondaryRevision);
+                    // COMPAT(savrus)
+                    tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
+                        ? MakeNullable(EInMemoryMode(protoTabletInfo.in_memory_mode()))
+                        : Null;
 
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
-            auto secondaryProxy = TObjectServiceProxy(channel);
-            auto batchReq = secondaryProxy.ExecuteBatch();
+                    if (tableInfo->IsSorted()) {
+                        // Take the actual pivot from master response.
+                        tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+                    } else {
+                        // Synthesize a fake pivot key.
+                        TUnversionedOwningRowBuilder builder(1);
+                        int tabletIndex = static_cast<int>(tableInfo->Tablets.size());
+                        builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
+                        tabletInfo->PivotKey = builder.FinishRow();
+                    }
 
-            {
-                auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
+                    if (protoTabletInfo.has_cell_id()) {
+                        tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
+                    }
 
-                auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterSuccessfulUpdateTime));
-                cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterFailedUpdateTime));
-                if (refreshSecondaryRevision) {
-                    cachingHeaderExt->set_refresh_revision(*refreshSecondaryRevision);
+                    tabletInfo->Owners.push_back(MakeWeak(tableInfo));
+
+                    tabletInfo = TabletCache_.Insert(std::move(tabletInfo));
+                    tableInfo->Tablets.push_back(tabletInfo);
+                    if (tabletInfo->State == ETabletState::Mounted) {
+                        tableInfo->MountedTablets.push_back(tabletInfo);
+                    }
                 }
 
-                batchReq->AddRequest(req, "get_mount_info");
-            }
+                for (const auto& protoDescriptor : rsp->tablet_cells()) {
+                    auto descriptor = FromProto<TCellDescriptor>(protoDescriptor);
+                    CellDirectory_->ReconfigureCell(descriptor);
+                }
 
-            return batchReq->Invoke();
-        }
-
-        TTableMountInfoPtr OnTableMountInfoReceived (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
-        {
-            const auto& rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGetMountInfo>(0);
-            const auto& rsp = rspOrError.Value();
-
-            auto tableInfo = New<TTableMountInfo>();
-            tableInfo->Path = Key_.Path;
-            tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-            tableInfo->SecondaryRevision = batchRsp->GetRevision(0);
-            tableInfo->PrimaryRevision = PrimaryRevision_;
-
-            auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
-            primarySchema = FromProto<TTableSchema>(rsp->schema());
-
-            tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema.ToWrite();
-            tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema.ToVersionedWrite();
-            tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
-            tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
-            tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
-
-            tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
-            tableInfo->Dynamic = rsp->dynamic();
-            tableInfo->NeedKeyEvaluation = primarySchema.HasComputedColumns();
-
-            for (const auto& protoTabletInfo : rsp->tablets()) {
-                auto tabletInfo = New<TTabletInfo>();
-                tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
-                tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
-                tabletInfo->MountRevision = protoTabletInfo.mount_revision();
-                tabletInfo->State = ETabletState(protoTabletInfo.state());
-                tabletInfo->UpdateTime = Now();
-
-                // COMPAT(savrus)
-                tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
-                    ? MakeNullable(EInMemoryMode(protoTabletInfo.in_memory_mode()))
-                    : Null;
+                for (const auto& protoReplicaInfo : rsp->replicas()) {
+                    auto replicaInfo = New<TTableReplicaInfo>();
+                    replicaInfo->ReplicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                    replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
+                    replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
+                    replicaInfo->Mode = ETableReplicaMode(protoReplicaInfo.mode());
+                    tableInfo->Replicas.push_back(replicaInfo);
+                }
 
                 if (tableInfo->IsSorted()) {
-                    // Take the actual pivot from master response.
-                    tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+                    tableInfo->LowerCapBound = MinKey();
+                    tableInfo->UpperCapBound = MaxKey();
                 } else {
-                    // Synthesize a fake pivot key.
-                    TUnversionedOwningRowBuilder builder(1);
-                    int tabletIndex = static_cast<int>(tableInfo->Tablets.size());
-                    builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
-                    tabletInfo->PivotKey = builder.FinishRow();
+                    auto makeCapBound = [] (int tabletIndex) {
+                        TUnversionedOwningRowBuilder builder;
+                        builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
+                        return builder.FinishRow();
+                    };
+                    tableInfo->LowerCapBound = makeCapBound(0);
+                    tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
                 }
 
-                if (protoTabletInfo.has_cell_id()) {
-                    tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
-                }
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+                    path,
+                    tableInfo->TableId,
+                    tableInfo->Tablets.size(),
+                    tableInfo->Dynamic,
+                    tableInfo->PrimaryRevision,
+                    tableInfo->SecondaryRevision);
 
-                tabletInfo->Owners.push_back(MakeWeak(tableInfo));
+                return tableInfo;
+            }));
 
-                tabletInfo = Owner_->TabletCache_.Insert(std::move(tabletInfo));
-                tableInfo->Tablets.push_back(tabletInfo);
-                if (tabletInfo->State == ETabletState::Mounted) {
-                    tableInfo->MountedTablets.push_back(tabletInfo);
-                }
-            }
-
-            for (const auto& protoDescriptor : rsp->tablet_cells()) {
-                auto descriptor = FromProto<TCellDescriptor>(protoDescriptor);
-                Owner_->CellDirectory_->ReconfigureCell(descriptor);
-            }
-
-            for (const auto& protoReplicaInfo : rsp->replicas()) {
-                auto replicaInfo = New<TTableReplicaInfo>();
-                replicaInfo->ReplicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
-                replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
-                replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
-                replicaInfo->Mode = ETableReplicaMode(protoReplicaInfo.mode());
-                tableInfo->Replicas.push_back(replicaInfo);
-            }
-
-            if (tableInfo->IsSorted()) {
-                tableInfo->LowerCapBound = MinKey();
-                tableInfo->UpperCapBound = MaxKey();
-            } else {
-                auto makeCapBound = [] (int tabletIndex) {
-                    TUnversionedOwningRowBuilder builder;
-                    builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
-                    return builder.FinishRow();
-                };
-                tableInfo->LowerCapBound = makeCapBound(0);
-                tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
-            }
-
-            LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
-                tableInfo->TableId,
-                tableInfo->Tablets.size(),
-                tableInfo->Dynamic,
-                tableInfo->PrimaryRevision,
-                tableInfo->SecondaryRevision);
-
-            return tableInfo;
-        }
-    };
+    }
 
     virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
     {

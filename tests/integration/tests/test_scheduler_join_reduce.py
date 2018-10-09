@@ -240,10 +240,10 @@ class TestSchedulerJoinReduceCommandsOneCell(YTEnvSetup):
                         "enable_row_index": "true"}},
                 "job_count": 1})
 
-        job_ids = ls(op.get_path() + "/jobs")
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
         assert len(job_ids) == 1
-
-        assert op.read_stderr(job_ids[0]) == \
+        stderr = remove_asan_warning(read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])))
+        assert stderr == \
 """<"table_index"=0;>#;
 <"row_index"=0;>#;
 {"key"=2;"value"=7;};
@@ -542,10 +542,10 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = op.get_path() + "/jobs"
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
-        stderr_bytes = op.read_stderr(job_ids[0])
+        stderr_bytes = remove_asan_warning(read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0])))
 
         assert stderr_bytes.encode("hex") == \
             "010000006100000000" \
@@ -648,7 +648,7 @@ echo {v = 2} >&7
                 {"key": "b", "@table_index": "1"},
             ])
 
-        histogram = get(op.get_path() + "/@progress/input_data_size_histogram")
+        histogram = get("//sys/operations/{0}/@progress/input_data_size_histogram".format(op.id))
         assert sum(histogram["count"]) == 2
 
     # Check compatibility with deprecated <primary=true> attribute
@@ -972,7 +972,7 @@ echo {v = 2} >&7
         assert row_table_count["(t_1)"] == 3
         assert row_table_count["(t_2)"] == 6
         assert job_indexes[1] == 4
-        assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)) == len(result) - 2
+        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)) == len(result) - 2
 
     @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
     def test_join_reduce_job_splitter(self):
@@ -1031,7 +1031,7 @@ done
 
         op.track()
 
-        completed = get(op.get_path() + "/@progress/jobs/completed")
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
         interrupted = completed["interrupted"]
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1

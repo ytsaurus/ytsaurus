@@ -5,8 +5,6 @@
 #include "ypath_client.h"
 #include "ypath_detail.h"
 
-#include <yt/core/profiling/timing.h>
-
 #include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/yson/async_consumer.h>
@@ -28,12 +26,10 @@ using namespace NConcurrency;
 class TFromProducerYPathService
     : public TYPathServiceBase
     , public TSupportsGet
-    , public ICachedYPathService
 {
 public:
-    TFromProducerYPathService(TYsonProducer producer, TDuration cachePeriod)
+    explicit TFromProducerYPathService(TYsonProducer producer)
         : Producer_(std::move(producer))
-        , CachePeriod_(cachePeriod)
     { }
 
     virtual TResolveResult Resolve(
@@ -48,18 +44,9 @@ public:
         }
     }
 
-    virtual void SetCachePeriod(TDuration period) override
-    {
-        CachePeriod_ = period;
-    }
-
 private:
     const TYsonProducer Producer_;
 
-    TYsonString CachedString_;
-    INodePtr CachedNode_;
-    TDuration CachePeriod_;
-    TInstant LastUpdateTime_;
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
@@ -94,13 +81,6 @@ private:
 
     TYsonString BuildStringFromProducer()
     {
-        if (CachePeriod_ != TDuration()) {
-            auto now = NProfiling::GetInstant();
-            if (LastUpdateTime_ + CachePeriod_ > now) {
-                return CachedString_;
-            }
-        }
-
         TStringStream stream;
         TBufferedBinaryYsonWriter writer(&stream);
         Producer_.Run(&writer);
@@ -111,39 +91,18 @@ private:
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No data is available");
         }
 
-        auto result = TYsonString(str);
-
-        if (CachePeriod_ != TDuration()) {
-            CachedString_ = result;
-            LastUpdateTime_ = NProfiling::GetInstant();
-        }
-
-        return result;
+        return TYsonString(str);
     }
 
     INodePtr BuildNodeFromProducer()
     {
-        if (CachePeriod_ != TDuration()) {
-            auto now = NProfiling::GetInstant();
-            if (LastUpdateTime_ + CachePeriod_ > now) {
-                return CachedNode_;
-            }
-        }
-
-        auto result = ConvertTo<INodePtr>(BuildStringFromProducer());
-
-        if (CachePeriod_ != TDuration()) {
-            CachedNode_ = result;
-            LastUpdateTime_ = NProfiling::GetInstant();
-        }
-
-        return result;
+        return ConvertTo<INodePtr>(BuildStringFromProducer());
     }
 };
 
-IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer, TDuration cachePeriod)
+IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer)
 {
-    return New<TFromProducerYPathService>(producer, cachePeriod);
+    return New<TFromProducerYPathService>(producer);
 }
 
 TYsonProducer IYPathService::ToProducer()
@@ -207,19 +166,16 @@ class TCachedYPathService
 public:
     TCachedYPathService(
         IYPathServicePtr underlyingService,
-        TDuration updatePeriod,
-        IInvokerPtr workerInvoker)
+        TDuration updatePeriod)
         : UnderlyingService_(std::move(underlyingService))
-        , WorkerInvoker_(workerInvoker
-            ? workerInvoker
-            : NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        , IsCacheEnabled_(false)
         , PeriodicExecutor_(New<TPeriodicExecutor>(
-            WorkerInvoker_,
+            GetWorkerInvoker(),
             BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
             updatePeriod))
     {
         YCHECK(UnderlyingService_);
-        SetCachePeriod(updatePeriod);
+        SetUpdatePeriod(updatePeriod);
     }
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
@@ -227,7 +183,7 @@ public:
         return TResolveResultHere{path};
     }
 
-    virtual void SetCachePeriod(TDuration period)
+    virtual void SetUpdatePeriod(TDuration period)
     {
         if (period == TDuration::Zero()) {
             if (IsCacheEnabled_) {
@@ -237,19 +193,16 @@ public:
         } else {
             PeriodicExecutor_->SetPeriod(period);
             if (!IsCacheEnabled_) {
-                IsCacheValid_ = false;
-                IsCacheEnabled_ = true;
+                RebuildCache();
                 PeriodicExecutor_->Start();
+                IsCacheEnabled_ = true;
             }
         }
     }
 
 private:
     const IYPathServicePtr UnderlyingService_;
-    const IInvokerPtr WorkerInvoker_;
-
-    std::atomic<bool> IsCacheEnabled_ = {false};
-    std::atomic<bool> IsCacheValid_ = {false};
+    std::atomic<bool> IsCacheEnabled_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
@@ -257,8 +210,8 @@ private:
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
-        if (IsCacheEnabled_ && IsCacheValid_) {
-            WorkerInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)]() {
+        if (IsCacheEnabled_) {
+            GetWorkerInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)]() {
                 try {
                     auto cachedTree = GetCachedTree().ValueOrThrow();
                     ExecuteVerb(cachedTree, context);
@@ -304,14 +257,18 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
             std::swap(CachedTreeOrError_, oldCachedTreeOrError);
             CachedTreeOrError_ = cachedTreeOrError;
-            IsCacheValid_ = true;
         }
+    }
+
+    static IInvokerPtr GetWorkerInvoker()
+    {
+        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 };
 
-IYPathServicePtr IYPathService::Cached(TDuration updatePeriod, IInvokerPtr workerInvoker)
+IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
 {
-    return New<TCachedYPathService>(this, updatePeriod, workerInvoker);
+    return New<TCachedYPathService>(this, updatePeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

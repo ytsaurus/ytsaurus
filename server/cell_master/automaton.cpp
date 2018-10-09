@@ -3,12 +3,8 @@
 #include "hydra_facade.h"
 #include "serialize.h"
 
-#include <yt/server/object_server/object_manager.h>
-
 namespace NYT {
 namespace NCellMaster {
-
-using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,14 +52,6 @@ bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
 int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 {
     return NCellMaster::GetCurrentSnapshotVersion();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TObjectBase* TLoadContext::GetWeakGhostObject(const TObjectId& id) const
-{
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    return objectManager->GetWeakGhostObject(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

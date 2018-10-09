@@ -626,10 +626,6 @@ struct IOperationController
     virtual NYTree::IYPathServicePtr GetOrchid() const = 0;
 
     virtual TString WriteCoreDump() const = 0;
-
-    virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
-
-    virtual TNullable<int> GetRowCountLimitTableIndex() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -25,7 +25,7 @@ static const NLogging::TLogger& Logger = ServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration DEFAULT_EPHEMERAL_NODE_TIMEOUT = TDuration::Minutes(1);
+static const TDuration DEFAULT_EPHEMERAL_NODE_TIMEOUT = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 

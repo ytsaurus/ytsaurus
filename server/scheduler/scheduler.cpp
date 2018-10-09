@@ -246,12 +246,6 @@ public:
         MasterConnector_->AddGlobalWatcherHandler(BIND(
             &TImpl::HandleConfig,
             Unretained(this)));
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestOperationsEffectiveAcl,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandleOperationsEffectiveAcl,
-            Unretained(this)));
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestOperationArchiveVersion,
@@ -340,7 +334,7 @@ public:
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidActionQueue_->GetInvoker());
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -348,12 +342,9 @@ public:
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
         auto combinedOrchidService = New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{
-                staticOrchidService,
-                std::move(dynamicOrchidService)
-            },
+            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)},
             Config_->OrchidKeysUpdatePeriod);
-        CombinedOrchidService_.Reset(combinedOrchidService.Get());
+        CombinedOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(combinedOrchidService.Get()));
         YCHECK(CombinedOrchidService_);
         return combinedOrchidService;
     }
@@ -975,6 +966,14 @@ public:
             .Run();
     }
 
+    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
+    {
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
+        return BIND(&TNodeShard::PollJobShell, nodeShard, jobId, parameters, user)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run();
+    }
+
     TFuture<void> AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
@@ -1257,7 +1256,7 @@ private:
 
     TOperationsCleanerPtr OperationsCleaner_;
 
-    TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
+    TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1309,7 +1308,7 @@ private:
     INodePtr OperationsEffectiveAcl_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
-    TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
+    TIntrusivePtr<NYTree::ICachedYPathService> CombinedOrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1397,6 +1396,15 @@ private:
             activeJobCount += nodeShard->GetActiveJobCount();
         }
         return activeJobCount;
+    }
+
+    void FetchOperationsEffectiveAcl()
+    {
+        LOG_INFO("Fetching //sys/operations/@effective_acl");
+
+        OperationsEffectiveAcl_ = ConvertToNode(
+            WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
+                .ValueOrThrow());
     }
 
     void OnProfiling()
@@ -1585,6 +1593,8 @@ private:
                 AddOperationToTransientQueue(operation);
             }
         }
+
+        FetchOperationsEffectiveAcl();
     }
 
     void OnMasterConnected()
@@ -1781,24 +1791,6 @@ private:
         }
     }
 
-    void RequestOperationsEffectiveAcl(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
-    {
-        LOG_INFO("Requesting operations effective acl");
-
-        auto req = TYPathProxy::Get("//sys/operations/@effective_acl");
-        batchReq->AddRequest(req, "get_operations_effective_acl");
-    }
-
-    void HandleOperationsEffectiveAcl(const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
-    {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_effective_acl");
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error getting operations effective acl")
-                << rspOrError;
-        }
-        OperationsEffectiveAcl_ = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
-    }
-
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
         LOG_INFO("Requesting scheduler configuration");
@@ -1869,7 +1861,7 @@ private:
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
-            StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
+            StaticOrchidService_->SetUpdatePeriod(Config_->StaticOrchidCacheUpdatePeriod);
             CombinedOrchidService_->SetUpdatePeriod(Config_->OrchidKeysUpdatePeriod);
 
             Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
@@ -3376,6 +3368,11 @@ TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const TString& signalNa
 TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const TString& user)
 {
     return Impl_->AbandonJob(jobId, user);
+}
+
+TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
+{
+    return Impl_->PollJobShell(jobId, parameters, user);
 }
 
 TFuture<void> TScheduler::AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)

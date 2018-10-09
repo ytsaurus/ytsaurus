@@ -617,9 +617,7 @@ void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 void Deserialize(TRichYPath& richPath, INodePtr node)
 {
     if (node->GetType() != ENodeType::String) {
-        THROW_ERROR_EXCEPTION("YPath can only be parsed from %Qlv but got %Qlv",
-            ENodeType::String,
-            node->GetType());
+        THROW_ERROR_EXCEPTION("YPath can only be parsed from \"string\"");
     }
     richPath.SetPath(node->GetValue<TString>());
     richPath.Attributes().Clear();

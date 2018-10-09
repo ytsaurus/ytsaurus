@@ -9,6 +9,7 @@ namespace NYTree {
 
 class TServiceCombiner
     : public TSupportsAttributes
+    , public ICachedYPathService
 {
 public:
     explicit TServiceCombiner(
@@ -21,7 +22,7 @@ public:
     virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 
-    void SetUpdatePeriod(TDuration period);
+    void SetUpdatePeriod(TDuration period) override;
 
 private:
     const std::vector<IYPathServicePtr> Services_;

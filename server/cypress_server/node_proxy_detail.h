@@ -14,7 +14,6 @@
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -309,16 +308,9 @@ protected:
         return TNontemplateCypressNodeProxyBase::LockThisImpl<TActualImpl>(request, recursive);
     }
 
-    void ValidateSetCommand(const NYTree::TYPath& path, bool force) const
+    void ValidateSetCommand() const
     {
-        const auto& Logger = CypressServerLogger;
-        bool forbidden = TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand && !force;
-        if (path) {
-            LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, Forbidden: %v)",
-                path,
-                forbidden);
-        }
-        if (forbidden) {
+        if (TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand) {
             THROW_ERROR_EXCEPTION("Command \"set\" is forbidden in Cypress, use \"create\" instead");
         }
     }
@@ -375,7 +367,7 @@ private:
     { \
         Y_UNUSED(response); \
         context->SetRequestInfo(); \
-        ValidateSetCommand(NYTree::FindRequestYPath(context->RequestHeader()), request->force()); \
+        ValidateSetCommand(); \
         DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
         context->Reply(); \
     }

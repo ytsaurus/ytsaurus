@@ -119,7 +119,7 @@ public:
         StartMerge();
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual bool Read(std::vector<TUnversionedRow> *rows) override
     {
         YCHECK(rows->capacity() > 0);
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
@@ -134,10 +134,9 @@ public:
             return false;
         }
 
-        bool mergeFinished = MergeFinished_.load();
         i64 sortedRowCount = SortedRowCount_.load();
         for (int spinCounter = 1; ; ++spinCounter) {
-            if (sortedRowCount > ReadRowCount_ || mergeFinished) {
+            if (sortedRowCount > ReadRowCount_) {
                 break;
             }
             if (spinCounter % SpinsBetweenYield == 0) {
@@ -146,13 +145,7 @@ public:
                 SpinLockPause();
             }
 
-            mergeFinished = MergeFinished_.load();
             sortedRowCount = SortedRowCount_.load();
-        }
-
-        if (mergeFinished && !MergeError_.IsOK()) {
-            ReadyEvent_ = MakeFuture(MergeError_);
-            return true;
         }
 
         i64 dataWeight = 0;
@@ -380,8 +373,6 @@ private:
     std::vector<TFuture<void>> SortErrors_;
     TFuture<void> ReadyEvent_;
 
-    TError MergeError_;
-    std::atomic_bool MergeFinished_ = { false };
 
     void InitInput()
     {
@@ -421,7 +412,6 @@ private:
 
             while (true) {
                 i64 rowCount = 0;
-
                 auto keyInserter = std::back_inserter(KeyBuffer_);
                 auto rowDescriptorInserter = std::back_inserter(RowDescriptorBuffer_);
 
@@ -511,40 +501,34 @@ private:
 
     void DoMerge()
     {
-        try {
-            LOG_INFO("Started merge");
-            PROFILE_TIMING ("/reduce/merge_time") {
-                int sortedRowCount = 0;
-                while (!BucketHeap_.empty()) {
-                    int bucketIndex = BucketHeap_.front();
-                    if (SortedIndexes_.size() > 0) {
-                        Y_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
-                    }
-                    SortedIndexes_.push_back(Buckets_[bucketIndex]);
-                    ++bucketIndex;
-                    if (Buckets_[bucketIndex] == BucketEndSentinel) {
-                        ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
-                        BucketHeap_.pop_back();
-                    } else {
-                        BucketHeap_.front() = bucketIndex;
-                        AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
-                    }
-
-                    ++sortedRowCount;
-                    if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
-                        SortedRowCount_ = sortedRowCount;
-                    }
+        LOG_INFO("Started merge");
+        PROFILE_TIMING ("/reduce/merge_time") {
+            int sortedRowCount = 0;
+            while (!BucketHeap_.empty()) {
+                int bucketIndex = BucketHeap_.front();
+                if (SortedIndexes_.size() > 0) {
+                    Y_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
+                }
+                SortedIndexes_.push_back(Buckets_[bucketIndex]);
+                ++bucketIndex;
+                if (Buckets_[bucketIndex] == BucketEndSentinel) {
+                    ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
+                    BucketHeap_.pop_back();
+                } else {
+                    BucketHeap_.front() = bucketIndex;
+                    AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
                 }
 
-                YCHECK(sortedRowCount == TotalRowCount_);
-                SortedRowCount_ = sortedRowCount;
+                ++sortedRowCount;
+                if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
+                    SortedRowCount_ = sortedRowCount;
+                }
             }
-            LOG_INFO("Finished merge");
-        } catch (const TErrorException& ex) {
-            MergeError_ = ex;
-        }
 
-        MergeFinished_ = true;
+            YCHECK(sortedRowCount == TotalRowCount_);
+            SortedRowCount_ = sortedRowCount;
+        }
+        LOG_INFO("Finished merge");
     }
 
     void SortQueueBarrier()

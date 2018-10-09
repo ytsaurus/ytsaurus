@@ -185,14 +185,6 @@ void TYPathResponse::DeserializeBody(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath FindRequestYPath(const NRpc::NProto::TRequestHeader& header)
-{
-    if (header.HasExtension(NProto::TYPathHeaderExt::ypath_header_ext)) {
-        return GetRequestYPath(header);
-    }
-    return TYPath();
-}
-
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);

@@ -30,9 +30,8 @@ private:
 struct ILogFormatter
 {
     virtual ~ILogFormatter() = default;
-    virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
+    virtual void WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const = 0;
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,12 +41,9 @@ class TPlainTextLogFormatter
 {
 public:
     TPlainTextLogFormatter();
-    virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
+    virtual void WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
 
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const override;
-
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const override;
-
 private:
 
     std::unique_ptr<TMessageBuffer> Buffer_;
@@ -62,11 +58,9 @@ class TJsonLogFormatter
 public:
     TJsonLogFormatter();
 
-    virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
+    virtual void WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
 
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const override;
-
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const override;
 
 private:
     std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;

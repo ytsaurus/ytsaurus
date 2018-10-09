@@ -22,25 +22,17 @@ class TRowBuffer
     : public TIntrinsicRefCounted
 {
 public:
-    TRowBuffer() = default;
-
-    TRowBuffer(
-        TRefCountedTypeCookie tagCookie,
-        IMemoryChunkProviderPtr chunkProvider,
-        size_t startChunkSize = TChunkedMemoryPool::DefaultStartChunkSize)
-        : Pool_(
-            tagCookie,
-            std::move(chunkProvider),
-            startChunkSize)
-    { }
+    explicit TRowBuffer(
+        i64 chunkSize = TChunkedMemoryPool::DefaultChunkSize,
+        double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultRowBufferPoolTag>());
 
     template <class TTag>
     explicit TRowBuffer(
         TTag,
-        size_t startChunkSize = TChunkedMemoryPool::DefaultStartChunkSize)
-        : Pool_(
-            GetRefCountedTypeCookie<TTag>(),
-            startChunkSize)
+        i64 chunkSize = TChunkedMemoryPool::DefaultChunkSize,
+        double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio)
+        : TRowBuffer(chunkSize, maxSmallBlockRatio, GetRefCountedTypeCookie<TTag>())
     { }
 
     template <class TTag>
@@ -48,7 +40,7 @@ public:
         TTag,
         IMemoryChunkProviderPtr chunkProvider)
         : Pool_(
-            GetRefCountedTypeCookie<TTag>(),
+            TTag(),
             std::move(chunkProvider))
     { }
 

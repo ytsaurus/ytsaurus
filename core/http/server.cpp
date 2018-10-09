@@ -3,7 +3,6 @@
 #include "config.h"
 #include "stream.h"
 #include "private.h"
-#include "helpers.h"
 
 #include <yt/core/net/listener.h>
 #include <yt/core/net/connection.h>
@@ -150,13 +149,11 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7ReqId: %v, L7RealIP: %v)",
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
                 request->GetMethod(),
-                path,
-                GetBalancerRequestId(request),
-                GetBalancerRealIP(request));
+                path);
 
             auto handler = Handlers_.Match(path);
             if (handler) {

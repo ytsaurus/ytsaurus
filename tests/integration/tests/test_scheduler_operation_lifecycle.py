@@ -138,8 +138,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         time.sleep(2)
         self.Env.kill_schedulers()
 
-        abort_transaction(get(op.get_path() + "/@input_transaction_id"))
-        abort_transaction(get(op.get_path() + "/@output_transaction_id"))
+        abort_transaction(get("//sys/operations/{0}/@input_transaction_id".format(op.id)))
+        abort_transaction(get("//sys/operations/{0}/@output_transaction_id".format(op.id)))
 
         self.Env.start_schedulers()
 
@@ -195,8 +195,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         # Have to wait for process termination, job proxy can't kill user process when cgroups are not enabled.
         time.sleep(3.2)
-        assert op1.get_state() not in ["failing", "failed"]
-        assert op2.get_state() in ["failing", "failed"]
+        assert get("//sys/operations/{0}/@state".format(op1.id)) not in ["failing", "failed"]
+        assert get("//sys/operations/{0}/@state".format(op2.id)) in ["failing", "failed"]
 
         op1.track()
         with pytest.raises(YtError):
@@ -220,22 +220,22 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                 "suspend_operation_if_account_limit_exceeded": True
             })
 
-        wait(lambda: get(op.get_path() + "/@suspended"), iter=100, sleep_backoff=0.6)
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=100, sleep_backoff=0.6)
 
         time.sleep(0.5)
 
-        assert op.get_state() == "running"
+        assert get("//sys/operations/{0}/@state".format(op.id)) == "running"
 
-        alerts = get(op.get_path() + "/@alerts")
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
         assert list(alerts) == ["operation_suspended"]
 
         set("//sys/accounts/limited/@resource_limits/chunk_count", 10)
         op.resume()
         op.track()
 
-        assert op.get_state() == "completed"
-        assert not get(op.get_path() + "/@suspended")
-        assert not get(op.get_path() + "/@alerts")
+        assert get("//sys/operations/{0}/@state".format(op.id)) == "completed"
+        assert not get("//sys/operations/{0}/@suspended".format(op.id))
+        assert not get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_suspend_operation_after_materialization(self):
         self._create_table("//tmp/in")
@@ -250,7 +250,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                      "data_size_per_job": 1,
                      "suspend_operation_after_materialization": True
                  })
-        wait(lambda: get(op.get_path() + "/@suspended"))
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)))
         op.resume()
         op.track()
 
@@ -266,10 +266,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             out="//tmp/out",
             spec={"time_limit": 2000})
 
-        wait(lambda: op.get_state() == "failed")
+        wait(lambda: get("//sys/operations/{0}/@state".format(op.id)) == "failed")
 
         time.sleep(1)
-        jobs_path = op.get_path() + "/jobs"
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         jobs = ls(jobs_path)
         assert len(jobs) > 0
 
@@ -301,7 +301,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur < next
 
@@ -336,7 +336,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
 
@@ -385,19 +385,19 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.abort(abort_message="Test abort")
 
         assert op.get_state() == "aborted"
-        assert get(op.get_path() + "/@result/error/inner_errors/0/message") == "Test abort"
+        assert get("//sys/operations/{0}/@result/error/inner_errors/0/message".format(op.id)) == "Test abort"
 
     def test_operation_pool_attributes(self):
         self._prepare_tables()
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
-        assert get(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/pool") == "root"
+        assert get("//sys/operations/{0}/@runtime_parameters/scheduling_options_per_pool_tree/default/pool".format(op.id)) == "root"
 
     def test_operation_events_attribute(self):
         self._prepare_tables()
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
-        events = get(op.get_path() + "/@events")
+        events = get("//sys/operations/{0}/@events".format(op.id))
         assert [
                    "starting",
                    "waiting_for_agent",
@@ -424,7 +424,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = op.get_path() + "/jobs"
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
         for job_id in ls(jobs_path):
             inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
             assert "Job time limit exceeded" in inner_errors[0]["message"]
@@ -580,7 +580,7 @@ class SchedulerReviveBase(YTEnvSetup):
         self._create_table("//tmp/t_out")
 
     def _wait_for_state(self, op, state):
-        wait(lambda: op.get_state() == state)
+        wait(lambda: get("//sys/operations/" + op.id + "/@state") == state)
 
     def test_missing_transactions(self):
         self._prepare_tables()
@@ -590,14 +590,14 @@ class SchedulerReviveBase(YTEnvSetup):
         for iter in xrange(5):
             self._wait_for_state(op, "running")
             self.Env.kill_schedulers()
-            set(op.get_path() + "/@input_transaction_id", "0-0-0-0")
+            set("//sys/operations/" + op.id + "/@input_transaction_id", "0-0-0-0")
             self.Env.start_schedulers()
             time.sleep(1)
 
         release_breakpoint()
         op.track()
 
-        assert op.get_state() == "completed"
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
 
     def test_aborting(self):
         self._prepare_tables()
@@ -612,14 +612,14 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self.Env.kill_schedulers()
 
-        assert op.get_state() == "aborting"
+        assert "aborting" == get("//sys/operations/" + op.id + "/@state")
 
         self.Env.start_schedulers()
 
         with pytest.raises(YtError):
             op.track()
 
-        assert op.get_state() == "aborted"
+        assert "aborted" == get("//sys/operations/" + op.id + "/@state")
 
     # NB: we hope that complete finish first phase before we kill scheduler. But we cannot guarantee that this happen.
     @flaky(max_runs=3)
@@ -636,13 +636,13 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self.Env.kill_schedulers()
 
-        assert op.get_state() == "completing"
+        assert "completing" == get("//sys/operations/" + op.id + "/@state")
 
         self.Env.start_schedulers()
 
         op.track()
 
-        assert op.get_state() == "completed"
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
 
         if self.OP_TYPE == "map":
             assert read_table("//tmp/t_out") == []
@@ -683,7 +683,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self.Env.kill_schedulers()
 
-        assert op.get_state() == "completing"
+        assert get("//sys/operations/" + op.id + "/@state") == "completing"
 
         self.Env.start_schedulers()
 
@@ -695,7 +695,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         op.track()
 
-        events = get(op.get_path() + "/@events")
+        events = get("//sys/operations/{0}/@events".format(op.id))
 
         events_prefix = [
             "starting",
@@ -719,7 +719,7 @@ class SchedulerReviveBase(YTEnvSetup):
         print >>sys.stderr, "Actual:   ", actual_events
         assert expected_events == actual_events
 
-        assert op.get_state() == "completed"
+        assert get("//sys/operations/" + op.id + "/@state") == "completed"
 
         if self.OP_TYPE == "map":
             assert read_table("//tmp/t_out") == [{"foo": "bar"}]
@@ -755,7 +755,7 @@ class SchedulerReviveBase(YTEnvSetup):
         op.abort()
         op.track()
 
-        assert op.get_state() == "completed"
+        assert get("//sys/operations/" + op.id + "/@state") == "completed"
 
     def test_failing(self):
         self._prepare_tables()
@@ -766,14 +766,14 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self.Env.kill_schedulers()
 
-        assert op.get_state() == "failing"
+        assert "failing" == get("//sys/operations/" + op.id + "/@state")
 
         self.Env.start_schedulers()
 
         with pytest.raises(YtError):
             op.track()
 
-        assert op.get_state() == "failed"
+        assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
     def test_revive_failed_jobs(self):
         self._create_table("//tmp/t_in")
@@ -847,23 +847,7 @@ class TestControllerAgent(YTEnvSetup):
         create("table", table, attributes={"replication_factor": 1})
 
     def _wait_for_state(self, op, state):
-        wait(lambda: op.get_state() == state)
-
-    @flaky(max_runs=3)
-    def test_connection_time(self):
-        def get_connection_time():
-            controller_agents = ls("//sys/controller_agents/instances")
-            assert len(controller_agents) == 1
-            return datetime.strptime(get("//sys/controller_agents/instances/{}/@connection_time".format(controller_agents[0])), "%Y-%m-%dT%H:%M:%S.%fZ")
-
-        time.sleep(3)
-
-        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
-
-        self.Env.kill_controller_agents()
-        self.Env.start_controller_agents()
-
-        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
+        wait(lambda: get("//sys/operations/" + op.id + "/@state") == state)
 
     def test_abort_operation_without_controller_agent(self):
         self._create_table("//tmp/t_in")

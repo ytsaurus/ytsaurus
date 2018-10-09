@@ -310,7 +310,6 @@ class TDynamicTabletCellBalancerMasterConfig
 public:
     bool EnableTabletCellBalancer;
     bool EnableVerboseLogging;
-    TDuration RebalanceWaitTime;
 
     TDynamicTabletCellBalancerMasterConfig()
     {
@@ -318,8 +317,6 @@ public:
             .Default(true);
         RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
             .Default(false);
-        RegisterParameter("rebalance_wait_time", RebalanceWaitTime)
-            .Default(TDuration::Minutes(1));
     }
 };
 

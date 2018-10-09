@@ -244,11 +244,11 @@ class TestErasure(YTEnvSetup):
         create("table", "//tmp/t2")
 
         op1 = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"slice_erasure_chunks_by_parts": True})
-        chunk_count = get(op1.get_path() + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count")
+        chunk_count = get("//sys/operations/{0}/@progress/data_flow_graph/edges/source/map/statistics/chunk_count".format(op1.id))
         assert chunk_count == 12
 
         op2 = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"slice_erasure_chunks_by_parts": False})
-        chunk_count = get(op2.get_path() + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count")
+        chunk_count = get("//sys/operations/{0}/@progress/data_flow_graph/edges/source/map/statistics/chunk_count".format(op2.id))
         assert chunk_count == 1
 
     def test_erasure_attribute_in_output_table(self):

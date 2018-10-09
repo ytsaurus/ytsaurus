@@ -31,10 +31,8 @@ public:
     void Start();
     void Stop();
 
-    void SaveKeys(NCellMaster::TSaveContext& context) const;
-    void SaveValues(NCellMaster::TSaveContext& context) const;
-    void LoadKeys(NCellMaster::TLoadContext& context);
-    void LoadValues(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
     void Clear();
 
     TFuture<void> Collect();
@@ -48,8 +46,6 @@ public:
     void RegisterZombie(TObjectBase* object);
     void UnregisterZombie(TObjectBase* object);
     void DestroyZombie(TObjectBase* object);
-
-    TObjectBase* GetWeakGhostObject(const TObjectId& id);
 
     void Reset();
 
@@ -81,8 +77,8 @@ private:
     //! Contains objects with zero ref counter and positive weak ref counter
     //! (ephemeral ref counter may be zero or positive, it doesn't matter).
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
-    //! NB: weak ghost objects are actually owned (and persisted) by the garbage collector.
-    THashMap<TObjectId, TObjectBase*> WeakGhosts_;
+    //! Persisted.
+    THashSet<TObjectBase*> WeakGhosts_;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;

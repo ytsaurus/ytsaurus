@@ -1342,8 +1342,9 @@ private:
     IYPathServicePtr CreateOrchidService(IInvokerPtr automatonInvoker)
     {
         auto producer = BIND(&TImpl::BuildOrchidYson, MakeWeak(this));
-        return IYPathService::FromProducer(producer, TDuration::Seconds(1))
-            ->Via(automatonInvoker);
+        return IYPathService::FromProducer(producer)
+            ->Via(automatonInvoker)
+            ->Cached(TDuration::Seconds(1));
     }
 
     void BuildOrchidYson(IYsonConsumer* consumer)

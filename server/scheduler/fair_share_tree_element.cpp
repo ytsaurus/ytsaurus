@@ -1583,6 +1583,20 @@ TJobResources TOperationElementSharedState::Disable()
     return resourceUsage;
 }
 
+void TOperationElementSharedState::OnOperationDeactivated(EDeactivationReason reason)
+{
+    ++DeactivationReasons_[reason];
+}
+
+TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasons() const
+{
+    TEnumIndexedVector<int, EDeactivationReason> result;
+    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+        result[reason] = DeactivationReasons_[reason];
+    }
+    return result;
+}
+
 void TOperationElementSharedState::Enable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1771,8 +1785,6 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
         return ZeroJobResources();
     }
 
-    LastScheduleJobSuccessTime_ = TInstant::Now();
-
     PreemptableJobs_.push_back(jobId);
 
     auto it = JobPropertiesMap_.emplace(
@@ -1805,44 +1817,6 @@ TPreemptionStatusStatisticsVector TOperationElementSharedState::GetPreemptionSta
     return PreemptionStatusStatistics_;
 }
 
-void TOperationElementSharedState::OnOperationDeactivated(EDeactivationReason reason)
-{
-    ++DeactivationReasons_[reason];
-    ++DeactivationReasonsFromLastNonStarvingTime_[reason];
-}
-
-TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasons() const
-{
-    TEnumIndexedVector<int, EDeactivationReason> result;
-    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-        result[reason] = DeactivationReasons_[reason];
-    }
-    return result;
-}
-
-TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasonsFromLastNonStarvingTime() const
-{
-    TEnumIndexedVector<int, EDeactivationReason> result;
-    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-        result[reason] = DeactivationReasonsFromLastNonStarvingTime_[reason];
-    }
-    return result;
-}
-
-void TOperationElementSharedState::ResetDeactivationReasonsFromLastNonStarvingTime()
-{
-    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-        DeactivationReasonsFromLastNonStarvingTime_[reason] = 0;
-    }
-}
-
-TInstant TOperationElementSharedState::GetLastScheduleJobSuccessTime() const
-{
-    TReaderGuard guard(JobPropertiesMapLock_);
-
-    return LastScheduleJobSuccessTime_;
-}
-
 void TOperationElement::OnOperationDeactivated(EDeactivationReason reason)
 {
     SharedState_->OnOperationDeactivated(reason);
@@ -1851,11 +1825,6 @@ void TOperationElement::OnOperationDeactivated(EDeactivationReason reason)
 TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasons() const
 {
     return SharedState_->GetDeactivationReasons();
-}
-
-TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasonsFromLastNonStarvingTime() const
-{
-    return SharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
 }
 
 void TOperationElement::Disable()
@@ -1903,7 +1872,7 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     return resourceUsage;
 }
 
-TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
+bool TOperationElement::TryStartScheduleJob(
     NProfiling::TCpuInstant now,
     const TJobResources& minNeededResources,
     const TFairShareContext& context,
@@ -1914,30 +1883,30 @@ TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
         Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
         ControllerConfig_->ScheduleJobFailBackoffTime);
     if (blocked) {
-        return EDeactivationReason::IsBlocked;
+        return false;
     }
 
     auto nodeFreeResources = context.SchedulingContext->GetNodeFreeResourcesWithDiscount();
     if (!Dominates(nodeFreeResources, minNeededResources)) {
-        return EDeactivationReason::MinNeededResourcesUnsatisfied;
+        return false;
     }
 
     // Do preliminary checks to avoid the overhead of updating and reverting precommit usage.
     auto availableResources = GetHierarchicalAvailableResources(context);
     auto availableDemand = GetLocalAvailableResourceDemand(context);
     if (!Dominates(availableResources, minNeededResources) || !Dominates(availableDemand, minNeededResources)) {
-        return EDeactivationReason::ResourceLimitsExceeded;
+        return false;
     }
 
     TJobResources availableResourceLimits;
     if (!TryIncreaseHierarchicalResourceUsagePrecommit(minNeededResources, context, &availableResourceLimits)) {
-        return EDeactivationReason::ResourceLimitsExceeded;
+        return false;
     }
 
     Controller_->IncreaseConcurrentScheduleJobCalls();
 
     *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
-    return Null;
+    return true;
 }
 
 void TOperationElement::FinishScheduleJob(
@@ -1952,8 +1921,6 @@ void TOperationElement::FinishScheduleJob(
     }
 
     IncreaseHierarchicalResourceUsagePrecommit(-minNeededResources);
-
-    LastScheduleJobSuccessTime_ = CpuInstantToInstant(now);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -2000,10 +1967,9 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(operation, controllerConfig)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
+    , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , SharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
     , Controller_(controller)
-    , SchedulingTagFilter_(spec->SchedulingTagFilter)
-    , LastNonStarvingTime_(TInstant::Now())
 { }
 
 TOperationElement::TOperationElement(
@@ -2013,10 +1979,9 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(other)
     , RuntimeParams_(other.RuntimeParams_)
     , Spec_(other.Spec_)
+    , SchedulingTagFilter_(other.SchedulingTagFilter_)
     , SharedState_(other.SharedState_)
     , Controller_(other.Controller_)
-    , SchedulingTagFilter_(other.SchedulingTagFilter_)
-    , LastNonStarvingTime_(other.LastNonStarvingTime_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -2214,11 +2179,9 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
 
     auto minNeededResources = Controller_->GetAggregatedMinNeededJobResources();
     TJobResources availableResources;
-
-    auto deactivationReason = TryStartScheduleJob(now, minNeededResources, *context, &availableResources);
-    if (deactivationReason)
+    if (!TryStartScheduleJob(now, minNeededResources, *context, &availableResources))
     {
-        disableOperationElement(*deactivationReason);
+        disableOperationElement(EDeactivationReason::TryStartScheduleJobFailed);
         return false;
     }
 
@@ -2315,8 +2278,6 @@ void TOperationElement::SetStarving(bool starving)
     YCHECK(!Cloned_);
 
     if (starving && !GetStarving()) {
-        LastNonStarvingTime_ = TInstant::Now();
-        SharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
         LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
             GetTreeId(),
@@ -2433,16 +2394,6 @@ TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatisti
 int TOperationElement::GetScheduledJobCount() const
 {
     return SharedState_->GetScheduledJobCount();
-}
-
-TInstant TOperationElement::GetLastNonStarvingTime() const
-{
-    return LastNonStarvingTime_;
-}
-
-TInstant TOperationElement::GetLastScheduleJobSuccessTime() const
-{
-    return SharedState_->GetLastScheduleJobSuccessTime();
 }
 
 int TOperationElement::GetSlotIndex() const

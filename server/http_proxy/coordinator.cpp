@@ -38,7 +38,6 @@ using namespace NYson;
 using namespace NHttp;
 using namespace NCypressClient;
 using namespace NNative;
-using namespace NProfiling;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,8 +273,6 @@ void TCoordinator::Update()
             }
         }
 
-        HttpProxyProfiler.Enqueue("/banned", Self_->IsBanned ? 1 : 0, EMetricType::Gauge);
-
         FirstUpdateIterationFinished_.TrySet();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Coordinator update failed");
@@ -335,11 +332,7 @@ void THostsHandler::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
-    TNullable<TString> role{"data"};
+    TNullable<TString> role;
     TNullable<TString> suffix;
     bool returnJson = true;
 
@@ -420,10 +413,6 @@ void TPingHandler::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
     rsp->SetStatus(Coordinator_->IsBanned() ? EStatusCode::ServiceUnavailable : EStatusCode::OK);
     WaitFor(rsp->Close())
         .ThrowOnError();

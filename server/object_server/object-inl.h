@@ -237,20 +237,20 @@ std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
 }
 
 template <class TObject, class TValue>
-std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObject*, TValue>& entities)
+std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const THashMap<TObject*, TValue>& entities)
 {
-    std::vector<typename THashMap<TObject*, TValue>::iterator> iterators;
-    iterators.reserve(entities.size());
+    std::vector<std::pair<TObject*, TValue>> pairs;
+    pairs.reserve(entities.size());
 
-    for (auto it = entities.begin(); it != entities.end(); ++it) {
-        if (IsObjectAlive(it->first)) {
-            iterators.push_back(it);
+    for (auto& pair : entities) {
+        if (IsObjectAlive(pair.first)) {
+            pairs.push_back(pair);
         }
     }
-    std::sort(iterators.begin(), iterators.end(), [] (auto lhs, auto rhs) {
-        return TObjectRefComparer::Compare(lhs->first, rhs->first);
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return TObjectRefComparer::Compare(lhs.first, rhs.first);
     });
-    return iterators;
+    return pairs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -146,7 +146,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 }
             })
 
-        assert "unused_tmpfs_space" in op.get_alerts()
+        assert "unused_tmpfs_space" in get("//sys/operations/{0}/@alerts".format(op.id))
 
         op = map(
             command="printf '=%.0s' {1..768} >local_file; sleep 1.5; cat",
@@ -159,7 +159,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 }
             })
 
-        assert "unused_tmpfs_space" not in op.get_alerts()
+        assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_missing_input_chunks_alert(self):
         create_test_tables(attributes={"replication_factor": 1})
@@ -181,11 +181,11 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             dont_track=True)
 
         wait(lambda: op.get_state() == "running")
-        wait(lambda: "lost_input_chunks" in op.get_alerts())
+        wait(lambda: "lost_input_chunks" in get("//sys/operations/{0}/@alerts".format(op.id)))
 
         set_banned_flag(False, replicas)
 
-        wait(lambda: "lost_input_chunks" not in op.get_alerts())
+        wait(lambda: "lost_input_chunks" not in get("//sys/operations/{0}/@alerts".format(op.id)))
 
     @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
@@ -205,7 +205,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 }
             })
 
-        assert "excessive_disk_usage" in op.get_alerts()
+        assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_long_aborted_jobs_alert(self):
         create_test_tables(row_count=5)
@@ -226,7 +226,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         time.sleep(1.5)
 
-        assert "long_aborted_jobs" in op.get_alerts()
+        assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     # if these three tests flap - call renadeen@
     def test_low_cpu_alert_presence(self):
@@ -236,7 +236,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out")
 
-        assert "low_cpu_usage" in op.get_alerts()
+        assert "low_cpu_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_low_cpu_alert_absence(self):
         create_test_tables()
@@ -245,7 +245,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out")
 
-        assert "low_cpu_usage" not in op.get_alerts()
+        assert "low_cpu_usage" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_operation_too_long_alert(self):
         create_test_tables(row_count=100)
@@ -257,7 +257,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             dont_track=True)
 
         self.wait_for_running_jobs(op)
-        wait(lambda: "operation_too_long" in op.get_alerts())
+        wait(lambda: "operation_too_long" in get("//sys/operations/{0}/@alerts".format(op.id)))
 
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")
@@ -280,7 +280,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             sort_by=["x"],
             spec={"partition_count": 5})
 
-        assert "intermediate_data_skew" in op.get_alerts()
+        assert "intermediate_data_skew" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     @flaky(max_runs=3)
     def test_short_jobs_alert(self):
@@ -294,7 +294,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "data_size_per_job": 1,
             })
 
-        assert "short_jobs_duration" in op.get_alerts()
+        assert "short_jobs_duration" in get("//sys/operations/{0}/@alerts".format(op.id))
 
         op = map(
             command="sleep 5; cat",
@@ -304,7 +304,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "data_size_per_job": 1,
             })
 
-        assert "short_jobs_duration" not in op.get_alerts()
+        assert "short_jobs_duration" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_schedule_job_timed_out_alert(self):
         create_test_tables()
@@ -322,7 +322,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         time.sleep(8)
 
-        assert "schedule_job_timed_out" in op.get_alerts()
+        assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)
@@ -370,7 +370,8 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             spec={"job_count": 3},
             dont_track=True)
 
-        wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
+        path = "//sys/operations/{0}/@alerts".format(op.id)
+        wait(lambda: exists(path) and "excessive_job_spec_throttling" in get(path))
 
 @require_ytserver_root_privileges
 class TestControllerAgentAlerts(YTEnvSetup):

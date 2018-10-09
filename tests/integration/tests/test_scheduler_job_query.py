@@ -83,7 +83,7 @@ class TestJobQuery(YTEnvSetup):
             spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
-        statistics = get(op.get_path() + "/@progress/job_statistics")
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
         attrs = get("//tmp/t1/@")
         assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") < attrs["uncompressed_data_size"]
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") < attrs["compressed_data_size"]
@@ -192,7 +192,7 @@ class TestJobQuery(YTEnvSetup):
                 spec={"input_query": query})
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
-            statistics = get(op.get_path() + "/@progress/job_statistics")
+            statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
             assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
 
         _test("", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
@@ -222,7 +222,7 @@ class TestJobQuery(YTEnvSetup):
                 spec={"input_query": query})
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
-            statistics = get(op.get_path() + "/@progress/job_statistics")
+            statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
             assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
 
         _test("a where k = 1", [{"a": i} for i in xrange(10, 13)], 1)

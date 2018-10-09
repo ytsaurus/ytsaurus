@@ -46,7 +46,6 @@ class TTabletCellBalancerProvider
 public:
     explicit TTabletCellBalancerProvider(const TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , BalanceRequestTime_(Now())
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
         bundleNodeTracker->SubscribeBundleNodesChanged(BIND(&TTabletCellBalancerProvider::OnBundleNodesChanged, MakeWeak(this)));
@@ -54,8 +53,6 @@ public:
 
     virtual std::vector<TNodeHolder> GetNodes() override
     {
-        BalanceRequestTime_.Reset();
-
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
@@ -108,26 +105,18 @@ public:
 
     virtual bool IsBalancingRequired() override
     {
-        auto waitTime = Bootstrap_->GetConfigManager()->GetConfig()
-            ->TabletManager->TabletCellBalancer->RebalanceWaitTime;
-
-        if (BalanceRequestTime_ && *BalanceRequestTime_ + waitTime < Now()) {
-            BalanceRequestTime_.Reset();
-            return true;
-        }
-
-        return false;
+        bool result = BalancingRequired_;
+        BalancingRequired_ = false;
+        return result;
     }
 
 private:
     const TBootstrap* Bootstrap_;
-    TNullable<TInstant> BalanceRequestTime_;
+    bool BalancingRequired_ = true;
 
     void OnBundleNodesChanged(const TTabletCellBundle* /*bundle*/)
     {
-        if (!BalanceRequestTime_) {
-            BalanceRequestTime_ = Now();
-        }
+        BalancingRequired_ = true;
     }
 };
 
@@ -228,23 +217,16 @@ void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
 {
     // Try to move the leader to a good peer.
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
-    TError error;
 
-    if (!leadingPeer.Descriptor.IsNull()) {
-        error = IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), Config_->LeaderReassignmentTimeout);
-        if (error.IsOK()) {
-            return;
-        }
+    if (!leadingPeer.Descriptor.IsNull() &&
+        !IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), Config_->LeaderReassignmentTimeout))
+    {
+        return;
     }
 
     auto goodPeerId = FindGoodPeer(cell);
     if (goodPeerId == InvalidPeerId)
         return;
-
-    LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
-        cell->GetId(),
-        cell->GetLeadingPeerId(),
-        leadingPeer.Descriptor.GetDefaultAddress());
 
     TReqSetLeadingPeer request;
     ToProto(request.mutable_cell_id(), cell->GetId());
@@ -304,24 +286,16 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
 
     for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
         const auto& peer = cell->Peers()[peerId];
-        if (peer.Descriptor.IsNull()) {
-            continue;
-        }
 
-        auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout);
-
-        if (!error.IsOK()) {
-            LOG_DEBUG(error, "Schedule peer revokation (CellId: %v, PeerId: %v, Address: %v)",
-                cell->GetId(),
-                peerId,
-                peer.Descriptor.GetDefaultAddress());
-
+        if (!peer.Descriptor.IsNull() &&
+            IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout))
+        {
             balancer->RevokePeer(cell, peerId);
         }
     }
 }
 
-TError TTabletTrackerImpl::IsFailed(
+bool TTabletTrackerImpl::IsFailed(
     const TTabletCell::TPeer& peer,
     const TBooleanFormula& nodeTagFilter,
     TDuration timeout)
@@ -330,31 +304,31 @@ TError TTabletTrackerImpl::IsFailed(
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
     if (node) {
         if (node->GetBanned()) {
-            return TError("Node banned");
+            return true;
         }
 
         if (node->GetDecommissioned()) {
-            return TError("Node decommissioned");
+            return true;
         }
 
         if (node->GetDisableTabletCells()) {
-            return TError("Node tablet slots disabled");
+            return true;
         }
 
         if (!nodeTagFilter.IsSatisfiedBy(node->Tags())) {
-            return TError("Node tags dont satisfy filter");
+            return true;
         }
     }
 
     if (peer.LastSeenTime + timeout > TInstant::Now()) {
-        return TError();
+        return false;
     }
 
     if (peer.Node) {
-        return TError();
+        return false;
     }
 
-    return TError("Node is not assigned");
+    return true;
 }
 
 int TTabletTrackerImpl::FindGoodPeer(const TTabletCell* cell)

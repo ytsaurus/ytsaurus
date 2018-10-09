@@ -57,6 +57,7 @@ struct TCookieCredentials
     TString SessionId;
     TString SslSessionId;
     NNet::TNetworkAddress UserIP;
+    TNullable<TString> CsrfToken;
 };
 
 struct TAuthenticationResult

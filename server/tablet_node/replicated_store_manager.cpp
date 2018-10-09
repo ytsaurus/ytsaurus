@@ -132,11 +132,6 @@ bool TReplicatedStoreManager::IsFlushNeeded() const
     return LogStoreManager_->IsFlushNeeded();
 }
 
-void TReplicatedStoreManager::InitializeRotation()
-{
-    LogStoreManager_->InitializeRotation();
-}
-
 void TReplicatedStoreManager::ScheduleRotation()
 {
     LogStoreManager_->ScheduleRotation();
@@ -204,10 +199,9 @@ bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
 
 TStoreFlushCallback  TReplicatedStoreManager::BeginStoreFlush(
     IDynamicStorePtr store,
-    TTabletSnapshotPtr tabletSnapshot,
-    bool isUnmountWorkflow)
+    TTabletSnapshotPtr tabletSnapshot)
 {
-    return LogStoreManager_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot), isUnmountWorkflow);
+    return LogStoreManager_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot));
 }
 
 void TReplicatedStoreManager::EndStoreFlush(IDynamicStorePtr store)

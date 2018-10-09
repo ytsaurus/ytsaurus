@@ -142,22 +142,6 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx)
 
     @flaky(max_runs=5)
-    def test_set_timeout(self):
-        tx = start_transaction(timeout=2 * 1000)
-        set("//sys/transactions/{}/@timeout".format(tx), 10 * 1000)
-        assert get("//sys/transactions/{}/@timeout".format(tx)) == 10 * 1000
-
-        ping_transaction(tx)
-
-        # check that transaction is still alive after 3 seconds
-        sleep(3.0)
-        assert exists("//sys/transactions/{}".format(tx))
-
-        # check that transaction is expired after 3 seconds
-        sleep(8.0)
-        assert not exists("//sys/transactions/{}".format(tx))
-
-    @flaky(max_runs=5)
     def test_ping(self):
         tx = start_transaction(timeout=2000)
 

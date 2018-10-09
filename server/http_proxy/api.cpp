@@ -124,35 +124,10 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
     counters->RequestCount = { "/request_count", counters->Tags };
     counters->BytesIn = { "/bytes_in", counters->Tags };
     counters->BytesOut = { "/bytes_out", counters->Tags };
-    counters->RequestDuration = { "/request_duration", counters->Tags };
 
     TWriterGuard guard(CountersLock_);
     auto result = Counters_.emplace(key, std::move(counters));
     return result.first->second.get();
-}
-
-void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
-{
-    auto guard = Guard(HttpCodesLock_);
-    DoIncrementHttpCode(&HttpCodes_, httpStatusCode, {});
-}
-
-void TApi::DoIncrementHttpCode(
-    THashMap<NHttp::EStatusCode, TMonotonicCounter>* counters,
-    EStatusCode httpStatusCode,
-    TTagIdList tags)
-{
-    auto it = counters->find(httpStatusCode);
-        
-    if (it == counters->end()) {
-        tags.push_back(TProfileManager::Get()->RegisterTag("http_code", static_cast<int>(httpStatusCode)));
-
-        it = counters->emplace(
-            httpStatusCode,
-            TMonotonicCounter{"/http_code_count", tags}).first;
-    }
-
-    HttpProxyProfiler.Increment(it->second);
 }
 
 void TApi::IncrementProfilingCounters(
@@ -174,7 +149,18 @@ void TApi::IncrementProfilingCounters(
 
     auto guard = Guard(counters->Lock);
     if (httpStatusCode) {
-        DoIncrementHttpCode(&counters->HttpCodes, *httpStatusCode, counters->Tags);
+        auto it = counters->HttpCodes.find(*httpStatusCode);
+        
+        if (it == counters->HttpCodes.end()) {
+            auto tags = counters->Tags;
+            tags.push_back(TProfileManager::Get()->RegisterTag("http_code", *httpStatusCode));
+
+            it = counters->HttpCodes.emplace(
+                *httpStatusCode,
+                TMonotonicCounter{"/http_code_count", tags}).first;
+        }
+
+        HttpProxyProfiler.Increment(it->second);
     }
 
     if (apiErrorCode) {
@@ -204,10 +190,6 @@ void TApi::HandleRequest(
     auto context = New<TContext>(MakeStrong(this), req, rsp);
     if (!context->TryPrepare()) {
         HttpProxyProfiler.Increment(PrepareErrorCount_);
-        auto statusCode = rsp->GetStatus();
-        if (statusCode) {
-            IncrementHttpCode(*statusCode);
-        }
         return;
     }
     try {

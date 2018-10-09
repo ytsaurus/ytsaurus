@@ -44,8 +44,7 @@ public:
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpecs)
-            .SetMaxConcurrency(100000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpecs));
     }
 
 private:
@@ -69,33 +68,32 @@ private:
                 FormatValue(builder, req.JobId, TStringBuf());
             }));
 
-        controllerAgent->ExtractJobSpecs(jobSpecRequests)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError) {
-                const auto& results = resultsOrError.ValueOrThrow();
-                std::vector<TSharedRef> jobSpecs;
-                jobSpecs.reserve(jobSpecRequests.size());
-                for (size_t index = 0; index < jobSpecRequests.size(); ++index) {
-                    const auto& subrequest = jobSpecRequests[index];
-                    const auto& subresponse = results[index];
-                    auto* protoSubresponse = response->add_responses();
-                    if (subresponse.IsOK() && subresponse.Value()) {
-                        jobSpecs.push_back(subresponse.Value());
-                    } else {
-                        jobSpecs.emplace_back();
-                        auto error = !subresponse.IsOK()
-                            ? static_cast<TError>(subresponse)
-                            : TError("Controller returned empty job spec (has controller crashed?)");
-                        LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
-                            subrequest.OperationId,
-                            subrequest.JobId);
+        auto results = WaitFor(controllerAgent->ExtractJobSpecs(jobSpecRequests))
+            .ValueOrThrow();
 
-                        ToProto(protoSubresponse->mutable_error(), error);
-                    }
-                }
+        std::vector<TSharedRef> jobSpecs;
+        jobSpecs.reserve(jobSpecRequests.size());
+        for (size_t index = 0; index < jobSpecRequests.size(); ++index) {
+            const auto& subrequest = jobSpecRequests[index];
+            const auto& subresponse = results[index];
+            auto* protoSubresponse = response->add_responses();
+            if (subresponse.IsOK() && subresponse.Value()) {
+                jobSpecs.push_back(subresponse.Value());
+            } else {
+                jobSpecs.emplace_back();
+                auto error = !subresponse.IsOK()
+                    ? static_cast<TError>(subresponse)
+                    : TError("Controller returned empty job spec (has controller crashed?)");
+                LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
+                    subrequest.OperationId,
+                    subrequest.JobId);
 
-                response->Attachments() = std::move(jobSpecs);
-                context->Reply();
-            }).Via(GetCurrentInvoker()));
+                ToProto(protoSubresponse->mutable_error(), error);
+            }
+        }
+
+        response->Attachments() = std::move(jobSpecs);
+        context->Reply();
     }
 };
 

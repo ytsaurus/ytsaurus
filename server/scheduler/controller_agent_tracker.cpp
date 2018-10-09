@@ -711,13 +711,10 @@ public:
         auto req = proxy.RegisterOperation();
         req->SetTimeout(Config_->HeavyRpcTimeout);
 
-        auto spec = CloneNode(operation->GetSpec());
-        spec->AsMap()->AddChild("enable_compatible_storage_mode", BuildYsonNodeFluently().Value(operation->GetEnableCompatibleStorageMode()));
-
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());
         descriptor->set_operation_type(static_cast<int>(operation->GetType()));
-        descriptor->set_spec(ConvertToYsonString(spec).GetData());
+        descriptor->set_spec(ConvertToYsonString(operation->GetSpec()).GetData());
         descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
         descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
         if (operation->GetSecureVault()) {

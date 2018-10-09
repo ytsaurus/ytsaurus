@@ -1022,12 +1022,10 @@ private:
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
 
-        if (!IsRecovery()) {
-            for (auto& pair : tablet->Replicas()) {
-                auto& replicaInfo = pair.second;
-                StopTableReplicaEpoch(&replicaInfo);
-                StartTableReplicaEpoch(tablet, &replicaInfo);
-            }
+        for (auto& pair : tablet->Replicas()) {
+            auto& replicaInfo = pair.second;
+            StopTableReplicaEpoch(&replicaInfo);
+            StartTableReplicaEpoch(tablet, &replicaInfo);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
@@ -1083,9 +1081,6 @@ private:
             tabletId);
 
         tablet->SetState(ETabletState::Mounted);
-
-        const auto& storeManager = tablet->GetStoreManager();
-        storeManager->InitializeRotation();
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
@@ -1921,9 +1916,8 @@ private:
         auto* replicaInfo = tablet->GetReplicaInfoOrThrow(replicaId);
 
         if (replicaInfo->GetState() != ETableReplicaState::Enabled) {
-            THROW_ERROR_EXCEPTION("Replica %v is in %Qlv state",
-                replicaId,
-                replicaInfo->GetState());
+            THROW_ERROR_EXCEPTION("Replica %v is not enabled",
+                replicaId);
         }
 
         if (replicaInfo->GetPreparedReplicationTransactionId()) {
@@ -3289,19 +3283,11 @@ private:
         if (IsLeader()) {
             replicaInfo->GetReplicator()->Enable();
         }
-
-        {
-            TRspEnableTableReplica response;
-            ToProto(response.mutable_tablet_id(), tablet->GetId());
-            ToProto(response.mutable_replica_id(), replicaInfo->GetId());
-            response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMutation(tablet->GetId(), response);
-        }
     }
 
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId: %v, "
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tablet->GetId(),
             replicaInfo->GetId(),

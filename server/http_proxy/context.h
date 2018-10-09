@@ -105,7 +105,7 @@ private:
     template <class TJsonProducer>
     void DispatchJson(const TJsonProducer& producer);
     void DispatchUnauthorized(const TString& scope, const TString& message);
-    void DispatchUnavailable(const TString& retryAfter, const TString& message);
+    void DispatchLater(const TString& retryAfter, const TString& message);
     void DispatchNotFound(const TString& message);
 
     void FakeError(const TString& message);

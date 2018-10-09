@@ -5,7 +5,6 @@
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
-#include <yt/client/api/sticky_transaction_pool.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
