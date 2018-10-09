@@ -34,14 +34,21 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TString GetOperationPath(const TOperationId& operationId)
+{
+    auto idStr = GetGuidAsString(operationId);
+    auto lastTwoDigits = idStr.substr(idStr.size() - 2, 2);
+    return TStringBuilder() << "//sys/operations/" << lastTwoDigits << "/" << idStr;
+}
+
 static TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
 {
-    return client->Get("//sys/operations/" + GetGuidAsString(operationId) + "/@state").AsString();
+    return client->Get(GetOperationPath(operationId) + "/@state").AsString();
 }
 
 static void EmulateOperationArchivation(IClientPtr& client, const TOperationId& operationId)
 {
-    client->Remove("//sys/operations/" + GetGuidAsString(operationId), TRemoveOptions().Recursive(true));
+    client->Remove(GetOperationPath(operationId), TRemoveOptions().Recursive(true));
 }
 
 void CreateTableWithFooColumn(IClientPtr client, const TString& path)
