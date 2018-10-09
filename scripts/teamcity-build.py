@@ -313,9 +313,9 @@ def configure(options, build_context):
                 "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
                 "-DCMAKE_C_COMPILER={0}".format(options.cc),
                 "-DBUILD_SHARED_LIBS=OFF",
-                options.checkout_directory
+                options.checkout_directory,
             ],
-            cwd=options.build_directory,
+            cwd=options.working_directory,
         )
     else:
         assert options.build_system == "ya"
