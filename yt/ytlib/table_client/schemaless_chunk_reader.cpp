@@ -546,7 +546,7 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
+    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable, /* validateColumnNames */ true);
 
     if (KeyColumns_.empty()) {
         KeyColumns_ = chunkKeyColumns;
@@ -816,7 +816,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
+    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable, /* validateColumnNames */ true);
 
     // Don't call InitBlockLastKeys because this reader should be used only for dynamic tables.
     YCHECK(Options_->DynamicTable);
@@ -1151,7 +1151,8 @@ private:
         ValidateKeyColumns(
             KeyColumns_,
             ChunkMeta_->ChunkSchema().GetKeyColumns(),
-            Options_->DynamicTable);
+            Options_->DynamicTable,
+            /* validateColumnNames */ true);
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
@@ -1530,7 +1531,8 @@ private:
         ValidateKeyColumns(
             KeyColumns_,
             ChunkMeta_->ChunkSchema().GetKeyColumns(),
-            Options_->DynamicTable);
+            Options_->DynamicTable,
+            /* validateColumnNames */ true);
 
         TNameTablePtr chunkNameTable;
         if (Options_->DynamicTable) {
