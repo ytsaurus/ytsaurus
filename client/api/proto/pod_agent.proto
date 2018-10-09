@@ -642,6 +642,7 @@ message THttpGetStatus {
 
     TTimeLimitStatus TimeLimit = 5;
     string FailReason = 6;
+    uint32 RequestsCount = 7;
 }
 
 message TStopStatus {
