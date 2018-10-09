@@ -132,6 +132,10 @@ class HTTPRequestRetrier(Retrier):
 
     def action(self):
         update_inplace(self.headers, {"X-TM-Parameters": json.dumps(self.params)})
+        logger.debug("Request %s with %s method and headers %s",
+            self.url,
+            self.method,
+            str(self.headers))
         response = self.session.request(self.method, self.url, headers=self.headers,
                                         timeout=self.timeout / 1000.0, data=self.data)
         _raise_for_status(response)
