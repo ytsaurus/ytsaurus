@@ -788,7 +788,7 @@ private:
             eden->SetCompactionTime(beginInstant);
 
             LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
-                "PartitionCount: %v, DataSize: %v, "
+                "PartitionCount: %v, CompressedDataSize: %v, "
                 "ChunkCount: %v, CurrentTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
@@ -1201,7 +1201,7 @@ private:
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
             LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
-                "DataSize: %v, ChunkCount: %v, "
+                "CompressedDataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
