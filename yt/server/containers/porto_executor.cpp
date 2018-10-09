@@ -224,10 +224,18 @@ private:
         int error;
         TString message;
         Api_->GetLastError(error, message);
-        LOG_ERROR("Porto API error (Error: %v, Command: %v, Message: %v)",
-            error,
-            command,
-            message);
+        if (error == EError::ContainerDoesNotExist || error == EError::InvalidState) {
+            // This is typical during job cleanup: we might try to kill a container that is already stopped.
+            LOG_DEBUG("Porto API error (Error: %v, Command: %v, Message: %v)",
+                error,
+                command,
+                message);
+        } else {
+            LOG_ERROR("Porto API error (Error: %v, Command: %v, Message: %v)",
+                error,
+                command,
+                message);
+        }
 
         if (error == EError::Unknown && TInstant::Now() - time < RetryTime_) {
             return;
