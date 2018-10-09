@@ -4024,7 +4024,7 @@ private:
         lookupOptions.Timeout = deadline - Now();
 
         auto rowset = WaitFor(LookupRows(
-            GetOperationsArchivePathOrderedById(),
+            GetOperationsArchiveOrderedByIdPath(),
             tableDescriptor.NameTable,
             MakeSharedRange(std::move(keys), std::move(rowBuffer)),
             lookupOptions))
@@ -5056,7 +5056,7 @@ private:
 
         if (options.IncludeCounters) {
             NQueryClient::TQueryBuilder builder;
-            builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
+            builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
 
             auto poolsIndex = builder.AddSelectExpression("pools_str");
             auto authenticatedUserIndex = builder.AddSelectExpression("authenticated_user");
@@ -5107,7 +5107,7 @@ private:
         }
 
         NQueryClient::TQueryBuilder builder;
-        builder.SetSource(GetOperationsArchivePathOrderedByStartTime());
+        builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
 
         builder.AddSelectExpression("id_hi");
         builder.AddSelectExpression("id_lo");
@@ -5211,7 +5211,7 @@ private:
         lookupOptions.Timeout = deadline - Now();
 
         auto rowset = WaitFor(LookupRows(
-            GetOperationsArchivePathOrderedById(),
+            GetOperationsArchiveOrderedByIdPath(),
             tableDescriptor.NameTable,
             MakeSharedRange(std::move(keys), std::move(rowBuffer)),
             lookupOptions))
