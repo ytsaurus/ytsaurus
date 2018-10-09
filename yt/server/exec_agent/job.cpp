@@ -182,7 +182,7 @@ public:
             case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
-                SetJobState(EJobState::Aborting);
+                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
                 ArtifactsFuture_.Cancel();
                 DoSetResult(error);
 
@@ -190,7 +190,7 @@ public:
                 BIND(&TJob::Cleanup, MakeStrong(this))
                     .Via(Bootstrap_->GetControlInvoker())
                     .Run();
-                    
+
                 break;
 
             case EJobPhase::PreparingSandboxDirectories:
