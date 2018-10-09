@@ -13,7 +13,7 @@ namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::pair<TString, TString> TUserCommandPair;
+typedef std::pair<TNullable<TString>, TNullable<TString>> TUserCommandPair;
 
 class TSemaphoreGuard
 {
@@ -67,6 +67,8 @@ public:
         i64 bytesIn,
         i64 bytesOut);
 
+    void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
+
 private:
     const TApiConfigPtr Config_;
 
@@ -99,9 +101,17 @@ private:
     NConcurrency::TReaderWriterSpinLock CountersLock_;
     THashMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
 
+    TSpinLock HttpCodesLock_;
+    THashMap<NHttp::EStatusCode, NProfiling::TMonotonicCounter> HttpCodes_;
+
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
 
     NProfiling::TMonotonicCounter PrepareErrorCount_{"/request_prepare_error_count"};
+
+    void DoIncrementHttpCode(
+        THashMap<NHttp::EStatusCode, NProfiling::TMonotonicCounter>* counters,
+        NHttp::EStatusCode httpStatusCode,
+        NProfiling::TTagIdList tags);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApi)

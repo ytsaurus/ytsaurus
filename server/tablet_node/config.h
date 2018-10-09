@@ -345,7 +345,6 @@ class TTabletManagerConfig
 {
 public:
     i64 PoolChunkSize;
-    double MaxPoolSmallBlockRatio;
 
     TDuration PreloadBackoffTime;
     TDuration CompactionBackoffTime;
@@ -369,10 +368,6 @@ public:
         RegisterParameter("pool_chunk_size", PoolChunkSize)
             .GreaterThan(64_KB)
             .Default(1_MB);
-
-        RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.25);
 
         RegisterParameter("max_blocked_row_wait_time", MaxBlockedRowWaitTime)
             .Default(TDuration::Seconds(5));

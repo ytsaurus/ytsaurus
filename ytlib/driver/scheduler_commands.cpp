@@ -112,6 +112,8 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("user", Options.UserFilter)
         .Optional();
+    RegisterParameter("owned_by", Options.OwnedBy)
+        .Optional();
     RegisterParameter("state", Options.StateFilter)
         .Optional();
     RegisterParameter("type", Options.TypeFilter)

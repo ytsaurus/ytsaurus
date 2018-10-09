@@ -2132,8 +2132,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         chunk_id = get("//tmp/t/@chunk_ids")[0]
         sync_reshard_table("//tmp/t", [[], [1], [2]])
-        root_chunk_list = get("//tmp/t/@chunk_list_id")
-        tablet_chunk_lists = get("#{0}/@child_ids".format(root_chunk_list))
+
+        def get_tablet_chunk_lists():
+            return get("#{0}/@child_ids".format(get("//tmp/t/@chunk_list_id")))
 
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
@@ -2143,9 +2144,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@forced_compaction_revision", 1)
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
+        tablet_chunk_lists = get_tablet_chunk_lists()
         wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
+
         sync_unmount_table("//tmp/t")
 
+        tablet_chunk_lists = get_tablet_chunk_lists()
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[0])) == [chunk_id]
         assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
@@ -2437,6 +2441,19 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t1", rows)
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+    def test_lookup_from_removed_table(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        remove("//tmp/t")
+        self._create_simple_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        actual = lookup_rows("//tmp/t", [{"key": 0}])
+        assert actual == []
 
 ##################################################################
 

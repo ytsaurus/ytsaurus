@@ -26,7 +26,7 @@ porto_delta_node_config = {
 }
 
 def check_memory_limit(op):
-    jobs_path = "//sys/operations/" + op.id + "/jobs"
+    jobs_path = op.get_path() + "/jobs"
     for job_id in ls(jobs_path):
         inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
         assert "Memory limit exceeded" in inner_errors[0]["message"]

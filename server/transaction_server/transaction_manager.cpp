@@ -458,6 +458,19 @@ public:
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }
 
+    void SetTransactionTimeout(
+        TTransaction* transaction,
+        TDuration timeout)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        transaction->SetTimeout(timeout);
+
+        if (IsLeader()) {
+            LeaseTracker_->SetTimeout(transaction->GetId(), timeout);
+        }
+    }
+
     void StageObject(TTransaction* transaction, TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1032,6 +1045,13 @@ TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& t
 TFuture<TInstant> TTransactionManager::GetLastPingTime(const TTransaction* transaction)
 {
     return Impl_->GetLastPingTime(transaction);
+}
+
+void TTransactionManager::SetTransactionTimeout(
+    TTransaction* transaction,
+    TDuration timeout)
+{
+    Impl_->SetTransactionTimeout(transaction, timeout);
 }
 
 void TTransactionManager::StageObject(

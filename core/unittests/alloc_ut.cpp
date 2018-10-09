@@ -20,11 +20,11 @@ TEnumIndexedVector<ssize_t, T> AggregateArenaCounters(const std::array<TEnumInde
     return result;
 }
 
-class TYTAllocTest
+class TYTAllocTaggedTest
     : public ::testing::TestWithParam<TMemoryTag>
 { };
 
-TEST_P(TYTAllocTest, LargeCounters)
+TEST_P(TYTAllocTaggedTest, LargeCounters)
 {
     TMemoryTagGuard guard(GetParam());
     constexpr auto N = 100_MB;
@@ -43,7 +43,7 @@ TEST_P(TYTAllocTest, LargeCounters)
     EXPECT_LE(std::abs(largeTotal3 - largeTotal1), Eps);
 }
 
-TEST_P(TYTAllocTest, HugeCounters)
+TEST_P(TYTAllocTaggedTest, HugeCounters)
 {
     TMemoryTagGuard guard(GetParam());
     constexpr auto N = 10_GB;
@@ -64,13 +64,25 @@ TEST_P(TYTAllocTest, HugeCounters)
 
 INSTANTIATE_TEST_CASE_P(
     LargeCounters,
-    TYTAllocTest,
+    TYTAllocTaggedTest,
     ::testing::Values(0, 1));
 
 INSTANTIATE_TEST_CASE_P(
     HugeCounters,
-    TYTAllocTest,
+    TYTAllocTaggedTest,
     ::testing::Values(0, 1));
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYTAllocTest, AroundLargeBlobThreshold)
+{
+    constexpr size_t HugeSizeThreshold = 1ULL << (LargeRankCount - 1);
+    for (int i = -10; i <= 10; ++i) {
+        size_t size = HugeSizeThreshold + i * 10;
+        void* ptr = YTAlloc(size);
+        YTFree(ptr);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

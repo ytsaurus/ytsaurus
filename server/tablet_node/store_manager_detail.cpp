@@ -85,12 +85,7 @@ void TStoreManagerBase::StartEpoch(TTabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
 
-    const auto& config = Tablet_->GetConfig();
-    if (config->DynamicStoreAutoFlushPeriod) {
-        LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
-    }
-
-    RotationScheduled_ = false;
+    InitializeRotation();
 
     UpdateInMemoryMode();
 }
@@ -111,12 +106,25 @@ void TStoreManagerBase::StopEpoch()
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled ||
                 chunkStore->GetPreloadState() == EStorePreloadState::Running)
             {
+                // Running preloads are cancelled in cancellable invoker. There are no
+                // concurrent preloads when this code is running, because execution is
+                // serialized in one thread.
                 chunkStore->SetPreloadState(EStorePreloadState::None);
             }
         }
     }
 
     Tablet_->PreloadStoreIds().clear();
+}
+
+void TStoreManagerBase::InitializeRotation()
+{
+    const auto& config = Tablet_->GetConfig();
+    if (config->DynamicStoreAutoFlushPeriod) {
+        LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
+    }
+
+    RotationScheduled_ = false;
 }
 
 bool TStoreManagerBase::IsRotationScheduled() const
@@ -209,11 +217,12 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
 
 TStoreFlushCallback TStoreManagerBase::BeginStoreFlush(
     IDynamicStorePtr store,
-    TTabletSnapshotPtr tabletSnapshot)
+    TTabletSnapshotPtr tabletSnapshot,
+    bool isUnmountWorkflow)
 {
     YCHECK(store->GetFlushState() == EStoreFlushState::None);
     store->SetFlushState(EStoreFlushState::Running);
-    return MakeStoreFlushCallback(store, tabletSnapshot);
+    return MakeStoreFlushCallback(store, tabletSnapshot, isUnmountWorkflow);
 }
 
 void TStoreManagerBase::EndStoreFlush(IDynamicStorePtr store)
@@ -344,7 +353,6 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
     YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
 
     store->SetPreloadFuture(TFuture<void>());
-    store->UpdatePreloadAttempt(true);
     store->SetPreloadState(EStorePreloadState::Scheduled);
     Tablet_->PreloadStoreIds().push_back(store->GetId());
 }
