@@ -275,7 +275,8 @@ private:
             location->GetMediumName());
 
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
-            location->IncrementThrottledWritesCounter();
+            const auto& locationProfiler = location->GetProfiler();
+            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledWrites);
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
@@ -297,9 +298,11 @@ private:
         }
 
         result.Subscribe(BIND([=] (const TError& error) {
-            if (error.IsOK()) {
-                location->UpdatePutBlocksWallTimeCounter(DurationToValue(timer.GetElapsedTime()));
+            if (!error.IsOK()) {
+                return;
             }
+            const auto& profiler = location->GetProfiler();
+            profiler.Update(location->GetPerformanceCounters().PutBlocksWallTime, DurationToValue(timer.GetElapsedTime()));
         }));
 
         context->ReplyFrom(result);
@@ -425,7 +428,9 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
         if (diskThrottling) {
-            chunk->GetLocation()->IncrementThrottledReadsCounter();
+            const auto& location = chunk->GetLocation();
+            const auto& locationProfiler = location->GetProfiler();
+            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledWrites);
         }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
@@ -568,7 +573,9 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
         if (diskThrottling) {
-            chunk->GetLocation()->IncrementThrottledReadsCounter();
+            const auto& location = chunk->GetLocation();
+            const auto& locationProfiler = location->GetProfiler();
+            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledReads);
         }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
