@@ -2159,8 +2159,7 @@ class TestSchedulingTags(YTEnvSetup):
             "event_log": {
                 "flush_period": 300,
                 "retry_backoff_time": 300
-            },
-            "safe_scheduler_online_time": 1000,
+            }
         }
     }
 
@@ -2172,6 +2171,7 @@ class TestSchedulingTags(YTEnvSetup):
             },
             "available_exec_nodes_check_period": 100,
             "snapshot_period": 500,
+            "safe_scheduler_online_time": 1000
         }
     }
 
