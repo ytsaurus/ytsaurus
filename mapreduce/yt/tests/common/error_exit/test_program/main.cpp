@@ -33,10 +33,17 @@ REGISTER_SAVELOAD_CLASS(0x73BC2B28, TFailingMap);
 int main(int argc, const char** argv) {
     NMR::Initialize(argc, argv);
 
-    const TString ytProxy = GetEnv("YT_PROXY");
-    const int sleepSeconds = FromString<int>(GetEnv("SLEEP_SECONDS"));
-    const TString inputTable = GetEnv("INPUT_TABLE");
-    const TString outputTable = GetEnv("OUTPUT_TABLE");
+    TString ytProxy = GetEnv("YT_PROXY");
+    int sleepSeconds = FromString<int>(GetEnv("SLEEP_SECONDS"));
+    TString inputTable = GetEnv("INPUT_TABLE");
+    TString outputTable = GetEnv("OUTPUT_TABLE");
+    if (inputTable.StartsWith("//")) {
+        inputTable = inputTable.substr(2);
+    }
+    if (outputTable.StartsWith("//")) {
+        outputTable = outputTable.substr(2);
+    }
+
     TServer server(ytProxy);
     {
         TClient client(server);
