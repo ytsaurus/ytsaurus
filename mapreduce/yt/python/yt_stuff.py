@@ -55,7 +55,7 @@ class YtConfig(object):
                  local_cypress_dir=None, wait_tablet_cell_initialization=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, forbid_chunk_storage_in_tmpfs=None,
                  node_chunk_store_quota=None, yt_version=None, cell_tag=None, python_binary=None,
-                 enable_debug_logging=None, enable_rpc_proxy=None):
+                 enable_debug_logging=None, enable_rpc_proxy=None, controller_agent_config=None):
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
@@ -82,6 +82,25 @@ class YtConfig(object):
                 """)
 
         self.proxy_config = get_value(proxy_config, proxy_config_with_disabled_retries.name)
+
+        env_names = [
+            # required for proper coverage
+            'LLVM_PROFILE_FILE',
+            'PYTHON_COVERAGE_PREFIX',
+        ]
+        env = {x: os.environ[x] for x in env_names if x in os.environ}
+        env_str = ';'.join(['"{}"="{}"'.format(k, v) for k, v in env.items()])
+
+        with tempfile.NamedTemporaryFile(delete=False) as controller_agent_config_with_default_env:
+            controller_agent_config_with_default_env.write("""
+                {
+                    "controller_agent" = {
+                        "environment" = {%s};
+                    };
+                }
+                """ % env_str)
+
+        self.controller_agent_config = get_value(controller_agent_config, controller_agent_config_with_default_env.name)
 
         self.yt_path = yt_path
 
@@ -386,6 +405,8 @@ class YtStuff(object):
                 args += ["--proxy-config", self.config.proxy_config]
             if self.config.cell_tag is not None:
                 args += ["--cell-tag", str(self.config.cell_tag)]
+            if self.config.controller_agent_config:
+                args += ["--controller-agent-config", self.config.controller_agent_config]
 
             local_cypress_dir = self.config.local_cypress_dir or yatest.common.get_param("yt_local_cypress_dir")
             if local_cypress_dir:
