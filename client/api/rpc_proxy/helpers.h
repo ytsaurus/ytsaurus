@@ -19,7 +19,7 @@ void SetTimeoutOptions(
     NRpc::TClientRequest& request,
     const NApi::TTimeoutOptions& options);
 
-Y_NO_RETURN void ThrowUnimplemented(const TString& method);
+[[noreturn]] void ThrowUnimplemented(const TString& method);
 
 ////////////////////////////////////////////////////////////////////////////////
 
