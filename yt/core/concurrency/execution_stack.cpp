@@ -23,8 +23,13 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Stack sizes.
+#ifdef _asan_enabled_
+static constexpr size_t SmallExecutionStackSize = 2_MB;
+static constexpr size_t LargeExecutionStackSize = 64_MB;
+#else
 static constexpr size_t SmallExecutionStackSize = 256_KB;
 static constexpr size_t LargeExecutionStackSize = 8_MB;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
