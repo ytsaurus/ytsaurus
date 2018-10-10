@@ -1766,7 +1766,7 @@ class TestMinNeededResources(YTEnvSetup):
 
 ##################################################################
 
-class TestFairShareTreesReconfiguration(YTEnvSetup):
+class TestPoolTreesReconfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1787,7 +1787,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
         time.sleep(0.5)  # Give scheduler some time to reload trees
-        super(TestFairShareTreesReconfiguration, self).teardown_method(method)
+        super(TestPoolTreesReconfiguration, self).teardown_method(method)
 
     def test_basic_sanity(self):
         assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
@@ -1910,10 +1910,14 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "online"
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 3
 
+        assert not get("//sys/scheduler/@alerts")
+
         set("//sys/nodes/" + node + "/@user_tags/end", "y")
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline")
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
+        assert get("//sys/scheduler/@alerts")
+        assert get("//sys/scheduler/@alerts")[0]
 
     def test_default_tree_manipulations(self):
         assert get("//sys/pool_trees/@default_tree") == "default"

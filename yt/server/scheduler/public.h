@@ -97,6 +97,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     (UnrecognizedConfigOptions)
     (OperationsArchivation)
     (JobsArchivation)
+    (UpdateNodesFailed)
 );
 
 DEFINE_ENUM(EOperationAlertType,
