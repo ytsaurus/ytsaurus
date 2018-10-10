@@ -870,6 +870,8 @@ private:
 
     NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
 
+    THashMap<TString, bool> IsTreeBanned_;
+
     //! Keeps information needed to maintain the liveness state of input chunks.
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 
