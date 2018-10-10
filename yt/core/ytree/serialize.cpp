@@ -131,10 +131,10 @@ void SerializeProtobufMessage(
     NYson::IYsonConsumer* consumer)
 {
     auto byteSize = message.ByteSize();
-    std::vector<char> wireBytes;
-    wireBytes.reserve(byteSize);
-    YCHECK(message.SerializePartialToArray(wireBytes.data(), byteSize));
-    ArrayInputStream inputStream(wireBytes.data(), byteSize);
+    struct TProtobufToYsonTag { };
+    TBlob wireBytes(GetRefCountedTypeCookie<TProtobufToYsonTag>(), byteSize, false);
+    YCHECK(message.SerializePartialToArray(wireBytes.Begin(), byteSize));
+    ArrayInputStream inputStream(wireBytes.Begin(), byteSize);
     ParseProtobuf(consumer, &inputStream, type);
 }
 
