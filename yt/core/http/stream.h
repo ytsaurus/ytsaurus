@@ -143,6 +143,7 @@ private:
     bool SafeToReuse_ = false;
 
     void FinishHeaders();
+    void FinishMessage();
     void EnsureHeadersReceived();
 
     IInvokerPtr ReadInvoker_;

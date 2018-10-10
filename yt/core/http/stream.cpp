@@ -373,7 +373,7 @@ bool THttpInput::ReceiveHeaders()
         if (Parser_.GetState() != EParserState::Initialized) {
             FinishHeaders();
             if (Parser_.GetState() == EParserState::MessageFinished) {
-                SafeToReuse_ = Parser_.ShouldKeepAlive();
+                FinishMessage();
             }
             Connection_->SetReadDeadline({});
             return true;
@@ -388,6 +388,18 @@ bool THttpInput::ReceiveHeaders()
             idleConnection = false;
             Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
         }
+    }
+}
+
+void THttpInput::FinishMessage()
+{
+    SafeToReuse_ = Parser_.ShouldKeepAlive();
+
+    if (MessageType_ == EMessageType::Request) {
+        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d, Keep-Alive: %v)",
+            RequestId_,
+            GetReadByteCount(),
+            Parser_.ShouldKeepAlive());
     }
 }
 
@@ -447,14 +459,9 @@ TSharedRef THttpInput::DoRead()
 
         UnconsumedData_ = Parser_.Feed(UnconsumedData_);
         if (Parser_.GetState() == EParserState::MessageFinished) {
-            SafeToReuse_ = Parser_.ShouldKeepAlive();
-            Connection_->SetReadDeadline({});
+            FinishMessage();
 
-            if (MessageType_ == EMessageType::Request) {
-                LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d)",
-                    RequestId_,
-                    GetReadByteCount());
-            }
+            Connection_->SetReadDeadline({});
             return EmptySharedRef;
         }
 
