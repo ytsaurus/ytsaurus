@@ -118,7 +118,7 @@ public:
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
 
-    void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
+    std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
     void ResumeOperationJobs(const TOperationId& operationId);

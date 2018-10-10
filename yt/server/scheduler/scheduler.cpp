@@ -1756,7 +1756,7 @@ private:
             const auto& rsp = rspOrError.Value();
             auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
             std::vector<std::vector<std::pair<TString, INodePtr>>> nodesForShard(NodeShards_.size());
-            std::vector<TFuture<void>> shardFutures;
+            std::vector<TFuture<std::vector<TError>>> shardFutures;
             for (const auto& child : nodesList->GetChildren()) {
                 auto address = child->GetValue<TString>();
                 auto objectId = child->Attributes().Get<TObjectId>("id");
@@ -1772,8 +1772,23 @@ private:
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run(std::move(nodesForShard[i])));
             }
-            WaitFor(Combine(shardFutures))
-                .ThrowOnError();
+            auto shardsErrors = WaitFor(Combine(shardFutures))
+                .ValueOrThrow();
+
+            std::vector<TError> allErrors;
+            for (auto& errors : shardsErrors) {
+                for (auto& error : errors) {
+                    allErrors.emplace_back(std::move(error));
+                }
+            }
+
+            if (allErrors.empty()) {
+                SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed, TError());
+            } else {
+                SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed,
+                    TError("Failed to update some nodes")
+                        << allErrors);
+            }
 
             LOG_INFO("Exec nodes information updated");
         } catch (const std::exception& ex) {

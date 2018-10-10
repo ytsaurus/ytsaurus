@@ -547,19 +547,21 @@ void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState, 
     }
 }
 
-void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
+std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     if (HasOngoingNodesAttributesUpdate_) {
-        LOG_WARNING("Node shard is handling nodes attributes update for too long, skipping new update");
-        return;
+        auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
+        LOG_WARNING(error);
+        return {error};
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
     auto finallyGuard = Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
 
     int nodeChangesCount = 0;
+    std::vector<TError> errors;
 
     for (const auto& nodeMap : nodeMaps) {
         const auto& address = nodeMap.first;
@@ -611,6 +613,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
                     << TErrorAttribute("tags", tags)
                     << updateResult;
                 LOG_WARNING(error);
+                errors.push_back(error);
 
                 if (oldState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
@@ -632,6 +635,8 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         UpdateExecNodeDescriptors();
         CachedResourceStatisticsByTags_->Clear();
     }
+
+    return errors;
 }
 
 void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated)
