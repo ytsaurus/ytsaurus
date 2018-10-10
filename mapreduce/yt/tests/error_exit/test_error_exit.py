@@ -11,7 +11,9 @@ import yatest.common
 
 from yt.wrapper.driver import make_formatted_request
 
-TEST_PROGRAM = yatest.common.binary_path("mapreduce/yt/tests/native/error_exit/test_program/test_program")
+from yt_test_conf import TEST_PROGRAM_PATH
+
+TEST_PROGRAM = yatest.common.binary_path(TEST_PROGRAM_PATH)
 
 def get_operation_by_cmd_pattern(yt_client, pattern, attributes=None):
     if attributes is None:
@@ -35,6 +37,8 @@ def get_operation_by_cmd_pattern(yt_client, pattern, attributes=None):
     return result[0]
 
 def check_table_is_not_locked(yt_client, path):
+    if not yt_client.exists(path):
+        return
     tab_id = yt_client.get(path + "/@id")
     locks = list(yt_client.search(root="//sys/locks",
                                    attributes=["node_id", "mode"],
