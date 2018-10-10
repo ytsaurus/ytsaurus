@@ -154,7 +154,7 @@ class YTInstance(object):
                  has_proxy=False, proxy_port=None, has_rpc_proxy=None,
                  rpc_proxy_count=1, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
-                 port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
+                 port_locks_path=None, local_port_range=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
@@ -235,6 +235,7 @@ class YTInstance(object):
         self.port_locks_path = port_locks_path
         if self.port_locks_path is not None:
             makedirp(self.port_locks_path)
+        self.local_port_range = local_port_range
         self._open_port_iterator = None
 
         if fqdn is None:
@@ -282,7 +283,9 @@ class YTInstance(object):
         if port_range_start and isinstance(port_range_start, int):
             return count(port_range_start)
         else:
-            self._open_port_iterator = OpenPortIterator(self.port_locks_path)
+            self._open_port_iterator = OpenPortIterator(
+                port_locks_path=self.port_locks_path,
+                local_port_range=self.local_port_range)
             return self._open_port_iterator
 
     def _get_cgroup_path(self, cgroup_type, *args):

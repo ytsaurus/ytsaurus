@@ -809,8 +809,13 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
         configs, addresses = super(ConfigsProvider_19_3, self)._build_node_configs(
             provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
-        USER_PORT_START = 20000
-        USER_PORT_END = 30000
+        if hasattr(ports_generator, "local_port_range"):
+            USER_PORT_START = ports_generator.local_port_range[1]
+            USER_PORT_END = USER_PORT_START + 10000
+        else:
+            # Legacy constants.
+            USER_PORT_START = 20000
+            USER_PORT_END = 30000
 
         node_count = len(configs)
         for index, config in enumerate(configs):

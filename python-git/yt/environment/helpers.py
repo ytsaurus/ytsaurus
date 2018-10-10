@@ -38,14 +38,14 @@ class OpenPortIterator(Iterator):
     GEN_PORT_ATTEMPTS = 10
     START_PORT = 10000
 
-    def __init__(self, port_locks_path=None):
+    def __init__(self, port_locks_path=None, local_port_range=None):
         self.busy_ports = set()
 
         self.port_locks_path = port_locks_path
         self.lock_fds = set()
 
-        self.local_port_range = None
-        if os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
+        self.local_port_range = local_port_range
+        if self.local_port_range is None and os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
             with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
                 self.local_port_range = list(imap(int, f.read().split()))
 
