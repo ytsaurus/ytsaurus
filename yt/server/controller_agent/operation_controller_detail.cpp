@@ -3677,6 +3677,11 @@ bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 void TOperationControllerBase::MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result)
 {
     if (result.BanTree) {
+        if (IsTreeBanned_[joblet->TreeId]) {
+            return;
+        }
+        IsTreeBanned_[joblet->TreeId] = true;
+
         Host->OnOperationBannedInTentativeTree(
             joblet->TreeId,
             GetJobIdsByTreeId(joblet->TreeId)
@@ -4525,7 +4530,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
                     table.Path,
                     table.Schema);
-            } 
+            }
         }
     }
 }
@@ -7311,6 +7316,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
         InitUpdatingTables();
         InitializeOrchid();
+    }
+
+    if (context.GetVersion() >= 300017) {
+        Persist(context, IsTreeBanned_);
     }
 }
 
