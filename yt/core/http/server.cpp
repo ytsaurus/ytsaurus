@@ -241,9 +241,13 @@ private:
             //
             // So we perform one last Read() here and check that
             // there is no data left inside stream.
-            auto chunk = WaitFor(request->Read())
-                .ValueOrThrow();
-            if (!chunk.Empty()) {
+            bool bodyConsumed = false;
+            try {
+                auto chunk = WaitFor(request->Read())
+                    .ValueOrThrow();
+                bodyConsumed = chunk.Empty();
+            } catch (const std::exception& ) { }
+            if (!bodyConsumed) {
                 logDrop("Body is not fully consumed by the handler");
                 break;
             }
