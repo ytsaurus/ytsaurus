@@ -124,6 +124,7 @@ def git_iter_files_to_sync(git, pathspec):
 class LocalSvn(object):
     def __init__(self, root):
         self.root = os.path.realpath(root)
+        self.ya = os.path.join(self.root, "ya")
         assert os.path.isdir(os.path.join(self.root, '.svn'))
 
     def iter_status(self, path):
@@ -137,7 +138,7 @@ class LocalSvn(object):
         SvnStatusEntry = collections.namedtuple("SvnStatusEntry", ["abspath", "relpath", "status"])
 
         path = os.path.join(self.root, path)
-        xml_status = subprocess.check_output(['svn', 'status', '--xml', '--verbose', path])
+        xml_status = subprocess.check_output([self.ya, 'svn', 'status', '--xml', '--verbose', path])
         tree = ElementTree.fromstring(xml_status)
         for item in tree.findall("target/entry"):
             abspath = item.get("path")
@@ -149,17 +150,17 @@ class LocalSvn(object):
         return os.path.join(self.root, path)
 
     def revert(self, path):
-        subprocess.check_call(["svn", "revert", "--recursive", self.abspath(path)])
+        subprocess.check_call([self.ya, "svn", "revert", "--recursive", self.abspath(path)])
 
     def add(self, path):
         if path.startswith('/') or not os.path.exists(self.abspath(path)):
             raise ValueError("Path '{}' must be relative to svn root".format(path))
-        subprocess.check_call(["svn", "add", "--parents", self.abspath(path)])
+        subprocess.check_call([self.ya, "svn", "add", "--parents", self.abspath(path)])
 
     def remove(self, path):
         if path.startswith('/'):
             raise ValueError("Path '{}' must be relative to svn root".format(path))
-        subprocess.check_call(["svn", "remove", self.abspath(path)])
+        subprocess.check_call([self.ya, "svn", "remove", self.abspath(path)])
 
 def notify_svn(svn, base_path, rel_files):
     rel_files = frozenset(rel_files)
@@ -316,7 +317,8 @@ def subcommand_svn_commit(args):
             outf.write("\nREVIEW:new\n")
 
     print >>sys.stderr, "Commit is prepared, now run:\n"
-    print >>sys.stderr, "$ svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
+    print >>sys.stderr, "$ {ya_path} svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
+        ya_path=os.path.join(args.arcadia, "ya"),
         arcadia_yp_path=svn.abspath(YP_SVN_PATH),
         commit_message_file_name=commit_message_file_name)
 
