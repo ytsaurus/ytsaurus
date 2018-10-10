@@ -29,6 +29,12 @@ using namespace NTableClient;
 
 static constexpr size_t MaxExpressionDepth = 50;
 
+#ifdef _asan_enabled_
+static const int MinimumStackFreeSpace = 128_KB;
+#else
+static const int MinimumStackFreeSpace = 16_KB;
+#endif
+
 struct TQueryPreparerBufferTag
 { };
 
@@ -1205,7 +1211,7 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema) const
     {
         auto* scheduler = TryGetCurrentScheduler();
-        if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
+        if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
             THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
         }
 
