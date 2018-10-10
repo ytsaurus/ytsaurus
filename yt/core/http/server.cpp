@@ -224,23 +224,46 @@ private:
                 break;
             }
 
+            auto logDrop = [&] (auto reason) {
+                LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %Qv)",
+                    connectionId,
+                    reason);
+            };
+
             if (!Config_->EnableKeepAlive) {
+                break;
+            }
+
+            // Arcadia decompressors might return eof earlier than
+            // underlying stream. From HTTP server standpoint that
+            // looks like request that wasn't fully consumed, even if
+            // next Read() on that request would have returned eof.
+            //
+            // So we perform one last Read() here and check that
+            // there is no data left inside stream.
+            auto chunk = WaitFor(request->Read())
+                .ValueOrThrow();
+            if (!chunk.Empty()) {
+                logDrop("Body is not fully consumed by the handler");
                 break;
             }
 
             if (request->IsSafeToReuse()) {
                 request->Reset();
             } else {
+                logDrop("Request is not safe to reuse");
                 break;
             }
 
             if (response->IsSafeToReuse()) {
                 response->Reset();
             } else {
+                logDrop("Response is not safe to reuse");
                 break;
             }
 
             if (!connection->IsIdle()) {
+                logDrop("Connection not idle");
                 break;
             }
         }
