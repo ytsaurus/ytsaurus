@@ -54,6 +54,8 @@ namespace NYT {
  *
  */
 
+extern const TStringBuf DefaultRangeEllipsisFormat;
+
 template <class... TArgs>
 void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
 
@@ -67,6 +69,7 @@ struct TFormattableRange
 {
     TRange Range;
     TFormatter Formatter;
+    ui32 Limit = ui32(-1);
 };
 
 //! Annotates a given #range with #formatter to be applied to each item.
@@ -74,6 +77,14 @@ template <class TRange, class TFormatter>
 TFormattableRange<TRange, TFormatter> MakeFormattableRange(
     const TRange& range,
     const TFormatter& formatter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRange, class TFormatter>
+TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
+    const TRange& range,
+    const TFormatter& formatter,
+    ui32 limit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
