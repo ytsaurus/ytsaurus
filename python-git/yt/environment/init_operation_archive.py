@@ -901,6 +901,21 @@ ACTIONS[25] = [
     reshard_with_fixed_pivots("ordered_by_id"),
 ]
 
+TRANSFORMS[26] = [
+    Convert(
+        "operation_aliases",
+        table_info=TableInfo([
+            ("alias_hash", "uint64", "farm_hash(alias)"),
+            ("alias", "string"),
+        ], [
+            ("operation_id_hi", "uint64"),
+            ("operation_id_lo", "uint64"),
+        ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots)),
+
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
