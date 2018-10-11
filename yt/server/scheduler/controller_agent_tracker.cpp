@@ -712,7 +712,6 @@ public:
         req->SetTimeout(Config_->HeavyRpcTimeout);
 
         auto spec = CloneNode(operation->GetSpec());
-        spec->AsMap()->AddChild("enable_compatible_storage_mode", BuildYsonNodeFluently().Value(operation->GetEnableCompatibleStorageMode()));
 
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());

@@ -1434,7 +1434,7 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetNewOperationPath(OperationId) + "/@output_completion_transaction_id";
+        auto path = GetOperationPath(OperationId) + "/@output_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
         req->set_value(ConvertToYsonString(OutputCompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
@@ -1450,7 +1450,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetNewOperationPath(OperationId) + "/@committed";
+        auto path = GetOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
         req->set_value(ConvertToYsonString(true).GetData());
@@ -1486,7 +1486,7 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetNewOperationPath(OperationId) + "/@debug_completion_transaction_id";
+        auto path = GetOperationPath(OperationId) + "/@debug_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
         req->set_value(ConvertToYsonString(DebugCompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
@@ -4145,7 +4145,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         for (int index = 0; index < OutputTables_.size(); ++index) {
             auto& table = OutputTables_[index];
-            auto path = GetNewOperationPath(OperationId) + "/output_" + ToString(index);
+            auto path = GetOperationPath(OperationId) + "/output_" + ToString(index);
 
             addRequest(
                 path,
@@ -4162,7 +4162,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (StderrTable_) {
         LOG_INFO("Creating live preview for stderr table");
 
-        auto path = GetNewOperationPath(OperationId) + "/stderr";
+        auto path = GetOperationPath(OperationId) + "/stderr";
 
         addRequest(
             path,
@@ -4178,7 +4178,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (IsIntermediateLivePreviewSupported()) {
         LOG_INFO("Creating live preview for intermediate table");
 
-        auto path = GetNewOperationPath(OperationId) + "/intermediate";
+        auto path = GetOperationPath(OperationId) + "/intermediate";
 
         addRequest(
             path,
@@ -4204,7 +4204,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         LOG_INFO("Creating intermediate data access node (IntermediateDataAcl: %v)",
             ConvertToYsonString(Spec_->IntermediateDataAcl, EYsonFormat::Text));
 
-        auto path = GetNewOperationPath(OperationId) + "/intermediate_data_access";
+        auto path = GetOperationPath(OperationId) + "/intermediate_data_access";
 
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::MapNode));

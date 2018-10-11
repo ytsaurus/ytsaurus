@@ -411,7 +411,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto path = GetNewOperationPath(operationId)
+        auto path = GetOperationPath(operationId)
             + (accessType == EAccessType::Ownership ? "/@effective_acl" : "/@full_spec/intermediate_data_acl");
 
         auto result = WaitFor(Bootstrap_->GetMasterClient()->GetNode(path))
