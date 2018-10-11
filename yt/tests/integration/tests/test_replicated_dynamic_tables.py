@@ -838,7 +838,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_replication_trim(self, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000)
+        self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000, dynamic_store_period_skew=0)
 
         sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
