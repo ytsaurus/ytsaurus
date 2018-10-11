@@ -3,6 +3,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/yson/public.h>
+
 
 namespace NYT {
 namespace NSchedulerSimulator {
@@ -11,6 +13,9 @@ using namespace NScheduler;
 using namespace NLogging;
 using namespace NControllerAgent;
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
+using namespace NNodeTrackerClient;
 
 static const auto& Logger = SchedulerSimulatorLogger;
 
@@ -41,7 +46,6 @@ NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentJobEvent(cons
 DEFINE_REFCOUNTED_TYPE(TSimulatorNodeShard)
 
 TSimulatorNodeShard::TSimulatorNodeShard(
-    const std::vector<TExecNodePtr>* execNodes,
     TSharedEventQueue* events,
     TSharedSchedulerStrategy* schedulingStrategy,
     TSharedOperationStatistics* operationStatistics,
@@ -52,8 +56,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     const TSchedulerConfigPtr& schedulerConfig,
     TInstant earliestTime,
     int shardId)
-    : ExecNodes_(execNodes)
-    , Events_(events)
+    : Events_(events)
     , SchedulingStrategy_(schedulingStrategy)
     , OperationStatistics_(operationStatistics)
     , OperationStatisticsOutput_(operationStatisticsOutput)
@@ -80,8 +83,26 @@ TFuture<void> TSimulatorNodeShard::AsyncRun()
         .Run();
 }
 
+void TSimulatorNodeShard::RegisterNode(const NYT::NScheduler::TExecNodePtr& node)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    IdToNode_.emplace(node->GetId(), node);
+}
+
+void TSimulatorNodeShard::BuildNodesYson(TFluentMap fluent)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    for (const auto& pair : IdToNode_) {
+        BuildNodeYson(pair.second, fluent);
+    }
+}
+
 void TSimulatorNodeShard::Run()
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     while (JobAndOperationCounter_->HasUnfinishedOperations()) {
         RunOnce();
         Yield();
@@ -90,9 +111,10 @@ void TSimulatorNodeShard::Run()
     Events_->OnNodeShardSimulationFinished(ShardId_);
 }
 
-
 void TSimulatorNodeShard::RunOnce()
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     auto eventNullable = Events_->PopNodeShardEvent(ShardId_);
     if (!eventNullable) {
         return;
@@ -114,9 +136,9 @@ void TSimulatorNodeShard::RunOnce()
 
 void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
 {
-    LOG_DEBUG("Heartbeat started (VirtualTimestamp: %v, NodeIndex: %v)", event.Time, event.NodeIndex);
+    LOG_DEBUG("Heartbeat started (VirtualTimestamp: %v, NodeId: %v)", event.Time, event.NodeId);
 
-    const auto& node = (*ExecNodes_)[event.NodeIndex];
+    const auto& node = IdToNode_[event.NodeId];
 
     // Prepare scheduling context.
     const auto& jobsSet = node->Jobs();
@@ -138,19 +160,19 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         // Notify scheduler.
         job->SetState(EJobState::Running);
 
-        LOG_DEBUG("Job started (VirtualTimestamp: %v, JobId: %v, OperationId: %v, FinishTime: %v, NodeIndex: %v)",
+        LOG_DEBUG("Job started (VirtualTimestamp: %v, JobId: %v, OperationId: %v, FinishTime: %v, NodeId: %v)",
             event.Time,
             job->GetId(),
             job->GetOperationId(),
             event.Time + duration,
-            event.NodeIndex);
+            event.NodeId);
 
         // Schedule new event.
         auto jobFinishedEvent = TNodeShardEvent::JobFinished(
             event.Time + duration,
             job,
             node,
-            event.NodeIndex);
+            event.NodeId);
         Events_->InsertNodeShardEvent(ShardId_, jobFinishedEvent);
 
         // Update stats.
@@ -181,7 +203,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         nextHeartbeat.Time += TDuration::MilliSeconds(Config_->HeartbeatPeriod);
         Events_->InsertNodeShardEvent(ShardId_, nextHeartbeat);
     }
-    LOG_DEBUG("Heartbeat finished (VirtualTimestamp: %v, NodeIndex: %v)", event.Time, event.NodeIndex);
+    LOG_DEBUG("Heartbeat finished (VirtualTimestamp: %v, NodeId: %v)", event.Time, event.NodeId);
 }
 
 void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
@@ -197,11 +219,11 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
     YCHECK(job->GetNode()->Jobs().erase(job) == 1);
 
     LOG_DEBUG(
-        "Job finished (VirtualTimestamp: %v, JobId: %v, OperationId: %v, NodeIndex: %v)",
+        "Job finished (VirtualTimestamp: %v, JobId: %v, OperationId: %v, NodeId: %v)",
         event.Time,
         job->GetId(),
         job->GetOperationId(),
-        event.NodeIndex);
+        event.NodeId);
 
     JobAndOperationCounter_->OnJobFinished();
 
@@ -238,12 +260,12 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
     }
 
     // Schedule out of band heartbeat.
-    Events_->InsertNodeShardEvent(ShardId_, TNodeShardEvent::Heartbeat(event.Time, event.NodeIndex, true));
+    Events_->InsertNodeShardEvent(ShardId_, TNodeShardEvent::Heartbeat(event.Time, event.NodeId, true));
 
     // Update statistics.
     OperationStatistics_->OnJobFinished(operation->GetId(), event.Time - job->GetStartTime());
 
-    const auto& node = (*ExecNodes_)[event.NodeIndex];
+    const auto& node = IdToNode_[event.NodeId];
     YCHECK(node == event.JobNode);
     node->SetResourceUsage(node->GetResourceUsage() - job->ResourceUsage());
 
@@ -264,6 +286,21 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
             event.Time - EarliestTime_);
         OperationStatisticsOutput_->PrintEntry(id, stats);
     }
+}
+
+void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
+{
+    fluent
+        .Item(node->GetDefaultAddress()).BeginMap()
+        .Do([&] (TFluentMap fluent) {
+            BuildExecNodeAttributes(node, fluent);
+        })
+        .EndMap();
+}
+
+int GetNodeShardId(TNodeId nodeId, int nodeShardCount)
+{
+    return THash<TNodeId>()(nodeId) % nodeShardCount;
 }
 
 } // namespace NSchedulerSimulator

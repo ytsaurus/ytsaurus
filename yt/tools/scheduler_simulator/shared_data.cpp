@@ -1,6 +1,10 @@
 #include "shared_data.h"
+#include "node_shard.h"
 
 #include <yt/server/scheduler/fair_share_strategy.h>
+
+#include <random>
+
 
 namespace NYT {
 namespace NSchedulerSimulator {
@@ -10,6 +14,7 @@ namespace NSchedulerSimulator {
 using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,14 +22,14 @@ TNodeShardEvent::TNodeShardEvent(EEventType type, TInstant time)
     : Type(type)
     , Time(time)
     , OperationId(TGuid())
-    , NodeIndex(-1)
+    , NodeId(0)
     , Job(nullptr)
 { }
 
-TNodeShardEvent TNodeShardEvent::Heartbeat(TInstant time, int nodeIndex, bool scheduledOutOfBand)
+TNodeShardEvent TNodeShardEvent::Heartbeat(TInstant time, TNodeId nodeId, bool scheduledOutOfBand)
 {
     TNodeShardEvent event(EEventType::Heartbeat, time);
-    event.NodeIndex = nodeIndex;
+    event.NodeId = nodeId;
     event.ScheduledOutOfBand = scheduledOutOfBand;
     return event;
 }
@@ -33,12 +38,12 @@ TNodeShardEvent TNodeShardEvent::JobFinished(
     TInstant time,
     const TJobPtr& job,
     const TExecNodePtr& execNode,
-    int nodeIndex)
+    TNodeId nodeId)
 {
     TNodeShardEvent event(EEventType::JobFinished, time);
     event.Job = job;
     event.JobNode = execNode;
-    event.NodeIndex = nodeIndex;
+    event.NodeId = nodeId;
     return event;
 }
 
@@ -153,9 +158,9 @@ const TOperationDescription& TSharedOperationStatistics::GetOperationDescription
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedEventQueue::TSharedEventQueue(
+    const std::vector<TExecNodePtr>& execNodes,
     int heartbeatPeriod,
     TInstant earliestTime,
-    int execNodeCount,
     int nodeShardCount,
     TDuration maxAllowedOutrunning)
     : NodeShardEvents_(nodeShardCount)
@@ -167,12 +172,19 @@ TSharedEventQueue::TSharedEventQueue(
         NodeShardClocks_[shardId]->store(earliestTime);
     }
 
-    auto heartbeatsStartTime = earliestTime - TDuration::MilliSeconds(heartbeatPeriod);
-    for (int nodeIndex = 0; nodeIndex < execNodeCount; ++nodeIndex) {
-        const int workerId = nodeIndex % nodeShardCount;
-        const auto heartbeatStartDelay = TDuration::MilliSeconds((heartbeatPeriod * nodeIndex) / execNodeCount);
-        auto heartbeat = TNodeShardEvent::Heartbeat(heartbeatsStartTime + heartbeatStartDelay, nodeIndex, false);
-        NodeShardEvents_[workerId]->insert(heartbeat);
+    auto heartbeatStartTime = earliestTime - TDuration::MilliSeconds(heartbeatPeriod);
+    std::mt19937 random_generator;
+    std::uniform_int_distribution<int> distribution(0, heartbeatPeriod - 1);
+
+    for (const auto& execNode : execNodes) {
+        const int nodeShardId = GetNodeShardId(execNode->GetId(), nodeShardCount);
+
+        const auto heartbeatStartDelay = TDuration::MilliSeconds(distribution(random_generator));
+        auto heartbeat = TNodeShardEvent::Heartbeat(
+            heartbeatStartTime + heartbeatStartDelay,
+            execNode->GetId(),
+            false);
+        InsertNodeShardEvent(nodeShardId, heartbeat);
     }
 }
 
