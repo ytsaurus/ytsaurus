@@ -214,9 +214,7 @@ class DynamicTablesClient(object):
     environment = {}
 
     # Nice yson format
-    yson_format = yt_module.YsonFormat(
-        boolean_as_string=False, process_table_index=False)
-
+    yson_format = yt_module.YsonFormat()
     yt = None
 
     def __init__(self, yt, **options):
