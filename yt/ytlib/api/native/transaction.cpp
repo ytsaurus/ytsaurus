@@ -698,7 +698,7 @@ private:
                             TUnversionedRow(modification.Row),
                             primarySchema,
                             primaryIdMapping,
-                            &columnPresenceBuffer);
+                            modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
                         TTabletInfoPtr tabletInfo;
                         if (tableInfo->IsSorted()) {
                             if (evaluator) {
