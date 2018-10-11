@@ -3845,7 +3845,7 @@ private:
         SetBalancingHeader(batchReq, options);
 
         {
-            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
             if (cypressAttributes) {
                 ToProto(req->mutable_attributes()->mutable_keys(), *cypressAttributes);
             }
@@ -4362,13 +4362,8 @@ private:
         };
 
         try {
-            auto fileReaderOrError = createFileReader(NScheduler::GetNewStderrPath(operationId, jobId));
-            // COMPAT
-            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                fileReaderOrError = createFileReader(NScheduler::GetStderrPath(operationId, jobId));
-            }
-
-            auto fileReader = fileReaderOrError.ValueOrThrow();
+            auto fileReader = createFileReader(NScheduler::GetStderrPath(operationId, jobId))
+                .ValueOrThrow();
 
             std::vector<TSharedRef> blocks;
             while (true) {
@@ -4544,13 +4539,8 @@ private:
         };
 
         try {
-            auto fileReaderOrError = createFileReader(NScheduler::GetNewFailContextPath(operationId, jobId));
-            // COMPAT
-            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                fileReaderOrError = createFileReader(NScheduler::GetFailContextPath(operationId, jobId));
-            }
-
-            auto fileReader = fileReaderOrError.ValueOrThrow();
+            auto fileReader = createFileReader(NScheduler::GetFailContextPath(operationId, jobId))
+                .ValueOrThrow();
 
             std::vector<TSharedRef> blocks;
             while (true) {
@@ -5019,7 +5009,7 @@ private:
             SetBalancingHeader(getBatchReq, options);
 
             for (const auto& operation: filteredOperations) {
-                auto req = TYPathProxy::Get(GetNewOperationPath(*operation.Id));
+                auto req = TYPathProxy::Get(GetOperationPath(*operation.Id));
                 SetCachingHeader(req, options);
                 ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(requestedAttributes));
                 getBatchReq->AddRequest(req);
@@ -5728,25 +5718,11 @@ private:
             batchReq->AddRequest(getReq, "get_jobs");
         }
 
-        {
-            auto getReqNew = TYPathProxy::Get(GetNewJobsPath(operationId));
-            ToProto(getReqNew->mutable_attributes()->mutable_keys(), attributeFilter);
-            batchReq->AddRequest(getReqNew, "get_jobs_new");
-        }
-
         return batchReq->Invoke().Apply(BIND([options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
-
-            auto getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs_new");
-            if (!getReqRsp.IsOK()) {
-                if (getReqRsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
-                } else {
-                    THROW_ERROR getReqRsp;
-                }
-            }
+            auto getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
 
             const auto& rsp = getReqRsp.ValueOrThrow();
 

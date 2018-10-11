@@ -213,11 +213,6 @@ public:
     //! Marks that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
-    //! Controls operation storage mode. If disabled then operation node
-    //! will be created only in //sys/operations/<bucket>/<op_id> and won't
-    //! be duplicated in //sys/operations.
-    DEFINE_BYVAL_RW_PROPERTY(bool, EnableCompatibleStorageMode);
-
     //! Brief operation spec.
     DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, BriefSpec);
 
@@ -319,7 +314,6 @@ public:
         TOperationRuntimeParametersPtr runtimeParams,
         const TString& authenticatedUser,
         TInstant startTime,
-        bool enableCompatibleStorageMode,
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},

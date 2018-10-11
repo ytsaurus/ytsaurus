@@ -329,7 +329,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
     try {
         LOG_INFO("Started uploading snapshot");
 
-        auto snapshotPath = GetNewSnapshotPath(operationId);
+        auto snapshotPath = GetSnapshotPath(operationId);
         auto snapshotUploadPath = snapshotPath + TmpSuffix;
 
         // Start outer transaction.

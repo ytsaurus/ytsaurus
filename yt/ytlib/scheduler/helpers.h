@@ -27,7 +27,6 @@ NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobI
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobId);
 
 NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
@@ -37,24 +36,10 @@ TNullable<TString> GetControllerAgentAddressFromCypress(
     const TOperationId& operationId,
     const NRpc::IChannelPtr& channel);
 
-// TODO(babenko): remove "New" infix once we fully migrate to this scheme
-NYPath::TYPath GetNewJobsPath(const TOperationId& operationId);
-NYPath::TYPath GetNewJobPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetNewOperationPath(const TOperationId& operationId);
-NYPath::TYPath GetNewSecureVaultPath(const TOperationId& operationId);
-NYPath::TYPath GetNewSnapshotPath(const TOperationId& operationId);
-NYPath::TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& jobId);
-
-std::vector<NYPath::TYPath> GetJobPaths(
+NYPath::TYPath GetJobPath(
     const TOperationId& operationId,
     const TJobId& jobId,
-    bool enableCompatibleStorageMode,
-    const TString& resourceName = {});
-
-std::vector<NYPath::TYPath> GetOperationPaths(
-    const TOperationId& operationId,
-    bool enableCompatibleStorageMode,
-    const TString& resourceName = {});
+    const TString& resourceName);
 
 const NYPath::TYPath& GetPoolTreesPath();
 const NYPath::TYPath& GetOperationsArchiveOrderedByIdPath();

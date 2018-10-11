@@ -434,7 +434,7 @@ public:
     //! but leads to an 12x memory consumption in controller at worst case scenario.
     bool SliceErasureChunksByParts;
 
-    //! Controls operation storage mode.
+    //! Controls operation storage mode. UNUSED.
     bool EnableCompatibleStorageMode;
 
     //! Option controlling the presence of a legacy live preview.
