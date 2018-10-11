@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/object_client/object_ypath.pb.h>
 
+#include <yt/core/misc/checksum.h>
+
 #include <yt/core/rpc/message.h>
 
 namespace NYT {
@@ -111,6 +113,25 @@ TSharedRef TObjectServiceProxy::TReqExecuteSubbatch::SerializeBody() const
     return SerializeProtoToRefWithEnvelope(req);
 }
 
+size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
+{
+    if (!Hash_) {
+        size_t hash = 0;
+        HashCombine(hash, SuppressUpstreamSync_);
+        for (const auto& descriptor : InnerRequestDescriptors_) {
+            if (descriptor.Hash) {
+                HashCombine(hash, descriptor.Hash);
+            } else {
+                for (auto* it = descriptor.Message.Begin(); it != descriptor.Message.End(); ++it) {
+                    HashCombine(hash, GetChecksum(*it));
+                }
+            }
+        }
+        Hash_ = hash;
+    }
+    return *Hash_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel)
@@ -128,7 +149,8 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     TYPathRequestPtr innerRequest,
-    const TString& key)
+    const TString& key,
+    TNullable<size_t> hash)
 {
     TSharedRefArray innerRequestMessage;
     auto needsPatchingForRetry = false;
@@ -141,21 +163,22 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
         }
     }
 
-    return AddRequestMessage(innerRequestMessage, needsPatchingForRetry, key);
+    return AddRequestMessage(innerRequestMessage, needsPatchingForRetry, key, hash);
 }
 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
-    const TString& key)
+    const TString& key,
+    TNullable<size_t> hash)
 {
     if (!key.empty()) {
         int index = static_cast<int>(InnerRequestDescriptors_.size());
         KeyToIndexes_.insert(std::make_pair(key, index));
     }
 
-    InnerRequestDescriptors_.emplace_back(TInnerRequestDescriptor{innerRequestMessage, needsPatchingForRetry});
+    InnerRequestDescriptors_.emplace_back(TInnerRequestDescriptor{innerRequestMessage, needsPatchingForRetry, hash});
 
     return this;
 }
