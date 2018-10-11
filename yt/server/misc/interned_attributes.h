@@ -76,6 +76,7 @@
     XX(ErasureStatistics, erasure_statistics) \
     XX(Error, error) \
     XX(Errors, errors) \
+    XX(ErrorsUntrimmed, errors_untrimmed) \
     XX(Executable, executable) \
     XX(ExpirationTime, expiration_time) \
     XX(ExportedObjectCount, exported_object_count) \
@@ -232,6 +233,7 @@
     XX(TabletCountByState, tablet_count_by_state) \
     XX(TabletErrorCount, tablet_error_count) \
     XX(TabletErrors, tablet_errors) \
+    XX(TabletErrorsUntrimmed, tablet_errors_untrimmed) \
     XX(TabletIds, tablet_ids) \
     XX(TabletSlots, tablet_slots) \
     XX(TabletState, tablet_state) \
