@@ -78,6 +78,9 @@ private:
         TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
         TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
 
+        size_t YoungerWeightCounter = 0;
+        size_t OlderWeightCounter = 0;
+
         THashMap<TKey, TItem*, THash> ItemMap;
 
         std::vector<TItem*> TouchBuffer;
@@ -105,7 +108,7 @@ private:
     void PushToYounger(TShard* shard, TItem* item);
     void MoveToYounger(TShard* shard, TItem* item);
     void MoveToOlder(TShard* shard, TItem* item);
-    void Pop(TItem* item);
+    void Pop(TShard* shard, TItem* item);
 
 };
 
