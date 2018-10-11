@@ -165,9 +165,9 @@ class JobInfo(object):
         self.operation_start = float(operation_start)
         self.start_time = float(_get_event_time("created", job_info["events"]) - operation_start)
         self.start_running = float(_get_event_time("running", job_info["events"]) - operation_start)
-        self.end_time = float(_get_event_time("finished", job_info["events"]) - operation_start)
-        self.total_time = self.end_time - self.start_time
-        self.exec_time = self.end_time - self.start_running
+        self.finish_time = float(_get_event_time("finished", job_info["events"]) - operation_start)
+        self.total_time = self.finish_time - self.start_time
+        self.exec_time = self.finish_time - self.start_running
         self.prepare_time = self.start_running - self.start_time
         
         self.state = job_info["state"] or job_info["transient_state"]
@@ -236,7 +236,7 @@ class JobInfo(object):
             self.node,
             _format_lo_hi(self.job_id_lo, self.job_id_hi),
             _ts_to_time_str(self.operation_start + self.start_time),
-            _ts_to_time_str(self.operation_start + self.end_time)
+            _ts_to_time_str(self.operation_start + self.finish_time)
         )
     
     def __eq__(self, other):
@@ -281,7 +281,7 @@ def get_raw_time_gantt_data(jobset):
             job_events.append(dict(
                 start_time=job_info.start_time,
                 start_running=job_info.start_running,
-                end_time=job_info.end_time,
+                finish_time=job_info.finish_time,
                 job_id=job_info.job_id,
                 state=job_info.state,
             ))
@@ -313,7 +313,7 @@ def draw_time_gantt(jobset):
                 showlegend=False,
             ))
             lines.append(_get_hline(
-                job_info["start_running"], job_info["end_time"], y,
+                job_info["start_running"], job_info["finish_time"], y,
                 color=("green" if job_info["state"] == "completed" else "red"),
                 name="Job {}".format(job_info["job_id"]),
                 showlegend=False,
@@ -420,7 +420,7 @@ def get_raw_comparative_time_plot_data(jobsets):
         jobset_info = []
         for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             min_time = min(job_info.start_time for job_info in jobset if job_info.type == job_type)
-            max_time = max(job_info.end_time for job_info in jobset if job_info.type == job_type)
+            max_time = max(job_info.finish_time for job_info in jobset if job_info.type == job_type)
             time_points = numpy.linspace(
                 max(0, min_time - 1),
                 max_time + 1,
@@ -430,7 +430,7 @@ def get_raw_comparative_time_plot_data(jobsets):
             job_count = [0] * len(time_points)
             for job_info in jobs_info:
                 for num, point in enumerate(time_points):
-                    job_count[num] += job_info.start_time <= point <= job_info.end_time
+                    job_count[num] += job_info.start_time <= point <= job_info.finish_time
             jobset_info.append(dict(
                 job_type=job_type,
                 x_values=list(time_points),
