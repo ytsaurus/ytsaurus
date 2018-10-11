@@ -26,18 +26,18 @@ struct TNodeShardEvent
     EEventType Type;
     TInstant Time;
     NScheduler::TOperationId OperationId;
-    int NodeIndex;
+    NNodeTrackerClient::TNodeId NodeId;
     NScheduler::TJobPtr Job;
     NScheduler::TExecNodePtr JobNode;
     bool ScheduledOutOfBand;
 
-    static TNodeShardEvent Heartbeat(TInstant time, int nodeIndex, bool scheduledOutOfBand);
+    static TNodeShardEvent Heartbeat(TInstant time, NNodeTrackerClient::TNodeId nodeId, bool scheduledOutOfBand);
 
     static TNodeShardEvent JobFinished(
         TInstant time,
         const NScheduler::TJobPtr& job,
         const NScheduler::TExecNodePtr& execNode,
-        int nodeIndex);
+        NNodeTrackerClient::TNodeId nodeId);
 
 private:
     TNodeShardEvent(EEventType type, TInstant time);
@@ -95,9 +95,9 @@ class TSharedEventQueue
 {
 public:
     TSharedEventQueue(
+        const std::vector<NScheduler::TExecNodePtr>& execNodes,
         int heartbeatPeriod,
         TInstant earliestTime,
-        int execNodeCount,
         int nodeShardCount,
         TDuration maxAllowedOutrunning);
 

@@ -8,6 +8,8 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/yson/public.h>
+
 
 namespace NYT {
 namespace NSchedulerSimulator {
@@ -15,6 +17,8 @@ namespace NSchedulerSimulator {
 using namespace NScheduler;
 using namespace NLogging;
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 
 static const auto& Logger = SchedulerSimulatorLogger;
 
@@ -38,6 +42,11 @@ TControlThreadEvent TControlThreadEvent::FairShareUpdateAndLog(TInstant time)
     return TControlThreadEvent(EControlThreadEventType::FairShareUpdateAndLog, time);
 }
 
+TControlThreadEvent TControlThreadEvent::LogNodes(TInstant time)
+{
+    return TControlThreadEvent(EControlThreadEventType::LogNodes, time);
+}
+
 bool operator<(const TControlThreadEvent& lhs, const TControlThreadEvent& rhs)
 {
     if (lhs.Time != rhs.Time) {
@@ -49,7 +58,7 @@ bool operator<(const TControlThreadEvent& lhs, const TControlThreadEvent& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimulatorControlThread::TSimulatorControlThread(
-    const std::vector<NScheduler::TExecNodePtr>* execNodes,
+    const std::vector<TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream,
     const TSchedulerSimulatorConfigPtr& config,
     const NScheduler::TSchedulerConfigPtr& schedulerConfig,
@@ -57,15 +66,17 @@ TSimulatorControlThread::TSimulatorControlThread(
     TInstant earliestTime)
     : Initialized_(false)
     , FairShareUpdateAndLogPeriod_(schedulerConfig->FairShareUpdatePeriod)
+    , NodesInfoLoggingPeriod_(schedulerConfig->NodesInfoLoggingPeriod)
     , Config_(config)
+    , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
     , StrategyHost_(execNodes, eventLogOutputStream)
     , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
     , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
-    , NodeShardEvents_(
+    , NodeShardEventQueue_(
+        *execNodes,
         config->HeartbeatPeriod,
         earliestTime,
-        execNodes->size(),
         config->ThreadCount,
         /* maxAllowedOutrunning */ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
     , OperationStatistics_(operations)
@@ -77,11 +88,11 @@ TSimulatorControlThread::TSimulatorControlThread(
         InsertControlThreadEvent(TControlThreadEvent::OperationStarted(operation.StartTime, operation.Id));
     }
     InsertControlThreadEvent(TControlThreadEvent::FairShareUpdateAndLog(earliestTime));
+    InsertControlThreadEvent(TControlThreadEvent::LogNodes(earliestTime + TDuration::MilliSeconds(123)));
 
     for (int shardId = 0; shardId < config->ThreadCount; ++shardId) {
         auto nodeShard = New<TSimulatorNodeShard>(
-            execNodes,
-            &NodeShardEvents_,
+            &NodeShardEventQueue_,
             &SchedulerStrategyForNodeShards_,
             &OperationStatistics_,
             &OperationStatisticsOutput_,
@@ -91,6 +102,7 @@ TSimulatorControlThread::TSimulatorControlThread(
             schedulerConfig,
             earliestTime,
             shardId);
+
         NodeShards_.push_back(nodeShard);
     }
 }
@@ -103,6 +115,16 @@ void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
         .ThrowOnError();
+
+    for (const auto& execNode : *ExecNodes_) {
+        const auto& nodeShard = NodeShards_[GetNodeShardId(execNode->GetId(), NodeShards_.size())];
+        WaitFor(
+            BIND(&TSimulatorNodeShard::RegisterNode, nodeShard, execNode)
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run())
+            .ThrowOnError();
+    }
+
     Initialized_.store(true);
 }
 
@@ -177,6 +199,11 @@ void TSimulatorControlThread::RunOnce()
             OnFairShareUpdateAndLog(event);
             break;
         }
+
+        case EControlThreadEventType::LogNodes: {
+            OnLogNodes(event);
+            break;
+        }
     }
 }
 
@@ -211,7 +238,7 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
     auto updateTime = event.Time;
 
     LOG_INFO("Started waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
-    NodeShardEvents_.WaitForStrugglingNodeShards(updateTime);
+    NodeShardEventQueue_.WaitForStrugglingNodeShards(updateTime);
     LOG_INFO("Finished waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
 
     SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
@@ -221,8 +248,37 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
         SchedulerStrategy_->OnFairShareEssentialLoggingAt(updateTime);
     }
 
-    NodeShardEvents_.UpdateControlThreadTime(updateTime);
+    NodeShardEventQueue_.UpdateControlThreadTime(updateTime);
     InsertControlThreadEvent(TControlThreadEvent::FairShareUpdateAndLog(event.Time + FairShareUpdateAndLogPeriod_));
+}
+
+void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
+{
+    LOG_INFO("Started logging nodes info (VirtualTimestamp: %v)", event.Time);
+
+    std::vector<TFuture<TYsonString>> nodeListFutures;
+    for (const auto& nodeShard : NodeShards_) {
+        nodeListFutures.push_back(
+            BIND([nodeShard] () {
+                return BuildYsonStringFluently<EYsonType::MapFragment>()
+                    .Do(BIND(&TSimulatorNodeShard::BuildNodesYson, nodeShard))
+                    .Finish();
+            })
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run());
+    }
+
+    auto nodeLists = WaitFor(Combine(nodeListFutures))
+        .ValueOrThrow();
+
+    StrategyHost_.LogEventFluently(ELogEventType::NodesInfo, event.Time)
+        .Item("nodes")
+        .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
+            fluent.Items(nodeList);
+        });
+
+    InsertControlThreadEvent(TControlThreadEvent::LogNodes(event.Time + NodesInfoLoggingPeriod_));
+    LOG_INFO("Finished logging nodes info (VirtualTimestamp: %v)", event.Time);
 }
 
 void TSimulatorControlThread::InsertControlThreadEvent(TControlThreadEvent event)

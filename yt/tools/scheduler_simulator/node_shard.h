@@ -20,7 +20,6 @@ class TSimulatorNodeShard
 {
 public:
     TSimulatorNodeShard(
-        const std::vector<NScheduler::TExecNodePtr>* execNodes,
         TSharedEventQueue* events,
         TSharedSchedulerStrategy* schedulingStrategy,
         TSharedOperationStatistics* operationStatistics,
@@ -36,8 +35,12 @@ public:
 
     TFuture<void> AsyncRun();
 
+    void RegisterNode(const NScheduler::TExecNodePtr& node);
+
+    void BuildNodesYson(NYTree::TFluentMap fluent);
+
 private:
-    const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
+    THashMap<NNodeTrackerClient::TNodeId, NScheduler::TExecNodePtr> IdToNode_;
     TSharedEventQueue* Events_;
     TSharedSchedulerStrategy* SchedulingStrategy_;
     TSharedOperationStatistics* OperationStatistics_;
@@ -58,7 +61,10 @@ private:
 
     void OnHeartbeat(const TNodeShardEvent& event);
     void OnJobFinished(const TNodeShardEvent& event);
+    void BuildNodeYson(const NScheduler::TExecNodePtr& node, NYTree::TFluentMap fluent);
 };
+
+int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId, int nodeShardCount);
 
 } // namespace NSchedulerSimulator
 } // namespace NYT

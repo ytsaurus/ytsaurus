@@ -15,6 +15,7 @@ namespace NSchedulerSimulator {
 DEFINE_ENUM(EControlThreadEventType,
     ((FairShareUpdateAndLog) (0))
     ((OperationStarted)      (1))
+    ((LogNodes)              (2))
 );
 
 struct TControlThreadEvent
@@ -26,6 +27,8 @@ struct TControlThreadEvent
     static TControlThreadEvent OperationStarted(TInstant time, NScheduler::TOperationId id);
 
     static TControlThreadEvent FairShareUpdateAndLog(TInstant time);
+
+    static TControlThreadEvent LogNodes(TInstant time);
 
 private:
     TControlThreadEvent(EControlThreadEventType type, TInstant time);
@@ -57,7 +60,9 @@ private:
     std::atomic<bool> Initialized_;
 
     const TDuration FairShareUpdateAndLogPeriod_;
+    const TDuration NodesInfoLoggingPeriod_;
     const TSchedulerSimulatorConfigPtr Config_;
+    const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
 
     std::multiset<TControlThreadEvent> ControlThreadEvents_;
     std::vector<TSimulatorNodeShardPtr> NodeShards_;
@@ -66,7 +71,7 @@ private:
     TSchedulerStrategyHost StrategyHost_;
     NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
     TSharedSchedulerStrategy SchedulerStrategyForNodeShards_;
-    TSharedEventQueue NodeShardEvents_;
+    TSharedEventQueue NodeShardEventQueue_;
 
     TSharedOperationStatistics OperationStatistics_;
     TSharedOperationStatisticsOutput OperationStatisticsOutput_;
@@ -80,6 +85,7 @@ private:
 
     void OnOperationStarted(const TControlThreadEvent& event);
     void OnFairShareUpdateAndLog(const TControlThreadEvent& event);
+    void OnLogNodes(const TControlThreadEvent& event);
 
     void InsertControlThreadEvent(TControlThreadEvent event);
     TControlThreadEvent PopControlThreadEvent();
