@@ -1071,6 +1071,14 @@ void BuildPartitionCountOperationPart(const TSpec& spec, TNode* nodeSpec)
 }
 
 template <typename TSpec>
+void BuildDataSizePerSortJobPart(const TSpec& spec, TNode* nodeSpec)
+{
+    if (spec.DataSizePerSortJob_.Defined()) {
+        (*nodeSpec)["data_size_per_sort_job"] = *spec.DataSizePerSortJob_;
+    }
+}
+
+template <typename TSpec>
 void BuildPartitionJobCountOperationPart(const TSpec& spec, TNode* nodeSpec)
 {
     if (spec.PartitionJobCount_.Defined()) {
@@ -1630,6 +1638,7 @@ TOperationId DoExecuteMapReduce(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildMapJobCountOperationPart(spec, &specNode["spec"]);
     BuildPartitionCountOperationPart(spec, &specNode["spec"]);
+    BuildDataSizePerSortJobPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
