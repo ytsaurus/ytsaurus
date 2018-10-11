@@ -64,6 +64,10 @@ private:
         attributes->push_back(EInternedAttributeKey::Mode);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Errors)
+            .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ErrorsUntrimmed)
+            .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableReplicatedTableTracker)
@@ -131,6 +135,16 @@ private:
                                 .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)
                             .EndMap();
                     });
+                return true;
+
+            case EInternedAttributeKey::Errors:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetErrors(ReplicationErrorCountViewLimit));
+                return true;
+
+            case EInternedAttributeKey::ErrorsUntrimmed:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetErrors());
                 return true;
 
             case EInternedAttributeKey::ReplicationLagTime:

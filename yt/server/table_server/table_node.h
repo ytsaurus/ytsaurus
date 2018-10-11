@@ -129,6 +129,8 @@ public:
 
     const NTableClient::TTableSchema& GetTableSchema() const;
 
+    std::vector<TError> GetTabletErrors(TNullable<int> limit = Null) const;
+
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
