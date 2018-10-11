@@ -45,7 +45,7 @@ def _get_operation_info(op_id, client):
     """Get job statistics from the archive"""
     hi_id, lo_id = uuid_to_parts(op_id)
     start_job_id_hi, start_job_id_lo = 0, 0
-    chunk_size = 5000
+    chunk_size = 2000
     operation_info = []
     while True:
         chunk = list(client.select_rows(
@@ -61,6 +61,7 @@ def _get_operation_info(op_id, client):
         start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
         operation_info += chunk
     return operation_info
+
 
 def _get_event_time(phase, events):
     """Get starting time of some phase for particular job"""
@@ -456,7 +457,7 @@ def draw_comparative_time_plot(jobsets):
             job_count_without_zeros = job_count
             for num in xrange(1, len(job_count) - 1):
                 if job_count[num - 1] == 0 and job_count[num] == 0 and job_count[num + 1] == 0:
-                    job_count_without_zeros[j] = None
+                    job_count_without_zeros[num] = None
 
             traces.append(go.Scatter(
                 x=jobs_per_type["x_values"],
