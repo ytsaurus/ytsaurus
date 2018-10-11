@@ -512,6 +512,20 @@ IFileReaderPtr GetJobFailContext(
     return new TResponseReader(auth, std::move(header));
 }
 
+TString GetJobStderrWithRetries(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& /* options */,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("GET", "get_job_stderr");
+    header.AddOperationId(operationId);
+    header.AddParameter("job_id", GetGuidAsString(jobId));
+    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
+    return responseInfo.Response;
+}
+
 IFileReaderPtr GetJobStderr(
     const TAuth& auth,
     const TOperationId& operationId,
