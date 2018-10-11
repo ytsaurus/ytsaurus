@@ -2453,6 +2453,15 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         self._sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+
+        # Do lookup to clear metadata and master cache.
+        # Unfortunately master cache has old schema and it is retreived in driver where key is constructed.
+        # Client invalidate&retry doesn't rebuild driver's key so this lookup has no chances to be completed.
+        try:
+            lookup_rows("//tmp/t", [{"key": 0}])
+        except:
+            pass
+
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         remove("//tmp/t")

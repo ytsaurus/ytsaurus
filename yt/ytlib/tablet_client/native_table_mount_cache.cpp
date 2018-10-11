@@ -24,6 +24,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
+#include <yt/core/misc/farm_hash.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
@@ -115,36 +116,40 @@ private:
         {
             WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
                 .ThrowOnError();
-            auto batchRspOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
-            auto error = GetCumulativeError(batchRspOrError);
+            auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
 
-            if (!error.IsOK() && PrimaryRevision_) {
+            if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                 WaitFor(RequestTableAttributes(PrimaryRevision_))
                     .ThrowOnError();
-                batchRspOrError = WaitFor(RequestMountInfo(Null));
-                error = GetCumulativeError(batchRspOrError);
+                mountInfoOrError = WaitFor(RequestMountInfo(Null));
             }
 
-            if (!error.IsOK()) {
+            if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
+                mountInfoOrError = WaitFor(RequestMountInfo(SecondaryRevision_));
+            }
+
+            if (!mountInfoOrError.IsOK()) {
                 auto wrappedError = TError("Error getting mount info for %v",
                     Key_.Path)
-                    << error;
+                    << mountInfoOrError;
                 LOG_WARNING(wrappedError);
                 THROW_ERROR wrappedError;
             }
 
-            return OnTableMountInfoReceived(batchRspOrError.Value());
+            return mountInfoOrError.Value();
         }
 
     private:
         const TIntrusivePtr<TTableMountCache> Owner_;
         const IConnectionPtr Connection_;
         const TTableMountCacheKey Key_;
-        NLogging::TLogger Logger;
 
         TTableId TableId_;
         TCellTag CellTag_;
         TNullable<i64> PrimaryRevision_;
+        TNullable<i64> SecondaryRevision_;
+
+        NLogging::TLogger Logger;
 
         TFuture<void> RequestTableAttributes(TNullable<i64> refreshPrimaryRevision)
         {
@@ -175,11 +180,13 @@ private:
                     cachingHeaderExt->set_refresh_revision(*refreshPrimaryRevision);
                 }
 
-                batchReq->AddRequest(req, "get_attributes");
+                size_t hash = 0;
+                HashCombine(hash, FarmHash(Key_.Path.begin(), Key_.Path.size()));
+                batchReq->AddRequest(req, "get_attributes", hash);
             }
 
             return batchReq->Invoke()
-                .Apply(BIND(&TGetSession::OnTableAttributesReceived, MakeStrong(this)));
+                .Apply(BIND(&TGetSession::OnTableAttributesReceived, MakeWeak(this)));
         }
 
         void OnTableAttributesReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
@@ -202,7 +209,7 @@ private:
             }
         }
 
-        TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> RequestMountInfo(TNullable<i64> refreshSecondaryRevision)
+        TFuture<TTableMountInfoPtr> RequestMountInfo(TNullable<i64> refreshSecondaryRevision)
         {
             LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
                 TableId_,
@@ -212,6 +219,10 @@ private:
             auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();
+
+            auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+            balancingHeaderExt->set_enable_stickness(true);
+            balancingHeaderExt->set_sticky_group_size(1);
 
             {
                 auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
@@ -223,21 +234,30 @@ private:
                     cachingHeaderExt->set_refresh_revision(*refreshSecondaryRevision);
                 }
 
-                batchReq->AddRequest(req, "get_mount_info");
+                size_t hash = 0;
+                HashCombine(hash, FarmHash(TableId_.Parts64[0]));
+                HashCombine(hash, FarmHash(TableId_.Parts64[1]));
+                batchReq->AddRequest(req, "get_mount_info", hash);
             }
 
-            return batchReq->Invoke();
+            return batchReq->Invoke()
+                .Apply(BIND(&TGetSession::OnTableMountInfoReceived, MakeStrong(this)));
         }
 
-        TTableMountInfoPtr OnTableMountInfoReceived (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
+        TTableMountInfoPtr OnTableMountInfoReceived (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting mount info for table %v", Key_.Path);
+
+            const auto& batchRsp = batchRspOrError.Value();
             const auto& rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGetMountInfo>(0);
             const auto& rsp = rspOrError.Value();
+
+            SecondaryRevision_ = batchRsp->GetRevision(0);
 
             auto tableInfo = New<TTableMountInfo>();
             tableInfo->Path = Key_.Path;
             tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-            tableInfo->SecondaryRevision = batchRsp->GetRevision(0);
+            tableInfo->SecondaryRevision = SecondaryRevision_;
             tableInfo->PrimaryRevision = PrimaryRevision_;
 
             auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
