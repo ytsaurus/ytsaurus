@@ -2633,6 +2633,11 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
     void TestGetFailedJobInfoImpl(IClientBasePtr client)
     {
+        TConfigSaverGuard configGuard;
+
+        TConfig::Get()->UseAbortableResponse = true;
+        auto outage = TAbortableHttpResponse::StartOutage("get_job_stderr", 2);
+
         {
             auto writer = client->CreateTableWriter<TNode>("//testing/input");
             writer->AddRow(TNode()("foo", "baz"));

@@ -52,7 +52,9 @@ public:
 
     // Starts outage. `responseCount` future responses which match `urlPattern` (i.e. contain it in url) will fail.
     // Outage stops when object is destroyed.
-    static TOutage StartOutage(const TString& urlPattern, size_t responseCount = std::numeric_limits<size_t>::max());
+    static Y_WARN_UNUSED_RESULT TOutage StartOutage(
+        const TString& urlPattern,
+        size_t responseCount = std::numeric_limits<size_t>::max());
 
     void Abort();
     const TString& GetUrl() const;

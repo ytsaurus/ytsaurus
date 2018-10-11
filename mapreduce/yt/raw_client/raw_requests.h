@@ -137,6 +137,13 @@ TIntrusivePtr<IFileReader> GetJobFailContext(
     const TJobId& jobId,
     const TGetJobFailContextOptions& options = TGetJobFailContextOptions());
 
+TString GetJobStderrWithRetries(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& /* options */ = TGetJobStderrOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
+
 TIntrusivePtr<IFileReader> GetJobStderr(
     const TAuth& auth,
     const TOperationId& operationId,
