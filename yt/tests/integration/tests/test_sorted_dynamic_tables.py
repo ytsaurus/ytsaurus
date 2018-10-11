@@ -2187,6 +2187,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
                 [dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")]
 
+        with pytest.raises(YtError):
+            delete_rows("//tmp/t", [dict(key_opt=1)])
+        delete_rows("//tmp/t", [dict(key_req=1234)])
+        delete_rows("//tmp/t", [dict(key_req=1, key_opt=1)])
+        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == []
+
     def test_required_computed_columns(self):
         schema = [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
