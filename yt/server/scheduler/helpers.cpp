@@ -104,7 +104,8 @@ void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
     fluent
         .Item("state").Value(node->GetMasterState())
         .Item("resource_usage").Value(node->GetResourceUsage())
-        .Item("resource_limits").Value(node->GetResourceLimits());
+        .Item("resource_limits").Value(node->GetResourceLimits())
+        .Item("tags").Value(node->Tags());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
