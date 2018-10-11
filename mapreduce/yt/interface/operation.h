@@ -420,6 +420,9 @@ struct TMapReduceOperationSpecBase
     FLUENT_FIELD_OPTION(ui64, PartitionCount);
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 
+    // Specifies how much data should be passed to single reduce-combiner job.
+    FLUENT_FIELD_OPTION(ui64, DataSizePerSortJob);
+
     // Ordered mode for map stage.
     // Check `Ordered' option for Map operation for more info.
     FLUENT_FIELD_OPTION(bool, Ordered);
