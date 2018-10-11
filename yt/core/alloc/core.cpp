@@ -1665,8 +1665,8 @@ private:
         }
     }
 
-    void ComputeLazyFreeBytes(const TBackgroundContext& context)
-    {
+    void ComputeLazyFreeBytes(const TBackgroundContext& /*context*/)
+    {/*
         auto now = TInstant::Now();
         if (now < LastLazyFreeBytesComputeTime_ + LazyFreeBytesRecomputePeriod) {
             return;
@@ -1696,7 +1696,7 @@ private:
             LazyFreeBytes_.store(lazyFreeBytes);
         } catch (const std::exception& ex) {
             LOG_DEBUG(ex, "Failed to compute lazy free bytes");
-        }
+        }*/
     }
 
 private:
