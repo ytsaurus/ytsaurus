@@ -132,6 +132,7 @@ public:
     i64 MinTotalDataWeight;
     TDuration UpdatePeriod;
     TDuration MedianExcessDuration;
+    double ResidualJobFactor;
     double CandidatePercentile;
     int MaxJobsPerSplit;
     int MaxInputTableCount;
