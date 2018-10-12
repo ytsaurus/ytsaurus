@@ -150,6 +150,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--use-proxy-from-yt-source", action="store_true", default=False,
                         help="Do not start proxy from package, start from YT source tree using run_proxy.sh. "
                              "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
+    parser.add_argument("--use-new-proxy", action="store_true", default=False,
+                        help="Use C++ implementation of http proxy.")
     parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
     parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
     parser.add_argument("--rpc-proxy", action="store_true", default=False, help="start rpc proxy")
