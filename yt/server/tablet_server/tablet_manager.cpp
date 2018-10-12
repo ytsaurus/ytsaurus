@@ -3543,11 +3543,6 @@ private:
                 ToProto(entry->mutable_statistics(), cell->ClusterStatistics());
             } else {
                 ToProto(entry->mutable_statistics(), cell->LocalStatistics());
-
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                auto serializableStatistics = New<TSerializableTabletCellStatistics>(
-                    cell->LocalStatistics(),
-                    chunkManager);
             }
         }
 
@@ -3579,12 +3574,8 @@ private:
             if (!IsObjectAlive(cell))
                 continue;
 
+            cell->LocalStatistics().Health = cell->GetHealth();
             auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto serializableStatistics = New<TSerializableTabletCellStatistics>(
-                newStatistics,
-                chunkManager);
 
             if (Bootstrap_->IsPrimaryMaster()) {
                 *cell->GetCellStatistics(cellTag) = newStatistics;
