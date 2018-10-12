@@ -325,7 +325,7 @@ class TestRetries(object):
                     to_yson_type(None, attributes={"range_index": 1}),
                     to_yson_type(None, attributes={"row_index": 2}),
                     {"x": 3}] == \
-                list(yt.read_table(table + "[#0,#2]", format=yt.YsonFormat(),
+                list(yt.read_table(table + "[#0,#2]", format=yt.YsonFormat(control_attributes_mode="none"),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             assert [{"$attributes": {"range_index": 0}, "$value": None},
@@ -334,7 +334,7 @@ class TestRetries(object):
                     {"$attributes": {"range_index": 1}, "$value": None},
                     {"$attributes": {"row_index": 2}, "$value": None},
                     {"x": 3}] == \
-                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(),
+                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(control_attributes_mode="none"),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             assert [{"x": 1, "@row_index": 0, "@range_index": 0, "@table_index": None},

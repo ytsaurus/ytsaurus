@@ -579,7 +579,7 @@ class YsonFormat(Format):
         if control_attributes_mode is None:
             control_attributes_mode = "iterator"
 
-        if control_attributes_mode not in ["row_fields", "iterator", "none"]:
+        if control_attributes_mode not in ("row_fields", "iterator", "none"):
             raise YtFormatError("Incorrect control attributes mode: {0}".format(control_attributes_mode))
 
         self.control_attributes_mode = control_attributes_mode
@@ -941,6 +941,9 @@ class JsonFormat(Format):
         
         if control_attributes_mode is None:
             control_attributes_mode = "iterator"
+
+        if control_attributes_mode not in ("row_fields", "iterator", "none"):
+            raise YtFormatError("Incorrect control attributes mode: {0}".format(control_attributes_mode))
 
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
