@@ -103,10 +103,18 @@ public:
         LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
     }
 
+    void DoTerminate()
+    {
+        if (!Terminated_) {
+            Terminated_ = true;
+            UnderlyingDriver_->Terminate();
+            ActiveDrivers.erase(Id_);
+        }
+    }
+
     ~TDriver()
     {
-        UnderlyingDriver_->Terminate();
-        ActiveDrivers.erase(Id_);
+        DoTerminate();
     }
 
     static void InitType()
@@ -125,6 +133,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
+        PYCXX_ADD_KEYWORDS_METHOD(terminate, Terminate, "Terminate driver");
 
         PYCXX_ADD_KEYWORDS_METHOD(get_config, GetConfig, "Get config");
 
@@ -376,12 +385,22 @@ public:
     }
     PYCXX_VARARGS_METHOD_DECL(TDriver, DeepCopy)
 
+    Py::Object Terminate(const Py::Tuple& args, const Py::Dict& kwargs)
+    {
+        ValidateArgumentsEmpty(args, kwargs);
+        DoTerminate();
+        return Py::None();
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, Terminate)
+
 private:
     const TGuid Id_;
     const NLogging::TLogger Logger;
 
     INodePtr ConfigNode_;
     IDriverPtr UnderlyingDriver_;
+
+    bool Terminated_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
