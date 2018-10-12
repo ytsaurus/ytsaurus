@@ -18,6 +18,7 @@
 #include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
@@ -88,7 +89,6 @@ using ::AlignUp;
 
 // Period between background activities.
 constexpr auto BackgroundInterval = TDuration::Seconds(1);
-constexpr auto LazyFreeBytesRecomputePeriod = TDuration::Seconds(15);
 
 constexpr size_t PageSize = 4_KB;
 constexpr size_t ZoneSize = 1_TB;
@@ -1422,8 +1422,9 @@ public:
             result[ETotalCounter::BytesCommitted] += largeArenaCounters[rank][ELargeArenaCounter::BytesCommitted];
         }
 
-        result[ETotalCounter::BytesLazyFree] = LazyFreeBytes_.load();
-        
+        auto rss = GetProcessMemoryUsage().Rss;
+        result[ETotalCounter::BytesUnaccounted] = std::max<ssize_t>(static_cast<ssize_t>(rss) - result[ETotalCounter::BytesCommitted], 0);
+
         return result;
     }
 
@@ -1562,7 +1563,6 @@ public:
         PushSmallStatistics(context);
         PushLargeStatistics(context);
         PushHugeStatistics(context);
-        ComputeLazyFreeBytes(context);
     }
 
 private:
@@ -1682,47 +1682,10 @@ private:
         }
     }
 
-    void ComputeLazyFreeBytes(const TBackgroundContext& /*context*/)
-    {/*
-        auto now = TInstant::Now();
-        if (now < LastLazyFreeBytesComputeTime_ + LazyFreeBytesRecomputePeriod) {
-            return;
-        }
-
-        const auto& Logger = context.Logger;
-        LOG_DEBUG("Started computing lazy free bytes");
-
-        ssize_t lazyFreeBytes = 0;
-
-        try {
-            TIFStream file("/proc/self/smaps");
-            auto lines = file.ReadAll();
-            for (const auto& line : SplitString(lines, "\n")) {
-                if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
-                    auto tokens = SplitString(line, " ");
-                    if (tokens.size() < 3) {
-                        continue;
-                    }
-                    lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
-                }
-            }
-            LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
-                lazyFreeBytes / 1_MB);
-
-            LastLazyFreeBytesComputeTime_ = now;
-            LazyFreeBytes_.store(lazyFreeBytes);
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to compute lazy free bytes");
-        }*/
-    }
-
 private:
     TGlobalSystemCounters SystemCounters_;
     std::array<TGlobalSmallCounters, SmallRankCount> SmallArenaCounters_;
     TGlobalHugeCounters HugeCounters_;
-
-    TInstant LastLazyFreeBytesComputeTime_;
-    std::atomic<ssize_t> LazyFreeBytes_ = {0};
 };
 
 TBox<TStatisticsManager> StatisticsManager;
