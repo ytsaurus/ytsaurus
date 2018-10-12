@@ -48,6 +48,11 @@ class TestGrpcProxy(YTEnvSetup):
         config["api_version"] = 4
         cls.driver = Driver(config)
 
+    @classmethod
+    def teardown_class(cls):
+        cls.driver = None
+        super(TestGrpcProxy, cls).teardown_class()
+
     def _wait_response(self, future):
         while True:
             with future._state.condition:
