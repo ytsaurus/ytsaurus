@@ -72,7 +72,7 @@ def yql_exec(server, port, token=None, program=None, files=None, urls=None, run_
         assert 0, 'Have some problems:\n\n' + \
             ''.join(traceback.format_exception(*request.exc_info)) + '\n\n' + str(request.text)
 
-    assert request.operation_id, str(request) + str(request.results)
+    assert request.operation_id, str(request) + str(request.get_results())
 
     if verbose:
         yql_utils.log('\tOPERATION ID: ' + request.operation_id)
@@ -87,9 +87,9 @@ def yql_exec(server, port, token=None, program=None, files=None, urls=None, run_
         return res_file
 
     if verbose:
-        yql_utils.log('\tRAW RESPONSE:\n' + json.dumps(request.results.json, indent=4))
+        yql_utils.log('\tRAW RESPONSE:\n' + json.dumps(request.get_results().json, indent=4))
 
-    res_file = write_res_file('results.json', json.dumps(request.results.json, indent=4))
+    res_file = write_res_file('results.json', json.dumps(request.get_results().json, indent=4))
 
     plan = run_aux_request(YqlOperationPlanRequest(request.operation_id, silent=True), 'plan')
     plan = YqlFormatExplainMixin.format_plan(plan) if isinstance(plan, dict) else plan
@@ -105,7 +105,7 @@ def yql_exec(server, port, token=None, program=None, files=None, urls=None, run_
     return yql_utils.YQLExecResult(
         '',  # stdout
         errors,
-        request.results.json,
+        request.get_results().json,
         res_file,
         ast,
         opt_file,
