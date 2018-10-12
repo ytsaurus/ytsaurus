@@ -41,12 +41,20 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
 
-    RegisterParameter("enable_sticky_transaction_pool", EnableStickyTransactionPool)
-        .Default(false);
+    RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
+        .Default(true);
 
     RegisterPostprocessor([this] {
         if (!ClusterUrl && Addresses.empty()) {
             THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
+        }
+
+        if (!EnableProxyDiscovery) {
+            if (Addresses.empty()) {
+                THROW_ERROR_EXCEPTION("\"addresses\" must be specified");
+            }
+
+            ClusterUrl.Reset();
         }
     });
 }

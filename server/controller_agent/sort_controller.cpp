@@ -1182,16 +1182,29 @@ protected:
         void AbortAllActiveJoblets(const TError& error)
         {
             if (Finished_) {
-                LOG_WARNING(error, "Chunk mapping has been invalidated, but the task has already finished");
+                LOG_INFO(error, "Chunk mapping has been invalidated, but the task has already finished");
                 return;
             }
-            LOG_WARNING(error, "Aborting all jobs in task because of chunk mapping invalidation");
+            LOG_INFO(error, "Aborting all jobs in task because of chunk mapping invalidation");
             for (const auto& joblet : ActiveJoblets_) {
                 Controller->Host->AbortJob(
                     joblet->JobId,
                     TError("Job is aborted due to chunk mapping invalidation")
                         << error);
                 InvalidatedJoblets_.insert(joblet);
+            }
+            for (const auto& jobOutput : JobOutputs_) {
+                YCHECK(jobOutput.JobSummary.Statistics);
+                auto tableIndex = Controller->GetRowCountLimitTableIndex();
+                if (tableIndex) {
+                    auto maybeCount = FindNumericValue(
+                        *jobOutput.JobSummary.Statistics,
+                        Format("/data/output/%v/row_count", *tableIndex));
+                    if (maybeCount) {
+                        // We have to unregister registered output rows.
+                        Controller->RegisterOutputRows(-(*maybeCount), *tableIndex);
+                    }
+                }
             }
             JobOutputs_.clear();
         }
@@ -1599,7 +1612,8 @@ protected:
     {
         ShufflePool = CreateShuffleChunkPool(
             static_cast<int>(Partitions.size()),
-            Spec->DataWeightPerShuffleJob);
+            Spec->DataWeightPerShuffleJob,
+            Spec->MaxChunkSlicePerShuffleJob);
 
         ShuffleChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::Unordered);
 
@@ -1675,6 +1689,17 @@ protected:
             }
 
             YCHECK(CompletedPartitionCount == Partitions.size());
+        } else {
+            if (RowCountLimitTableIndex && CompletedRowCount_ >= RowCountLimit) {
+                // We have to save all output in SortedMergeTask.
+                for (const auto& task : Tasks) {
+                    task->CheckCompleted();
+                    if (!task->IsCompleted() && task->GetJobType() == EJobType::SortedMerge) {
+                        // Dirty hack to save chunks.
+                        task->ForceComplete();
+                    }
+                }
+            }
         }
 
         TOperationControllerBase::OnOperationCompleted(interrupted);

@@ -19,7 +19,11 @@ void SetTimeoutOptions(
     NRpc::TClientRequest& request,
     const NApi::TTimeoutOptions& options);
 
+#ifdef YT_IN_ARCADIA
 [[noreturn]] void ThrowUnimplemented(const TString& method);
+#else
+Y_NO_RETURN void ThrowUnimplemented(const TString& method);
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -138,15 +138,19 @@ private:
     TGuid ConnectionId_;
     TGuid RequestId_;
     i64 StartByteCount_ = 0;
+    TInstant LastProgressLogTime_;
 
     bool SafeToReuse_ = false;
 
     void FinishHeaders();
+    void FinishMessage();
     void EnsureHeadersReceived();
 
     IInvokerPtr ReadInvoker_;
 
     TSharedRef DoRead();
+
+    void MaybeLogSlowProgress();
 };
 
 DEFINE_REFCOUNTED_TYPE(THttpInput)
@@ -206,6 +210,7 @@ private:
     TGuid RequestId_;
     i64 StartByteCount_ = 0;
     bool HeadersLogged_ = false;
+    TInstant LastProgressLogTime_;
 
     static const THashSet<TString> FilteredHeaders_;
 

@@ -46,7 +46,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 "max_failed_job_count" : 1
             })
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
         words = content.strip().split()
@@ -68,7 +68,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 }
             })
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
         words = content.strip().split()
@@ -90,7 +90,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 }
             })
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
         words = content.strip().split()
@@ -166,7 +166,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 "max_failed_job_count": 1,
             })
 
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         tmpfs_size = get_statistics(statistics, "user_job.tmpfs_size.$.completed.map.sum")
         assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
 
@@ -257,7 +257,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
 
     def test_inner_files(self):
         create("table", "//tmp/t_input")
@@ -320,7 +320,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
                 }
             })
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
         words = content.strip().split()

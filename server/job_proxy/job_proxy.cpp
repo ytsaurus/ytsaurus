@@ -91,8 +91,6 @@ using namespace NContainers;
 
 using NJobTrackerClient::TStatistics;
 
-const TString SlotBindPath("/slot");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
@@ -118,9 +116,7 @@ TString TJobProxy::GetPreparationPath() const
 
 TString TJobProxy::GetSlotPath() const
 {
-    return Config_->RootPath && !Config_->TestRootFS
-       ? SlotBindPath
-       : NFs::CurrentWorkingDirectory();
+    return NFs::CurrentWorkingDirectory();
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
@@ -433,11 +429,12 @@ TJobResult TJobProxy::DoRun()
             TRootFS rootFS;
             rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
-            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
 
             for (const auto& bind : Config_->Binds) {
                 rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
             }
+
+            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), NFs::CurrentWorkingDirectory(), false});
 
             if (Config_->TmpfsPath) {
                 rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
@@ -578,7 +575,7 @@ void TJobProxy::ReportResult(
     req->set_statistics(statistics.GetData());
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
-    if (GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
+    if (Job_ && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
         req->set_job_stderr(GetStderr());
         auto failContext = Job_->GetFailContext();
         if (failContext) {

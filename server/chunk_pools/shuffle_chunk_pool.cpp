@@ -35,8 +35,10 @@ public:
 
     TShuffleChunkPool(
         int partitionCount,
-        i64 dataSizeThreshold)
+        i64 dataSizeThreshold,
+        i64 chunkSliceThreshold)
         : DataWeightThreshold(dataSizeThreshold)
+        , ChunkSliceThreshold(chunkSliceThreshold)
     {
         Outputs.resize(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
@@ -147,6 +149,12 @@ public:
         Persist(context, Outputs);
         Persist(context, InputStripes);
         Persist(context, ElementaryStripes);
+
+        if (context.IsSave() || context.GetVersion() >= 300019) {
+            Persist(context, ChunkSliceThreshold);
+        } else {
+            ChunkSliceThreshold = std::numeric_limits<i64>::max();
+        }
     }
 
 private:
@@ -158,6 +166,7 @@ private:
     static const i64 RowCountThreshold = std::numeric_limits<i32>::max();
 
     i64 DataWeightThreshold;
+    i64 ChunkSliceThreshold;
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
@@ -185,7 +194,8 @@ private:
             auto* run = &Runs.back();
             if (run->TotalDataWeight > 0) {
                 if (run->TotalDataWeight + dataWeight > Owner->DataWeightThreshold ||
-                    run->TotalRowCount + rowCount > Owner->RowCountThreshold)
+                    run->TotalRowCount + rowCount > Owner->RowCountThreshold ||
+                    run->ElementaryIndexEnd - run->ElementaryIndexBegin >= Owner->ChunkSliceThreshold)
                 {
                     SealLastRun();
                     AddNewRun();
@@ -513,11 +523,13 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput);
 
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     int partitionCount,
-    i64 dataWeightThreshold)
+    i64 dataWeightThreshold,
+    i64 chunkSliceThreshold)
 {
     return std::unique_ptr<IShuffleChunkPool>(new TShuffleChunkPool(
         partitionCount,
-        dataWeightThreshold));
+        dataWeightThreshold,
+        chunkSliceThreshold));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

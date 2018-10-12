@@ -37,7 +37,7 @@ def get_stderr_spec(stderr_file):
 
 
 def get_stderr_dict_from_cypress(operation_id):
-    jobs_path = "//sys/operations/{0}/jobs".format(operation_id)
+    jobs_path = get_operation_cypress_path(operation_id) + "/jobs"
     result = {}
     for job_id, job_content in get(jobs_path).iteritems():
         if "stderr" in job_content:
@@ -596,7 +596,7 @@ class TestCoreTable(YTEnvSetup):
         return thread
 
     def _get_core_infos(self, op):
-        jobs = get("//sys/operations/{0}/jobs".format(op.id), attributes=["core_infos"])
+        jobs = get(op.get_path() + "/jobs", attributes=["core_infos"])
         return {job_id: value.attributes["core_infos"] for job_id, value in jobs.iteritems()}
 
     def _get_core_table_content(self, assert_rows_number_geq=0):
@@ -810,7 +810,7 @@ class TestCoreTable(YTEnvSetup):
         ret_dict = {}
         t = self._send_core(uid, "user_process", 42, queue_iterator(q), ret_dict)
         q.put("abc")
-        time.sleep(7)
+        time.sleep(10)
         q.put(None)
         t.join()
 

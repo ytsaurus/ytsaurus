@@ -73,7 +73,7 @@ public:
             TString context = TBase::GetContextFromCheckpoint();
             size_t contextPosition = TBase::GetContextPosition();
             THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
-                << TErrorAttribute("context", context)
+                << TErrorAttribute("context", EscapeC(context))
                 << TErrorAttribute("context_pos", contextPosition)
                 << ex;
         }

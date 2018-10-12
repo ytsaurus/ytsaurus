@@ -21,7 +21,7 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& colum
 struct TColumnDescriptor
 {
     TString Name;
-    size_t Index;
+    int Index;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ DEFINE_ENUM(EExpressionKind,
 struct TExpression
     : public TIntrinsicRefCounted
 {
-    TExpression(EValueType type)
+    explicit TExpression(EValueType type)
         : Type(type)
     { }
 

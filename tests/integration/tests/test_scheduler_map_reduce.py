@@ -322,7 +322,7 @@ print "x={0}\ty={1}".format(x, y)
 
         time.sleep(2)
 
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = op.get_path()
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
@@ -383,7 +383,7 @@ print "x={0}\ty={1}".format(x, y)
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
         time.sleep(1)
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = op.get_path()
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert "brotli_3" == get(operation_path + "/intermediate/@compression_codec", tx=async_transaction_id)
         op.abort()
@@ -479,7 +479,7 @@ print "x={0}\ty={1}".format(x, y)
         events_on_fs().notify_event("continue_reducer")
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 1
+        assert get(op.get_path() + "/@progress/partition_jobs/lost") == 1
 
     @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
@@ -520,7 +520,7 @@ print "x={0}\ty={1}".format(x, y)
         events_on_fs().notify_event("continue_reducer")
 
         def get_unavailable_chunk_count():
-            return get("//sys/operations/{0}/@progress/estimated_input_statistics/unavailable_chunk_count".format(op.id))
+            return get(op.get_path() + "/@progress/estimated_input_statistics/unavailable_chunk_count")
 
         # Wait till scheduler discovers that chunk is unavailable.
         wait(lambda: get_unavailable_chunk_count() > 0)
@@ -533,8 +533,8 @@ print "x={0}\ty={1}".format(x, y)
 
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/partition_reduce_jobs/aborted".format(op.id)) > 0
-        assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 0
+        assert get(op.get_path() + "/@progress/partition_reduce_jobs/aborted") > 0
+        assert get(op.get_path() + "/@progress/partition_jobs/lost") == 0
 
     @pytest.mark.parametrize("ordered", [False, True])
     def test_progress_counter(self, ordered):
@@ -568,8 +568,8 @@ print "x={0}\ty={1}".format(x, y)
 
         op.track()
 
-        partition_reduce_counter = get("//sys/operations/{0}/@progress/data_flow_graph/vertices/partition_reduce/job_counter".format(op.id))
-        total_counter = get("//sys/operations/{0}/@progress/jobs".format(op.id))
+        partition_reduce_counter = get(op.get_path() + "/@progress/data_flow_graph/vertices/partition_reduce/job_counter")
+        total_counter = get(op.get_path() + "/@progress/jobs")
 
         assert partition_reduce_counter["aborted"]["total"] == 1
         assert partition_reduce_counter["pending"] == 0
@@ -711,7 +711,7 @@ print "x={0}\ty={1}".format(x, y)
         with pytest.raises(YtError):
             op.track();
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         job_ids = ls(jobs_path)
         assert len(job_ids) == 2
         for job_id in job_ids:

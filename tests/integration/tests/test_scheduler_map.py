@@ -89,7 +89,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             spec={"mapper": {"environment": {"V1": "Some data", "TMPDIR": "$(SandboxPath)/mytmp"}},
                   "title": "MyTitle"})
 
-        get("//sys/operations/%s/@spec" % op.id)
+        get(op.get_path() + "/@spec")
         op.track()
 
         res = read_table("//tmp/t2")
@@ -176,7 +176,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/map/sum".format(op.id))
+        row_count = get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/map/sum")
         assert row_count == 1
 
     def test_multiple_output_row_count(self):
@@ -187,9 +187,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
         assert get("//tmp/t2/@row_count") == 5
-        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum".format(op.id))
+        row_count = get(op.get_path() + "/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum")
         assert row_count == 5
-        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op.id))
+        row_count = get(op.get_path() + "/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum")
         assert row_count == 1
 
     def test_codec_statistics(self):
@@ -202,8 +202,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t1", [{str(i): random_string(1000)} for i in xrange(100)])  # so much to see non-zero decode cpu usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
-        decode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum".format(op.id))
-        encode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/encode/0/lzma_1/$/completed/map/sum".format(op.id))
+        decode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum")
+        encode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/encode/0/lzma_1/$/completed/map/sum")
         assert decode_time > 0
         assert encode_time > 0
 
@@ -540,7 +540,7 @@ print row + table_index
             spec={"data_size_per_job": 1})
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = op.get_path()
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
@@ -918,7 +918,7 @@ print row + table_index
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs_path = op.get_path() + "/jobs"
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         expected = yson.loads("""[
@@ -1002,7 +1002,7 @@ print row + table_index
             else:
                 row_index += 1
         assert 0 < job_indexes[1] < 99999
-        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/{1}/sum".format(op.id, job_type)) == len(result) - 2
+        assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(job_type)) == len(result) - 2
 
     # YT-6324: false job interrupt when it does not consume any input data.
     @pytest.mark.parametrize("ordered", [False, True])
@@ -1039,8 +1039,8 @@ print row + table_index
             })
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/completed/non-interrupted".format(op.id)) == 1
+        assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
+        assert get(op.get_path() + "/@progress/jobs/completed/non-interrupted") == 1
 
     def test_ordered_map_many_jobs(self):
         create("table", "//tmp/t_input")
@@ -1056,7 +1056,7 @@ print row + table_index
             ordered=True,
             spec={"data_size_per_job": 1})
 
-        assert get("//sys/operations/" + op.id + "/jobs/@count") == 10
+        assert get(op.get_path() + "/jobs/@count") == 10
         assert read_table("//tmp/t_output") == original_data
 
     @pytest.mark.parametrize("with_output_schema", [False, True])
@@ -1074,7 +1074,7 @@ print row + table_index
             ordered=True,
             spec={"job_count": 5})
 
-        jobs = get("//sys/operations/" + op.id + "/jobs/@count")
+        jobs = get(op.get_path() + "/jobs/@count")
 
         assert jobs == 5
         if with_output_schema:
@@ -1096,7 +1096,7 @@ print row + table_index
             command="cat >/dev/null; echo stderr 1>&2",
             spec={"job_count":10, "consider_only_primary_size": True})
 
-        jobs = get("//sys/operations/" + op.id + "/jobs/@count")
+        jobs = get(op.get_path() + "/jobs/@count")
         assert jobs == 10
 
     @pytest.mark.parametrize("ordered", [False, True])
@@ -1141,7 +1141,7 @@ done
 
         op.track()
 
-        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        completed = get(op.get_path() + "/@progress/jobs/completed")
         interrupted = completed["interrupted"]
         assert completed["total"] >= 2
         assert interrupted["job_split"] >= 1
@@ -1238,8 +1238,8 @@ class TestJobSizeAdjuster(YTEnvSetup):
         expected = [{"lines": str(2**i)} for i in xrange(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
-        estimated = get("//sys/operations/{0}/@progress/estimated_input_data_size_histogram".format(op.id))
-        histogram = get("//sys/operations/{0}/@progress/input_data_size_histogram".format(op.id))
+        estimated = get(op.get_path() + "/@progress/estimated_input_data_size_histogram")
+        histogram = get(op.get_path() + "/@progress/input_data_size_histogram")
         assert estimated == histogram
         assert histogram["max"]/histogram["min"] == 16
         assert histogram["count"][0] == 1
@@ -1556,7 +1556,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             out="//tmp/t_out",
             command="cat")
 
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
         assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
         assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
@@ -1588,7 +1588,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             in_="//tmp/t",
             out="//tmp/t_out",
             command="cat")
-        stat1 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+        stat1 = get_data_size(get(op.get_path() + "/@progress/job_statistics"))
         assert read_table("//tmp/t_out") == [row]
 
         # FIXME(savrus) investigate test flapping
@@ -1599,7 +1599,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 in_="<columns=[{0}]>//tmp/t".format(";".join(columns)),
                 out="//tmp/t_out",
                 command="cat")
-            stat2 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+            stat2 = get_data_size(get(op.get_path() + "/@progress/job_statistics"))
             assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
 
             if columns == ["u", "v"] or optimize_for == "lookup":

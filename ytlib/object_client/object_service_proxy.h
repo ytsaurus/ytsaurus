@@ -46,6 +46,8 @@ private:
         //! Returns the current number of individual requests in the batch.
         int GetSize() const;
 
+        virtual size_t GetHash() const override;
+
     protected:
         explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel);
 
@@ -75,6 +77,7 @@ private:
             // True if the message contains a mutating request and has the
             // 'retry' flag set to false.
             bool NeedsPatchingForRetry = false;
+            TNullable<size_t> Hash;
         };
 
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
@@ -119,7 +122,8 @@ public:
          */
         TReqExecuteBatchPtr AddRequest(
             NYTree::TYPathRequestPtr innerRequest,
-            const TString& key = TString());
+            const TString& key = TString(),
+            TNullable<size_t> hash = Null);
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         //! #needsPatchingForRetry should be true iff the message contains a mutating request with
@@ -127,7 +131,8 @@ public:
         TReqExecuteBatchPtr AddRequestMessage(
             TSharedRefArray innerRequestMessage,
             bool needsPatchingForRetry,
-            const TString& key = TString());
+            const TString& key = TString(),
+            TNullable<size_t> hash = Null);
 
     private:
         std::multimap<TString, int> KeyToIndexes_;

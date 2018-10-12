@@ -25,17 +25,22 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 BufferLimit = 16 * PoolChunkSize;
-static const i64 MaxTopCollectorLimit = 2 * 1024 * 1024;
+static const size_t BufferLimit = 512_KB;
+static const size_t MaxTopCollectorLimit = 2_MB;
 
 struct TTopCollectorBufferTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize)
+TTopCollector::TTopCollector(
+    i64 limit,
+    TComparerFunction* comparer,
+    size_t rowSize,
+    IMemoryChunkProviderPtr memoryChunkProvider)
     : Comparer_(comparer)
     , RowSize_(rowSize)
+    , MemoryChunkProvider_(std::move(memoryChunkProvider))
 {
     if (limit > MaxTopCollectorLimit) {
         THROW_ERROR_EXCEPTION("Maximum ORDER BY limit exceeded")
@@ -57,7 +62,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
+            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -84,7 +89,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize, MaxSmallBlockRatio));
+            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_));
         }
     }
 
@@ -155,7 +160,7 @@ TJoinClosure::TJoinClosure(
     int keySize,
     int primaryRowSize,
     size_t batchSize)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         lookupHasher,

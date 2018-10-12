@@ -21,8 +21,6 @@ extern const char* ClusterSchedulerProgramName;
 extern const char* ExecProgramName;
 extern const char* JobProxyProgramName;
 
-void InitMasterInternedAttributes();
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

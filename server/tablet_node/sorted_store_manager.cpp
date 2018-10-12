@@ -387,14 +387,15 @@ void TSortedStoreManager::OnActiveStoreRotated()
 
 TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
-    TTabletSnapshotPtr tabletSnapshot)
+    TTabletSnapshotPtr tabletSnapshot,
+    bool isUnmountWorkflow)
 {
     auto sortedDynamicStore = store->AsSortedDynamic();
     auto reader = sortedDynamicStore->CreateFlushReader();
     // NB: Memory store reader is always synchronous.
     YCHECK(reader->Open().Get().IsOK());
 
-    auto inMemoryMode = GetInMemoryMode();
+    auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);

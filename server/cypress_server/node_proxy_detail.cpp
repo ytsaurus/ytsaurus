@@ -1926,7 +1926,7 @@ void TMapNodeProxy::SetRecursive(
     const TCtxSetPtr& context)
 {
     context->SetRequestInfo();
-    ValidateSetCommand();
+    ValidateSetCommand(FindRequestYPath(context->RequestHeader()), request->force());
     TMapNodeMixin::SetRecursive(path, request, response, context);
 }
 
@@ -2286,7 +2286,7 @@ void TListNodeProxy::SetRecursive(
         !token.StartsWith(ListBeforeToken) &&
         !token.StartsWith(ListAfterToken))
     {
-        ValidateSetCommand();
+        ValidateSetCommand(FindRequestYPath(context->RequestHeader()), request->force());
     }
     TListNodeMixin::SetRecursive(path, request, response, context);
 }

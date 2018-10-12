@@ -118,7 +118,7 @@ public:
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
 
-    void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
+    std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
     void ResumeOperationJobs(const TOperationId& operationId);
@@ -129,7 +129,6 @@ public:
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
     void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
     void AbandonJob(const TJobId& jobId, const TString& user);
-    NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
     void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
@@ -362,7 +361,7 @@ private:
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
-    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
+    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, TError error = TError());
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

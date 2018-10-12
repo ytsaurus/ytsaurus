@@ -102,7 +102,7 @@ TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
 
 TJobStderrTableDescriptor::TJobStderrTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
@@ -117,7 +117,7 @@ TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
 
 TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TJobFailContextTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)

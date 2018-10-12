@@ -8,6 +8,8 @@
 #include <yt/core/json/json_writer.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <util/stream/length.h>
+
 namespace NYT {
 namespace NLogging {
 
@@ -48,6 +50,32 @@ TLogEvent GetStartLogStructuredEvent()
     return event;
 }
 
+TLogEvent GetSkippedLogEvent(i64 count, const TString& skippedBy)
+{
+    TLogEvent event;
+    event.Instant = GetCpuInstant();
+    event.Category = Logger.GetCategory();
+    event.Level = ELogLevel::Info;
+    event.Message = Format("Skipped log records in last second (Count: %d, SkippedBy: %Qv)",
+        count,
+        skippedBy);
+    return event;
+}
+
+TLogEvent GetSkippedLogStructuredEvent(i64 count, const TString& skippedBy)
+{
+    TLogEvent event;
+    event.Instant = GetCpuInstant();
+    event.Category = Logger.GetCategory();
+    event.Level = ELogLevel::Info;
+    event.StructuredMessage = BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
+        .Item("message").Value("Events skipped")
+        .Item("skipped_by").Value(skippedBy)
+        .Item("events_skipped").Value(count)
+        .Finish();
+    return event;
+}
+
 } // namespace
 
 
@@ -81,10 +109,10 @@ TPlainTextLogFormatter::TPlainTextLogFormatter()
     , CachingDateFormatter_(new TCachingDateFormatter())
 { }
 
-void TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
+size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
 {
     if (!outputStream) {
-        return;
+        return 0;
     }
 
     TMessageBuffer* buffer = Buffer_.get();
@@ -118,11 +146,18 @@ void TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const T
     buffer->AppendChar('\n');
 
     outputStream->Write(buffer->GetData(), buffer->GetBytesWritten());
+
+    return buffer->GetBytesWritten();
 }
 
 void TPlainTextLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
     WriteFormatted(outputStream, GetStartLogEvent());
+}
+
+void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const
+{
+    WriteFormatted(outputStream, GetSkippedLogEvent(count, skippedBy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,13 +166,15 @@ TJsonLogFormatter::TJsonLogFormatter()
     : CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
 { }
 
-void TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
+size_t TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
 {
     if (!stream) {
-        return;
+        return 0;
     }
 
-    auto jsonConsumer = NJson::CreateJsonConsumer(stream);
+    auto counterStream = TCountingOutput(stream);
+
+    auto jsonConsumer = NJson::CreateJsonConsumer(&counterStream);
     NYTree::BuildYsonFluently(jsonConsumer.get())
         .BeginMap()
             .Items(event.StructuredMessage)
@@ -147,12 +184,19 @@ void TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& e
         .EndMap();
     jsonConsumer->Flush();
 
-    stream->Write('\n');
+    counterStream.Write('\n');
+
+    return counterStream.Counter();
 }
 
 void TJsonLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
     WriteFormatted(outputStream, GetStartLogStructuredEvent());
+}
+
+void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const
+{
+    WriteFormatted(outputStream, GetSkippedLogStructuredEvent(count, skippedBy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

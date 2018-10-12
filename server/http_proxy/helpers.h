@@ -19,6 +19,8 @@ NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 
 void FixupNodesWithAttributes(const NYTree::IMapNodePtr& node);
 
+NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNetworkStatistics

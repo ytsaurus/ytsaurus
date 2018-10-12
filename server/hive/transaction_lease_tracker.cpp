@@ -81,6 +81,18 @@ void TTransactionLeaseTracker::UnregisterTransaction(const TTransactionId& trans
     });
 }
 
+void TTransactionLeaseTracker::SetTimeout(
+    const TTransactionId& transactionId,
+    TDuration timeout)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Requests_.Enqueue(TSetTimeoutRequest{
+        transactionId,
+        timeout,
+    });
+}
+
 void TTransactionLeaseTracker::PingTransaction(
     const TTransactionId& transactionId,
     bool pingAncestors)
@@ -155,6 +167,8 @@ void TTransactionLeaseTracker::ProcessRequest(const TRequest& request)
         ProcessRegisterRequest(*registerRequest);
     } else if (const auto* unregisterRequest = request.TryAs<TUnregisterRequest>()) {
         ProcessUnregisterRequest(*unregisterRequest);
+    } else if (const auto* setTimeoutRequest = request.TryAs<TSetTimeoutRequest>()) {
+        ProcessSetTimeoutRequest(*setTimeoutRequest);
     } else {
         Y_UNREACHABLE();
     }
@@ -204,6 +218,21 @@ void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest
 
     LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
         request.TransactionId);
+}
+
+void TTransactionLeaseTracker::ProcessSetTimeoutRequest(const TSetTimeoutRequest& request)
+{
+    VERIFY_THREAD_AFFINITY(TrackerThread);
+
+    ValidateActive();
+
+    if (auto descriptor = FindDescriptor(request.TransactionId)) {
+        descriptor->Timeout = request.Timeout;
+
+        LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
+            request.TransactionId,
+            request.Timeout);
+    }
 }
 
 void TTransactionLeaseTracker::ProcessDeadlines()

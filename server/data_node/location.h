@@ -8,7 +8,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
-#include <yt/ytlib/chunk_client/public.h> // TODO: remove me
 
 #include <yt/core/misc/enum.h>
 
@@ -46,6 +45,37 @@ DEFINE_ENUM(EIOCategory,
     (Realtime)
 );
 
+struct TLocationPerformanceCounters
+{
+    //! Indexed by |(ioDirection, ioCategory)|.
+    std::vector<NProfiling::TSimpleGauge> PendingIOSize;
+    std::vector<NProfiling::TMonotonicCounter> CompletedIOSize;
+
+    NProfiling::TMonotonicCounter ThrottledReads;
+    NProfiling::TMonotonicCounter ThrottledWrites;
+
+    NProfiling::TAggregateGauge PutBlocksWallTime;
+    NProfiling::TAggregateGauge MetaReadTime;
+    NProfiling::TAggregateGauge BlobChunkReaderOpenTime;
+    NProfiling::TAggregateGauge BlobBlockReadSize;
+    NProfiling::TAggregateGauge BlobBlockReadTime;
+    NProfiling::TAggregateGauge BlobBlockReadThroughput;
+    NProfiling::TAggregateGauge BlobBlockWriteSize;
+    NProfiling::TAggregateGauge BlobBlockWriteTime;
+    NProfiling::TAggregateGauge BlobBlockWriteThroughput;
+    NProfiling::TAggregateGauge JournalBlockReadSize;
+    NProfiling::TAggregateGauge JournalBlockReadTime;
+    NProfiling::TAggregateGauge JournalBlockReadThroughput;
+    NProfiling::TAggregateGauge JournalChunkCreateTime;
+    NProfiling::TAggregateGauge JournalChunkOpenTime;
+    NProfiling::TAggregateGauge JournalChunkRemoveTime;
+
+    TEnumIndexedVector<NProfiling::TSimpleGauge, ESessionType> SessionCount;
+
+    NProfiling::TAggregateGauge AvailableSpace;
+    NProfiling::TSimpleGauge Full;
+};
+
 class TLocation
     : public TDiskLocation
 {
@@ -76,6 +106,9 @@ public:
 
     //! Returns the profiler tagged with location id.
     const NProfiling::TProfiler& GetProfiler() const;
+
+    //! Returns various performance counters.
+    TLocationPerformanceCounters& GetPerformanceCounters();
 
     //! Returns the root path of the location.
     TString GetPath() const;
@@ -166,13 +199,7 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
-    //! Update PutBlocks wall time profiling counter.
-    void UpdatePutBlocksWallTimeCounter(NProfiling::TValue value);
-
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
-
-    void IncrementThrottledReadsCounter();
-    void IncrementThrottledWritesCounter();
 
     bool IsReadThrottling();
     bool IsWriteThrottling();
@@ -223,14 +250,7 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    //! Indexed by |(ioDirection, ioCategory)|.
-    std::vector<NProfiling::TSimpleGauge> PendingIOSizeCounters_;
-    std::vector<NProfiling::TMonotonicCounter> CompletedIOSizeCounters_;
-
-    NProfiling::TMonotonicCounter ThrottledReadsCounter_;
-    NProfiling::TMonotonicCounter ThrottledWritesCounter_;
-
-    NProfiling::TAggregateGauge PutBlocksWallTimeCounter_;
+    TLocationPerformanceCounters PerformanceCounters_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleGauge& GetPendingIOSizeCounter(

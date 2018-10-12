@@ -105,6 +105,11 @@ TJobSplitterConfig::TJobSplitterConfig()
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
+    RegisterParameter("residual_job_factor", ResidualJobFactor)
+        .GreaterThan(0)
+        .LessThanOrEqual(1.0)
+        .Default(0.8);
+
     RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
         .GreaterThan(0)
         .Default(5);

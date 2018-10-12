@@ -30,8 +30,11 @@ TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
     if (it != Map_.end()) {
         if (auto existingTabletInfo = it->second.Lock()) {
             if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
-                THROW_ERROR_EXCEPTION("Tablet mount revision %llx is outdated",
-                    tabletInfo->MountRevision);
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::InvalidMountRevision,
+                    "Tablet mount revision %llx is outdated",
+                    tabletInfo->MountRevision)
+                    << TErrorAttribute("tablet_id", tabletInfo->TabletId);
             }
 
             for (const auto& owner : existingTabletInfo->Owners) {
@@ -134,10 +137,11 @@ void TTableMountCacheBase::InvalidateTablet(TTabletInfoPtr tabletInfo)
 
 std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TError& error)
 {
-    static std::vector<NTabletClient::EErrorCode> retriableCodes = {
+    static std::vector<TErrorCode> retriableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
         NTabletClient::EErrorCode::TabletNotMounted,
-        NTabletClient::EErrorCode::InvalidMountRevision
+        NTabletClient::EErrorCode::InvalidMountRevision,
+        NYTree::EErrorCode::ResolveError
     };
 
     if (!error.IsOK()) {
@@ -158,7 +162,6 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                             }
                         }));
 
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
                     InvalidateTablet(tabletInfo);
                 }
                 return std::make_pair(true, tabletInfo);

@@ -118,6 +118,7 @@ private:
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_slice_data_size(ChunkSliceSize_);
         req->set_slice_by_keys(SliceByKeys_);
+        req->set_keys_in_attachment(true);
         ToProto(req->mutable_key_columns(), KeyColumns_);
         // TODO(babenko): make configurable
         ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
@@ -178,7 +179,7 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_WARNING("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
+            LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
                 NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
                 nodeId);
 
@@ -209,6 +210,12 @@ private:
 
             if (slices.has_error()) {
                 auto error = FromProto<TError>(slices.error());
+
+                if (error.FindMatching(EErrorCode::IncompatibleKeyColumns)) {
+                    // Any exception thrown here interrupts fetching.
+                    error.ThrowOnError();
+                }
+
                 OnChunkFailed(nodeId, index, error);
                 continue;
             }

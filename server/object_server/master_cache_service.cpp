@@ -159,76 +159,151 @@ private:
         { }
 
         TFuture<TSubrequestResponse> Lookup(
+            TRequestId requestId,
             const TKey& key,
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
             TDuration failureExpirationTime,
             TNullable<i64> refreshRevision)
         {
-            auto entry = Find(key);
-            if (entry) {
-                if (refreshRevision && entry->GetRevision() && *entry->GetRevision() <= *refreshRevision)
-                    LOG_DEBUG("Cache entry refresh requested (Key: %v, RefreshRevision: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
-                        key,
-                        refreshRevision,
-                        entry->GetRevision(),
-                        entry->GetSuccess(),
-                        successExpirationTime,
-                        failureExpirationTime);
-
-                    TryRemove(entry);
-
-                if (!IsExpired(entry, successExpirationTime, failureExpirationTime)) {
-                    LOG_DEBUG("Cache entry expired (Key: %v, Revision: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
-                        key,
-                        entry->GetRevision(),
-                        entry->GetSuccess(),
-                        successExpirationTime,
-                        failureExpirationTime);
-
-                    TryRemove(entry);
-
-                } else {
-                    LOG_DEBUG("Cache hit (Key: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
-                        key,
-                        entry->GetSuccess(),
-                        successExpirationTime,
-                        failureExpirationTime);
-                    return MakeFuture(TErrorOr<TSubrequestResponse>(std::make_pair(
-                        entry->GetResponseMessage(),
-                        entry->GetRevision())));
-                }
-            }
-
-            auto cookie = BeginInsert(key);
-            auto result = cookie.GetValue();
-            if (cookie.IsActive()) {
-                LOG_DEBUG("Populating cache (Key: %v)",
-                    key);
-
-                TObjectServiceProxy proxy(Owner_->MasterChannel_);
-                auto req = proxy.Execute();
-                req->SetUser(key.User);
-                req->add_part_counts(requestMessage.Size());
-                req->Attachments().insert(
-                    req->Attachments().end(),
-                    requestMessage.Begin(),
-                    requestMessage.End());
-
-                req->Invoke().Subscribe(BIND(
-                    &TCache::OnResponse,
-                    MakeStrong(this),
-                    Passed(std::move(cookie))));
-            }
-
-            return result.Apply(BIND([] (const TEntryPtr& entry) -> TSubrequestResponse {
-                return std::make_pair(entry->GetResponseMessage(), entry->GetRevision());
-            }));
+            return New<TLookupSession>(
+                this,
+                requestId,
+                key,
+                successExpirationTime,
+                failureExpirationTime,
+                refreshRevision)
+                ->Run(key, requestMessage);
         }
 
     private:
         TMasterCacheService* const Owner_;
         const NLogging::TLogger Logger;
+
+        class TLookupSession
+            : public TRefCounted
+        {
+        public:
+            TLookupSession(
+                TCache* owner,
+                TRequestId requestId,
+                const TKey& key,
+                TDuration successExpirationTime,
+                TDuration failureExpirationTime,
+                TNullable<i64> refreshRevision)
+                : Owner_(owner)
+                , SuccessExpirationTime_(successExpirationTime)
+                , FailureExpirationTime_(failureExpirationTime)
+                , RefreshRevision_(refreshRevision)
+                , Logger(owner->Logger)
+            {
+                Logger.AddTag("RequestId: %v, Key: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v, RefreshRevision: %v",
+                    requestId,
+                    key,
+                    successExpirationTime,
+                    failureExpirationTime,
+                    refreshRevision);
+            }
+
+            TFuture<TSubrequestResponse> Run(
+                const TKey& key,
+                TSharedRefArray requestMessage)
+            {
+                auto entry = Owner_->Find(key);
+                if (entry) {
+                    if (RefreshRevision_ && entry->GetRevision() && *entry->GetRevision() <= *RefreshRevision_) {
+                        LOG_DEBUG("Cache entry refresh requested (Revision: %v, Success: %v)",
+                            entry->GetRevision(),
+                            entry->GetSuccess());
+
+                        Owner_->TryRemove(entry);
+
+                    } else if (IsExpired(entry, SuccessExpirationTime_, FailureExpirationTime_)) {
+                        LOG_DEBUG("Cache entry expired (Revision: %v, Success: %v)",
+                            entry->GetRevision(),
+                            entry->GetSuccess());
+
+                        Owner_->TryRemove(entry);
+
+                    } else {
+                        LOG_DEBUG("Cache hit (Revision: %v, Success: %v)",
+                            entry->GetRevision(),
+                            entry->GetSuccess());
+
+                        return MakeFuture(TErrorOr<TSubrequestResponse>(std::make_pair(
+                            entry->GetResponseMessage(),
+                            entry->GetRevision())));
+                    }
+                }
+
+                auto cookie = Owner_->BeginInsert(key);
+                auto result = cookie.GetValue();
+                if (cookie.IsActive()) {
+                    LOG_DEBUG("Populating cache");
+
+                    TObjectServiceProxy proxy(Owner_->Owner_->MasterChannel_);
+                    auto req = proxy.Execute();
+                    req->SetUser(key.User);
+                    req->add_part_counts(requestMessage.Size());
+                    req->Attachments().insert(
+                        req->Attachments().end(),
+                        requestMessage.Begin(),
+                        requestMessage.End());
+
+                    req->Invoke().Subscribe(BIND(
+                        &TLookupSession::OnResponse,
+                        MakeStrong(this),
+                        Passed(std::move(cookie))));
+                }
+
+                return result.Apply(BIND([] (const TEntryPtr& entry) -> TSubrequestResponse {
+                    return std::make_pair(entry->GetResponseMessage(), entry->GetRevision());
+                }));
+            }
+
+        private:
+            TIntrusivePtr<TCache> Owner_;
+            const TDuration SuccessExpirationTime_;
+            const TDuration FailureExpirationTime_;
+            const TNullable<i64> RefreshRevision_;
+
+            NLogging::TLogger Logger;
+
+            void OnResponse(
+                TInsertCookie cookie,
+                const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
+            {
+                if (!rspOrError.IsOK()) {
+                    LOG_WARNING(rspOrError, "Cache population request failed");
+                    cookie.Cancel(rspOrError);
+                    return;
+                }
+
+                const auto& rsp = rspOrError.Value();
+                const auto& key = cookie.GetKey();
+
+                YCHECK(rsp->part_counts_size() == 1);
+                auto responseMessage = TSharedRefArray(rsp->Attachments());
+
+                TResponseHeader responseHeader;
+                YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+                auto responseError = FromProto<TError>(responseHeader.error());
+                auto revision = rsp->revisions_size() > 0 ? MakeNullable(rsp->revisions(0)) : Null;
+
+                LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
+                    key,
+                    revision,
+                    responseError);
+
+                auto entry = New<TEntry>(
+                    key,
+                    responseError.IsOK(),
+                    revision,
+                    TInstant::Now(),
+                    responseMessage);
+                cookie.EndInsert(entry);
+            }
+        };
 
 
         virtual void OnAdded(const TEntryPtr& entry) override
@@ -275,42 +350,6 @@ private:
             return
                 TInstant::Now() > entry->GetTimestamp() +
                 (entry->GetSuccess() ? successExpirationTime : failureExpirationTime);
-        }
-
-
-        void OnResponse(
-            TInsertCookie cookie,
-            const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
-        {
-            if (!rspOrError.IsOK()) {
-                LOG_WARNING(rspOrError, "Cache population request failed");
-                cookie.Cancel(rspOrError);
-                return;
-            }
-
-            const auto& rsp = rspOrError.Value();
-            const auto& key = cookie.GetKey();
-
-            YCHECK(rsp->part_counts_size() == 1);
-            auto responseMessage = TSharedRefArray(rsp->Attachments());
-
-            TResponseHeader responseHeader;
-            YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-            auto responseError = FromProto<TError>(responseHeader.error());
-            auto revision = rsp->revisions_size() > 0 ? MakeNullable(rsp->revisions(0)) : Null;
-
-            LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
-                key,
-                revision,
-                responseError);
-
-            auto entry = New<TEntry>(
-                key,
-                responseError.IsOK(),
-                revision,
-                TInstant::Now(),
-                responseMessage);
-            cookie.EndInsert(entry);
         }
     };
 
@@ -458,6 +497,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 key);
 
             asyncMasterResponseMessages.push_back(Cache_->Lookup(
+                requestId,
                 key,
                 std::move(subrequestMessage),
                 FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),

@@ -995,8 +995,8 @@ private:
         LOG_DEBUG("Started creating journal chunk (ChunkId: %v)",
             chunkId);
 
-        const auto& Profiler = Location_->GetProfiler();
-        PROFILE_TIMING("/journal_chunk_create_time") {
+        {
+            NProfiling::TAggregatedTimingGuard(&Location_->GetProfiler(), &Location_->GetPerformanceCounters().JournalChunkCreateTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
@@ -1017,8 +1017,8 @@ private:
         LOG_TRACE("Started opening journal chunk (ChunkId: %v)",
             chunkId);
 
-        const auto& Profiler = Location_->GetProfiler();
-        PROFILE_TIMING("/journal_chunk_open_time") {
+        {
+            NProfiling::TAggregatedTimingGuard(&Location_->GetProfiler(), &Location_->GetPerformanceCounters().JournalChunkOpenTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->OpenChangelog(
                 fileName,
@@ -1033,10 +1033,8 @@ private:
 
     void DoRemoveChangelog(const TJournalChunkPtr& chunk)
     {
-        const auto& Profiler = Location_->GetProfiler();
-        PROFILE_TIMING("/journal_chunk_remove_time") {
-            chunk->SyncRemove(false);
-        }
+        NProfiling::TAggregatedTimingGuard(&Location_->GetProfiler(), &Location_->GetPerformanceCounters().JournalChunkRemoveTime);
+        chunk->SyncRemove(false);
     }
 
     bool DoIsChangelogSealed(const TChunkId& chunkId)

@@ -66,6 +66,7 @@ message TReqSet
 {
     required bytes value = 1;
     optional bool recursive = 2 [default = false];
+    optional bool force = 3 [default = false];
 }
 
 message TRspSet

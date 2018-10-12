@@ -249,7 +249,6 @@ void TBlobChunkBase::DoReadBlockSet(
     TReadBlockSetSessionPtr session,
     TPendingIOGuard /*pendingIOGuard*/)
 {
-    auto& locationProfiler = Location_->GetProfiler();
     auto reader = Bootstrap_->GetBlobReaderCache()->GetReader(this);
 
     int currentIndex = 0;
@@ -281,13 +280,13 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Options.WorkloadDescriptor,
             session->Options.ReadSessionId);
 
-        TWallTimer timer;
+        TWallTimer readTimer;
         auto blocksOrError = WaitFor(reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
             blocksToRead,
             Null));
-        auto readTime = timer.GetElapsedTime();
+        auto readTime = readTimer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {
             auto error = TError(
@@ -306,6 +305,7 @@ void TBlobChunkBase::DoReadBlockSet(
         YCHECK(blocks.size() == blocksToRead);
 
         i64 bytesRead = 0;
+        TWallTimer populateCacheTimer;
         for (int index = beginIndex; index < endIndex; ++index) {
             auto data = blocks[index - beginIndex];
             bytesRead += data.Size();
@@ -327,18 +327,24 @@ void TBlobChunkBase::DoReadBlockSet(
                 entry.Cookie.EndInsert(cachedBlock);
             }
         }
+        auto populateCacheTime = populateCacheTimer.GetElapsedTime();
 
-        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, ReadSessionId: %v)",
+        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
+            "ReadTime: %v, PopulateCacheTime: %v, ReadSessionId: %v)",
             Id_,
             firstBlockIndex + beginIndex,
             firstBlockIndex + endIndex - 1,
             Location_->GetId(),
             bytesRead,
+            readTime,
+            populateCacheTime,
             session->Options.ReadSessionId);
 
-        locationProfiler.Enqueue("/blob_block_read_size", bytesRead, EMetricType::Gauge);
-        locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
-        locationProfiler.Enqueue("/blob_block_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
+        const auto& locationProfiler = Location_->GetProfiler();
+        auto& performanceCounters = Location_->GetPerformanceCounters();
+        locationProfiler.Update(performanceCounters.BlobBlockReadSize, bytesRead);
+        locationProfiler.Update(performanceCounters.BlobBlockReadTime, NProfiling::DurationToValue(readTime));
+        locationProfiler.Update(performanceCounters.BlobBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
 
         Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
 

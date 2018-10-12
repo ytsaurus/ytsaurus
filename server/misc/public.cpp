@@ -21,9 +21,6 @@ FOR_EACH_INTERNED_ATTRIBUTE(XX)
 
 #undef XX
 
-void InitMasterInternedAttributes()
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

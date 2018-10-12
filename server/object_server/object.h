@@ -185,10 +185,10 @@ public:
     template <class TDerived>
     const TDerived* As() const;
 
-protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+protected:
     const TObjectId Id_;
 
     int RefCounter_ = 0;
@@ -232,7 +232,7 @@ template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
 
 template <class TObject, class TValue>
-std::vector<std::pair<TObject*, TValue>> GetPairsSortedByKey(const THashMap<TObject*, TValue>& entities);
+std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObject*, TValue>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 

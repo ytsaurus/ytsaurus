@@ -99,6 +99,7 @@ public:
     TNullable<ui64> ForcedCompactionRevision;
 
     TNullable<TDuration> DynamicStoreAutoFlushPeriod;
+    TDuration DynamicStoreFlushPeriodSkew;
     TNullable<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
@@ -232,6 +233,8 @@ public:
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
             .Default(TDuration::Minutes(15));
+        RegisterParameter("dynamic_store_flush_period_skew", DynamicStoreFlushPeriodSkew)
+            .Default(TDuration::Minutes(5));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 
@@ -345,7 +348,6 @@ class TTabletManagerConfig
 {
 public:
     i64 PoolChunkSize;
-    double MaxPoolSmallBlockRatio;
 
     TDuration PreloadBackoffTime;
     TDuration CompactionBackoffTime;
@@ -369,10 +371,6 @@ public:
         RegisterParameter("pool_chunk_size", PoolChunkSize)
             .GreaterThan(64_KB)
             .Default(1_MB);
-
-        RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.25);
 
         RegisterParameter("max_blocked_row_wait_time", MaxBlockedRowWaitTime)
             .Default(TDuration::Seconds(5));

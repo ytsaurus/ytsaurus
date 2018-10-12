@@ -22,7 +22,7 @@
             },
             {
                 "name": "YT_VERSION_BRANCH",
-                "value": "@YT_VERSION_BRANCH"
+                "value": "@YT_VERSION_BRANCH@"
             },
             {
                 "name": "YT_ENABLE_GDB_INDEX",
@@ -47,6 +47,15 @@
             },
             "destination": {
                 "path": "/usr/bin/ytnode"
+            }
+        },
+        {
+            "source": {
+                "type": "SYMLINK"
+            },
+            "destination": {
+                "path": "/usr/bin/ytnodejs",
+                "target": "/usr/bin/ytnode"
             }
         },
         {
