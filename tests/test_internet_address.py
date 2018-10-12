@@ -1,9 +1,13 @@
-import pytest
+from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import wait, YtResponseError
+
 from yt.yson import YsonEntity
 
 from yt.packages.six.moves import xrange
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestInternetAddresses(object):
@@ -71,6 +75,7 @@ class TestInternetAddresses(object):
                 "pod_set_id": pod_set_id
             },
             "spec": {
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
                 "ip6_address_requests": [
                     {"vlan_id": "somevlan", "network_id": "somenet", "enable_internet": enable_internet},
                 ],

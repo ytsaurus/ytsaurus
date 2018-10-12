@@ -200,72 +200,77 @@ private:
                     continue;
                 }
 
-                auto idPairs = FindObjectToSweep(typeHandler);
-                if (idPairs.empty()) {
-                    continue;
-                }
-
-                DropRemovedObjects(typeHandler, idPairs);
+                SweepTable(typeHandler->GetTable(), &ObjectsTable.Fields.Meta_RemovalTime);
             }
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Failed to perform removed objects sweep");
         }
     }
+    
+    void SweepTable(
+        const TDBTable* table,
+        const TDBField* removalTimeField)
+    {
+        auto rowset = FindDeadRows(table, removalTimeField);
+        if (!rowset->GetRows().Empty()) {
+            DropDeadRows(table, rowset);
+        }
+    }
 
-    TString BuildSweepQuery(IObjectTypeHandler* typeHandler, TInstant deadline)
+    TString BuildSweepQuery(
+        const TDBTable* table,
+        const TDBField* removalTimeField,
+        TInstant deadline)
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v", FormatId(ObjectsTable.Fields.Meta_Id.Name));
-        if (typeHandler->GetParentType() != EObjectType::Null) {
-            builder.AppendFormat(", %v", FormatId(typeHandler->GetParentIdField()->Name));
-        }
         const auto& ytConnector = Bootstrap_->GetYTConnector();
-        builder.AppendFormat(" from %v where not is_null(%v) and %v < %v",
-            FormatId(ytConnector->GetTablePath(typeHandler->GetTable())),
-            FormatId(ObjectsTable.Fields.Meta_RemovalTime.Name),
-            FormatId(ObjectsTable.Fields.Meta_RemovalTime.Name),
+        builder.AppendFormat("%v from %v where not is_null(%v) and %v < %vu",
+            JoinToString(table->Key, [] (auto* builder, const auto* field) {
+                builder->AppendFormat("%v",
+                    FormatId(field->Name));
+            }),
+            FormatId(ytConnector->GetTablePath(table)),
+            FormatId(removalTimeField->Name),
+            FormatId(removalTimeField->Name),
             deadline.MicroSeconds());
         return builder.Flush();
     }
 
-    std::vector<std::pair<TObjectId, TObjectId>> FindObjectToSweep(IObjectTypeHandler* typeHandler)
+    IUnversionedRowsetPtr FindDeadRows(
+        const TDBTable* table,
+        const TDBField* removalTimeField)
     {
         auto deadline = TInstant::Now() - Config_->RemovedObjectsGraceTimeout;
-        LOG_INFO("Selecting removed objects to sweep (Type: %v, Deadline: %v)",
-            typeHandler->GetType(),
+        LOG_INFO("Selecting dead rows (Table: %v, Deadline: %v)",
+            table->Name,
             deadline);
-
-        std::vector<std::pair<TObjectId, TObjectId>> idPairs;
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
             .ValueOrThrow();
 
+        IUnversionedRowsetPtr result;
         auto* session = transaction->GetSession();
         session->ScheduleLoad(
             [&] (ILoadContext* context) {
                 TStringBuilder queryBuilder;
                 context->ScheduleSelect(
-                    BuildSweepQuery(typeHandler, deadline),
-                    [&] (const auto& rowset) {
-                        for (auto row : rowset->GetRows()) {
-                            auto pair =
-                                typeHandler->GetParentType() == EObjectType::Null
-                                ? std::make_pair(FromUnversionedValue<TObjectId>(row[0]), TObjectId())
-                                : std::make_pair(FromUnversionedValue<TObjectId>(row[0]), FromUnversionedValue<TObjectId>(row[1]));
-                            idPairs.push_back(pair);
-                        }
+                    BuildSweepQuery(table, removalTimeField, deadline),
+                    [&] (const auto& rowset) mutable {
+                        result = rowset;
                     });
             });
         session->FlushLoads();
 
-        LOG_INFO("Removed objects selected (Count: %v)",
-            idPairs.size());
+        LOG_INFO("Dead rows selected (Count: %v)",
+            result->GetRows().Size());
 
-        return idPairs;
+        return result;
     }
 
-    void DropRemovedObjects(IObjectTypeHandler* typeHandler, std::vector<std::pair<TObjectId, TObjectId>>& idPairs)
+    void DropDeadRows(
+        const TDBTable* table,
+        const IUnversionedRowsetPtr& rowset)
     {
         LOG_INFO("Starting removal transaction");
 
@@ -279,16 +284,10 @@ private:
         auto* session = transaction->GetSession();
         session->ScheduleStore(
             [&] (IStoreContext* context) {
-                for (const auto& pair : idPairs) {
-                    if (typeHandler->GetParentType() == EObjectType::Null) {
-                        context->DeleteRow(
-                            typeHandler->GetTable(),
-                            ToUnversionedValues(context->GetRowBuffer(), pair.first));
-                    } else {
-                        context->DeleteRow(
-                            typeHandler->GetTable(),
-                            ToUnversionedValues(context->GetRowBuffer(), pair.second, pair.first));
-                    }
+                for (auto row : rowset->GetRows()) {
+                    context->DeleteRow(
+                        table,
+                        TRange<TUnversionedValue>(row.Begin(), row.End()));
                 }
             });
 

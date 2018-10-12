@@ -4,6 +4,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYP {
 namespace NServer {
 namespace NNodes {
@@ -19,6 +21,7 @@ public:
 
     bool EnableAgentNotification;
     TDuration AgentNotificationRpcTimeout;
+    NConcurrency::TThroughputThrottlerConfigPtr AgentNotificationThrottler;
 
     TNodeTrackerConfig()
     {
@@ -30,8 +33,13 @@ public:
             .Optional();
         RegisterParameter("enable_agent_notification", EnableAgentNotification)
             .Default(true);
-        RegisterParameter("notify_rpc_timeout", AgentNotificationRpcTimeout)
+        RegisterParameter("agent_notification_rpc_timeout", AgentNotificationRpcTimeout)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("agent_notification_throttler", AgentNotificationThrottler)
+            .DefaultNew();
+        RegisterPreprocessor([&] {
+            AgentNotificationThrottler->Limit = 10;
+        });
     }
 };
 

@@ -380,7 +380,7 @@ void UpdatePodDiskVolumeAllocations(
         if (response.ExistingAllocation) {
             auto it = idToAllocation.find(volumeRequest.id());
             YCHECK(it != idToAllocation.end());
-            volumeAllocation->MergeFrom(*it->second);
+            volumeAllocation->CopyFrom(*it->second);
         } else {
             volumeAllocation->set_id(volumeRequest.id());
             volumeAllocation->set_capacity(GetDiskCapacity(request.Capacities));
@@ -388,7 +388,7 @@ void UpdatePodDiskVolumeAllocations(
             volumeAllocation->set_volume_id(request.AllocationId);
             volumeAllocation->set_device(response.Resource->ProtoDiskSpec->device());
         }
-        volumeAllocation->mutable_labels()->MergeFrom(volumeRequest.labels());
+        volumeAllocation->mutable_labels()->CopyFrom(volumeRequest.labels());
     }
     allocations->Swap(&newAllocations);
 }

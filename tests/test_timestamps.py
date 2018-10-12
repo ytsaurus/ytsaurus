@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.usefixtures("yp_env")
 class TestTimestamps(object):
     def test_monotonicity(self, yp_env):

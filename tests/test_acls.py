@@ -1,7 +1,11 @@
-import pytest
+from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YpAuthorizationError
+
 from yt.environment.helpers import assert_items_equal
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestAcls(object):
@@ -260,6 +264,7 @@ class TestAcls(object):
                         "pod_set_id": pod_set_id
                     },
                     "spec": {
+                        "resource_requests": ZERO_RESOURCE_REQUESTS,
                         "node_id": node_id
                     }
                 })
@@ -291,6 +296,9 @@ class TestAcls(object):
         pod_id = yp_client.create_object("pod", attributes={
                 "meta": {
                     "pod_set_id": pod_set_id
+                },
+                "spec": {
+                    "resource_requests": ZERO_RESOURCE_REQUESTS
                 }
             })
 

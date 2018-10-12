@@ -1,5 +1,7 @@
-import pytest
 from yp.common import YpInvalidObjectIdError, YpDuplicateObjectIdError, YpNoSuchObjectError, YpInvalidObjectStateError
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestIds(object):

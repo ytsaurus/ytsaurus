@@ -1,10 +1,11 @@
-import pytest
-
 from yp.common import YtResponseError, wait
 
 from yt.yson import YsonEntity
 
 from yt.packages.six.moves import xrange
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestResources(object):
@@ -70,7 +71,7 @@ class TestResources(object):
                 "meta": {"node_id": "nonexisting_node_id"}
             })
 
-    def test_create_destroy(self, yp_env):
+    def test_resource_create_destroy(self, yp_env):
         yp_client = yp_env.yp_client
         yt_client = yp_env.yt_client
 

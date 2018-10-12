@@ -1,6 +1,6 @@
-import pytest
-
 from yp.client import YpClient
+
+import pytest
 
 
 def get_root_certificate(environment):

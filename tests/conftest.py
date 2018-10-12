@@ -7,13 +7,6 @@ from yp.logger import logger
 from yt.wrapper.common import generate_uuid
 from yt.wrapper.retries import run_with_retries
 
-import pytest
-
-import os
-import sys
-import logging
-import time
-
 # TODO(ignat): avoid this hacks
 try:
     import yatest.common as yatest_common
@@ -25,12 +18,21 @@ if yatest_common is not None:
 else:
     arcadia_interop = None
 
+import pytest
+
+import os
+import sys
+import logging
+import time
+
+
 if yatest_common is None:
     sys.path.insert(0, os.path.abspath('../../python'))
     pytest_plugins = "yt.test_runner.plugin"
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
+
 OBJECT_TYPES = [
     "pod",
     "pod_set",
@@ -47,6 +49,13 @@ OBJECT_TYPES = [
     "replica_set",
 ]
 
+ZERO_RESOURCE_REQUESTS = {
+    "vcpu_guarantee": 0,
+    "vcpu_limit": 0,
+    "memory_guarantee": 0,
+    "memory_limit": 0
+}
+
 logger.setLevel(logging.DEBUG)
 
 class YpTestEnvironment(object):
@@ -57,14 +66,17 @@ class YpTestEnvironment(object):
             path, node_path = arcadia_interop.prepare_yt_environment(destination)
             os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
             os.environ["NODE_PATH"] = node_path
+            self.test_sandbox_base_path = yatest_common.output_path()
             self.test_sandbox_path = os.path.join(yatest_common.output_path(), "yp_" + generate_uuid())
         else:
+            self.test_sandbox_base_path = TESTS_SANDBOX
             self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
 
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,
                                       enable_ssl=enable_ssl,
-                                      db_version=db_version)
+                                      db_version=db_version,
+                                      port_locks_path=os.path.join(self.test_sandbox_base_path, "ports"))
         if start:
             self._start()
         else:
@@ -118,8 +130,8 @@ def test_method_teardown(yp_env):
                     continue
                 yp_client.remove_object(object_type, object_id)
             yp_client.update_object("group", "superusers", set_updates=[
-                    {"path": "/spec/members", "value": ["root"]}
-                ])
+                {"path": "/spec/members", "value": ["root"]}
+            ])
 
         run_with_retries(do, exceptions=(YtResponseError,))
 

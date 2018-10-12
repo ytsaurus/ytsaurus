@@ -1,6 +1,7 @@
+from yt.yson import YsonEntity, YsonUint64
+
 import pytest
 
-from yt.yson import YsonEntity, YsonUint64
 
 @pytest.mark.usefixtures("yp_env")
 class TestVirtualServices(object):

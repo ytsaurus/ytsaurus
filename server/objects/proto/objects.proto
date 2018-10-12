@@ -10,6 +10,7 @@ message TNodeStatusOther
 {
     optional NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
     optional NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;
+    repeated string unknown_pod_ids = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

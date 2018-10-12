@@ -409,6 +409,10 @@ message TNodeStatus
     }
     // Maintenance workflow.
     optional TMaintenance maintenance = 6;
+
+    // Contains ids of pods that are reported to be present at the node
+    // but are neither known to exist nor were recently removed.
+    repeated string unknown_pod_ids = 7;
 }
 
 message TNodeControl

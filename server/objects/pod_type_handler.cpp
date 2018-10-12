@@ -41,6 +41,13 @@ using std::placeholders::_3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto DefaultVcpuLimit = 1000;
+static constexpr auto DefaultVcpuGuarantee = 1000;
+static constexpr auto DefaultMemoryLimit = 100_MB;
+static constexpr auto DefaultMemoryGuarantee = 100_MB;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPodTypeHandler
     : public TObjectTypeHandlerBase
 {
@@ -172,6 +179,12 @@ public:
 
         auto* pod = object->As<TPod>();
 
+        auto* resourceRequests = pod->Spec().Other()->mutable_resource_requests();
+        resourceRequests->set_vcpu_limit(DefaultVcpuLimit);
+        resourceRequests->set_vcpu_guarantee(DefaultVcpuGuarantee);
+        resourceRequests->set_memory_limit(DefaultMemoryLimit);
+        resourceRequests->set_memory_guarantee(DefaultMemoryGuarantee);
+
         const auto& netManager = Bootstrap_->GetNetManager();
         pod->Status().Other()->mutable_dns()->set_persistent_fqdn(netManager->BuildPersistentPodFqdn(pod));
 
@@ -252,40 +265,55 @@ private:
 
     void OnSpecUpdated(TTransaction* transaction, TPod* pod)
     {
-        transaction->ScheduleUpdatePodSpec(pod);
-        transaction->ScheduleValidateAccounting(pod);
+        const auto& spec = pod->Spec();
+
+        if (spec.Other().IsChanged() ||
+            spec.Node().IsChanged() ||
+            spec.EnableScheduling().IsChanged())
+        {
+            transaction->ScheduleUpdatePodSpec(pod);
+        }
+
+        if (spec.Other().IsChanged()) {
+            transaction->ScheduleValidateAccounting(pod);
+        }
     }
 
     void ValidateSpec(TTransaction* /*transaction*/, TPod* pod)
     {
-        if (pod->Spec().Node().IsChanged()) {
+        const auto& spec = pod->Spec();
+        const auto& specOther = pod->Spec().Other();
+
+        if (spec.Node().IsChanged()) {
             const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
             accessControlManager->ValidateSuperuser();
         }
 
-        if (pod->Spec().EnableScheduling().IsChanged() &&
-            pod->Spec().EnableScheduling().Load() &&
-            pod->Spec().Node().IsChanged() &&
-            pod->Spec().Node().Load())
+        if (spec.EnableScheduling().IsChanged() &&
+            spec.EnableScheduling().Load() &&
+            spec.Node().IsChanged() &&
+            spec.Node().Load())
         {
             THROW_ERROR_EXCEPTION("Cannot re-enable scheduling for pod %Qv and force-assign it to node %Qv at the same time",
                 pod->GetId(),
-                pod->Spec().Node().Load()->GetId());
+                spec.Node().Load()->GetId());
         }
 
-        for (const auto& spec : pod->Spec().Other().Load().host_devices()) {
-            ValidateHostDeviceSpec(spec);
-        }
+        if (specOther.IsChanged()) {
+            for (const auto& spec : specOther.Load().host_devices()) {
+                ValidateHostDeviceSpec(spec);
+            }
 
-        for (const auto& spec : pod->Spec().Other().Load().sysctl_properties()) {
-            ValidateSysctlProperty(spec);
-        }
+            for (const auto& spec : specOther.Load().sysctl_properties()) {
+                ValidateSysctlProperty(spec);
+            }
 
-        ValidateDiskVolumeRequests(pod->Spec().Other().Load().disk_volume_requests());
-        if (pod->Spec().Other().IsChanged() && pod->Spec().Node().Load()) {
-            ValidateDiskVolumeRequestsUpdate(
-                pod->Spec().Other().Load().disk_volume_requests(),
-                pod->Spec().Other().LoadOld().disk_volume_requests());
+            ValidateDiskVolumeRequests(specOther.Load().disk_volume_requests());
+            if (pod->Spec().Node().Load()) {
+                ValidateDiskVolumeRequestsUpdate(
+                    specOther.Load().disk_volume_requests(),
+                    specOther.LoadOld().disk_volume_requests());
+            }
         }
     }
 

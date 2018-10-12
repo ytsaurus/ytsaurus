@@ -95,11 +95,13 @@ TNode::TNode(
     std::vector<TTopologyZone*> topologyZones,
     EHfsmState hfsmState,
     ENodeMaintenanceState maintenanceState,
+    bool hasUnknownPods,
     NClient::NApi::NProto::TNodeSpec spec)
     : TObject(id, std::move(labels))
     , TopologyZones_(std::move(topologyZones))
     , HfsmState_(hfsmState)
     , MaintenanceState_(maintenanceState)
+    , HasUnknownPods_(hasUnknownPods)
     , Spec_(std::move(spec))
 { }
 
@@ -118,6 +120,13 @@ void TNode::AcquireAntiaffinityVacancies(const TPod* pod)
     for (auto* zone : TopologyZones_) {
         zone->AcquireAntiaffinityVacancy(pod);
     }
+}
+
+bool TNode::IsSchedulable() const
+{
+    return
+        HfsmState_ == EHfsmState::Up &&
+        !HasUnknownPods_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,11 @@
-import pytest
+from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError, YpNoSuchObjectError, wait
 
 from yt.yson import YsonEntity
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestNet(object):
@@ -34,6 +37,7 @@ class TestNet(object):
             })
         yp_client.update_hfsm_state(node_id, "up", "Test")
            
+        spec["resource_requests"] = ZERO_RESOURCE_REQUESTS
         pod_id = yp_client.create_object("pod", attributes={
             "meta": {
                 "pod_set_id": pod_set_id
@@ -124,6 +128,7 @@ class TestNet(object):
                 "pod_set_id": pod_set_id
             },
             "spec": {
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
                 "ip6_address_requests": [
                     {"vlan_id": "somevlan", "network_id": "somenet", "labels": address_labels},
                     {"vlan_id": "somevlan", "manual_address": "a:b:c:d:a:b:c:d", "labels": address_labels}
@@ -187,6 +192,7 @@ class TestNet(object):
                 "pod_set_id": pod_set_id
             },
             "spec": {
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
                 "ip6_address_requests": [
                     {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": False},
                     {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True},

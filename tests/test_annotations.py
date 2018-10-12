@@ -1,10 +1,11 @@
-import pytest
+from yp.common import YtResponseError
 
 from yt.yson import YsonEntity
 
-from yp.common import YtResponseError
-
 from yt.packages.six.moves import xrange
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestAnnotations(object):

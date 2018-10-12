@@ -126,6 +126,25 @@ private:
     void StoreToDB(IStoreContext* context);
 };
 
+class TObjectTombstoneChecker
+{
+public:
+    explicit TObjectTombstoneChecker(TObject* object);
+
+    void ScheduleCheck() const;
+    bool Check() const;
+
+private:
+    TObject* const Object_;
+
+    bool CheckScheduled_ = false;
+    bool Checked_ = false;
+    bool Tombstone_ = false;
+
+    void LoadFromDB(ILoadContext* context);
+    void StoreToDB(IStoreContext* context);
+};
+
 class TAttributeBase
     : public IPersistentAttribute
     , private TNonCopyable

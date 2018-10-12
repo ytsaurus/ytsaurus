@@ -28,7 +28,7 @@ extern const struct TObjectTableBase
 
 extern const struct TSchemasTable
     : public TDBTable
-        , public TObjectTableBase
+    , public TObjectTableBase
 {
     TSchemasTable()
         : TDBTable("schemas")
@@ -60,6 +60,25 @@ extern const struct TParentsTable
         TDBField ParentId{"parent_id"};
     } Fields;
 } ParentsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TTombstonesTable
+    : public TDBTable
+{
+    TTombstonesTable()
+        : TDBTable("tombstones")
+    {
+        Key = {&Fields.ObjectId, &Fields.ObjectType};
+    }
+
+    struct TFields
+    {
+        TDBField ObjectId{"object_id"};
+        TDBField ObjectType{"object_type"};
+        TDBField RemovalTime{"removal_time"};
+    } Fields;
+} TombstonesTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

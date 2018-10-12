@@ -28,7 +28,7 @@ int GetVersionPatch()
 
 const char* GetVersion()
 {
-    static auto version = CreateYTVersion(@YP_VERSION_MAJOR@, @YP_VERSION_MINOR@, @YP_VERSION_PATCH@, AsStringBuf("local"));
+    static auto version = CreateYTVersion(@YP_VERSION_MAJOR@, @YP_VERSION_MINOR@, @YP_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
     return version.c_str();
 }
 

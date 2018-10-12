@@ -1,10 +1,11 @@
-import pytest
-
 from yp.common import YpInvalidObjectIdError, YpDuplicateObjectIdError, YtResponseError
 
 from yt.environment.helpers import assert_items_equal
 
 from yt.packages.six.moves import xrange
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestUsers(object):

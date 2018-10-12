@@ -1,6 +1,7 @@
+from yp.common import YtResponseError
+
 import pytest
 
-from yp.common import YtResponseError
 
 @pytest.mark.usefixtures("yp_env")
 class TestLabels(object):

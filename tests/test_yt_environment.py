@@ -1,6 +1,6 @@
-import pytest
-
 from yt.test_helpers import unorderable_list_difference
+
+import pytest
 
 
 def _check_lists_equal(expected, actual):

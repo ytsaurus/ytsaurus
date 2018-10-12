@@ -1,8 +1,9 @@
 from __future__ import print_function
 
+from yp.local import OBJECT_TYPES
+
 import pytest
 
-from yp.local import OBJECT_TYPES
 
 @pytest.mark.usefixtures("yp_env")
 class TestSchemas(object):

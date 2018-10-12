@@ -134,6 +134,63 @@ void TObjectExistenceChecker::StoreToDB(IStoreContext* /*context*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TObjectTombstoneChecker::TObjectTombstoneChecker(TObject* object)
+    : Object_(object)
+{ }
+
+void TObjectTombstoneChecker::ScheduleCheck() const
+{
+    auto* this_ = const_cast<TObjectTombstoneChecker*>(this);
+    if (this_->CheckScheduled_) {
+        return;
+    }
+    this_->CheckScheduled_ = true;
+    Object_->GetSession()->ScheduleLoad(
+        [=] (ILoadContext* context) {
+            this_->LoadFromDB(context);
+        });
+}
+
+bool TObjectTombstoneChecker::Check() const
+{
+    if (!Checked_) {
+        ScheduleCheck();
+        Object_->GetSession()->FlushLoads();
+    }
+    Y_ASSERT(Checked_);
+    return Tombstone_;
+}
+
+void TObjectTombstoneChecker::LoadFromDB(ILoadContext* /* context */)
+{
+    Y_ASSERT(!Checked_);
+
+    Object_->GetSession()->ScheduleLoad(
+        [=] (ILoadContext* context) {
+            context->ScheduleLookup(
+                &TombstonesTable,
+                ToUnversionedValues(
+                    context->GetRowBuffer(),
+                    Object_->GetId(),
+                    Object_->GetType()),
+                MakeArray(
+                    // Not actually used, just for better diagnostics.
+                    &TombstonesTable.Fields.RemovalTime),
+                [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
+                    Y_ASSERT(!Checked_);
+                    Checked_ = true;
+                    Tombstone_ = maybeValues.HasValue();
+                });
+        });
+}
+
+void TObjectTombstoneChecker::StoreToDB(IStoreContext* /*context*/)
+{
+    Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAttributeBase::TAttributeBase(TObject* owner)
     : Owner_(owner)
 {

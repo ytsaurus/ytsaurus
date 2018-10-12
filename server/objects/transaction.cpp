@@ -616,7 +616,7 @@ public:
 
                 State_ = ETransactionState::Committed;
 
-                LOG_DEBUG("Transaction committed (CommitTimestamp: %v)",
+                LOG_DEBUG("Transaction committed (CommitTimestamp: %llx)",
                     timestamp);
 
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -642,6 +642,7 @@ public:
     void ScheduleNotifyAgent(TNode* node)
     {
         EnsureReadWrite();
+        node->Status().AgentAddress().ScheduleLoad();
         if (AgentsAwaitingNotifcation_.insert(node).second) {
             LOG_DEBUG("Agent notification scheduled (NodeId: %v)",
                 node->GetId());
@@ -1573,6 +1574,16 @@ private:
                         ToUnversionedValues(
                             context.GetRowBuffer(),
                             now));
+                    context.WriteRow(
+                        &TombstonesTable,
+                        ToUnversionedValues(
+                            context.GetRowBuffer(),
+                            object->GetId(),
+                            object->GetType()),
+                        MakeArray(&TombstonesTable.Fields.RemovalTime),
+                        ToUnversionedValues(
+                            context.GetRowBuffer(),
+                            now));
                     if (parentType != EObjectType::Null) {
                         context.DeleteRow(
                             &ParentsTable,
@@ -1714,7 +1725,7 @@ private:
     static TNameTablePtr BuildNameTable(const TDBTable* table)
     {
         auto nameTable = New<TNameTable>();
-        for (size_t index = 0; index < table->Key.size(); ++index) {
+        for (int index = 0; index < static_cast<int>(table->Key.size()); ++index) {
             YCHECK(nameTable->RegisterName(table->Key[index]->Name) == index);
         }
         return nameTable;

@@ -1,12 +1,13 @@
-import pytest
-
 from yp.client import YpClient
 
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject, TRspCreateObject
 from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
 
-import yt.packages.requests as requests
 import yt.yson as yson
+
+import yt.packages.requests as requests
+
+import pytest
 
 import json
 
@@ -89,7 +90,8 @@ class TestHttpApi(object):
         json.loads(rsp.text)
 
     def test_client(self, yp_env):
-        client = YpClient(address=yp_env.yp_instance.yp_http_address, transport="http")
+        client = yp_env.yp_instance.create_client(transport="http")
+
         ts1 = client.generate_timestamp()
         ts2 = client.generate_timestamp()
         assert ts1 < ts2
@@ -108,7 +110,7 @@ class TestHttpApi(object):
     def test_custom_session(self, yp_env):
         session = CustomSession()
         assert session.get_request_count() == 0
-        client = YpClient(address=yp_env.yp_instance.yp_http_address, transport="http", _http_session=session)
+        client = yp_env.yp_instance.create_client(transport="http", _http_session=session)
         ts1 = client.generate_timestamp()
         ts2 = client.generate_timestamp()
         assert ts1 < ts2

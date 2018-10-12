@@ -1,13 +1,30 @@
-import pytest
+from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError, YpNoSuchObjectError
 
 from yt.yson import YsonEntity, YsonUint64
+import yt.common
 
 from yt.packages.six.moves import xrange
 
+import pytest
+
+
 @pytest.mark.usefixtures("yp_env")
 class TestPods(object):
+    def _create_pod_with_boilerplate(self, yp_client, pod_set_id, spec):
+        merged_spec = yt.common.update(
+            {
+                "resource_requests": ZERO_RESOURCE_REQUESTS
+            },
+            spec)
+        return yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": merged_spec
+        })
+
     def test_pod_set_required_on_create(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -18,7 +35,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set")
-        pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
         result = yp_client.get_object("pod", pod_id, selectors=["/status/agent/state", "/meta/id", "/meta/pod_set_id"])
         assert result[0] == "unknown"
         assert result[1] == pod_id
@@ -28,7 +45,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         with pytest.raises(YpNoSuchObjectError):
-            yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": "nonexisting_pod_set_id"}})
+            self._create_pod_with_boilerplate(yp_client, "nonexisting_pod_set_id", {})
 
     def test_pod_create_destroy(self, yp_env):
         yp_client = yp_env.yp_client
@@ -41,7 +58,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
         pod_attributes = {"meta": {"pod_set_id": pod_set_id}}
-        pod_ids = [yp_client.create_object(object_type="pod", attributes=pod_attributes)
+        pod_ids = [self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
                    for i in xrange(10)]
 
         assert get_counts() == (1, 10, 10)
@@ -119,17 +136,12 @@ class TestPods(object):
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client)
         with pytest.raises(YtResponseError):
-            yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "resource_requests": {
+                        "vcpu_guarantee": 100,
+                        "memory_limit": 2000
                     },
-                    "spec": {
-                        "resource_requests": {
-                            "vcpu_guarantee": 100,
-                            "memory_limit": 2000
-                        },
-                        "node_id": node_id
-                    }
+                    "node_id": node_id
                 })
 
     def test_pod_assignment_cpu_memory_success(self, yp_env):
@@ -137,17 +149,12 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, cpu_capacity=100, memory_capacity=2000)
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "vcpu_guarantee": 100,
+                    "memory_limit": 2000
                 },
-                "spec": {
-                    "resource_requests": {
-                        "vcpu_guarantee": 100,
-                        "memory_limit": 2000
-                    },
-                    "node_id": node_id
-                }
+                "node_id": node_id
             })
 
         cpu_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "cpu"', selectors=["/meta/id"])[0][0]
@@ -162,22 +169,17 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, ssd_capacity=2000)
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "disk_volume_requests": [
-                      {
-                        "id": "hdd",
-                        "storage_class": "hdd",
-                        "quota_policy": {
-                          "capacity": 500
-                        }
-                      }
-                    ],
-                    "node_id": node_id
-                }
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "disk_volume_requests": [
+                  {
+                    "id": "hdd",
+                    "storage_class": "hdd",
+                    "quota_policy": {
+                      "capacity": 500
+                    }
+                  }
+                ],
+                "node_id": node_id
             })
 
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
@@ -191,29 +193,24 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, ssd_capacity=2000)
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "disk_volume_requests": [
-                      {
-                        "id": "hdd",
-                        "storage_class": "hdd",
-                        "quota_policy": {
-                          "capacity": 500
-                        }
-                      },
-                      {
-                        "id": "ssd",
-                        "storage_class": "ssd",
-                        "quota_policy": {
-                          "capacity": 600
-                        }
-                      }
-                    ],
-                    "node_id": node_id
-                }
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "disk_volume_requests": [
+                  {
+                    "id": "hdd",
+                    "storage_class": "hdd",
+                    "quota_policy": {
+                      "capacity": 500
+                    }
+                  },
+                  {
+                    "id": "ssd",
+                    "storage_class": "ssd",
+                    "quota_policy": {
+                      "capacity": 600
+                    }
+                  }
+                ],
+                "node_id": node_id
             })
 
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
@@ -232,22 +229,17 @@ class TestPods(object):
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         ssd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "ssd"', selectors=["/meta/id"])[0][0]
 
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "disk_volume_requests": [
-                      {
-                        "id": "hdd",
-                        "storage_class": "hdd",
-                        "exclusive_policy": {
-                          "min_capacity": 500
-                        }
-                      }
-                    ],
-                    "node_id": node_id
-                }
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "disk_volume_requests": [
+                  {
+                    "id": "hdd",
+                    "storage_class": "hdd",
+                    "exclusive_policy": {
+                      "min_capacity": 500
+                    }
+                  }
+                ],
+                "node_id": node_id
             })
 
         assert \
@@ -275,41 +267,31 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000)
-        yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "disk_volume_requests": [
-                      {
-                        "id": "hdd",
-                        "storage_class": "hdd",
-                        "exclusive_policy": {
-                          "min_capacity": 500
-                        }
-                      }
-                    ],
-                    "node_id": node_id
-                }
+        self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "disk_volume_requests": [
+                  {
+                    "id": "hdd",
+                    "storage_class": "hdd",
+                    "exclusive_policy": {
+                      "min_capacity": 500
+                    }
+                  }
+                ],
+                "node_id": node_id
             })
         yp_client.select_objects("resource", selectors=["/spec", "/status"])
         with pytest.raises(YtResponseError):
-            yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "disk_volume_requests": [
-                      {
-                        "id": "hdd",
-                        "storage_class": "hdd",
-                        "exclusive_policy": {
-                          "min_capacity": 500
-                        }
-                      }
-                    ],
-                    "node_id": node_id
-                }
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "disk_volume_requests": [
+                  {
+                    "id": "hdd",
+                    "storage_class": "hdd",
+                    "exclusive_policy": {
+                      "min_capacity": 500
+                    }
+                  }
+                ],
+                "node_id": node_id
             })
 
     def test_pod_assignment_exclusive_hdd_failure2(self, yp_env):
@@ -318,29 +300,24 @@ class TestPods(object):
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, ssd_capacity=2000)
         with pytest.raises(YtResponseError):
-            yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "disk_volume_requests": [
-                      {
-                        "id": "hdd1",
-                        "storage_class": "hdd",
-                        "exclusive_policy": {
-                          "min_capacity": 500
-                        }
-                      },
-                      {
-                        "id": "hdd2",
-                        "storage_class": "hdd",
-                        "exclusive_policy": {
-                          "min_capacity": 500
-                        }
-                      }
-                    ],
-                    "node_id": node_id
-                }
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "disk_volume_requests": [
+                  {
+                    "id": "hdd1",
+                    "storage_class": "hdd",
+                    "exclusive_policy": {
+                      "min_capacity": 500
+                    }
+                  },
+                  {
+                    "id": "hdd2",
+                    "storage_class": "hdd",
+                    "exclusive_policy": {
+                      "min_capacity": 500
+                    }
+                  }
+                ],
+                "node_id": node_id
             })
 
     def test_pod_assignment_disk_volume_policy_check(self, yp_env):
@@ -351,11 +328,7 @@ class TestPods(object):
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         
         def try_create_pod():
-            yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                     "disk_volume_requests": [
                       {
                         "id": "hdd",
@@ -366,8 +339,7 @@ class TestPods(object):
                       }
                     ],
                     "node_id": node_id
-                }
-            })
+                })
 
         yp_client.update_object("resource", hdd_resource_id, set_updates=[{"path": "/spec/disk/supported_policies", "value": ["exclusive"]}])
         with pytest.raises(YtResponseError):
@@ -380,11 +352,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         with pytest.raises(YtResponseError):
-            yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                     "disk_volume_requests": [
                       {
                         "id": "a",
@@ -397,27 +365,21 @@ class TestPods(object):
                         "quota_policy": { "capacity": 100 }
                       },
                     ]
-                }
-            })
+                })
 
     def test_disk_volume_request_policy_required(self, yp_env):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set")
         with pytest.raises(YtResponseError):
-            yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                     "disk_volume_requests": [
                       {
                         "id": "a",
                         "storage_class": "hdd",
                       }
                     ]
-                }
-            })
+                })
 
     def test_disk_volume_request_update(self, yp_env):
         yp_client = yp_env.yp_client
@@ -426,11 +388,7 @@ class TestPods(object):
         node_id = self._create_node(yp_client, hdd_capacity=1000)
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "hdd1",
@@ -439,8 +397,7 @@ class TestPods(object):
                   }
                 ],
                 "node_id": node_id
-            }
-        })
+            })
 
         allocations1 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
 
@@ -511,11 +468,7 @@ class TestPods(object):
         node_id = self._create_node(yp_client, hdd_capacity=1000)
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "some_id",
@@ -525,8 +478,7 @@ class TestPods(object):
                   }
                 ],
                 "node_id": node_id
-            }
-        })
+            })
 
         allocations = yp_client.get_object("pod", pod_id, selectors=["/status/disk_volume_allocations"])[0]
         assert len(allocations) == 1
@@ -546,11 +498,7 @@ class TestPods(object):
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
 
         def create_pod():
-            yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                     "disk_volume_requests": [
                       {
                         "id": "some_id",
@@ -559,8 +507,7 @@ class TestPods(object):
                       }
                     ],
                     "node_id": node_id
-                }
-            })
+                })
 
         for i in xrange(5):
             create_pod()
@@ -572,10 +519,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client)
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                }})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/dns/persistent_fqdn", "/status/dns/transient_fqdn"]) == \
                [pod_id + ".test.yp-c.yandex.net", YsonEntity()]
@@ -599,7 +543,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
         
         ts1 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
 
@@ -614,7 +558,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
 
         iss_spec = {
             "instances": [{
@@ -643,7 +587,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/agent/iss_payload", "/status/agent/iss"]) == ["", {}]
 
@@ -651,7 +595,7 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
 
         yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/resource_requests", "value": {"vcpu_limit": 100}}])
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/resource_requests"])[0] == {"vcpu_limit": 100}
@@ -694,25 +638,19 @@ class TestPods(object):
 
         for incorrect_device in incorrect_host_devices:
             with pytest.raises(YtResponseError) as create_error:
-                yp_client.create_object(object_type="pod", attributes={
-                    "meta": {"pod_set_id": pod_set_id},
-                    "spec": {
+                self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                         "host_devices": [
                             incorrect_device
-                        ],
-                    },
-                })
+                        ]
+                    })
             assert "Host device \"{}\" cannot be configured".format(incorrect_device["path"]) in str(create_error.value)
 
         for correct_device in correct_host_devices:
-            pod_id = yp_client.create_object(object_type="pod", attributes={
-                "meta": {"pod_set_id": pod_set_id},
-                "spec": {
+            pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                     "host_devices": [
                         correct_device
-                    ],
-                },
-            })
+                    ]
+                })
 
             pod_spec = yp_client.get_object("pod", pod_id, selectors=["/spec"])[0]
             assert pod_spec["host_devices"][0]["path"] == correct_device["path"]
@@ -723,10 +661,9 @@ class TestPods(object):
 
         node_id = self._create_node(yp_client)
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={
-            "meta": {"pod_set_id": pod_set_id},
-            "spec": {"node_id": node_id}
-        })
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "node_id": node_id
+            })
 
         for x in ["/dev/kvm",
                   "/dev/net/tun"]:
@@ -741,10 +678,9 @@ class TestPods(object):
 
         node_id = self._create_node(yp_client)
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={
-            "meta": {"pod_set_id": pod_set_id},
-            "spec": {"node_id": node_id}
-        })
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "node_id": node_id
+            })
 
         for x in ["net.core.somaxconn",
                   "net.unix.max_dgram_qlen",
@@ -825,5 +761,5 @@ class TestPods(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set")
-        pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
         assert yp_client.get_object("pod", pod_id, selectors=["/meta/acl"])[0] == []

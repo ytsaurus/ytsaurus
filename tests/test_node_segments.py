@@ -1,6 +1,7 @@
+from yp.common import YtResponseError, YpNoSuchObjectError
+
 import pytest
 
-from yp.common import YtResponseError, YpNoSuchObjectError
 
 @pytest.mark.usefixtures("yp_env")
 class TestNodeSegments(object):

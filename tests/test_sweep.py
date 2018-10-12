@@ -1,8 +1,9 @@
 from __future__ import print_function
 
+from yp.common import YpNoSuchObjectError, wait
+
 import pytest
 
-from yp.common import YpNoSuchObjectError, wait
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestSweep(object):

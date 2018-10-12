@@ -1,8 +1,9 @@
-import pytest
-
 from yp.common import YtResponseError, YpInvalidObjectTypeError
 
 from yt.packages.six.moves import xrange
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestSelectObjects(object):

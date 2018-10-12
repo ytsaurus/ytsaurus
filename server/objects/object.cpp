@@ -46,6 +46,7 @@ TObject::TObject(
     , TypeHandler_(typeHandler)
     , Session_(session)
     , ExistenceChecker_(this)
+    , TombstoneChecker_(this)
     , ParentIdAttribute_(this, parentId)
 { }
 
@@ -131,6 +132,16 @@ void TObject::ValidateExists() const
             GetCapitalizedHumanReadableTypeName(GetType()),
             Id_);
     }
+}
+
+void TObject::ScheduleTombstoneCheck()
+{
+    TombstoneChecker_.ScheduleCheck();
+}
+
+bool TObject::IsTombstone() const
+{
+    return TombstoneChecker_.Check();
 }
 
 bool TObject::IsRemoving() const

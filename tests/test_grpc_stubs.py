@@ -1,5 +1,3 @@
-import pytest
-
 from yp.client import YpClient
 
 import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
@@ -7,10 +5,13 @@ import yp_proto.yp.client.api.proto.object_type_pb2 as object_type_pb2
 
 import yt.yson as yson
 
+import pytest
+
 try:
     from itertools import imap
 except ImportError:  # Python 3
     imap = map
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestGrpcStubs(object):
@@ -39,8 +40,7 @@ class TestGrpcStubs(object):
         assert list(imap(yson._loads_from_native_str, rsp.result.values)) == ["unknown", pod_id, pod_set_id]
 
     def test_grpc_client(self, yp_env):
-        self._test_some_methods(yp_env.yp_client)
+        self._test_some_methods(yp_env.yp_instance.create_client(transport="grpc"))
 
     def test_http_client(self, yp_env):
-        client = YpClient(address=yp_env.yp_instance.yp_http_address, transport="http")
-        self._test_some_methods(client)
+        self._test_some_methods(yp_env.yp_instance.create_client(transport="http"))

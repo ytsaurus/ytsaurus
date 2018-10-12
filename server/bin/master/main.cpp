@@ -9,6 +9,8 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
+#include <yt/core/alloc/alloc.h>
+
 #include <yt/core/phdr_cache/phdr_cache.h>
 
 namespace NYP {
@@ -38,6 +40,9 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         EnablePhdrCache();
+        ConfigureExitZeroOnSigterm();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;

@@ -8,6 +8,7 @@
 #include <yp/server/objects/resource.h>
 
 #include <yp/server/master/config.h>
+#include <yp/server/master/bootstrap.h>
 
 #include <yp/client/nodes/node_tracker_service_proxy.h>
 #include <yp/client/nodes/agent_service_proxy.h>
@@ -15,6 +16,11 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 
 #include <yt/core/rpc/grpc/channel.h>
+
+#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <queue>
 
 namespace NYP {
 namespace NServer {
@@ -27,9 +33,14 @@ using namespace NClient::NNodes::NProto;
 using namespace NClient::NApi::NProto;
 using namespace NYT::NRpc;
 using namespace NYT::NRpc::NGrpc;
+using namespace NYT::NConcurrency;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto AgentNotificationTick = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,9 +48,19 @@ class TNodeTracker::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* /*bootstrap*/, TNodeTrackerConfigPtr config)
+    TImpl(TBootstrap* bootstrap, TNodeTrackerConfigPtr config)
         : Config_(std::move(config))
-    { }
+        , AgentNotificationExecutor_(New<TPeriodicExecutor>(
+            bootstrap->GetControlInvoker(),
+            BIND(&TImpl::OnAgentNotificationTick, MakeWeak(this)),
+            AgentNotificationTick))
+        , AgentNotificationThrottler_(CreateReconfigurableThroughputThrottler(
+            Config_->AgentNotificationThrottler,
+            {},
+            NProfiling::TProfiler(Profiler.GetPathPrefix() + "/agent_notification_throttler")))
+    {
+        AgentNotificationExecutor_->Start();
+    }
 
     TNode* ProcessHandshake(
         const TTransactionPtr& transaction,
@@ -63,6 +84,7 @@ public:
     }
 
     void ProcessHeartbeat(
+        const TTransactionPtr& transaction,
         TNode* node,
         const TEpochId& epochId,
         ui64 sequenceNumber,
@@ -120,6 +142,30 @@ public:
         THashSet<TObjectId> reportedPodIds;
         THashSet<TObjectId> upToDatePodIds;
 
+        // Schedule preload.
+        for (const auto& podEntry : request->pods()) {
+            auto podId = FromProto<TObjectId>(podEntry.pod_id());
+            auto* pod = transaction->GetPod(podId);
+            pod->ScheduleTombstoneCheck();
+        }
+
+        // Check for unknown pods.
+        node->Status().Other()->clear_unknown_pod_ids();
+        for (const auto& podEntry : request->pods()) {
+            auto podId = FromProto<TObjectId>(podEntry.pod_id());
+            auto* pod = transaction->GetPod(podId);
+            if (!pod->DoesExist() && !pod->IsTombstone()) {
+                LOG_DEBUG("Unknown pod reported by agent (PodId: %v)",
+                    podId);
+                node->Status().Other()->add_unknown_pod_ids(podId);
+            }
+        }
+
+        if (node->Status().Other()->unknown_pod_ids_size() > 0) {
+            THROW_ERROR_EXCEPTION("Unknown pods found at node, heartbeat ignored");
+        }
+
+        // Actually examine pods from the heartbeat.
         for (const auto& podEntry : request->pods()) {
             auto currentState = static_cast<EPodCurrentState>(podEntry.status().current_state());
             auto podId = FromProto<TObjectId>(podEntry.pod_id());
@@ -263,26 +309,16 @@ public:
             return;
         }
 
-        auto nodeId = node->GetId();
-        auto address = node->Status().AgentAddress().Load();
+        TAgentNotificationQueueEntry entry{
+            node->GetId(),
+            node->Status().AgentAddress().Load()
+        };
 
-        LOG_DEBUG("Sending agent notification (NodeId: %v, Address: %v)",
-            nodeId,
-            address);
+        LOG_DEBUG("Agent notification enqueued (NodeId: %v, Address: %v)",
+            entry.Id,
+            entry.Address);
 
-        auto proxy = CreateAgentProxy(address);
-        auto req = proxy->Notify();
-        return req->Invoke().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TAgentServiceProxy::TErrorOrRspNotifyPtr& rspOrError) {
-            if (rspOrError.IsOK()) {
-                LOG_DEBUG("Agent notification succeeded (NodeId: %v, Address: %v)",
-                    nodeId,
-                    address);
-            } else {
-                LOG_DEBUG(rspOrError, "Agent notification failed (NodeId: %v, Address: %v)",
-                    nodeId,
-                    address);
-            }
-        }));
+        AgentNotificationQueue_.emplace(std::move(entry));
     }
 
 private:
@@ -290,8 +326,44 @@ private:
 
     const IChannelFactoryPtr NodeChannelFactory_ = CreateCachingChannelFactory(GetGrpcChannelFactory());
 
+    const NConcurrency::TPeriodicExecutorPtr AgentNotificationExecutor_;
+    const NConcurrency::IThroughputThrottlerPtr AgentNotificationThrottler_;
+
+    struct TAgentNotificationQueueEntry
+    {
+        TObjectId Id;
+        TString Address;
+    };
+    std::queue<TAgentNotificationQueueEntry> AgentNotificationQueue_;
+
     const NLogging::TLogger& Logger = NNodes::Logger;
 
+
+    void OnAgentNotificationTick()
+    {
+        while (!AgentNotificationQueue_.empty() && AgentNotificationThrottler_->TryAcquire(1)) {
+            auto entry = std::move(AgentNotificationQueue_.front());
+            AgentNotificationQueue_.pop();
+
+            LOG_DEBUG("Sending agent notification (NodeId: %v, Address: %v)",
+                entry.Id,
+                entry.Address);
+
+            auto proxy = CreateAgentProxy(entry.Address);
+            auto req = proxy->Notify();
+            return req->Invoke().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TAgentServiceProxy::TErrorOrRspNotifyPtr& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    LOG_DEBUG("Agent notification succeeded (NodeId: %v, Address: %v)",
+                        entry.Id,
+                        entry.Address);
+                } else {
+                    LOG_DEBUG(rspOrError, "Agent notification failed (NodeId: %v, Address: %v)",
+                        entry.Id,
+                        entry.Address);
+                }
+            }));
+        }
+    }
 
     std::unique_ptr<TAgentServiceProxy> CreateAgentProxy(const TString& address)
     {
@@ -364,6 +436,7 @@ TNode* TNodeTracker::ProcessHandshake(
 }
 
 void TNodeTracker::ProcessHeartbeat(
+    const TTransactionPtr& transaction,
     TNode* node,
     const TEpochId& epochId,
     ui64 sequenceNumber,
@@ -371,6 +444,7 @@ void TNodeTracker::ProcessHeartbeat(
     TRspHeartbeat* response)
 {
     Impl_->ProcessHeartbeat(
+        transaction,
         node,
         epochId,
         sequenceNumber,

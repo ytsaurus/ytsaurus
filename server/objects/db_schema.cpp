@@ -9,6 +9,7 @@ namespace NObjects {
 const TSchemasTable SchemasTable;
 const TObjectTableBase ObjectsTable;
 const TParentsTable ParentsTable;
+const TTombstonesTable TombstonesTable;
 const TNodesTable NodesTable;
 const TResourcesTable ResourcesTable;
 const TPodsTable PodsTable;
@@ -34,6 +35,7 @@ const TAccountToPodSetsTable AccountToPodSetsTable;
 const std::vector<const TDBTable*> Tables = {
     &SchemasTable,
     &ParentsTable,
+    &TombstonesTable,
     &NodesTable,
     &ResourcesTable,
     &PodsTable,

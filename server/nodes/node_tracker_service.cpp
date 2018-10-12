@@ -101,6 +101,7 @@ private:
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->ProcessHeartbeat(
+            transaction,
             node,
             epochId,
             sequenceNumber,

@@ -1,6 +1,9 @@
-import pytest
+from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestNodes(object):
@@ -42,6 +45,7 @@ class TestNodes(object):
                 "pod_set_id": pod_set_id
             },
             "spec": {
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
                 "node_id": node_id
             }
         })

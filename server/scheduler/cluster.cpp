@@ -482,7 +482,7 @@ private:
         result.reserve(NodeMap_.size());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second.get();
-            if (node->GetHfsmState() == EHfsmState::Up) {
+            if (node->IsSchedulable()) {
                 result.push_back(node);
             }
         }
@@ -694,6 +694,7 @@ private:
             std::move(topologyZones),
             static_cast<EHfsmState>(statusOther.hfsm().state()),
             static_cast<ENodeMaintenanceState>(statusOther.maintenance().state()),
+            statusOther.unknown_pod_ids_size(),
             std::move(spec));
         YCHECK(NodeMap_.emplace(node->GetId(), std::move(node)).second);
     }

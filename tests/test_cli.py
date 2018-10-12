@@ -1,9 +1,10 @@
 from .conftest import TESTS_LOCATION
 
 from yt.common import update
-from yt.packages.six.moves import xrange
 import yt.subprocess_wrapper as subprocess
 import yt.yson as yson
+
+from yt.packages.six.moves import xrange
 
 try:
     import yatest.common as ya_test_common

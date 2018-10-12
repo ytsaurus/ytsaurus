@@ -88,6 +88,7 @@ public:
         std::vector<TTopologyZone*> topologyZones,
         NObjects::EHfsmState hfsmState,
         NObjects::ENodeMaintenanceState maintenanceState,
+        bool hasUnknownPods,
         NClient::NApi::NProto::TNodeSpec spec);
 
     bool CanAcquireAntiaffinityVacancies(const TPod* pod) const;
@@ -96,6 +97,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TTopologyZone*>, TopologyZones);
     DEFINE_BYVAL_RO_PROPERTY(NObjects::EHfsmState, HfsmState);
     DEFINE_BYVAL_RO_PROPERTY(NObjects::ENodeMaintenanceState, MaintenanceState);
+    DEFINE_BYVAL_RO_PROPERTY(bool, HasUnknownPods);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
     DEFINE_BYREF_RW_PROPERTY(NClient::NApi::NProto::TNodeSpec, Spec);
 
@@ -103,6 +105,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
     using TDiskResources = SmallVector<TDiskResource, NObjects::TypicalDiskResourceCountPerNode>;
     DEFINE_BYREF_RW_PROPERTY(TDiskResources, DiskResources);
+
+    bool IsSchedulable() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

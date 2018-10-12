@@ -1,12 +1,16 @@
-import pytest
+from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError, wait, WaitFailed
 
-from yt.yson import YsonEntity, YsonUint64
-
 from yt.packages.six.moves import xrange
 
+from yt.yson import YsonEntity, YsonUint64
+import yt.common
+
+import pytest
+
 from collections import defaultdict
+
 
 DEFAULT_POD_SET_SPEC = {
         "account_id": "tmp",
@@ -15,6 +19,19 @@ DEFAULT_POD_SET_SPEC = {
 
 @pytest.mark.usefixtures("yp_env")
 class TestScheduler(object):
+    def _create_pod_with_boilerplate(self, yp_client, pod_set_id, spec):
+        merged_spec = yt.common.update(
+            {
+                "resource_requests": ZERO_RESOURCE_REQUESTS
+            },
+            spec)
+        return yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": merged_spec
+        })
+
     def _create_nodes(
             self,
             yp_env,
@@ -93,14 +110,9 @@ class TestScheduler(object):
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         node_id = yp_client.create_object("node")
         with pytest.raises(YtResponseError):
-            yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
-                    },
-                    "spec": {
-                        "enable_scheduling": True,
-                        "node_id": node_id
-                    }
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "enable_scheduling": True,
+                    "node_id": node_id
                 })
 
     def test_force_assign(self, yp_env):
@@ -110,14 +122,9 @@ class TestScheduler(object):
         node_id = node_ids[0]
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "enable_scheduling": False,
-                    "node_id": node_id
-                }
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "enable_scheduling": False,
+                "node_id": node_id
             })
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["assigned"]
@@ -143,13 +150,8 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "enable_scheduling": False
-                }
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "enable_scheduling": False,
             })
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["disabled"]
@@ -175,16 +177,11 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "vcpu_guarantee": 100
                 },
-                "spec": {
-                    "resource_requests": {
-                        "vcpu_guarantee": 100
-                    },
-                    "enable_scheduling": True
-                }
+                "enable_scheduling": True
             })
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "pending"
@@ -207,16 +204,11 @@ class TestScheduler(object):
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         for i in xrange(10):
-            pod_id = yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
+            pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "resource_requests": {
+                        "vcpu_guarantee": 30
                     },
-                    "spec": {
-                        "resource_requests": {
-                            "vcpu_guarantee": 30
-                        },
-                        "enable_scheduling": True
-                    }
+                    "enable_scheduling": True
                 })
         self._create_nodes(yp_env, 1)
 
@@ -238,17 +230,12 @@ class TestScheduler(object):
         ])
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "vcpu_guarantee": 100
                 },
-                "spec": {
-                    "resource_requests": {
-                        "vcpu_guarantee": 100
-                    },
-                    "enable_scheduling": True,
-                    "node_filter" : '[/labels/status] = "good"'
-                }
+                "enable_scheduling": True,
+                "node_filter" : '[/labels/status] = "good"'
             })
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id)
@@ -258,14 +245,9 @@ class TestScheduler(object):
 
         self._create_nodes(yp_env, 10)
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "enable_scheduling": True,
-                    "node_filter" : '[/some/nonexisting] = "value"'
-                }
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "enable_scheduling": True,
+                "node_filter" : '[/some/nonexisting] = "value"'
             })
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
@@ -287,13 +269,8 @@ class TestScheduler(object):
                 })
             })
         for i in xrange(10):
-            yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
-                    },
-                    "spec": {
-                        "enable_scheduling": True
-                    }
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "enable_scheduling": True,
                 })
 
         self._wait_for_pod_assignment(yp_env)
@@ -313,13 +290,8 @@ class TestScheduler(object):
                 })
             })
         for i in xrange(6):
-            yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
-                    },
-                    "spec": {
-                        "enable_scheduling": True
-                    }
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "enable_scheduling": True,
                 })
 
         self._wait_for_pod_assignment(yp_env)
@@ -342,13 +314,8 @@ class TestScheduler(object):
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         for _ in xrange(10):
-            yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
-                    },
-                    "spec": {
-                        "enable_scheduling": True
-                    }
+            self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "enable_scheduling": True,
                 })
 
         self._wait_for_pod_assignment(yp_env)
@@ -363,13 +330,8 @@ class TestScheduler(object):
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
         pod_ids = []
         for _ in xrange(10):
-            pod_ids.append(yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
-                    },
-                    "spec": {
-                        "enable_scheduling": True
-                    }
+            pod_ids.append(self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                    "enable_scheduling": True
                 }))
 
         self._wait_for_pod_assignment(yp_env)
@@ -415,14 +377,9 @@ class TestScheduler(object):
         yp_client.update_object("node", good_node_id, set_updates=[{"path": "/labels/cool", "value": "stuff"}])
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": good_segment_id}})
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "enable_scheduling": True
-            }
-        })
+            })
 
         self._wait_for_pod_assignment(yp_env)
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id
@@ -432,15 +389,10 @@ class TestScheduler(object):
 
         self._create_nodes(yp_env, 1)
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "enable_scheduling": True,
                 "node_filter": "invalid!!!"
-            }
-        })
+            })
 
         wait(lambda: "error" in yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0])
 
@@ -449,17 +401,12 @@ class TestScheduler(object):
 
         self._create_nodes(yp_env, 1)
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "ip6_address_requests": [
                     {"vlan_id": "backbone", "network_id": "nonexisting"}
                 ],
                 "enable_scheduling": True
-            }
-        })
+            })
 
         wait(lambda: "error" in yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0])
 
@@ -477,6 +424,7 @@ class TestScheduler(object):
             },
             "spec": {
                 "enable_scheduling": True,
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
                 "disk_volume_requests": [
                     {
                         "id": "hdd1",
@@ -495,6 +443,7 @@ class TestScheduler(object):
             },
             "spec": {
                 "enable_scheduling": True,
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
                 "disk_volume_requests": [
                     {
                         "id": "hdd1",

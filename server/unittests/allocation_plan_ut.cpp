@@ -44,6 +44,7 @@ std::unique_ptr<TNode> CreateMockNode()
         std::vector<TTopologyZone*>(),
         NObjects::EHfsmState::Unknown,
         NObjects::ENodeMaintenanceState::None,
+        /* hasUnknownPods */ false,
         NClient::NApi::NProto::TNodeSpec());
 }
 

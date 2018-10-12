@@ -1,7 +1,9 @@
+from yp.common import YtResponseError
+
+from yt.environment.helpers import assert_items_equal
+
 import pytest
 
-from yp.common import YtResponseError
-from yt.environment.helpers import assert_items_equal
 
 @pytest.mark.usefixtures("yp_env")
 class TestAccounts(object):

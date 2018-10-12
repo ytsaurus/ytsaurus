@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.usefixtures("yp_env")
 class TestReplicaSets(object):
     def test_simple(self, yp_env):

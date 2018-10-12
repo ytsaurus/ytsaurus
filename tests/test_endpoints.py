@@ -1,6 +1,7 @@
+from yp.common import YpNoSuchObjectError
+
 import pytest
 
-from yp.common import YpNoSuchObjectError
 
 @pytest.mark.usefixtures("yp_env")
 class TestEndpoints(object):

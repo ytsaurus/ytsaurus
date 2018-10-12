@@ -61,6 +61,9 @@ public:
     bool DidExist() const;
     void ValidateExists() const;
 
+    void ScheduleTombstoneCheck();
+    bool IsTombstone() const;
+
     bool IsRemoving() const;
 
     virtual bool IsBuiltin() const;
@@ -80,6 +83,7 @@ private:
     ISession* const Session_;
 
     TObjectExistenceChecker ExistenceChecker_;
+    TObjectTombstoneChecker TombstoneChecker_;
     TParentIdAttribute ParentIdAttribute_;
 
     void RegisterAttribute(IPersistentAttribute* attribute);

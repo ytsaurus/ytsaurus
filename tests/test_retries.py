@@ -1,10 +1,10 @@
-import pytest
-
 import yp.retries as yp_retries
 
 from yt.wrapper.errors import YtRetriableError as ChaosMonkeyError
 
 from yt.packages.six.moves import xrange
+
+import pytest
 
 from copy import deepcopy
 import itertools

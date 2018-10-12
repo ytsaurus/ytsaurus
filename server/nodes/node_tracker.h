@@ -16,7 +16,9 @@ class TNodeTracker
     : public TRefCounted
 {
 public:
-    TNodeTracker(NServer::NMaster::TBootstrap* bootstrap, TNodeTrackerConfigPtr config);
+    TNodeTracker(
+        NServer::NMaster::TBootstrap* bootstrap,
+        TNodeTrackerConfigPtr config);
 
     NObjects::TNode* ProcessHandshake(
         const NObjects::TTransactionPtr& transaction,
@@ -24,6 +26,7 @@ public:
         const TString& address);
 
     void ProcessHeartbeat(
+        const NObjects::TTransactionPtr& transaction,
         NObjects::TNode* node,
         const TEpochId& epochId,
         ui64 sequenceNumber,
