@@ -12,6 +12,7 @@ import hashlib
 import pytest
 import subprocess
 import string
+import socket
 
 ##################################################################
 
@@ -323,6 +324,21 @@ class TestSkynetManager(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
 
+    
+    def wait_skynet_manager(self):
+        url = "http://localhost:{}/debug/healthcheck".format(self.Env.configs["skynet_manager"][0]["port"])
+
+        def skynet_manager_ready():
+            try:
+                rsp = requests.get(url)
+            except (requests.exceptions.RequestException, socket.error):
+                return False
+
+            return True
+
+        wait(skynet_manager_ready)
+        
+
     def setup(self):
         sync_create_cells(1)
         create("map_node", "//sys/skynet_manager")
@@ -405,6 +421,8 @@ class TestSkynetManager(YTEnvSetup):
 
     @flaky(max_runs=5)
     def test_empty_file(self):
+        self.wait_skynet_manager()
+        
         create("table", "//tmp/table_with_empty_file", attributes={
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
@@ -468,6 +486,8 @@ class TestSkynetManager(YTEnvSetup):
 
     @flaky(max_runs=5)
     def test_recovery(self):
+        self.wait_skynet_manager()
+
         self.prepare_table("//tmp/recovered_table")
         rbtorrentid = self.share("//tmp/recovered_table")
 
@@ -478,6 +498,8 @@ class TestSkynetManager(YTEnvSetup):
 
     @flaky(max_runs=5)
     def test_many_shards(self):
+        self.wait_skynet_manager()
+
         create("table", "//tmp/sharded_table", attributes={
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
@@ -498,6 +520,8 @@ class TestSkynetManager(YTEnvSetup):
 
     @flaky(max_runs=5)
     def test_share_many(self):
+        self.wait_skynet_manager()
+
         create("table", "//tmp/many_share_table", attributes={
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
