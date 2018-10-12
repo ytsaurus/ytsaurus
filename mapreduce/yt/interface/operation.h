@@ -420,6 +420,9 @@ struct TMapReduceOperationSpecBase
     FLUENT_FIELD_OPTION(ui64, PartitionCount);
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 
+    // Replication factor for intermediate data (it's equal 1 by default).
+    FLUENT_FIELD_OPTION(ui64,  IntermediateDataReplicationFactor);
+
     // Specifies how much data should be passed to single reduce-combiner job.
     FLUENT_FIELD_OPTION(ui64, DataSizePerSortJob);
 
@@ -460,6 +463,9 @@ struct TSortOperationSpec
 
     FLUENT_FIELD_OPTION(ui64, PartitionJobCount);
     FLUENT_FIELD_OPTION(ui64, DataSizePerPartitionJob);
+
+    // Replication factor for intermediate data (it's equal 1 by default).
+    FLUENT_FIELD_OPTION(ui64, IntermediateDataReplicationFactor);
 };
 
 enum EMergeMode : int

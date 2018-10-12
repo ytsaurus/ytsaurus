@@ -1100,6 +1100,14 @@ void BuildMapJobCountOperationPart(const TSpec& spec, TNode* nodeSpec)
     }
 }
 
+template <typename TSpec>
+void BuildIntermediateDataReplicationFactorPart(const TSpec& spec, TNode* nodeSpec)
+{
+    if (spec.IntermediateDataReplicationFactor_.Defined()) {
+        (*nodeSpec)["intermediate_data_replication_factor"] = *spec.IntermediateDataReplicationFactor_;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString MergeSpec(TNode& dst, const TOperationOptions& options)
@@ -1638,6 +1646,7 @@ TOperationId DoExecuteMapReduce(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildMapJobCountOperationPart(spec, &specNode["spec"]);
     BuildPartitionCountOperationPart(spec, &specNode["spec"]);
+    BuildIntermediateDataReplicationFactorPart(spec, &specNode["spec"]);
     BuildDataSizePerSortJobPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
@@ -1883,6 +1892,7 @@ TOperationId ExecuteSort(
 
     BuildPartitionCountOperationPart(spec, &specNode["spec"]);
     BuildPartitionJobCountOperationPart(spec, &specNode["spec"]);
+    BuildIntermediateDataReplicationFactorPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
