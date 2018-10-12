@@ -84,21 +84,18 @@ class YtConfig(object):
         self.proxy_config = get_value(proxy_config, proxy_config_with_disabled_retries.name)
 
         env_names = [
-            # required for proper coverage
-            'LLVM_PROFILE_FILE',
-            'PYTHON_COVERAGE_PREFIX',
+            # Required for proper coverage.
+            "LLVM_PROFILE_FILE",
+            "PYTHON_COVERAGE_PREFIX",
         ]
-        env = {x: os.environ[x] for x in env_names if x in os.environ}
-        env_str = ';'.join(['"{}"="{}"'.format(k, v) for k, v in env.items()])
+        controller_config = {
+            "controller_agent": {
+                "environment": {x: os.environ[x] for x in env_names if x in os.environ}
+            }
+        }
 
         with tempfile.NamedTemporaryFile(delete=False) as controller_agent_config_with_default_env:
-            controller_agent_config_with_default_env.write("""
-                {
-                    "controller_agent" = {
-                        "environment" = {%s};
-                    };
-                }
-                """ % env_str)
+            yson.dump(controller_config, controller_agent_config_with_default_env)
 
         self.controller_agent_config = get_value(controller_agent_config, controller_agent_config_with_default_env.name)
 
