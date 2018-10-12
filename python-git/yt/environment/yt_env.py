@@ -1224,7 +1224,6 @@ class YTInstance(object):
             http_port = self.configs["skynet_manager"][0]["port"]
             try:
                 rsp = requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
-                rsp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
                 return False
 
