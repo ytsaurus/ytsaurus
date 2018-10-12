@@ -576,6 +576,70 @@ TBox<TConfigurationManager> ConfigurationManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETimingEventType,
+    (Syscall)
+    (Locking)
+);
+
+struct TTimingEvent
+{
+    ETimingEventType Type;
+    TDuration Duration;
+    TInstant Timestamp;
+    NConcurrency::TFiberId FiberId;
+};
+
+class TTimingManager
+{
+public:
+    void EnqueueEvent(ETimingEventType type, TDuration duration)
+    {
+        auto guard = Guard(EventLock_);
+        if (EventCount_ >= EventBufferSize) {
+            return;
+        }
+        Events_[EventCount_++] = {
+            type,
+            duration,
+            NProfiling::GetInstant(),
+            NConcurrency::GetCurrentFiberId()
+        };
+    }
+
+    void RunBackgroundTasks(const TBackgroundContext& context)
+    {
+        const auto& Logger = context.Logger;
+        if (!Logger) {
+            return;
+        }
+        auto events = PullEvents();
+        for (const auto& event : events) {
+            LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Timestamp: %v, FiberId: %v)",
+                event.Type,
+                event.Duration,
+                event.Timestamp,
+                event.FiberId);
+        }
+    }
+
+private:
+    static constexpr size_t EventBufferSize = 1000;
+    NConcurrency::TForkAwareSpinLock EventLock_;
+    size_t EventCount_ = 0;
+    std::array<TTimingEvent, EventBufferSize> Events_;
+
+private:
+    std::vector<TTimingEvent> PullEvents()
+    {
+        auto guard = Guard(EventLock_);
+        std::vector<TTimingEvent> events(Events_.data(), Events_.data() + EventCount_);
+        EventCount_ = 0;
+        return events;
+    }
+};
+
+TBox<TTimingManager> TimingManager;
+
 // Used to log statistics about long-running syscalls and lock acquisitions.
 // Maintains recursion depth and execution stats in TLS.
 // Recursion depth counter ensures that logging only happens
@@ -585,76 +649,36 @@ class TTimingGuard
     : public TNonCopyable
 {
 public:
-    TTimingGuard()
-    {
-        ++RecursionDepth_;
-    }
+    explicit TTimingGuard(ETimingEventType eventType)
+        : EventType_(eventType)
+        // Sadly, TWallTimer cannot be used prior to all statics being initialized.
+        , StartTime_(ConfigurationManager->IsLoggingEnabled() ? NProfiling::GetCpuInstant() : 0)
+    { }
 
     ~TTimingGuard()
     {
-        if (RecursionDepth_ > 1) {
-            --RecursionDepth_;
+        if (StartTime_ == 0) {
             return;
         }
-        
-        auto logIfNeeded = [&] (const auto& timeVariable, TStringBuf what) {
-            // Y_POD_STATIC_THREAD declares instances of NTls::TValue for MacOS.
-            // This typecast provides a portable way for accessing the underlying value.
-            ui64 elapsedTime = timeVariable;
 
-            if (ConfigurationManager->IsLoggingEnabled() &&
-                TDuration::MicroSeconds(elapsedTime) > ConfigurationManager->GetSlowCallWarningThreshold())
-            {
-                // These calls may cause allocations so we RecursionDepth_ must remain positive here.
-                static const NLogging::TLogger Logger(LoggerCategory);
-                LOG_DEBUG("%v took too long (Time: %v)",
-                    what,
-                    elapsedTime);
-            }
+        auto endTime = NProfiling::GetCpuInstant();
+        auto duration = NProfiling::CpuDurationToDuration(endTime - StartTime_);
+        if (duration > ConfigurationManager->GetSlowCallWarningThreshold()) {
+            TimingManager->EnqueueEvent(EventType_, duration);
         };
-        
-        logIfNeeded(ElapsedSyscallTime_, AsStringBuf("Syscalls"));
-        logIfNeeded(ElapsedLockingTime_, AsStringBuf("Locking"));
-
-        RecursionDepth_ = 0;
-        ElapsedSyscallTime_ = 0;
-        ElapsedLockingTime_ = 0;
-    }
-
-    static void ChargeSyscallTime(TDuration time)
-    {
-        if (RecursionDepth_ > 0) {
-            ElapsedSyscallTime_ += time.MicroSeconds();
-        }
-    }
-
-    static void ChargeLockingTime(TDuration time)
-    {
-        if (RecursionDepth_ > 0) {
-            ElapsedLockingTime_ += time.MicroSeconds();
-        }
     }
 
 private:
-    Y_POD_STATIC_THREAD(int) RecursionDepth_;
-    Y_POD_STATIC_THREAD(ui64) ElapsedSyscallTime_; // in microseconds
-    Y_POD_STATIC_THREAD(ui64) ElapsedLockingTime_; // in microseconds
+    const ETimingEventType EventType_;
+    const NProfiling::TCpuInstant StartTime_;
 };
-
-Y_POD_THREAD(int) TTimingGuard::RecursionDepth_;
-Y_POD_THREAD(ui64) TTimingGuard::ElapsedSyscallTime_;
-Y_POD_THREAD(ui64) TTimingGuard::ElapsedLockingTime_;
 
 template <class T>
 Y_FORCE_INLINE TGuard<T> GuardWithTiming(const T& lock)
 {
-    if (!ConfigurationManager->IsLoggingEnabled()) {
-        return Guard(lock);
-    }
-    NProfiling::TWallTimer timer;
-    TGuard<T> guard(lock);
-    TTimingGuard::ChargeLockingTime(timer.GetElapsedTime());
-    return guard;
+    TTimingGuard timingGuard(ETimingEventType::Locking);
+    TGuard<T> lockingGuard(lock);
+    return lockingGuard;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -770,14 +794,7 @@ private:
     template <class F>
     auto RunSyscall(F func) -> decltype(func())
     {
-        // Sadly, TWallTimer cannot be used prior to all statics being initialized.   
-        if (!ConfigurationManager->IsLoggingEnabled()) {
-            return func();
-        }
-        NProfiling::TWallTimer timer;
-        auto guard = Finally([&] {
-            TTimingGuard::ChargeSyscallTime(timer.GetElapsedTime());
-        });
+        TTimingGuard timingGuard(ETimingEventType::Syscall);
         return func();
     }
 
@@ -1882,8 +1899,6 @@ private:
 
     void PopulateAnotherSegment()
     {
-        TTimingGuard timingGuard;
-
         auto lockGuard = GuardWithTiming(SegmentLock_);
 
         auto* oldPtr = CurrentPtr_.load();
@@ -2101,7 +2116,6 @@ private:
     template <EAllocationKind Kind>
     static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
-        TTimingGuard timingGuard;
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
     }
@@ -2109,7 +2123,6 @@ private:
     template <EAllocationKind Kind>
     static void FreeGlobal(TMemoryTag tag, void* ptr, size_t rank, size_t size)
     {
-        TTimingGuard timingGuard;
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesFreed, size);
         (*GlobalSmallChunkCaches)[Kind]->MoveOneToGlobal(ptr, rank);
     }
@@ -2304,7 +2317,6 @@ private:
     template <class TState>
     void PopulateArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
-        TTimingGuard timingGuard;
         MappedMemoryManager->Populate(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesPopulated, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesPopulated, size / PageSize);
@@ -2315,7 +2327,6 @@ private:
     template <class TState>
     void ReleaseArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
-        TTimingGuard timingGuard;
         MappedMemoryManager->Release(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesReleased, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesReleased, size / PageSize);
@@ -2630,8 +2641,6 @@ private:
     template <class TState>
     void AllocateArenaExtent(TState* state, TLargeArena* arena)
     {
-        TTimingGuard timingGuard;
-
         auto rank = arena->Rank;
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::ExtentsAllocated, 1);
 
@@ -2802,8 +2811,6 @@ public:
 
     void* Allocate(size_t size)
     {
-        TTimingGuard timingGuard;
-
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
         auto* blob = static_cast<THugeBlobHeader*>(ZoneAllocator_.Allocate(rawSize, MAP_POPULATE));
@@ -2820,8 +2827,6 @@ public:
 
     void Free(void* ptr)
     {
-        TTimingGuard timingGuard;
-
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
@@ -2952,6 +2957,7 @@ private:
             StatisticsManager->RunBackgroundTasks(context);
             LargeBlobAllocator->RunBackgroundTasks(context);
             MappedMemoryManager->RunBackgroundTasks(context);
+            TimingManager->RunBackgroundTasks(context);
         }
     }
 };
@@ -2981,6 +2987,7 @@ void InitializeGlobals()
         HugeBlobAllocator.Construct();
         ConfigurationManager.Construct();
         SystemAllocator.Construct();
+        TimingManager.Construct();
 
         SmallArenaAllocators.Construct();
         auto constructSmallArenaAllocators = [&] (EAllocationKind kind, uintptr_t zonesStart) {
