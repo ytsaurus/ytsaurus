@@ -2003,9 +2003,13 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         JobSplitter_->OnJobCompleted(*jobSummary);
     }
 
-    if (!abandoned && JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation) {
-        ++JobSpecCompletedArchiveCount_;
-        jobSummary->ArchiveJobSpec = true;
+    if (!abandoned) {
+        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.Get({}) > Config->MinJobDurationToArchiveJobSpec) && 
+           JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
+        {
+            ++JobSpecCompletedArchiveCount_;
+            jobSummary->ArchiveJobSpec = true;
+        }
     }
 
     // We want to know row count before moving jobSummary to ProcessFinishedJobResult.

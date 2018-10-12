@@ -537,6 +537,12 @@ public:
     //! Maximum number of job specs in archive per operation.
     int MaxArchivedJobSpecCountPerOperation;
 
+    //! Guaranteed number of job specs in archive per operation.
+    int GuaranteedArchivedJobSpecCountPerOperation;
+
+    //! Job spec with job duration greater that this will be archived.
+    TDuration MinJobDurationToArchiveJobSpec;
+
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;
 
