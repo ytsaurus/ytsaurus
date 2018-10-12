@@ -3,6 +3,7 @@
 #include "config.h"
 #include "stream.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/core/net/listener.h>
 #include <yt/core/net/connection.h>
@@ -149,11 +150,13 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v)",
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7ReqId: %v, L7RealIP: %v)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
                 request->GetMethod(),
-                path);
+                path,
+                GetBalancerRequestId(request),
+                GetBalancerRealIP(request));
 
             auto handler = Handlers_.Match(path);
             if (handler) {
@@ -221,23 +224,50 @@ private:
                 break;
             }
 
+            auto logDrop = [&] (auto reason) {
+                LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %Qv)",
+                    connectionId,
+                    reason);
+            };
+
             if (!Config_->EnableKeepAlive) {
+                break;
+            }
+
+            // Arcadia decompressors might return eof earlier than
+            // underlying stream. From HTTP server standpoint that
+            // looks like request that wasn't fully consumed, even if
+            // next Read() on that request would have returned eof.
+            //
+            // So we perform one last Read() here and check that
+            // there is no data left inside stream.
+            bool bodyConsumed = false;
+            try {
+                auto chunk = WaitFor(request->Read())
+                    .ValueOrThrow();
+                bodyConsumed = chunk.Empty();
+            } catch (const std::exception& ) { }
+            if (!bodyConsumed) {
+                logDrop("Body is not fully consumed by the handler");
                 break;
             }
 
             if (request->IsSafeToReuse()) {
                 request->Reset();
             } else {
+                logDrop("Request is not safe to reuse");
                 break;
             }
 
             if (response->IsSafeToReuse()) {
                 response->Reset();
             } else {
+                logDrop("Response is not safe to reuse");
                 break;
             }
 
             if (!connection->IsIdle()) {
+                logDrop("Connection not idle");
                 break;
             }
         }

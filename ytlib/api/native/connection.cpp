@@ -74,7 +74,6 @@ public:
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create()))
         , ChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
-        , StickyTransactionPool_(CreateStickyTransactionPool<NNative::ITransactionPtr>(Logger))
     { }
 
     void Initialize()
@@ -329,16 +328,6 @@ public:
             options);
     }
 
-    virtual ITransactionPtr RegisterStickyTransaction(NNative::ITransactionPtr transaction) override
-    {
-        return StickyTransactionPool_->RegisterTransaction(transaction);
-    }
-
-    virtual ITransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
-    {
-        return StickyTransactionPool_->GetTransactionAndRenewLease(transactionId);
-    }
-
     virtual void Terminate() override
     {
         Terminated_ = true;
@@ -384,8 +373,6 @@ private:
     TThreadPoolPtr ThreadPool_;
 
     std::atomic<bool> Terminated_ = {false};
-
-    const IStickyTransactionPoolPtr<NNative::ITransactionPtr> StickyTransactionPool_;
 
     IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind)
     {

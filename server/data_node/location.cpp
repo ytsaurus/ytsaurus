@@ -64,9 +64,6 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , ThrottledReadsCounter_("/throttled_reads", {}, config->ThrottleCounterInterval)
-    , ThrottledWritesCounter_("/throttled_writes", {}, config->ThrottleCounterInterval)
-    , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
@@ -75,6 +72,39 @@ TLocation::TLocation(
         profileManager->RegisterTag("medium", GetMediumName())
     };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
+    PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
+    PerformanceCounters_.PutBlocksWallTime = {"/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.MetaReadTime = {"/meta_read_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobChunkReaderOpenTime = {"/blob_chunk_reader_open_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockReadSize = {"/blob_block_read_size", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockReadTime = {"/blob_block_read_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockReadThroughput = {"/blob_block_read_throughput", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockWriteSize = {"/blob_block_write_size", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockWriteTime = {"/blob_block_write_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockWriteThroughput = {"/blob_block_write_throughput", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalBlockReadSize = {"/journal_block_read_size", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalBlockReadTime = {"/journal_block_read_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalBlockReadThroughput = {"/journal_block_read_throughput", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalChunkCreateTime = {"/journal_chunk_create_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_open_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_remove_time", {}, NProfiling::EAggregateMode::All};
+    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
+        NProfiling::TTagIdList perTypeTagIds = {
+            profileManager->RegisterTag("type", type)
+        };
+        PerformanceCounters_.SessionCount[type] = {"/session_count", perTypeTagIds};
+    }
+    PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.Full = {"/full"};
+
+    PerformanceCounters_.PendingIOSize.resize(
+        TEnumTraits<EIODirection>::GetDomainSize() *
+        TEnumTraits<EIOCategory>::GetDomainSize());
+    PerformanceCounters_.CompletedIOSize.resize(
+        TEnumTraits<EIODirection>::GetDomainSize() *
+        TEnumTraits<EIOCategory>::GetDomainSize());
 
     IOEngine_ = CreateIOEngine(
         Config_->IOEngineType,
@@ -111,13 +141,6 @@ TLocation::TLocation(
         GetWritePoolInvoker(),
         DataNodeLogger,
         Profiler_);
-
-    PendingIOSizeCounters_.resize(
-        TEnumTraits<EIODirection>::GetDomainSize() *
-        TEnumTraits<EIOCategory>::GetDomainSize());
-    CompletedIOSizeCounters_.resize(
-        TEnumTraits<EIODirection>::GetDomainSize() *
-        TEnumTraits<EIOCategory>::GetDomainSize());
 
     auto initializeCounters = [&] (const TString& path, auto getCounter) {
         for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
@@ -170,6 +193,11 @@ void TLocation::SetMediumDescriptor(const TMediumDescriptor& descriptor)
 const NProfiling::TProfiler& TLocation::GetProfiler() const
 {
     return Profiler_;
+}
+
+TLocationPerformanceCounters& TLocation::GetPerformanceCounters()
+{
+    return PerformanceCounters_;
 }
 
 TString TLocation::GetPath() const
@@ -354,7 +382,7 @@ NProfiling::TSimpleGauge& TLocation::GetPendingIOSizeCounter(
     int index =
         static_cast<int>(direction) +
         TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
-    return PendingIOSizeCounters_[index];
+    return PerformanceCounters_.PendingIOSize[index];
 }
 
 NProfiling::TMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
@@ -364,7 +392,7 @@ NProfiling::TMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
     int index =
         static_cast<int>(direction) +
         TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
-    return CompletedIOSizeCounters_[index];
+    return PerformanceCounters_.CompletedIOSize[index];
 }
 
 void TLocation::DecreasePendingIOSize(
@@ -501,31 +529,16 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
     }
 }
 
-void TLocation::IncrementThrottledReadsCounter()
-{
-    Profiler_.Increment(ThrottledReadsCounter_);
-}
-
-void TLocation::IncrementThrottledWritesCounter()
-{
-    Profiler_.Increment(ThrottledWritesCounter_);
-}
-
 bool TLocation::IsReadThrottling()
 {
-    auto deadline = ThrottledReadsCounter_.GetUpdateDeadline();
+    auto deadline = PerformanceCounters_.ThrottledReads.GetUpdateDeadline();
     return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
 }
 
 bool TLocation::IsWriteThrottling()
 {
-    auto deadline = ThrottledWritesCounter_.GetUpdateDeadline();
+    auto deadline = PerformanceCounters_.ThrottledWrites.GetUpdateDeadline();
     return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
-}
-
-void TLocation::UpdatePutBlocksWallTimeCounter(NProfiling::TValue value)
-{
-    Profiler_.Update(PutBlocksWallTimeCounter_, value);
 }
 
 TString TLocation::GetRelativeChunkPath(const TChunkId& chunkId)

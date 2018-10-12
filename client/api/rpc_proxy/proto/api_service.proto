@@ -9,7 +9,7 @@ import "yt/core/ytree/proto/attributes.proto";
 import "yt/client/hive/proto/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
-// Scalars.
+// Scalars
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
@@ -650,6 +650,7 @@ message TReqSetNode
     required string path = 1; // YPath
     required bytes value = 2; // YSON
     optional bool recursive = 3;
+    optional bool force = 4;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

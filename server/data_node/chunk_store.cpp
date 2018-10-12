@@ -623,31 +623,16 @@ void TChunkStore::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto* profilingManager = NProfiling::TProfileManager::Get();
-    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-        NProfiling::TTagIdList tagIds = {
-            profilingManager->RegisterTag("type", type)
-        };
-        for (const auto& location : Locations_) {
-            const auto& profiler = location->GetProfiler();
-            profiler.Enqueue(
-                "/session_count",
-                location->GetSessionCount(type),
-                NProfiling::EMetricType::Gauge,
-                tagIds);
-        }
-    }
-
     for (const auto& location : Locations_) {
         const auto& profiler = location->GetProfiler();
-        profiler.Enqueue(
-            "/available_space",
-            location->GetAvailableSpace(),
-            NProfiling::EMetricType::Gauge);
-        profiler.Enqueue(
-            "/full",
-            location->IsFull() ? 1 : 0,
-            NProfiling::EMetricType::Gauge);
+        for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
+            for (const auto& location : Locations_) {
+                profiler.Update(location->GetPerformanceCounters().SessionCount[type], location->GetSessionCount(type));
+            }
+        }
+        auto& performanceCounters = location->GetPerformanceCounters();
+        profiler.Update(performanceCounters.AvailableSpace, location->GetAvailableSpace());
+        profiler.Update(performanceCounters.Full, location->IsFull() ? 1 : 0);
     }
 }
 

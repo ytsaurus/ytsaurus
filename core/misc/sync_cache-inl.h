@@ -78,6 +78,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
             ++totalItemCount;
         }
 
+        shard.YoungerWeightCounter -= totalYoungerWeight;
+        shard.OlderWeightCounter -= totalOlderWeight;
         Profiler.Increment(YoungerWeightCounter_, -totalYoungerWeight);
         Profiler.Increment(OlderWeightCounter_, -totalOlderWeight);
         Size_ -= totalItemCount;
@@ -172,7 +174,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
 {
     // Move from older to younger.
     while (!shard->OlderLruList.Empty() &&
-           OlderWeightCounter_.GetCurrent() > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+           Config_->ShardCount * shard->OlderWeightCounter > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
     {
         auto* item = &*(--shard->OlderLruList.End());
         MoveToYounger(shard, item);
@@ -181,12 +183,12 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!shard->YoungerLruList.Empty() &&
-           YoungerWeightCounter_.GetCurrent() + OlderWeightCounter_.GetCurrent() > Config_->Capacity)
+           Config_->ShardCount * (shard->YoungerWeightCounter + shard->OlderWeightCounter) > Config_->Capacity)
     {
         auto* item = &*(--shard->YoungerLruList.End());
         auto value = item->Value;
 
-        Pop(item);
+        Pop(shard, item);
 
         YCHECK(shard->ItemMap.erase(value->GetKey()) == 1);
         --Size_;
@@ -223,7 +225,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
     shard->ItemMap.erase(it);
     --Size_;
 
-    Pop(item);
+    Pop(shard, item);
 
     delete item;
 
@@ -257,7 +259,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value)
     shard->ItemMap.erase(itemIt);
     --Size_;
 
-    Pop(item);
+    Pop(shard, item);
 
     delete item;
 
@@ -328,6 +330,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem
     Y_ASSERT(item->Empty());
     shard->YoungerLruList.PushFront(item);
     auto weight = GetWeight(item->Value);
+    shard->YoungerWeightCounter += weight;
     Profiler.Increment(YoungerWeightCounter_, +weight);
     item->Younger = true;
 }
@@ -340,6 +343,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TItem
     shard->YoungerLruList.PushFront(item);
     if (!item->Younger) {
         auto weight = GetWeight(item->Value);
+        shard->YoungerWeightCounter += weight;
+        shard->OlderWeightCounter -= weight;
         Profiler.Increment(OlderWeightCounter_, -weight);
         Profiler.Increment(YoungerWeightCounter_, +weight);
         item->Younger = true;
@@ -354,6 +359,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem* 
     shard->OlderLruList.PushFront(item);
     if (item->Younger) {
         auto weight = GetWeight(item->Value);
+        shard->YoungerWeightCounter -= weight;
+        shard->OlderWeightCounter += weight;
         Profiler.Increment(YoungerWeightCounter_, -weight);
         Profiler.Increment(OlderWeightCounter_, +weight);
         item->Younger = false;
@@ -361,15 +368,17 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem* 
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
+void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
 {
     if (item->Empty()) {
         return;
     }
     auto weight = GetWeight(item->Value);
     if (item->Younger) {
+        shard->YoungerWeightCounter -= weight;
         Profiler.Increment(YoungerWeightCounter_, -weight);
     } else {
+        shard->OlderWeightCounter -= weight;
         Profiler.Increment(OlderWeightCounter_, -weight);
     }
     item->Unlink();

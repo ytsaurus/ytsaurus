@@ -7,6 +7,8 @@ add_library(yt-library-server-http-proxy ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-server-http-proxy
   yt-core-https
+  yt-core-alloc
+  yt-core-phdr-cache
   yt-library-ytlib
   yt-library-ytlib-auth
   yt-library-server-misc

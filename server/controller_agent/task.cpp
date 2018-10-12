@@ -218,6 +218,15 @@ void TTask::CheckCompleted()
     }
 }
 
+void TTask::ForceComplete()
+{
+    if (!CompletedFired_) {
+        LOG_DEBUG("Task is forcefully completed");
+        CompletedFired_ = true;
+        OnTaskCompleted();
+    }
+}
+
 TUserJobSpecPtr TTask::GetUserJobSpec() const
 {
     return nullptr;
@@ -281,7 +290,7 @@ void TTask::ScheduleJob(
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
-                      sliceCount);
+                sliceCount);
             chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingJobSpecThrottling);
             scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
             return;
@@ -591,13 +600,14 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
         TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
     }
 
-    // NB: when job is aborted due to revival confirmation timeout we can only release its chunk lists
-    // when the information about abortion gets to the snapshot. Otherwise this job may revive in a
-    // different controller with an invalidated chunk list id.
+    // NB: when job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
+    // revival) it may become completed, and you will bite your elbows if you unstage its chunk lists too early (e.g.
+    // job is aborted due to node gone offline, but after revival it happily comes back and job successfully completes).
+    // So better keep it simple and wait for the snapshot.
     ReinstallJob(
         joblet,
         BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
-        jobSummary.AbortReason == EAbortReason::RevivalConfirmationTimeout /* waitForSnapshot */);
+        true /* waitForSnapshot */);
 
     return result;
 }
@@ -851,13 +861,13 @@ void TTask::FinishTaskInput(const TTaskPtr& task)
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 {
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
+    auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
 
-    BuildJobSpec(joblet, &jobSpec);
-    jobSpec.set_version(GetJobSpecVersion());
-    TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
+    BuildJobSpec(joblet, jobSpec.get());
+    jobSpec->set_version(GetJobSpecVersion());
+    TaskHost_->CustomizeJobSpec(joblet, jobSpec.get());
 
-    auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
         schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
@@ -882,7 +892,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    return SerializeProtoToRefWithEnvelope(jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
+    return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const

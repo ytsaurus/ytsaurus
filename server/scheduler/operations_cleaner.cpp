@@ -699,7 +699,7 @@ private:
                 }
 
                 transaction->WriteRows(
-                    GetOperationsArchivePathOrderedById(),
+                    GetOperationsArchiveOrderedByIdPath(),
                     desc.NameTable,
                     MakeSharedRange(std::move(rows), std::move(rowBuffer)));
             }
@@ -719,7 +719,7 @@ private:
                 }
 
                 transaction->WriteRows(
-                    GetOperationsArchivePathOrderedByStartTime(),
+                    GetOperationsArchiveOrderedByStartTimePath(),
                     desc.NameTable,
                     MakeSharedRange(std::move(rows), std::move(rowBuffer)));
             }

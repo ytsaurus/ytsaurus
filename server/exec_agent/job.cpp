@@ -182,10 +182,15 @@ public:
             case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
-                SetJobState(EJobState::Aborting);
+                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
                 ArtifactsFuture_.Cancel();
                 DoSetResult(error);
-                Cleanup();
+
+                // Do the actual cleanup asynchronously.
+                BIND(&TJob::Cleanup, MakeStrong(this))
+                    .Via(Bootstrap_->GetControlInvoker())
+                    .Run();
+
                 break;
 
             case EJobPhase::PreparingSandboxDirectories:
@@ -945,8 +950,6 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
-        GpuSlots_.clear();
-
         if (Slot_) {
             try {
                 LOG_DEBUG("Cleanup (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -958,6 +961,8 @@ private:
 
             Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
+
+        GpuSlots_.clear();
 
         SetJobPhase(EJobPhase::Finished);
         FinalizeJob();

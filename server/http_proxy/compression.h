@@ -31,7 +31,7 @@ NConcurrency::IAsyncOutputStreamPtr CreateCompressingAdapter(
     NConcurrency::IAsyncOutputStreamPtr underlying,
     EContentEncoding contentEncoding);
 
-NConcurrency::IAsyncInputStreamPtr CreateCompressingAdapter(
+NConcurrency::IAsyncInputStreamPtr CreateDecompressingAdapter(
     NConcurrency::IAsyncZeroCopyInputStreamPtr underlying,
     EContentEncoding contentEncoding);
 

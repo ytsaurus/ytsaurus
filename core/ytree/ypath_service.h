@@ -86,7 +86,7 @@ struct IYPathService
      *  Each time a request is issued, producer is called, its output is turned in
      *  an ephemeral tree, and the request is forwarded to that tree.
      */
-    static IYPathServicePtr FromProducer(NYson::TYsonProducer producer);
+    static IYPathServicePtr FromProducer(NYson::TYsonProducer producer, TDuration cachePeriod = TDuration());
 
     //! Creates a YSON producer from a YPath service.
     /*!
@@ -105,8 +105,10 @@ struct IYPathService
     IYPathServicePtr Via(IInvokerPtr invoker);
 
     //! Creates a wrapper that makes ephemeral snapshots to cache
-    //! the underlying service.
-    IYPathServicePtr Cached(TDuration updatePeriod);
+    //! the underlying service. 
+    //! Building tree from underlying service is performed in #invoker,
+    //! HeavyRpc invoker is used by default.
+    IYPathServicePtr Cached(TDuration updatePeriod, IInvokerPtr workerInvoker = nullptr);
 
     //! Creates a wrapper that calls given callback on each invocation
     //! in order to validate user permission to query the ypath service.
@@ -128,7 +130,7 @@ class ICachedYPathService
     : public virtual TRefCounted
 {
 public:
-    virtual void SetUpdatePeriod(TDuration period) = 0;
+    virtual void SetCachePeriod(TDuration period) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 805;
+    return 806;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -78,12 +78,14 @@ bool ValidateSnapshotVersion(int version)
         version == 715 || // ifsmirnov: Fix tablet_error_count lag
         version == 716 || // savrus: Add dynamic tablet cell options
         version == 717 || // aozeritsky: Add replicated table options
+        version == 718 || // shakurov: weak ghosts save/load
         version == 800 || // savrus: Multicell for dynamic tables
         version == 801 || // savrus: Make tablet_state backward-compatible
         version == 802 || // aozeritsky: Add replica options
         version == 803 || // savrus: Add primary last mount transaction id
         version == 804 || // shakurov: Remove TTransaction::System
-        version == 805;   // psushin: Add cypress annotations
+        version == 805 || // psushin: Add cypress annotations
+        version == 806;   // shakurov: same as ver. 718, but in 19.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////

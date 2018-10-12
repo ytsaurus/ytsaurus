@@ -60,6 +60,7 @@ void THttpParser::Reset()
     FirstLine_.Reset();
     NextField_.Reset();
     NextValue_.Reset();
+    LastBodyChunk_ = {};
     YCHECK(FirstLine_.GetLength() == 0);
     YCHECK(NextField_.GetLength() == 0);
     YCHECK(NextValue_.GetLength() == 0);
@@ -230,6 +231,7 @@ THttpInput::THttpInput(
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(Config_->ReadBufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
     , StartByteCount_(connection->GetReadByteCount())
+    , LastProgressLogTime_(TInstant::Now())
     , ReadInvoker_(readInvoker)
 { }
 
@@ -319,6 +321,7 @@ void THttpInput::Reset()
     RawUrl_ = {};
     Url_ = {};
     SafeToReuse_ = false;
+    LastProgressLogTime_ = TInstant::Now();
 
     StartByteCount_ = Connection_->GetReadByteCount();
 }
@@ -357,6 +360,8 @@ bool THttpInput::ReceiveHeaders()
     }
 
     while (true) {
+        MaybeLogSlowProgress();
+    
         bool eof = false;
         if (UnconsumedData_.Empty()) {
             auto asyncRead = Connection_->Read(InputBuffer_);
@@ -368,7 +373,7 @@ bool THttpInput::ReceiveHeaders()
         if (Parser_.GetState() != EParserState::Initialized) {
             FinishHeaders();
             if (Parser_.GetState() == EParserState::MessageFinished) {
-                SafeToReuse_ = Parser_.ShouldKeepAlive();
+                FinishMessage();
             }
             Connection_->SetReadDeadline({});
             return true;
@@ -383,6 +388,18 @@ bool THttpInput::ReceiveHeaders()
             idleConnection = false;
             Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
         }
+    }
+}
+
+void THttpInput::FinishMessage()
+{
+    SafeToReuse_ = Parser_.ShouldKeepAlive();
+
+    if (MessageType_ == EMessageType::Request) {
+        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d, Keep-Alive: %v)",
+            RequestId_,
+            GetReadByteCount(),
+            Parser_.ShouldKeepAlive());
     }
 }
 
@@ -425,6 +442,8 @@ TSharedRef THttpInput::DoRead()
 
     Connection_->SetReadDeadline(TInstant::Now() + Config_->BodyReadIdleTimeout);
     while (true) {
+        MaybeLogSlowProgress();
+
         auto chunk = Parser_.GetLastBodyChunk();
         if (!chunk.Empty()) {
             Connection_->SetReadDeadline({});
@@ -440,20 +459,26 @@ TSharedRef THttpInput::DoRead()
 
         UnconsumedData_ = Parser_.Feed(UnconsumedData_);
         if (Parser_.GetState() == EParserState::MessageFinished) {
-            SafeToReuse_ = Parser_.ShouldKeepAlive();
-            Connection_->SetReadDeadline({});
+            FinishMessage();
 
-            if (MessageType_ == EMessageType::Request) {
-                LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d)",
-                    RequestId_,
-                    GetReadByteCount());
-            }
+            Connection_->SetReadDeadline({});
             return EmptySharedRef;
         }
 
         // EOF must be handled by HTTP parser.
         YCHECK(!eof);
     }    
+}
+
+void THttpInput::MaybeLogSlowProgress()
+{
+    auto now = TInstant::Now();
+    if (LastProgressLogTime_ + Config_->BodyReadIdleTimeout < now) {
+        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %d)",
+            RequestId_,
+            GetReadByteCount());
+        LastProgressLogTime_ = now;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -468,6 +493,7 @@ THttpOutput::THttpOutput(
     , Config_(config)
     , OnWriteFinish_(BIND(&THttpOutput::OnWriteFinish, MakeWeak(this)))
     , StartByteCount_(connection->GetWriteByteCount())
+    , LastProgressLogTime_(TInstant::Now())
     , Headers_(headers)
 { }
 
@@ -536,6 +562,7 @@ void THttpOutput::Reset()
 
     HeadersFlushed_ = false;
     MessageFinished_ = false;
+    LastProgressLogTime_ = TInstant::Now();
 
     Trailers_.Reset();
 }
@@ -717,6 +744,14 @@ i64 THttpOutput::GetWriteByteCount() const
 void THttpOutput::OnWriteFinish()
 {
     Connection_->SetWriteDeadline({});
+
+    auto now = TInstant::Now();
+    if (LastProgressLogTime_ + Config_->WriteIdleTimeout < now) {
+        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %d)",
+            RequestId_,
+            GetWriteByteCount());
+        LastProgressLogTime_ = now;
+    }
 
     if (MessageType_ == EMessageType::Response) {
         if (HeadersFlushed_ && !HeadersLogged_) {

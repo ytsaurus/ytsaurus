@@ -44,9 +44,6 @@ public:
         const NHiveClient::TCellId& cellId,
         const NApi::TTransactionParticipantOptions& options) override;
 
-    virtual ITransactionPtr RegisterStickyTransaction(ITransactionPtr transaction);
-    virtual ITransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId);
-
     virtual void ClearMetadataCaches() override;
 
     virtual void Terminate() override;
@@ -62,8 +59,6 @@ private:
     const TDynamicChannelPoolPtr ChannelPool_;
 
     const NLogging::TLogger Logger;
-
-    const IStickyTransactionPoolPtr<NApi::ITransactionPtr> StickyTransactionPool_;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
     NRpc::IChannelPtr DiscoveryChannel_;

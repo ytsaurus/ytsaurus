@@ -64,7 +64,7 @@ public:
             profiler.GetPathPrefix() ? NProfiling::TProfiler(profiler.GetPathPrefix() + "/cg_cache") : NProfiling::TProfiler())
         , MemoryChunkProvider_(memoryChunkProvider
             ? std::move(memoryChunkProvider)
-            : CreateMemoryChunkProvider(PoolChunkSize))
+            : CreateMemoryChunkProvider())
     { }
 
     TQueryStatistics Run(

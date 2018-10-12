@@ -275,6 +275,28 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         remove_table_replica(replica_id)
         assert not exists("#{0}/@".format(replica_id))
 
+    def test_none_state_after_unmount(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", mount=False)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+
+        sync_mount_table("//tmp/t")
+        sync_enable_table_replica(replica_id)
+        
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "enabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][0]["state"] == "enabled"
+
+        sync_unmount_table("//tmp/t")
+        
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "enabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][0]["state"] == "none"
+
     def test_enable_disable_replica_unmounted(self):
         self._create_replicated_table("//tmp/t", mount=False)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -653,7 +675,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
-
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
@@ -688,12 +709,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
 
         def _maybe_add_system_fields(dict, row_index):
-            if (schema is self.SIMPLE_SCHEMA_ORDERED):
+            if schema is self.SIMPLE_SCHEMA_ORDERED:
                 dict['$tablet_index'] = 0
                 dict['$row_index'] = row_index
-                return dict
-            else:
-                return dict
+            return dict
 
         assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [_maybe_add_system_fields({"key": 1, "value1": "test", "value2": 123}, 0)]
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
@@ -701,15 +720,24 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         alter_table_replica(replica_id1, mode="async")
         alter_table_replica(replica_id2, mode="sync")
 
-        sleep(1.0)
-
-        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 456}])
+        def check_not_writable():
+            try:
+                insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 777}])
+                return False
+            except YtError:
+                return True
+        wait(lambda: check_not_writable())
 
         sync_enable_table_replica(replica_id2)
 
-        sleep(1.0)
+        def check_writable():
+            try:
+                insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 456}])
+                return True
+            except YtError:
+                return False
+        wait(lambda: check_writable())
 
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 456}])
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1)
 
         wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1))
@@ -807,15 +835,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         for i in xrange(4):
             wait(lambda: select_rows("key, value1 from [//tmp/r{0}]".format(i), driver=self.replica_driver) == rows[i:])
 
-    @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count, mode",
-        [a + b
-            for a in [(0, 1, 1), (60000, 2, 0)]
-            for b in [("async",) , ("sync",)]
-        ]
-    )
-    def test_replication_trim(self, ttl, chunk_count, trimmed_row_count, mode):
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_replication_trim(self, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", min_replication_log_ttl=ttl, dynamic_store_auto_flush_period=1000)
+        self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000, dynamic_store_period_skew=0)
+
         sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
             attributes={"mode": mode})
@@ -825,6 +849,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}])
+        wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
         sync_unmount_table("//tmp/t")
 
@@ -835,25 +860,23 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
+        sleep(3.0)
+
+        set("//tmp/t/@min_replication_log_ttl", 2000)
         sync_mount_table("//tmp/t")
+
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
 
         def check_chunks():
             chunk_ids = get("//tmp/t/@chunk_ids")
-            if len(chunk_ids) != chunk_count:
-                return False
-            # Check that the above insert has actually produced a chunk
-            if chunk_ids[-1] == initial_chunk_id:
-                return False
-            return True
+            return len(chunk_ids) == 1 and chunk_ids != initial_chunk_ids
         wait(lambda: check_chunks())
 
         sync_unmount_table("//tmp/t")
 
-        wait(lambda: get("//tmp/t/@chunk_count") == chunk_count)
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
-        assert get("//tmp/t/@tablets/0/trimmed_row_count") == trimmed_row_count
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 1
 
     def test_aggregate_replication(self):
         self._create_cells()

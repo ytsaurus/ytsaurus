@@ -34,7 +34,8 @@ const TNullable<TString>& TPoolName::GetParentPool() const
     return ParentPool;
 }
 
-TPoolName TPoolName::FromString(const TString& value) {
+TPoolName TPoolName::FromString(const TString& value)
+{
     std::vector<TString> parts;
     SplitStringTo(value, DELIMITER, &parts);
     switch (parts.size()) {
@@ -299,7 +300,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(false);
 
     RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
-        .Default(true);
+        .Default(false);
 
     RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
         .Default(true);
@@ -714,6 +715,9 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("data_weight_per_sort_job", DataWeightPerShuffleJob)
         .Alias("data_size_per_sort_job")
         .Default(2_GB)
+        .GreaterThan(0);
+    RegisterParameter("max_chunk_slice_per_shuffle_job", MaxChunkSlicePerShuffleJob)
+        .Default(8000)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
         .Default(0.75)

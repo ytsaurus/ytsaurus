@@ -51,8 +51,8 @@ class TestGetOperation(YTEnvSetup):
             })
         wait_breakpoint()
 
-        wait(lambda: exists(get_operation_cypress_path(op.id)))
-        wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
+        wait(lambda: exists(op.get_path()))
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
 
         res_get_operation = get_operation(op.id, include_scheduler=True)
         res_cypress = _get_operation_from_cypress(op.id)
@@ -127,7 +127,7 @@ class TestGetOperation(YTEnvSetup):
 
         for read_from in ("cache", "follower"):
             res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
-            res_cypress = get(get_operation_cypress_path(op.id) + "/@", attributes=["progress", "state"])
+            res_cypress = get(op.get_path() + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
             assert sorted(list(res_cypress)) == ["progress", "state"]
@@ -155,12 +155,12 @@ class TestGetOperation(YTEnvSetup):
             command="cat")
 
         tx = start_transaction(timeout=300 * 1000)
-        lock(get_operation_cypress_path(op.id),
+        lock(op.get_path(),
             mode="shared",
             child_key="completion_transaction_id",
             transaction_id=tx)
 
         clean_operations(self.Env.create_native_client())
         assert not exists("//sys/operations/" + op.id)
-        assert exists(get_operation_cypress_path(op.id))
+        assert exists(op.get_path())
         assert "state" in get_operation(op.id)

@@ -13,9 +13,15 @@ class TestHttpProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    DELTA_PROXY_CONFIG = {
+        "coordination": {
+            "heartbeat_interval": 100,
+        },
+    }
+
     def proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
-    
+
     def test_ping(self):
         rsp = requests.get(self.proxy_address() + "/ping")
         rsp.raise_for_status()
@@ -30,7 +36,21 @@ class TestHttpProxy(YTEnvSetup):
         assert "start_time" in service
 
     def test_hosts(self):
-        assert 1 == len(requests.get(self.proxy_address() + "/hosts").text.split())
+        proxy = ls("//sys/proxies")[0]
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).text)
+
+        assert [proxy] == get_yson(self.proxy_address() + "/hosts")
+        assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=data")
+        assert [] == get_yson(self.proxy_address() + "/hosts?role=control")
+
+        set("//sys/proxies/" + proxy + "/@role", "control")
+
+        # Wait until the proxy entry will be updated on the coordinator.
+        wait(lambda: [] == get_yson(self.proxy_address() + "/hosts"))
+        assert [] == get_yson(self.proxy_address() + "/hosts?role=data")
+        assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=control")
 
         hosts = requests.get(self.proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1

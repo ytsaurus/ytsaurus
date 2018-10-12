@@ -30,7 +30,7 @@ public:
         RegisterParameter("backoff_timeout", BackoffTimeout)
             .Default(TDuration::Seconds(1));
         RegisterParameter("use_lowercase_login", UseLowercaseLogin)
-            .Default(false);
+            .Default(true);
     }
 
     TString Host;

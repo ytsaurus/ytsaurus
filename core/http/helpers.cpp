@@ -202,6 +202,30 @@ void ProtectCsrfToken(const IResponseWriterPtr& rsp)
     headers->Set("X-DNS-Prefetch-Control", "off");
 }
 
+TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
+{
+    auto header = req->GetHeaders()->Find("X-Req-Id");
+    if (header) {
+        return *header;
+    }
+
+    return {};
+}
+
+TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
+{
+    auto headers = req->GetHeaders();
+
+    auto forwardedFor = headers->Find("X-Forwarded-For-Y");
+    auto sourcePort = headers->Find("X-Source-Port-Y");
+
+    if (forwardedFor && sourcePort) {
+        return Format("[%v]:%v", *forwardedFor, *sourcePort);
+    }
+
+    return {};
+}
+
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer)
 {
     rsp->GetHeaders()->Set("Content-Type", "application/json");

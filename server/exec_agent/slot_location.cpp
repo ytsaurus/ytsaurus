@@ -361,6 +361,9 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
         // Since we make slot user to be owner, but job proxy creates some files during job shell
         // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
         chownChmod(ESandboxKind::Home, 0777);
+
+        // Tmp is accessible for everyone.
+        chownChmod(ESandboxKind::Tmp, 0777);
     })
     .AsyncVia(LocationQueue_->GetInvoker())
     .Run();

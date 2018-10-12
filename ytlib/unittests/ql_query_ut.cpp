@@ -36,6 +36,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <util/system/sanitizers.h>
+
 #include <tuple>
 
 // Tests:
@@ -154,6 +156,8 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
         ContainsRegex("Type mismatch in expression"));
 }
 
+#if not defined(_asan_enabled_)
+
 TEST_F(TQueryPrepareTest, TooBigQuery)
 {
     TString query = "k from [//t] where a ";
@@ -261,6 +265,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery2)
         ContainsRegex("Maximum expression depth exceeded"));
 }
 
+#endif // defined(_asan_enabled_)
 
 TEST_F(TQueryPrepareTest, BigQuery)
 {

@@ -13,7 +13,6 @@ add_subdirectory(core)
 add_subdirectory(core/test_framework)
 add_subdirectory(ytlib)
 add_subdirectory(client)
-add_subdirectory(run_codec)
 add_subdirectory(python)
 add_subdirectory(tools)
 

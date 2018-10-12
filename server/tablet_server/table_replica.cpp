@@ -29,7 +29,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
     Save(context, Table_);
     Save(context, State_);
     Save(context, Mode_);
-    Save(context, DisablingTablets_);
+    Save(context, TransitioningTablets_);
     Save(context, EnableReplicatedTableTracker_);
     Save(context, PreserveTimestamps_);
     Save(context, Atomicity_);
@@ -51,7 +51,7 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     } else {
         Mode_ = ETableReplicaMode::Async;
     }
-    Load(context, DisablingTablets_);
+    Load(context, TransitioningTablets_);
     // COMPAT(aozeritsky)
     if (context.GetVersion() >= 717) {
         Load(context, EnableReplicatedTableTracker_);

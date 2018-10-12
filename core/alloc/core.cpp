@@ -554,14 +554,14 @@ public:
     }
 
 
-    void SetSyscallTimeWarningThreshold(TDuration value)
+    void SetSlowCallWarningThreshold(TDuration value)
     {
-        SyscallTimeWarningThreshold_.store(value.MicroSeconds());
+        SlowCallWarningThreshold_.store(value.MicroSeconds());
     }
 
-    TDuration GetSyscallTimeWarningThreshold() const
+    TDuration GetSlowCallWarningThreshold() const
     {
-        return TDuration::MicroSeconds(SyscallTimeWarningThreshold_.load());
+        return TDuration::MicroSeconds(SlowCallWarningThreshold_.load());
     }
 
 private:
@@ -569,65 +569,95 @@ private:
     std::atomic<bool> ProfilingEnabled_ = {false};
     std::atomic<double> LargeUnreclaimableCoeff_ = {0.05};
     std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
-    std::atomic<ui64> SyscallTimeWarningThreshold_ = {10000000}; // in microseconds, 10 ms by default
+    std::atomic<ui64> SlowCallWarningThreshold_ = {10000000}; // in microseconds, 10 ms by default
 };
 
 TBox<TConfigurationManager> ConfigurationManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Used to log statistics about long-running syscalls.
+// Used to log statistics about long-running syscalls and lock acquisitions.
 // Maintains recursion depth and execution stats in TLS.
 // Recursion depth counter ensures that logging only happens
 // when the topmost guard is being destroyed and thus YTAlloc does not invoke itself in
 // an unexpected way.
-class TSyscallGuard
+class TTimingGuard
     : public TNonCopyable
 {
 public:
-    TSyscallGuard()
+    TTimingGuard()
     {
         ++RecursionDepth_;
     }
 
-    ~TSyscallGuard()
+    ~TTimingGuard()
     {
         if (RecursionDepth_ > 1) {
             --RecursionDepth_;
             return;
         }
+        
+        auto logIfNeeded = [&] (const auto& timeVariable, TStringBuf what) {
+            // Y_POD_STATIC_THREAD declares instances of NTls::TValue for MacOS.
+            // This typecast provides a portable way for accessing the underlying value.
+            ui64 elapsedTime = timeVariable;
 
-        // Y_POD_STATIC_THREAD declares instances of NTls::TValue for MacOS.
-        // This typecast provides a portable way of accessing the underlying value.
-        ui64 elapsedTime = ElapsedTime_;
-
-        if (ConfigurationManager->IsLoggingEnabled() &&
-            TDuration::MicroSeconds(elapsedTime) > ConfigurationManager->GetSyscallTimeWarningThreshold())
-        {
-            // These calls may cause allocations so we RecursionDepth_ must remain positive here.
-            static const NLogging::TLogger Logger(LoggerCategory);
-            LOG_DEBUG("Syscalls took too long (Time: %v)",
-                elapsedTime);
-        }
+            if (ConfigurationManager->IsLoggingEnabled() &&
+                TDuration::MicroSeconds(elapsedTime) > ConfigurationManager->GetSlowCallWarningThreshold())
+            {
+                // These calls may cause allocations so we RecursionDepth_ must remain positive here.
+                static const NLogging::TLogger Logger(LoggerCategory);
+                LOG_DEBUG("%v took too long (Time: %v)",
+                    what,
+                    elapsedTime);
+            }
+        };
+        
+        logIfNeeded(ElapsedSyscallTime_, AsStringBuf("Syscalls"));
+        logIfNeeded(ElapsedLockingTime_, AsStringBuf("Locking"));
 
         RecursionDepth_ = 0;
-        ElapsedTime_ = 0;
+        ElapsedSyscallTime_ = 0;
+        ElapsedLockingTime_ = 0;
     }
 
-    static void ChargeTime(TDuration time)
+    static void ChargeSyscallTime(TDuration time)
     {
         if (RecursionDepth_ > 0) {
-            ElapsedTime_ += time.MicroSeconds();
+            ElapsedSyscallTime_ += time.MicroSeconds();
+        }
+    }
+
+    static void ChargeLockingTime(TDuration time)
+    {
+        if (RecursionDepth_ > 0) {
+            ElapsedLockingTime_ += time.MicroSeconds();
         }
     }
 
 private:
     Y_POD_STATIC_THREAD(int) RecursionDepth_;
-    Y_POD_STATIC_THREAD(ui64) ElapsedTime_; // in microseconds
+    Y_POD_STATIC_THREAD(ui64) ElapsedSyscallTime_; // in microseconds
+    Y_POD_STATIC_THREAD(ui64) ElapsedLockingTime_; // in microseconds
 };
 
-Y_POD_THREAD(int) TSyscallGuard::RecursionDepth_;
-Y_POD_THREAD(ui64) TSyscallGuard::ElapsedTime_;
+Y_POD_THREAD(int) TTimingGuard::RecursionDepth_;
+Y_POD_THREAD(ui64) TTimingGuard::ElapsedSyscallTime_;
+Y_POD_THREAD(ui64) TTimingGuard::ElapsedLockingTime_;
+
+template <class T>
+Y_FORCE_INLINE TGuard<T> GuardWithTiming(const T& lock)
+{
+    if (!ConfigurationManager->IsLoggingEnabled()) {
+        return Guard(lock);
+    }
+    NProfiling::TWallTimer timer;
+    TGuard<T> guard(lock);
+    TTimingGuard::ChargeLockingTime(timer.GetElapsedTime());
+    return guard;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // A wrapper for mmap, mumap, and madvise calls.
 // The latter are invoked with MADV_POPULATE and MADV_FREE flags
@@ -746,7 +776,7 @@ private:
         }
         NProfiling::TWallTimer timer;
         auto guard = Finally([&] {
-            TSyscallGuard::ChargeTime(timer.GetElapsedTime());
+            TTimingGuard::ChargeSyscallTime(timer.GetElapsedTime());
         });
         return func();
     }
@@ -1023,7 +1053,7 @@ struct TTotalCounters
             return set;
         }
 
-        auto guard = Guard(TaggedCounterSetsLock);
+        auto guard = GuardWithTiming(TaggedCounterSetsLock);
         auto& setHolder = TaggedCounterSetHolders[index];
         if (!setHolder) {
             setHolder = std::make_unique<TTaggedTotalCounterSet<TCounter>>();
@@ -1156,7 +1186,7 @@ public:
 
         {
             // Only hold this guard for a small period of time to reference all the states.
-            auto guard = Guard(ThreadRegistryLock_);
+            auto guard = GuardWithTiming(ThreadRegistryLock_);
             auto* current = ThreadRegistry_.GetFront();
             while (current) {
                 RefThreadState(current);
@@ -1171,7 +1201,7 @@ public:
 
         {
             // Releasing references also requires global lock to be held to avoid getting zombies above.
-            auto guard = Guard(ThreadRegistryLock_);
+            auto guard = GuardWithTiming(ThreadRegistryLock_);
             for (auto* state : states) {
                 UnrefThreadState(state);
             }
@@ -1197,7 +1227,7 @@ private:
         auto* state = ThreadStatePool_.Allocate();
 
         {
-            auto guard = Guard(ThreadRegistryLock_);
+            auto guard = GuardWithTiming(ThreadRegistryLock_);
             ThreadRegistry_.PushBack(state);
         }
 
@@ -1635,8 +1665,8 @@ private:
         }
     }
 
-    void ComputeLazyFreeBytes(const TBackgroundContext& context)
-    {
+    void ComputeLazyFreeBytes(const TBackgroundContext& /*context*/)
+    {/*
         auto now = TInstant::Now();
         if (now < LastLazyFreeBytesComputeTime_ + LazyFreeBytesRecomputePeriod) {
             return;
@@ -1645,28 +1675,28 @@ private:
         const auto& Logger = context.Logger;
         LOG_DEBUG("Started computing lazy free bytes");
 
-        //ssize_t lazyFreeBytes = 0;
+        ssize_t lazyFreeBytes = 0;
 
-        //try {
-        //    TIFStream file("/proc/self/smaps");
-        //    auto lines = file.ReadAll();
-        //    for (const auto& line : SplitString(lines, "\n")) {
-        //        if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
-        //            auto tokens = SplitString(line, " ");
-        //            if (tokens.size() < 3) {
-        //                continue;
-        //            }
-        //            lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
-        //        }
-        //    }
-        //    LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
-        //        lazyFreeBytes / 1_MB);
-        //
-        //    LastLazyFreeBytesComputeTime_ = now;
-        //    LazyFreeBytes_.store(lazyFreeBytes);
-        //} catch (const std::exception& ex) {
-        //    LOG_DEBUG(ex, "Failed to compute lazy free bytes");
-        //}
+        try {
+            TIFStream file("/proc/self/smaps");
+            auto lines = file.ReadAll();
+            for (const auto& line : SplitString(lines, "\n")) {
+                if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
+                    auto tokens = SplitString(line, " ");
+                    if (tokens.size() < 3) {
+                        continue;
+                    }
+                    lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
+                }
+            }
+            LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
+                lazyFreeBytes / 1_MB);
+
+            LastLazyFreeBytesComputeTime_ = now;
+            LazyFreeBytes_.store(lazyFreeBytes);
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to compute lazy free bytes");
+        }*/
     }
 
 private:
@@ -1704,7 +1734,7 @@ Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
 void TThreadManager::DestroyThread(void*)
 {
     {
-        auto guard = Guard(ThreadManager->ThreadRegistryLock_);
+        auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
         ThreadManager->UnrefThreadState(ThreadState_);
     }
     ThreadState_ = nullptr;
@@ -1852,8 +1882,9 @@ private:
 
     void PopulateAnotherSegment()
     {
-        TSyscallGuard syscallGuard;
-        auto lockGuard = Guard(SegmentLock_);
+        TTimingGuard timingGuard;
+
+        auto lockGuard = GuardWithTiming(SegmentLock_);
 
         auto* oldPtr = CurrentPtr_.load();
         if (oldPtr && PtrToSegmentIndex(oldPtr + ChunkSize_) == PtrToSegmentIndex(oldPtr)) {
@@ -2070,7 +2101,7 @@ private:
     template <EAllocationKind Kind>
     static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
     }
@@ -2078,7 +2109,7 @@ private:
     template <EAllocationKind Kind>
     static void FreeGlobal(TMemoryTag tag, void* ptr, size_t rank, size_t size)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesFreed, size);
         (*GlobalSmallChunkCaches)[Kind]->MoveOneToGlobal(ptr, rank);
     }
@@ -2273,7 +2304,7 @@ private:
     template <class TState>
     void PopulateArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
         MappedMemoryManager->Populate(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesPopulated, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesPopulated, size / PageSize);
@@ -2284,7 +2315,7 @@ private:
     template <class TState>
     void ReleaseArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
         MappedMemoryManager->Release(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesReleased, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesReleased, size / PageSize);
@@ -2599,7 +2630,7 @@ private:
     template <class TState>
     void AllocateArenaExtent(TState* state, TLargeArena* arena)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
 
         auto rank = arena->Rank;
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::ExtentsAllocated, 1);
@@ -2771,7 +2802,7 @@ public:
 
     void* Allocate(size_t size)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
 
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
@@ -2789,7 +2820,7 @@ public:
 
     void Free(void* ptr)
     {
-        TSyscallGuard syscallGuard;
+        TTimingGuard timingGuard;
 
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
@@ -2826,7 +2857,9 @@ public:
     static void* Allocate(size_t size)
     {
         InitializeGlobals();
-        if (size < HugeSizeThreshold) {
+        // NB: Account for the header. Also note that we may safely ignore the alignment since
+        // HugeSizeThreshold is already page-aligned.
+        if (size < HugeSizeThreshold - sizeof(TLargeBlobHeader)) {
             auto* result = LargeBlobAllocator->Allocate(size);
             PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
             return result;
@@ -3025,6 +3058,8 @@ void YTFree(void* ptr)
     }
 }
 
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_)
+
 size_t YTGetSize(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
@@ -3048,6 +3083,8 @@ size_t YTGetSize(void* ptr)
     }
 }
 
+#endif
+
 void EnableLogging()
 {
     InitializeGlobals();
@@ -3066,16 +3103,16 @@ void SetLargeUnreclaimableCoeff(double value)
     ConfigurationManager->SetLargeUnreclaimableCoeff(value);
 }
 
-void SetSyscallTimeWarningThreshold(TDuration value)
+void SetSlowCallWarningThreshold(TDuration value)
 {
     InitializeGlobals();
-    ConfigurationManager->SetSyscallTimeWarningThreshold(value);
+    ConfigurationManager->SetSlowCallWarningThreshold(value);
 }
 
-TDuration GetSyscallTimeWarningThreshold()
+TDuration GetSlowCallWarningThreshold()
 {
     InitializeGlobals();
-    return ConfigurationManager->GetSyscallTimeWarningThreshold();
+    return ConfigurationManager->GetSlowCallWarningThreshold();
 }
 
 void SetLargeUnreclaimableBytes(size_t value)

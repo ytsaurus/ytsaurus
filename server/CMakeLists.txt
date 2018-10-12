@@ -108,7 +108,6 @@ add_executable(ytserver-http-proxy
 target_link_libraries(ytserver-http-proxy
   yt-library-server-http-proxy
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-http-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")

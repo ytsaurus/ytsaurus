@@ -1,4 +1,5 @@
 SET(DIRS
+  run_codec
   scheduler_simulator
 )
 

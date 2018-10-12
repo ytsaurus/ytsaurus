@@ -69,6 +69,11 @@ public:
     //! a given #transactionId was last pinged.
     TFuture<TInstant> GetLastPingTime(const TTransaction* transaction);
 
+    //! Sets the transaction timeout. Current lease is not renewed.
+    void SetTransactionTimeout(
+        TTransaction* transaction,
+        TDuration timeout);
+
     //! Registers and references the object with the transaction.
     //! The same object can only be staged once.
     void StageObject(

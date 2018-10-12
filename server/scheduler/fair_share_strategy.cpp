@@ -576,7 +576,8 @@ public:
     TError CheckOperationUnschedulable(
         const TOperationId& operationId,
         TDuration safeTimeout,
-        int minScheduleJobCallAttempts)
+        int minScheduleJobCallAttempts,
+        THashSet<EDeactivationReason> deactivationReasons)
     {
         // TODO(ignat): Could we guarantee that operation must be in tree?
         auto element = FindOperationElement(operationId);
@@ -604,13 +605,14 @@ public:
         }
 
         int deactivationCount = 0;
-        auto deactivationReasons = element->GetDeactivationReasons();
-        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-            deactivationCount += deactivationReasons[reason];
+        auto deactivationReasonToCount = element->GetDeactivationReasonsFromLastNonStarvingTime();
+        for (auto reason : deactivationReasons) {
+            deactivationCount += deactivationReasonToCount[reason];
         }
 
-        if (element->GetScheduledJobCount() == 0 &&
-            activationTime + safeTimeout < now &&
+        if (activationTime + safeTimeout < now &&
+            element->GetLastScheduleJobSuccessTime() + safeTimeout < now &&
+            element->GetLastNonStarvingTime() + safeTimeout < now &&
             deactivationCount > minScheduleJobCallAttempts)
         {
             return TError("Operation has no successfull scheduled jobs for a long period")
@@ -2429,7 +2431,8 @@ public:
                 auto error = GetTree(treeName)->CheckOperationUnschedulable(
                     operationId,
                     Config->OperationUnschedulableSafeTimeout,
-                    Config->OperationUnschedulableMinScheduleJobAttempts);
+                    Config->OperationUnschedulableMinScheduleJobAttempts,
+                    Config->OperationUnschedulableDeactiovationReasons);
                 if (error.IsOK()) {
                     hasSchedulableTree = true;
                     break;
@@ -3232,7 +3235,8 @@ private:
         for (const auto& pair : operationIdToTreeSet) {
             const auto& operationId = pair.first;
             const auto& treeSet = pair.second;
-            if (treeSet.empty()) {
+            bool isOperationExists = OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end();
+            if (treeSet.empty() && isOperationExists) {
                 Host->AbortOperation(
                     operationId,
                     TError("No suitable fair-share trees to schedule operation"));

@@ -185,18 +185,21 @@ void TJournalChunk::DoReadBlockRange(
         i64 bytesRead = GetByteSize(blocks);
         chunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
 
-        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
+        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
+            "BytesReadActually: %v, Time: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             Location_->GetId(),
             blocksRead,
-            bytesRead);
+            bytesRead,
+            readTime);
 
-        auto& locationProfiler = Location_->GetProfiler();
-        locationProfiler.Enqueue("/journal_read_size", bytesRead, EMetricType::Gauge);
-        locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
-        locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
+        const auto& locationProfiler = Location_->GetProfiler();
+        auto& performanceCounters = Location_->GetPerformanceCounters();
+        locationProfiler.Update(performanceCounters.JournalBlockReadSize, bytesRead);
+        locationProfiler.Update(performanceCounters.JournalBlockReadSize, NProfiling::DurationToValue(readTime));
+        locationProfiler.Update(performanceCounters.JournalBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
         DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
         promise.Set(TBlock::Wrap(blocks));
