@@ -210,6 +210,8 @@ b"""
 
         transactions_refresh_period = 500;
 
+        max_archived_job_spec_count_per_operation = 10;
+
         operation_options = {
             spec_template = {
                 max_failed_job_count = 10;
