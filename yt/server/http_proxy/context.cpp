@@ -130,6 +130,7 @@ TContext::TContext(
 void TContext::ProcessDebugHeaders()
 {
     Response_->GetHeaders()->Add("X-YT-Request-ID", ToString(Request_->GetRequestId()));
+    Response_->GetHeaders()->Add("X-YT-Proxy", Api_->GetCoordinator()->GetSelf()->GetHost());
 
     auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
     if (correlationId) {
@@ -463,13 +464,9 @@ bool TContext::TryGetOutputFormat()
     auto acceptHeader = Request_->GetHeaders()->Find("Accept");
     if (acceptHeader) {
         auto acceptedType = GetBestAcceptedType(Descriptor_->OutputType, StripString(*acceptHeader));
-        if (!acceptedType) {
-            Response_->SetStatus(EStatusCode::NotAcceptable);
-            ReplyFakeError("Could not determine fiasible Content-Type given Accept constraints");
-            return false;
+        if (acceptedType) {
+            OutputFormat_ = MimeTypeToFormat(*acceptedType);
         }
-    
-        OutputFormat_ = MimeTypeToFormat(*acceptedType);
     }
 
     try {
@@ -589,7 +586,7 @@ void TContext::SetContentDispositionAndMimeType()
     TString disposition = "attachment";
     if (Descriptor_->Heavy) {
         TString filename;
-        if (Descriptor_->CommandName == "download") {
+        if (Descriptor_->CommandName == "download" || Descriptor_->CommandName == "read_table") {
             if (auto path = DriverRequest_.Parameters->FindChild("path")) {
                 filename = "yt_" + path->GetValue<TString>();
             }
@@ -733,8 +730,6 @@ void TContext::AddHeaders()
     if (!OmitTrailers_) {
         headers->Set("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
     }
-
-    headers->Add("X-YT-Proxy", Api_->GetCoordinator()->GetSelf()->GetHost());
 }
 
 void TContext::SetError(const TError& error)

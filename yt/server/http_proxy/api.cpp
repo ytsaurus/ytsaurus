@@ -202,15 +202,16 @@ void TApi::HandleRequest(
     }
 
     auto context = New<TContext>(MakeStrong(this), req, rsp);
-    if (!context->TryPrepare()) {
-        HttpProxyProfiler.Increment(PrepareErrorCount_);
-        auto statusCode = rsp->GetStatus();
-        if (statusCode) {
-            IncrementHttpCode(*statusCode);
-        }
-        return;
-    }
     try {
+        if (!context->TryPrepare()) {
+            HttpProxyProfiler.Increment(PrepareErrorCount_);
+            auto statusCode = rsp->GetStatus();
+            if (statusCode) {
+                IncrementHttpCode(*statusCode);
+            }
+            return;
+        }
+
         context->FinishPrepare();
         context->Run();
     } catch (const std::exception& ex) {
