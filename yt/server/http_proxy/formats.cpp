@@ -149,11 +149,11 @@ TNullable<TString> GetBestAcceptedType(
     const TString& clientAcceptHeader)
 {
     if (clientAcceptHeader.Contains(";q=")) {
-        THROW_ERROR_EXCEPTION("Quality value inside \"Accept\" header is not supported");
+        return {};
     }
 
     if (clientAcceptHeader.Contains(",")) {
-        THROW_ERROR_EXCEPTION("Multiple MIME types inside \"Accept\" header are not supported");
+        return {};
     }
 
     if (outputType == EDataType::Structured) {
