@@ -866,7 +866,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         context = read_file("//tmp/input_context")
         assert get("//tmp/input_context/@description/type") == "input_context"
-        assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
+        assert JsonFormat().loads_row(context)["foo"] == "bar"
 
     def test_dump_job_context_permissions(self):
         create_user("abc")
