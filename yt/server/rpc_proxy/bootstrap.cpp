@@ -24,6 +24,8 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
+
 #include <yt/core/bus/server.h>
 
 #include <yt/core/bus/tcp/config.h>
@@ -110,6 +112,8 @@ void TBootstrap::DoRun()
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+
+    NativeConnection_->GetCellDirectorySynchronizer()->Start();
 
     TClientOptions clientOptions;
     clientOptions.PinnedUser = NSecurityClient::RootUserName;
