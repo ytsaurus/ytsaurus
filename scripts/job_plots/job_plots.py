@@ -41,34 +41,45 @@ def _ts_to_time_str(ts):
     return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
 
-def _get_operation_info(op_id, client):
-    """Get job statistics from the archive"""
-    hi_id, lo_id = uuid_to_parts(op_id)
-    start_job_id_hi, start_job_id_lo = 0, 0
-    chunk_size = 2000
-    operation_info = []
-    while True:
-        chunk = list(client.select_rows(
-            """
-            type, state, transient_state, start_time, finish_time, address,
-            job_id_hi, job_id_lo, events, statistics from [//sys/operations_archive/jobs]
-            where operation_id_lo = {}u and operation_id_hi = {}u and 
-            (job_id_hi, job_id_lo) > ({}, {}) limit {}
-            """.format(lo_id, hi_id, start_job_id_hi, start_job_id_lo, chunk_size)
-        ))
-        if not chunk:
-            break
-        start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
-        operation_info += chunk
-    return operation_info
-
-
 def _get_event_time(phase, events):
     """Get starting time of some phase for particular job"""
     time_str = next(
-        event["time"] for event in events if "phase" in event and event["phase"] == phase
+        event["time"] for event in events if
+        event.get("phase") == phase or event.get("state") == phase
     )
     return yt.common.date_string_to_timestamp(time_str)
+
+
+def _get_operation_start(op_id, client):
+    """Get start time of the operation"""
+    hi_id, lo_id = uuid_to_parts(op_id)
+    operation_events = list(client.select_rows(
+        """
+        events from [//sys/operations_archive/ordered_by_id]
+        where id_lo = {}u and id_hi = {}u
+        """.format(lo_id, hi_id)
+    ))
+    if not operation_events:
+        return None
+    return _get_event_time("running", operation_events[0]["events"])
+
+
+def _get_operation_info_by_chunks(op_id, client, start_job_id_hi, start_job_id_lo):
+    """
+    Get job statistics for particular operation from the archive
+    No more then chunk_size rows are selected,
+    starting from key (start_job_id_hi, start_job_id_lo)
+    """
+    hi_id, lo_id = uuid_to_parts(op_id)
+    chunk_size = 2000
+    return list(client.select_rows(
+        """
+        type, state, transient_state, start_time, finish_time, address,
+        job_id_hi, job_id_lo, events, statistics from [//sys/operations_archive/jobs]
+        where operation_id_lo = {}u and operation_id_hi = {}u and 
+        (job_id_hi, job_id_lo) > ({}, {}) limit {}
+        """.format(lo_id, hi_id, start_job_id_hi, start_job_id_lo, chunk_size)
+    ))
 
 
 def _get_statistic_from_output_tables(statistic, output):
@@ -87,17 +98,7 @@ def _nested_dict_find(data, path):
 
 
 def _aggregate(jobset, func, statistic):
-    return func([_get_statistics(job_info, statistic) for job_info in jobset])
-
-
-def _get_statistics(job_info, statistic):
-    if statistic.startswith("statistics/"):
-        statistic = statistic.replace("statistics", "$", 1)
-    if statistic.startswith("$/"):
-        statistic_id = JobInfo.statistic_ids.get(statistic, -1)
-        return job_info.statistics.get(statistic_id, None)
-    else:
-        return getattr(job_info, statistic, None)
+    return func([job_info.get_statistic(statistic) for job_info in jobset])
 
 
 def _data_is_correct(jobsets, statistic=None):
@@ -231,6 +232,18 @@ class JobInfo(object):
             else:
                 self._flatten_statistics_tree(branch, "{}/{}".format(path, key))
     
+    
+    def get_statistic(self, statistic):
+        """Get job statistic by name or by path"""
+        if statistic.startswith("statistics/"):
+            statistic = statistic.replace("statistics", "$", 1)
+        if statistic.startswith("$/"):
+            statistic_id = JobInfo.statistic_ids.get(statistic, -1)
+            return self.statistics.get(statistic_id, None)
+        else:
+            return getattr(self, statistic, None)
+
+    
     def __str__(self):
         return "{}: {} [{} - {}]".format(
             self.node,
@@ -252,17 +265,21 @@ def get_jobs(op_id, cluster_name):
     e.g. 'jobs = get_jobs("7bd267f5-b8587ac7-3f403e8-2a46f9ce", "freud")'
     """
     client = yt.client.Yt(proxy = cluster_name)
-    operation_info = _get_operation_info(op_id, client)
-    if not operation_info:
-        print("There is no operation {} in the operation archive!".format(op_id))
-        return
     jobset = []
     
-    operation_start = min(_get_event_time("created", job_info["events"]) for job_info in operation_info)
-    for job_info in operation_info:
-        state = job_info["state"] or job_info["transient_state"]
-        if state in ["completed", "failed"]:
-            jobset.append(JobInfo(job_info, operation_start))
+    operation_start = _get_operation_start(op_id, client)
+    chunk = _get_operation_info_by_chunks(op_id, client, 0, 0)
+    if not operation_start or not chunk:
+        print("There is no operation {} in the operations archive!".format(op_id))
+        return
+    while chunk:
+        for job_info in chunk:
+            state = job_info["state"] or job_info["transient_state"]
+            if state in ["completed", "failed"]:
+                jobset.append(JobInfo(job_info, operation_start))
+        start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
+        chunk = _get_operation_info_by_chunks(op_id, client, start_job_id_hi, start_job_id_lo)
+
     jobset.sort()
     return jobset
 
@@ -349,7 +366,7 @@ def get_raw_comparative_hist_data(jobsets, statistic="total_time"):
         for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             jobset_info.append(dict(
                 job_type=job_type,
-                values=[_get_statistics(job_info, statistic) for job_info in jobs_info],
+                values=[job_info.get_statistic(statistic) for job_info in jobs_info],
             ))
         data.append(jobset_info)
     return data
@@ -497,8 +514,8 @@ def get_raw_comparative_scatter_plot_data(jobsets, x_statistic="input_data_weigh
         jobset_info = []
         for job_type, jobs_info in groupby(sorted(jobset), key=lambda x: x.type):
             xvalues, yvalues = zip(*[(
-                _get_statistics(job_info, x_statistic),
-                _get_statistics(job_info, y_statistic)
+                job_info.get_statistic(x_statistic),
+                job_info.get_statistic(y_statistic),
             ) for job_info in jobs_info])
             jobset_info.append(dict(
                 job_type=job_type,
@@ -612,7 +629,7 @@ def print_jobset(jobset, sort_by="start_time", reverse=False, additional_fields=
     Print node id, job id, running time and maybe some additional fields for every job
     """
     for job_type, jobs_info in groupby(
-        sorted(jobset, key=lambda x: (x.type, _get_statistics(x, sort_by)), reverse=reverse),
+        sorted(jobset, key=lambda x: (x.type, x.get_statistic(sort_by)), reverse=reverse),
         key=lambda x: x.type,
     ):
         print("{} jobs:".format(job_type))
@@ -622,5 +639,5 @@ def print_jobset(jobset, sort_by="start_time", reverse=False, additional_fields=
             if additional_fields:
                 print("\t{}:".format("additional_fields"))
                 for field in additional_fields:
-                    print("\t\t{}: {}".format(field, _get_statistics(job_info, field)))
+                    print("\t\t{}: {}".format(field, job_info.get_statistic(field)))
 

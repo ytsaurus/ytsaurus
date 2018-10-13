@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="yandex_yt_job_plots",
-    version="0.0.9",
+    version="0.0.16",
     author="ivanashevi",
     description="Package for plotting job statistics.",
     long_description=long_description,
