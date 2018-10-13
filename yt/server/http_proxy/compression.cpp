@@ -6,6 +6,11 @@
 #include <library/streams/lz/lz.h>
 #include <library/streams/brotli/brotli.h>
 
+#ifdef YT_IN_ARCADIA
+#include <library/blockcodecs/codecs.h>
+#include <library/blockcodecs/stream.h>
+#endif
+
 #include <util/stream/zlib.h>
 
 namespace NYT {
@@ -54,7 +59,7 @@ class TCompressingOutputStream
 public:
     TCompressingOutputStream(
         IAsyncOutputStreamPtr underlying,
-        EContentEncoding contentEncoding)
+        TContentEncoding contentEncoding)
         : Underlying_(underlying)
         , ContentEncoding_(contentEncoding)
     { }
@@ -83,7 +88,7 @@ public:
 
 private:
     const IAsyncOutputStreamPtr Underlying_;
-    const EContentEncoding ContentEncoding_;
+    const TContentEncoding ContentEncoding_;
 
     // NB: Arcadia streams got some "interesting" ideas about
     // exception handling and the role of destructors in the C++
@@ -98,32 +103,53 @@ private:
             return;
         }
 
-        switch (ContentEncoding_) {
-            case EContentEncoding::Gzip:
-                Compressor_.reset(new TZLibCompress(this, ZLib::GZip, 4, DefaultStreamBufferSize));
-                return;
-            case EContentEncoding::Deflate:
-                Compressor_.reset(new TZLibCompress(this, ZLib::ZLib, 4, DefaultStreamBufferSize));
-                return;
-            case EContentEncoding::Lzop:
-                Compressor_.reset(new TLzopCompress(this, DefaultStreamBufferSize));
-                break;
-            case EContentEncoding::Lzo:
-                Compressor_.reset(new TLzoCompress(this, DefaultStreamBufferSize));
-                break;
-            case EContentEncoding::Lzf:
-                Compressor_.reset(new TLzfCompress(this, DefaultStreamBufferSize));
-                break;
-            case EContentEncoding::Snappy:
-                Compressor_.reset(new TSnappyCompress(this, DefaultStreamBufferSize));
-                break;
-            case EContentEncoding::Brotli:
-                Compressor_.reset(new TBrotliCompress(this, 3));
-                break;
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported content encoding")
-                    << TErrorAttribute("content_encoding", ToString(ContentEncoding_));
+#ifdef YT_IN_ARCADIA
+        if (ContentEncoding_.StartsWith("z-")) {
+            Compressor_.reset(new NBlockCodecs::TCodedOutput(
+                this,
+                NBlockCodecs::Codec(ContentEncoding_.substr(2)),
+                DefaultStreamBufferSize));
+            return;
         }
+#endif
+
+        if (ContentEncoding_ == "gzip") {
+            Compressor_.reset(new TZLibCompress(this, ZLib::GZip, 4, DefaultStreamBufferSize));
+            return;
+        }
+
+        if (ContentEncoding_ == "deflate") {
+            Compressor_.reset(new TZLibCompress(this, ZLib::ZLib, 4, DefaultStreamBufferSize));
+            return;
+        }
+
+        if (ContentEncoding_ == "br") {
+            Compressor_.reset(new TBrotliCompress(this, 3));
+            return;
+        }
+
+        if (ContentEncoding_ == "x-lzop") {
+            Compressor_.reset(new TLzopCompress(this, DefaultStreamBufferSize));
+            return;
+        }
+
+        if (ContentEncoding_ == "y-lzo") {
+            Compressor_.reset(new TLzoCompress(this, DefaultStreamBufferSize));
+            return;
+        }
+
+        if (ContentEncoding_ == "y-lzf") {
+            Compressor_.reset(new TLzfCompress(this, DefaultStreamBufferSize));
+            return;
+        }
+
+        if (ContentEncoding_ == "y-snappy") {
+            Compressor_.reset(new TSnappyCompress(this, DefaultStreamBufferSize));
+            return;
+        }
+        
+        THROW_ERROR_EXCEPTION("Unsupported content encoding")
+            << TErrorAttribute("content_encoding", ToString(ContentEncoding_));
     }
     
     virtual void DoWrite(const void* buf, size_t len) override
@@ -161,7 +187,7 @@ class TDecompressingInputStream
 public:
     TDecompressingInputStream(
         IAsyncZeroCopyInputStreamPtr underlying,
-        EContentEncoding contentEncoding)
+        TContentEncoding contentEncoding)
         : Underlying_(underlying)
         , ContentEncoding_(contentEncoding)
     { }
@@ -174,7 +200,7 @@ public:
 
 private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
-    const EContentEncoding ContentEncoding_;
+    const TContentEncoding ContentEncoding_;
     std::unique_ptr<IInputStream> Decompressor_;
 
     TSharedRef LastRead_;
@@ -208,31 +234,47 @@ private:
             return;
         }
 
-        switch (ContentEncoding_) {
-            case EContentEncoding::Gzip:
-            case EContentEncoding::Deflate:
-                Decompressor_.reset(new TZLibDecompress(this));
-                return;
-            case EContentEncoding::Lzop:
-                Decompressor_.reset(new TLzopDecompress(this));
-                break;
-            case EContentEncoding::Lzo:
-                Decompressor_.reset(new TLzoDecompress(this));
-                break;
-            case EContentEncoding::Lzf:
-                Decompressor_.reset(new TLzfDecompress(this));
-                break;
-            case EContentEncoding::Snappy:
-                Decompressor_.reset(new TSnappyDecompress(this));
-                break;
-            case EContentEncoding::Brotli:
-                Decompressor_.reset(new TBrotliDecompress(this));
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported content encoding")
-                    << TErrorAttribute("content_encoding", ToString(ContentEncoding_));
+#ifdef YT_IN_ARCADIA
+        if (ContentEncoding_.StartsWith("z-")) {
+            Decompressor_.reset(new NBlockCodecs::TDecodedInput(
+                this,
+                NBlockCodecs::Codec(ContentEncoding_.substr(2))));
+            return;
         }
+#endif
+        
+        if (ContentEncoding_ == "gzip" || ContentEncoding_ == "deflate") {
+            Decompressor_.reset(new TZLibDecompress(this));
+            return;
+        }
+
+        if (ContentEncoding_ == "br") {
+            Decompressor_.reset(new TBrotliDecompress(this));
+            return;
+        }
+
+        if (ContentEncoding_ == "x-lzop") {
+            Decompressor_.reset(new TLzopDecompress(this));
+            return;
+        }
+
+        if (ContentEncoding_ == "y-lzo") {
+            Decompressor_.reset(new TLzoDecompress(this));
+            return;
+        }
+
+        if (ContentEncoding_ == "y-lzf") {
+            Decompressor_.reset(new TLzfDecompress(this));
+            return;
+        }
+
+        if (ContentEncoding_ == "y-snappy") {
+            Decompressor_.reset(new TSnappyDecompress(this));
+            return;
+        }
+        
+        THROW_ERROR_EXCEPTION("Unsupported content encoding")
+            << TErrorAttribute("content_encoding", ContentEncoding_);
     }
 };
 
@@ -240,16 +282,90 @@ DEFINE_REFCOUNTED_TYPE(TDecompressingInputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TContentEncoding IdentityContentEncoding = "identity";
+
+static const std::vector<TContentEncoding> SupportedCompressions = {
+    "gzip",
+    IdentityContentEncoding,
+    "br",
+    "x-lzop",
+    "y-lzo",
+    "y-lzf",
+    "y-snappy",
+    "deflate",
+};
+
+bool IsCompressionSupported(const TContentEncoding& contentEncoding)
+{
+#ifdef YT_IN_ARCADIA
+    if (contentEncoding.StartsWith("z-")) {
+        try {
+            NBlockCodecs::Codec(contentEncoding.substr(2));
+            return true;
+        } catch (const NBlockCodecs::TNotFound& ) {
+            return false;
+        }
+    }
+#endif
+
+    for (const auto& supported : SupportedCompressions) {
+        if (supported == contentEncoding) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// NOTE: Does not implement the spec, but a reasonable approximation.
+TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader)
+{
+    auto bestPosition = TString::npos;
+    TContentEncoding bestEncoding;
+
+    auto checkCandidate = [&] (const TString& candidate, size_t position) {
+        if (position != TString::npos && (bestPosition != TString::npos || position < bestPosition)) {
+            bestEncoding = candidate;
+            bestPosition = position;
+        }
+    };
+    
+    for (const auto& candidate : SupportedCompressions) {
+        if (candidate == "x-lzop") {
+            continue;
+        }
+
+        auto position = clientAcceptEncodingHeader.find(candidate);
+        checkCandidate(candidate, position);
+    }
+
+#ifdef YT_IN_ARCADIA
+    for (const auto& blockcodec : NBlockCodecs::ListAllCodecs()) {
+        auto candidate = TString{"z-"} + blockcodec;
+
+        auto position = clientAcceptEncodingHeader.find(candidate);
+        checkCandidate(candidate, position);
+    }
+#endif
+
+    if (!bestEncoding.empty()) {
+        return bestEncoding;
+    }
+    
+    return TError("Could not determine feasible Content-Encoding given Accept-Encoding constraints")
+        << TErrorAttribute("client_accept_encoding", clientAcceptEncodingHeader);
+}
+
 IAsyncOutputStreamPtr CreateCompressingAdapter(
     IAsyncOutputStreamPtr underlying,
-    EContentEncoding contentEncoding)
+    TContentEncoding contentEncoding)
 {
     return New<TCompressingOutputStream>(underlying, contentEncoding);
 }
 
 IAsyncInputStreamPtr CreateDecompressingAdapter(
     IAsyncZeroCopyInputStreamPtr underlying,
-    EContentEncoding contentEncoding)
+    TContentEncoding contentEncoding)
 {
     return New<TDecompressingInputStream>(underlying, contentEncoding);
 }

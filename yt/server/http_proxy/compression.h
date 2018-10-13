@@ -27,13 +27,19 @@ DEFINE_REFCOUNTED_TYPE(TSharedRefOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsCompressionSupported(const TContentEncoding& contentEncoding);
+
+extern TContentEncoding IdentityContentEncoding;
+
+TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader);
+
 NConcurrency::IAsyncOutputStreamPtr CreateCompressingAdapter(
     NConcurrency::IAsyncOutputStreamPtr underlying,
-    EContentEncoding contentEncoding);
+    TContentEncoding contentEncoding);
 
 NConcurrency::IAsyncInputStreamPtr CreateDecompressingAdapter(
     NConcurrency::IAsyncZeroCopyInputStreamPtr underlying,
-    EContentEncoding contentEncoding);
+    TContentEncoding contentEncoding);
 
 ////////////////////////////////////////////////////////////////////////////////
 

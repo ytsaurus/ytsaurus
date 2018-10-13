@@ -183,42 +183,6 @@ TNullable<TString> GetBestAcceptedType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::vector<std::pair<TString, EContentEncoding>> AllEncodings = {
-    { "gzip", EContentEncoding::Gzip },
-    { "identity", EContentEncoding::None },
-    { "br", EContentEncoding::Brotli },
-    { "x-lzop", EContentEncoding::Lzop },
-    { "y-lzo", EContentEncoding::Lzo },
-    { "y-lzf", EContentEncoding::Lzf },
-    { "y-snappy", EContentEncoding::Snappy },
-    { "deflate", EContentEncoding::Deflate },
-};
-
-TNullable<TString> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader)
-{
-    // TODO(prime@): Implement spec.
-    for (const auto& encoding : AllEncodings) {
-        if (clientAcceptEncodingHeader.Contains(encoding.first)) {
-            return encoding.first;
-        }
-    }
-
-    return {};
-}
-
-TNullable<EContentEncoding> EncodingToCompression(const TString& encoding)
-{
-    for (const auto& supportedEncoding : AllEncodings) {
-        if (encoding == supportedEncoding.first) {
-            return supportedEncoding.second;
-        }
-    }
-
-    return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NHttpProxy
 } // namespace NYT
 

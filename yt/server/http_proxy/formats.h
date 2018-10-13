@@ -22,9 +22,6 @@ TNullable<TString> GetBestAcceptedType(
     NFormats::EDataType outputType,
     const TString& clientAcceptHeader);
 
-TNullable<TString> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader);
-TNullable<EContentEncoding> EncodingToCompression(const TString& encoding);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHttpProxy
