@@ -40,7 +40,7 @@ public:
         : ActionQueue(New<TActionQueue>("Main"))
         , CallbacksMock(New<TElectionCallbacksMock>())
         , ChannelFactory(New<TStaticChannelFactory>())
-        , RpcTimeout(TDuration::MilliSeconds(40))
+        , RpcTimeout(TDuration::MilliSeconds(400))
     { }
 
     void Configure(int peerCount, TPeerId selfId)
@@ -71,10 +71,10 @@ public:
 
         auto electionConfig = New<TDistributedElectionManagerConfig>();
         electionConfig->ControlRpcTimeout = RpcTimeout;
-        electionConfig->VotingRoundPeriod = TDuration::MilliSeconds(10);
-        electionConfig->FollowerPingRpcTimeout = TDuration::MilliSeconds(60);
-        electionConfig->FollowerGraceTimeout = TDuration::MilliSeconds(30);
-        electionConfig->FollowerPingPeriod = TDuration::MilliSeconds(50);
+        electionConfig->VotingRoundPeriod = TDuration::MilliSeconds(100);
+        electionConfig->FollowerPingRpcTimeout = TDuration::MilliSeconds(600);
+        electionConfig->FollowerGraceTimeout = TDuration::MilliSeconds(300);
+        electionConfig->FollowerPingPeriod = TDuration::MilliSeconds(500);
 
         ElectionManager = CreateDistributedElectionManager(
             electionConfig,
@@ -90,17 +90,17 @@ public:
             }));
     }
 
-    void Sleep(int ticks = 1)
+    void Sleep()
     {
-        ::Sleep(TDuration::MilliSeconds(100) * ticks);
+        ::Sleep(TDuration::MilliSeconds(1000));
     }
 
     void RunElections()
     {
         ElectionManager->Participate();
-        Sleep(1);
+        Sleep();
         ElectionManager->Abandon();
-        Sleep(1);
+        Sleep();
     }
 
 protected:
@@ -543,8 +543,8 @@ INSTANTIATE_TEST_CASE_P(
     ValueParametrized,
     TElectionDelayedTest,
     ::testing::Values(
-        TDuration::MilliSeconds(10),
-        TDuration::MilliSeconds(60)));
+        TDuration::MilliSeconds(100),
+        TDuration::MilliSeconds(600)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
