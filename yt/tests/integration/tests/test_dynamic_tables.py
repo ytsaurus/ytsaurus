@@ -2088,6 +2088,26 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
         assert primary_data_size == secondary_data_size
 
+    def test_peer_change_on_prerequisite_transaction_abort(self):
+        cells = sync_create_cells(11)
+        cell = cells[10]
+        for c in cells[:10]:
+            remove("#" + c)
+        driver = get_driver(1)
+        node = get("#{0}/@peers/0/address".format(cell))
+        assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
+
+        def prepare():
+            tx = get("#{0}/@prerequisite_transaction_id".format(cell))
+            abort_transaction(tx)
+            wait(lambda: exists("#{0}/@prerequisite_transaction_id".format(cell)))
+            wait(lambda: get("#{0}/@peers/0/state".format(cell)) == "leading")
+            return get("#{0}/@peers/0/address".format(cell)) != node
+
+        wait(prepare)
+        node = get("#{0}/@peers/0/address".format(cell))
+        assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
+
 class TestTabletActionsMulticell(TestTabletActions):
     NUM_SECONDARY_MASTER_CELLS = 2
 
