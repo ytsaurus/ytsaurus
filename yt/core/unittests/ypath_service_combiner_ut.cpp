@@ -37,9 +37,6 @@ TEST(TYPathServiceCombinerTest, Simple)
         }));
     auto combinedService = New<TServiceCombiner>(std::vector<IYPathServicePtr> { service1, service2 });
 
-    // Give service time to build key mapping.
-    Sleep(TDuration::MilliSeconds(100));
-
     EXPECT_EQ(true, SyncYPathExists(combinedService, ""));
     EXPECT_THROW(SyncYPathExists(combinedService, "/"), std::exception);
     EXPECT_EQ(false, SyncYPathExists(combinedService, "/keyNonExistent"));
@@ -68,9 +65,6 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
         }));
 
     auto combinedService = New<TServiceCombiner>(std::vector<IYPathServicePtr> { staticService, dynamicService }, TDuration::MilliSeconds(100));
-
-    // Give service time to build key mapping.
-    Sleep(TDuration::MilliSeconds(200));
 
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/static_key1"));
     EXPECT_EQ(false, SyncYPathExists(combinedService, "/dynamic_key1"));
