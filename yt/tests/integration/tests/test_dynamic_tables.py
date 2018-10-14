@@ -2089,15 +2089,18 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert primary_data_size == secondary_data_size
 
     def test_peer_change_on_prerequisite_transaction_abort(self):
-        cells = sync_create_cells(11)
-        cell = cells[10]
-        for c in cells[:10]:
-            remove("#" + c)
+        cells = sync_create_cells(1)
         driver = get_driver(1)
-        node = get("#{0}/@peers/0/address".format(cell))
-        assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
 
         def prepare():
+            cells.extend(sync_create_cells(10))
+            sync_remove_tablet_cells(cells[:10])
+            for l in xrange(10):
+                cells.pop(0)
+            cell = cells[0]
+            node = get("#{0}/@peers/0/address".format(cell))
+            assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
+
             tx = get("#{0}/@prerequisite_transaction_id".format(cell))
             abort_transaction(tx)
             wait(lambda: exists("#{0}/@prerequisite_transaction_id".format(cell)))
@@ -2105,6 +2108,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
             return get("#{0}/@peers/0/address".format(cell)) != node
 
         wait(prepare)
+        cell = cells[0]
         node = get("#{0}/@peers/0/address".format(cell))
         assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
 
