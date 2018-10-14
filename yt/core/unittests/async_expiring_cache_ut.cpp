@@ -87,21 +87,20 @@ private:
 
 TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
 {
-    int interval = 10;
     auto config = New<TAsyncExpiringCacheConfig>();
-    config->RefreshTime = TDuration::MilliSeconds(interval);
+    config->RefreshTime = TDuration::MilliSeconds(100);
     auto cache = New<TSimpleExpiringCache>(config);
 
     auto start = Now();
     cache->Get(0);
-    Sleep(TDuration::MilliSeconds(100));
+    Sleep(TDuration::MilliSeconds(500));
     int actual = cache->GetCount();
     auto end = Now();
 
     int duration = (end - start).MilliSeconds();
-    int expected = duration / interval;
+    int expected = duration / config->RefreshTime.MilliSeconds();
 
-    EXPECT_LE(std::abs(expected - actual), 3);
+    EXPECT_LE(std::abs(expected - actual), 1);
 }
 
 TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
