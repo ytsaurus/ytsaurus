@@ -182,5 +182,11 @@ message TReqStartPrerequisiteTransactoin
     required NYT.NProto.TGuid transaction_id = 2;
 }
 
+message TReqAbortPrerequisiteTransactoin
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

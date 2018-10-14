@@ -180,6 +180,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraAbortPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
@@ -3673,6 +3674,9 @@ private:
             if (!response)
                 return;
 
+            if (!Bootstrap_->IsPrimaryMaster())
+                return;
+
             auto* protoInfo = response->add_tablet_slots_update();
 
             const auto& cellId = cell->GetId();
@@ -3691,6 +3695,9 @@ private:
 
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
             if (!response)
+                return;
+
+            if (!Bootstrap_->IsPrimaryMaster())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_to_remove();
@@ -3787,7 +3794,7 @@ private:
                 slot.PeerState,
                 cellInfo.ConfigVersion);
 
-            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion() && Bootstrap_->IsPrimaryMaster()) {
+            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(&slot);
             }
 
@@ -5213,6 +5220,7 @@ private:
             LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
                 cellId,
                 transactionId);
+            return;
         }
 
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
@@ -5244,6 +5252,13 @@ private:
         YCHECK(TransactionToCellMap_.erase(transaction) == 1);
         cell->SetPrerequisiteTransaction(nullptr);
 
+        // Suppress calling OnTransactionFinished on secondary masters.
+        TReqAbortPrerequisiteTransactoin request;
+        ToProto(request.mutable_cell_id(), cell->GetId());
+        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+
         // NB: Make a copy, transaction will die soon.
         auto transactionId = transaction->GetId();
 
@@ -5252,6 +5267,30 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
+            transactionId);
+    }
+
+    void HydraAbortPrerequisiteTransaction(TReqAbortPrerequisiteTransactoin* request)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = transactionManager->FindTransaction(transactionId);
+
+        if (!IsObjectAlive(transaction)) {
+            LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+                cellId,
+                transactionId);
+            return;
+        }
+
+        YCHECK(TransactionToCellMap_.erase(transaction) == 1);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+            cellId,
             transactionId);
     }
 
@@ -5266,7 +5305,7 @@ private:
         cell->SetPrerequisiteTransaction(nullptr);
         TransactionToCellMap_.erase(it);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction finished (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
 
