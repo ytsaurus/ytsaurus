@@ -179,6 +179,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
@@ -413,8 +414,10 @@ public:
         auto* rootUser = securityManager->GetRootUser();
         TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
-        AbortPrerequisiteTransaction(cell);
-        AbortCellSubtreeTransactions(cell);
+        if (Bootstrap_->IsPrimaryMaster()) {
+            AbortPrerequisiteTransaction(cell);
+            AbortCellSubtreeTransactions(cell);
+        }
 
         auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
@@ -3618,7 +3621,7 @@ private:
             if (!response)
                 return;
 
-            if (!cell->GetPrerequisiteTransaction())
+            if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_to_create();
@@ -3645,7 +3648,7 @@ private:
                 return;
 
             const auto* cell = slot->Cell;
-            if (!cell->GetPrerequisiteTransaction())
+            if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_configure();
@@ -5153,6 +5156,8 @@ private:
 
     void RestartPrerequisiteTransaction(TTabletCell* cell)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
         StartPrerequisiteTransaction(cell);
@@ -5160,6 +5165,8 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
 
@@ -5177,7 +5184,40 @@ private:
         cell->SetPrerequisiteTransaction(transaction);
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
+        TReqStartPrerequisiteTransactoin request;
+        ToProto(request.mutable_cell_id(), cell->GetId());
+        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+            cell->GetId(),
+            transaction->GetId());
+    }
+
+    void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransactoin* request)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = transactionManager->FindTransaction(transactionId);
+
+        if (!IsObjectAlive(transaction)) {
+            LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+                cellId,
+                transactionId);
+        }
+
+        YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -5193,6 +5233,8 @@ private:
 
     void AbortPrerequisiteTransaction(TTabletCell* cell)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         auto* transaction = cell->GetPrerequisiteTransaction();
         if (!transaction) {
             return;
