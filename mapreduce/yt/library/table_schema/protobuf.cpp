@@ -21,9 +21,11 @@ namespace NYT {
         Y_ENSURE(!field.is_repeated());
         switch (field.cpp_type()) {
         case FieldDescriptor::CPPTYPE_INT32:
+            return EValueType::VT_INT32;
         case FieldDescriptor::CPPTYPE_INT64:
             return EValueType::VT_INT64;
         case FieldDescriptor::CPPTYPE_UINT32:
+            return EValueType::VT_UINT32;
         case FieldDescriptor::CPPTYPE_UINT64:
             return EValueType::VT_UINT64;
         case FieldDescriptor::CPPTYPE_FLOAT:
