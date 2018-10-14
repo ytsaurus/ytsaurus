@@ -36,6 +36,8 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
+
 namespace NYT {
 namespace NHttpProxy {
 
@@ -98,6 +100,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     TClientOptions options;
     options.PinnedUser = NSecurityClient::RootUserName;
     Client_ = Connection_->CreateClient(options);
+
+    Connection_->GetCellDirectorySynchronizer()->Start();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
     HostsHandler_ = New<THostsHandler>(Coordinator_);
