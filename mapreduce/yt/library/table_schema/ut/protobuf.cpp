@@ -32,15 +32,15 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
 
         TEST_FIELD(schema.Columns_[0], "DoubleField", EValueType::VT_DOUBLE);
         TEST_FIELD(schema.Columns_[1], "FloatField", EValueType::VT_DOUBLE);
-        TEST_FIELD(schema.Columns_[2], "Int32Field", EValueType::VT_INT64);
+        TEST_FIELD(schema.Columns_[2], "Int32Field", EValueType::VT_INT32);
         TEST_FIELD(schema.Columns_[3], "Int64Field", EValueType::VT_INT64);
-        TEST_FIELD(schema.Columns_[4], "Uint32Field", EValueType::VT_UINT64);
+        TEST_FIELD(schema.Columns_[4], "Uint32Field", EValueType::VT_UINT32);
         TEST_FIELD(schema.Columns_[5], "Uint64Field", EValueType::VT_UINT64);
-        TEST_FIELD(schema.Columns_[6], "Sint32Field", EValueType::VT_INT64);
+        TEST_FIELD(schema.Columns_[6], "Sint32Field", EValueType::VT_INT32);
         TEST_FIELD(schema.Columns_[7], "Sint64Field", EValueType::VT_INT64);
-        TEST_FIELD(schema.Columns_[8], "Fixed32Field", EValueType::VT_UINT64);
+        TEST_FIELD(schema.Columns_[8], "Fixed32Field", EValueType::VT_UINT32);
         TEST_FIELD(schema.Columns_[9], "Fixed64Field", EValueType::VT_UINT64);
-        TEST_FIELD(schema.Columns_[10], "Sfixed32Field", EValueType::VT_INT64);
+        TEST_FIELD(schema.Columns_[10], "Sfixed32Field", EValueType::VT_INT32);
         TEST_FIELD(schema.Columns_[11], "Sfixed64Field", EValueType::VT_INT64);
         TEST_FIELD(schema.Columns_[12], "BoolField", EValueType::VT_BOOLEAN);
         TEST_FIELD(schema.Columns_[13], "EnumField", EValueType::VT_STRING);
@@ -56,7 +56,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
         UNIT_ASSERT_EQUAL(3, schema.Columns_.size());
 
         TEST_FIELD(schema.Columns_[0], "DoubleField", EValueType::VT_DOUBLE);
-        TEST_FIELD(schema.Columns_[1], "Int32Field", EValueType::VT_INT64);
+        TEST_FIELD(schema.Columns_[1], "Int32Field", EValueType::VT_INT32);
         TEST_FIELD(schema.Columns_[2], "BoolField", EValueType::VT_BOOLEAN);
     }
 
@@ -89,7 +89,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
 
         UNIT_ASSERT_EQUAL(3, schema.Columns_.size());
 
-        TEST_FIELD(schema.Columns_[0], "key", EValueType::VT_INT64);
+        TEST_FIELD(schema.Columns_[0], "key", EValueType::VT_INT32);
         TEST_FIELD(schema.Columns_[1], "subkey", EValueType::VT_DOUBLE);
         TEST_FIELD(schema.Columns_[2], "Data", EValueType::VT_STRING);
     }
@@ -99,7 +99,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
 
         const auto schema = CreateTableSchema<NTesting::TAliased>(KEYS);
 
-        TEST_FIELD_SORTED(schema.Columns_[0], "key", EValueType::VT_INT64);
+        TEST_FIELD_SORTED(schema.Columns_[0], "key", EValueType::VT_INT32);
         TEST_FIELD_SORTED(schema.Columns_[1], "subkey", EValueType::VT_DOUBLE);
         TEST_FIELD(schema.Columns_[2], "Data", EValueType::VT_STRING);
     }
