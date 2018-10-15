@@ -811,7 +811,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
 
         if hasattr(ports_generator, "local_port_range"):
             USER_PORT_START = ports_generator.local_port_range[1]
-            USER_PORT_END = USER_PORT_START + 10000
+            USER_PORT_END = min(USER_PORT_START + 10000, 2 ** 16)
+            assert USER_PORT_START < USER_PORT_END
         else:
             # Legacy constants.
             USER_PORT_START = 20000
