@@ -796,7 +796,8 @@ void TContext::Finalize()
     } else {
         if (!Error_.IsOK()) {
             FillYTErrorTrailers(Response_, Error_);
-            WaitFor(Response_->Close());
+            auto result = WaitFor(Response_->Close());
+            (void)result;
         }
     }
 
