@@ -172,6 +172,12 @@ int TSlotManager::GetSlotCount() const
     return IsEnabled() ? SlotCount_ : 0;
 }
 
+int TSlotManager::GetUsedSlotCount() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    return IsEnabled() ? SlotCount_ - FreeSlots_.size() : 0;
+}
+
 bool TSlotManager::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

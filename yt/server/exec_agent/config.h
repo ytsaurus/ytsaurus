@@ -100,8 +100,7 @@ public:
     TNullable<TString> ExternalJobRootVolume;
 
     THashMap<TString, TString> ExternalBinds;
-
-    double JobsCpuWeight;
+    
     double JobsIOWeight;
 
     TPortoJobEnvironmentConfig()
