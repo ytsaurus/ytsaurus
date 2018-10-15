@@ -952,34 +952,20 @@ private:
 
         if (Slot_) {
             try {
-                LOG_DEBUG("Cleanup (SlotIndex: %v)", Slot_->GetSlotIndex());
-                Slot_->Cleanup();
+                LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
+                Slot_->CleanProcesses();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
-                LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
+                LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
-
-            Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
 
-        GpuSlots_.clear();
-
-        SetJobPhase(EJobPhase::Finished);
-        FinalizeJob();
-    }
-
-    void FinalizeJob()
-    {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
         YCHECK(JobResult_);
 
-        auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
-        ResourceUsage_ = ZeroNodeResources();
-
-        if (JobState_ != EJobState::Waiting) {
-            ResourcesUpdated_.Fire(resourceDelta);
-            PortsReleased_.Fire();
-        }
+        // Copy info from traffic meter to statistics.
+        auto deserializedStatistics = ConvertTo<NJobTrackerClient::TStatistics>(Statistics_);
+        FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
+        Statistics_ = ConvertToYsonString(deserializedStatistics);
 
         auto error = FromProto<TError>(JobResult_->error());
 
@@ -1000,14 +986,33 @@ private:
             }
         }
 
-        // Copy info from traffic meter to statistics.
-        auto deserializedStatistics = ConvertTo<NJobTrackerClient::TStatistics>(Statistics_);
-        FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
-        Statistics_ = ConvertToYsonString(deserializedStatistics);
+        LOG_INFO(error, "Defined final job state (JobState: %v)", GetState());
 
-        LOG_INFO(error, "Job finalized (JobState: %v)",
-            error,
-            GetState());
+        // Release resources.
+        GpuSlots_.clear();
+
+        auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
+        ResourceUsage_ = ZeroNodeResources();
+
+        if (Dominates(resourceDelta, ZeroNodeResources())) {
+            ResourcesUpdated_.Fire(resourceDelta);
+            PortsReleased_.Fire();
+        }
+
+        if (Slot_) {
+            try {
+                LOG_DEBUG("Clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+                Slot_->CleanSandbox();
+            } catch (const std::exception& ex) {
+                // Errors during cleanup phase do not affect job outcome.
+                LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+            }
+            Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
+        }
+
+        SetJobPhase(EJobPhase::Finished);
+
+        LOG_INFO("Job finalized (JobState: %v)");
 
         Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
