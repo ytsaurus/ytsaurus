@@ -1093,6 +1093,12 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original);
 void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
 
+void ToProto(NTableClient::NProto::TTabletInfo* protoTabletInfo, const NTabletClient::TTabletInfo& tabletInfo);
+void FromProto(NTabletClient::TTabletInfo* tabletInfo, const NTableClient::NProto::TTabletInfo& protoTabletInfo);
+
+void ToProto(NProto::TTableMountInfo* mountInfoProto, const NTabletClient::TTableMountInfoPtr& mountInfo);
+void FromProto(const NTabletClient::TTableMountInfoPtr& mountInfo, const NProto::TTableMountInfo& mountInfoProto);
+
 TString InferName(TConstExpressionPtr expr, bool omitValues = false);
 TString InferName(TConstBaseQueryPtr query, bool omitValues = false);
 

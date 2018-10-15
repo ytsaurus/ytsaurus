@@ -301,6 +301,10 @@ public:
         TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
+        TConstExternalCGInfoPtr externalCGInfo,
+        std::vector<TDataRanges> dataSources,
+        ISchemafulWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options)
         : Config_(std::move(config))
@@ -309,6 +313,10 @@ public:
         , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
+        , MountInfos_(mountInfos)
+        , ExternalCGInfo_(std::move(externalCGInfo))
+        , DataSources_(std::move(dataSources))
+        , Writer_(std::move(writer))
         , Options_(std::move(options))
         , BlockReadOptions_(blockReadOptions)
         , Logger(MakeQueryLogger(Query_))
@@ -316,12 +324,9 @@ public:
         , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
     { }
 
-    TFuture<TQueryStatistics> Execute(
-        TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer)
+    TFuture<TQueryStatistics> Execute()
     {
-        for (const auto& source : dataSources) {
+        for (const auto& source : DataSources_) {
             if (TypeFromId(source.Id) == EObjectType::Tablet) {
                 TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
                     source.Id,
@@ -338,10 +343,7 @@ public:
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run(
-                std::move(externalCGInfo),
-                std::move(dataSources),
-                std::move(writer));
+            .Run();
     }
 
 private:
@@ -352,6 +354,12 @@ private:
     const TEvaluatorPtr Evaluator_;
 
     const TConstQueryPtr Query_;
+
+    const std::vector<NTabletClient::TTableMountInfoPtr>& MountInfos_;
+    const TConstExternalCGInfoPtr ExternalCGInfo_;
+    const std::vector<TDataRanges> DataSources_;
+    const ISchemafulWriterPtr Writer_;
+
     const TQueryOptions Options_;
     const TClientBlockReadOptions BlockReadOptions_;
 
@@ -376,8 +384,6 @@ private:
     }
 
     TQueryStatistics DoCoordinateAndExecute(
-        TConstExternalCGInfoPtr externalCGInfo,
-        ISchemafulWriterPtr writer,
         std::vector<TRefiner> refiners,
         std::vector<TSubreaderCreator> subreaderCreators,
         std::vector<std::vector<TDataRanges>> readRanges)
@@ -405,20 +411,19 @@ private:
         FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
-            externalCGInfo,
+            ExternalCGInfo_,
             FunctionImplCache_,
             BlockReadOptions_);
 
         return CoordinateAndExecute(
             Query_,
-            writer,
+            Writer_,
             refiners,
             [&] (TConstQueryPtr subquery, int index) {
                 auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
 
                 auto foreignProfileCallback = [
                     asyncSubqueryResults,
-                    externalCGInfo,
                     remoteExecutor,
                     dataSplits = std::move(readRanges[index]),
                     this,
@@ -524,7 +529,8 @@ private:
 
                         auto asyncResult = remoteExecutor->Execute(
                             subquery,
-                            externalCGInfo,
+                            MountInfos_,
+                            ExternalCGInfo_,
                             std::move(dataSource),
                             pipe->GetWriter(),
                             BlockReadOptions_,
@@ -546,7 +552,6 @@ private:
                     } else {
                         return [
                             asyncSubqueryResults,
-                            externalCGInfo,
                             remoteExecutor,
                             subquery,
                             joinClause,
@@ -567,7 +572,8 @@ private:
 
                             auto asyncResult = remoteExecutor->Execute(
                                 subquery,
-                                externalCGInfo,
+                                MountInfos_,
+                                ExternalCGInfo_,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
                                 BlockReadOptions_,
@@ -646,15 +652,12 @@ private:
             });
     }
 
-    TQueryStatistics DoExecute(
-        TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer)
+    TQueryStatistics DoExecute()
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, MaybeUser_);
 
-        auto statistics = DoExecuteImpl(std::move(externalCGInfo), std::move(dataSources), std::move(writer));
+        auto statistics = DoExecuteImpl();
 
         auto profilerTags = MaybeAddUserTag(TabletSnapshots_.GetProfilerTags());
         if (!profilerTags.empty()) {
@@ -666,10 +669,7 @@ private:
         return statistics;
     }
 
-    TQueryStatistics DoExecuteImpl(
-        TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer)
+    TQueryStatistics DoExecuteImpl()
     {
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
@@ -685,7 +685,7 @@ private:
         }
 
         size_t rangesCount = 0;
-        for (const auto& source : dataSources) {
+        for (const auto& source : DataSources_) {
             TRowRanges rowRanges;
             std::vector<TRow> keys;
 
@@ -863,8 +863,6 @@ private:
         YCHECK(splitOffset == splitCount);
 
         return DoCoordinateAndExecute(
-            externalCGInfo,
-            std::move(writer),
             std::move(refiners),
             std::move(subreaderCreators),
             std::move(readRanges));
@@ -1304,6 +1302,7 @@ public:
     // ISubexecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
@@ -1319,13 +1318,14 @@ public:
             ColumnEvaluatorCache_,
             Evaluator_,
             std::move(query),
+            mountInfos,
+            std::move(externalCGInfo),
+            std::move(dataSources),
+            std::move(writer),
             blockReadOptions,
             options);
 
-        return execution->Execute(
-            std::move(externalCGInfo),
-            std::move(dataSources),
-            std::move(writer));
+        return execution->Execute();
     }
 
 private:

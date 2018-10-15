@@ -870,6 +870,7 @@ private:
             tableMountCache->GetTableInfo(path),
             [] (const auto& context, const TTableMountInfoPtr& tableMountInfo) {
                 auto* response = &context->Response();
+
                 ToProto(response->mutable_table_id(), tableMountInfo->TableId);
                 const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
                 ToProto(response->mutable_schema(), primarySchema);
