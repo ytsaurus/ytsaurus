@@ -47,7 +47,8 @@ class OpenPortIterator(Iterator):
         self.local_port_range = local_port_range
         if self.local_port_range is None and os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
             with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
-                self.local_port_range = list(imap(int, f.read().split()))
+                start, end = list(imap(int, f.read().split()))
+                self.local_port_range = start, min(end, start + 10000)
 
     def release_locks(self):
         for lock_fd in self.lock_fds:
