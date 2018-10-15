@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 807;
+    return 808;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -86,7 +86,8 @@ bool ValidateSnapshotVersion(int version)
         version == 804 || // shakurov: Remove TTransaction::System
         version == 805 || // psushin: Add cypress annotations
         version == 806 || // shakurov: same as ver. 718, but in 19.4
-        version == 807;   // savrus: Add tablet cell health to tablet cell statistics
+        version == 807 || // savrus: Add tablet cell health to tablet cell statistics
+        version == 808;   // savrus: Forward start prerequisite transaction to secondary master
 }
 
 ////////////////////////////////////////////////////////////////////////////////
