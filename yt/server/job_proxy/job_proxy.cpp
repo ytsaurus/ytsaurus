@@ -576,10 +576,15 @@ void TJobProxy::ReportResult(
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
     if (Job_ && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
-        req->set_job_stderr(GetStderr());
-        auto failContext = Job_->GetFailContext();
-        if (failContext) {
-            req->set_fail_context(*failContext);
+        try {
+            req->set_job_stderr(GetStderr());
+            auto failContext = Job_->GetFailContext();
+            if (failContext) {
+                req->set_fail_context(*failContext);
+            }
+        } catch (const std::exception& ex) {
+            // NB(psushin): this could happen if job was not fully prepared.
+            LOG_WARNING(ex, "Failed to get job stderr and fail context on teardown");
         }
     }
 
