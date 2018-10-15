@@ -3689,15 +3689,21 @@ bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result)
 {
-    if (result.BanTree) {
-        Host->OnOperationBannedInTentativeTree(
-            joblet->TreeId,
-            GetJobIdsByTreeId(joblet->TreeId)
-        );
-        auto error = TError("Operation was banned from tentative tree")
-            << TErrorAttribute("tree_id", joblet->TreeId);
-        SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
+    if (!result.BanTree) {
+        return;
     }
+
+    if (!BannedTreeIds_.insert(joblet->TreeId).second) {
+        return;
+    }
+
+    Host->OnOperationBannedInTentativeTree(
+        joblet->TreeId,
+        GetJobIdsByTreeId(joblet->TreeId));
+
+    auto error = TError("Operation was banned from tentative tree")
+        << TErrorAttribute("tree_id", joblet->TreeId);
+    SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
@@ -7353,6 +7359,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
         InitUpdatingTables();
         InitializeOrchid();
+    }
+
+    if (context.GetVersion() >= 300020) {
+        Persist(context, BannedTreeIds_);
     }
 }
 

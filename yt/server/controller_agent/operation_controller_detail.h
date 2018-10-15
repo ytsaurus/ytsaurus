@@ -884,6 +884,8 @@ private:
 
     NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
 
+    THashSet<TString> BannedTreeIds_;
+
     //! Keeps information needed to maintain the liveness state of input chunks.
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 

@@ -79,6 +79,7 @@
     XX(ErasureStatistics, erasure_statistics) \
     XX(Error, error) \
     XX(Errors, errors) \
+    XX(ErrorsUntrimmed, errors_untrimmed) \
     XX(Executable, executable) \
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
@@ -240,6 +241,7 @@
     XX(TabletCountByExpectedState, tablet_count_by_expected_state) \
     XX(TabletErrorCount, tablet_error_count) \
     XX(TabletErrors, tablet_errors) \
+    XX(TabletErrorsUntrimmed, tablet_errors_untrimmed) \
     XX(TabletIds, tablet_ids) \
     XX(TabletSlots, tablet_slots) \
     XX(TabletState, tablet_state) \
