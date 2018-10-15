@@ -605,7 +605,6 @@ private:
             SyncClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
-            SyncOperationNodes();
             SubmitOperationsToCleaner();
             FireHandshake();
         }
@@ -941,23 +940,6 @@ private:
         void FireHandshake()
         {
             Owner_->MasterHandshake_.Fire(Result_);
-        }
-
-        void SyncOperationNodes()
-        {
-            LOG_INFO("Synchronizing operation nodes (UnsynchronizedCount: %v)", OperationIdsToSync_.size());
-
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Leader);
-
-            for (const auto& operationId : OperationIdsToSync_) {
-                auto req = TCypressYPathProxy::Copy(GetOperationPath(operationId));
-                req->set_source_path(GetOperationPath(operationId));
-                req->set_force(true);
-                batchReq->AddRequest(req, "copy_operation_node");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
 
         void SubmitOperationsToCleaner()
