@@ -2,12 +2,16 @@
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <yt/ytlib/table_client/table_ypath.pb.h>
+
 #include <yt/ytlib/query_client/query.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
 #include <yt/client/table_client/schema.h>
 
 #include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/core/ytree/serialize.h>
 #include <yt/core/ytree/convert.h>
@@ -825,6 +829,108 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
     }
     original->LookupSupported = serialized.lookup_supported();
     original->KeyWidth = serialized.key_width();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NTableClient::NProto::TTabletInfo* protoTabletInfo, const NTabletClient::TTabletInfo& tabletInfo)
+{
+    ToProto(protoTabletInfo->mutable_tablet_id(), tabletInfo.TabletId);
+    protoTabletInfo->set_mount_revision(tabletInfo.MountRevision);
+    protoTabletInfo->set_state(static_cast<i32>(tabletInfo.State));
+    ToProto(protoTabletInfo->mutable_pivot_key(), tabletInfo.PivotKey);
+    if (tabletInfo.CellId) {
+        ToProto(protoTabletInfo->mutable_cell_id(), tabletInfo.CellId);
+    }
+}
+
+void FromProto(NTabletClient::TTabletInfo* tabletInfo, const NTableClient::NProto::TTabletInfo& protoTabletInfo)
+{
+    using NYT::FromProto;
+
+    tabletInfo->TabletId =
+        FromProto<NTabletClient::TTabletId>(protoTabletInfo.tablet_id());
+    tabletInfo->MountRevision = protoTabletInfo.mount_revision();
+    tabletInfo->State = CheckedEnumCast<NTabletClient::ETabletState>(protoTabletInfo.state());
+    tabletInfo->PivotKey = FromProto<NTableClient::TOwningKey>(protoTabletInfo.pivot_key());
+    if (protoTabletInfo.has_cell_id()) {
+        tabletInfo->CellId = FromProto<NTabletClient::TTabletCellId>(protoTabletInfo.cell_id());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TTableMountInfo* mountInfoProto, const NTabletClient::TTableMountInfoPtr& mountInfo)
+{
+    ToProto(mountInfoProto->mutable_table_id(), mountInfo->TableId);
+    const auto& primarySchema = mountInfo->Schemas[NTabletClient::ETableSchemaKind::Primary];
+    ToProto(mountInfoProto->mutable_schema(), primarySchema);
+    for (const auto& tabletInfoPtr : mountInfo->Tablets) {
+        ToProto(mountInfoProto->add_tablets(), *tabletInfoPtr);
+    }
+
+    mountInfoProto->set_dynamic(mountInfo->Dynamic);
+    ToProto(mountInfoProto->mutable_upstream_replica_id(), mountInfo->UpstreamReplicaId);
+    for (const auto& replica : mountInfo->Replicas) {
+        auto* protoReplica = mountInfoProto->add_replicas();
+        ToProto(protoReplica->mutable_replica_id(), replica->ReplicaId);
+        protoReplica->set_cluster_name(replica->ClusterName);
+        protoReplica->set_replica_path(replica->ReplicaPath);
+        protoReplica->set_mode(static_cast<i32>(replica->Mode));
+    }
+}
+
+void FromProto(const NTabletClient::TTableMountInfoPtr& mountInfo, const NProto::TTableMountInfo& mountInfoProto)
+{
+    using NTabletClient::ETableSchemaKind;
+
+    auto tableId = FromProto<NObjectClient::TObjectId>(mountInfoProto.table_id());
+    mountInfo->TableId = tableId;
+
+    auto& primarySchema = mountInfo->Schemas[ETableSchemaKind::Primary];
+    primarySchema = FromProto<NTableClient::TTableSchema>(mountInfoProto.schema());
+
+    mountInfo->Schemas[ETableSchemaKind::Write] = primarySchema.ToWrite();
+    mountInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema.ToVersionedWrite();
+    mountInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
+    mountInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
+    mountInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
+
+    mountInfo->UpstreamReplicaId = FromProto<NTabletClient::TTableReplicaId>(mountInfoProto.upstream_replica_id());
+    mountInfo->Dynamic = mountInfoProto.dynamic();
+    mountInfo->NeedKeyEvaluation = primarySchema.HasComputedColumns();
+
+    for (const auto& protoTabletInfo : mountInfoProto.tablets()) {
+        auto tabletInfo = New<NTabletClient::TTabletInfo>();
+        FromProto(tabletInfo.Get(), protoTabletInfo);
+        tabletInfo->TableId = tableId;
+        tabletInfo->UpdateTime = Now();
+
+        mountInfo->Tablets.push_back(tabletInfo);
+        if (tabletInfo->State == NTabletClient::ETabletState::Mounted) {
+            mountInfo->MountedTablets.push_back(tabletInfo);
+        }
+    }
+
+    for (const auto& protoReplicaInfo : mountInfoProto.replicas()) {
+        auto replicaInfo = New<NTabletClient::TTableReplicaInfo>();
+        replicaInfo->ReplicaId = FromProto<NTabletClient::TTableReplicaId>(protoReplicaInfo.replica_id());
+        replicaInfo->Mode = NTabletClient::ETableReplicaMode(protoReplicaInfo.mode());
+        mountInfo->Replicas.push_back(replicaInfo);
+    }
+
+    if (mountInfo->IsSorted()) {
+        mountInfo->LowerCapBound = MinKey();
+        mountInfo->UpperCapBound = MaxKey();
+    } else {
+        auto makeCapBound = [] (int tabletIndex) {
+            TUnversionedOwningRowBuilder builder;
+            builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
+            return builder.FinishRow();
+        };
+        mountInfo->LowerCapBound = makeCapBound(0);
+        mountInfo->UpperCapBound = makeCapBound(static_cast<int>(mountInfo->Tablets.size()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -286,11 +286,13 @@ public:
             .Run(path, timestamp);
     }
 
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(std::vector<TTableMountInfoPtr>, MountInfos);
+
 private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
 
-    TTableSchema GetTableSchema(
+    static TTableSchema GetTableSchema(
         const TRichYPath& path,
         const TTableMountInfoPtr& tableInfo)
     {
@@ -310,6 +312,8 @@ private:
     {
         auto tableInfo = WaitFor(MountTableCache_->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
+
+        MountInfos_.push_back(tableInfo);
 
         tableInfo->ValidateNotReplicated();
 
@@ -1997,6 +2001,8 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
+        auto mountInfos = std::move(queryPreparer->MountInfos());
+
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
                 const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
@@ -2032,6 +2038,7 @@ private:
 
         auto statistics = WaitFor(queryExecutor->Execute(
             query,
+            mountInfos,
             externalCGInfo,
             dataSource,
             writer,
