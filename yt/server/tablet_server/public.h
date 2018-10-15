@@ -124,6 +124,9 @@ extern const TString DefaultTabletCellBundleName;
 
 extern const TTimeFormula DefaultTabletBalancerSchedule;
 
+constexpr int ReplicationErrorCountViewLimit = 3;
+constexpr int TabletErrorCountViewLimit = 10;
+
 using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;
 
 ////////////////////////////////////////////////////////////////////////////////

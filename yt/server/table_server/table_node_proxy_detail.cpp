@@ -155,6 +155,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorsUntrimmed)
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorCount)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
@@ -449,13 +452,17 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             if (!isDynamic || isExternal) {
                 break;
             }
-            std::vector<TError> errors;
-            for (const auto& tablet : trunkTable->Tablets()) {
-                const auto& tabletErrors = tablet->GetErrors();
-                errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
+            BuildYsonFluently(consumer)
+                .Value(table->GetTabletErrors(TabletErrorCountViewLimit));
+            return true;
+        }
+
+        case EInternedAttributeKey::TabletErrorsUntrimmed: {
+            if (!isDynamic) {
+                break;
             }
             BuildYsonFluently(consumer)
-                .Value(errors);
+                .Value(table->GetTabletErrors());
             return true;
         }
 
@@ -1296,7 +1303,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
                             .Item("mode").Value(replica->GetMode())
                             .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
                                 timestampProvider->GetLatestTimestamp()))
-                            .Item("errors").Value(replica->GetErrors())
+                            .Item("errors").Value(replica->GetErrors(ReplicationErrorCountViewLimit))
                         .EndMap();
                 });
             return true;

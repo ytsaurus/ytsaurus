@@ -384,6 +384,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         request->resource_usage(),
         request->disk_info());
 
+    TLeaseManager::RenewLease(node->GetLease());
+
     if (node->GetMasterState() != ENodeState::Online) {
         auto error = TError("Node is not online");
         if (!node->GetRegistrationError().IsOK()) {
@@ -398,8 +400,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         context->Reply(TError("Node already has an ongoing heartbeat"));
         return;
     }
-
-    TLeaseManager::RenewLease(node->GetLease());
 
     bool isThrottlingActive = false;
     if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
