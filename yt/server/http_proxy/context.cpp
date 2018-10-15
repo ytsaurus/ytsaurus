@@ -795,8 +795,8 @@ void TContext::Finalize()
         }
     } else {
         if (!Error_.IsOK()) {
-            // TODO(prime@): Fill trailers.
-            LOG_DEBUG("Error is not sent to client since response headers are already flushed");
+            FillYTErrorTrailers(Response_, Error_);
+            WaitFor(Response_->Close());
         }
     }
 
