@@ -1396,6 +1396,16 @@ class TestTabletActions(TestDynamicTablesBase):
 
         return result
 
+    def _tablets_distribution(self, table, cells=None):
+        tablet_count = {}
+        for tablet in get("{}/@tablets".format(table)):
+            cell_id = tablet["cell_id"]
+            tablet_count[cell_id] = tablet_count.get(cell_id, 0) + 1
+        if cells is None:
+            return sorted(tablet_count.values())
+        else:
+            return [tablet_count.get(cell_id, 0) for cell_id in cells]
+
     def _validate_state(self, tablets, state=None, expected_state=None):
         if state is not None:
             assert state == [tablet["state"] if s is not None else None for tablet, s in zip(tablets, state)]
@@ -1501,44 +1511,43 @@ class TestTabletActions(TestDynamicTablesBase):
             count = [cells.count(cell) for cell in pair[1]]
             assert all(c == count[0] for c in count)
 
-    def test_ext_memory_cells_balance(self):
-        # TODO(ifsmirnov): parametrize external_cell_tag for multicell
+    @parametrize_external
+    def test_ext_memory_cells_balance(self, external):
         self._configure_bundle("default")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", False)
         cells = sync_create_cells(5)
 
+        def create_sorted_table(name):
+            if external:
+                self._create_sorted_table(name, external_cell_tag=1)
+            else:
+                self._create_sorted_table(name, external=False)
+
         def reshard(table, tablet_count):
             reshard_table(table, [[]] + list([i] for i in range(1, tablet_count)))
 
-        def tablets_distribution(table):
-            cnt = dict((i, 0) for i in range(len(cells)))
-            tablets = get("{}/@tablets".format(table))
-            for cell_id in [tablet["cell_id"] for tablet in tablets]:
-                cnt[cells.index(cell_id)] += 1
-            return list(cnt.values())
-
-        self._create_sorted_table("//tmp/t1", external=False)
+        create_sorted_table("//tmp/t1")
         reshard("//tmp/t1", 13)
         sync_mount_table("//tmp/t1", cell_id=cells[0])
 
         for i in range(7):
-            self._create_sorted_table("//tmp/t2.{}".format(i), external=False)
+            create_sorted_table("//tmp/t2.{}".format(i))
             sync_mount_table("//tmp/t2.{}".format(i), cell_id=cells[1])
 
-        assert tablets_distribution("//tmp/t1") == [13, 0, 0, 0, 0]
+        assert self._tablets_distribution("//tmp/t1", cells) == [13, 0, 0, 0, 0]
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
-        wait(lambda: sorted(tablets_distribution("//tmp/t1")) == [2, 2, 3, 3, 3])
+        wait(lambda: self._tablets_distribution("//tmp/t1") == [2, 2, 3, 3, 3])
 
         for i in range(3, 15):
             name = "//tmp/t{}".format(i)
-            self._create_sorted_table(name, external=False)
+            create_sorted_table(name)
             reshard(name, 3)
             sync_mount_table(name, cell_id=cells[2])
 
         wait(lambda: all(
-            max(tablets_distribution("//tmp/t{}".format(i))) == 1
+            max(self._tablets_distribution("//tmp/t{}".format(i), cells)) == 1
             for i
             in range(3, 15)
         ))
@@ -1549,7 +1558,7 @@ class TestTabletActions(TestDynamicTablesBase):
             cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
             return max(cell_fullness) - min(cell_fullness) <= 1
         wait(wait_func)
-        assert sorted(tablets_distribution("//tmp/t1")) == [2, 2, 2, 2, 2, 3]
+        assert self._tablets_distribution("//tmp/t1") == [2, 2, 2, 2, 2, 3]
 
     @pytest.mark.parametrize("cell_count", [2, 3])
     @pytest.mark.parametrize("tablet_count", [6, 9, 10])
@@ -1611,6 +1620,61 @@ class TestTabletActions(TestDynamicTablesBase):
             return True
 
         wait(wait_func)
+
+    def test_ordered_tables_balance(self):
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_in_memory_cell_balancer", False)
+        cells = sync_create_cells(2)
+
+        # not in-memory
+        self._create_ordered_table("//tmp/t1", tablet_count=4)
+        sync_mount_table("//tmp/t1", cell_id=cells[0])
+
+        wait(lambda: self._tablets_distribution("//tmp/t1") == [2, 2])
+
+        # in-memory
+        self._create_ordered_table("//tmp/t2", tablet_count=4)
+        set("//tmp/t2/@in_memory_mode", "uncompressed")
+        sync_mount_table("//tmp/t2", cell_id=cells[0])
+
+        for i in range(3):
+            insert_rows("//tmp/t2", [{"key": x, "value": "a" * 512, "$tablet_index": i} for x in range(10)])
+        insert_rows("//tmp/t2", [{"key": x, "value": "a" * 2048, "$tablet_index": 3} for x in range(10)])
+        sync_flush_table("//tmp/t2")
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_in_memory_cell_balancer", True)
+        wait(lambda: self._tablets_distribution("//tmp/t2") == [1, 3])
+
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_replicated_tables_balance(self, is_sorted):
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_cell_balancer", True)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_in_memory_cell_balancer", True)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
+        cells = sync_create_cells(2)
+
+        schema = [dict(name="key", type="int64"), dict(name="value", type="string")]
+        if is_sorted:
+            schema[0]["sort_order"] = "ascending"
+
+        create("replicated_table", "//tmp/t", attributes=dict(dynamic=True, schema=schema))
+        replica_id = create_table_replica("//tmp/t", self.get_cluster_name(0), "//tmp/r")
+        create("table", "//tmp/r", attributes=dict(
+            dynamic=True, schema=schema, upstream_replica_id=replica_id))
+
+        if is_sorted:
+            sync_reshard_table("//tmp/t", [[], [1], [2], [3]])
+            sync_reshard_table("//tmp/r", [[], [2], [4], [6]])
+        else:
+            sync_reshard_table("//tmp/t", 4)
+            sync_reshard_table("//tmp/r", 4)
+
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        sync_mount_table("//tmp/r", cell_id=cells[1])
+
+        wait(lambda: self._tablets_distribution("//tmp/t") == [2, 2])
+        wait(lambda: self._tablets_distribution("//tmp/r") == [2, 2])
 
     def test_tablet_balancer_with_active_action(self):
         node = ls("//sys/nodes")[0]
@@ -2023,6 +2087,30 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         primary_data_size = get("//tmp/t/@uncompressed_data_size")
         secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
         assert primary_data_size == secondary_data_size
+
+    def test_peer_change_on_prerequisite_transaction_abort(self):
+        cells = sync_create_cells(1)
+        driver = get_driver(1)
+
+        def prepare():
+            cells.extend(sync_create_cells(10))
+            sync_remove_tablet_cells(cells[:10])
+            for l in xrange(10):
+                cells.pop(0)
+            cell = cells[0]
+            node = get("#{0}/@peers/0/address".format(cell))
+            assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
+
+            tx = get("#{0}/@prerequisite_transaction_id".format(cell))
+            abort_transaction(tx)
+            wait(lambda: exists("#{0}/@prerequisite_transaction_id".format(cell)))
+            wait(lambda: get("#{0}/@peers/0/state".format(cell)) == "leading")
+            return get("#{0}/@peers/0/address".format(cell)) != node
+
+        wait(prepare)
+        cell = cells[0]
+        node = get("#{0}/@peers/0/address".format(cell))
+        assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
 
 class TestTabletActionsMulticell(TestTabletActions):
     NUM_SECONDARY_MASTER_CELLS = 2

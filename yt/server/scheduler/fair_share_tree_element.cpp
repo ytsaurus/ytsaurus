@@ -2357,8 +2357,11 @@ void TOperationElement::SetStarving(bool starving)
 {
     YCHECK(!Cloned_);
 
-    if (starving && !GetStarving()) {
+    if (!starving) {
         LastNonStarvingTime_ = TInstant::Now();
+    }
+
+    if (starving && !GetStarving()) {
         SharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
         LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",

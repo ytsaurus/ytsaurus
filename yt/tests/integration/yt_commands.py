@@ -74,6 +74,9 @@ def wait_drivers():
         wait(driver_is_ready, ignore_exceptions=True)
 
 def terminate_drivers():
+    for cluster in clusters_drivers:
+        for driver in clusters_drivers[cluster]:
+            driver.terminate()
     clusters_drivers.clear()
 
 def get_branch(dict, path):

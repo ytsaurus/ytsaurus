@@ -1838,6 +1838,11 @@ class TestCypressApiVersion4(YTEnvSetup):
         config["api_version"] = 4
         cls.driver = Driver(config)
 
+    @classmethod
+    def teardown_class(cls):
+        cls.driver = None
+        super(TestCypressApiVersion4, cls).teardown_class()
+
     def _execute(self, command, **kwargs):
         kwargs["driver"] = self.driver
         input_stream = StringIO(kwargs.pop("input")) if "input" in kwargs else None
