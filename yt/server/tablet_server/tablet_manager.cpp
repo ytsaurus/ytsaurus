@@ -5287,7 +5287,8 @@ private:
             return;
         }
 
-        YCHECK(TransactionToCellMap_.erase(transaction) == 1);
+        // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
+        TransactionToCellMap_.erase(transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cellId,
