@@ -643,7 +643,7 @@ class Operation(object):
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=2.0):
-        print >>sys.stderr, "Ensure operation is running %s" % self.id
+        print >>sys.stderr, "Waiting for operation %s to become running" % self.id
 
         state = self.get_state(verbose=False)
         while state != "running" and timeout > 0:
@@ -655,10 +655,10 @@ class Operation(object):
             raise TimeoutError("Operation didn't become running within timeout")
 
     def get_job_count(self, state):
-        path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
-        if state == "aborted" or state == "completed":
-            path += "/total"
         try:
+            path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
+            if state == "aborted" or state == "completed":
+                path += "/total"
             return get(path, verbose=False)
         except YtError as err:
             if not err.is_resolve_error():
