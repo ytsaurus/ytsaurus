@@ -1434,9 +1434,14 @@ print(op.id)
     @add_failed_operation_stderrs_to_error_message
     def test_skiff(self):
         table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
 
         def mapper(row):
             row["y"] = row["x"] ** 2
+            yield row
+
+        def mapper2(row):
+            row["y"] = row["z"] ** 2
             yield row
 
         table_skiff_schemas = [
@@ -1486,8 +1491,8 @@ print(op.id)
         with pytest.raises(LookupError):
             result[2]["t"]
 
-        yt.run_map(mapper, table, table, format=format)
-        assert list(yt.read_table(table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
+        yt.run_map(mapper, table, output_table, format=format)
+        assert list(yt.read_table(output_table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
 
     @add_failed_operation_stderrs_to_error_message
     def test_skiff_multi_table(self):
@@ -1638,7 +1643,13 @@ print(op.id)
             result["y"] = row["x"] ** 2
             yield result
 
-        input_table = TEST_DIR + "/input_   table"
+        @yt.with_skiff_schemas
+        def mapper2(row, skiff_input_schemas, skiff_output_schemas):
+            result = skiff_output_schemas[0].create_record()
+            result["y"] = row["z"] ** 2
+            yield result
+
+        input_table = TEST_DIR + "/input_table"
         input_table_schema = [{"name": "x", "type": "int64", "required": True}, {"name": "y", "type": "string"}]
         yt.create("table", input_table, attributes={"schema": input_table_schema})
 
@@ -1646,6 +1657,9 @@ print(op.id)
         output_table_schema = [{"name": "y", "type": "int64", "required": True}]
         output_table_schema = YsonList(output_table_schema)
         output_table_schema.attributes["strict"] = True
+
+        output_table2 = TEST_DIR + "/output_table2"
+        output_table3 = TEST_DIR + "/output_table3"
 
         yt.create("table", output_table, attributes={"schema": output_table_schema})
 
@@ -1660,8 +1674,11 @@ print(op.id)
         yt.run_map(mapper, input_table, output_table)
         assert list(yt.read_table(output_table)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
-        yt.run_map(mapper, input_table, TEST_DIR + "/output_table2")
-        assert list(yt.read_table(TEST_DIR + "/output_table2")) == [{"y": 9}, {"y": 25}, {"y": 0}]
+        yt.run_map(mapper, input_table, output_table2)
+        assert list(yt.read_table(output_table2)) == [{"y": 9}, {"y": 25}, {"y": 0}]
+
+        yt.run_map(mapper2, TablePath(input_table, attributes={"rename_columns": {"x": "z"}}), output_table3)
+        assert list(yt.read_table(output_table3)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
     @add_failed_operation_stderrs_to_error_message
     def test_shuffle(self):
