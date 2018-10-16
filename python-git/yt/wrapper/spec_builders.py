@@ -7,7 +7,7 @@ from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
-from .ypath import TablePath
+from .ypath import TablePath, FilePath
 from .py_wrapper import OperationParameters
 from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileUploader, _prepare_operation_formats, _is_python_function,
@@ -435,7 +435,7 @@ class UserJobSpecBuilder(object):
         file_paths = []
         file_paths += flatten(local_files)
         file_paths += flatten(prepare_result.files)
-        file_paths += list(imap(lambda path: TablePath(path, client=client), files))
+        file_paths += list(imap(lambda path: FilePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
         if "local_files" in spec:
