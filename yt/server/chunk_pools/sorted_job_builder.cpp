@@ -161,11 +161,11 @@ public:
         for (auto& job : Jobs_) {
             job->Finalize(true /* sortByPosition */);
 
-            if (job->GetDataWeight() > Options_.MaxDataWeightPerJob) {
+            if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
                 LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
                     "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
                     job->GetDataWeight(),
-                    Options_.MaxDataWeightPerJob,
+                    JobSizeConstraints_->GetMaxDataWeightPerJob(),
                     job->LowerPrimaryKey(),
                     job->UpperPrimaryKey(),
                     job->GetDebugString());
@@ -173,9 +173,26 @@ public:
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight per sorted job exceeds the limit: %v > %v",
                     job->GetDataWeight(),
-                    Options_.MaxDataWeightPerJob)
+                    JobSizeConstraints_->GetMaxDataWeightPerJob())
                     << TErrorAttribute("lower_key", job->LowerPrimaryKey())
                     << TErrorAttribute("upper_key", job->UpperPrimaryKey());
+            }
+
+            if (job->GetPrimaryDataWeight() > JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob()) {
+                LOG_DEBUG("Maximum allowed primary data weight per sorted job exceeds the limit (PrimaryDataWeight: %v, MaxPrimaryDataWeightPerJob: %v, "
+                    "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
+                    job->GetPrimaryDataWeight(),
+                    JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
+                    job->LowerPrimaryKey(),
+                    job->UpperPrimaryKey(),
+                    job->GetDebugString());
+
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::MaxPrimaryDataWeightPerJobExceeded, "Maximum allowed primary data weight per sorted job exceeds the limit: %v > %v",
+                    job->GetPrimaryDataWeight(),
+                    JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob())
+                        << TErrorAttribute("lower_key", job->LowerPrimaryKey())
+                        << TErrorAttribute("upper_key", job->UpperPrimaryKey());
             }
         }
         return std::move(Jobs_);

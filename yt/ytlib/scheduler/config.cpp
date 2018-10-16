@@ -243,6 +243,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Alias("max_data_size_per_job")
         .Default(200_GB)
         .GreaterThan(0);
+    RegisterParameter("max_primary_data_weight_per_job", MaxPrimaryDataWeightPerJob)
+        .Default(std::numeric_limits<i64>::max())
+        .GreaterThan(0);
 
     RegisterParameter("max_failed_job_count", MaxFailedJobCount)
         .Default(10)

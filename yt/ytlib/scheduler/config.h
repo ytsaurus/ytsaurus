@@ -383,6 +383,7 @@ public:
     EUnavailableChunkAction UnavailableChunkTactics;
 
     i64 MaxDataWeightPerJob;
+    i64 MaxPrimaryDataWeightPerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;

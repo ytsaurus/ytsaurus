@@ -49,11 +49,12 @@ protected:
     {
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
-        Options_.SortedJobOptions.MaxDataWeightPerJob = Inf64;
-        Options_.MaxBuildRetryCount = 1;
         Options_.Task = "TestTask";
         DataSizePerJob_ = Inf64;
+        MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;
+        MaxDataWeightPerJob_ = Inf64;
+        MaxPrimaryDataWeightPerJob_ = Inf64;
         InputSliceDataWeight_ = Inf64;
     }
 
@@ -66,12 +67,14 @@ protected:
             DataSizePerJob_,
             PrimaryDataWeightPerJob_,
             MaxDataSlicesPerJob_,
-            0 /* maxDataWeightPerJob_ */,
+            MaxDataWeightPerJob_,
+            MaxPrimaryDataWeightPerJob_,
             InputSliceDataWeight_,
             Inf64 /* inputSliceRowCount */,
             SamplingRate_,
             SamplingDataWeightPerJob_,
-            SamplingPrimaryDataWeightPerJob_);
+            SamplingPrimaryDataWeightPerJob_,
+            MaxBuildRetryCount_);
     }
 
     struct TMockChunkSliceFetcherBuilder
@@ -607,6 +610,11 @@ protected:
 
     i64 DataSizePerJob_;
     i64 PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max();
+
+    i64 MaxDataWeightPerJob_;
+    i64 MaxPrimaryDataWeightPerJob_;
+
+    i64 MaxBuildRetryCount_;
 
     i32 MaxDataSlicesPerJob_;
 
@@ -1754,7 +1762,7 @@ TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountRetries)
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.SortedJobOptions.MaxTotalSliceCount = 6;
-    Options_.MaxBuildRetryCount = 5;
+    MaxBuildRetryCount_ = 5;
     DataSizePerJob_ = 1000;
     InitJobConstraints();
 
@@ -2529,7 +2537,7 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
 TEST_F(TSortedChunkPoolTest, MaximumDataWeightPerJobViolation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
-    Options_.SortedJobOptions.MaxDataWeightPerJob = 10_KB;
+    MaxDataWeightPerJob_ = 10_KB;
     InitTables(
         {false, false} /* isForeign */,
         {false, false} /* isTeleportable */,
