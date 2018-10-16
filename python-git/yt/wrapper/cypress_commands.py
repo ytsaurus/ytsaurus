@@ -59,7 +59,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None, clien
         format=format,
         client=client)
 
-def set(path, value, format=None, recursive=False, client=None):
+def set(path, value, format=None, recursive=False, force=None, client=None):
     """Sets new value to Cypress node.
 
     :param path: path.
@@ -78,13 +78,16 @@ def set(path, value, format=None, recursive=False, client=None):
     if isinstance(format, str):
         format = create_format(format)
 
+    params = {
+        "path": YPath(path, client=client),
+        "input_format": format.to_yson_type(),
+        "recursive": bool_to_string(recursive),
+    }
+    set_param(params, "force", force, bool_to_string)
+
     return _make_transactional_request(
         "set",
-        {
-            "path": YPath(path, client=client),
-            "input_format": format.to_yson_type(),
-            "recursive": bool_to_string(recursive),
-        },
+        params,
         data=value,
         client=client)
 
