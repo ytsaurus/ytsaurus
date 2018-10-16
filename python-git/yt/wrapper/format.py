@@ -21,7 +21,6 @@ from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_typ
                              indexbytes, int2byte)
 from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
-import os
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
 import copy

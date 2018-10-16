@@ -147,7 +147,7 @@ def write_config(config, filename, format="yson"):
                 writer = codecs.getwriter("utf-8")
             json.dump(_fix_yson_booleans(config), writer(f), indent=4)
         elif format == "yson":
-            yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
+            yson.dump(config, f, yson_format="pretty")
         else:
             if isinstance(config, text_type):
                 config = config.encode("utf-8")
