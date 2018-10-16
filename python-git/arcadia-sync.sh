@@ -31,6 +31,10 @@ else
     ARCADIA_DIR="arcadia_dir"
 fi
 
+if [ -z "$SVN" ]; then
+    SVN="svn"
+fi
+
 TMP_DIR="$(pwd)/tmp_dir"
 rm -rf "$TMP_DIR" && mkdir "$TMP_DIR"
 
@@ -39,7 +43,7 @@ pushd "$TMP_DIR"
 mkdir -p "$ARCADIA_DIR"
 
 if [ "$SPECIFIED_ARCADIA_DIR" = "0" ]; then
-    svn checkout "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/$ARCADIA_PATH/" "$ARCADIA_DIR"
+    $SVN checkout "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/$ARCADIA_PATH/" "$ARCADIA_DIR"
 fi
 
 ARCADIA="$ARCADIA_DIR/$VERSION"
@@ -68,14 +72,14 @@ popd
 
 for file in $LATEST_FILES; do
     if [ ! -e "$VERSION/$file" -a -e "$LATEST/$file" ]; then
-        svn rm "$LATEST/$file"
+        $SVN rm "$LATEST/$file"
     fi
 done
 cp -r "$VERSION"/* latest
-svn add latest --force
+$SVN add latest --force
 #svn add "$VERSION"
 if [ "$SPECIFIED_ARCADIA_DIR" = "0" ]; then
-    svn ci -m "Updated $ARCADIA_PATH to version $VERSION"
+    echo $SVN ci -m "Updated $ARCADIA_PATH to version $VERSION"
 else
     echo "Make checks and then manually commit with message \"Updated $ARCADIA_PATH to version $VERSION\""
 fi
