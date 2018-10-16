@@ -705,18 +705,21 @@ class SpecBuilder(object):
     def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, client=None):
         require("input_table_paths" in spec,
                 lambda: YtError("You should specify input_table_paths"))
-        input_table_paths = _prepare_source_tables(spec["input_table_paths"],
-                                                   replace_unexisting_by_empty=replace_unexisting_by_empty,
-                                                   client=client)
-        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), input_table_paths))
+
+        self._input_table_paths = _prepare_source_tables(
+            spec["input_table_paths"],
+            replace_unexisting_by_empty=replace_unexisting_by_empty,
+            client=client)
+        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
 
         output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
         require(output_tables_param in spec,
                 lambda: YtError("You should specify {0}".format(output_tables_param)))
-        output_table_path = _prepare_destination_tables(spec[output_tables_param], client=client)
-        spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), output_table_path))
+        self._output_table_paths = _prepare_destination_tables(spec[output_tables_param], client=client)
         if single_output_table:
-            spec[output_tables_param] = unlist(spec[output_tables_param])
+            spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
+        else:
+            spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
 
     def _build_user_job_spec(self, spec, job_type, input_tables, output_tables,
                              requires_command=True, requires_format=True, group_by=None, client=None):
@@ -801,16 +804,6 @@ class SpecBuilder(object):
             spec = update({"pool": get_config(client)["pool"]}, spec)
         if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
             spec = update({"data_size_per_job": 4 * GB}, spec)
-
-        if "input_table_path" in spec:
-            self._input_table_paths = [spec["input_table_path"]]
-        elif "input_table_paths" in spec:
-            self._input_table_paths = spec["input_table_paths"]
-
-        if "output_table_path" in spec:
-            self._output_table_paths = [spec["output_table_path"]]
-        elif "output_table_paths" in spec:
-            self._output_table_paths = spec["output_table_paths"]
 
         self._prepared_spec = spec
 
@@ -1319,11 +1312,13 @@ class MergeSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, single_output_table=True, replace_unexisting_by_empty=False, client=client)
+
         mode = get_value(spec.get("mode"), "auto")
         if mode == "auto":
-            mode = "sorted" if all(batch_apply(_is_tables_sorted, spec.get("input_table_paths"),
+            mode = "sorted" if all(batch_apply(_is_tables_sorted, self.get_input_table_paths(),
                                                client=client)) else "ordered"
         spec["mode"] = mode
+
         self._prepare_spec(spec, client=client)
 
 class SortSpecBuilder(SpecBuilder):
@@ -1418,27 +1413,29 @@ class SortSpecBuilder(SpecBuilder):
         return self
 
     def _prepare_tables_to_sort(self, spec, client=None):
-        input_table_paths = _prepare_source_tables(spec["input_table_paths"],
-                                                   replace_unexisting_by_empty=False,
-                                                   client=client)
+        self._input_table_paths = _prepare_source_tables(
+            spec["input_table_paths"],
+            replace_unexisting_by_empty=False,
+            client=client)
 
-        exists_results = batch_apply(exists, input_table_paths, client=client)
-        for table, exists_result in izip(input_table_paths, exists_results):
+        exists_results = batch_apply(exists, self._input_table_paths, client=client)
+        for table, exists_result in izip(self._input_table_paths, exists_results):
             require(exists_result, lambda: YtError("Table %s should exist" % table))
 
-        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), input_table_paths))
-        if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not input_table_paths:
+        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
+        if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not self._input_table_paths:
             return spec
 
         if "output_table_path" not in spec:
-            require(len(input_table_paths) == 1,
+            require(len(self._input_table_paths) == 1,
                     lambda: YtError("You must specify destination sort table in case of multiple source tables"))
-            require(not input_table_paths[0].has_delimiters(),
+            require(not self._input_table_paths[0].has_delimiters(),
                     lambda: YtError("Source table must not have delimiters in case of inplace sort"))
-            spec["output_table_path"] = input_table_paths[0]
+            spec["output_table_path"] = self._input_table_paths[0]
 
-        output_table_path = _prepare_destination_tables(spec["output_table_path"], client=client)
-        spec["output_table_path"] = unlist(output_table_path)
+        self._output_table_paths = _prepare_destination_tables(spec["output_table_path"], client=client)
+        spec["output_table_path"] = self._output_table_paths[0].to_yson_type()
+
         return spec
 
     def prepare(self, client=None):
@@ -1446,7 +1443,7 @@ class SortSpecBuilder(SpecBuilder):
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
 
-        require("input_table_paths" in spec, lambda: YtError("You should specify input_table_paths"))
+        require("input_table_paths" in spec, lambda: YtError("You should specify \"input_table_paths\""))
 
         spec = self._prepare_tables_to_sort(spec, client=client)
         spec["sort_by"] = _prepare_sort_by(spec.get("sort_by"), client=client)
