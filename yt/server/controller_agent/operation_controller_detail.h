@@ -117,7 +117,7 @@ class TOperationControllerBase
 public: \
     virtual returnType method signature final \
     { \
-        VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default)); \
+        VERIFY_INVOKER_POOL_AFFINITY(InvokerPool); \
         TSafeAssertionsGuard guard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
@@ -184,6 +184,8 @@ private: \
 
     //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environmnet.
     IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet), (joblet), true)
+
+#undef IMPLEMENT_SAFE_METHOD
 
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.

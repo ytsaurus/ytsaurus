@@ -31,6 +31,17 @@ DEFINE_ENUM(EControllerState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EOperationControllerQueue,
+    (Default)
+    (GetJobSpec)
+    (BuildJobSpec)
+    (ScheduleJob)
+    (ScheduleJobAndBuildJobSpec)
+    (JobEvents)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NScheduler::TOperationId;
 using NScheduler::TJobId;
 using NScheduler::TJobResources;
@@ -148,6 +159,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((TentativeTreeDeclined)         (18))
     ((NodeBanned)                    (19))
     ((NodeOffline)                   (20))
+    ((ControllerThrottling)          (21))
 );
 
 DEFINE_ENUM(EErrorCode,

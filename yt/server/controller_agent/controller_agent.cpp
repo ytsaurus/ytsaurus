@@ -1243,7 +1243,7 @@ private:
         for (auto& pair : groupedJobEvents) {
             const auto& operation = pair.first;
             auto controller = operation->GetController();
-            controller->GetCancelableInvoker()->Invoke(
+            controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
                 BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(pair.second)] {
                     for (auto* protoEvent : protoEvents) {
                         auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
@@ -1329,8 +1329,22 @@ private:
                 }
 
                 auto controller = operation->GetController();
+                auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
+                auto buildJobSpecInvoker = controller->GetCancelableInvoker(Config_->BuildJobSpecControllerQueue);
+                auto averageWaitTime = scheduleJobInvoker->GetAverageWaitTime() + buildJobSpecInvoker->GetAverageWaitTime();
+                if (averageWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
+                    replyWithFailure(operationId, jobId, EScheduleJobFailReason::ControllerThrottling);
+                    YT_LOG_DEBUG("Schedule job skipped since average schedule job wait time is too large "
+                        "(OperationId: %v, JobId: %v, WaitTime: %v, Threshold: %v)",
+                        operationId,
+                        jobId,
+                        averageWaitTime,
+                        Config_->ScheduleJobWaitTimeThreshold);
+                    return;
+                }
+
                 GuardedInvoke(
-                    controller->GetCancelableInvoker(),
+                    scheduleJobInvoker,
                     BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);

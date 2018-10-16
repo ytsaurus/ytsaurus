@@ -195,8 +195,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , InvokerPool(CreateFairShareInvokerPool(
         CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
-        TEnumTraits<EOperationControllerQueue>::GetDomainSize()
-    ))
+        TEnumTraits<EOperationControllerQueue>::GetDomainSize()))
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
@@ -1148,7 +1147,7 @@ void TOperationControllerBase::InitChunkListPools()
         OutputChunkListPool_ = New<TChunkListPool>(
             Config,
             OutputClient,
-            CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+            CancelableInvokerPool,
             OperationId,
             OutputTransaction->GetId());
 
@@ -1163,7 +1162,7 @@ void TOperationControllerBase::InitChunkListPools()
     DebugChunkListPool_ = New<TChunkListPool>(
         Config,
         OutputClient,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        CancelableInvokerPool,
         OperationId,
         DebugTransaction->GetId());
 
@@ -1913,7 +1912,7 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
     auto jobId = jobSummary->Id;
     auto abandoned = jobSummary->Abandoned;
@@ -3163,7 +3162,7 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
 
 void TOperationControllerBase::AnalyzeOperationProgress()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     AnalyzeTmpfsUsage();
     AnalyzeInputStatistics();
@@ -3446,7 +3445,7 @@ void TOperationControllerBase::DoScheduleJob(
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
@@ -3884,7 +3883,8 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 
 void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
     Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.g. SortController).
@@ -3903,7 +3903,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
-    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (State == EControllerState::Finished) {
@@ -3924,7 +3924,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // Cf. OnOperationFailed.
     if (State == EControllerState::Finished) {
@@ -6907,7 +6907,7 @@ i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
 
 int TOperationControllerBase::GetTotalJobCount() const
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {

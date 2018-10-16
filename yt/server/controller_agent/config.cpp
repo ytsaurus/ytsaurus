@@ -593,6 +593,18 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("total_controller_memory_limit", TotalControllerMemoryLimit)
         .Default();
 
+    RegisterParameter("schedule_job_controller_queue", ScheduleJobControllerQueue)
+        .Default(EOperationControllerQueue::Default);
+
+    RegisterParameter("build_job_spec_controller_queue", BuildJobSpecControllerQueue)
+        .Default(EOperationControllerQueue::Default);
+
+    RegisterParameter("job_events_controller_queue", JobEventsControllerQueue)
+        .Default(EOperationControllerQueue::Default);
+
+    RegisterParameter("schedule_job_wait_time_threshold", ScheduleJobWaitTimeThreshold)
+        .Default(TDuration::Seconds(5));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

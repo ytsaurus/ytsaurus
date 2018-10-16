@@ -10,6 +10,7 @@
 
 #include <yt/client/api/client.h>
 
+#include <yt/core/concurrency/fair_share_invoker_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -33,12 +34,12 @@ using NYT::ToProto;
 TChunkListPool::TChunkListPool(
     TControllerAgentConfigPtr config,
     NNative::IClientPtr client,
-    IInvokerPtr controllerInvoker,
+    IInvokerPoolPtr controllerInvokerPool,
     TOperationId operationId,
     TTransactionId transactionId)
     : Config_(config)
     , Client_(client)
-    , ControllerInvoker_(controllerInvoker)
+    , ControllerInvokerPool_(controllerInvokerPool)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
     , Logger(NLogging::TLogger(ControllerLogger)
@@ -46,12 +47,12 @@ TChunkListPool::TChunkListPool(
 {
     YCHECK(Config_);
     YCHECK(Client_);
-    YCHECK(ControllerInvoker_);
+    YCHECK(ControllerInvokerPool_);
 }
 
 bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 {
-    VERIFY_INVOKER_AFFINITY(ControllerInvoker_);
+    VERIFY_INVOKER_POOL_AFFINITY(ControllerInvokerPool_);
 
     auto& data = CellMap_[cellTag];
     int currentSize = static_cast<int>(data.Ids.size());
@@ -67,7 +68,7 @@ bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 
 TChunkListId TChunkListPool::Extract(TCellTag cellTag)
 {
-    VERIFY_INVOKER_AFFINITY(ControllerInvoker_);
+    VERIFY_INVOKER_POOL_AFFINITY(ControllerInvokerPool_);
 
     auto& data = CellMap_[cellTag];
 
@@ -128,7 +129,7 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
 
     batchReq->Invoke().Subscribe(
         BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), cellTag)
-            .Via(ControllerInvoker_));
+            .Via(ControllerInvokerPool_->GetInvoker(EOperationControllerQueue::Default)));
 }
 
 void TChunkListPool::OnChunkListsCreated(
