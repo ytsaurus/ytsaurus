@@ -461,7 +461,7 @@ class TestQuery(YTEnvSetup):
             })
         sync_mount_table("//tmp/t")
 
-        format = yson.loads("<boolean_as_string=false;format=text>yson")
+        format = yson.loads("<format=text>yson")
         insert_rows(
             "//tmp/t",
             '{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};',
