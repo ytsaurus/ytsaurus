@@ -425,7 +425,7 @@ def select_rows(query, **kwargs):
 def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
     if not is_raw:
-        data = yson.dumps(data, boolean_as_string=False, yson_type="list_fragment")
+        data = yson.dumps(data, yson_type="list_fragment")
     return StringIO(data)
 
 def insert_rows(path, data, is_raw=False, **kwargs):
