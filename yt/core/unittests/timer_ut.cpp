@@ -66,7 +66,7 @@ TEST_F(TTimerTest, CpuWallCompare)
 
     EXPECT_LT(cpu, 10 * 1000);
     EXPECT_GT(wall, 100 * 1000);
-    EXPECT_LT(wall, 110 * 1000);
+    EXPECT_LT(wall, 120 * 1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
