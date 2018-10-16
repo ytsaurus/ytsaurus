@@ -77,7 +77,9 @@ class TThreadedIOEngineConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    int ThreadCount;
+    TNullable<int> ThreadCount; // COMPAT(aozeritsky)
+    int ReadThreadCount;
+    int WriteThreadCount;
     bool UseDirectIO;
 
     TNullable<TDuration> SickReadTimeThreshold;
@@ -90,6 +92,11 @@ public:
     {
         RegisterParameter("thread_count", ThreadCount)
             .Alias("threads") // COMPAT(aozeritsky)
+            .GreaterThanOrEqual(1);
+        RegisterParameter("read_thread_count", ReadThreadCount)
+            .GreaterThanOrEqual(1)
+            .Default(1);
+        RegisterParameter("write_thread_count", WriteThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
         RegisterParameter("use_direct_io", UseDirectIO)
@@ -114,6 +121,17 @@ public:
         RegisterParameter("sickness_expiration_timeout", SicknessExpirationTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default(Null);
+
+        RegisterPostprocessor([&] () {
+            if (ThreadCount) {
+                if (ThreadCount.Get() == 1) {
+                    ThreadCount = 2;
+                }
+
+                ReadThreadCount = ThreadCount.Get() / 2;
+                WriteThreadCount = ThreadCount.Get() / 2;
+            }
+        });
     }
 };
 
@@ -126,8 +144,10 @@ public:
 
     TThreadedIOEngine(TConfigPtr config, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger)
         : Config_(std::move(config))
-        , ThreadPool_(New<TThreadPool>(Config_->ThreadCount, Format("DiskIO:%v", locationId)))
-        , Invoker_(CreatePrioritizedInvoker(ThreadPool_->GetInvoker()))
+        , ReadThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, Format("DiskIOR:%v", locationId)))
+        , WriteThreadPool_(New<TThreadPool>(Config_->WriteThreadCount, Format("DiskIOW:%v", locationId)))
+        , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
+        , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
         , Profiler_(profiler)
         , Logger(logger)
         , UseDirectIO_(Config_->UseDirectIO)
@@ -137,21 +157,21 @@ public:
         const TString& fName, EOpenMode oMode, i64 priority) override
     {
         return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fName, oMode)
-            .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
             .Run();
     }
 
     virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool flush)
     {
         return BIND(&TThreadedIOEngine::DoClose, MakeStrong(this), fh, newSize, flush)
-            .AsyncVia(Invoker_)
+            .AsyncVia(WriteInvoker_)
             .Run();
     }
 
     virtual TFuture<void> FlushDirectory(const TString& path)
     {
         return BIND(&TThreadedIOEngine::DoFlushDirectory, MakeStrong(this), path)
-            .AsyncVia(Invoker_)
+            .AsyncVia(WriteInvoker_)
             .Run();
     }
 
@@ -160,7 +180,7 @@ public:
     {
         TWallTimer timer;
         return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset, timer)
-            .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
             .Run();
     }
 
@@ -174,7 +194,7 @@ public:
         YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
         YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset, timer)
-            .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
             .Run();
     }
 
@@ -184,7 +204,7 @@ public:
             return TrueFuture;
         } else {
             return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), fh)
-                .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
+                .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
                 .Run();
         }
     }
@@ -195,7 +215,7 @@ public:
             return TrueFuture;
         } else {
             return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), fh)
-                .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
+                .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
                 .Run();
         }
     }
@@ -208,8 +228,10 @@ public:
 private:
     const TConfigPtr Config_;
     const size_t MaxBytesPerRead = 1_GB;
-    const TThreadPoolPtr ThreadPool_;
-    const IPrioritizedInvokerPtr Invoker_;
+    const TThreadPoolPtr ReadThreadPool_;
+    const TThreadPoolPtr WriteThreadPool_;
+    const IPrioritizedInvokerPtr ReadInvoker_;
+    const IPrioritizedInvokerPtr WriteInvoker_;
     const TProfiler Profiler_;
     const NLogging::TLogger Logger;
 

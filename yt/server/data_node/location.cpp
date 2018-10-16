@@ -113,8 +113,8 @@ TLocation::TLocation(
             // TODO(aozeritsky) temporary workaround
             : BuildYsonNodeFluently()
                 .BeginMap()
-                    .Item("threads")
-                    .Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount + Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
+                    .Item("read_thread_count").Value(Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
+                    .Item("write_thread_count").Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount)
                 .EndMap(),
         id,
         Profiler_,
