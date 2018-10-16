@@ -198,7 +198,13 @@ def _get_skiff_schema_from_tables(tables, client):
         if table is None:
             return None
         try:
-            return get(table + "/@schema", client=client)
+            schema = get(table + "/@schema", client=client)
+            rename_columns = table.attributes.get("rename_columns")
+            if rename_columns is not None:
+                for column in schema:
+                    if column["name"] in rename_columns:
+                        column["name"] = rename_columns[column["name"]]
+            return schema
         except YtError as err:
             if err.is_resolve_error():
                 return None

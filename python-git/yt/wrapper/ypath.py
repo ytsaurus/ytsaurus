@@ -259,6 +259,7 @@ class TablePath(YPathSupportingAppend):
                  ranges=None,
                  schema=None,
                  foreign=None,
+                 rename_columns=None,
                  simplify=True,
                  attributes=None,
                  client=None):
@@ -300,7 +301,8 @@ class TablePath(YPathSupportingAppend):
             attributes["schema"] = schema
         if foreign is not None:
             attributes["foreign"] = foreign
-
+        if rename_columns is not None:
+            attributes["rename_columns"] = rename_columns
 
         if ranges is not None:
             def _check_option(value, option_name):
@@ -360,6 +362,14 @@ class TablePath(YPathSupportingAppend):
     @ranges.setter
     def ranges(self, value):
         self.attributes["ranges"] = value
+
+    @property
+    def rename_columns(self):
+        return self.attributes.get("rename_columns", [])
+
+    @rename_columns.setter
+    def rename_columns(self, value):
+        self.attributes["rename_columns"] = value
 
     def canonize_exact_ranges(self):
         """Replaces all "exact" ranges with "lower_limit" and "upper_limit"."""
