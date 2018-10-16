@@ -56,7 +56,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
 
     def format_repr(format):
         if format is not None:
-            return yson.dumps(format._name, boolean_as_string=True)
+            return yson.dumps(format._name)
         return repr(None)
 
     require(len(set(format_repr(format) for format in formats)) == 1,

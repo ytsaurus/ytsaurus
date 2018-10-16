@@ -79,7 +79,7 @@ def _prepare_command_format(format, raw, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
-        format = YsonFormat(boolean_as_string=False)
+        format = YsonFormat()
     if isinstance(format, str):
         format = create_format(format)
 
@@ -220,7 +220,7 @@ def _prepare_default_format(binary, format_type, tables, client):
             return SkiffFormat(skiff_schema)
     format = _prepare_format(get_config(client)["tabular_data_format"])
     if format is None and is_python_function:
-        return YsonFormat(boolean_as_string=False)
+        return YsonFormat()
     if format is None:
         raise YtError("You should specify " + format_type)
     return format
