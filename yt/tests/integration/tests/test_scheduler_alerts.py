@@ -219,14 +219,12 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         self.wait_for_running_jobs(op)
 
-        time.sleep(1.5)
+        time.sleep(2)
 
         for job in op.get_running_jobs():
             abort_job(job)
 
-        time.sleep(1.5)
-
-        assert "long_aborted_jobs" in op.get_alerts()
+        wait(lambda: "long_aborted_jobs" in op.get_alerts())
 
     # if these three tests flap - call renadeen@
     def test_low_cpu_alert_presence(self):
