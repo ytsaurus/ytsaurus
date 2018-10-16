@@ -1192,7 +1192,7 @@ message TInternetAddress
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TDnsResourceSetMeta
+message TDnsRecordSetMeta
 {
     optional string id = 1;
     optional EObjectType type = 2;
@@ -1201,7 +1201,7 @@ message TDnsResourceSetMeta
     repeated TAccessControlEntry acl = 11;
 }
 
-message TDnsResourceSetSpec
+message TDnsRecordSetSpec
 {
     message TResourceRecord {
         optional uint64 ttl = 1;
@@ -1225,14 +1225,14 @@ message TDnsResourceSetSpec
     repeated TResourceRecord records = 1;
 }
 
-message TDnsResourceSetStatus
+message TDnsRecordSetStatus
 {}
 
-message TDnsResourceSet
+message TDnsRecordSet
 {
-    optional TDnsResourceSetMeta meta = 1;
-    repeated TDnsResourceSetSpec spec = 2;
-    optional TDnsResourceSetStatus status = 3;
+    optional TDnsRecordSetMeta meta = 1;
+    repeated TDnsRecordSetSpec spec = 2;
+    optional TDnsRecordSetStatus status = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
