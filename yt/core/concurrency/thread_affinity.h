@@ -63,6 +63,9 @@ private:
 #define VERIFY_INVOKERS_AFFINITY(invokers) \
     YCHECK(::NYT::NConcurrency::VerifyInvokersAffinity(invokers))
 
+#define VERIFY_INVOKER_POOL_AFFINITY(invokerPool) \
+    YCHECK(::NYT::NConcurrency::VerifyInvokerPoolAffinity(invokerPool))
+
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot) \
     PP_CONCAT(slot, _Slot).Check((invoker)->GetThreadId());
 

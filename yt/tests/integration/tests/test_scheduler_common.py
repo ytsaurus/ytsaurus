@@ -2259,7 +2259,7 @@ class TestSchedulingTags(YTEnvSetup):
             "available_exec_nodes_check_period": 100,
             "max_available_exec_node_resources_update_period": 100,
             "snapshot_period": 500,
-            "safe_scheduler_online_time": 2000
+            "safe_scheduler_online_time": 2000,
         }
     }
 
@@ -2849,6 +2849,32 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         release_breakpoint()
         op.track()
+
+##################################################################
+
+class TestCustomControllerQueues(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "schedule_job_controller_queue": "schedule_job",
+            "build_job_spec_controller_queue": "build_job_spec",
+            "job_events_controller_queue": "job_events",
+        }
+    }
+
+    def test_run_operation(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        map(command="sleep 10",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"data_size_per_job": 1, "locality_timeout": 0})
 
 ##################################################################
 

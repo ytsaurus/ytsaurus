@@ -337,7 +337,7 @@ void TTask::ScheduleJob(
             THROW_ERROR_EXCEPTION("Operation controller was destroyed");
         }
     })
-        .AsyncVia(TaskHost_->GetCancelableInvoker())
+        .AsyncVia(TaskHost_->GetCancelableInvoker(TaskHost_->GetConfig()->BuildJobSpecControllerQueue))
         .Run();
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,

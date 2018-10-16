@@ -25,6 +25,8 @@ bool VerifyInvokersAffinity(const T& invokers)
     return false;
 }
 
+bool VerifyInvokerPoolAffinity(const IInvokerPoolPtr& invokerPool);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency

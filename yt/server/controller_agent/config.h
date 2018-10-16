@@ -693,6 +693,12 @@ public:
 
     std::optional<i64> TotalControllerMemoryLimit;
 
+    EOperationControllerQueue ScheduleJobControllerQueue;
+    EOperationControllerQueue BuildJobSpecControllerQueue;
+    EOperationControllerQueue JobEventsControllerQueue;
+
+    TDuration ScheduleJobWaitTimeThreshold;
+
     TControllerAgentConfig();
 
 private:
