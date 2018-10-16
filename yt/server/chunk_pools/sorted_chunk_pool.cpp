@@ -41,14 +41,7 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, MaxTotalSliceCount);
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
-    if (context.GetVersion() <= 300003) {
-        bool useNewEndpointKeys = false;
-        Persist(context, useNewEndpointKeys);
-    }
-    Persist(context, MaxDataWeightPerJob);
-    if (context.GetVersion() >= 300004) {
-        Persist(context, LogDetails);
-    }
+    Persist(context, LogDetails);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +69,6 @@ public:
         , PrimaryPrefixLength_(options.SortedJobOptions.PrimaryPrefixLength)
         , ForeignPrefixLength_(options.SortedJobOptions.ForeignPrefixLength)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
-        , MaxBuildRetryCount_(options.MaxBuildRetryCount)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
         , SupportLocality_(options.SupportLocality)
@@ -209,7 +201,6 @@ public:
         Persist(context, OperationId_);
         Persist(context, Task_);
         Persist(context, ChunkPoolId_);
-        Persist(context, MaxBuildRetryCount_);
         Persist(context, TeleportChunkSampler_);
         Persist(context, SortedJobOptions_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
@@ -249,8 +240,6 @@ private:
     //! An option to control chunk teleportation logic. Only large complete
     //! chunks of at least that size will be teleported.
     i64 MinTeleportChunkSize_;
-
-    i64 MaxBuildRetryCount_;
 
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
@@ -594,7 +583,7 @@ private:
         ISortedJobBuilderPtr builder;
         std::vector<std::unique_ptr<TJobStub>> jobStubs;
         std::vector<TError> errors;
-        for (int retryIndex = 0; retryIndex < MaxBuildRetryCount_; ++retryIndex) {
+        for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {
             try {
                 builder = CreateSortedJobBuilder(
                     SortedJobOptions_,
@@ -615,7 +604,7 @@ private:
                     LOG_DEBUG(ex,
                         "Retriable error during job building (RetryIndex: %v, MaxBuildRetryCount: %v)",
                         retryIndex,
-                        MaxBuildRetryCount_);
+                        JobSizeConstraints_->GetMaxBuildRetryCount());
                     errors.emplace_back(std::move(ex.Error()));
                     continue;
                 }
@@ -623,7 +612,7 @@ private:
             }
         }
         if (!succeeded) {
-            LOG_DEBUG("Retry limit exceeded (MaxBuildRetryCount: %v)", MaxBuildRetryCount_);
+            LOG_DEBUG("Retry limit exceeded (MaxBuildRetryCount: %v)", JobSizeConstraints_->GetMaxBuildRetryCount());
             THROW_ERROR_EXCEPTION("Retry limit exceeded while building jobs")
                 << errors;
         }
@@ -664,6 +653,7 @@ private:
             std::numeric_limits<i64>::max(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             Null /* samplingRate */);

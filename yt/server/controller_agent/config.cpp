@@ -183,6 +183,14 @@ TOperationOptions::TOperationOptions()
     RegisterParameter("job_splitter", JobSplitter)
         .DefaultNew();
 
+    RegisterParameter("max_build_retry_count", MaxBuildRetryCount)
+        .Default(5)
+        .GreaterThanOrEqual(0);
+
+    RegisterParameter("data_weight_per_job_retry_factor", DataWeightPerJobRetryFactor)
+        .Default(2.0)
+        .GreaterThan(1.0);
+
     RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")

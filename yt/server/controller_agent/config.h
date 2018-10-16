@@ -212,6 +212,10 @@ public:
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
 
+    //! Options controlling retries with data_weight_per_job increase that happen in some of the operations.
+    int MaxBuildRetryCount;
+    double DataWeightPerJobRetryFactor;
+
     TJobSplitterConfigPtr JobSplitter;
 
     TOperationOptions();

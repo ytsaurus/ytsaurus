@@ -20,6 +20,7 @@ DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 DEFINE_ENUM(EErrorCode,
     ((DataSliceLimitExceeded)(2000))
     ((MaxDataWeightPerJobExceeded)(2001))
+    ((MaxPrimaryDataWeightPerJobExceeded)(2002))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
