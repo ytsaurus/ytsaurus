@@ -13,10 +13,7 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson.convert import json_to_yson
 
-from yt.packages.six import iteritems
-from yt.packages.six.moves import map as imap
-
-from copy import copy, deepcopy
+from copy import deepcopy
 
 _DEFAULT_COMMAND_PARAMS = {
     "transaction_id": YT_NULL_TRANSACTION_ID,
