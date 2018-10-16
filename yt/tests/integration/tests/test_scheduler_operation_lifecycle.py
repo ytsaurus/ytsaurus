@@ -268,8 +268,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         wait(lambda: op.get_state() == "failed")
 
-        time.sleep(1)
         jobs_path = op.get_path() + "/jobs"
+        wait(lambda: ls(jobs_path))
+        
         jobs = ls(jobs_path)
         assert len(jobs) > 0
 
