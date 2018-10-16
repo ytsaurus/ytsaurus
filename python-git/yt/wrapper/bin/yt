@@ -510,19 +510,15 @@ def add_copy_parser(add_parser):
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
 
-@copy_docstring_from(yt.move)
-def move(**args):
-    args["preserve_account"] = not args.pop("no_preserve_account")
-    yt.move(**args)
-
 def add_move_parser(add_parser):
-    parser = add_parser("move", move)
+    parser = add_parser("move", yt.move)
 
     add_ypath_argument(parser, "source_path", help="old node address, path must exist", hybrid=True)
     add_ypath_argument(parser, "destination_path", help="new node address, path must not exist", hybrid=True)
 
-    parser.add_argument("--no-preserve-account", action="store_true",
-                        help="do not preserve account of moved nodes")
+    preserve_account_parser = parser.add_mutually_exclusive_group(required=False)
+    preserve_account_parser.add_argument("--preserve-account", dest="preserve_account", default=None, action="store_true")
+    preserve_account_parser.add_argument("--no-preserve-account", dest="preserve_account", default=None, action="store_false")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of moved nodes")
     parser.add_argument("-r", "--recursive", action="store_true")

@@ -174,12 +174,12 @@ test_copy_move_link()
     check '"test"' "$($YT get //home/wrapper_test/other_table/@account)"
     $YT remove //home/wrapper_test/other_table
 
-    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table --preserve-account
     check '"test"' "$($YT get //home/wrapper_test/other_table/@account)"
     $YT remove //home/wrapper_test/other_table
 
     $YT create table //home/wrapper_test/table --attributes '{account=test}'
-    $YT move //home/wrapper_test/table //home/wrapper_test/other_table --no-preserve-account
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
     check '"sys"' "$($YT get //home/wrapper_test/other_table/@account)"
     $YT remove //home/wrapper_test/other_table
 
