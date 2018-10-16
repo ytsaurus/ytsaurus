@@ -390,6 +390,8 @@ void THostsHandler::HandleRequest(
         auto formatHostname = [&] (const TProxyEntryPtr& proxy) {
             if (Coordinator_->GetConfig()->ShowPorts) {
                 return proxy->Endpoint;
+            } else if (suffix && suffix->StartsWith("fb")) {
+                return "fb-" + proxy->GetHost();
             } else {
                 return proxy->GetHost();
             }
