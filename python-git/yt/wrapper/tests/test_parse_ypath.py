@@ -1,15 +1,17 @@
 # coding=utf-8
 from __future__ import print_function
 
-from yt.wrapper.etc_commands import make_parse_ypath_request
-from yt.yson.parser import YsonError
-from yt.wrapper import YtHttpResponseError, YtError, YtResponseError
+from yt.common import update
+from yt.wrapper.driver import make_request
+from yt.yson import loads, YsonString, YsonUnicode, YsonError
+from yt.wrapper import YtHttpResponseError, YtError, YtResponseError, YsonFormat
 from yt.ypath import YPathError, parse_ypath
 
 from yt.packages.six.moves import xrange
 
 from flaky import flaky
 
+import copy
 import pytest
 import time
 import sys
@@ -82,6 +84,21 @@ FAILED_TEST_PATHS = ["<ds>><test",
                      "[//home]",
                      "//home/test[]s",
                      "//home/test[]щ"]
+
+def make_parse_ypath_request(path, client=None):
+    attributes = {}
+    if isinstance(path, (YsonString, YsonUnicode)):
+        attributes = copy.deepcopy(path.attributes)
+
+    result = loads(make_request(
+        "parse_ypath",
+        {"path": path, "output_format": YsonFormat(require_yson_bindings=False).to_yson_type()},
+        client=client,
+        decode_content=False))
+
+    result.attributes = update(attributes, result.attributes)
+
+    return result
 
 @pytest.mark.usefixtures("yt_env")
 class TestParseYpath(object):
