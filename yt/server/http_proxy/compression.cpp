@@ -324,7 +324,7 @@ TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEn
     TContentEncoding bestEncoding;
 
     auto checkCandidate = [&] (const TString& candidate, size_t position) {
-        if (position != TString::npos && (bestPosition != TString::npos || position < bestPosition)) {
+        if (position != TString::npos && (bestPosition == TString::npos || position < bestPosition)) {
             bestEncoding = candidate;
             bestPosition = position;
         }
