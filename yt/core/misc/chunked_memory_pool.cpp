@@ -113,19 +113,19 @@ char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
     if (NextSmallSize_ < RegularChunkSize) {
         auto block = ChunkProvider_->Allocate(std::max(NextSmallSize_, size), TagCookie_);
         ref = block->GetRef();
+        Capacity_ += ref.Size();
         OtherBlocks_.push_back(std::move(block));
         NextSmallSize_ = 2 * ref.Size();
     } else if (NextChunkIndex_ == Chunks_.size()) {
         auto chunk = ChunkProvider_->Allocate(RegularChunkSize, TagCookie_);
-        Capacity_ += RegularChunkSize;
         ref = chunk->GetRef();
+        Capacity_ += ref.Size();
         Chunks_.push_back(std::move(chunk));
         ++NextChunkIndex_;
     } else {
         ref = Chunks_[NextChunkIndex_++]->GetRef();
     }
 
-    Capacity_ += ref.Size();
     FreeZoneBegin_ = ref.Begin();
     FreeZoneEnd_ = ref.End();
 
