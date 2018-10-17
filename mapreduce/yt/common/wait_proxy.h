@@ -16,7 +16,7 @@ public:
     ~TDefaultWaitProxy() override = default;
 
     bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout) override;
-    bool WaitEvent(Event& event, TDuration timeout) override;
+    bool WaitEvent(TSystemEvent& event, TDuration timeout) override;
     bool WaitCondVar(TCondVar& condVar, TMutex& mutex, TDuration timeout) override;
     void Sleep(TDuration timeout) override;
 };
@@ -31,10 +31,10 @@ public:
     static bool WaitFuture(const NThreading::TFuture<void>& future, TInstant deadLine);
     static bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout);
 
-    static bool WaitEventD(Event& event, TInstant deadLine);
-    static bool WaitEventT(Event& event, TDuration timeout);
-    static void WaitEventI(Event& event);
-    static bool WaitEvent(Event& event);
+    static bool WaitEventD(TSystemEvent& event, TInstant deadLine);
+    static bool WaitEventT(TSystemEvent& event, TDuration timeout);
+    static void WaitEventI(TSystemEvent& event);
+    static bool WaitEvent(TSystemEvent& event);
 
     static bool WaitCondVarD(TCondVar& condVar, TMutex& m, TInstant deadLine);
     static bool WaitCondVarT(TCondVar& condVar, TMutex& m, TDuration timeOut);

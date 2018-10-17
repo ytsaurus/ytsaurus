@@ -16,7 +16,7 @@ bool TDefaultWaitProxy::WaitFuture(const NThreading::TFuture<void>& future, TDur
     return future.Wait(timeout);
 }
 
-bool TDefaultWaitProxy::WaitEvent(Event& event, TDuration timeout)
+bool TDefaultWaitProxy::WaitEvent(TSystemEvent& event, TDuration timeout)
 {
     return event.WaitT(timeout);
 }
@@ -54,22 +54,22 @@ bool TWaitProxy::WaitFuture(const NThreading::TFuture<void>& future, TDuration t
     return Get()->WaitFuture(future, timeout);
 }
 
-bool TWaitProxy::WaitEventD(Event& event, TInstant deadLine)
+bool TWaitProxy::WaitEventD(TSystemEvent& event, TInstant deadLine)
 {
     return Get()->WaitEvent(event, deadLine - TInstant::Now());
 }
 
-bool TWaitProxy::WaitEventT(Event& event, TDuration timeout)
+bool TWaitProxy::WaitEventT(TSystemEvent& event, TDuration timeout)
 {
     return Get()->WaitEvent(event, timeout);
 }
 
-void TWaitProxy::WaitEventI(Event& event)
+void TWaitProxy::WaitEventI(TSystemEvent& event)
 {
     Get()->WaitEvent(event, TDuration::Max());
 }
 
-bool TWaitProxy::WaitEvent(Event& event)
+bool TWaitProxy::WaitEvent(TSystemEvent& event)
 {
     return Get()->WaitEvent(event, TDuration::Max());
 }
