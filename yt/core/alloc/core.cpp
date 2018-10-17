@@ -569,7 +569,7 @@ private:
     std::atomic<bool> ProfilingEnabled_ = {false};
     std::atomic<double> LargeUnreclaimableCoeff_ = {0.05};
     std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
-    std::atomic<ui64> SlowCallWarningThreshold_ = {10000000}; // in microseconds, 10 ms by default
+    std::atomic<ui64> SlowCallWarningThreshold_ = {10000}; // in microseconds, 10 ms by default
 };
 
 TBox<TConfigurationManager> ConfigurationManager;
