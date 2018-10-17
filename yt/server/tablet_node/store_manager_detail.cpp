@@ -409,7 +409,7 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     const auto& config = Tablet_->GetConfig();
 
     RotationScheduled_ = false;
-    LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSkew);
+    LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSplay);
 
     auto* activeStore = GetActiveStore();
     YCHECK(activeStore);
