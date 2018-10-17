@@ -1170,6 +1170,7 @@ struct TOperationOptions
     //
     // If MountSandboxInTmpfs is set all files required by job will be put into tmpfs.
     // The same can be done with TConfig::MountSandboxInTmpfs option.
+    // see also https://wiki.yandex-team.ru/yt/userdoc/woodpeckers/
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
     FLUENT_FIELD_OPTION(TString, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);
