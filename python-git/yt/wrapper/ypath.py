@@ -118,7 +118,7 @@ class YPath(object):
     """
     def __init__(self,
                  path,
-                 simplify=True,
+                 simplify=None,
                  attributes=None,
                  client=None):
         """
@@ -126,6 +126,9 @@ class YPath(object):
         :param dict attributes: additinal attributes.
         :param bool simplify: perform parsing of given path.
         """
+
+        if simplify is None:
+            simplify = True
 
         if isinstance(path, YPath):
             self._path_object = deepcopy(path._path_object)
@@ -260,7 +263,7 @@ class TablePath(YPathSupportingAppend):
                  schema=None,
                  foreign=None,
                  rename_columns=None,
-                 simplify=True,
+                 simplify=None,
                  attributes=None,
                  client=None):
         """
