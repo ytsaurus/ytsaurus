@@ -485,6 +485,8 @@ def add_set_parser(add_parser):
     parser = add_parser("set", set)
     add_ypath_argument(parser, "path", hybrid=True)
     add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
+    parser.add_argument("-r", "--recursive", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
     add_hybrid_argument(parser, "value", group_required=False,
                         help="new node attribute value, in {0} format. You can specify in bash pipe: "
                              "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))

@@ -80,6 +80,9 @@ test_cypress_commands()
     $YT set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
     check '{"attr":10}' $($YT get //home/wrapper_test/folder/@attr --format json)
 
+    $YT set //home/wrapper_test/other_folder/my_dir '{}' --recursive --force
+    check 'true' "$($YT exists //home/wrapper_test/other_folder/my_dir)"
+
     $YT create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
     check "//home/wrapper_test/file_with_attrs" "$($YT find //home/wrapper_test --attribute-filter "testattr=1")"
     check "" "$($YT find //home/wrapper_test --attribute-filter "attr=1")"
