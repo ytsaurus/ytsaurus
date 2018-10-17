@@ -1382,19 +1382,23 @@ class TestTabletActions(TestDynamicTablesBase):
 
     def _get_tablets(self, path):
         tablets = get(path + "/@tablets")
-        result = []
-        for tablet in tablets:
-            result.append(get("#{0}/@".format(tablet["tablet_id"])))
+        while True:
+            result = []
+            for tablet in tablets:
+                result.append(get("#{0}/@".format(tablet["tablet_id"])))
 
-        for state in ["state", "expected_state"]:
-            actual = {}
-            for tablet in result:
-                actual[tablet[state]] = actual.get(tablet[state], 0) + 1
-            expected = get(path + "/@tablet_count_by_" + state)
-            expected = {k: v for k, v in expected.items() if v != 0}
-            assert_items_equal(expected, actual)
+            retry = False
+            for state in ["state", "expected_state"]:
+                actual = {}
+                for tablet in result:
+                    actual[tablet[state]] = actual.get(tablet[state], 0) + 1
+                expected = get(path + "/@tablet_count_by_" + state)
+                expected = {k: v for k, v in expected.items() if v != 0}
+                if expected != actual:
+                    retry = True
 
-        return result
+            if not retry:
+                return result
 
     def _tablets_distribution(self, table, cells=None):
         tablet_count = {}
