@@ -290,7 +290,7 @@ public:
     // Strategy to pick controller agent for operation.
     EControllerAgentPickStrategy AgentPickStrategy;
 
-    // Agent score weight will be raised in this power.
+    // Agent score weight will be raised to this power.
     double MemoryBalancedPickStrategyScorePower;
 
     // Agent must have at least #MinAgentAvailableMemory free memory to serve new operation.
