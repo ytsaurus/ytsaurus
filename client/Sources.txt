@@ -6,6 +6,7 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/proto/pod_agent.proto
   ${CMAKE_CURRENT_LIST_DIR}/api/proto/replica_set.proto
   ${CMAKE_CURRENT_LIST_DIR}/api/proto/object_type.proto
+  ${CMAKE_CURRENT_LIST_DIR}/api/proto/secrets.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/nodes/proto/agent_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/nodes/proto/node_tracker_service.proto

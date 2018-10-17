@@ -11,6 +11,7 @@ option java_outer_classname = "Pod";
 package NInfra.NPodAgent.API;
 
 import "google/protobuf/timestamp.proto";
+import "yp/client/api/proto/secrets.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
@@ -48,6 +49,17 @@ message TPodAgentSpec {
 
     //Часть Worklaod, изменение которой не приведет к полной пересборке Workload
     repeated TMutableWorkload MutableWorkloads = 9;
+}
+
+// Конфигурация Пода, содержащая секреты
+// NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
+// NOTE: Валидация - все id секретов различны
+message TPodAgentRequest {
+    // Конфигурация Пода
+    TPodAgentSpec Spec = 1;
+
+    // Секреты (raw, unencrypted)
+    repeated NYP.NClient.NApi.NProto.TSecret Secrets = 2;
 }
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
@@ -250,8 +262,10 @@ message TTimeLimitStatus {
     uint32 ConsecutiveFailuresCounter = 3;
 }
 
-//Уточню позже
+// Id секрета из TPodAgentRequest.Secrets
+// В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
 message SecretEnvSelector {
+    string SecretId = 1;
 }
 
 message LiteralEnvSelector {
