@@ -22,6 +22,7 @@ from datetime import datetime
 
 import argparse
 import collections
+import contextlib
 import fnmatch
 import functools
 import glob
@@ -42,10 +43,22 @@ import urllib3
 urllib3.disable_warnings()
 import requests
 
+KB = 1024
+MB = 1024 * KB
+GB = 1024 * MB
+TB = 1024 * GB
+
 NODEJS_RESOURCE = "sbr:629132696"
 INTEGRATION_TESTS_PARALLELISM = 4
 PYTHON_TESTS_PARALLELISM = 6
 YP_TESTS_PARALLELISM = 6
+
+YA_CACHE_YT_STORE_PROXY = "freud"
+YA_CACHE_YT_DIR = "//home/yt-teamcity-build/cache"
+
+YA_CACHE_YT_MAX_STORE_SIZE = 2 * TB
+YA_CACHE_YT_STORE_TTL = 24 # hours
+YA_CACHE_YT_STORE_CODEC = "zstd08_1"
 
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
@@ -100,6 +113,22 @@ def get_node_modules_dir(options):
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
 
+def get_yt_token_file(options):
+    return os.path.join(options.working_directory, "yt_token")
+
+@contextlib.contextmanager
+def temporary_yt_token_file(options):
+    filename = get_yt_token_file(options)
+
+    try:
+        with open(filename, "w") as outf:
+            outf.write(os.environ["TEAMCITY_YT_TOKEN"])
+            outf.write("\n")
+        yield
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
+
 def get_lib_dir_for_python(options, python_version):
     return os.path.join(
         options.working_directory,
@@ -152,34 +181,22 @@ def ya_make_definition_args(options):
         "-DYT_VERSION_BRANCH={0}".format(options.branch),
     ]
 
+def ya_make_yt_store_args(options):
+    return [
+        "--yt-store",
+        "--yt-put",
+        "--yt-proxy", YA_CACHE_YT_STORE_PROXY,
+        "--yt-dir", YA_CACHE_YT_DIR,
+        "--yt-store-codec", YA_CACHE_YT_STORE_CODEC,
+        "--yt-max-store-size", str(YA_CACHE_YT_MAX_STORE_SIZE),
+        "--yt-store-ttl", str(YA_CACHE_YT_STORE_TTL),
+        "--yt-token-path", get_yt_token_file(options),
+    ]
+
 def ya_make_args(options):
     return [
         "--build", options.ya_build_type,
     ]
-
-def run_yall(options):
-    assert options.build_system == "ya"
-    ya = get_ya(options)
-
-    common_args = ["-T"]
-    common_args += ya_make_args(options)
-    common_args += ya_make_definition_args(options)
-
-    args = [ya, "make", "buildall"] + common_args
-    args += ["--install", get_bin_dir(options)]
-    if options.use_asan:
-        args += ["--sanitize=address"]
-    run(args,
-        cwd=options.checkout_directory,
-        env=ya_make_env(options))
-
-    for python_version in iter_enabled_python_versions(options):
-        args = [ya, "make", "buildall/system-python"] + common_args
-        args += ["-DUSE_SYSTEM_PYTHON=" + python_version]
-        args += ["--install", get_lib_dir_for_python(options, python_version)]
-        run(args,
-            cwd=options.checkout_directory,
-            env=ya_make_env(options))
 
 @build_step
 def prepare(options, build_context):
@@ -195,6 +212,7 @@ def prepare(options, build_context):
     options.build_enable_python_3_4 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_3_4", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
+    options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
     assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
@@ -328,7 +346,33 @@ def build(options, build_context):
         run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
     else:
         assert options.build_system == "ya"
-        run_yall(options)
+        ya = get_ya(options)
+
+        common_args = ["-T"]
+        common_args += ya_make_args(options)
+        common_args += ya_make_definition_args(options)
+        if options.build_enable_ya_yt_store:
+            common_args += ya_make_yt_store_args(options)
+
+        args = [ya, "make", "buildall"] + common_args
+        args += ["--install", get_bin_dir(options)]
+        if options.use_asan:
+            args += ["--sanitize=address"]
+
+        # We don't want our token to appear in teamcity logs, so we save it to file
+        # that will be shortly removed
+        with temporary_yt_token_file(options):
+            run(args,
+                cwd=options.checkout_directory,
+                env=ya_make_env(options))
+
+            for python_version in iter_enabled_python_versions(options):
+                args = [ya, "make", "buildall/system-python"] + common_args
+                args += ["-DUSE_SYSTEM_PYTHON=" + python_version]
+                args += ["--install", get_lib_dir_for_python(options, python_version)]
+                run(args,
+                    cwd=options.checkout_directory,
+                    env=ya_make_env(options))
 
 @build_step
 def gather_build_info(options, build_context):
