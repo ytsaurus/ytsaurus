@@ -577,7 +577,10 @@ TBox<TConfigurationManager> ConfigurationManager;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETimingEventType,
-    (Syscall)
+    (MMap)
+    (MUnmap)
+    (MAdvisePopulate)
+    (MAdviseFree)
     (Locking)
 );
 
@@ -706,6 +709,7 @@ public:
     void* Map(uintptr_t hint, size_t size, int flags)
     {
         return RunSyscall(
+            ETimingEventType::MMap,
             [&] {
                 auto* result = ::mmap(
                     reinterpret_cast<void*>(hint),
@@ -728,6 +732,7 @@ public:
     void Unmap(void* ptr, size_t size)
     {
         RunSyscall(
+            ETimingEventType::MUnmap,
             [&] {
                 auto result = ::munmap(ptr, size);
                 YCHECK(result == 0);
@@ -736,38 +741,42 @@ public:
 
     void Populate(void* ptr, size_t size)
     {
-        RunSyscall([&] {
-            if (!PopulateUnavailable_.load(std::memory_order_relaxed)) {
-                auto result = ::madvise(ptr, size, MADV_POPULATE);
-                if (result != 0) {
-                    auto error = errno;
-                    if (error == ENOMEM) {
-                        OnOOM();
+        RunSyscall(
+            ETimingEventType::MAdvisePopulate,
+            [&] {
+                if (!PopulateUnavailable_.load(std::memory_order_relaxed)) {
+                    auto result = ::madvise(ptr, size, MADV_POPULATE);
+                    if (result != 0) {
+                        auto error = errno;
+                        if (error == ENOMEM) {
+                            OnOOM();
+                        }
+                        YCHECK(error == EINVAL);
+                        PopulateUnavailable_.store(true);
                     }
-                    YCHECK(error == EINVAL);
-                    PopulateUnavailable_.store(true);
                 }
-            }
-        });
+            });
     }
 
     void Release(void* ptr, size_t size)
     {
-        RunSyscall([&] {
-            if (!FreeUnavailable_.load(std::memory_order_relaxed)) {
-                auto result = ::madvise(ptr, size, MADV_FREE);
-                if (result != 0) {
-                    auto error = errno;
-                    YCHECK(error == EINVAL);
-                    FreeUnavailable_.store(true);
+        RunSyscall(
+            ETimingEventType::MAdviseFree,
+            [&] {
+                if (!FreeUnavailable_.load(std::memory_order_relaxed)) {
+                    auto result = ::madvise(ptr, size, MADV_FREE);
+                    if (result != 0) {
+                        auto error = errno;
+                        YCHECK(error == EINVAL);
+                        FreeUnavailable_.store(true);
+                    }
                 }
-            }
-            if (FreeUnavailable_.load()) {
-                auto result = ::madvise(ptr, size, MADV_DONTNEED);
-                // Must not fail.
-                YCHECK(result == 0);
-            }
-        });
+                if (FreeUnavailable_.load()) {
+                    auto result = ::madvise(ptr, size, MADV_DONTNEED);
+                    // Must not fail.
+                    YCHECK(result == 0);
+                }
+            });
     }
 
     void RunBackgroundTasks(const TBackgroundContext& context)
@@ -792,9 +801,9 @@ public:
 
 private:
     template <class F>
-    auto RunSyscall(F func) -> decltype(func())
+    auto RunSyscall(ETimingEventType eventType, F func) -> decltype(func())
     {
-        TTimingGuard timingGuard(ETimingEventType::Syscall);
+        TTimingGuard timingGuard(eventType);
         return func();
     }
 
