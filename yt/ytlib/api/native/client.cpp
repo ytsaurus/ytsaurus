@@ -322,7 +322,7 @@ private:
 
         tableInfo->ValidateNotReplicated();
 
-        // NB: This access may come from distrinct threads as connection's invoker is typically a thread pool.
+        // NB: This access may come from distinct threads as connection's invoker is typically a thread pool.
         {
             auto guard = Guard(TableInfosSpinLock_);
             TableInfos_.push_back(tableInfo);
