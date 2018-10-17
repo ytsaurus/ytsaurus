@@ -150,8 +150,8 @@ private:
                 auto asyncResult = executor->Execute(
                     query,
                     mountInfos,
-                    std::move(externalCGInfo),
-                    std::move(dataSources),
+                    externalCGInfo,
+                    dataSources,
                     writer,
                     blockReadOptions,
                     options);
