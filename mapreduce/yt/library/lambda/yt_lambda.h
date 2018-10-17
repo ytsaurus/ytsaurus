@@ -1,12 +1,13 @@
 #pragma once
 
 #include "wrappers.h"
-#include <mapreduce/yt/library/table_schema/protobuf.h>
 
 /** Using lambdas to perform simple YT operations.
  * ATTN! Only lambdas that are plain functions (i.e. no captured variables) are currently supported.
  * ATTN! This implementation has some performance cost compared to classic YT C++ API because
  *       lambdas here are called by pointer, not inlined.
+ *
+ * Details: https://wiki.yandex-team.ru/yt/userdoc/cppapi/lambda/
  *
  * CopyIf            - copy records on whose the predicate is TRUE from src to dst table
  * TransformCopyIf   - transform records from src to dst (return false from lambda to drop current record)
@@ -14,6 +15,11 @@
  * AdditiveMapReduce - transform records using 1st lambda, sum them using 2nd lambda
  *                     ATTN: output is not sorted (as per MapReduce specifics)
  * AdditiveMapReduceSorted - same as AdditiveMapReduce, but the table is sorted after MR.
+ * MapReduce[Sorted] - transform records using 1st lambda, reduce them using 2nd lambda, then
+ *                     (optionally) transform again to output format using 3rd lambda (finalizer).
+ * MapReduceCombined[Sorted] - transform records using 1st lambda (mapper), reduce them first time using
+ *                     2nd lambda (combiner), sum (reduce second time) them using 3rd lambda (reducer),
+ *                     (optionally) transform again to output format using 4th lambda (finalizer).
  *
  * example:
  * NYT::CopyIf<TMyProtoMsg>(client, inTable, outTable,
@@ -78,13 +84,7 @@ void AdditiveMapReduce(
     bool (*mapper)(const R&, W&),
     void (*reducer)(const W&, W&))
 {
-    auto spec = TMapReduceOperationSpec()
-        .template AddOutput<W>(WithSchema<W>(to))
-        .ReduceBy(reduceFields);
-
-    for (auto& input : from.Parts_) {
-        spec.template AddInput<R>(input);
-    }
+    auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
 
     client->MapReduce(
         spec,
@@ -111,6 +111,163 @@ void AdditiveMapReduceSorted(
             .Output(to)
             .SortBy(reduceFields));
     tx->Commit();
+}
+
+template <class R, class TMapped, class TReducerData, class W>
+void MapReduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*reducer)(const TMapped&, TReducerData&),
+    void (*finalizer)(const TReducerData&, W&))
+{
+    auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
+
+    ::TIntrusivePtr<IReducerBase> reducerObj;
+
+    if (finalizer) {
+        reducerObj = new TLambdaBufReducer<TMapped, TReducerData, W>(reducer, finalizer, reduceFields);
+    } else {
+        if constexpr(std::is_same<TReducerData, W>::value) {
+            reducerObj = new TLambdaReducer<TMapped, W>(reducer, reduceFields);
+        } else {
+            ythrow yexception() << "finalizer can not be null";
+        }
+    }
+
+    client->MapReduce(
+        spec,
+        mapper ? new TTransformMapper<R, TMapped>(mapper) : nullptr,
+        reducer ? reducerObj : nullptr);
+}
+
+template <class R, class TMapped, class W>
+void MapReduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*reducer)(const TMapped&, W&))
+{
+    MapReduce<R, TMapped, W, W>(client, from, to, reduceFields, mapper, reducer, nullptr);
+}
+
+template <class R, class TMapped, class TReducerData, class W>
+void MapReduceSorted(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*reducer)(const TMapped&, TReducerData&),
+    void (*finalizer)(const TReducerData&, W&))
+{
+    auto tx = client->StartTransaction();
+    MapReduce(tx, from, to, reduceFields, mapper, reducer, finalizer);
+
+    tx->Sort(
+        TSortOperationSpec()
+            .AddInput(to)
+            .Output(to)
+            .SortBy(reduceFields));
+    tx->Commit();
+}
+
+template <class R, class TMapped, class W>
+void MapReduceSorted(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*reducer)(const TMapped&, W&))
+{
+    MapReduceSorted<R, TMapped, W, W>(client, from, to, reduceFields, mapper, reducer, nullptr);
+}
+
+
+template <class R, class TMapped, class TCombined, class W>
+void MapReduceCombined(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*combiner)(const TMapped&, TCombined&),
+    void (*reducer)(const TCombined&, TCombined&),
+    void (*finalizer)(const TCombined&, W&))
+{
+    auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
+
+    ::TIntrusivePtr<IReducerBase> reducerObj;
+
+    if (finalizer) {
+        reducerObj = new TLambdaBufReducer<TCombined, TCombined, W>(reducer, finalizer, reduceFields);
+    } else {
+        if constexpr(std::is_same<TCombined, W>::value) {
+            reducerObj = new TAdditiveReducer<W>(reducer);
+        } else {
+            ythrow yexception() << "finalizer can not be null";
+        }
+    }
+
+    client->MapReduce(
+        spec,
+        mapper ? new TTransformMapper<R, TMapped>(mapper) : nullptr,
+        combiner ? new TLambdaReducer<TMapped, TCombined>(combiner, reduceFields) : nullptr,
+        reducer ? reducerObj : nullptr,
+        TOperationOptions().Spec(TNode()("force_reduce_combiners", true)));
+}
+
+template <class R, class TMapped, class W>
+void MapReduceCombined(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*combiner)(const TMapped&, W&),
+    void (*reducer)(const W&, W&))
+{
+    MapReduceCombined<R, TMapped, W, W>(client, from, to, reduceFields, mapper, combiner, reducer, nullptr);
+}
+
+template <class R, class TMapped, class TCombined, class W>
+void MapReduceCombinedSorted(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*combiner)(const TMapped&, TCombined&),
+    void (*reducer)(const TCombined&, TCombined&),
+    void (*finalizer)(const TCombined&, W&))
+{
+    auto tx = client->StartTransaction();
+    MapReduceCombined(tx, from, to, reduceFields, mapper, combiner, reducer, finalizer);
+
+    tx->Sort(
+        TSortOperationSpec()
+            .AddInput(to)
+            .Output(to)
+            .SortBy(reduceFields));
+    tx->Commit();
+}
+
+template <class R, class TMapped, class W>
+void MapReduceCombinedSorted(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TMapped&),
+    void (*combiner)(const TMapped&, W&),
+    void (*reducer)(const W&, W&))
+{
+    MapReduceCombinedSorted<R, TMapped, W, W>(client, from, to, reduceFields, mapper, combiner, reducer, nullptr);
 }
 
 // ==============================================

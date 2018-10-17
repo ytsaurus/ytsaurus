@@ -1,6 +1,9 @@
 #pragma once
 
+#include "field_copier.h"
+
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/library/table_schema/protobuf.h>
 #include <util/ysaveload.h>
 
 // ==============================================
@@ -25,6 +28,52 @@ public:
 protected:
     F Func;
 };
+
+/**
+ * Saves & Loads FieldCopier object for current reduceBy fields
+ */
+template <template<class Rd, class Wr> class Op, class R, class W, class F>
+class TByColumnAwareLambdaOpBase : public TLambdaOpBase<Op, R, W, F> {
+public:
+    TByColumnAwareLambdaOpBase() : FieldCopier(TKeyColumns()) { }
+    TByColumnAwareLambdaOpBase(F func, const TKeyColumns& reduceColumns)
+        : TLambdaOpBase<Op, R, W, F>(func)
+        , ReduceColumns(reduceColumns)
+        , FieldCopier(reduceColumns)
+    {
+    }
+
+    void Save(IOutputStream& stream) const override {
+        TLambdaOpBase<Op, R, W, F>::Save(stream);
+        ::Save(&stream, ReduceColumns.Parts_);
+    }
+
+    void Load(IInputStream& stream) override {
+        TLambdaOpBase<Op, R, W, F>::Load(stream);
+        ::Load(&stream, ReduceColumns.Parts_);
+        FieldCopier = TFieldCopier<R, W>(ReduceColumns);
+    }
+
+protected:
+    TKeyColumns ReduceColumns;
+    TFieldCopier<R, W> FieldCopier;
+};
+
+template<class R, class W>
+TMapReduceOperationSpec PrepareMRSpec(
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields)
+{
+    auto spec = TMapReduceOperationSpec()
+        .template AddOutput<W>(WithSchema<W>(to))
+        .ReduceBy(reduceFields);
+
+    for (auto& input : from.Parts_) {
+        spec.template AddInput<R>(input);
+    }
+    return spec;
+}
 
 template <class Mapper>
 bool RegisterMapperStatic() {
@@ -146,6 +195,96 @@ private:
 
 template <class T>
 bool TAdditiveReducer<T>::Registrator = NDetail::RegisterReducerStatic<TAdditiveReducer<T>>();
+
+
+/** Reducer between two different types of records. Wraps [](const R& src, W& dst){}.
+ *  - fields of dst that match reduceBy columns are filled by TLambdaReducer;
+ *  - lambda may not modify these key columns (just don't touch them in dst);
+ *  - other fields of dst are initialized (or not) by W's default constructor
+ *    before lambda is called for the first row of a reduce-key;
+ */
+template <class R, class W>
+class TLambdaReducer : public NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, void (*)(const R&, W&)> {
+public:
+    using F = void (*)(const R&, W&);
+    using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, F>;
+
+    TLambdaReducer() { }
+    TLambdaReducer(F func, const TKeyColumns& reduceColumns)
+        : TBase(func, reduceColumns)
+    {
+        (void)Registrator; // make sure this static member is not optimized out
+    }
+
+    void Do(TTableReader<R>* reader, TTableWriter<W>* writer) override {
+        if (!reader->IsValid())
+            return;
+        W writeBuf;
+        TBase::FieldCopier(reader->GetRow(), writeBuf);
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& curRow = reader->GetRow();
+            TBase::Func(curRow, writeBuf);
+        }
+        writer->AddRow(writeBuf);
+    }
+
+private:
+    static bool Registrator;
+};
+
+template <class R, class W>
+bool TLambdaReducer<R, W>::Registrator = NDetail::RegisterReducerStatic<TLambdaReducer<R, W>>();
+
+
+/** Reducer between two different types of records, with intermediate structure.
+ *  that allows to collect more data in process that it is written to output.
+ *  Wraps [](const R& src, TBuf& buf){} and [](const TBuf& buf, W& dst){}
+ *  - first lambda is called for every row;
+ *  - second lambda is called once for each reduce-key after all rows have been processed,
+ *    and generates actual record to be written;
+ *  - fields of dst that match reduceBy columns are filled by TLambdaBufReducer;
+ *  - lambda may not modify these key columns (just don't touch them in dst);
+ *  - fields of buf are initialized (or not) by TBuf's default constructor
+ *    before the first lambda is called for the first row of a reduce-key;
+ *  - TBuf is not written anywhere, it can be any C++ type;
+ */
+
+template <class R, class TBuf, class W>
+class TLambdaBufReducer : public NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W,
+        std::pair<void (*)(const R&, TBuf&), void (*)(const TBuf&, W&)>> {
+public:
+    using TReduce = void (*)(const R&, TBuf&);
+    using TFinalize = void (*)(const TBuf&, W&);
+    using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, std::pair<TReduce, TFinalize>>;
+
+    TLambdaBufReducer() { }
+    TLambdaBufReducer(TReduce reducer, TFinalize finalizer, const TKeyColumns& reduceColumns)
+        : TBase({reducer, finalizer}, reduceColumns)
+    {
+        (void)Registrator; // make sure this static member is not optimized out
+    }
+
+    void Do(TTableReader<R>* reader, TTableWriter<W>* writer) override {
+        if (!reader->IsValid())
+            return;
+        TBuf interim;
+        W writeBuf;
+        TBase::FieldCopier(reader->GetRow(), writeBuf);
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& curRow = reader->GetRow();
+            TBase::Func.first(curRow, interim);
+        }
+
+        TBase::Func.second(interim, writeBuf);
+        writer->AddRow(writeBuf);
+    }
+
+private:
+    static bool Registrator;
+};
+
+template <class R, class TBuf, class W>
+bool TLambdaBufReducer<R, TBuf, W>::Registrator = NDetail::RegisterReducerStatic<TLambdaBufReducer<R, TBuf, W>>();
 
 // ==============================================
 } // namespace NYT
