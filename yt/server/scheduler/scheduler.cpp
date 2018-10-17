@@ -193,6 +193,8 @@ public:
 
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
+        OperationsCleaner_->SubscribeOperationsArchived(BIND(&TImpl::OnOperationsArchived, MakeWeak(this)));
+
         ServiceAddress_ = BuildServiceAddress(
             GetLocalHostName(),
             Bootstrap_->GetConfig()->RpcPort);
@@ -427,33 +429,39 @@ public:
         return MasterConnector_->GetConnectionTime();
     }
 
-    TOperationPtr FindOperation(const TOperationId& id) const
+    TOperationPtr FindOperation(const TOperationIdOrAlias& idOrAlias) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = IdToOperation_.find(id);
-        return it == IdToOperation_.end() ? nullptr : it->second;
+        if (auto* id = idOrAlias.TryAs<TOperationId>()) {
+            auto it = IdToOperation_.find(*id);
+            return it == IdToOperation_.end() ? nullptr : it->second;
+        } else {
+            const auto& alias = idOrAlias.As<TString>();
+            auto it = OperationAliases_.find(alias);
+            return it == OperationAliases_.end() ? nullptr : it->second.Operation;
+        }
     }
 
-    TOperationPtr GetOperation(const TOperationId& id) const
+    TOperationPtr GetOperation(const TOperationIdOrAlias& idOrAlias) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(id);
+        auto operation = FindOperation(idOrAlias);
         YCHECK(operation);
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& id) const
+    TOperationPtr GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(id);
+        auto operation = FindOperation(idOrAlias);
         if (!operation) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::NoSuchOperation,
                 "No such operation %v",
-                id);
+                idOrAlias);
         }
         return operation;
     }
@@ -632,7 +640,9 @@ public:
             runtimeParams,
             user,
             TInstant::Now(),
-            MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation));
+            MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
+            spec->Alias);
+
         operation->SetStateAndEnqueueEvent(EOperationState::Starting);
 
         auto codicilGuard = operation->MakeCodicilGuard();
@@ -1260,7 +1270,17 @@ private:
 
     ISchedulerStrategyPtr Strategy_;
 
+    struct TOperationAlias
+    {
+        //! Id of an operation assigned to a given alias.
+        TOperationId OperationId;
+        //! Operation assigned to a given alias. May be nullptr if operation has already completed.
+        //! (in this case we still remember the operation id, though).
+        TOperationPtr Operation;
+    };
+
     THashMap<TOperationId, TOperationPtr> IdToOperation_;
+    THashMap<TString, TOperationAlias> OperationAliases_;
     THashMap<TOperationId, IYPathServicePtr> IdToOperationService_;
 
     mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
@@ -1576,6 +1596,10 @@ private:
                     auto responseMessage = CreateResponseMessage(response);
                     auto responseKeeper = Bootstrap_->GetResponseKeeper();
                     responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
+                }
+
+                if (operation->Alias()) {
+                    RegisterOperationAlias(operation);
                 }
 
                 RegisterOperation(operation, false);
@@ -2046,13 +2070,26 @@ private:
 
         ValidateOperationState(operation, EOperationState::Starting);
 
+        bool aliasRegistered = false;
         try {
+            if (operation->Alias()) {
+                RegisterOperationAlias(operation);
+                aliasRegistered = true;
+            }
+
             // NB(babenko): now we only validate this on start but not during revival
             Strategy_->ValidatePoolLimits(operation.Get(), operation->GetRuntimeParameters());
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
+            if (aliasRegistered) {
+                auto it = OperationAliases_.find(*operation->Alias());
+                YCHECK(it != OperationAliases_.end());
+                YCHECK(it->second.Operation == operation);
+                OperationAliases_.erase(it);
+            }
+
             auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
@@ -2291,6 +2328,31 @@ private:
             Config_->OrchidKeysUpdatePeriod);
     }
 
+    void RegisterOperationAlias(const TOperationPtr& operation)
+    {
+        YCHECK(operation->Alias());
+
+        TOperationAlias alias{operation->GetId(), operation};
+        auto it = OperationAliases_.find(*operation->Alias());
+        if (it != OperationAliases_.end()) {
+            if (it->second.Operation) {
+                THROW_ERROR_EXCEPTION("Operation alias is already used by an operation")
+                    << TErrorAttribute("operation_alias", operation->Alias())
+                    << TErrorAttribute("operation_id", it->second.OperationId);
+            }
+            LOG_DEBUG("Assigning an already existing alias to a new operation (Alias: %v, OldOperationId: %v, NewOperationId: %v)",
+                *operation->Alias(),
+                it->second.OperationId,
+                operation->GetId());
+            it->second = std::move(alias);
+        } else {
+            LOG_DEBUG("Assigning a new alias to a new operation (Alias: %v, OperationId: %v)",
+                *operation->Alias(),
+                operation->GetId());
+            OperationAliases_[*operation->Alias()] = std::move(alias);
+        }
+    }
+
     void RegisterOperation(const TOperationPtr& operation, bool jobsReady)
     {
         YCHECK(IdToOperation_.emplace(operation->GetId(), operation).second);
@@ -2316,8 +2378,9 @@ private:
         auto service = CreateOperationOrchidService(operation);
         YCHECK(IdToOperationService_.emplace(operation->GetId(), service).second);
 
-        LOG_DEBUG("Operation registered (OperationId: %v, JobsReady: %v)",
+        LOG_DEBUG("Operation registered (OperationId: %v, OperationAlias: %v, JobsReady: %v)",
             operation->GetId(),
+            operation->Alias(),
             jobsReady);
     }
 
@@ -2336,6 +2399,15 @@ private:
     {
         YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
         YCHECK(IdToOperationService_.erase(operation->GetId()) == 1);
+        if (operation->Alias()) {
+            auto it = OperationAliases_.find(*operation->Alias());
+            YCHECK(it != OperationAliases_.end());
+            LOG_DEBUG("Alias now corresponds to an unregistered operation (Alias: %v, OperationId: %v)",
+                *operation->Alias(),
+                operation->GetId());
+            YCHECK(it->second.Operation == operation);
+            it->second.Operation = nullptr;
+        }
 
         const auto& controller = operation->GetController();
         if (controller) {
@@ -2829,6 +2901,10 @@ private:
                     fluent
                         .Item("agent_id").Value(agent->GetId());
                 })
+                .DoIf(static_cast<bool>(operation->Alias()), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("alias").Value(operation->Alias());
+                })
             .EndMap();
     }
 
@@ -3082,6 +3158,36 @@ private:
         LOG_DEBUG("Finished scanning transient operation queue");
     }
 
+    void OnOperationsArchived(const std::vector<TArchiveOperationRequest>& archivedOperationRequests)
+    {
+        for (const auto& request : archivedOperationRequests) {
+            if (request.Alias) {
+                // NB: some other operation could have already used this alias (and even be removed after they completed),
+                // so we check if it is still assigned to an operation id we expect.
+                auto it = OperationAliases_.find(*request.Alias);
+                if (it == OperationAliases_.end()) {
+                    // This case may happen due to reordering of removal requests inside operation cleaner
+                    // (e.g. some of the removal requests may fail due to lock conflict).
+                    LOG_DEBUG("Operation alias has already been removed (Alias: %v, OperationId: %v)",
+                        request.Alias,
+                        request.Id);
+                } else if (it->second.OperationId == request.Id) {
+                    // We should have already dropped the pointer to the operation. Let's assert that.
+                    YCHECK(!it->second.Operation);
+                    LOG_DEBUG("Operation alias is still assigned to an operation, removing it (Alias: %v, OperationId: %v)",
+                        request.Alias,
+                        request.Id);
+                    OperationAliases_.erase(it);
+                } else {
+                    LOG_DEBUG("Operation alias was reused by another operation, doing nothing "
+                        "(Alias: %v, OldOperationId: %v, NewOperationId: %v)",
+                        request.Alias,
+                        request.Id,
+                        it->second.OperationId);
+                }
+            }
+        }
+    }
 
     class TOperationsService
         : public TVirtualMapBase
@@ -3094,27 +3200,57 @@ private:
 
         virtual i64 GetSize() const override
         {
-            return Scheduler_->IdToOperationService_.size();
+            return Scheduler_->IdToOperationService_.size() + Scheduler_->OperationAliases_.size();
         }
 
         virtual std::vector<TString> GetKeys(i64 limit) const override
         {
             std::vector<TString> keys;
             keys.reserve(limit);
-            for (const auto& pair : Scheduler_->IdToOperationService_) {
+            for (const auto& pair : Scheduler_->IdToOperation_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
                 keys.emplace_back(ToString(pair.first));
+            }
+            for (const auto& pair : Scheduler_->OperationAliases_) {
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    break;
+                }
+                keys.emplace_back(pair.first);
             }
             return keys;
         }
 
         virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
-            auto operationId = TOperationId::FromString(key);
-            auto it = Scheduler_->IdToOperationService_.find(operationId);
-            return it == Scheduler_->IdToOperationService_.end() ? nullptr : it->second;
+            if (key.StartsWith(OperationAliasPrefix)) {
+                // If operation is still registered, we will return the operation service.
+                // If it has finished, but we still have an entry in alias -> operation id internal
+                // mapping, we return a fictive map { operation_id = <operation_id> }. It is useful
+                // for alias resolution when operation is not archived yet but already finished.
+                auto it = Scheduler_->OperationAliases_.find(TString(key));
+                if (it == Scheduler_->OperationAliases_.end()) {
+                    return nullptr;
+                } else {
+                    auto jt = Scheduler_->IdToOperationService_.find(it->second.OperationId);
+                    if (jt == Scheduler_->IdToOperationService_.end()) {
+                        // The operation is unregistered, but we still return a fictive map.
+                        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
+                            BuildYsonFluently(consumer)
+                                .BeginMap()
+                                    .Item("operation_id").Value(it->second.OperationId)
+                                .EndMap();
+                        }));
+                    } else {
+                        return jt->second;
+                    }
+                }
+            } else {
+                auto operationId = TOperationId::FromString(key);
+                auto it = Scheduler_->IdToOperationService_.find(operationId);
+                return it == Scheduler_->IdToOperationService_.end() ? nullptr : it->second;
+            }
         }
 
     private:
@@ -3278,9 +3414,9 @@ TOperationPtr TScheduler::FindOperation(const TOperationId& id) const
     return Impl_->FindOperation(id);
 }
 
-TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id) const
+TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const
 {
-    return Impl_->GetOperationOrThrow(id);
+    return Impl_->GetOperationOrThrow(idOrAlias);
 }
 
 TFuture<TOperationPtr> TScheduler::StartOperation(

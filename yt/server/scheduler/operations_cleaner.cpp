@@ -52,6 +52,9 @@ struct TOrderedByIdTag
 struct TOrderedByStartTimeTag
 { };
 
+struct TOperationAliasesTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& operation)
@@ -68,6 +71,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     Alerts = operation->BuildAlertsString();
     BriefSpec = operation->BriefSpec();
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
+    Alias = operation->Alias();
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializeAttributes;
@@ -97,6 +101,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "full_spec",
         "unrecognized_spec",
         "runtime_parameters",
+        "alias",
     };
 
     return attributeKeys;
@@ -120,6 +125,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     FullSpec = attributes.FindYson("full_spec");
     UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
     RuntimeParameters = attributes.FindYson("runtime_parameters");
+    Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -296,6 +302,23 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     return rowBuffer->Capture(builder.GetRow());
 }
 
+TUnversionedRow BuildOperationAliasesTableRow(
+    const TRowBufferPtr& rowBuffer,
+    const TArchiveOperationRequest& request,
+    const TOperationAliasesTableDescriptor::TIndex& index,
+    int /* version */)
+{
+    // All any and string values passed to MakeUnversioned* functions MUST be alive till
+    // they are captured in row buffer (they are not owned by unversioned value or builder).
+
+    TUnversionedRowBuilder builder;
+    builder.AddValue(MakeUnversionedStringValue(*request.Alias, index.Alias));
+    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.OperationIdHi));
+    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[1], index.OperationIdLo));
+
+    return rowBuffer->Capture(builder.GetRow());
+}
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,6 +327,8 @@ class TOperationsCleaner::TImpl
     : public TRefCounted
 {
 public:
+    DEFINE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsArchived);
+    
     TImpl(
         TOperationsCleanerConfigPtr config,
         IOperationsCleanerHost* host,
@@ -682,6 +707,7 @@ private:
 
         i64 orderedByIdRowsDataWeight = 0;
         i64 orderedByStartTimeRowsDataWeight = 0;
+        i64 operationAliasesRowsDataWeight = 0;
 
         PROFILE_AGGREGATED_TIMING(OperationsRowsPreparationTimeCounter_) {
             // ordered_by_id table rows
@@ -720,6 +746,29 @@ private:
 
                 transaction->WriteRows(
                     GetOperationsArchiveOrderedByStartTimePath(),
+                    desc.NameTable,
+                    MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+            }
+
+            // operation_aliases rows
+            if (ArchiveVersion_ >= 26) {
+                TOperationAliasesTableDescriptor desc;
+                auto rowBuffer = New<TRowBuffer>(TOperationAliasesTag{});
+                std::vector<TUnversionedRow> rows;
+                rows.reserve(operationIds.size());
+
+                for (const auto& operationId : operationIds) {
+                    const auto& request = GetRequest(operationId);
+
+                    if (request.Alias) {
+                        auto row = NDetail::BuildOperationAliasesTableRow(rowBuffer, request, desc.Index, version);
+                        rows.emplace_back(row);
+                        operationAliasesRowsDataWeight += GetDataWeight(row);
+                    }
+                }
+
+                transaction->WriteRows(
+                    GetOperationsArchiveOperationAliasesPath(),
                     desc.NameTable,
                     MakeSharedRange(std::move(rows), std::move(rowBuffer)));
             }
@@ -777,10 +826,17 @@ private:
                 }
             }
 
+            std::vector<TArchiveOperationRequest> archivedOperationRequests;
+            archivedOperationRequests.reserve(batch.size());
             for (const auto& operationId : batch) {
-                YCHECK(OperationMap_.erase(operationId) == 1);
+                auto it = OperationMap_.find(operationId);
+                YCHECK(it != OperationMap_.end());
+                archivedOperationRequests.emplace_back(std::move(it->second));
+                OperationMap_.erase(it);
                 EnqueueForRemoval(operationId);
             }
+
+            OperationsArchived_.Fire(archivedOperationRequests);
 
             Profiler.Increment(ArchivePendingCounter_, -batch.size());
         }
@@ -970,6 +1026,11 @@ private:
             createBatchRequest,
             Config_->FetchBatchSize);
 
+        // NB: needed for us to store the latest operation for each alias in operation_aliases archive table.
+        std::sort(operations.begin(), operations.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs.FinishTime < rhs.FinishTime;
+        });
+
         for (auto& operation : operations) {
             SubmitForArchivation(std::move(operation));
         }
@@ -1035,6 +1096,8 @@ void TOperationsCleaner::BuildOrchid(TFluentMap fluent) const
 {
     Impl_->BuildOrchid(fluent);
 }
+
+DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequest>& requests), OperationsArchived, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

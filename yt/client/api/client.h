@@ -11,7 +11,7 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
-#include <yt/client/scheduler/public.h>
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/client/security_client/public.h>
 
@@ -1172,28 +1172,28 @@ struct IClient
         const TStartOperationOptions& options = TStartOperationOptions()) = 0;
 
     virtual TFuture<void> AbortOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TAbortOperationOptions& options = TAbortOperationOptions()) = 0;
 
     virtual TFuture<void> SuspendOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
 
     virtual TFuture<void> ResumeOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 
     virtual TFuture<void> CompleteOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
 
     virtual TFuture<void> UpdateOperationParameters(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> GetOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobContext(

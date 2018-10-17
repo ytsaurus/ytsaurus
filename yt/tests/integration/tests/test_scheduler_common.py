@@ -3867,3 +3867,143 @@ class TestConnectToMaster(YTEnvSetup):
             if "Error connecting to master" in line and "Cluster is in safe mode" in line:
                 return True
         return False
+
+
+class TestOperationAliasesBase(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": True,
+                # Analyze all operations each 100ms
+                "analysis_period": 100,
+                # Wait each batch to remove not more than 100ms
+                "remove_batch_timeout": 100,
+                # Wait each batch to archive not more than 100ms
+                "archive_batch_timeout": 100,
+                # Retry sleeps
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                # Leave no more than 5 completed operations
+                "soft_retained_operation_count": 0,
+                # Operations older than 50ms can be considered for removal
+                "clean_delay": 50,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100
+        }
+    }
+
+    def setup(self):
+        # Init operations archive.
+        sync_create_cells(1)
+
+    def _test_aliases(self):
+        with pytest.raises(YtError):
+            # Alias should start with *.
+            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                          "alias": "my_op"})
+
+
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     dont_track=True)
+
+        assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
+        assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
+
+        # It is not allowed to use alias of already running operation.
+        with pytest.raises(YtError):
+            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                          "alias": "*my_op"})
+
+        suspend_op("*my_op")
+        assert get(op.get_path() + "/@suspended")
+        resume_op("*my_op")
+        assert not get(op.get_path() + "/@suspended")
+        update_op_parameters("*my_op", parameters={"owners": ["u"]})
+        assert len(get(op.get_path() + "/@alerts")) == 1
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+        abort_op("*my_op")
+        assert get(op.get_path() + "/@state") == "aborted"
+
+        with pytest.raises(YtError):
+            complete_op("*my_another_op")
+
+        with pytest.raises(YtError):
+            complete_op("my_op")
+
+        # Now using alias *my_op is ok.
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     dont_track=True)
+
+        wait(lambda: (sys.stderr.write(op.get_path() + "/@error"), get(op.get_path() + "/@state"))[1] == "running")
+
+        complete_op("*my_op")
+        assert get(op.get_path() + "/@state") == "completed"
+
+    def _test_get_operation_latest_archive_version(self):
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+
+        set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
+
+        # When no operation is assigned to an alias, get_operation should return an error.
+        with pytest.raises(YtError):
+            get_operation("*my_op", include_runtime=True)
+
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     dont_track=True)
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+
+        with pytest.raises(YtError):
+            # It is impossible to resolve aliases without including runtime.
+            get_operation("*my_op", include_runtime=False)
+
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+        op.complete()
+
+        # Operation should still be exposed via Orchid, and get_operation will extract information from there.
+        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+        assert exists(op.get_path())
+
+        # Let us enable operation archiver and wait until operation becomes archived.
+        set("//sys/scheduler/config", {"operations_cleaner": {"enable": True}})
+        wait(lambda: not exists(op.get_path()))
+
+        # Alias should become removed from the Orchid (but it may happen with some visible delay, so we wait for it).
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/operations/\\*my_op"))
+        # But get_operation should still work as expected.
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+
+class TestOperationAliasesNative(TestOperationAliasesBase):
+    def test_aliases(self):
+        self._test_aliases()
+
+    def test_get_operation_latest_archive_version(self):
+        self._test_get_operation_latest_archive_version()
+
+class TestOperationAliasesRpc(TestOperationAliasesBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+    def test_aliases(self):
+        self._test_aliases()
+
+    def test_get_operation_latest_archive_version(self):
+        self._test_get_operation_latest_archive_version()

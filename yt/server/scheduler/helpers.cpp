@@ -67,6 +67,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
     const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
     fluent
+        .Item("operation_id").Value(operation->GetId())
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
@@ -162,6 +163,8 @@ NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
 TListOperationsResult ListOperations(
     TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest)
 {
+    using NYT::ToProto;
+
     static const std::vector<TString> attributeKeys = {
         "state"
     };

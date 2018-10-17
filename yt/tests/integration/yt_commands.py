@@ -335,11 +335,6 @@ def get(path, is_raw=False, **kwargs):
         raise
     return result if is_raw else yson.loads(result)
 
-def get_operation(operation_id, is_raw=False, **kwargs):
-    kwargs["operation_id"] = operation_id
-    result = execute_command("get_operation", kwargs)
-    return result if is_raw else yson.loads(result)
-
 def get_job(operation_id, job_id, is_raw=False, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
@@ -826,24 +821,39 @@ def start_op(op_type, **kwargs):
 
     return operation
 
-def abort_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+def resolve_operation_id_or_alias(command):
+    def resolved_command(op_id_or_alias, **kwargs):
+        if op_id_or_alias.startswith("*"):
+            kwargs["operation_alias"] = op_id_or_alias
+        else:
+            kwargs["operation_id"] = op_id_or_alias
+        return command(**kwargs)
+
+    return resolved_command
+
+@resolve_operation_id_or_alias
+def abort_op(**kwargs):
     execute_command("abort_op", kwargs)
 
-def suspend_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def suspend_op(**kwargs):
     execute_command("suspend_op", kwargs)
 
-def complete_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def complete_op(**kwargs):
     execute_command("complete_op", kwargs)
 
-def resume_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def resume_op(**kwargs):
     execute_command("resume_op", kwargs)
 
-def update_op_parameters(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def get_operation(is_raw=False, **kwargs):
+    result = execute_command("get_operation", kwargs)
+    return result if is_raw else yson.loads(result)
+
+@resolve_operation_id_or_alias
+def update_op_parameters(**kwargs):
     execute_command("update_op_parameters", kwargs)
 
 def map(**kwargs):

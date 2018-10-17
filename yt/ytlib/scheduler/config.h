@@ -465,6 +465,10 @@ public:
 
     TSamplingConfigPtr Sampling;
 
+    //! If set, operation will be accessible through the scheduler API calls under this name
+    //! (it should start with an asterisk).
+    TNullable<TString> Alias;
+
     TOperationSpecBase();
 
 private:

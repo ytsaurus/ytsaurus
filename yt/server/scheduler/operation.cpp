@@ -110,6 +110,7 @@ TOperation::TOperation(
     const TString& authenticatedUser,
     TInstant startTime,
     IInvokerPtr controlInvoker,
+    const TNullable<TString>& alias,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended)
@@ -123,6 +124,7 @@ TOperation::TOperation(
     , SecureVault_(std::move(secureVault))
     , Events_(events)
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
+    , Alias_(alias)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
