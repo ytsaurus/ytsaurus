@@ -102,6 +102,7 @@ public:
     THashMap<TString, TString> ExternalBinds;
     
     double JobsIOWeight;
+    double NodeDedicatedCpu;
 
     TPortoJobEnvironmentConfig()
     {
@@ -125,6 +126,9 @@ public:
 
         RegisterParameter("jobs_io_weight", JobsIOWeight)
             .Default(0.05);
+        RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
+            .GreaterThanOrEqual(0)
+            .Default(2);
     }
 };
 

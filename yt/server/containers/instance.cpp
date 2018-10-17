@@ -264,6 +264,34 @@ public:
         return TResourceLimits{cpuLimit, memoryLimit};
     }
 
+    virtual TResourceLimits GetResourceLimitsRecursive() const override
+    {
+        static const TString Prefix("/porto");
+
+        auto resourceLimits = GetResourceLimits();
+
+        auto absoluteName = GetAbsoluteName();
+
+        auto slashPosition = absoluteName.rfind('/');
+        auto parentName = absoluteName.substr(0, slashPosition);
+
+        if (parentName != Prefix) {
+            YCHECK(parentName.length() > Prefix.length());
+            auto parent = GetInstance(Executor_, parentName);
+            auto parentLimits = parent->GetResourceLimitsRecursive();
+
+            if (resourceLimits.Cpu == 0 || parentLimits.Cpu < resourceLimits.Cpu) {
+                resourceLimits.Cpu = parentLimits.Cpu;
+            }
+
+            if (resourceLimits.Memory == 0 || parentLimits.Memory < resourceLimits.Memory) {
+                resourceLimits.Memory = parentLimits.Memory;
+            }
+        }
+
+        return resourceLimits;
+    }
+
     virtual TString GetAbsoluteName() const override
     {
         auto properties = WaitFor(Executor_->GetProperties(

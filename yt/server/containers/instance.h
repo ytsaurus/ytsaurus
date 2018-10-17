@@ -55,6 +55,7 @@ struct IInstance
     virtual void Destroy() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
+    virtual TResourceLimits GetResourceLimitsRecursive() const = 0;
     virtual void SetCpuShare(double cores) = 0;
     virtual void SetCpuLimit(double cores) = 0;
     virtual void SetIOWeight(double weight) = 0;
