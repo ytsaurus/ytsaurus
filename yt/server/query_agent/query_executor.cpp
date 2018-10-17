@@ -355,7 +355,7 @@ private:
 
     const TConstQueryPtr Query_;
 
-    const std::vector<NTabletClient::TTableMountInfoPtr>& MountInfos_;
+    const std::vector<NTabletClient::TTableMountInfoPtr> MountInfos_;
     const TConstExternalCGInfoPtr ExternalCGInfo_;
     const std::vector<TDataRanges> DataSources_;
     const ISchemafulWriterPtr Writer_;
