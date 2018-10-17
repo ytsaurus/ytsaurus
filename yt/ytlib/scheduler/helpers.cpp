@@ -20,6 +20,7 @@
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/core/misc/error.h>
+
 #include <yt/core/ypath/token.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -95,6 +96,13 @@ TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
+TYPath GetSchedulerOrchidAliasPath(const TString& alias)
+{
+    return
+        "//sys/scheduler/orchid/scheduler/operations/" +
+        ToYPathLiteral(alias);
+}
+
 TYPath GetControllerAgentOrchidOperationPath(
     const TString& controllerAgentAddress,
     const TOperationId& operationId)
@@ -110,6 +118,8 @@ TNullable<TString> GetControllerAgentAddressFromCypress(
     const TOperationId& operationId,
     const IChannelPtr& channel)
 {
+    using NYT::ToProto;
+
     static const std::vector<TString> attributes = {"controller_agent_address"};
 
     TObjectServiceProxy proxy(channel);
@@ -176,6 +186,12 @@ const TYPath& GetOperationsArchiveOrderedByIdPath()
 const TYPath& GetOperationsArchiveOrderedByStartTimePath()
 {
     static TYPath path = "//sys/operations_archive/ordered_by_start_time";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveOperationAliasesPath()
+{
+    static TYPath path = "//sys/operations_archive/operation_aliases";
     return path;
 }
 
@@ -311,6 +327,9 @@ TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 
 void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
 {
+    using NYT::FromProto;
+    using NYT::ToProto;
+
     if (files.empty()) {
         return;
     }

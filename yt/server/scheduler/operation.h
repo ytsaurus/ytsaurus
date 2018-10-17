@@ -229,6 +229,9 @@ public:
     //! YSON describing suspicous jobs of this operation.
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);
 
+    //! Alias for the operation.
+    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Alias);
+
     //! Returns operation id.
     const TOperationId& GetId() const override;
 
@@ -315,6 +318,7 @@ public:
         const TString& authenticatedUser,
         TInstant startTime,
         IInvokerPtr controlInvoker,
+        const TNullable<TString>& alias,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false);

@@ -83,6 +83,7 @@
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 
@@ -786,30 +787,30 @@ public:
         const TStartOperationOptions& options),
         (type, spec, options))
     IMPLEMENT_METHOD(void, AbortOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TAbortOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, SuspendOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TSuspendOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, ResumeOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TResumeOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, CompleteOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TCompleteOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, UpdateOperationParameters, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TYsonString& parameters,
         const TUpdateOperationParametersOptions& options),
-        (operationId, parameters, options))
+        (operationIdOrAlias, parameters, options))
     IMPLEMENT_METHOD(TYsonString, GetOperation, (
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
         const TYPath& path,
@@ -3688,11 +3689,11 @@ private:
     }
 
     void DoAbortOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TAbortOperationOptions& options)
     {
         auto req = SchedulerProxy_->AbortOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
         if (options.AbortMessage) {
             req->set_abort_message(*options.AbortMessage);
         }
@@ -3702,11 +3703,11 @@ private:
     }
 
     void DoSuspendOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TSuspendOperationOptions& options)
     {
         auto req = SchedulerProxy_->SuspendOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
         req->set_abort_running_jobs(options.AbortRunningJobs);
 
         WaitFor(req->Invoke())
@@ -3714,34 +3715,34 @@ private:
     }
 
     void DoResumeOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TResumeOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->ResumeOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
     void DoCompleteOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TCompleteOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->CompleteOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
     void DoUpdateOperationParameters(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TYsonString& parameters,
         const TUpdateOperationParametersOptions& options)
     {
         auto req = SchedulerProxy_->UpdateOperationParameters();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
         req->set_parameters(parameters.GetData());
 
         WaitFor(req->Invoke())
@@ -4102,12 +4103,71 @@ private:
         return TYsonString();
     }
 
+    NScheduler::TOperationId ResolveOperationAlias(
+        const TString& alias,
+        const TGetOperationOptions& options,
+        TInstant deadline)
+    {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(GetSchedulerOrchidAliasPath(alias) + "/operation_id");
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (rspOrError.IsOK()) {
+            return ConvertTo<TOperationId>(TYsonString(rspOrError.Value()->value()));
+        } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            THROW_ERROR_EXCEPTION("Error while resolving alias from scheduler")
+                << rspOrError
+                << TErrorAttribute("operation_alias", alias);
+        }
+
+        TOperationAliasesTableDescriptor tableDescriptor;
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(1);
+        key[0] = MakeUnversionedStringValue(alias, tableDescriptor.Index.Alias);
+        keys.push_back(key);
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.KeepMissingRows = true;
+        lookupOptions.Timeout = deadline - Now();
+
+        auto rowset = WaitFor(LookupRows(
+            GetOperationsArchiveOperationAliasesPath(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+        if (rows[0]) {
+            TOperationId operationId;
+            operationId.Parts64[0] = rows[0][tableDescriptor.Index.OperationIdHi].Data.Uint64;
+            operationId.Parts64[1] = rows[0][tableDescriptor.Index.OperationIdLo].Data.Uint64;
+            return operationId;
+        }
+
+        THROW_ERROR_EXCEPTION("Operation alias is unknown")
+            << TErrorAttribute("alias", alias);
+    }
+
     TYsonString DoGetOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options)
     {
         auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetOperationTimeout);
         auto deadline = timeout.ToDeadLine();
+
+        TOperationId operationId;
+        if (operationIdOrAlias.Is<TOperationId>()) {
+            operationId = operationIdOrAlias.As<TOperationId>();
+        } else if (!options.IncludeRuntime) {
+            THROW_ERROR_EXCEPTION(
+                "Operation alias cannot be resolved without using runtime information; "
+                "consider setting include_runtime = true");
+        } else {
+            operationId = ResolveOperationAlias(operationIdOrAlias.As<TString>(), options, deadline);
+        }
 
         if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
             return result;

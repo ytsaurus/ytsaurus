@@ -129,28 +129,28 @@ public:
         const NApi::TStartOperationOptions& options) override;
 
     virtual TFuture<void> AbortOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TAbortOperationOptions& options) override;
 
     virtual TFuture<void> SuspendOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TSuspendOperationOptions& options) override;
 
     virtual TFuture<void> ResumeOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TResumeOperationOptions& options) override;
 
     virtual TFuture<void> CompleteOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TCompleteOperationOptions& options) override;
 
     virtual TFuture<void> UpdateOperationParameters(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NYson::TYsonString& parameters,
         const NApi::TUpdateOperationParametersOptions& options) override;
 
     virtual TFuture<NYson::TYsonString> GetOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TGetOperationOptions& options) override;
 
     virtual TFuture<void> DumpJobContext(

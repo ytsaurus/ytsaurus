@@ -2,6 +2,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/client/scheduler/operation_id_or_alias.h>
+
 #include <util/string/split.h>
 
 namespace NYT {
@@ -327,19 +329,25 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("sampling", Sampling)
         .DefaultNew();
 
+    RegisterParameter("alias", Alias)
+        .Default(Null);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
         {
             THROW_ERROR_EXCEPTION("Your tactics conflicts with your strategy, Luke!");
         }
-    });
 
-    RegisterPostprocessor([&] () {
         if (SecureVault) {
             for (const auto& name : SecureVault->GetKeys()) {
                 ValidateEnvironmentVariableName(name);
             }
+        }
+
+        if (Alias && !Alias->StartsWith(OperationAliasPrefix)) {
+            THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
+                << TErrorAttribute("operation_alias", Alias);
         }
     });
 }

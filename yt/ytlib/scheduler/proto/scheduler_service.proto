@@ -29,7 +29,10 @@ message TRspStartOperation
 
 message TReqAbortOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     optional string abort_message = 2;
 }
 
@@ -42,7 +45,10 @@ message TRspAbortOperation
 
 message TReqSuspendOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     optional bool abort_running_jobs = 2;
 }
 
@@ -55,7 +61,10 @@ message TRspSuspendOperation
 
 message TReqResumeOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 2;
+    }
 }
 
 message TRspResumeOperation
@@ -67,7 +76,10 @@ message TRspResumeOperation
 
 message TReqCompleteOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 2;
+    }
 }
 
 message TRspCompleteOperation
@@ -88,7 +100,10 @@ message TOperationResult
 
 message TReqUpdateOperationParameters
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     // Operation parameters in YSON.
     required bytes parameters = 2;
 }

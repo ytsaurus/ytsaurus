@@ -29,6 +29,7 @@ NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
 
 NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     const TString& controllerAgentAddress,
     const TOperationId& operationId);
@@ -43,6 +44,7 @@ NYPath::TYPath GetJobPath(
 
 const NYPath::TYPath& GetPoolTreesPath();
 const NYPath::TYPath& GetOperationsArchiveOrderedByIdPath();
+const NYPath::TYPath& GetOperationsArchiveOperationAliasesPath();
 const NYPath::TYPath& GetOperationsArchiveOrderedByStartTimePath();
 const NYPath::TYPath& GetOperationsArchiveVersionPath();
 const NYPath::TYPath& GetOperationsArchiveJobsPath();
