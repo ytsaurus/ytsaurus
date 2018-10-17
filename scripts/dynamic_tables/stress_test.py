@@ -4,7 +4,6 @@ import yt.wrapper as yt
 import yt.yson as yson
 import yt_driver_bindings
 from yt.common import YtError
-from yt.wrapper.table import TablePath
 from yt.wrapper.client import Yt
 from yt.wrapper.native_driver import make_request
 import argparse
@@ -238,7 +237,7 @@ class SchemafulMapper(object):
     def prepare(self, value):
         if not isinstance(value, list):
             value = [value]
-        return yson.dumps(value, yson_type="list_fragment", yson_format="text", boolean_as_string=False)
+        return yson.dumps(value, yson_type="list_fragment", yson_format="text")
 
 def compare_keys(a, b):
     def compare_values(a,b):
@@ -370,7 +369,7 @@ def create_random_data(schema, key_table, iter_table, iteration, job_count):
         key_table,
         iter_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False),
+        format=yt.YsonFormat(),
         local_files=LOCAL_FILES)
     yt.run_sort(iter_table, sort_by=schema.get_key_column_names())
 
@@ -408,7 +407,6 @@ def write_data(schema, iter_table, table, iteration, aggregate, update, job_coun
         iter_table,
         tmp_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False),
         local_files=LOCAL_FILES)
     yt.remove(tmp_table)
 
@@ -447,7 +445,7 @@ def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, up
         [data_table, iter_table],
         new_data_table,
         reduce_by=key_columns,
-        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False),
+        format=yt.YsonFormat(control_attributes_mode="row_fields"),
         local_files=LOCAL_FILES)
     yt.run_sort(new_data_table, sort_by=key_columns)
 
@@ -500,7 +498,6 @@ def verify(schema, data_table, table, result_table, job_count):
         data_table,
         result_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False),
         local_files=LOCAL_FILES)
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) != None:
@@ -535,7 +532,7 @@ def verify_output(schema, data_table, dump_table, result_table):
         [data_table, dump_table],
         result_table,
         reduce_by=key_columns,
-        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False),
+        format=yt.YsonFormat(control_attributes_mode="row_fields"),
         local_files=LOCAL_FILES)
 
     rows = yt.read_table(result_table, raw=False)
@@ -586,7 +583,6 @@ def verify_select(schema, data_table, table, dump_table, result_table, job_count
         dump_table,
         reduce_by=key_columns,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(boolean_as_string=False),
         local_files=LOCAL_FILES)
     verify_output(schema, data_table, dump_table, result_table)
 
@@ -673,7 +669,7 @@ def verify_equal(columns, expected_table, actual_table, result_table):
         [expected_table, actual_table],
         result_table,
         reduce_by=columns,
-        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False),
+        format=yt.YsonFormat(control_attributes_mode="row_fields"),
         local_files=LOCAL_FILES)
 
     rows = yt.read_table(result_table, raw=False)
