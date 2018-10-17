@@ -614,7 +614,7 @@ public:
         }
         auto events = PullEvents();
         for (const auto& event : events) {
-            LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Timestamp: %v, FiberId: %v)",
+            LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Timestamp: %v, FiberId: %llx)",
                 event.Type,
                 event.Duration,
                 event.Timestamp,
