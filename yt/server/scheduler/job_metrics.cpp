@@ -38,15 +38,15 @@ bool TJobMetrics::IsEmpty() const
         TimeAborted_ == 0;
 }
 
-void TJobMetrics::SendToProfiler(
-    const NProfiling::TProfiler& profiler,
+void TJobMetrics::Profile(
+    TProfileCollector& collector,
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds) const
 {
-    profiler.Enqueue(prefix + "/disk_reads", DiskReads_, EMetricType::Counter, tagIds);
-    profiler.Enqueue(prefix + "/disk_writes", DiskWrites_, EMetricType::Counter, tagIds);
-    profiler.Enqueue(prefix + "/time_aborted", TimeAborted_, EMetricType::Counter, tagIds);
-    profiler.Enqueue(prefix + "/time_completed", TimeCompleted_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/disk_reads", DiskReads_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/disk_writes", DiskWrites_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/time_aborted", TimeAborted_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/time_completed", TimeCompleted_, EMetricType::Counter, tagIds);
 }
 
 void TJobMetrics::Persist(const TPersistenceContext& context)

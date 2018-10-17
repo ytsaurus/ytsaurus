@@ -6,7 +6,10 @@ from yt_commands import *
 from flaky import flaky
 
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta
+
+import __builtin__
 
 ##################################################################
 
@@ -270,7 +273,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         jobs_path = op.get_path() + "/jobs"
         wait(lambda: ls(jobs_path))
-        
+
         jobs = ls(jobs_path)
         assert len(jobs) > 0
 
@@ -456,22 +459,38 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         return last_metric[0]
 
     def _get_operation_by_user_last_metric_value(self, metric_key, pool, user):
-        results = []
+        now = datetime.now() - timedelta(seconds=2)
+        def get_value(series):
+            last_item = sorted(series, key=lambda x: x[1])[-1]
+            if datetime.fromtimestamp(last_item[1] / 1000000.0) < now:
+                return 0
+            return last_item[0]
+
+        results = defaultdict(list)
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_user/" + metric_key, verbose=False)):
             if value["tags"]["pool"] != pool or value["tags"]["user_name"] != user:
                 continue
-            results.append((value["value"], value["time"]))
-        last_metric = sorted(results, key=lambda x: x[1])[-1]
-        return last_metric[0]
+            results[value["tags"].get("custom")].append((value["value"], value["time"]))
+        last_metric = sum(__builtin__.map(get_value, results.itervalues()))
+        print >>sys.stderr, "Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_key, pool, user, last_metric)
+        return last_metric
 
     def _get_operation_by_custom_tag_last_metric_value(self, metric_key, pool, custom_tag):
-        results = []
+        now = datetime.now() - timedelta(seconds=2)
+        def get_value(series):
+            last_item = sorted(series, key=lambda x: x[1])[-1]
+            if datetime.fromtimestamp(last_item[1] / 1000000.0) < now:
+                return 0
+            return last_item[0]
+
+        results = defaultdict(list)
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_user/" + metric_key, verbose=False)):
             if value["tags"]["pool"] != pool or "custom" not in value["tags"] or value["tags"]["custom"] != custom_tag:
                 continue
-            results.append((value["value"], value["time"]))
-        last_metric = sorted(results, key=lambda x: x[1])[-1]
-        return last_metric[0]
+            results[value["tags"]["user_name"]].append((value["value"], value["time"]))
+        last_metric = sum(__builtin__.map(get_value, results.itervalues()))
+        print >>sys.stderr, "Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric)
+        return last_metric
 
     def test_pool_profiling(self):
         self._prepare_tables()
@@ -540,46 +559,75 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
-        for i in xrange(2):
+        for i in xrange(4):
             self._create_table("//tmp/t_out_" + str(i + 1))
 
-        create("map_node", "//sys/pools/some_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
+        create("map_node", "//sys/pools/some_pool")
+        create("map_node", "//sys/pools/other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
         op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="vasya")
         wait(lambda: op1.get_job_count("running") == 1)
-        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool", "custom_profiling_tag": "world"}, dont_track=True, authenticated_user="petya")
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "other_pool", "custom_profiling_tag": "world"}, dont_track=True, authenticated_user="petya")
         wait(lambda: op2.get_state() == "running")
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_3", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="petya")
+        wait(lambda: op3.get_state() == "running")
+        op4 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_4", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="petya")
+        wait(lambda: op4.get_state() == "running")
 
-        range_ = (49999, 50000, 50001)
+        range_1 = (49998, 49999, 50000, 50001)
+        range_2 = (16665, 16666, 16667)
+        range_3 = (33332, 33333, 33334)
 
-        for func, value in ((self._get_operation_by_user_last_metric_value, "vasya"), (self._get_operation_by_custom_tag_last_metric_value, "hello")):
-            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) in range_)
+        for func, value in ((self._get_operation_by_user_last_metric_value, "vasya"),):
+            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) in range_1)
             wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 100000)
             wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) in range_)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) in range_1)
             wait(lambda: func("resource_usage/cpu", "some_pool", value) == 1)
             wait(lambda: func("resource_usage/user_slots", "some_pool", value) == 1)
             wait(lambda: func("resource_demand/cpu", "some_pool", value) == 1)
             wait(lambda: func("resource_demand/user_slots", "some_pool", value) == 1)
 
-        for func, value in ((self._get_operation_by_user_last_metric_value, "petya"), (self._get_operation_by_custom_tag_last_metric_value, "world")):
-            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) in range_)
-            wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 0)
-            wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) in range_)
-            wait(lambda: func("resource_usage/cpu", "some_pool", value) == 0)
-            wait(lambda: func("resource_usage/user_slots", "some_pool", value) == 0)
-            wait(lambda: func("resource_demand/cpu", "some_pool", value) == 1)
-            wait(lambda: func("resource_demand/user_slots", "some_pool", value) == 1)
+        for func, value in ((self._get_operation_by_custom_tag_last_metric_value, "hello"),):
+            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) in range_3)
+            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 0)
+            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 200000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_3)
+            wait(lambda: func("resource_usage/cpu", "other_pool", value) == 0)
+            wait(lambda: func("resource_usage/user_slots", "other_pool", value) == 0)
+            wait(lambda: func("resource_demand/cpu", "other_pool", value) == 2)
+            wait(lambda: func("resource_demand/user_slots", "other_pool", value) == 2)
 
+        for func, value in ((self._get_operation_by_custom_tag_last_metric_value, "world"),):
+            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) in range_2)
+            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 0)
+            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_2)
+            wait(lambda: func("resource_usage/cpu", "other_pool", value) == 0)
+            wait(lambda: func("resource_usage/user_slots", "other_pool", value) == 0)
+            wait(lambda: func("resource_demand/cpu", "other_pool", value) == 1)
+            wait(lambda: func("resource_demand/user_slots", "other_pool", value) == 1)
+
+        for func, value in ((self._get_operation_by_user_last_metric_value, "petya"),):
+            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) in range_1)
+            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 0)
+            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 300000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
+            wait(lambda: func("resource_usage/cpu", "other_pool", value) == 0)
+            wait(lambda: func("resource_usage/user_slots", "other_pool", value) == 0)
+            wait(lambda: func("resource_demand/cpu", "other_pool", value) == 3)
+            wait(lambda: func("resource_demand/user_slots", "other_pool", value) == 3)
+
+        op4.abort()
+        op3.abort()
         op1.abort()
 
         time.sleep(2.0)
 
         for func, value in ((self._get_operation_by_user_last_metric_value, "petya"), (self._get_operation_by_custom_tag_last_metric_value, "world")):
-            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) == 100000)
+            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) == 100000)
+            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 100000)
+            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
+            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
 
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")

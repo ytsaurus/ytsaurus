@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "profiler.h"
+
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/scheduler/public.h>
@@ -37,8 +39,8 @@ public:
 
     bool IsEmpty() const;
 
-    void SendToProfiler(
-        const NProfiling::TProfiler& profiler,
+    void Profile(
+        TProfileCollector& collector,
         const TString& prefix,
         const NProfiling::TTagIdList& tagIds) const;
 

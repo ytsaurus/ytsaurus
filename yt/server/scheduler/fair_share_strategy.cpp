@@ -2,6 +2,7 @@
 #include "fair_share_tree_element.h"
 #include "public.h"
 #include "config.h"
+#include "profiler.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
@@ -780,15 +781,19 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        TProfileCollector collector(&Profiler);
+
         for (const auto& pair : Pools) {
-            ProfileCompositeSchedulerElement(pair.second);
+            ProfileCompositeSchedulerElement(collector, pair.second);
         }
-        ProfileCompositeSchedulerElement(RootElement);
+        ProfileCompositeSchedulerElement(collector, RootElement);
         if (Config->EnableOperationsProfiling) {
             for (const auto& pair : OperationIdToElement) {
-                ProfileOperationElement(pair.second);
+                ProfileOperationElement(collector, pair.second);
             }
         }
+
+        collector.Publish();
     }
 
     void ResetTreeIndexes()
@@ -2031,13 +2036,13 @@ private:
         Host->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
     }
 
-    void ProfileOperationElement(TOperationElementPtr element) const
+    void ProfileOperationElement(TProfileCollector& collector, TOperationElementPtr element) const
     {
         {
             auto poolTag = element->GetParent()->GetProfilingTag();
             auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
 
-            ProfileSchedulerElement(element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag});
+            ProfileSchedulerElement(collector, element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag});
         }
 
         auto parent = element->GetParent();
@@ -2049,70 +2054,64 @@ private:
             if (customTag) {
                 byUserTags.push_back(*customTag);
             }
-            ProfileSchedulerElement(element, "/operations_by_user", byUserTags);
+            ProfileSchedulerElement(collector, element, "/operations_by_user", byUserTags);
 
             parent = parent->GetParent();
         }
     }
 
-    void ProfileCompositeSchedulerElement(TCompositeSchedulerElementPtr element) const
+    void ProfileCompositeSchedulerElement(TProfileCollector& collector, TCompositeSchedulerElementPtr element) const
     {
         auto tag = element->GetProfilingTag();
-        ProfileSchedulerElement(element, "/pools", {tag, TreeIdProfilingTag});
+        ProfileSchedulerElement(collector, element, "/pools", {tag, TreeIdProfilingTag});
 
-        Profiler.Enqueue(
+        collector.Add(
             "/running_operation_count",
             element->RunningOperationCount(),
             EMetricType::Gauge,
             {tag, TreeIdProfilingTag});
-        Profiler.Enqueue(
+        collector.Add(
             "/total_operation_count",
             element->OperationCount(),
             EMetricType::Gauge,
             {tag, TreeIdProfilingTag});
     }
 
-    void ProfileSchedulerElement(TSchedulerElementPtr element, const TString& profilingPrefix, const TTagIdList& tags) const
+    void ProfileSchedulerElement(TProfileCollector& collector, TSchedulerElementPtr element, const TString& profilingPrefix, const TTagIdList& tags) const
     {
-        Profiler.Enqueue(
+        collector.Add(
             profilingPrefix + "/fair_share_ratio_x100000",
             static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
             EMetricType::Gauge,
             tags);
-        Profiler.Enqueue(
+        collector.Add(
             profilingPrefix + "/usage_ratio_x100000",
             static_cast<i64>(element->GetLocalResourceUsageRatio() * 1e5),
             EMetricType::Gauge,
             tags);
-        Profiler.Enqueue(
+        collector.Add(
             profilingPrefix + "/demand_ratio_x100000",
             static_cast<i64>(element->Attributes().DemandRatio * 1e5),
             EMetricType::Gauge,
             tags);
-        Profiler.Enqueue(
+        collector.Add(
             profilingPrefix + "/guaranteed_resource_ratio_x100000",
             static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
             EMetricType::Gauge,
             tags);
 
-        ProfileResources(
-            Profiler,
-            element->GetLocalResourceUsage(),
-            profilingPrefix + "/resource_usage",
-            tags);
-        ProfileResources(
-            Profiler,
-            element->ResourceLimits(),
-            profilingPrefix + "/resource_limits",
-            tags);
-        ProfileResources(
-            Profiler,
-            element->ResourceDemand(),
-            profilingPrefix + "/resource_demand",
-            tags);
+        auto profileResources = [&] (const TString& path, const TJobResources& resources) {
+            #define XX(name, Name) collector.Add(path + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tags);
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+        };
 
-        element->GetJobMetrics().SendToProfiler(
-            Profiler,
+        profileResources(profilingPrefix + "/resource_usage", element->GetLocalResourceUsage());
+        profileResources(profilingPrefix + "/resource_limits", element->ResourceLimits());
+        profileResources(profilingPrefix + "/resource_demand", element->ResourceDemand());
+
+        element->GetJobMetrics().Profile(
+            collector,
             profilingPrefix + "/metrics",
             tags);
     }
