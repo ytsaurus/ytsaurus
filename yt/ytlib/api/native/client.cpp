@@ -286,11 +286,18 @@ public:
             .Run(path, timestamp);
     }
 
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(std::vector<TTableMountInfoPtr>, MountInfos);
+    std::vector<TTableMountInfoPtr> ExtractTableInfos()
+    {
+        auto guard = Guard(TableInfosSpinLock_);
+        return std::move(TableInfos_);   
+    }
 
 private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
+
+    TSpinLock TableInfosSpinLock_;
+    std::vector<TTableMountInfoPtr> TableInfos_;
 
     static TTableSchema GetTableSchema(
         const TRichYPath& path,
@@ -313,10 +320,14 @@ private:
         auto tableInfo = WaitFor(MountTableCache_->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
-        MountInfos_.push_back(tableInfo);
-
         tableInfo->ValidateNotReplicated();
 
+        // NB: This access may come from distrinct threads as connection's invoker is typically a thread pool.
+        {
+            auto guard = Guard(TableInfosSpinLock_);
+            TableInfos_.push_back(tableInfo);
+        }
+        
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
         SetTableSchema(&result, GetTableSchema(path, tableInfo));
@@ -2001,7 +2012,7 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
-        auto mountInfos = std::move(queryPreparer->MountInfos());
+        auto tableInfos = queryPreparer->ExtractTableInfos();
 
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
@@ -2038,7 +2049,7 @@ private:
 
         auto statistics = WaitFor(queryExecutor->Execute(
             query,
-            mountInfos,
+            tableInfos,
             externalCGInfo,
             dataSource,
             writer,
