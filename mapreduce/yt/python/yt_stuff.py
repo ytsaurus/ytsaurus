@@ -20,6 +20,12 @@ import yt.yson as yson
 import devtools.swag.daemon
 import devtools.swag.ports
 
+_ADMISSIBLE_ENV_VARS = [
+    # Required for proper coverage.
+    "LLVM_PROFILE_FILE",
+    "PYTHON_COVERAGE_PREFIX",
+]
+
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
@@ -83,14 +89,9 @@ class YtConfig(object):
 
         self.proxy_config = get_value(proxy_config, proxy_config_with_disabled_retries.name)
 
-        env_names = [
-            # Required for proper coverage.
-            "LLVM_PROFILE_FILE",
-            "PYTHON_COVERAGE_PREFIX",
-        ]
         controller_config = {
             "controller_agent": {
-                "environment": {x: os.environ[x] for x in env_names if x in os.environ}
+                "environment": {x: os.environ[x] for x in _ADMISSIBLE_ENV_VARS if x in os.environ}
             }
         }
 
@@ -333,6 +334,7 @@ class YtStuff(object):
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
+        self.env.update({x: os.environ[x] for x in _ADMISSIBLE_ENV_VARS if x in os.environ})
 
     def _import_wrapper(self):
         import yt.wrapper
