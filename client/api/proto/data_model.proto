@@ -1203,7 +1203,8 @@ message TDnsRecordSetMeta
 
 message TDnsRecordSetSpec
 {
-    message TResourceRecord {
+    message TResourceRecord 
+    {
         optional uint64 ttl = 1;
         optional string class = 2;
 
