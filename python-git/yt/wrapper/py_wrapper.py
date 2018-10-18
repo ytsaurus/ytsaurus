@@ -64,16 +64,17 @@ class WrapResult(object):
         self.title = title
 
 class OperationParameters(object):
-    __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "input_table_count", "output_table_count",
-                 "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
+    __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "should_process_key_switch",
+                 "input_table_count", "output_table_count", "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
 
-    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None, python_version=None,
+    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None, should_process_key_switch=None, python_version=None,
                  input_table_count=None, output_table_count=None, use_yamr_descriptors=None, attributes=None, is_local_mode=None):
         self.input_format = input_format
         self.output_format = output_format
         self.operation_type = operation_type
         self.job_type = job_type
         self.group_by = group_by
+        self.should_process_key_switch = should_process_key_switch
         self.input_table_count = input_table_count
         self.output_table_count = output_table_count
         self.use_yamr_descriptors = use_yamr_descriptors

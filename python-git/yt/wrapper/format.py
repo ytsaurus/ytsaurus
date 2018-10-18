@@ -62,28 +62,32 @@ class YtFormatReadError(YtFormatError):
 
 # This class should not be put inside class method to avoid reference loop.
 class RowsIterator(Iterator):
-    def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name, range_index_attribute_name):
+    def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name, range_index_attribute_name, key_switch_attribute_name):
         self.rows = iter(rows)
         self.extract_control_attributes = extract_control_attributes
         self.table_index_attribute_name = table_index_attribute_name
         self.row_index_attribute_name = row_index_attribute_name
         self.range_index_attribute_name = range_index_attribute_name
+        self.key_switch_attribute_name = key_switch_attribute_name
         self.table_index = None
         self.row_index = None
         self.range_index = None
         self._increment_row_index = False
 
     def __next__(self):
+        self.key_switch = False
         for row in self.rows:
             attributes = self.extract_control_attributes(row)
             if attributes is not None:
-                self._increment_row_index = False
                 if self.table_index_attribute_name in attributes:
                     self.table_index = attributes[self.table_index_attribute_name]
                 if self.row_index_attribute_name in attributes:
+                    self._increment_row_index = False
                     self.row_index = attributes[self.row_index_attribute_name]
                 if self.range_index_attribute_name in attributes:
                     self.range_index = attributes[self.range_index_attribute_name]
+                if self.key_switch_attribute_name in attributes:
+                    self.key_switch = attributes[self.key_switch_attribute_name]
                 continue
             else:
                 if self._increment_row_index and self.row_index is not None:
@@ -313,8 +317,8 @@ class Format(object):
     @staticmethod
     def _process_input_rows(rows, control_attributes_mode,
                             extract_control_attributes, table_index_column_name, transform_column_name):
-        table_index_attribute_name, row_index_attribute_name, range_index_attribute_name = \
-            list(imap(transform_column_name, [b"table_index", b"row_index", b"range_index"]))
+        table_index_attribute_name, row_index_attribute_name, range_index_attribute_name, key_switch_attribute_name = \
+            list(imap(transform_column_name, [b"table_index", b"row_index", b"range_index", b"key_switch"]))
         table_index_column_name, range_index_column_name, row_index_column_name = \
             list(imap(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
 
@@ -324,7 +328,7 @@ class Format(object):
                                   table_index_column_name, row_index_column_name, range_index_column_name)
         elif control_attributes_mode == "iterator":
             return RowsIterator(rows, extract_control_attributes,
-                                table_index_attribute_name, row_index_attribute_name, range_index_attribute_name)
+                                table_index_attribute_name, row_index_attribute_name, range_index_attribute_name, key_switch_attribute_name)
         else:
             return rows
 
