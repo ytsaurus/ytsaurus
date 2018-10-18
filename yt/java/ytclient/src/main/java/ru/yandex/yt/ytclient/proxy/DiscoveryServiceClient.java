@@ -24,9 +24,12 @@ public class DiscoveryServiceClient {
         return client;
     }
 
-    public CompletableFuture<List<String>> discoverProxies() {
+    public CompletableFuture<List<String>> discoverProxies(String role) {
         RpcClientRequestBuilder<TReqDiscoverProxies.Builder, RpcClientResponse<TRspDiscoverProxies>> builder =
                 service.discoverProxies();
+        if (role != null) {
+            builder.body().setRole(role);
+        }
         return RpcUtil.apply(builder.invoke(), response -> response.body().getAddressesList());
     }
 }

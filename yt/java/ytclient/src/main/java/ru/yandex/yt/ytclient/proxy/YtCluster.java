@@ -2,18 +2,25 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class YtCluster {
     final String balancerFqdn;
     int httpPort;
     final String name;
-    final List<String> initialProxies;
+    final List<String> addresses;
+    final Optional<String> proxyRole;
 
-    public YtCluster(String name, String balancerFqdn, int httpPort, List<String> initialProxies) {
+    public YtCluster(String name, String balancerFqdn, int httpPort, List<String> addresses, Optional<String> proxyRole) {
         this.name = name;
         this.balancerFqdn = balancerFqdn;
         this.httpPort = httpPort;
-        this.initialProxies = initialProxies;
+        this.addresses = addresses;
+        this.proxyRole = proxyRole;
+    }
+
+    public YtCluster(String name, String balancerFqdn, int httpPort, List<String> addresses) {
+        this(name, balancerFqdn, httpPort, addresses, Optional.empty());
     }
 
     public YtCluster(String name, String balancerFqdn, int httpPort) {
