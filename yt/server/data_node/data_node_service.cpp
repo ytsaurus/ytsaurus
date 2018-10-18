@@ -282,7 +282,7 @@ private:
 
         TWallTimer timer;
 
-        response->set_location_sick(location->IsSick());
+        response->set_location_sick(location->IsSick() || sessionManager->GetDisableWriteSessions());
 
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
