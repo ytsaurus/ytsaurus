@@ -140,6 +140,18 @@ void FromUnversionedValue(
     TUnversionedValue unversionedValue,
     typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type* = nullptr);
 
+template <class TKey, class TValue>
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const THashMap<TKey, TValue>& map,
+    const TRowBufferPtr& rowBuffer,
+    int id = 0);
+template <class TKey, class TValue>
+void FromUnversionedValue(
+    THashMap<TKey, TValue>* map,
+    TUnversionedValue unversionedValue,
+    typename std::enable_if<std::is_convertible<TValue*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
+
 template <class... Ts>
 auto ToUnversionedValues(
     const TRowBufferPtr& rowBuffer,

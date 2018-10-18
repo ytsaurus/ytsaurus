@@ -486,7 +486,7 @@ void FromUnversionedValue(TIP6Address* value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValueImpl(
+void ProtobufToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const Message& value,
     const TProtobufMessageType* type,
@@ -505,7 +505,9 @@ void ToUnversionedValueImpl(
     *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
 }
 
-void FromUnversionedValueImpl(
+////////////////////////////////////////////////////////////////////////////////
+
+void UnversionedValueToListImpl(
     Message* value,
     const TProtobufMessageType* type,
     TUnversionedValue unversionedValue)
@@ -533,7 +535,7 @@ void FromUnversionedValueImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValueImpl(
+void ListToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
@@ -544,22 +546,20 @@ void ToUnversionedValueImpl(
     NYT::NYson::TYsonWriter writer(&outputStream);
     writer.OnBeginList();
 
-    int count = 0;
+    TUnversionedValue itemValue;
     while (true) {
         writer.OnListItem();
-        TUnversionedValue itemValue;
         if (!producer(&itemValue)) {
             break;
         }
         UnversionedValueToYson(itemValue, &writer);
-        ++count;
     }
     writer.OnEndList();
 
     *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
 }
 
-void FromUnversionedValueImpl(
+void UnversionedValueToListImpl(
     std::function<google::protobuf::Message*()> appender,
     const TProtobufMessageType* type,
     TUnversionedValue unversionedValue)
@@ -720,7 +720,7 @@ void FromUnversionedValueImpl(
         &consumer);
 }
 
-void FromUnversionedValueImpl(
+void UnversionedValueToListImpl(
     std::function<void(TUnversionedValue)> appender,
     TUnversionedValue unversionedValue)
 {
@@ -832,6 +832,197 @@ void FromUnversionedValueImpl(
             }
         }
     } consumer(std::move(appender));
+
+    ParseYsonStringBuffer(
+        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
+        EYsonType::Node,
+        &consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MapToUnversionedValueImpl(
+    TUnversionedValue* unversionedValue,
+    const std::function<bool(TString*, TUnversionedValue*)> producer,
+    const TRowBufferPtr& rowBuffer,
+    int id)
+{
+    TString ysonBytes;
+    TStringOutput outputStream(ysonBytes);
+    NYT::NYson::TYsonWriter writer(&outputStream);
+    writer.OnBeginMap();
+
+    TString itemKey;
+    TUnversionedValue itemValue;
+    while (true) {
+        if (!producer(&itemKey, &itemValue)) {
+            break;
+        }
+        writer.OnKeyedItem(itemKey);
+        UnversionedValueToYson(itemValue, &writer);
+    }
+    writer.OnEndMap();
+
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
+}
+
+void UnversionedValueToMapImpl(
+    std::function<google::protobuf::Message*(TString)> appender,
+    const TProtobufMessageType* type,
+    TUnversionedValue unversionedValue)
+{
+    if (unversionedValue.Type == EValueType::Null) {
+        return;
+    }
+
+    if (unversionedValue.Type != EValueType::Any) {
+        THROW_ERROR_EXCEPTION("Cannot parse map from %Qlv",
+            unversionedValue.Type);
+    }
+
+    class TConsumer
+        : public IYsonConsumer
+    {
+    public:
+        TConsumer(
+            std::function<google::protobuf::Message*(TString)> appender,
+            const TProtobufMessageType* type)
+            : Appender_(std::move(appender))
+            , Type_(type)
+            , OutputStream_(&WireBytes_)
+        { }
+
+        virtual void OnStringScalar(TStringBuf value) override
+        {
+            GetUnderlying()->OnStringScalar(value);
+        }
+
+        virtual void OnInt64Scalar(i64 value) override
+        {
+            GetUnderlying()->OnInt64Scalar(value);
+        }
+
+        virtual void OnUint64Scalar(ui64 value) override
+        {
+            GetUnderlying()->OnUint64Scalar(value);
+        }
+
+        virtual void OnDoubleScalar(double value) override
+        {
+            GetUnderlying()->OnDoubleScalar(value);
+        }
+
+        virtual void OnBooleanScalar(bool value) override
+        {
+            GetUnderlying()->OnBooleanScalar(value);
+        }
+
+        virtual void OnEntity() override
+        {
+            GetUnderlying()->OnEntity();
+        }
+
+        virtual void OnBeginList() override
+        {
+            ++Depth_;
+            GetUnderlying()->OnBeginList();
+        }
+
+        virtual void OnListItem() override
+        {
+            GetUnderlying()->OnListItem();
+        }
+
+        virtual void OnEndList() override
+        {
+            --Depth_;
+            GetUnderlying()->OnEndList();
+        }
+
+        virtual void OnBeginMap() override
+        {
+            if (Depth_ > 0) {
+                GetUnderlying()->OnBeginMap();
+            }
+            ++Depth_;
+        }
+
+        virtual void OnKeyedItem(TStringBuf key) override
+        {
+            if (Depth_ == 1) {
+                NextElement(key);
+            } else {
+                GetUnderlying()->OnKeyedItem(key);
+            }
+        }
+
+        virtual void OnEndMap() override
+        {
+            --Depth_;
+            if (Depth_ == 0) {
+                FlushElement();
+            } else {
+                GetUnderlying()->OnEndMap();
+            }
+        }
+
+        virtual void OnBeginAttributes() override
+        {
+            GetUnderlying()->OnBeginAttributes();
+        }
+
+        virtual void OnEndAttributes() override
+        {
+            GetUnderlying()->OnEndAttributes();
+        }
+
+        virtual void OnRaw(TStringBuf yson, EYsonType type) override
+        {
+            GetUnderlying()->OnRaw(yson, type);
+        }
+
+    private:
+        const std::function<google::protobuf::Message*(TString)> Appender_;
+        const TProtobufMessageType* const Type_;
+
+        TNullable<TString> Key_;
+        std::unique_ptr<IYsonConsumer> Underlying_;
+        int Depth_ = 0;
+
+        TString WireBytes_;
+        StringOutputStream OutputStream_;
+
+
+        IYsonConsumer* GetUnderlying()
+        {
+            if (!Underlying_) {
+                THROW_ERROR_EXCEPTION("YSON value must be a list without attributes");
+            }
+            return Underlying_.get();
+        }
+
+        void NextElement(TStringBuf key)
+        {
+            FlushElement();
+            WireBytes_.clear();
+            Key_ = TString(key);
+            Underlying_ = CreateProtobufWriter(&OutputStream_, Type_);
+        }
+
+        void FlushElement()
+        {
+            if (!Underlying_) {
+                return;
+            }
+            auto* value = Appender_(*Key_);
+            if (!value->ParseFromArray(WireBytes_.data(), WireBytes_.size())) {
+                THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
+                    value->GetTypeName());
+            }
+            Underlying_.reset();
+            Key_.Reset();
+        }
+    } consumer(std::move(appender), type);
 
     ParseYsonStringBuffer(
         TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
