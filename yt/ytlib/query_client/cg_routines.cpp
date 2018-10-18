@@ -1063,7 +1063,10 @@ void MultiJoinOpHelper(
                             joinedRow[offset++] = foreignRow[columnIndex];
                         }
                     } else {
-                        ++incrementIndex;
+                        if (incrementIndex == joinId) {
+                            ++incrementIndex;
+                        }
+
                         bool isLeft = parameters->Items[joinId].IsLeft;
                         if (!isLeft) {
                             indexes.assign(closure.Items.size(), 0);

@@ -3025,6 +3025,67 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestMultijoin)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
+
+    splits["//x"] = MakeSplit({
+        {"a", EValueType::Int64}
+    }, 0);
+    sources.push_back({
+        "a=0"
+    });
+
+    splits["//y"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    }, 1);
+    sources.push_back({
+        "a=0;b=1",
+        "a=0;b=2"
+    });
+
+    splits["//z"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"c", EValueType::Int64},
+    }, 2);
+    sources.push_back({
+        "a=0;c=1",
+        "a=0;c=2",
+        "a=0;c=3"
+    });
+
+    splits["//q"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"d", EValueType::Int64},
+    }, 2);
+    sources.push_back({ });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+         "a=0;b=1;c=1",
+         "a=0;b=2;c=1",
+         "a=0;b=1;c=2",
+         "a=0;b=2;c=2",
+         "a=0;b=1;c=3",
+         "a=0;b=2;c=3"
+    }, resultSplit);
+
+    Evaluate(
+        "a, b, c from [//x] join [//y] using a join [//z] using a left join [//q] using a",
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"c", "b"}));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
 {
     std::map<TString, TDataSplit> splits;
