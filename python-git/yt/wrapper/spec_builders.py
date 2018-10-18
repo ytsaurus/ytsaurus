@@ -383,7 +383,7 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, operation_type, local_files_to_remove, uploaded_files, input_format,
+    def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files, input_format,
                            output_format, input_table_count, output_table_count, client):
         file_uploader = FileUploader(client=client)
         local_files = []
@@ -405,6 +405,7 @@ class UserJobSpecBuilder(object):
             operation_type=operation_type,
             job_type=self._job_type,
             group_by=group_by,
+            should_process_key_switch=should_process_key_switch,
             input_table_count=input_table_count,
             output_table_count=output_table_count,
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
@@ -508,28 +509,39 @@ class UserJobSpecBuilder(object):
     def _apply_spec_patch(self, spec):
         self._spec_patch = update(spec, self._spec_patch)
 
-    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format,
+    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format, job_io_spec,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         spec = update(self._spec_patch, self._deepcopy_spec())
         self._spec_patch = {}
 
+        if job_io_spec is not None:
+            enable_key_switch = job_io_spec.get("control_attributes", {}).get("enable_key_switch")
+        else:
+            enable_key_switch = False
+
         if "command" not in spec and not requires_command:
             return None
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
 
+        should_process_key_switch = False
         if requires_format:
             format_ = spec.pop("format", None)
             input_format, output_format = _prepare_operation_formats(
                 format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
                 input_tables, output_tables, client)
+            if getattr(input_format, "control_attributes_mode", None) == "iterator" and _is_python_function(spec["command"]) and (enable_key_switch is None or enable_key_switch) and group_by is not None:
+                if "control_attributes" not in job_io_spec:
+                    job_io_spec["control_attributes"] = {}
+                job_io_spec["control_attributes"]["enable_key_switch"] = True
+                should_process_key_switch = True
             spec["input_format"] = input_format.to_yson_type()
             spec["output_format"] = output_format.to_yson_type()
         else:
             input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove, uploaded_files,
+        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
                                                               input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
                         bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
@@ -721,7 +733,7 @@ class SpecBuilder(object):
         else:
             spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
 
-    def _build_user_job_spec(self, spec, job_type, input_tables, output_tables,
+    def _build_user_job_spec(self, spec, job_type, job_io_type, input_tables, output_tables,
                              requires_command=True, requires_format=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
@@ -733,12 +745,13 @@ class SpecBuilder(object):
                                                     output_tables=output_tables,
                                                     requires_command=requires_command,
                                                     requires_format=requires_format,
+                                                    job_io_spec=spec.get(job_io_type),
                                                     client=client)
             if spec[job_type] is None:
                 del spec[job_type]
         return spec
 
-    def _build_job_io(self, spec, job_io_type="job_io", client=None):
+    def _build_job_io(self, spec, job_io_type, client=None):
         table_writer = None
         if job_io_type in spec:
             if isinstance(spec.get(job_io_type), JobIOSpecBuilder):
@@ -924,6 +937,7 @@ class ReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
+                                             job_io_type="job_io",
                                              input_tables=self.get_input_table_paths(),
                                              output_tables=self.get_output_table_paths(),
                                              group_by=group_by,
@@ -998,6 +1012,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
+                                             job_io_type="job_io",
                                              input_tables=self.get_output_table_paths(),
                                              output_tables=self.get_output_table_paths(),
                                              group_by=spec.get("join_by"),
@@ -1070,6 +1085,7 @@ class MapSpecBuilder(SpecBuilder):
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec=spec,
                                              job_type="mapper",
+                                             job_io_type="job_io",
                                              input_tables=self.get_input_table_paths(),
                                              output_tables=self.get_output_table_paths(),
                                              client=client)
@@ -1230,6 +1246,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="mapper",
+                                             job_io_type="map_job_io",
                                              input_tables=self.get_input_table_paths(),
                                              output_tables=mapper_output_tables,
                                              requires_command=False,
@@ -1237,6 +1254,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
+                                             job_io_type="reduce_job_io",
                                              input_tables=[None],
                                              output_tables=reducer_output_tables,
                                              group_by=spec.get("reduce_by"),
@@ -1244,6 +1262,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "reduce_combiner" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reduce_combiner",
+                                             job_io_type="reduce_job_io",
                                              input_tables=[None],
                                              output_tables=[None],
                                              group_by=spec.get("reduce_by"),
@@ -1573,6 +1592,7 @@ class VanillaSpecBuilder(SpecBuilder):
         for task in self._user_job_scripts:
             spec["tasks"] = self._build_user_job_spec(spec=spec["tasks"],
                                                       job_type=task,
+                                                      job_io_type=None,
                                                       input_tables=[],
                                                       output_tables=[],
                                                       client=client,

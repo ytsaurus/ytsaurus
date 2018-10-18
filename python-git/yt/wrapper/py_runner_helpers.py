@@ -87,18 +87,15 @@ def extract_operation_methods(operation, context, with_skiff_schemas, skiff_inpu
         operation_func = operation
     return start, convert_callable_to_generator(operation_func), finish
 
-def extract_context(rows, set_zero_table_index):
-    table_index = 0 if set_zero_table_index else None
-    context = Context(table_index=table_index)
-
+def enrich_context(rows, context):
     def generate_rows():
         for row in rows:
-            context.table_index = get_value(getattr(rows, "table_index", None), table_index)
+            context.table_index = get_value(getattr(rows, "table_index", None), context.table_index)
             context.row_index = getattr(rows, "row_index", None)
             context.range_index = getattr(rows, "range_index", None)
             yield row
 
-    return generate_rows(), context
+    return generate_rows()
 
 
 def check_job_environment_variables():
@@ -113,6 +110,41 @@ class FDOutputStream(object):
 
     def write(self, str):
         os.write(self._fd, str)
+
+class group_by_key_switch(object):
+    def __init__(self, rows, extract_key_by_group_by, context=None):
+        self.rows = rows
+        self.extract_key_by_group_by = extract_key_by_group_by
+        self.row = None
+        self.context = context
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.row is None:
+            self._extract_next_row()
+        else:
+            while not self.rows.key_switch:
+                self._extract_next_row()
+        return (self.extract_key_by_group_by(self.row), self._grouper())
+
+    def next(self):
+        return self.__next__()
+
+    def _extract_next_row(self):
+        self.row = next(self.rows)
+        if self.context is not None:
+            self.context.table_index = get_value(getattr(self.rows, "table_index", None), self.context.table_index)
+            self.context.row_index = getattr(self.rows, "row_index", None)
+            self.context.range_index = getattr(self.rows, "range_index", None)
+
+    def _grouper(self):
+        while True:
+            yield self.row
+            self._extract_next_row()
+            if self.rows.key_switch:
+                break
 
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
     from itertools import chain, groupby, starmap
@@ -171,11 +203,21 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     rows = params.input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
 
+    is_reducer = not params.attributes.get("is_aggregator", False) and not params.job_type == "mapper" and not raw
+    extract_key_by_group_by = lambda row: extract_key(row, params.group_by)
+    grouped_rows = None
+
     context = None
     if params.attributes.get("with_context", False):
         set_zero_table_index = params.operation_type in ("reduce", "map") \
             and params.input_table_count == 1
-        rows, context = extract_context(rows, set_zero_table_index)
+        table_index = 0 if set_zero_table_index else None
+        context = Context(table_index=table_index)
+        if is_reducer:
+            grouped_rows = group_by_key_switch(rows, extract_key_by_group_by, context=context)
+            rows = None
+        else:
+            rows = enrich_context(rows, context)
 
     skiff_input_schemas = None
     skiff_output_schemas = None
@@ -199,14 +241,17 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                     chain.from_iterable(imap(run, rows)),
                     finish())
             else:
+                if grouped_rows is None:
+                    if params.should_process_key_switch:
+                        grouped_rows = group_by_key_switch(rows, extract_key_by_group_by)
+                    else:
+                        grouped_rows = groupby(rows, extract_key_by_group_by)
                 if params.attributes.get("is_reduce_aggregator"):
-                    result = run(groupby(rows, lambda row: extract_key(row, params.group_by)))
+                    result = run(grouped_rows)
                 else:
                     result = chain(
                         start(),
-                        chain.from_iterable(
-                            starmap(run,
-                                groupby(rows, lambda row: extract_key(row, params.group_by)))),
+                        chain.from_iterable(starmap(run, grouped_rows)),
                         finish())
 
         result = process_frozen_dict(result)
@@ -218,5 +263,10 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         params.output_format.dump_rows(result, output_streams, raw=raw)
 
     # Read out all input
-    for row in rows:
-        pass
+    if rows is None:
+        for key, rows in grouped_rows:
+            pass
+    else:
+        for row in rows:
+            pass
+

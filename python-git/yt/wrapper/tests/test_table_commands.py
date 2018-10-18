@@ -6,7 +6,6 @@ import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
-from yt.wrapper.common import parse_bool
 
 from yt.yson import YsonMap
 
