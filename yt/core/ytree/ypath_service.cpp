@@ -59,7 +59,8 @@ private:
     TYsonString CachedString_;
     INodePtr CachedNode_;
     TDuration CachePeriod_;
-    TInstant LastUpdateTime_;
+    TInstant LastStringUpdateTime_;
+    TInstant LastNodeUpdateTime_;
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
@@ -96,7 +97,7 @@ private:
     {
         if (CachePeriod_ != TDuration()) {
             auto now = NProfiling::GetInstant();
-            if (LastUpdateTime_ + CachePeriod_ > now) {
+            if (LastStringUpdateTime_ + CachePeriod_ > now) {
                 return CachedString_;
             }
         }
@@ -115,7 +116,7 @@ private:
 
         if (CachePeriod_ != TDuration()) {
             CachedString_ = result;
-            LastUpdateTime_ = NProfiling::GetInstant();
+            LastStringUpdateTime_ = NProfiling::GetInstant();
         }
 
         return result;
@@ -125,7 +126,7 @@ private:
     {
         if (CachePeriod_ != TDuration()) {
             auto now = NProfiling::GetInstant();
-            if (LastUpdateTime_ + CachePeriod_ > now) {
+            if (LastNodeUpdateTime_ + CachePeriod_ > now) {
                 return CachedNode_;
             }
         }
@@ -134,7 +135,7 @@ private:
 
         if (CachePeriod_ != TDuration()) {
             CachedNode_ = result;
-            LastUpdateTime_ = NProfiling::GetInstant();
+            LastNodeUpdateTime_ = NProfiling::GetInstant();
         }
 
         return result;
