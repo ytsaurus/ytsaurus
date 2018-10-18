@@ -78,6 +78,7 @@ message TRspIncrementalHeartbeat
     repeated string tags = 10;
     optional TNodeResourceLimitsOverrides resource_limits_overrides = 7;
     optional bool disable_scheduler_jobs = 8;
+    optional bool disable_write_sessions = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
