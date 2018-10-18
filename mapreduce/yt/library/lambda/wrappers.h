@@ -237,7 +237,7 @@ bool TLambdaReducer<R, W>::Registrator = NDetail::RegisterReducerStatic<TLambdaR
 
 
 /** Reducer between two different types of records, with intermediate structure.
- *  that allows to collect more data in process that it is written to output.
+ *  that allows to collect more data in process than it is written to output.
  *  Wraps [](const R& src, TBuf& buf){} and [](const TBuf& buf, W& dst){}
  *  - first lambda is called for every row;
  *  - second lambda is called once for each reduce-key after all rows have been processed,
@@ -285,6 +285,57 @@ private:
 
 template <class R, class TBuf, class W>
 bool TLambdaBufReducer<R, TBuf, W>::Registrator = NDetail::RegisterReducerStatic<TLambdaBufReducer<R, TBuf, W>>();
+
+/** Reducer between two different types of records, with intermediate structure
+ *  of the same type as input record, that allows to collect more data in process
+ *  than it is written to output.
+ *  Wraps [](const R& src, R& buf){} and [](const R& buf, W& dst){}
+ *  - first lambda is not called for the first row of a reduce-key (it is copied to buffer);
+ *  - first lambda is not called at all when there's just one row for a reduce-key;
+ *  - second lambda is called once for each reduce-key after all rows have been processed,
+ *    and generates actual record to be written;
+ *  - fields of dst that match reduceBy columns are filled by TAdditiveLambdaBufReducer;
+ *  - lambda may not modify these key columns (just don't touch them in dst);
+ */
+
+template <class R, class W>
+class TAdditiveLambdaBufReducer : public NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W,
+        std::pair<void (*)(const R&, R&), void (*)(const R&, W&)>> {
+public:
+    using TReduce = void (*)(const R&, R&);
+    using TFinalize = void (*)(const R&, W&);
+    using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, std::pair<TReduce, TFinalize>>;
+
+    TAdditiveLambdaBufReducer() { }
+    TAdditiveLambdaBufReducer(TReduce reducer, TFinalize finalizer, const TKeyColumns& reduceColumns)
+        : TBase({reducer, finalizer}, reduceColumns)
+    {
+        (void)Registrator; // make sure this static member is not optimized out
+    }
+
+    void Do(TTableReader<R>* reader, TTableWriter<W>* writer) override {
+        if (!reader->IsValid())
+            return;
+        R interim = reader->GetRow();
+        reader->Next();
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& curRow = reader->GetRow();
+            TBase::Func.first(curRow, interim);
+        }
+
+        W writeBuf;
+        TBase::FieldCopier(interim, writeBuf);
+        TBase::Func.second(interim, writeBuf);
+        writer->AddRow(writeBuf);
+    }
+
+private:
+    static bool Registrator;
+};
+
+template <class R, class W>
+bool TAdditiveLambdaBufReducer<R, W>::Registrator =
+    NDetail::RegisterReducerStatic<TAdditiveLambdaBufReducer<R, W>>();
 
 // ==============================================
 } // namespace NYT

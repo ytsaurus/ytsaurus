@@ -205,7 +205,7 @@ void MapReduceCombined(
     ::TIntrusivePtr<IReducerBase> reducerObj;
 
     if (finalizer) {
-        reducerObj = new TLambdaBufReducer<TCombined, TCombined, W>(reducer, finalizer, reduceFields);
+        reducerObj = new TAdditiveLambdaBufReducer<TCombined, W>(reducer, finalizer, reduceFields);
     } else {
         if constexpr(std::is_same<TCombined, W>::value) {
             reducerObj = new TAdditiveReducer<W>(reducer);
