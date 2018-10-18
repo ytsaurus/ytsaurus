@@ -528,7 +528,12 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("row_count").Value(MiscExt_.row_count())
         .Item("creation_time").Value(TInstant::MicroSeconds(MiscExt_.creation_time()))
         .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
-            fluent.Item("backing_store_id").Value(backingStore->GetId());
+            fluent
+                .Item("backing_store").DoMap([&] (TFluentMap fluent) {
+                    fluent
+                        .Item(ToString(backingStore->GetId()))
+                        .DoMap(BIND(&IStore::BuildOrchidYson, backingStore));
+                });
         });
 }
 
