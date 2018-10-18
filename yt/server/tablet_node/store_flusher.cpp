@@ -195,7 +195,7 @@ private:
                 TGuard<TSpinLock> guard(SpinLock_);
                 PassiveMemoryUsage_ += store->GetMemoryUsage();
             } else if (store->GetStoreState() == EStoreState::Persistent) {
-                auto* backingStore = store->AsChunk()->GetBackingStore().Get();
+                auto backingStore = store->AsChunk()->GetBackingStore();
                 if (backingStore) {
                     TGuard<TSpinLock> guard(SpinLock_);
                     PassiveMemoryUsage_ += backingStore->GetMemoryUsage();
