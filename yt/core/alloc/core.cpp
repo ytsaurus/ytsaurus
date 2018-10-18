@@ -44,7 +44,7 @@
 #endif
 
 #ifndef MADV_POPULATE
-#define MADV_POPULATE 0x59410001
+#define MADV_POPULATE 0x59410003
 #endif
 
 #ifndef MADV_FREE
@@ -581,7 +581,9 @@ DEFINE_ENUM(ETimingEventType,
     (MUnmap)
     (MAdvisePopulate)
     (MAdviseFree)
+    (MAdviseDontNeed)
     (Locking)
+    (Prefault)
 );
 
 struct TTimingEvent
@@ -690,8 +692,8 @@ Y_FORCE_INLINE TGuard<T> GuardWithTiming(const T& lock)
 // The latter are invoked with MADV_POPULATE and MADV_FREE flags
 // and may fail if the OS support is missing. These failures are logged (once) and
 // handled as follows:
-// * if MADV_POPULATE fails then its subsequent attempts are suppressed
-// (since this is just an optimization)
+// * if MADV_POPULATE fails then we fallback to manual per-page prefault
+// for all subsequent attempts;
 // * if MADV_FREE fails then it (and all subsequent attempts) is replaced with MADV_DONTNEED
 // (which is non-lazy and is less efficient but will somehow do).
 // Also this class mlocks all VMAs on startup to prevent pagefaults in our heavy binaries
@@ -708,75 +710,49 @@ public:
 
     void* Map(uintptr_t hint, size_t size, int flags)
     {
-        return RunSyscall(
-            ETimingEventType::MMap,
-            [&] {
-                auto* result = ::mmap(
-                    reinterpret_cast<void*>(hint),
-                    size,
-                    PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | flags,
-                    -1,
-                    0);
-                if (result == MAP_FAILED) {
-                    auto error = errno;
-                    if (error == ENOMEM) {
-                        OnOOM();
-                    }
-                    Y_UNREACHABLE();
-                }
-                return result;
-            });
+        TTimingGuard timingGuard(ETimingEventType::MMap);
+        auto* result = ::mmap(
+            reinterpret_cast<void*>(hint),
+            size,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | flags,
+            -1,
+            0);
+        if (result == MAP_FAILED) {
+            auto error = errno;
+            if (error == ENOMEM) {
+                OnOOM();
+            }
+            Y_UNREACHABLE();
+        }
+        return result;
     }
 
     void Unmap(void* ptr, size_t size)
     {
-        RunSyscall(
-            ETimingEventType::MUnmap,
-            [&] {
-                auto result = ::munmap(ptr, size);
-                YCHECK(result == 0);
-            });
+        TTimingGuard timingGuard(ETimingEventType::MUnmap);
+        auto result = ::munmap(ptr, size);
+        YCHECK(result == 0);
     }
 
     void Populate(void* ptr, size_t size)
     {
-        RunSyscall(
-            ETimingEventType::MAdvisePopulate,
-            [&] {
-                if (!PopulateUnavailable_.load(std::memory_order_relaxed)) {
-                    auto result = ::madvise(ptr, size, MADV_POPULATE);
-                    if (result != 0) {
-                        auto error = errno;
-                        if (error == ENOMEM) {
-                            OnOOM();
-                        }
-                        YCHECK(error == EINVAL);
-                        PopulateUnavailable_.store(true);
-                    }
-                }
-            });
+        if (PopulateUnavailable_.load(std::memory_order_relaxed)) {
+            DoPrefault(ptr, size);
+        } else if (!TryMAdvisePopulate(ptr, size)) {
+            PopulateUnavailable_.store(true);
+            DoPrefault(ptr, size);
+        }
     }
 
     void Release(void* ptr, size_t size)
     {
-        RunSyscall(
-            ETimingEventType::MAdviseFree,
-            [&] {
-                if (!FreeUnavailable_.load(std::memory_order_relaxed)) {
-                    auto result = ::madvise(ptr, size, MADV_FREE);
-                    if (result != 0) {
-                        auto error = errno;
-                        YCHECK(error == EINVAL);
-                        FreeUnavailable_.store(true);
-                    }
-                }
-                if (FreeUnavailable_.load()) {
-                    auto result = ::madvise(ptr, size, MADV_DONTNEED);
-                    // Must not fail.
-                    YCHECK(result == 0);
-                }
-            });
+        if (FreeUnavailable_.load(std::memory_order_relaxed)) {
+            DoMAdviseDontNeed(ptr, size);
+        } else if (!TryMAdviseFree(ptr, size)) {
+            FreeUnavailable_.store(true);
+            DoMAdviseDontNeed(ptr, size);
+        }
     }
 
     void RunBackgroundTasks(const TBackgroundContext& context)
@@ -800,14 +776,6 @@ public:
     }
 
 private:
-    template <class F>
-    auto RunSyscall(ETimingEventType eventType, F func) -> decltype(func())
-    {
-        TTimingGuard timingGuard(eventType);
-        return func();
-    }
-
-private:
     bool MlockallFailed_ = false;
     bool MlockallFailedLogged_ = false;
 
@@ -818,6 +786,50 @@ private:
     bool FreeUnavailableLogged_ = false;
 
 private:
+    bool TryMAdvisePopulate(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::MAdvisePopulate);
+        auto result = ::madvise(ptr, size, MADV_POPULATE);
+        if (result != 0) {
+            auto error = errno;
+            if (error == ENOMEM) {
+                OnOOM();
+            }
+            YCHECK(error == EINVAL);
+            return false;
+        }
+        return true;
+    }
+
+    void DoPrefault(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::Prefault);
+        auto* begin = static_cast<char*>(ptr);
+        for (auto* current = begin; current < begin + size; current += PageSize) {
+            *current = 0;
+        }
+    }
+
+    bool TryMAdviseFree(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::MAdviseFree);
+        auto result = ::madvise(ptr, size, MADV_FREE);
+        if (result != 0) {
+            auto error = errno;
+            YCHECK(error == EINVAL);
+            return false;
+        }
+        return true;
+    }
+
+    void DoMAdviseDontNeed(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::MAdviseDontNeed);
+        auto result = ::madvise(ptr, size, MADV_DONTNEED);
+        // Must not fail.
+        YCHECK(result == 0);
+    }
+    
     void OnOOM()
     {
         fprintf(stderr, "YTAlloc has detected an out-of-memory condition; terminating\n");
