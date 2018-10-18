@@ -53,6 +53,9 @@ enum EObjectType
     OT_REPLICA_SET = 13
     [(NYT.NYson.NProto.enum_value_name) = "replica_set"];
 
+    OT_DNS_RECORD_SET = 14
+    [(NYT.NYson.NProto.enum_value_name) = "dns_record_set"];
+
     OT_SCHEMA = 256
     [(NYT.NYson.NProto.enum_value_name) = "schema"];
 

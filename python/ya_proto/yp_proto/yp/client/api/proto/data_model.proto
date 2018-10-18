@@ -1188,6 +1188,54 @@ message TInternetAddress
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TDnsRecordSetMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TDnsRecordSetSpec
+{
+    message TResourceRecord 
+    {
+        optional uint64 ttl = 1;
+        optional string class = 2;
+
+        enum EType
+        {
+            A = 1
+            [(NYT.NYson.NProto.enum_value_name) = "A"];
+
+            PTR = 12
+            [(NYT.NYson.NProto.enum_value_name) = "PTR"];
+
+            AAAA = 28
+            [(NYT.NYson.NProto.enum_value_name) = "AAAA"];
+        }
+        optional EType type = 3;
+        optional string data = 4;
+    }
+
+    repeated TResourceRecord records = 1;
+}
+
+message TDnsRecordSetStatus
+{}
+
+message TDnsRecordSet
+{
+    optional TDnsRecordSetMeta meta = 1;
+    repeated TDnsRecordSetSpec spec = 2;
+    optional TDnsRecordSetStatus status = 3;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TAccountMeta
 {
     optional string id = 1;
