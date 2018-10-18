@@ -111,11 +111,10 @@ void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
+EAbortReason GetAbortReason(const TError& resultError)
 {
-    auto error = FromProto<TError>(result.error());
     try {
-        return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+        return resultError.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
     } catch (const std::exception& ex) {
         // Process unknown abort reason from node.
         LOG_WARNING(ex, "Found unknown abort_reason in job result");

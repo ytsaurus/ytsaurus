@@ -24,7 +24,7 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result);
+EAbortReason GetAbortReason(const TError& resultError);
 
 ////////////////////////////////////////////////////////////////////////////////
 
