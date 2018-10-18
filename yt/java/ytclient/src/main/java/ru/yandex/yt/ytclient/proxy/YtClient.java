@@ -95,6 +95,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                             dataCenterName,
                             entry.getValue(),
                             null,
+                            null,
                             connector,
                             options,
                             credentials,
@@ -110,6 +111,17 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
             BusConnector connector,
             List<YtCluster> clusters,
             String localDataCenterName,
+            RpcCredentials credentials,
+            RpcOptions options)
+    {
+        this(connector, clusters, localDataCenterName, null, credentials, options);
+    }
+
+    public YtClient(
+            BusConnector connector,
+            List<YtCluster> clusters,
+            String localDataCenterName,
+            String proxyRole,
             RpcCredentials credentials,
             RpcOptions options)
     {
@@ -160,7 +172,8 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
             discovery.add(
                     new PeriodicDiscovery(
                             dataCenterName,
-                            entry.initialProxies,
+                            entry.addresses,
+                            entry.proxyRole.orElse(proxyRole),
                             String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
                             connector,
                             options,

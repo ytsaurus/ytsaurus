@@ -2,15 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -49,7 +41,9 @@ public class PeriodicDiscovery implements AutoCloseable {
     private final RpcOptions options;
     private final Random rnd;
     private final List<HostPort> initialAddresses;
+    private final Option<String> proxyRole;
     private final Option<String> clusterUrl;
+    private final String discoverProxiesUrl;
     private final RpcCredentials credentials;
     private final Option<PeriodicDiscoveryListener> listenerOpt;
     private final AtomicBoolean running = new AtomicBoolean(true);
@@ -58,6 +52,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     public PeriodicDiscovery(
             String datacenterName,
             List<String> initialAddresses,
+            String proxyRole,
             String clusterUrl,
             BusConnector connector,
             RpcOptions options,
@@ -70,6 +65,7 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.options = Objects.requireNonNull(options);
         this.rnd = new Random();
         this.initialAddresses = initialAddresses.stream().map(HostPort::parse).collect(Collectors.toList());
+        this.proxyRole = Option.ofNullable(proxyRole);
         this.clusterUrl = Option.ofNullable(clusterUrl);
         this.proxies = new HashMap<>();
         this.credentials = Objects.requireNonNull(credentials);
@@ -80,18 +76,17 @@ public class PeriodicDiscovery implements AutoCloseable {
                     .build()
         );
 
+
+        if (clusterUrl != null) {
+            this.discoverProxiesUrl = this.proxyRole.map(x ->
+                    String.format("http://%s/api/v4/discover_proxies?type=rpc&role=%s", clusterUrl, x)
+            ).getOrElse(() -> String.format("http://%s/api/v4/discover_proxies?type=rpc", clusterUrl));
+        } else {
+            this.discoverProxiesUrl = null;
+        }
+
         addProxies(this.initialAddresses);
         updateProxies();
-    }
-
-    public PeriodicDiscovery(
-            String datacenterName,
-            List<String> initialAddresses,
-            String clusterUrl,
-            BusConnector connector,
-            RpcOptions options)
-    {
-        this(datacenterName, initialAddresses, clusterUrl, connector, options, new RpcCredentials(), null);
     }
 
     public Set<String> getAddresses() {
@@ -181,7 +176,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     private void updateProxiesFromHttp() {
         ListenableFuture<Response> responseFuture = httpClient.executeRequest(
                 new RequestBuilder()
-                    .setUrl(String.format("http://%s/api/v4/discover_proxies?type=rpc", clusterUrl.get()))
+                    .setUrl(discoverProxiesUrl)
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("Authorization", String.format("OAuth %s", credentials.getToken()))
@@ -236,7 +231,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     private void updateProxiesFromRpc() {
         List<DiscoveryServiceClient> clients = new ArrayList<>(proxies.values());
         DiscoveryServiceClient client = clients.get(rnd.nextInt(clients.size()));
-        client.discoverProxies().whenComplete((result, error) -> {
+        client.discoverProxies(proxyRole.getOrNull()).whenComplete((result, error) -> {
             try {
                 if (error != null) {
                     logger.error("Error on update proxies {}", error);
