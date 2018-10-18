@@ -74,7 +74,7 @@ public:
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
         slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
-    }
+    lo
 
 private:
     const TTabletNodeConfigPtr Config_;
@@ -147,10 +147,11 @@ private:
 
             const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
-                "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
+                "TotalMemoryUsage: %v, PassiveMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
                 tracker->GetUsed(EMemoryCategory::TabletDynamic),
+                PassiveMemoryUsage_,
                 candidate.MemoryUsage,
                 tracker->GetLimit(EMemoryCategory::TabletDynamic));
 
