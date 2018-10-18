@@ -30,6 +30,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -63,6 +65,71 @@ static const auto& Profiler = SchedulerProfiler;
 static NProfiling::TAggregateGauge AnalysisTimeCounter;
 static NProfiling::TAggregateGauge StrategyJobProcessingTimeCounter;
 static NProfiling::TAggregateGauge ScheduleTimeCounter;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+    TTagId GetTreeProfilingTag(const TString& treeId)
+    {
+        static THashMap<TString, TTagId> tagIds;
+
+        auto it = tagIds.find(treeId);
+        if (it == tagIds.end()) {
+            it = tagIds.emplace(
+                treeId,
+                TProfileManager::Get()->RegisterTag("tree", treeId)
+            ).first;
+        }
+        return it->second;
+    }
+
+    TTagId GetJobErrorProfilingTag(const TString& jobError)
+    {
+        static THashMap<TString, TTagId> tagIds;
+
+        auto it = tagIds.find(jobError);
+        if (it == tagIds.end()) {
+            it = tagIds.emplace(
+                jobError,
+                TProfileManager::Get()->RegisterTag("job_error", jobError)
+            ).first;
+        }
+        return {it->second};
+    }
+
+    TMonotonicCounter GetJobErrorCounter(const TString& treeId, const TString& jobError)
+    {
+        static THashMap<std::tuple<TString, TString>, TMonotonicCounter> counters;
+
+        auto pair = std::make_tuple(treeId, jobError);
+        auto it = counters.find(pair);
+        if (it == counters.end()) {
+            TTagIdList tags;
+            tags.push_back(GetTreeProfilingTag(treeId));
+            tags.push_back(GetJobErrorProfilingTag(jobError));
+
+            it = counters.emplace(
+                pair,
+                TMonotonicCounter("/aborted_job_errors", tags)
+            ).first;
+        }
+
+        return it->second;
+    }
+
+    void ProfileAbortedJobErrors(const TJobPtr& job, const TError& error)
+    {
+        auto checkErrorCode = [&] (auto errorCode) {
+            if (error.FindMatching(errorCode)) {
+                auto counter = GetJobErrorCounter(job->GetTreeId(), FormatEnum(errorCode));
+                Profiler.Increment(counter);
+            }
+        };
+
+        checkErrorCode(NRpc::EErrorCode::TransportError);
+        checkErrorCode(NNet::EErrorCode::ResolveTimedOut);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1942,7 +2009,10 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool bySch
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
     {
-        job->SetAbortReason(GetAbortReason(status->result()));
+        auto error = FromProto<TError>(status->result().error());
+        ProfileAbortedJobErrors(job, error);
+
+        job->SetAbortReason(GetAbortReason(error));
         SetJobState(job, EJobState::Aborted);
 
         OnJobFinished(job);
