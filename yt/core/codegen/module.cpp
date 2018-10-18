@@ -266,6 +266,7 @@ private:
 
         LOG_DEBUG("Started compiling module");
 
+        // See YT-8035 for details why we are clearing COMDAT.
         for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
             it->setComdat(nullptr);
         }
