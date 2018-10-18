@@ -194,6 +194,12 @@ private:
             if (store->GetStoreState() == EStoreState::PassiveDynamic) {
                 TGuard<TSpinLock> guard(SpinLock_);
                 PassiveMemoryUsage_ += store->GetMemoryUsage();
+            } else if (store->GetStoreState() == EStoreState::Persisitent) {
+                auto* backingStore = store->AsChunk()->GetBackingStore();
+                if (backingStore) {
+                    TGuard<TSpinLock> guard(SpinLock_);
+                    PassiveMemoryUsage_ += backingStore->GetMemoryUsage();
+                }
             }
         }
 
