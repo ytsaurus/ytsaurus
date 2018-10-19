@@ -62,9 +62,9 @@ class TBlackboxCookieAuthenticator
 public:
     TBlackboxCookieAuthenticator(
         TBlackboxCookieAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackbox)
+        IBlackboxServicePtr blackboxService)
         : Config_(std::move(config))
-        , Blackbox_(std::move(blackbox))
+        , BlackboxService_(std::move(blackboxService))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
@@ -76,7 +76,7 @@ public:
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,
             sslSessionIdMD5);
-        return Blackbox_->Call("sessionid", {
+        return BlackboxService_->Call("sessionid", {
                 {"sessionid", credentials.SessionId},
                 {"sslsessionid", credentials.SslSessionId},
                 {"host", Config_->Domain},
@@ -90,7 +90,7 @@ public:
 
 private:
     const TBlackboxCookieAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr Blackbox_;
+    const IBlackboxServicePtr BlackboxService_;
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(
@@ -133,7 +133,8 @@ private:
 
         // Sanity checks.
         if (!login.IsOK()) {
-            return TError("Blackbox returned invalid response") << login;
+            return TError("Blackbox returned invalid response")
+                << login;
         }
 
         TAuthenticationResult result;
@@ -145,9 +146,9 @@ private:
 
 ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
     TBlackboxCookieAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackbox)
+    IBlackboxServicePtr blackboxService)
 {
-    return New<TBlackboxCookieAuthenticator>(std::move(config), std::move(blackbox));
+    return New<TBlackboxCookieAuthenticator>(std::move(config), std::move(blackboxService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

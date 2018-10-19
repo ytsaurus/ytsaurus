@@ -26,7 +26,7 @@ DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackbox);
+    IBlackboxServicePtr blackboxService);
 
 ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
     TCypressTokenAuthenticatorConfigPtr config,

@@ -47,6 +47,37 @@ DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDefaultTvmServiceConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TDefaultTvmServiceConfig()
+    {
+        RegisterParameter("port", Port);
+        RegisterParameter("token", Token);
+        RegisterParameter("request_timeout", RequestTimeout)
+            .Default(TDuration::Seconds(3));
+    }
+
+    ui16 Port;
+    TString Token;
+
+    TDuration RequestTimeout;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDefaultTvmServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingDefaultTvmServiceConfig
+    : public TDefaultTvmServiceConfig
+    , public TAsyncExpiringCacheConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TCachingDefaultTvmServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -63,6 +94,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlackboxTicketAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TString BlackboxServiceId;
+
+    TBlackboxTicketAuthenticatorConfig()
+    {
+        RegisterParameter("blackbox_service_id", BlackboxServiceId)
+            .Default("blackbox");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +196,8 @@ public:
     NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
     NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
     NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
+    NAuth::TCachingDefaultTvmServiceConfigPtr TvmService;
+    NAuth::TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
 
     TAuthenticationManagerConfig()
     {
@@ -165,6 +215,10 @@ public:
             .Alias("blackbox")
             .DefaultNew();
         RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
+            .Optional();
+        RegisterParameter("tvm_service", TvmService)
+            .Optional();
+        RegisterParameter("blackbox_ticket_authenticator", BlackboxTicketAuthenticator)
             .Optional();
     }
 };

@@ -258,7 +258,10 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
-    MOCK_METHOD2(Call, TFuture<INodePtr>(const TString&, const THashMap<TString, TString>&));
+    MOCK_METHOD3(Call, TFuture<INodePtr>(
+        const TString&,
+        const THashMap<TString, TString>&,
+        const THashMap<TString, TString>&));
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
     {
@@ -280,7 +283,7 @@ protected:
 
     void MockCall(const TString& yson)
     {
-        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+        EXPECT_CALL(*Blackbox_, Call("oauth", _, _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
@@ -299,7 +302,7 @@ protected:
 
 TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 {
-    EXPECT_CALL(*Blackbox_, Call("oauth", _))
+    EXPECT_CALL(*Blackbox_, Call("oauth", _, _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
     auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
@@ -367,7 +370,7 @@ protected:
 
     void MockCall(const TString& yson)
     {
-        EXPECT_CALL(*Blackbox_, Call("sessionid", _))
+        EXPECT_CALL(*Blackbox_, Call("sessionid", _, _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
@@ -398,7 +401,7 @@ protected:
 
 TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 {
-    EXPECT_CALL(*Blackbox_, Call("sessionid", _))
+    EXPECT_CALL(*Blackbox_, Call("sessionid", _, _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
     auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
