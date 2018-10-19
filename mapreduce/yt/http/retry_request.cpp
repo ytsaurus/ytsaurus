@@ -77,10 +77,16 @@ TResponseInfo RetryRequestWithPolicy(
         THttpHeader currentHeader = header;
         TString response;
 
-        THttpRequest request(auth.ServerName);
-        TString requestId = request.GetRequestId();
+        TString requestId = "<unknown>";
         try {
-            TString hostName = auth.ServerName;
+            TString hostName;
+            if (config.IsHeavy) {
+                hostName = GetProxyForHeavyRequest(auth);
+            } else {
+                hostName = auth.ServerName;
+            }
+            THttpRequest request(hostName);
+            TString requestId = request.GetRequestId();
 
             if (useMutationId) {
                 if (retryWithSameMutationId) {

@@ -61,6 +61,7 @@ struct TResponseInfo
 struct TRequestConfig
 {
     TDuration SocketTimeout = TDuration::Zero();
+    bool IsHeavy = false;
 };
 
 ////////////////////////////////////////////////////////////////////
