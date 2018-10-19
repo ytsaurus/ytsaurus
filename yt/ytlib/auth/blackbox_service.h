@@ -18,8 +18,8 @@ struct IBlackboxService
 {
     virtual TFuture<NYTree::INodePtr> Call(
         const TString& method,
-        const THashMap<TString, TString>& params) = 0;
-
+        const THashMap<TString, TString>& params,
+        const THashMap<TString, TString>& headers = {}) = 0;
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const = 0;
 };
 

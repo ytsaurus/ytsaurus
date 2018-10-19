@@ -8,8 +8,6 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
-#include <yt/core/crypto/crypto.h>
-
 #include <yt/core/rpc/authenticator.h>
 
 namespace NYT {
@@ -18,7 +16,6 @@ namespace NAuth {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NCrypto;
 using namespace NApi;
 using namespace NProfiling;
 
@@ -35,9 +32,9 @@ class TBlackboxTokenAuthenticator
 public:
     TBlackboxTokenAuthenticator(
         TBlackboxTokenAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackbox)
+        IBlackboxServicePtr blackboxService)
         : Config_(std::move(config))
-        , Blackbox_(std::move(blackbox))
+        , Blackbox_(std::move(blackboxService))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
@@ -53,15 +50,15 @@ public:
             userIP = LocalUserIP;
         }
 
-        auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
-        LOG_DEBUG("Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
-            tokenMD5,
+        auto tokenHash = GetCryptoHash(token);
+        LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
+            tokenHash,
             userIP);
         return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
             .Apply(BIND(
                 &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
-                std::move(tokenMD5)));
+                std::move(tokenHash)));
     }
 
 private:
@@ -73,18 +70,18 @@ private:
     TMonotonicCounter TokenScopeCheckErrors_{"/blackbox_token_authenticator/scope_check_errors"};
 
 private:
-    TAuthenticationResult OnCallResult(const TString& tokenMD5, const INodePtr& data)
+    TAuthenticationResult OnCallResult(const TString& tokenHash, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Blackbox authentication failed (TokenMD5: %v)",
-                tokenMD5);
+            LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
+                tokenHash);
             THROW_ERROR result
-                << TErrorAttribute("token_md5", tokenMD5);
+                << TErrorAttribute("token_hash", tokenHash);
         }
 
-        LOG_DEBUG("Blackbox authentication successful (TokenMD5: %v, Login: %v, Realm: %v)",
-            tokenMD5,
+        LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
+            tokenHash,
             result.Value().Login,
             result.Value().Realm);
         return result.Value();
@@ -152,9 +149,9 @@ private:
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackbox)
+    IBlackboxServicePtr blackboxService)
 {
-    return New<TBlackboxTokenAuthenticator>(std::move(config), std::move(blackbox));
+    return New<TBlackboxTokenAuthenticator>(std::move(config), std::move(blackboxService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,24 +172,22 @@ public:
     {
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
-        auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
-        LOG_DEBUG("Authenticating user with token via Cypress (TokenMD5: %v, UserIP: %v)",
-            tokenMD5,
+        auto tokenHash = GetCryptoHash(token);
+        LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
+            tokenHash,
             userIP);
 
         TString path;
         if (!Config_->Secure) {
             path = Config_->RootPath + "/" + ToYPathLiteral(credentials.Token);
         } else {
-            path = Config_->RootPath + "/" + TSha1Hasher()
-                .Append(credentials.Token)
-                .GetHexDigestLower();
+            path = Config_->RootPath + "/" + GetCryptoHash(credentials.Token);
         }
         return Client_->GetNode(path)
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
-                std::move(tokenMD5)));
+                std::move(tokenHash)));
     }
 
 private:
@@ -200,18 +195,18 @@ private:
     const IClientPtr Client_;
 
 private:
-    TAuthenticationResult OnCallResult(const TString& tokenMD5, const TErrorOr<TYsonString>& callResult)
+    TAuthenticationResult OnCallResult(const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
     {
         if (!callResult.IsOK()) {
             if (callResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_DEBUG(callResult, "Token is missing in Cypress (TokenMD5: %v)",
-                    tokenMD5);
+                LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
+                    tokenHash);
                 THROW_ERROR_EXCEPTION("Token is missing in Cypress");
             } else {
-                LOG_DEBUG(callResult, "Cypress authentication failed (TokenMD5: %v)",
-                    tokenMD5);
+                LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
+                    tokenHash);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
-                    << TErrorAttribute("token_md5", tokenMD5)
+                    << TErrorAttribute("token_hash", tokenHash)
                     << callResult;
             }
         }
@@ -221,15 +216,15 @@ private:
             TAuthenticationResult authResult;
             authResult.Login = ConvertTo<TString>(ysonString);
             authResult.Realm = Config_->Realm;
-            LOG_DEBUG("Cypress authentication successful (TokenMD5: %v, Login: %v)",
-                tokenMD5,
+            LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
+                tokenHash,
                 authResult.Login);
             return authResult;
         } catch (const std::exception& ex) {
-            LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenMD5: %v)",
-                tokenMD5);
+            LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
+                tokenHash);
             THROW_ERROR_EXCEPTION("Malformed Cypress authentication entry")
-                << TErrorAttribute("token_md5", tokenMD5);
+                << TErrorAttribute("token_hash", tokenHash);
         }
     }
 };

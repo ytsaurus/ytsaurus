@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NAuth {
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITvmServicePtr CreateCachingTvmService(
+    ITvmServicePtr underlying,
+    TAsyncExpiringCacheConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NAuth
+} // namespace NYT

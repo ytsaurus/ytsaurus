@@ -10,6 +10,9 @@ namespace NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TDefaultTvmServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingDefaultTvmServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TBlackboxTicketAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressTokenAuthenticatorConfig)
@@ -20,8 +23,11 @@ DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
+DECLARE_REFCOUNTED_STRUCT(ITvmService)
+
 DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
+DECLARE_REFCOUNTED_STRUCT(ITicketAuthenticator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +63,11 @@ struct TCookieCredentials
     TString SessionId;
     TString SslSessionId;
     NNet::TNetworkAddress UserIP;
+};
+
+struct TTicketCredentials
+{
+    TString Ticket;
 };
 
 struct TAuthenticationResult

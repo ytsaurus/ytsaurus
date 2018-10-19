@@ -1,7 +1,10 @@
 #include "authentication_manager.h"
 #include "token_authenticator.h"
+#include "ticket_authenticator.h"
 #include "cookie_authenticator.h"
 #include "default_blackbox_service.h"
+#include "caching_tvm_service.h"
+#include "default_tvm_service.h"
 
 #include <yt/ytlib/auth/config.h>
 
@@ -83,6 +86,24 @@ public:
         }
         if (std::get<1>(authenticators)) {
             rpcAuthenticators.push_back(CreateCookieAuthenticatorWrapper(std::get<1>(authenticators)));
+        }
+
+        ITvmServicePtr tvmService;
+        if (config->TvmService) {
+            tvmService = CreateCachingTvmService(
+                CreateDefaultTvmService(
+                    config->TvmService,
+                    invoker),
+                config->TvmService);
+        }
+
+        if (blackboxService && tvmService && config->BlackboxTicketAuthenticator) {
+            rpcAuthenticators.push_back(
+                CreateTicketAuthenticatorWrapper(
+                    CreateBlackboxTicketAuthenticator(
+                        config->BlackboxTicketAuthenticator,
+                        blackboxService,
+                        tvmService)));
         }
 
         if (!config->RequireAuthentication) {
