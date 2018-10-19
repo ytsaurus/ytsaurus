@@ -461,8 +461,14 @@ public:
         if (auto* item = Shards_[state->GetInitialShardIndex()].Extract()) {
             return item;
         }
+        return ExtractRoundRobin(state);
+    }
 
-        for (size_t index = 0; index < ShardCount; ++index) {
+    // Attempts to extract an item from all shards in round-robin fashion.
+    template <class TState>
+    T* ExtractRoundRobin(TState* state)
+    {
+       for (size_t index = 0; index < ShardCount; ++index) {
             if (auto* item = Shards_[state->GetNextShardIndex()].Extract()) {
                 return item;
             }
@@ -2467,16 +2473,7 @@ private:
             return;
         }
 
-        struct TDisposeEntry
-        {
-            TLargeBlobExtent* Extent;
-            char* Ptr;
-            size_t Size;
-        };
-        std::vector<TDisposeEntry> disposeEntries;
-
         auto rank = arena->Rank;
-        auto* blob = arena->SpareBlobs.ExtractAll();
         auto* state = TThreadManager::GetThreadState();
 
         const auto& Logger = context.Logger;
@@ -2485,57 +2482,44 @@ private:
             rank);
 
         size_t bytesReclaimed = 0;
-        size_t spareBlobCount = 0;
-        while (blob) {
-            auto* nextBlob = blob->Next;
+        size_t blobsReclaimed = 0;
+        while (bytesToReclaim > 0) {
+            auto* blob = arena->SpareBlobs.ExtractRoundRobin(state);
+            if (!blob) {
+                break;
+            }
+            
             PARANOID_CHECK(blob->BytesAllocated == 0);
-            if (bytesToReclaim > 0) {
-                auto bytesAcquired = blob->BytesAcquired;
-                StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesSpare, -bytesAcquired);
-                bytesToReclaim -= bytesAcquired;
-                bytesReclaimed += bytesAcquired;
-                auto* extent = blob->Extent;
-                disposeEntries.push_back({
-                    extent,
-                    reinterpret_cast<char*>(blob),
-                    bytesAcquired
-                });
-            } else {
-                arena->SpareBlobs.Put(state, blob);
-            }
-            ++spareBlobCount;
-            blob = nextBlob;
-        }
+            auto bytesAcquired = blob->BytesAcquired;
 
-        if (!disposeEntries.empty()) {
-            LOG_DEBUG("Releasing pages from arena (Rank: %v, Blobs: %v, Pages: %v)",
-                arena->Rank,
-                disposeEntries.size(),
-                bytesReclaimed / PageSize);
+            StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesSpare, -bytesAcquired);
+            bytesToReclaim -= bytesAcquired;
+            bytesReclaimed += bytesAcquired;
+            blobsReclaimed += 1;
+            
+            auto* extent = blob->Extent;
+            auto* ptr = reinterpret_cast<char*>(blob);
+            ReleaseArenaPages(
+                state,
+                arena,
+                ptr,
+                bytesAcquired);
 
-            for (const auto& entry : disposeEntries) {
-                ReleaseArenaPages(
-                    state,
-                    arena,
-                    entry.Ptr,
-                    entry.Size);
-                auto* extent = entry.Extent;
-                size_t segmentIndex = (entry.Ptr - extent->Ptr) / arena->SegmentSize;
-                __atomic_store_n(&extent->DisposedFlags[segmentIndex], TLargeBlobExtent::DisposedTrue, __ATOMIC_RELEASE);
+            size_t segmentIndex = (ptr - extent->Ptr) / arena->SegmentSize;
+            __atomic_store_n(&extent->DisposedFlags[segmentIndex], TLargeBlobExtent::DisposedTrue, __ATOMIC_RELEASE);
 
-                auto* disposedSegment = DisposedSegmentPool_.Allocate();
-                disposedSegment->Index = segmentIndex;
-                disposedSegment->Extent = extent;
-                arena->DisposedSegments.Put(disposedSegment);
-            }
+            auto* disposedSegment = DisposedSegmentPool_.Allocate();
+            disposedSegment->Index = segmentIndex;
+            disposedSegment->Extent = extent;
+            arena->DisposedSegments.Put(disposedSegment);
         }
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::SpareBytesReclaimed, bytesReclaimed);
 
-        LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, SpareBlobs: %v)",
+        LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, BlobsReclaimed: %v)",
             arena->Rank,
             bytesReclaimed / 1_MB,
-            spareBlobCount);
+            blobsReclaimed);
     }
 
     void ReclaimOverheadMemory(const TBackgroundContext& context, TLargeArena* arena, ssize_t bytesToReclaim)
