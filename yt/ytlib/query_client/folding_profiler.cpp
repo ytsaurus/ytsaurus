@@ -501,13 +501,14 @@ size_t TExpressionProfiler::Profile(
             id.AddInteger(argIds.back());
         }
 
+        auto savedId = id;
         for (const auto& value : inExpr->Values) {
             id.AddString(ToString(value).c_str());
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
         if (emplaced.second || isIsolated) {
-            Fold(id);
+            Fold(savedId);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
             }
@@ -530,6 +531,7 @@ size_t TExpressionProfiler::Profile(
             id.AddInteger(argIds.back());
         }
 
+        auto savedId = id;
         for (const auto& range : betweenExpr->Ranges) {
             id.AddString(ToString(range.first).c_str());
             id.AddString(ToString(range.second).c_str());
@@ -537,7 +539,7 @@ size_t TExpressionProfiler::Profile(
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
         if (emplaced.second || isIsolated) {
-            Fold(id);
+            Fold(savedId);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
             }
@@ -559,19 +561,20 @@ size_t TExpressionProfiler::Profile(
             id.AddInteger(argIds.back());
         }
 
-        for (const auto& value : transformExpr->Values) {
-            id.AddString(ToString(value).c_str());
-        }
-
         TNullable<size_t> defaultExprId;
         if (const auto& defaultExpression = transformExpr->DefaultExpression) {
             defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
             id.AddInteger(*defaultExprId);
         }
 
+        auto savedId = id;
+        for (const auto& value : transformExpr->Values) {
+            id.AddString(ToString(value).c_str());
+        }
+
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
         if (emplaced.second || isIsolated) {
-            Fold(id);
+            Fold(savedId);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
             }
