@@ -152,6 +152,10 @@ void TLazyYsonConsumer::OnEndList()
 
 void TLazyYsonConsumer::OnBeginMap()
 {
+    if (Balance_ == 0) {
+        IsLazyDictObject_ = true;
+    }
+
     if (!IsLazyDictObject_) {
         LazyDictConsumer_->GetPythonObjectBuilder()->OnBeginMap();
     }
