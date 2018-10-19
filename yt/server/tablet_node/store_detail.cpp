@@ -550,7 +550,7 @@ void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
-    BackingStore_ = std::move(store);
+    std::swap(store, BackingStore_);
 }
 
 bool TChunkStoreBase::HasBackingStore() const
