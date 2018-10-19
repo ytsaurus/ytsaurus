@@ -91,7 +91,6 @@ public:
     TThreadedIOEngineConfig()
     {
         RegisterParameter("thread_count", ThreadCount)
-            .Alias("threads") // COMPAT(aozeritsky)
             .Default(Null)
             .GreaterThanOrEqual(1);
         RegisterParameter("read_thread_count", ReadThreadCount)
