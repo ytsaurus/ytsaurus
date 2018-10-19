@@ -590,6 +590,7 @@ struct TTimingEvent
 {
     ETimingEventType Type;
     TDuration Duration;
+    size_t Size;
     TInstant Timestamp;
     NConcurrency::TFiberId FiberId;
 };
@@ -602,7 +603,7 @@ public:
         DisabledForCurrentThread_ = true;
     }
 
-    void EnqueueEvent(ETimingEventType type, TDuration duration)
+    void EnqueueEvent(ETimingEventType type, TDuration duration, size_t size = 0)
     {
         if (DisabledForCurrentThread_) {
             return;
@@ -616,6 +617,7 @@ public:
         Events_[EventCount_++] = {
             type,
             duration,
+            size,
             timestamp,
             fiberId
         };
@@ -629,9 +631,10 @@ public:
         }
         auto events = PullEvents();
         for (const auto& event : events) {
-            LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Timestamp: %v, FiberId: %llx)",
+            LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
                 event.Type,
                 event.Duration,
+                event.Size,
                 event.Timestamp,
                 event.FiberId);
         }
@@ -673,8 +676,9 @@ class TTimingGuard
     : public TNonCopyable
 {
 public:
-    explicit TTimingGuard(ETimingEventType eventType)
+    explicit TTimingGuard(ETimingEventType eventType, size_t size = 0)
         : EventType_(eventType)
+        , Size_(size)
         // Sadly, TWallTimer cannot be used prior to all statics being initialized.
         , StartTime_(ConfigurationManager->IsLoggingEnabled() ? NProfiling::GetCpuInstant() : 0)
     { }
@@ -688,12 +692,13 @@ public:
         auto endTime = NProfiling::GetCpuInstant();
         auto duration = NProfiling::CpuDurationToDuration(endTime - StartTime_);
         if (duration > ConfigurationManager->GetSlowCallWarningThreshold()) {
-            TimingManager->EnqueueEvent(EventType_, duration);
+            TimingManager->EnqueueEvent(EventType_, duration, Size_);
         };
     }
 
 private:
     const ETimingEventType EventType_;
+    const size_t Size_;
     const NProfiling::TCpuInstant StartTime_;
 };
 
@@ -729,7 +734,7 @@ public:
 
     void* Map(uintptr_t hint, size_t size, int flags)
     {
-        TTimingGuard timingGuard(ETimingEventType::MMap);
+        TTimingGuard timingGuard(ETimingEventType::MMap, size);
         auto* result = ::mmap(
             reinterpret_cast<void*>(hint),
             size,
@@ -807,7 +812,7 @@ private:
 private:
     bool TryMAdvisePopulate(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MAdvisePopulate);
+        TTimingGuard timingGuard(ETimingEventType::MAdvisePopulate, size);
         auto result = ::madvise(ptr, size, MADV_POPULATE);
         if (result != 0) {
             auto error = errno;
@@ -822,7 +827,7 @@ private:
 
     void DoPrefault(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::Prefault);
+        TTimingGuard timingGuard(ETimingEventType::Prefault, size);
         auto* begin = static_cast<char*>(ptr);
         for (auto* current = begin; current < begin + size; current += PageSize) {
             *current = 0;
@@ -831,7 +836,7 @@ private:
 
     bool TryMAdviseFree(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MAdviseFree);
+        TTimingGuard timingGuard(ETimingEventType::MAdviseFree, size);
         auto result = ::madvise(ptr, size, MADV_FREE);
         if (result != 0) {
             auto error = errno;
@@ -843,7 +848,7 @@ private:
 
     void DoMAdviseDontNeed(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MAdviseDontNeed);
+        TTimingGuard timingGuard(ETimingEventType::MAdviseDontNeed, size);
         auto result = ::madvise(ptr, size, MADV_DONTNEED);
         // Must not fail.
         YCHECK(result == 0);
