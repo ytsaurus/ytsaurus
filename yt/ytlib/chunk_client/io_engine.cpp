@@ -656,9 +656,10 @@ public:
     using TConfig = TAioEngineConfig;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    TAioEngine(const TConfigPtr& config, const TString& locationId)
-        : MaxQueueSize_(config->MaxQueueSize)
-        , Semaphore_(MaxQueueSize_)
+    TAioEngine(const TConfigPtr& config, const TString& locationId, const TProfiler& profiler)
+        : Profiler_(profiler)
+        , MaxQueueSize_(config->MaxQueueSize)
+        , Semaphore_(New<TProfiledAsyncSemaphore>(MaxQueueSize_, Profiler_, "/waiting_ops"))
         , Thread_(TThread::TParams(StaticLoop, this).SetName(Format("DiskEvents:%v", locationId)))
         , ThreadPool_(New<TThreadPool>(1, Format("FileOpener:%v", locationId)))
     {
@@ -729,10 +730,12 @@ public:
     }
 
 private:
+    const TProfiler Profiler_;
+
     aio_context_t Ctx_ = 0;
     const int MaxQueueSize_;
 
-    TAsyncSemaphore Semaphore_;
+    TAsyncSemaphorePtr Semaphore_;
     std::atomic<bool> Alive_ = {true};
 
     const size_t Alignment_ = 4_KB;
@@ -859,7 +862,7 @@ private:
 
     void Submit(const IAioOperationPtr& op)
     {
-        Semaphore_.AsyncAcquire(BIND(&TAioEngine::OnSlotsAvailable, MakeStrong(this), op), GetSyncInvoker());
+        Semaphore_->AsyncAcquire(BIND(&TAioEngine::OnSlotsAvailable, MakeStrong(this), op), GetSyncInvoker());
     }
 };
 
@@ -883,7 +886,7 @@ IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConf
             return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId, profiler, logger);
 #ifdef _linux_
         case EIOEngineType::Aio:
-            return CreateIOEngine<TAioEngine>(ioConfig, locationId);
+            return CreateIOEngine<TAioEngine>(ioConfig, locationId, profiler);
 #endif
         default:
             THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", ioType);
