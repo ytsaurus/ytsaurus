@@ -128,8 +128,12 @@ public:
                     ThreadCount = 2;
                 }
 
-                ReadThreadCount = ThreadCount.Get() / 2;
-                WriteThreadCount = ThreadCount.Get() / 2;
+                ReadThreadCount = (ThreadCount.Get() + 1) / 2;
+                WriteThreadCount = ThreadCount.Get() - ReadThreadCount;
+
+                YCHECK(ReadThreadCount > 0);
+                YCHECK(WriteThreadCount > 0);
+                YCHECK(ReadThreadCount + WriteThreadCount == ThreadCount.Get());
             }
         });
     }
