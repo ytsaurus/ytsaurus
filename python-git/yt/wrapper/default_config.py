@@ -428,7 +428,7 @@ default_config = {
             "decay_factor_bound": 0.3
         }}) \
         .update_template_dict({
-            "allow_multiple_ranges": False,
+            "allow_multiple_ranges": True,
             "create_transaction_and_take_snapshot_lock": True,
             "change_proxy_period": None
         }),
@@ -447,7 +447,7 @@ default_config = {
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
-            # TODO: add comment.
+            # Number of rows to build blobs that will be written to socket.
             "rows_chunk_size": 100,
         }),
 
