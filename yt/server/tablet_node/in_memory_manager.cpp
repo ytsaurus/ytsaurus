@@ -132,7 +132,11 @@ public:
             NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
-        , Throttler_(CreateReconfigurableThroughputThrottler(config->PreloadThrottler))
+        , Throttler_(CreateReconfigurableThroughputThrottler(
+            config->PreloadThrottler,
+            Logger,
+            NProfiling::TProfiler(
+                TabletNodeProfiler.GetPathPrefix() + "/in_memory_manager/preload_throttler")))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
