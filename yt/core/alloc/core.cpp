@@ -607,6 +607,8 @@ public:
         if (DisabledForCurrentThread_) {
             return;
         }
+        auto timestamp = NProfiling::GetInstant();
+        auto fiberId = NConcurrency::GetCurrentFiberId();
         auto guard = Guard(EventLock_);
         if (EventCount_ >= EventBufferSize) {
             return;
@@ -614,8 +616,8 @@ public:
         Events_[EventCount_++] = {
             type,
             duration,
-            NProfiling::GetInstant(),
-            NConcurrency::GetCurrentFiberId()
+            timestamp,
+            fiberId
         };
     }
 
@@ -646,8 +648,13 @@ private:
 private:
     std::vector<TTimingEvent> PullEvents()
     {
+        std::vector<TTimingEvent> events;
+        events.reserve(EventBufferSize);
+
         auto guard = Guard(EventLock_);
-        std::vector<TTimingEvent> events(Events_.data(), Events_.data() + EventCount_);
+        for (size_t index = 0; index < EventCount_; ++index) {
+            events.push_back(Events_[index]);
+        }
         EventCount_ = 0;
         return events;
     }
