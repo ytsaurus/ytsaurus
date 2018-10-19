@@ -598,18 +598,6 @@ struct TTimingEvent
 class TTimingManager
 {
 public:
-    TTimingManager()
-    {
-        for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
-            NProfiling::TTagIdList tagIds{
-                NProfiling::TProfileManager::Get()->RegisterTag("type", type)
-            };
-            auto& counters = EventCounters_[type];
-            counters.Count = NProfiling::TSimpleGauge("/timing_events/count", tagIds);
-            counters.Size = NProfiling::TSimpleGauge("/timing_events/size", tagIds);
-        }
-    }
-    
     void DisableForCurrentThread()
     {
         DisabledForCurrentThread_ = true;
@@ -625,8 +613,8 @@ public:
         auto guard = Guard(EventLock_);
 
         auto& counters = EventCounters_[type];
-        counters.CountDelta += 1;
-        counters.SizeDelta += size;
+        counters.Count += 1;
+        counters.Size += size;
 
         if (EventCount_ >= EventBufferSize) {
             return;
@@ -655,14 +643,16 @@ public:
             }
         }
 
-        const auto& profiler = context.Profiler;
-        if (profiler.GetEnabled()) {
+        if (context.Profiler.GetEnabled()) {
             for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
+                NProfiling::TProfiler profiler(
+                    context.Profiler.GetPathPrefix() + "/timing_events",
+                    {
+                        NProfiling::TProfileManager::Get()->RegisterTag("type", type)
+                    });
                 auto& counters = EventCounters_[type];
-                profiler.Increment(counters.Count, counters.CountDelta);
-                profiler.Increment(counters.Size, counters.SizeDelta);
-                counters.CountDelta = 0;
-                counters.SizeDelta = 0;
+                profiler.Enqueue("/count", counters.Count, NProfiling::EMetricType::Gauge);
+                profiler.Enqueue("/size", counters.Size, NProfiling::EMetricType::Gauge);
             }
         }
     }
@@ -677,11 +667,8 @@ private:
 
     struct TPerEventTimeCounters
     {
-        int CountDelta = 0;
-        NProfiling::TSimpleGauge Count;
-
-        size_t SizeDelta = 0;
-        NProfiling::TSimpleGauge Size;
+        size_t Count = 0;
+        size_t Size = 0;
     };
     TEnumIndexedVector<TPerEventTimeCounters, ETimingEventType> EventCounters_;
 
