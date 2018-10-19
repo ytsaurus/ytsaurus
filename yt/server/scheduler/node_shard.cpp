@@ -94,7 +94,7 @@ namespace {
                 TProfileManager::Get()->RegisterTag("job_error", jobError)
             ).first;
         }
-        return {it->second};
+        return it->second;
     }
 
     TMonotonicCounter GetJobErrorCounter(const TString& treeId, const TString& jobError)
