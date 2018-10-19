@@ -295,9 +295,6 @@ class TestRetries(object):
             yt.config["read_retries"]["enable"] = old_value
 
     def test_read_ranges_with_retries(self, yt_env):
-        old_value = yt.config["read_retries"]["enable"], yt.config["read_retries"]["allow_multiple_ranges"]
-        yt.config["read_retries"]["enable"] = True
-        yt.config["read_retries"]["allow_multiple_ranges"] = True
         yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
         try:
             table = TEST_DIR + "/table"
@@ -352,8 +349,6 @@ class TestRetries(object):
 
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
-            yt.config["read_retries"]["enable"] = old_value[0]
-            yt.config["read_retries"]["allow_multiple_ranges"] = old_value[1]
 
     def test_read_parallel_with_retries(self):
         with set_config_option("read_parallel/enable", True):
