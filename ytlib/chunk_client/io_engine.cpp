@@ -26,6 +26,7 @@
 #include <util/system/mutex.h>
 #include <util/system/condvar.h>
 #include <util/system/align.h>
+#include <util/system/sanitizers.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -787,6 +788,9 @@ private:
         { }
 
         YCHECK(ret >= 0 || errno == EINVAL);
+        if (ret > 0) {
+            NSan::Unpoison(events, sizeof(*events) * ret);
+        }
         return ret;
     }
 
