@@ -522,7 +522,9 @@ TString GetJobStderrWithRetries(
     THttpHeader header("GET", "get_job_stderr");
     header.AddOperationId(operationId);
     header.AddParameter("job_id", GetGuidAsString(jobId));
-    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy, config);
     return responseInfo.Response;
 }
 
