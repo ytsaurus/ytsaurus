@@ -92,8 +92,6 @@ private:
 
     i64 CurrentBlockSize_ = 0;
 
-    bool OldFormat_ = false;
-
     TIntrusivePtr<TIndexBucket> FirstIndexBucket_;
     TIntrusivePtr<TIndexBucket> CurrentIndexBucket_;
 

@@ -20,7 +20,7 @@ namespace {
 template <class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature || header.Signature == T::ExpectedSignatureOld,
+    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
         "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
@@ -195,11 +195,6 @@ void TAsyncFileChangelogIndex::Read(const TNullable<i32>& truncatedRecordCount)
             indexStream.Skip(sizeof(indexHeader.Padding));
         }
 
-        // COMPAT(aozeritsky): old format
-        if (indexHeader.Signature == indexHeader.ExpectedSignatureOld) {
-            OldFormat_ = true;
-        }
-
         // Read index records.
         for (int i = 0; i < indexHeader.IndexRecordCount; ++i) {
             if (indexStream.Avail() < sizeof(TChangelogIndexRecord)) {
@@ -221,11 +216,6 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
     LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
     YCHECK(correctPrefixSize <= Index_.size());
     Index_.resize(correctPrefixSize);
-
-    // COMPAT(aozeritsky): old format
-    if (OldFormat_) {
-        return;
-    }
 
     FirstIndexBucket_->UpdateRecordCount(Index_.size());
 
@@ -379,8 +369,6 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int r
 
 TFuture<void> TAsyncFileChangelogIndex::FlushData()
 {
-    YCHECK(!OldFormat_);
-
     std::vector<TFuture<void>> asyncResults;
     asyncResults.reserve(2);
     asyncResults.push_back(FlushDirtyBuckets());
