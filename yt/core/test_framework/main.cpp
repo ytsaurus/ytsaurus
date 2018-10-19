@@ -1,7 +1,10 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/shutdown.h>
+
 #include <yt/core/logging/log_manager.h>
+
+#include <yt/core/alloc/alloc.h>
 
 class TYTEnvironment
     : public ::testing::Environment
@@ -9,6 +12,8 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
+        NYT::NYTAlloc::EnableLogging();
+        NYT::NYTAlloc::EnableProfiling();
         NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
     }
 
