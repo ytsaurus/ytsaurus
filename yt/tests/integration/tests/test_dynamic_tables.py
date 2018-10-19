@@ -1810,9 +1810,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        sleep(1)
-        wait_for_tablet_state("//tmp/t", "mounted")
-        assert get("//tmp/t/@tablet_count") == 1
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
     def test_tablet_split(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False, recursive=True)
@@ -1836,29 +1834,24 @@ class TestTabletActions(TestDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True, recursive=True)
-        sleep(1)
-        wait_for_tablet_state("//tmp/t", "mounted")
+        wait(lambda: get("//tmp/t/@tablet_count") == 2)
         assert len(get("//tmp/t/@chunk_ids")) > 1
-        assert get("//tmp/t/@tablet_count") == 2
 
+        wait_for_tablet_state("//tmp/t", "mounted")
         set("//tmp/t/@min_tablet_size", 512)
         set("//tmp/t/@max_tablet_size", 2048)
         set("//tmp/t/@desired_tablet_size", 1024)
-        sleep(1)
-        wait_for_tablet_state("//tmp/t", "mounted")
-        assert get("//tmp/t/@tablet_count") == 1
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
+        wait_for_tablet_state("//tmp/t", "mounted")
         remove("//tmp/t/@min_tablet_size")
         remove("//tmp/t/@max_tablet_size")
         remove("//tmp/t/@desired_tablet_size")
-        sleep(1)
-        wait_for_tablet_state("//tmp/t", "mounted")
-        assert get("//tmp/t/@tablet_count") == 2
+        wait(lambda: get("//tmp/t/@tablet_count") == 2)
 
-        set("//tmp/t/@desired_tablet_count", 1)
-        sleep(1)
         wait_for_tablet_state("//tmp/t", "mounted")
-        assert get("//tmp/t/@tablet_count") == 1
+        set("//tmp/t/@desired_tablet_count", 1)
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
     def test_tablet_balancer_disabled(self):
         self._configure_bundle("default")
@@ -1874,9 +1867,7 @@ class TestTabletActions(TestDynamicTablesBase):
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", True)
-        sleep(1)
-        wait_for_tablet_state("//tmp/t", "mounted")
-        assert get("//tmp/t/@tablet_count") == 1
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
