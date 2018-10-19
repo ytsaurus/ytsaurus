@@ -464,7 +464,7 @@ void TDiscoverVersionsHandler::HandleRequest(
                 .Item("schedulers").Value(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances")))
                 .Item("controller_agents").Value(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances")))
                 .Item("nodes").Value(ListComponent("nodes", true))
-                .Item("proxies").Value(ListComponent("proxies", false))
+                .Item("http_proxies").Value(ListComponent("proxies", false))
                 .Item("rpc_proxies").Value(ListComponent("rpc_proxies", false))
             .EndMap();
     });
