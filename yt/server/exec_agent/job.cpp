@@ -986,7 +986,7 @@ private:
             }
         }
 
-        LOG_INFO(error, "Defined final job state (JobState: %v)", GetState());
+        LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
 
         // Release resources.
         GpuSlots_.clear();
@@ -996,8 +996,8 @@ private:
 
         if (Dominates(resourceDelta, ZeroNodeResources())) {
             ResourcesUpdated_.Fire(resourceDelta);
-            PortsReleased_.Fire();
         }
+        PortsReleased_.Fire();
 
         if (Slot_) {
             try {
