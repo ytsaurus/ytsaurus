@@ -597,8 +597,16 @@ struct TTimingEvent
 class TTimingManager
 {
 public:
+    void DisableForCurrentThread()
+    {
+        DisabledForCurrentThread_ = true;
+    }
+
     void EnqueueEvent(ETimingEventType type, TDuration duration)
     {
+        if (DisabledForCurrentThread_) {
+            return;
+        }
         auto guard = Guard(EventLock_);
         if (EventCount_ >= EventBufferSize) {
             return;
@@ -633,6 +641,8 @@ private:
     size_t EventCount_ = 0;
     std::array<TTimingEvent, EventBufferSize> Events_;
 
+    Y_POD_STATIC_THREAD(bool) DisabledForCurrentThread_;
+
 private:
     std::vector<TTimingEvent> PullEvents()
     {
@@ -642,6 +652,8 @@ private:
         return events;
     }
 };
+
+Y_POD_THREAD(bool) TTimingManager::DisabledForCurrentThread_;
 
 TBox<TTimingManager> TimingManager;
 
@@ -2928,6 +2940,7 @@ private:
     {
         InitializeGlobals();
         TThread::CurrentThreadSetName(ThreadName);
+        TimingManager->DisableForCurrentThread();
 
         while (!StopEvent_.WaitT(BackgroundInterval)) {
             TBackgroundContext context;
