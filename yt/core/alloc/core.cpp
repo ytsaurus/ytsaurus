@@ -598,6 +598,18 @@ struct TTimingEvent
 class TTimingManager
 {
 public:
+    TTimingManager()
+    {
+        for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
+            NProfiling::TTagIdList tagIds{
+                NProfiling::TProfileManager::Get()->RegisterTag("type", type)
+            };
+            auto& counters = EventCounters_[type];
+            counters.Count = NProfiling::TSimpleGauge("/timing_events/count", tagIds);
+            counters.Size = NProfiling::TSimpleGauge("/timing_events/size", tagIds);
+        }
+    }
+    
     void DisableForCurrentThread()
     {
         DisabledForCurrentThread_ = true;
@@ -611,9 +623,15 @@ public:
         auto timestamp = NProfiling::GetInstant();
         auto fiberId = NConcurrency::GetCurrentFiberId();
         auto guard = Guard(EventLock_);
+
+        auto& counters = EventCounters_[type];
+        counters.CountDelta += 1;
+        counters.SizeDelta += size;
+
         if (EventCount_ >= EventBufferSize) {
             return;
         }
+        
         Events_[EventCount_++] = {
             type,
             duration,
@@ -626,17 +644,26 @@ public:
     void RunBackgroundTasks(const TBackgroundContext& context)
     {
         const auto& Logger = context.Logger;
-        if (!Logger) {
-            return;
+        if (Logger) {
+            for (const auto& event : PullEvents()) {
+                LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
+                    event.Type,
+                    event.Duration,
+                    event.Size,
+                    event.Timestamp,
+                    event.FiberId);
+            }
         }
-        auto events = PullEvents();
-        for (const auto& event : events) {
-            LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
-                event.Type,
-                event.Duration,
-                event.Size,
-                event.Timestamp,
-                event.FiberId);
+
+        const auto& profiler = context.Profiler;
+        if (profiler.GetEnabled()) {
+            for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
+                auto& counters = EventCounters_[type];
+                profiler.Increment(counters.Count, counters.CountDelta);
+                profiler.Increment(counters.Size, counters.SizeDelta);
+                counters.CountDelta = 0;
+                counters.SizeDelta = 0;
+            }
         }
     }
 
@@ -647,6 +674,16 @@ private:
     std::array<TTimingEvent, EventBufferSize> Events_;
 
     Y_POD_STATIC_THREAD(bool) DisabledForCurrentThread_;
+
+    struct TPerEventTimeCounters
+    {
+        int CountDelta = 0;
+        NProfiling::TSimpleGauge Count;
+
+        size_t SizeDelta = 0;
+        NProfiling::TSimpleGauge Size;
+    };
+    TEnumIndexedVector<TPerEventTimeCounters, ETimingEventType> EventCounters_;
 
 private:
     std::vector<TTimingEvent> PullEvents()
