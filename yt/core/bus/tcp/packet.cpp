@@ -70,9 +70,9 @@ const TPacketId& TPacketDecoder::GetPacketId() const
     return FixedHeader_.PacketId;
 }
 
-TSharedRefArray TPacketDecoder::GetMessage() const
+TSharedRefArray TPacketDecoder::GrabMessage() const
 {
-    return Message_;
+    return std::move(Message_);
 }
 
 size_t TPacketDecoder::GetPacketSize() const

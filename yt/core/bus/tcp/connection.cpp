@@ -742,7 +742,7 @@ bool TTcpConnection::OnMessagePacketReceived()
         EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_.GetPacketId());
     }
 
-    auto message = Decoder_.GetMessage();
+    auto message = Decoder_.GrabMessage();
     Handler_->HandleMessage(std::move(message), this);
 
     return true;
