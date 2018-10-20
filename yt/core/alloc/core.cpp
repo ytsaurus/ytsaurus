@@ -47,6 +47,10 @@
 #define MADV_POPULATE 0x59410003
 #endif
 
+#ifndef MADV_STOCKPILE
+#define MADV_STOCKPILE 0x59410004
+#endif
+
 #ifndef MADV_FREE
 #define MADV_FREE 8
 #endif
@@ -87,8 +91,11 @@ namespace NYTAlloc {
 
 using ::AlignUp;
 
-// Period between background activities.
+// Periods between background activities.
 constexpr auto BackgroundInterval = TDuration::Seconds(1);
+constexpr auto StockpileInterval = TDuration::MilliSeconds(10);
+
+constexpr size_t StockpileSize = 1_GB;
 
 constexpr size_t PageSize = 4_KB;
 constexpr size_t ZoneSize = 1_TB;
@@ -122,7 +129,8 @@ constexpr size_t SmallSegmentSize = 1_MB;
 constexpr size_t LargeExtentSize = 1_GB;
 constexpr size_t HugeSizeThreshold = 1ULL << (LargeRankCount - 1);
 
-constexpr const char* ThreadName = "YTAlloc";
+constexpr const char* BackgroundThreadName = "YTAllocBack";
+constexpr const char* StockpileThreadName = "YTAllocStock";
 constexpr const char* LoggerCategory = "YTAlloc";
 constexpr const char* ProfilerPath = "/yt_alloc";
 
@@ -583,11 +591,11 @@ TBox<TConfigurationManager> ConfigurationManager;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETimingEventType,
-    (MMap)
-    (MUnmap)
-    (MAdvisePopulate)
-    (MAdviseFree)
-    (MAdviseDontNeed)
+    (Mmap)
+    (Munmap)
+    (MadvisePopulate)
+    (MadviseFree)
+    (MadviseDontNeed)
     (Locking)
     (Prefault)
 );
@@ -764,7 +772,7 @@ public:
 
     void* Map(uintptr_t hint, size_t size, int flags)
     {
-        TTimingGuard timingGuard(ETimingEventType::MMap, size);
+        TTimingGuard timingGuard(ETimingEventType::Mmap, size);
         auto* result = ::mmap(
             reinterpret_cast<void*>(hint),
             size,
@@ -784,7 +792,7 @@ public:
 
     void Unmap(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MUnmap);
+        TTimingGuard timingGuard(ETimingEventType::Munmap, size);
         auto result = ::munmap(ptr, size);
         YCHECK(result == 0);
     }
@@ -793,7 +801,7 @@ public:
     {
         if (PopulateUnavailable_.load(std::memory_order_relaxed)) {
             DoPrefault(ptr, size);
-        } else if (!TryMAdvisePopulate(ptr, size)) {
+        } else if (!TryMadvisePopulate(ptr, size)) {
             PopulateUnavailable_.store(true);
             DoPrefault(ptr, size);
         }
@@ -802,11 +810,23 @@ public:
     void Release(void* ptr, size_t size)
     {
         if (FreeUnavailable_.load(std::memory_order_relaxed)) {
-            DoMAdviseDontNeed(ptr, size);
-        } else if (!TryMAdviseFree(ptr, size)) {
+            DoMadviseDontNeed(ptr, size);
+        } else if (!TryMadviseFree(ptr, size)) {
             FreeUnavailable_.store(true);
-            DoMAdviseDontNeed(ptr, size);
+            DoMadviseDontNeed(ptr, size);
         }
+    }
+
+    bool Stockpile(size_t size)
+    {
+        if (StockpileUnavailable_.load(std::memory_order_relaxed)) {
+            return false;
+        }
+        if (!TryMadviseStockpile(size)) {
+            StockpileUnavailable_.store(true);
+            return false;
+        }
+        return true;
     }
 
     void RunBackgroundTasks(const TBackgroundContext& context)
@@ -827,6 +847,10 @@ public:
             LOG_WARNING("MADV_FREE is not supported");
             FreeUnavailableLogged_ = true;
         }
+        if (StockpileUnavailable_.load() && !StockpileUnavailableLogged_) {
+            LOG_WARNING("MADV_STOCKPILE is not supported");
+            StockpileUnavailableLogged_ = true;
+        }
     }
 
 private:
@@ -839,10 +863,13 @@ private:
     std::atomic<bool> FreeUnavailable_ = {false};
     bool FreeUnavailableLogged_ = false;
 
+    std::atomic<bool> StockpileUnavailable_ = {false};
+    bool StockpileUnavailableLogged_ = false;
+
 private:
-    bool TryMAdvisePopulate(void* ptr, size_t size)
+    bool TryMadvisePopulate(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MAdvisePopulate, size);
+        TTimingGuard timingGuard(ETimingEventType::MadvisePopulate, size);
         auto result = ::madvise(ptr, size, MADV_POPULATE);
         if (result != 0) {
             auto error = errno;
@@ -864,9 +891,9 @@ private:
         }
     }
 
-    bool TryMAdviseFree(void* ptr, size_t size)
+    bool TryMadviseFree(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MAdviseFree, size);
+        TTimingGuard timingGuard(ETimingEventType::MadviseFree, size);
         auto result = ::madvise(ptr, size, MADV_FREE);
         if (result != 0) {
             auto error = errno;
@@ -876,14 +903,29 @@ private:
         return true;
     }
 
-    void DoMAdviseDontNeed(void* ptr, size_t size)
+    void DoMadviseDontNeed(void* ptr, size_t size)
     {
-        TTimingGuard timingGuard(ETimingEventType::MAdviseDontNeed, size);
+        TTimingGuard timingGuard(ETimingEventType::MadviseDontNeed, size);
         auto result = ::madvise(ptr, size, MADV_DONTNEED);
         // Must not fail.
         YCHECK(result == 0);
     }
     
+    bool TryMadviseStockpile(size_t size)
+    {
+        auto result = ::madvise(nullptr, size, MADV_STOCKPILE);
+        if (result != 0) {
+            auto error = errno;
+            if (error == ENOMEM || error == EAGAIN || error == EINTR) {
+                // The call is advisory, ignore ENOMEM, EAGAIN, and EINTR.
+                return true;
+            }
+            YCHECK(error == EINVAL);
+            return false;
+        }
+        return true;
+    }
+
     void OnOOM()
     {
         fprintf(stderr, "YTAlloc has detected an out-of-memory condition; terminating\n");
@@ -2910,18 +2952,19 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Runs background activities.
-class TBackgroundThread
+// Base class for all background threads.
+template <class T>
+class TBackgroundThreadBase
 {
 public:
-    TBackgroundThread()
+    TBackgroundThreadBase()
         : Thread_(ThreadMainStatic, this)
     {
         pthread_atfork(nullptr, nullptr, &OnFork);
         Thread_.Start();
     }
 
-    ~TBackgroundThread()
+    virtual ~TBackgroundThreadBase()
     {
         if (Forked_) {
             Thread_.Detach();
@@ -2931,38 +2974,53 @@ public:
         }
     }
 
-    static TBackgroundThread* Get()
+    static T* Get()
     {
-        return Singleton<TBackgroundThread>();
+        return Singleton<T>();
     }
 
 private:
     TThread Thread_;
     TManualEvent StopEvent_;
 
+
     bool Forked_ = false;
 
 private:
     static void OnFork()
     {
-         auto* this_ = TBackgroundThread::Get();
+         auto* this_ = T::Get();
          this_->Forked_ = true;
     }
     
     static void* ThreadMainStatic(void* opaque)
     {
-        auto* this_ = static_cast<TBackgroundThread*>(opaque);
+        auto* this_ = static_cast<TBackgroundThreadBase*>(opaque);
         this_->ThreadMain();
         return nullptr;
     }
 
-    void ThreadMain()
+    virtual void ThreadMain() = 0;
+
+protected:
+    bool IsDone(TDuration interval)
+    {
+        return StopEvent_.WaitT(interval);
+    }
+};
+
+// Runs basic background activities: reclaim, logging, profiling etc.
+class TBackgroundThread
+    : public TBackgroundThreadBase<TBackgroundThread>
+{
+private:
+    virtual void ThreadMain() override
     {
         InitializeGlobals();
-        TThread::CurrentThreadSetName(ThreadName);
+        TThread::CurrentThreadSetName(BackgroundThreadName);
         TimingManager->DisableForCurrentThread();
 
-        while (!StopEvent_.WaitT(BackgroundInterval)) {
+        while (!IsDone(BackgroundInterval)) {
             TBackgroundContext context;
             if (ConfigurationManager->IsLoggingEnabled()) {
                 context.Logger = NLogging::TLogger(LoggerCategory);
@@ -2989,6 +3047,25 @@ public:
         TBackgroundThread::Get();
     }
 } BackgroundThreadInitializer;
+
+// Invokes madvise(MADV_STOCKPILE) periodically. 
+class TStockpileThread
+    : public TBackgroundThreadBase<TStockpileThread>
+{
+private:
+    virtual void ThreadMain() override
+    {
+        InitializeGlobals();
+        TThread::CurrentThreadSetName(StockpileThreadName);
+
+        while (!IsDone(StockpileInterval)) {
+            if (!MappedMemoryManager->Stockpile(StockpileSize)) {
+                // No use to proceed.
+                break;
+            }
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3119,6 +3196,12 @@ void EnableProfiling()
 {
     InitializeGlobals();
     ConfigurationManager->EnableProfiling();
+}
+
+void EnableStockpile()
+{
+    InitializeGlobals();
+    TStockpileThread::Get();
 }
 
 void SetLargeUnreclaimableCoeff(double value)
