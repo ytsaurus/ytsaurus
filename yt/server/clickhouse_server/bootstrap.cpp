@@ -23,15 +23,20 @@
 #include <yt/client/api/client.h>
 
 #include <yt/core/bus/tcp/server.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/http/server.h>
+
 #include <yt/core/rpc/bus/server.h>
+
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -121,8 +126,6 @@ void TBootstrap::DoInitialize()
         CreateVirtualNode(MonitoringManager->GetService()));
 
     SetBuildAttributes(orchidRoot, "clickhouse_server");
-
-    LFAllocProfiler = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
     if (Config->CoreDumper) {
         CoreDumper = NCoreDump::CreateCoreDumper(Config->CoreDumper);

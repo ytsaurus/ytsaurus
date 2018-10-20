@@ -44,12 +44,6 @@ class TDataStatistics;
 
 } // namespace NProto
 
-namespace NLFAlloc {
-
-class TLFAllocProfiler;
-
-} // namespace NLFAlloc
-
 struct TGuid;
 
 template <class T>
