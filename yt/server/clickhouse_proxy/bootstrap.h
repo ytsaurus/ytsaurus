@@ -40,7 +40,6 @@ private:
     const NConcurrency::TThreadPoolPtr WorkerPool_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NHttp::IServerPtr MonitoringHttpServer_;
     NHttp::IServerPtr ClickHouseProxyServer_;
     TClickHouseProxyHandlerPtr ClickHouseProxy_;

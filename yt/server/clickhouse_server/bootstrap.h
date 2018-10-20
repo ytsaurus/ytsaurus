@@ -41,7 +41,6 @@ private:
     NBus::IBusServerPtr BusServer;
     NRpc::IServerPtr RpcServer;
     NHttp::IServerPtr HttpServer;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler;
     NMonitoring::TMonitoringManagerPtr MonitoringManager;
     ICoreDumperPtr CoreDumper;
 

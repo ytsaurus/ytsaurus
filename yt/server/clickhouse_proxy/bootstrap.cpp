@@ -26,7 +26,6 @@
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -97,8 +96,6 @@ void TBootstrap::DoRun()
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Start();
-
-    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
     auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
