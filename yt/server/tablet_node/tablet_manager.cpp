@@ -606,6 +606,11 @@ private:
             return Owner_->Slot_->GetTransactionManager();
         }
 
+        virtual NRpc::IServerPtr GetLocalRpcServer() override
+        {
+            return Owner_->Bootstrap_->GetRpcServer();
+        }
+
     private:
         TImpl* const Owner_;
 
