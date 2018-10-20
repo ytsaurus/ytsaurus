@@ -41,6 +41,7 @@ protected:
         EnablePhdrCache();
         NYTAlloc::EnableLogging();
         NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {
             return;

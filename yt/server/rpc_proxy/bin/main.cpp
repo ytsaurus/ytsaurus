@@ -38,6 +38,7 @@ protected:
         ConfigureExitZeroOnSigterm();
         NYTAlloc::EnableLogging();
         NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {
             return;

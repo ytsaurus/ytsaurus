@@ -14,6 +14,7 @@ public:
     {
         NYT::NYTAlloc::EnableLogging();
         NYT::NYTAlloc::EnableProfiling();
+        NYT::NYTAlloc::EnableStockpile();
         NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
     }
 
