@@ -110,7 +110,7 @@ public:
     EPacketType GetPacketType() const;
     EPacketFlags GetPacketFlags() const;
     const TPacketId& GetPacketId() const;
-    TSharedRefArray GetMessage() const;
+    TSharedRefArray GrabMessage() const;
     size_t GetPacketSize() const;
 
 private:
