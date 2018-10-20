@@ -2961,7 +2961,6 @@ public:
         : Thread_(ThreadMainStatic, this)
     {
         pthread_atfork(nullptr, nullptr, &OnFork);
-        Thread_.Start();
     }
 
     virtual ~TBackgroundThreadBase()
@@ -3003,6 +3002,11 @@ private:
     virtual void ThreadMain() = 0;
 
 protected:
+    void Start()
+    {
+        Thread_.Start();
+    }
+    
     bool IsDone(TDuration interval)
     {
         return StopEvent_.WaitT(interval);
@@ -3013,6 +3017,12 @@ protected:
 class TBackgroundThread
     : public TBackgroundThreadBase<TBackgroundThread>
 {
+public:
+    TBackgroundThread()
+    {
+        Start();
+    }
+
 private:
     virtual void ThreadMain() override
     {
@@ -3052,6 +3062,12 @@ public:
 class TStockpileThread
     : public TBackgroundThreadBase<TStockpileThread>
 {
+public:
+    TStockpileThread()
+    {
+        Start();
+    }
+
 private:
     virtual void ThreadMain() override
     {
