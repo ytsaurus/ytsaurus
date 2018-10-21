@@ -83,11 +83,7 @@ public:
     void DetachPeer(NNodeTrackerServer::TNode* node);
     void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
 
-    //! Get health from a point of view of a single master.
     ETabletCellHealth GetHealth() const;
-
-    //! Get aggregated health for all masters.
-    ETabletCellHealth GetMulticellHealth() const;
 
     NHiveClient::TCellDescriptor GetDescriptor() const;
 
@@ -100,9 +96,6 @@ public:
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatistics();
-
-    //! Helper to calculate aggregated health.
-    static ETabletCellHealth CombineHealths(ETabletCellHealth lhs, ETabletCellHealth rhs);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
