@@ -142,7 +142,8 @@ public:
 
     static size_t GetPacketSize(
         EPacketType type,
-        const TSharedRefArray& message);
+        const TSharedRefArray& message,
+        size_t payloadSize);
 
     bool Start(
         EPacketType type,

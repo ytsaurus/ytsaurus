@@ -107,13 +107,13 @@ void TTcpConnection::Cleanup()
 
     while (!QueuedPackets_.empty()) {
         const auto& packet = QueuedPackets_.front();
-        UpdatePendingOut(-1, -packet.Size);
+        UpdatePendingOut(-1, -packet.PacketSize);
         QueuedPackets_.pop();
     }
 
     while (!EncodedPackets_.empty()) {
         const auto& packet = EncodedPackets_.front();
-        UpdatePendingOut(-1, -packet.Size);
+        UpdatePendingOut(-1, -packet.PacketSize);
         EncodedPackets_.pop();
     }
 
@@ -395,9 +395,12 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
 {
     TQueuedMessage queuedMessage(std::move(message), options);
 
+    auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
+
     // NB: Log first to avoid producing weird traces.
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %v)",
-        queuedMessage.PacketId);
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %v, PendingOutPayloadBytes: %v)",
+        queuedMessage.PacketId,
+        pendingOutPayloadBytes);
 
     if (State_ == EState::Open) {
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
@@ -748,17 +751,25 @@ bool TTcpConnection::OnMessagePacketReceived()
     return true;
 }
 
-size_t TTcpConnection::EnqueuePacket(
+TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
     int checksummedPartCount,
     const TPacketId& packetId,
-    TSharedRefArray message)
+    TSharedRefArray message,
+    size_t payloadSize)
 {
-    size_t size = TPacketEncoder::GetPacketSize(type, message);
-    QueuedPackets_.emplace(type, flags, checksummedPartCount, packetId, std::move(message), size);
-    UpdatePendingOut(+1, +size);
-    return size;
+    size_t packetSize = TPacketEncoder::GetPacketSize(type, message, payloadSize);
+    auto* packet = QueuedPackets_.emplace(
+        type,
+        flags,
+        checksummedPartCount,
+        packetId,
+        std::move(message),
+        payloadSize,
+        packetSize);
+    UpdatePendingOut(+1, +packetSize);
+    return packet;
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -957,8 +968,8 @@ bool TTcpConnection::MaybeEncodeFragments()
             Encoder_.NextFragment();
         } while (!Encoder_.IsFinished());
 
-        EncodedPacketSizes_.push(packet.Size);
-        encodedSize += packet.Size;
+        EncodedPacketSizes_.push(packet.PacketSize);
+        encodedSize += packet.PacketSize;
 
         LOG_TRACE("Finished encoding packet (PacketId: %v)", packet.PacketId);
     }
@@ -1000,7 +1011,7 @@ void TTcpConnection::OnPacketSent()
     }
 
 
-    UpdatePendingOut(-1, -packet.Size);
+    UpdatePendingOut(-1, -packet.PacketSize);
     Counters_->OutPackets.fetch_add(1, std::memory_order_relaxed);
 
     EncodedPackets_.pop();
@@ -1016,6 +1027,8 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
 {
     LOG_DEBUG("Outcoming message sent (PacketId: %v)",
         packet.PacketId);
+
+    PendingOutPayloadBytes_.fetch_sub(packet.PayloadSize);
 }
 
 void TTcpConnection::OnTerminated()
@@ -1039,21 +1052,22 @@ void TTcpConnection::ProcessQueuedMessages()
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
         auto& queuedMessage = *it;
 
-        const auto& packetId = queuedMessage.PacketId;
+        auto packetId = queuedMessage.PacketId;
         auto flags = queuedMessage.Options.TrackingLevel == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
 
-        auto packetSize = EnqueuePacket(
+        auto* packet = EnqueuePacket(
             EPacketType::Message,
             flags,
             GenerateChecksums_ ? queuedMessage.Options.ChecksummedPartCount : 0,
             packetId,
-            std::move(queuedMessage.Message));
+            std::move(queuedMessage.Message),
+            queuedMessage.PayloadSize);
 
         LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
             packetId,
-            packetSize,
+            packet->PacketSize,
             flags);
 
         if (Any(flags & EPacketFlags::RequestAck)) {
