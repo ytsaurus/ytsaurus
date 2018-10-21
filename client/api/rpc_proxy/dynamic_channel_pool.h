@@ -1,34 +1,15 @@
 #pragma once
 
+#include "public.h"
 #include "private.h"
 
 #include <yt/client/api/connection.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 namespace NYT {
 namespace NApi {
 namespace NRpcProxy {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TExpiringChannel
-    : public TRefCounted
-{
-public:
-    TFuture<NRpc::IChannelPtr> GetChannel();
-    bool IsExpired();
-
-private:
-    // Protected by TDynamicChannelPool::Lock_.
-    TString Address_;
-    bool IsActive_ = false;
-
-    TFuture<NRpc::IChannelPtr> Channel_;
-    std::atomic<bool> IsExpired_ = {false};
-
-    friend class TDynamicChannelPool;
-};
-
-DECLARE_REFCOUNTED_CLASS(TExpiringChannel)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,25 +18,40 @@ class TDynamicChannelPool
 {
 public:
     explicit TDynamicChannelPool(
-        NRpc::IChannelFactoryPtr channelFactory);
+        NRpc::IChannelFactoryPtr channelFactory,
+        TConnectionConfigPtr config);
 
-    TExpiringChannelPtr CreateChannel();
-    void EvictChannel(TExpiringChannelPtr channelCookie);
-    TErrorOr<NRpc::IChannelPtr> TryCreateChannel();
+    TFuture<NRpc::IChannelPtr> GetRandomChannel();
 
-    void SetAddressList(TFuture<std::vector<TString>> addresses);
+    void SetAddressList(const TErrorOr<std::vector<TString>>& addressesOrError);
 
     void Terminate();
 
 protected:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
+    const TConnectionConfigPtr Config_;
 
-    TSpinLock SpinLock_;
+    struct TChannelSlot
+        : public TRefCounted
+    {
+        TPromise<NRpc::IChannelPtr> Channel = NewPromise<NRpc::IChannelPtr>();
+        TInstant CreationTime = TInstant::Now();
+        std::atomic<bool> SeemsBroken{false};
+
+        bool IsWarm(TInstant now);
+    };
+
+    typedef TIntrusivePtr<TChannelSlot> TChannelSlotPtr;
+
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    std::vector<TChannelSlotPtr> Slots_;
     bool Terminated_ = false;
-    TFuture<std::vector<TString>> Addresses_;
-    THashMap<TString, THashSet<TExpiringChannelPtr>> ActiveChannels_;
+    TInstant LastRebalance_ = TInstant::Now();
 
-    void OnAddressListChange(const TErrorOr<std::vector<TString>>& addressesOrError);
+    TSpinLock OpenChannelsLock_;
+    THashMap<TString, NRpc::IChannelPtr> OpenChannels_;
+    NRpc::IChannelPtr CreateChannel(const TString& address);
+    void TerminateIdleChannels();
 };
 
 DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)
@@ -64,6 +60,9 @@ DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)
 
 //! Create roaming channel over dynamic pool of addresses.
 NRpc::IChannelPtr CreateDynamicChannel(
+    TDynamicChannelPoolPtr pool);
+
+NRpc::IChannelPtr CreateStickyChannel(
     TDynamicChannelPoolPtr pool);
 
 ////////////////////////////////////////////////////////////////////////////////

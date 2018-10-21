@@ -14,6 +14,11 @@ TConnectionConfig::TConnectionConfig()
         .Optional();
     RegisterParameter("addresses", Addresses)
         .Default();
+    RegisterParameter("channel_pool_size", ChannelPoolSize)
+        .Default(3);
+    RegisterParameter("channel_pool_rebalance_interval", ChannelPoolRebalanceInterval)
+        .Default(TDuration::Minutes(1));
+
     RegisterParameter("ping_period", PingPeriod)
         .Default(TDuration::Seconds(3));
 

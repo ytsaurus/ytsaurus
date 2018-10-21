@@ -3,7 +3,6 @@
 #include "connection_impl.h"
 #include "client_impl.h"
 #include "config.h"
-#include "credentials_injecting_channel.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -102,26 +101,6 @@ std::vector<TString> GetRpcProxiesFromHttp(
     return ConvertTo<std::vector<TString>>(node);
 }
 
-IChannelPtr CreateCredentialsInjectingChannel(
-    IChannelPtr underlying,
-    const TClientOptions& options)
-{
-    if (options.Token) {
-        return CreateTokenInjectingChannel(
-            underlying,
-            options.PinnedUser,
-            *options.Token);
-    } else if (options.SessionId || options.SslSessionId) {
-        return CreateCookieInjectingChannel(
-            underlying,
-            options.PinnedUser,
-            options.SessionId.Get(TString()),
-            options.SslSessionId.Get(TString()));
-    } else {
-        return CreateUserInjectingChannel(underlying, options.PinnedUser);
-    }
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,7 +109,7 @@ TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
     , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
-    , ChannelPool_(New<TDynamicChannelPool>(ChannelFactory_))
+    , ChannelPool_(New<TDynamicChannelPool>(ChannelFactory_, Config_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
     , UpdateProxyListExecutor_(New<TPeriodicExecutor>(
@@ -140,14 +119,16 @@ TConnection::TConnection(TConnectionConfigPtr config)
 {
     Config_->Postprocess();
 
-    DiscoveryPromise_ = NewPromise<std::vector<TString>>();
-    ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
-
     if (!Config_->EnableProxyDiscovery) {
-        DiscoveryPromise_.Set(Config_->Addresses);
+        ChannelPool_->SetAddressList(Config_->Addresses);
     } else if (!Config_->Addresses.empty()) {
         UpdateProxyListExecutor_->Start();
     }
+}
+
+TConnection::~TConnection()
+{
+    Terminate();
 }
 
 NObjectClient::TCellTag TConnection::GetCellTag()
@@ -176,12 +157,7 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
         }
     }
 
-    auto channel = CreateDynamicChannel(ChannelPool_);
-    auto authenticatedChannel = CreateCredentialsInjectingChannel(
-        std::move(channel),
-        options);
-
-    return New<TClient>(this, std::move(authenticatedChannel));
+    return New<TClient>(this, ChannelPool_, options);
 }
 
 NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipant(
@@ -269,18 +245,12 @@ void TConnection::OnProxyListUpdate()
                 THROW_ERROR_EXCEPTION("Proxy list is empty");
             }
 
-            if (!DiscoveryPromise_.IsSet()) {
-                DiscoveryPromise_.Set(std::move(proxies));
-            } else {
-                ChannelPool_->SetAddressList(MakeFuture(std::move(proxies)));
-            }
+            ChannelPool_->SetAddressList(proxies);
 
             break;
         } catch (const std::exception& ex) {
-            if (attempt > Config_->MaxProxyListUpdateAttempts && !DiscoveryPromise_.IsSet()) {
-                DiscoveryPromise_.Set(TError(ex));
-                DiscoveryPromise_ = NewPromise<std::vector<TString>>();
-                ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
+            if (attempt > Config_->MaxProxyListUpdateAttempts) {
+                ChannelPool_->SetAddressList(TError(ex));
             }
 
             LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
