@@ -37,7 +37,6 @@ class TestCachedYtClient(object):
         client = CachedYtClient(config=yt.config.config)
 
         real_attributes = yt.get("//home/@")
-        # TODO(acid): Replace this with single get when YT-3522 is ready.
         for attribute in list(real_attributes):
             if isinstance(real_attributes[attribute], yt.yson.YsonEntity):
                 real_attributes[attribute] = yt.get("//home/@" + attribute)
