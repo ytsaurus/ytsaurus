@@ -198,6 +198,11 @@ ETabletCellHealth TTabletCell::GetHealth() const
     return ETabletCellHealth::Good;
 }
 
+ETabletCellHealth TTabletCell::GetMulticellHealth() const
+{
+    return CombineHealths(GetHealth(), ClusterStatistics().Health);
+}
+
 TCellDescriptor TTabletCell::GetDescriptor() const
 {
     TCellDescriptor descriptor;
@@ -230,30 +235,31 @@ TTabletCellStatistics* TTabletCell::GetCellStatistics(NObjectClient::TCellTag ce
 
 void TTabletCell::RecomputeClusterStatistics()
 {
-    auto combineHealths = [] (auto lhs, auto rhs) {
-        static constexpr std::array<ETabletCellHealth, 4> HealthOrder{{
-            ETabletCellHealth::Failed,
-            ETabletCellHealth::Degraded,
-            ETabletCellHealth::Initializing,
-            ETabletCellHealth::Good}};
-
-        for (auto health : HealthOrder) {
-            if (lhs == health || rhs == health) {
-                return health;
-            }
-        }
-
-        return ETabletCellHealth::Failed;
-    };
-
     ClusterStatistics_ = TTabletCellStatistics();
     ClusterStatistics_.Decommissioned = true;
     ClusterStatistics_.Health = GetHealth();
     for (const auto& pair : MulticellStatistics_) {
         ClusterStatistics_ += pair.second;
         ClusterStatistics_.Decommissioned &= pair.second.Decommissioned;
-        ClusterStatistics_.Health = combineHealths(ClusterStatistics_.Health, pair.second.Health);
+        ClusterStatistics_.Health = CombineHealths(ClusterStatistics_.Health, pair.second.Health);
     }
+}
+
+ETabletCellHealth TTabletCell::CombineHealths(ETabletCellHealth lhs, ETabletCellHealth rhs)
+{
+    static constexpr std::array<ETabletCellHealth, 4> HealthOrder{{
+        ETabletCellHealth::Failed,
+        ETabletCellHealth::Degraded,
+        ETabletCellHealth::Initializing,
+        ETabletCellHealth::Good}};
+
+    for (auto health : HealthOrder) {
+        if (lhs == health || rhs == health) {
+            return health;
+        }
+    }
+
+    return ETabletCellHealth::Failed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
