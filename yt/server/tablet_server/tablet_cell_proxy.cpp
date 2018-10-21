@@ -169,7 +169,7 @@ private:
             case EInternedAttributeKey::Health:
                 if (Bootstrap_->IsMulticell()) {
                     BuildYsonFluently(consumer)
-                        .Value(cell->ClusterStatistics().Health);
+                        .Value(cell->GetMulticellHealth());
                 } else {
                     BuildYsonFluently(consumer)
                         .Value(cell->GetHealth());
