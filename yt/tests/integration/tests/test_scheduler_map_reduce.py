@@ -89,7 +89,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
     print "word=%s\\tcount=%s" % (key, count)
 """
 
-        tx = start_transaction(timeout=30000)
+        tx = start_transaction(timeout=60000)
 
         create("table", "//tmp/t_in", tx=tx)
         create("table", "//tmp/t_map_out", tx=tx)
