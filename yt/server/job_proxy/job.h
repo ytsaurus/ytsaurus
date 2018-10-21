@@ -4,6 +4,8 @@
 
 #include <yt/server/exec_agent/public.h>
 
+#include <yt/server/job_proxy/environment.h>
+
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -94,6 +96,8 @@ struct IJob
     virtual TNullable<TString> GetFailContext() = 0;
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
+
+    virtual TCpuStatistics GetCpuStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

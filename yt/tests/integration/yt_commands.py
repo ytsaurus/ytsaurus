@@ -931,6 +931,19 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
+def run_test_vanilla(command, spec=None, job_count=1):
+    spec = spec or {}
+    spec["tasks"] = {
+        "task": {
+            "job_count": job_count,
+            "command": command
+        },
+    }
+    return vanilla(spec=spec, dont_track=True)
+
+def run_sleeping_vanilla(spec=None):
+    return run_test_vanilla("sleep 1000", spec or {})
+
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
 

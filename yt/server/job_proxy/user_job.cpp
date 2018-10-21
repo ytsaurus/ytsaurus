@@ -1061,6 +1061,11 @@ private:
         return statistics;
     }
 
+    virtual TCpuStatistics GetCpuStatistics() const override
+    {
+        return UserJobEnvironment_ ? UserJobEnvironment_->GetCpuStatistics() : TCpuStatistics();
+    }
+
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
         if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {

@@ -1354,8 +1354,8 @@ class TestSchedulerPools(YTEnvSetup):
 
         time.sleep(0.2)
 
-        op1 = self.run_vanilla_with_sleep(spec={"pool": "custom_pool"})
-        op2 = self.run_vanilla_with_sleep(spec={"pool": "custom_pool_fifo"})
+        op1 = run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        op2 = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
         wait(lambda: len(list(op1.get_running_jobs())) == 1)
         wait(lambda: len(list(op2.get_running_jobs())) == 1)
 
@@ -1448,14 +1448,6 @@ class TestSchedulerPools(YTEnvSetup):
             return True
         wait(lambda: check_pools())
 
-    def run_vanilla_with_sleep(self, spec):
-        spec["tasks"] = {
-            "task": {
-                "job_count": 1,
-                "command": "sleep 1000"
-            },
-        }
-        return vanilla(spec=spec, dont_track=True)
 
 ##################################################################
 

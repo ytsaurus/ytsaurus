@@ -56,6 +56,65 @@ DEFINE_REFCOUNTED_TYPE(TJobThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobCpuMonitorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableCpuReclaiming;
+
+    TDuration CheckPeriod;
+
+    double SmoothingFactor;
+
+    double RelativeUpperBound;
+    double RelativeLowerBound;
+
+    double IncreaseCoefficient;
+    double DecreaseCoefficient;
+
+    int VoteWindowSize;
+    int VoteDecisionThreshold;
+
+    double MinCpuLimit;
+
+    TJobCpuMonitorConfig()
+    {
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("smoothing_factor", SmoothingFactor)
+            .Default(0.05);
+
+        RegisterParameter("enable_cpu_reclaiming", EnableCpuReclaiming)
+            .Default(false);
+
+        RegisterParameter("relative_upper_bound", RelativeUpperBound)
+            .Default(0.9);
+
+        RegisterParameter("relative_lower_bound", RelativeLowerBound)
+            .Default(0.6);
+
+        RegisterParameter("increase_coefficient", IncreaseCoefficient)
+            .Default(1.15);
+
+        RegisterParameter("decrease_coefficient", DecreaseCoefficient)
+            .Default(0.85);
+
+        RegisterParameter("vote_window_size", VoteWindowSize)
+            .Default(30);
+
+        RegisterParameter("vote_decision_threshold", VoteDecisionThreshold)
+            .Default(15);
+
+        RegisterParameter("min_cpu_limit", MinCpuLimit)
+            .Default(0.1);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -94,6 +153,8 @@ public:
     bool TestRootFS;
 
     TJobThrottlerConfigPtr JobThrottler;
+
+    TJobCpuMonitorConfigPtr JobCpuMonitor;
 
     TJobProxyConfig()
     {
@@ -146,6 +207,9 @@ public:
 
         RegisterParameter("job_throttler", JobThrottler)
             .Default(nullptr);
+
+        RegisterParameter("job_cpu_monitor", JobCpuMonitor)
+            .DefaultNew();
     }
 };
 

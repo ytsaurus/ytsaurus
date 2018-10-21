@@ -24,13 +24,10 @@ from collections import defaultdict
 # This is a mix of options for 18.4 and 18.5
 cgroups_delta_node_config = {
     "exec_agent": {
-        "enable_cgroups": True,                                       # <= 18.4
-        "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
         "slot_manager": {
-            "enforce_job_control": True,                              # <= 18.4
             "job_environment": {
-                "type": "cgroups",                                   # >= 18.5
-                "supported_cgroups": [                                # >= 18.5
+                "type": "cgroups",
+                "supported_cgroups": [
                     "cpuacct",
                     "blkio",
                     "cpu"],
@@ -3997,6 +3994,7 @@ class TestOperationAliasesNative(TestOperationAliasesBase):
     def test_get_operation_latest_archive_version(self):
         self._test_get_operation_latest_archive_version()
 
+
 class TestOperationAliasesRpc(TestOperationAliasesBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -4007,3 +4005,45 @@ class TestOperationAliasesRpc(TestOperationAliasesBase):
 
     def test_get_operation_latest_archive_version(self):
         self._test_get_operation_latest_archive_version()
+
+
+@require_ytserver_root_privileges
+class TestDynamicCpuAdjustment(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_cpu_monitor": {
+                "check_period": 10,
+                "smoothing_factor": 0.05,
+                "vote_window_size": 10,
+                "vote_decision_threshold": 5,
+                "min_cpu_limit": 0.1,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "supported_cgroups": ["cpu", "cpuacct", "blkio"]
+                }
+            }
+        }
+    }
+
+    def test_dynamic_cpu_adjustment(self):
+        run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"))
+        job_id = wait_breakpoint()[0]
+        time.sleep(0.1)
+
+        node = ls("//sys/nodes")[0]
+        stats_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy/".format(node, job_id)
+        min_cpu_limit = self.DELTA_NODE_CONFIG["exec_agent"]["job_cpu_monitor"]["min_cpu_limit"]
+
+        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] < 10)
+        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] == int((1 - min_cpu_limit)*100))
+
+        release_breakpoint()
+
+        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] > 90)
+        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] == 0)
