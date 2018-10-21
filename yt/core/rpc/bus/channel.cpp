@@ -632,6 +632,7 @@ private:
             bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
+                options.RequestAck,
                 requestId));
 
             requestControl->ProfileRequest(requestMessage);
@@ -649,9 +650,13 @@ private:
                 GetTotalMessageAttachmentSize(requestMessage));
         }
 
-        void OnAcknowledgement(const TRequestId& requestId, const TError& error)
+        void OnAcknowledgement(bool requestAck, const TRequestId& requestId, const TError& error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
+
+            if (!requestAck && error.IsOK()) {
+                return;
+            }
 
             TClientRequestControlPtr requestControl;
             IClientResponseHandlerPtr responseHandler;
