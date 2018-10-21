@@ -19,7 +19,8 @@ class TClient
 public:
     TClient(
         TConnectionPtr connection,
-        NRpc::IChannelPtr channel);
+        TDynamicChannelPoolPtr channelPool,
+        const TClientOptions& options);
 
     virtual TFuture<void> Terminate() override;
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
@@ -244,7 +245,9 @@ public:
 
 private:
     const TConnectionPtr Connection_;
+    const TDynamicChannelPoolPtr ChannelPool_;
     const NRpc::IChannelPtr Channel_;
+    const TClientOptions ClientOptions_;
     const NTabletClient::ITableMountCachePtr TableMountCache_;
 
     TSpinLock TimestampProviderSpinLock_;
@@ -254,6 +257,7 @@ private:
     virtual TConnectionPtr GetRpcProxyConnection() override;
     virtual TClientPtr GetRpcProxyClient() override;
     virtual NRpc::IChannelPtr GetChannel() override;
+    virtual NRpc::IChannelPtr GetStickyChannel() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

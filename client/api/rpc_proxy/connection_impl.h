@@ -24,6 +24,7 @@ class TConnection
 {
 public:
     explicit TConnection(TConnectionConfigPtr config);
+    ~TConnection();
 
     TFuture<NRpc::IChannelPtr> CreateChannelAndRegisterProvider(
         const NApi::TClientOptions& options,
@@ -62,7 +63,6 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
     NRpc::IChannelPtr DiscoveryChannel_;
-    TPromise<std::vector<TString>> DiscoveryPromise_;
 
     TSpinLock HttpDiscoveryLock_;
     // TODO(prime@): Create http endpoint for discovery that works without authentication.
