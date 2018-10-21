@@ -167,8 +167,13 @@ private:
                 return true;
 
             case EInternedAttributeKey::Health:
-                BuildYsonFluently(consumer)
-                    .Value(cell->GetMulticellHealth());
+                if (Bootstrap_->IsMulticell()) {
+                    BuildYsonFluently(consumer)
+                        .Value(cell->ClusterStatistics().Health);
+                } else {
+                    BuildYsonFluently(consumer)
+                        .Value(cell->GetHealth());
+                }
                 return true;
 
             case EInternedAttributeKey::Peers:
