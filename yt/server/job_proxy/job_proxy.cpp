@@ -1,5 +1,6 @@
 #include "job_proxy.h"
 #include "config.h"
+#include "cpu_monitor.h"
 #include "job_prober_service.h"
 #include "merge_job.h"
 #include "partition_job.h"
@@ -260,6 +261,7 @@ void TJobProxy::RetrieveJobSpec()
     // We never report to node less memory usage, than was initially reserved.
     TotalMaxMemoryUsage_ = JobProxyMemoryReserve_ - Config_->AheadMemoryReserve;
     ApprovedMemoryReserve_ = JobProxyMemoryReserve_;
+    RequestedMemoryReserve_ = JobProxyMemoryReserve_;
 
     std::vector<TString> annotations{
         Format("OperationId: %v", OperationId_),
@@ -305,6 +307,11 @@ void TJobProxy::Run()
 
     if (MemoryWatchdogExecutor_) {
         WaitFor(MemoryWatchdogExecutor_->Stop())
+            .ThrowOnError();
+    }
+
+    if (CpuMonitor_) {
+        WaitFor(CpuMonitor_->Stop())
             .ThrowOnError();
     }
 
@@ -461,7 +468,7 @@ TJobResult TJobProxy::DoRun()
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
         auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
 
-        SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
+        SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
@@ -469,6 +476,8 @@ TJobResult TJobProxy::DoRun()
         Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
 
         RetrieveJobSpec();
+
+        CpuMonitor_ = New<TCpuMonitor>(Config_->JobCpuMonitor, JobThread_->GetInvoker(), CpuLimit_, this);
 
         if (Config_->JobThrottler) {
             LOG_DEBUG("Job throttling enabled");
@@ -554,6 +563,7 @@ TJobResult TJobProxy::DoRun()
 
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
+    CpuMonitor_->Start();
 
     return Job_->Run();
 }
@@ -625,6 +635,8 @@ TStatistics TJobProxy::GetStatistics() const
 
     FillTrafficStatistics(JobProxyTrafficStatisticsPrefix, statistics, TrafficMeter_);
 
+    CpuMonitor_->FillStatistics(statistics);
+
     statistics.SetTimestamp(TInstant::Now());
 
     return statistics;
@@ -635,7 +647,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment() const
     if (JobProxyEnvironment_) {
         return JobProxyEnvironment_->CreateUserJobEnvironment(ToString(JobId_));
     } else {
-            return nullptr;
+        return nullptr;
     }
 }
 
@@ -660,7 +672,7 @@ const IJobSpecHelperPtr& TJobProxy::GetJobSpecHelper() const
     return JobSpecHelper_;
 }
 
-void TJobProxy::UpdateResourceUsage(i64 memoryReserve)
+void TJobProxy::UpdateResourceUsage()
 {
     // Fire-and-forget.
     auto req = SupervisorProxy_->UpdateResourceUsage();
@@ -668,8 +680,8 @@ void TJobProxy::UpdateResourceUsage(i64 memoryReserve)
     auto* resourceUsage = req->mutable_resource_usage();
     resourceUsage->set_cpu(CpuLimit_);
     resourceUsage->set_network(NetworkUsage_);
-    resourceUsage->set_memory(memoryReserve);
-    req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), memoryReserve));
+    resourceUsage->set_memory(RequestedMemoryReserve_);
+    req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), RequestedMemoryReserve_.load()));
 }
 
 void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
@@ -694,7 +706,7 @@ void TJobProxy::ReleaseNetwork()
 {
     LOG_DEBUG("Releasing network");
     NetworkUsage_ = 0;
-    UpdateResourceUsage(ApprovedMemoryReserve_);
+    UpdateResourceUsage();
 }
 
 void TJobProxy::OnPrepared()
@@ -777,9 +789,10 @@ void TJobProxy::CheckMemoryUsage()
         }
     }
     i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;
-    if (ApprovedMemoryReserve_ < memoryReserve) {
-        LOG_DEBUG("Asking node for resource usage update (MemoryReserve: %v)", memoryReserve);
-        UpdateResourceUsage(memoryReserve);
+    if (RequestedMemoryReserve_ < memoryReserve) {
+        LOG_DEBUG("Request node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)", RequestedMemoryReserve_.load(), memoryReserve);
+        RequestedMemoryReserve_ = memoryReserve;
+        UpdateResourceUsage();
     }
 }
 
@@ -808,6 +821,27 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
 
     NLogging::TLogManager::Get()->Shutdown();
     _exit(static_cast<int>(exitCode));
+}
+
+void TJobProxy::SetCpuLimit(double cpuLimit)
+{
+    LOG_INFO("Changing cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_.load(), cpuLimit);
+    CpuLimit_ = cpuLimit;
+    UpdateResourceUsage();
+}
+
+TDuration TJobProxy::GetSpentCpuTime() const
+{
+    TDuration result = TDuration::Zero();
+    if (JobProxyEnvironment_) {
+        const auto& proxyCpu = JobProxyEnvironment_->GetCpuStatistics();
+        result += proxyCpu.SystemTime + proxyCpu.UserTime;
+    }
+    if (Job_) {
+        const auto& jobCpu = Job_->GetCpuStatistics();
+        result += jobCpu.SystemTime + jobCpu.UserTime;
+    }
+    return result;
 }
 
 NLogging::TLogger TJobProxy::GetLogger() const

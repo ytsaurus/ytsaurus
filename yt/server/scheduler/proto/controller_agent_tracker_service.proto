@@ -23,6 +23,8 @@ message TJobMetrics
     optional int64 disk_writes = 2;
     optional int64 time_completed = 3;
     optional int64 time_aborted = 4;
+    optional double smoothed_cpu_usage = 5;
+    optional double preemptable_cpu = 6;
 }
 
 message TTreeTaggedJobMetrics

@@ -31,6 +31,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskWrites);
     DEFINE_BYVAL_RW_PROPERTY(i64, TimeCompleted);
     DEFINE_BYVAL_RW_PROPERTY(i64, TimeAborted);
+    DEFINE_BYVAL_RW_PROPERTY(i64, SmoothedCpuUsage);
+    DEFINE_BYVAL_RW_PROPERTY(i64, PreemptableCpu);
 
 public:
     static TJobMetrics FromJobTrackerStatistics(

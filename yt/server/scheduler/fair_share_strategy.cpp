@@ -2077,7 +2077,7 @@ private:
             {tag, TreeIdProfilingTag});
     }
 
-    void ProfileSchedulerElement(TProfileCollector& collector, TSchedulerElementPtr element, const TString& profilingPrefix, const TTagIdList& tags) const
+    void ProfileSchedulerElement(TProfileCollector& collector, const TSchedulerElementPtr& element, const TString& profilingPrefix, const TTagIdList& tags) const
     {
         collector.Add(
             profilingPrefix + "/fair_share_ratio_x100000",
