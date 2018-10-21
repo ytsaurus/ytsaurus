@@ -1990,7 +1990,7 @@ private:
             errors.push_back(error);
         }
         if (queueIsTooLargeNodeCount > Config_->JobReporterQueueIsTooLargeAlertThreshold) {
-            auto error = TError("Too many nodes has large job archivation queues")
+            auto error = TError("Too many nodes have large job archivation queues")
                 << TErrorAttribute("threshold", Config_->JobReporterQueueIsTooLargeAlertThreshold)
                 << TErrorAttribute("queue_is_too_large_node_count", queueIsTooLargeNodeCount);
             errors.push_back(error);
