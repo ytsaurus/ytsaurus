@@ -201,7 +201,8 @@ TPacketEncoder::TPacketEncoder(const NLogging::TLogger& logger)
 
 size_t TPacketEncoder::GetPacketSize(
     EPacketType type,
-    const TSharedRefArray& message)
+    const TSharedRefArray& message,
+    size_t payloadSize)
 {
     size_t size = sizeof (TPacketHeader);
     switch (type) {
@@ -212,7 +213,7 @@ size_t TPacketEncoder::GetPacketSize(
             size +=
                 message.Size() * (sizeof (ui32) + sizeof (ui64)) +
                 sizeof (ui64) +
-                GetByteSize(message);
+                payloadSize;
             break;
 
         default:
