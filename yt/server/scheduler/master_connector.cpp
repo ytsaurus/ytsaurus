@@ -165,7 +165,6 @@ public:
                 .Do(BIND(&BuildMinimalOperationAttributes, operation))
                 .Item("opaque").Value(true)
                 .Item("acl").Do(std::bind(&TImpl::BuildAcl, operation, _1))
-                .Item("owners").Value(operation->GetOwners())
                 .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .EndAttributes()
             .BeginMap()
