@@ -688,7 +688,7 @@ private:
             TQueryServiceProxy proxy(channel);
 
             auto req = proxy.Execute();
-            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+            // TODO(babenko): set proper band
             if (options.Deadline != TInstant::Max()) {
                 req->SetTimeout(options.Deadline - Now());
             }
