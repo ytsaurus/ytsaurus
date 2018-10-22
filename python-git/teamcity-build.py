@@ -119,7 +119,7 @@ def checkout(options):
             ],
             cwd=options.yt_build_directory)
     else:
-        run(["git", "checkout", "prestable/19.3"], cwd=options.yt_source_directory)
+        run(["git", "checkout", "prestable/19.4"], cwd=options.yt_source_directory)
         run(["git", "pull"], cwd=options.yt_source_directory)
         run(["git", "submodule", "update", "--init", "--recursive"], cwd=options.yt_source_directory)
 
