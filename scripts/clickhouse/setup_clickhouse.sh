@@ -30,3 +30,4 @@ cat /home/max42/yt_arc/source/yt/tests/integration/tests/test_clickhouse/server.
 yt create document //sys/clickhouse/configuration/users
 cat /home/max42/yt_arc/source/yt/tests/integration/tests/test_clickhouse/users.yson | yt set //sys/clickhouse/configuration/users
 
+yt create map_node //sys/clickhouse/bin
