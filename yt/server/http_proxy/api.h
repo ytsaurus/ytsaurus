@@ -83,6 +83,8 @@ private:
 
     struct TProfilingCounters
     {
+        std::atomic<int> LocalSemaphore;
+
         NProfiling::TTagIdList Tags;
 
         NProfiling::TAggregateGauge ConcurrencySemaphore;
