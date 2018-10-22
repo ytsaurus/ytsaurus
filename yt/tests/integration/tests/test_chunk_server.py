@@ -11,7 +11,7 @@ from time import sleep
 
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 20
+    NUM_NODES = 21
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
             "safe_online_node_count": 3
@@ -20,6 +20,9 @@ class TestChunkServer(YTEnvSetup):
             "full_node_states_gossip_period": 1000
         }
     }
+
+    def teardown(self):
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True, recursive=True)
 
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
@@ -120,6 +123,27 @@ class TestChunkServer(YTEnvSetup):
         write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 16, 4)
 
+    def test_decommission_erasure3(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        write_table("//tmp/t", {"a" : "b"})
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
+
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        nodes = get("#%s/@stored_replicas" % chunk_id)
+
+        for index in (4, 6, 11, 15):
+            set("//sys/nodes/%s/@banned" % nodes[index], True)
+        set_node_decommissioned(nodes[0], True)
+
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 12)
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True, recursive=True)
+
+        wait(lambda: get("//sys/nodes/%s/@decommissioned" % nodes[0]))
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 16)
+
     def test_decommission_journal(self):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
@@ -135,11 +159,11 @@ class TestChunkServer(YTEnvSetup):
 
     def test_disable_replicator_when_few_nodes_are_online(self):
         nodes = ls("//sys/nodes")
-        assert len(nodes) == 20
+        assert len(nodes) == 21
 
         assert get("//sys/@chunk_replicator_enabled")
 
-        for i in xrange(18):
+        for i in xrange(19):
             set("//sys/nodes/%s/@banned" % nodes[i], True)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))

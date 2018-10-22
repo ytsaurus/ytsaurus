@@ -1326,10 +1326,17 @@ bool TChunkReplicator::CreateRepairJob(
             [&] (int index) {
                 return mediumStatistics.DecommissionedReplicaCount[index] == 0;
             });
-        // Limit the number of parts to attempt repairing at once.
-        erasedPartIndexes.erase(
-            erasedPartIndexes.begin() + guaranteedRepairablePartCount,
-            erasedPartIndexes.end());
+
+        // Try popping decommissioned replicas as long repair cannot be performed.
+        do {
+            if (mediumStatistics.DecommissionedReplicaCount[erasedPartIndexes.back()] == 0) {
+                LOG_ERROR("Erasure chunk has not enough replicas to repair (ChunkId: %v)",
+                    chunk->GetId());
+                return false;
+            }
+            erasedPartIndexes.pop_back();
+        } while (!codec->CanRepair(erasedPartIndexes));
+
         std::sort(erasedPartIndexes.begin(), erasedPartIndexes.end());
     }
 
