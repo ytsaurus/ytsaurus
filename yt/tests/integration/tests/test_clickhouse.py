@@ -7,6 +7,7 @@ from distutils.spawn import find_executable
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
+import json
 import pytest
 import psutil
 import subprocess
@@ -115,7 +116,12 @@ class TestClickhouse(YTEnvSetup):
         host = instance.attributes["host"]
         port = instance.attributes["tcp_port"]
 
-        args = [self._clickhouse_client_binary, "client", "-h", host, "--port", port, "-q", query]
+        args = [self._clickhouse_client_binary, "client",
+                "-h", host,
+                "--port", port,
+                "-q", query,
+                "--format", "JSON",
+                "--output_format_json_quote_64bit_integers", "0"]
         print >>sys.stderr, "Running '{0}'...".format(' '.join(args))
 
         process = psutil.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -133,7 +139,7 @@ class TestClickhouse(YTEnvSetup):
         if return_code != 0:
             raise YtError("Clickhouse query failed\n" + output)
 
-        return stdout
+        return json.loads(stdout)
 
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
@@ -143,8 +149,23 @@ class TestClickhouse(YTEnvSetup):
         for i in range(10):
             write_table("<append=%true>//tmp/t", {"a": i})
 
-        assert abs(float(self._make_query(clique, 'select avg(a) from "//tmp/t"')) - 4.5) < 1e-6
+        assert abs(self._make_query(clique, 'select avg(a) from "//tmp/t"')["data"][0]["avg(a)"] - 4.5) < 1e-6
         with pytest.raises(YtError):
             self._make_query(clique, 'select avg(b) from "//tmp/t"')
         # TODO(max42): support range selectors.
         #assert abs(float(self._make_query(clique, 'select avg(a) from "//tmp/t[#2:#9]"')) - 5.0) < 1e-6
+
+    # YT-9497
+    def test_aggregation_with_multiple_string_columns(self):
+        clique = self._start_clique(1)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
+                                                          {"name": "key2", "type": "string"},
+                                                          {"name": "value", "type": "int64"}]})
+        for i in range(5):
+            write_table("<append=%true>//tmp/t", [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)])
+        total = 24 * 25 // 2
+
+        result = self._make_query(clique, 'select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
+        assert result["data"] == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+
