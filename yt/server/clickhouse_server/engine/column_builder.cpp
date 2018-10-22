@@ -83,7 +83,7 @@ public:
         for (size_t i = 0; i < count; ++i) {
             const size_t valueLength = values[i].size();
             memcpy(&data[offset], values[i].data(), valueLength);
-            data[offset + valueLength + 1] = 0;
+            data[offset + valueLength] = 0;
 
             offset += valueLength + 1;
             offsets[oldSize + i] = offset;
