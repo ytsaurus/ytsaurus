@@ -53,7 +53,7 @@ void TCpuMonitor::DoCheck()
     if (decision) {
         LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)", SoftLimit_, *decision);
         SoftLimit_ = *decision;
-        if (Config_->EnableCpuReclaiming) {
+        if (Config_->EnableCpuReclaim) {
             JobProxy_->SetCpuLimit(*decision);
         }
     }
@@ -77,7 +77,7 @@ bool TCpuMonitor::UpdateSmoothedValue()
         auto newSmoothedUsage = SmoothedUsage_.HasValue()
             ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * *SmoothedUsage_
             : HardLimit_;
-        LOG_DEBUG("Smoothed cpu usage updated (OldValue: %v, NewValue: %v)", *SmoothedUsage_, newSmoothedUsage);
+        LOG_DEBUG("Smoothed cpu usage updated (OldValue: %v, NewValue: %v)", SmoothedUsage_, newSmoothedUsage);
         SmoothedUsage_ = newSmoothedUsage;
     }
     LastCheckTime_ = now;
