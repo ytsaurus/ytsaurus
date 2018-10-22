@@ -47,6 +47,7 @@
 #endif
 #ifdef _darwin_
     #include <util.h>
+    #include <pthread.h>
 #endif
 
 namespace NYT {
@@ -96,16 +97,19 @@ std::vector<int> GetPidsByUid(int uid)
 
     YCHECK(::closedir(dirStream) == 0);
     return result;
-
 #else
     return std::vector<int>();
 #endif
 }
 
-int GetCurrentThreadId()
+size_t GetCurrentThreadId()
 {
-#ifdef _unix_
-    return ::syscall(SYS_gettid);
+#if defined(_linux_)
+    return static_cast<size_t>(::syscall(SYS_gettid));
+#elif defined(_darwin_)
+    uint64_t tid;
+    YCHECK(pthread_threadid_np(nullptr, &tid) == 0);
+    return static_cast<size_t>(tid);
 #else
     Y_UNREACHABLE();
 #endif
