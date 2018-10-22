@@ -60,7 +60,7 @@ class TJobCpuMonitorConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableCpuReclaiming;
+    bool EnableCpuReclaim;
 
     TDuration CheckPeriod;
 
@@ -85,7 +85,7 @@ public:
         RegisterParameter("smoothing_factor", SmoothingFactor)
             .Default(0.05);
 
-        RegisterParameter("enable_cpu_reclaiming", EnableCpuReclaiming)
+        RegisterParameter("enable_cpu_reclaim", EnableCpuReclaim)
             .Default(false);
 
         RegisterParameter("relative_upper_bound", RelativeUpperBound)
