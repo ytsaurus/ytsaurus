@@ -182,7 +182,7 @@ private:
             ReplyWithError(
                 EStatusCode::BadRequest,
                 TError(
-                    "Clickhouse proxy should be accessed via hostname of form clickhouse.<clustername>.yt.yandex.net "
+                    "ClickHouse proxy should be accessed via hostname of form clickhouse.<clustername>.yt.yandex.net "
                     "or clickhouse.*.yt.yandex-team.ru"));
             return;
         }
