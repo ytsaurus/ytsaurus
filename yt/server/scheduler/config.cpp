@@ -118,9 +118,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("disable_preemption_under_guaranteed_ratio", DisablePreemptionUnderGuaranteedRatio)
-        .Default(true);
-
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
