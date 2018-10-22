@@ -129,7 +129,7 @@ private:
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = Blackbox_->GetLogin(data);
+        auto login = BlackboxService_->GetLogin(data);
 
         // Sanity checks.
         if (!login.IsOK()) {
