@@ -137,9 +137,6 @@ public:
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
 
-    //! If disable then max(fair_share_ratio, guaranteed_ratio) used for preemption decisions.
-    bool DisablePreemptionUnderGuaranteedRatio;
-
     TFairShareStrategyTreeConfig();
 };
 
