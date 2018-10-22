@@ -5,16 +5,7 @@
 
 This script provides the assistance functions to synchronize YT in Arcadia and in GitHub.
 
-The main source tree is composed of different directories with two main synchronization strategies.
-
-First, `contrib/`, `library/` and `util/` are mirrored from Arcadia to GitHub, and YT pins
-a snapshot + a patchset. These directories are mirrored with `git-svn` to the `upstream` branch in GitHub.
-The patchset is typically applied on the `master` branch, and the `master` branch is a fork of
-the `upstream` branch.  When updating these directories, one usually pins the old `master` branch
-under the name `old/YYYY_MM_DD__HH_mm_ss` (to make sure that all the old commits are reachable)
-and rebases the `master` branch on top of the `upstream` branch.
-
-Second, `yt/` is mirrored from GitHub to Arcadia as a snapshot. `git-svn` is used to commit the appropriate
+`yt/` is mirrored from GitHub to Arcadia as a snapshot. `git-svn` is used to commit the appropriate
 subtree into SVN, and the lineage is preserved with the commit marks. Namely, every push commit in SVN
 contains the textual reference to the original Git commit. This information is used to properly pull changes
 from SVN to Git.
@@ -28,27 +19,32 @@ Examples: `HEAD`, `origin/master`, `refs/remotes/origin/master`, `branch`, `refs
 
 **(Svn) Revision**. Changeset for a repository. Identified by a natural number. Revisions are totally ordered.
 
-## How To Add New Arcadia Submodule
+## Arcadia dependencies
 
-(1) Create a Git repository on GitHub.
-(2) Add submodule to list below (search for: `SUBMODULES`)
-(3) Call `git submodule add`
-(4) Call this script with `submodule-init` and `submodule-fetch` commands
-(5) Call `git submodule add` (again!)# {}
-(6) Create subdirectory in `cmake/` and write `CMakeLists.txt`
-(7) Add `add_subdirectory` in root `CMakeLists.txt`
+Arcadia dependencies (like util/, library/, etc) are managed via arcup.py script.
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-svn"))
 
-from git_svn_lib import (Git, Svn, CheckError, make_remote_ref, abbrev, git_dry_run, make_head_ref,
-                         get_all_symbolic_refs, check_git_version, check_git_working_tree, check_svn_url,
-                         extract_git_svn_revision_to_commit_mapping_as_list,
-                         extract_git_svn_revision_to_commit_mapping_as_dict,
-                         parse_git_svn_correspondence,
-                         init_git_svn, fetch_git_svn, push_git_svn, pull_git_svn, get_svn_url_for_git_svn_remote)
+from git_svn_lib import (
+    CheckError,
+    Git,
+    Svn,
+    check_git_version,
+    check_git_working_tree,
+    check_svn_url,
+    extract_git_svn_revision_to_commit_mapping_as_dict,
+    extract_git_svn_revision_to_commit_mapping_as_list,
+    fetch_git_svn,
+    get_svn_url_for_git_svn_remote,
+    init_git_svn,
+    make_remote_ref,
+    parse_git_svn_correspondence,
+    pull_git_svn,
+    push_git_svn
+)
 
 import argparse
 import collections
@@ -58,7 +54,6 @@ import logging
 import re
 import shutil
 import subprocess
-import time
 import tempfile
 
 from xml.etree import ElementTree
@@ -86,6 +81,8 @@ class LocalSvn(object):
             - normal -- not changed
             - unversioned -- svn doesn't know about file
             - missing -- file removed localy but present in svn
+            - added -- file is not present in svn and was added
+            - modified -- file is present in svn and was modified in working copy
             ...
         """
         SvnStatusEntry = collections.namedtuple("SvnStatusEntry", ["abspath", "relpath", "status"])
@@ -121,15 +118,12 @@ class LocalSvn(object):
 def verify_recent_svn_revision_merged(git, git_svn_id):
     svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
     recent_revision = svn_get_last_modified_revision(Svn(), svn_url)
-    verify_svn_revision_merged(git, git_svn_id, recent_revision)
-
-def verify_svn_revision_merged(git, git_svn_id, svn_revision):
     svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
-    git_log_pattern = "^git-svn-id: {}@{}".format(svn_url, svn_revision)
+    git_log_pattern = "^git-svn-id: {}@{}".format(svn_url, recent_revision)
     log = git.call("log", "--grep", git_log_pattern)
     if not log.strip():
         raise CheckError("Svn revision {} is not merged to git.\n"
-                         "Use --ignore-unmerged-svn-commits flag to skip this check.\n".format(svn_revision))
+                         "Use --ignore-unmerged-svn-commits flag to skip this check.\n".format(recent_revision))
 
 def svn_get_last_modified_revision(svn, url):
     xml_svn_info = svn.call("info", "--xml", url)
@@ -138,7 +132,7 @@ def svn_get_last_modified_revision(svn, url):
     assert len(commit_lst) == 1
     return commit_lst[0].get("revision")
 
-def svn_iter_changed_files(local_svn, relpath):
+def local_svn_iter_changed_files(local_svn, relpath):
     return (status for status in local_svn.iter_status(relpath) if status.status not in ("normal", "unversioned"))
 
 def rmrf(path):
@@ -323,18 +317,6 @@ def action_fetch(ctx, args):
 def action_stitch(ctx, args):
     stitch_git_svn(ctx.git, "HEAD", ctx.arc_git_remote, ctx.arc_url)
 
-def action_push(ctx, args):
-    push_git_svn(
-        ctx.git,
-        ctx.svn,
-        ctx.arc_url,
-        ctx.arc_git_remote,
-        "yt/",
-        "yt/%s/" % ctx.abi,
-        review=args.review,
-        force=args.force,
-        dry_run=not args.yes)
-
 def action_pull(ctx, args):
     pull_git_svn(
         ctx.git,
@@ -353,7 +335,7 @@ def action_copy_to_local_svn(ctx, args):
         verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
 
     logger.info("check svn repository for local modifications")
-    changed_files = list(svn_iter_changed_files(local_svn, ctx.svn_relpath))
+    changed_files = list(local_svn_iter_changed_files(local_svn, ctx.svn_relpath))
     if changed_files and not args.ignore_svn_modifications:
         raise CheckError(
             "svn repository has unstaged changed:\n"
@@ -475,251 +457,6 @@ def snapshot_main(args):
 
     args.action(ctx, args)
 
-def action_submodule_init(ctx, args):
-    init_git_svn(ctx.git, ctx.arc_git_remote, ctx.arc_url)
-
-    remotes = ctx.git.call("remote").split()
-    if ctx.gh_git_remote in remotes:
-        ctx.git.call("remote", "remove", ctx.gh_git_remote)
-    ctx.git.call("remote", "add", "-m", ctx.gh_arc_branch, ctx.gh_git_remote, ctx.gh_url)
-    ctx.git.call("remote", "update", ctx.gh_git_remote)
-    ctx.git.call(
-        "config", "--local", "remote.%s.push" % ctx.gh_git_remote,
-        "+%s:%s" % (ctx.arc_git_remote_ref, make_head_ref(ctx.gh_arc_branch)))
-    ctx.git.call(
-        "config", "--local", "remote.%s.mirror" % ctx.gh_git_remote,
-        "false")
-
-    arc_branch_ref = ctx.gh_git_remote_ref + "/" + ctx.gh_arc_branch
-    arc_branch_commit = ctx.git.resolve_ref(arc_branch_ref)
-    if arc_branch_commit:
-        ctx.git.call("update-ref", ctx.arc_git_remote_ref, arc_branch_commit)
-
-
-def action_submodule_fetch(ctx, args):
-    fetch_git_svn(ctx.git, ctx.svn, ctx.arc_git_remote, one_by_one=False)
-    ctx.git.call("fetch", ctx.gh_git_remote)
-    ctx.git.call("remote", "prune", ctx.gh_git_remote)
-
-    old_head = ctx.git.resolve_ref(ctx.gh_git_remote_ref + "/" + ctx.gh_arc_branch)
-    new_head = ctx.git.resolve_ref(ctx.arc_git_remote_ref)
-
-    assert new_head is not None
-
-    push = False
-    if old_head is None:
-        push = True
-    elif old_head == new_head:
-        logger.info(
-            "'%s' is up-to-date: %s is latest commit in '%s'",
-            ctx.name, abbrev(old_head), ctx.arc_git_remote)
-    elif ctx.git.is_ancestor(old_head, new_head):
-        push = True
-    else:
-        logger.warning(
-            "Upstream has diverged in '%s'! %s is not parent for %s!",
-            ctx.name, new_head, old_head)
-
-    if push:
-        logger.info(
-            "Updating '%s': %s -> %s",
-            ctx.name, abbrev(old_head), abbrev(new_head))
-        ctx.git.call("push", ctx.gh_git_remote, "%s:%s" % (new_head, make_head_ref(ctx.gh_arc_branch)))
-
-
-def action_submodule_stitch(ctx, args):
-    if ctx.name in ["contrib-libs-protobuf"]:
-        return
-
-    refs = get_all_symbolic_refs(ctx.git)
-
-    for _, ref in refs:
-        if not ref.startswith(ctx.gh_git_remote_ref):
-            continue
-        stitch_git_svn(ctx.git, ref, ctx.arc_git_remote, ctx.arc_url)
-    stitch_git_svn(ctx.git, "HEAD", ctx.arc_git_remote, ctx.arc_url)
-
-
-def check_pinning_required(git, ref, prefixes):
-    for _, symbolic_ref in get_all_symbolic_refs(git):
-        if not any(symbolic_ref.startswith(prefix) for prefix in prefixes):
-            continue
-        if git.is_ancestor(ref, symbolic_ref):
-            return True, symbolic_ref
-    return False, None
-
-
-def action_submodule_pin(ctx, args):
-    head_ref = args.commit  # assume references are passed via args
-    head_commit = ctx.git.resolve_ref(args.commit)
-
-    logger.info("Pinning commits that are reachable from '%s' (%s)", head_ref, abbrev(head_commit))
-
-    holder_prefixes = [
-        ctx.gh_git_remote_ref + "/old",
-        ctx.gh_git_remote_ref + "/" + ctx.gh_arc_branch]
-    held, holder_ref = check_pinning_required(ctx.git, head_commit, holder_prefixes)
-
-    if held:
-        logger.info("Commit %s is already held by reference '%s'", abbrev(head_commit), holder_ref)
-    else:
-        pin = "old/" + time.strftime("%Y_%m_%d__%H_%M_%S")
-        ctx.git.call("push", ctx.gh_git_remote, "%s:%s" % (head_commit, make_head_ref(pin)))
-
-
-def action_submodule_fast_pull(ctx, args):
-    old_head = ctx.git.resolve_ref("HEAD")
-    new_head = ctx.git.resolve_ref(ctx.arc_git_remote_ref)
-
-    assert old_head is not None
-    assert new_head is not None
-
-    if old_head == new_head:
-        logger.info(
-            "'%s' is up-to-date: %s is latest commit in '%s'",
-            ctx.name, abbrev(old_head), ctx.arc_git_remote)
-    elif ctx.git.is_ancestor(new_head, old_head):
-        logger.info(
-            "'%s' is up-to-date: %s superseedes latest commit %s in '%s'",
-            ctx.name, abbrev(old_head), abbrev(new_head), ctx.arc_git_remote)
-    else:
-        if ctx.git.test("rebase", "--quiet", new_head):
-            rebased_head = ctx.git.resolve_ref("HEAD")
-            logger.info(
-                "'%s' has been updated with the rebase: %s -> %s over %s",
-                ctx.name, abbrev(old_head), abbrev(rebased_head), abbrev(new_head))
-        else:
-            ctx.git.call("rebase", "--abort")
-            logger.warning("Manual pull is required in '%s'!", ctx.name)
-
-
-def action_submodule_fast_push(ctx, args):
-    old_head = ctx.git.resolve_ref(ctx.gh_git_remote_ref + "/" + ctx.gh_branch)
-    new_head = ctx.git.resolve_ref("HEAD")
-
-    assert new_head is not None
-
-    push = False
-    if old_head is None:
-        push = True
-    elif old_head == new_head:
-        logger.info(
-            "'%s' is up-to-date: %s is latest commit in '%s/%s'",
-            ctx.name, abbrev(old_head), ctx.gh_git_remote, ctx.gh_branch)
-    else:
-        holder_prefixes = [
-            ctx.gh_git_remote_ref + "/old",
-            ctx.gh_git_remote_ref + "/" + ctx.gh_arc_branch]
-        held, holder_ref = check_pinning_required(ctx.git, old_head, holder_prefixes)
-
-        if held or ctx.git.is_ancestor(old_head, new_head):
-            push = True
-        else:
-            logger.warning("Manual push is required in '%s'!", ctx.name)
-
-    if push:
-        logger.info(
-            "Pushing '%s' to '%s/%s': %s -> %s",
-            ctx.name, ctx.gh_git_remote, ctx.gh_branch, abbrev(old_head), abbrev(new_head))
-        git_dry_run(
-            not args.yes, ctx,
-            "push", "--force", ctx.gh_git_remote, "%s:%s" % (new_head, make_head_ref(ctx.gh_branch)))
-
-
-def submodule_main(args):
-    class Ctx(collections.namedtuple("Ctx", ["git", "svn", "name"])):
-        @property
-        def splitname(self):
-            assert "!" not in self.name
-            return self.name.replace("-", "!").replace("!!", "-").split("!")
-
-        @property
-        def relpath(self):
-            return os.path.join(*self.splitname)
-
-        @property
-        def arc_url(self):
-            return "%s/%s" % (ARC, self.relpath)
-
-        @property
-        def arc_git_remote(self):
-            return "arcadia"
-
-        @property
-        def arc_git_remote_ref(self):
-            return make_remote_ref(self.arc_git_remote)
-
-        @property
-        def gh_url(self):
-            return "%s/arcadia-%s.git" % (GH, self.name)
-
-        @property
-        def gh_git_remote(self):
-            return "origin"
-
-        @property
-        def gh_git_remote_ref(self):
-            return make_remote_ref(self.gh_git_remote)
-
-        @property
-        def gh_branch(self):
-            return "master"
-
-        @property
-        def gh_arc_branch(self):
-            return "upstream"
-
-    if not args.submodules:
-        logger.info("No submodules specified; use `--submodule ...` or `--all`")
-
-    for submodule in args.submodules:
-        logger.debug("Processing submodule '%s'", submodule)
-
-        ctx = Ctx(git=None, svn=None, name=submodule)
-        git = Git(repo=os.path.join(PROJECT_PATH, ctx.relpath))
-        svn = Svn()
-        ctx = ctx._replace(git=git, svn=svn)
-
-        args.action(ctx, args)
-
-
-SUBMODULES = """
-contrib-libs-base64
-contrib-libs-brotli
-contrib-libs-c--ares
-contrib-libs-double--conversion
-contrib-libs-farmhash
-contrib-libs-gmock
-contrib-libs-grpc
-contrib-libs-gtest
-contrib-libs-libbz2
-contrib-libs-lz4
-contrib-libs-lzmasdk
-contrib-libs-minilzo
-contrib-libs-msgpack
-contrib-libs-nanopb
-contrib-libs-openssl
-contrib-libs-protobuf
-contrib-libs-re2
-contrib-libs-snappy
-contrib-libs-sparsehash
-contrib-libs-yajl
-contrib-libs-zlib
-contrib-libs-cctz
-library-colorizer
-library-getopt
-library-http
-library-lfalloc
-library-malloc-api
-library-openssl
-library-streams-brotli
-library-streams-lz
-library-streams-lzop
-library-string_utils-base64
-library-threading-future
-mapreduce-yt-interface-protos
-util
-""".split()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
@@ -771,16 +508,6 @@ if __name__ == "__main__":
         help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
     pull_parser.set_defaults(action=action_pull)
 
-    push_parser = add_parser(
-        "push", help="initiate a merge from github to arcadia")
-    push_parser.add_argument("--force", "-f", action="store_true", default=False,
-                             help="force commit")
-    push_parser.add_argument("--review", "-r", nargs="?", default=None,
-                             help="review commit (you may provide the review id)")
-    push_parser.add_argument("--yes", "-y", action="store_true", default=False,
-                             help="do something indeed")
-    push_parser.set_defaults(action=action_push)
-
     def add_arcadia_argument(p):
         p.add_argument("-a", "--arcadia", required=True, help="path to local svn working copy")
 
@@ -801,46 +528,6 @@ if __name__ == "__main__":
     svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false',
                                    help="do not create review, commit right away")
     svn_commit_parser.set_defaults(action=action_svn_commit)
-
-    def add_submodule_parser(*args, **kwargs):
-        parser = subparsers.add_parser(*args, **kwargs)
-        parser.set_defaults(main=submodule_main, submodules=[])
-        submodule_parser = parser.add_mutually_exclusive_group()
-        submodule_parser.add_argument(
-            "--all", action="store_const", help="apply to all submodules",
-            dest="submodules", const=SUBMODULES)
-        submodule_parser.add_argument(
-            "--submodule", action="append", help="apply to the particular submodule",
-            dest="submodules", metavar="SUBMODULE", choices=SUBMODULES)
-        return parser
-
-    submodule_init_parser = add_submodule_parser(
-        "submodule-init", help="prepare the submodule for further operations")
-    submodule_init_parser.set_defaults(action=action_submodule_init)
-
-    submodule_fetch_parser = add_submodule_parser(
-        "submodule-fetch", help="fetch svn revisions from the remote repository")
-    submodule_fetch_parser.set_defaults(action=action_submodule_fetch)
-
-    submodule_stitch_parser = add_submodule_parser(
-        "submodule-stitch", help="(advanced) stitch svn revisions to converge git-svn histories")
-    submodule_stitch_parser.set_defaults(action=action_submodule_stitch)
-
-    submodule_pin_parser = add_submodule_parser(
-        "submodule-pin", help="(advanced) pin the git commit in the remote repository")
-    submodule_pin_parser.add_argument("--commit", "-c", default="HEAD",
-                                      help="commit to pin")
-    submodule_pin_parser.set_defaults(action=action_submodule_pin)
-
-    submodule_fast_pull_parser = add_submodule_parser(
-        "submodule-fast-pull", help="pull the submodule up to the upstream revision")
-    submodule_fast_pull_parser.set_defaults(action=action_submodule_fast_pull)
-
-    submodule_fast_push_parser = add_submodule_parser(
-        "submodule-fast-push", help="push the submodule to the 'master' branch")
-    submodule_fast_push_parser.add_argument("--yes", "-y", action="store_true", default=False,
-                                            help="do something indeed")
-    submodule_fast_push_parser.set_defaults(action=action_submodule_fast_push)
 
     args = parser.parse_args()
 
