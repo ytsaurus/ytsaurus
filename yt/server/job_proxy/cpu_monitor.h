@@ -12,7 +12,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EVote,
+DEFINE_ENUM(ECpuMonitorVote,
     (Increase)
     (Decrease)
     (Keep)
@@ -33,14 +33,14 @@ public:
     void FillStatistics(NJobTrackerClient::TStatistics& statistics) const;
 
 private:
-    double HardLimit_;
+    const double HardLimit_;
     double SoftLimit_;
     TNullable<double> SmoothedUsage_;
 
     TNullable<TInstant> LastCheckTime_;
     TNullable<TDuration> LastTotalCpu_;
 
-    std::deque<EVote> Votes_;
+    std::deque<ECpuMonitorVote> Votes_;
 
     TJobCpuMonitorConfigPtr Config_;
 
@@ -56,6 +56,8 @@ private:
 
     void DoCheck();
 };
+
+DEFINE_REFCOUNTED_TYPE(TCpuMonitor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
