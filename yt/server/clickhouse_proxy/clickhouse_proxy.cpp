@@ -33,6 +33,7 @@ namespace NClickHouseProxy {
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
+using namespace NYPath;
 
 const auto& Logger = ClickHouseProxyLogger;
 
@@ -68,8 +69,13 @@ public:
 
             Authenticate();
 
-            CliqueId_ = TCgiParameters(Req_->GetUrl().RawQuery).Get("database");
-            LOG_INFO("Clique id parsed (CliqueId: %v)");
+            CgiParameters_ = TCgiParameters(Req_->GetUrl().RawQuery);
+            CliqueId_ = CgiParameters_.Get("database");
+            if (CliqueId_.StartsWith("*")) {
+                ResolveAlias();
+            }
+
+            LOG_INFO("Clique id parsed (CliqueId: %v)", CliqueId_);
 
             PickRandomInstance();
             LOG_INFO("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
@@ -92,7 +98,7 @@ public:
                 InstanceHost_,
                 InstanceHttpPort_,
                 Req_->GetUrl().Path,
-                Req_->GetUrl().RawQuery);
+                CgiParameters_.Print());
             LOG_INFO("Querying instance (Url: %v)", url);
             response = WaitFor(HttpClient_->Post(url, body, headers))
                 .ValueOrThrow();
@@ -118,6 +124,7 @@ private:
     const NHttp::IClientPtr& HttpClient_;
 
     NApi::IClientPtr Client_;
+    TCgiParameters CgiParameters_;
     TString CliqueId_;
     TString Token_;
     TString User_;
@@ -134,6 +141,26 @@ private:
         if (Client_) {
             Client_->GetConnection()->Terminate();
         }
+    }
+
+    void ResolveAlias()
+    {
+        auto alias = CliqueId_;
+        LOG_INFO("Resolving alias (Alias: %v)", alias);
+        try {
+            auto operationId = ConvertTo<TGuid>(WaitFor(
+                Client_->GetNode(
+                    Format("//sys/scheduler/orchid/scheduler/operations/%v/operation_id",
+                    ToYPathLiteral(alias))))
+                    .ValueOrThrow());
+            CliqueId_ = ToString(operationId);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error while resolving alias %Qv", alias)
+                << ex;
+        }
+
+        LOG_INFO("Alias resolved (Alias: %v, CliqueId: %v)", alias, CliqueId_);
+        CgiParameters_.ReplaceUnescaped("database", CliqueId_);
     }
 
     void ProcessHeaders()
