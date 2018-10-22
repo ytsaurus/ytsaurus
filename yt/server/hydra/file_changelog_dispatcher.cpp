@@ -16,14 +16,6 @@
 
 #include <atomic>
 
-#ifdef _linux_
-    #include <unistd.h>
-    // Copied from linux/ioprio.h
-    #define IOPRIO_CLASS_SHIFT              (13)
-    #define IOPRIO_PRIO_VALUE(class, data)  (((class) << IOPRIO_CLASS_SHIFT) | data)
-    #define IOPRIO_WHO_PROCESS (1)
-#endif
-
 namespace NYT {
 namespace NHydra {
 
