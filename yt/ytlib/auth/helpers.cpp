@@ -12,7 +12,7 @@ namespace NAuth {
 
 TString GetCryptoHash(TStringBuf secret)
 {
-    return NCrypto::TSHA1Hasher()
+    return NCrypto::TSha1Hasher()
         .Append(secret)
         .GetHexDigestLower();
 }

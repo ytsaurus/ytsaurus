@@ -13,13 +13,6 @@ namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::tuple<ITokenAuthenticatorPtr, ICookieAuthenticatorPtr> CreateAuthenticators(
-    TAuthenticationManagerConfigPtr config,
-    IInvokerPtr invoker,
-    NApi::IClientPtr client);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TAuthenticationManager
     : public TRefCounted
 {
@@ -30,8 +23,9 @@ public:
         NApi::IClientPtr client);
 
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
-
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
+    const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
+    const NAuth::ITicketAuthenticatorPtr& GetTicketAuthenticator() const;
 
 private:
     class TImpl;
