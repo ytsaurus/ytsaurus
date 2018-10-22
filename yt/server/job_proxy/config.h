@@ -83,30 +83,38 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("smoothing_factor", SmoothingFactor)
+            .InRange(0, 1)
             .Default(0.05);
 
         RegisterParameter("enable_cpu_reclaim", EnableCpuReclaim)
             .Default(false);
 
         RegisterParameter("relative_upper_bound", RelativeUpperBound)
+            .InRange(0, 1)
             .Default(0.9);
 
         RegisterParameter("relative_lower_bound", RelativeLowerBound)
+            .InRange(0, 1)
             .Default(0.6);
 
         RegisterParameter("increase_coefficient", IncreaseCoefficient)
+            .InRange(1, 2)
             .Default(1.15);
 
         RegisterParameter("decrease_coefficient", DecreaseCoefficient)
+            .InRange(0, 1)
             .Default(0.85);
 
         RegisterParameter("vote_window_size", VoteWindowSize)
+            .GreaterThan(0)
             .Default(30);
 
         RegisterParameter("vote_decision_threshold", VoteDecisionThreshold)
+            .GreaterThan(0)
             .Default(15);
 
         RegisterParameter("min_cpu_limit", MinCpuLimit)
+            .InRange(0, 1)
             .Default(0.1);
     }
 };

@@ -790,7 +790,9 @@ void TJobProxy::CheckMemoryUsage()
     }
     i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;
     if (RequestedMemoryReserve_ < memoryReserve) {
-        LOG_DEBUG("Request node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)", RequestedMemoryReserve_.load(), memoryReserve);
+        LOG_DEBUG("Request node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)",
+            RequestedMemoryReserve_.load(),
+            memoryReserve);
         RequestedMemoryReserve_ = memoryReserve;
         UpdateResourceUsage();
     }
@@ -825,7 +827,9 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
 
 void TJobProxy::SetCpuLimit(double cpuLimit)
 {
-    LOG_INFO("Changing cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_.load(), cpuLimit);
+    LOG_INFO("Changing CPU limit (OldCpuLimit: %v, NewCpuLimit: %v)",
+        CpuLimit_.load(),
+        cpuLimit);
     CpuLimit_ = cpuLimit;
     UpdateResourceUsage();
 }
