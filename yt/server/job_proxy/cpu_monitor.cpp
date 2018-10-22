@@ -11,7 +11,7 @@ namespace NJobProxy {
 TCpuMonitor::TCpuMonitor(
     TJobCpuMonitorConfigPtr config,
     IInvokerPtr invoker,
-    double hardCpuLimit,
+    const double hardCpuLimit,
     TJobProxy* jobProxy)
     : HardLimit_(hardCpuLimit)
     , SoftLimit_(hardCpuLimit)
@@ -51,7 +51,9 @@ void TCpuMonitor::DoCheck()
 
     auto decision = TryMakeDecision();
     if (decision) {
-        LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)", SoftLimit_, *decision);
+        LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
+            SoftLimit_,
+            *decision);
         SoftLimit_ = *decision;
         if (Config_->EnableCpuReclaim) {
             JobProxy_->SetCpuLimit(*decision);
@@ -65,7 +67,7 @@ bool TCpuMonitor::UpdateSmoothedValue()
     try {
         totalCpu = JobProxy_->GetSpentCpuTime();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to get cpu statistics");
+        LOG_ERROR(ex, "Failed to get CPU statistics");
         return false;
     }
 
@@ -77,7 +79,9 @@ bool TCpuMonitor::UpdateSmoothedValue()
         auto newSmoothedUsage = SmoothedUsage_.HasValue()
             ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * *SmoothedUsage_
             : HardLimit_;
-        LOG_DEBUG("Smoothed cpu usage updated (OldValue: %v, NewValue: %v)", SmoothedUsage_, newSmoothedUsage);
+        LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
+            SmoothedUsage_,
+            newSmoothedUsage);
         SmoothedUsage_ = newSmoothedUsage;
     }
     LastCheckTime_ = now;
@@ -90,11 +94,11 @@ void TCpuMonitor::UpdateVotes()
     double ratio = *SmoothedUsage_ / SoftLimit_;
 
     if (ratio < Config_->RelativeLowerBound) {
-        Votes_.emplace_back(EVote::Decrease);
+        Votes_.emplace_back(ECpuMonitorVote::Decrease);
     } else if (ratio > Config_->RelativeUpperBound) {
-        Votes_.emplace_back(EVote::Increase);
+        Votes_.emplace_back(ECpuMonitorVote::Increase);
     } else {
-        Votes_.emplace_back(EVote::Keep);
+        Votes_.emplace_back(ECpuMonitorVote::Keep);
     }
 }
 
@@ -103,10 +107,10 @@ TNullable<double> TCpuMonitor::TryMakeDecision()
     TNullable<double> result;
     if (Votes_.size() >= Config_->VoteWindowSize) {
         auto voteSum = 0;
-        for (const auto& vote : Votes_) {
-            if (vote == EVote::Increase) {
+        for (const auto vote : Votes_) {
+            if (vote == ECpuMonitorVote::Increase) {
                 ++voteSum;
-            } else if (vote == EVote::Decrease) {
+            } else if (vote == ECpuMonitorVote::Decrease) {
                 --voteSum;
             }
         }
@@ -128,8 +132,6 @@ TNullable<double> TCpuMonitor::TryMakeDecision()
     }
     return result;
 }
-
-DEFINE_REFCOUNTED_TYPE(TCpuMonitor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
