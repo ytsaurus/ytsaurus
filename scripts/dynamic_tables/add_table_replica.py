@@ -8,6 +8,7 @@ from yt.wrapper.driver import make_request
 import argparse
 from datetime import datetime
 import time
+import traceback
 
 def transfer(src_cluster, src_path, dst_cluster, dst_path):
     args = {
@@ -18,7 +19,7 @@ def transfer(src_cluster, src_path, dst_cluster, dst_path):
     }
 
     task = tm.add_task(params={"copy_spec": {"network_name": "default"}}, **args)
-    print "Add transer manager task", args, task
+    print "Add transfer manager task", args, task
 
     info = tm.get_task_info(task)
     while info["state"] != "completed" and info["state"] != "failed":
@@ -35,6 +36,7 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     source_replica_id = args.source_replica
     force = args.force
     temp_prefix = args.temp_prefix
+    preserve_timestamp_order = args.preserve_timestamp_order
 
     def get_src_replica():
         return  yt.get(replicated_table + "/@replicas/" + source_replica_id)
@@ -44,9 +46,21 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     yt_source = yt.YtClient(proxy=source_replica["cluster_name"])
     yt_destination = yt.YtClient(proxy=replica_cluster)
 
+    if preserve_timestamp_order:
+        yt.freeze_table(replicated_table, sync=True)
+        freezes["replicated_table"] = [None, replicated_table]
+
+        print "Wait for all data to be replicated"
+        while True:
+            tablets = yt.get("#" + source_replica_id + "/@tablets")
+            if all(tablet["flushed_row_count"] == tablet["current_replication_row_index"] for tablet in tablets):
+                break
+            else:
+                time.sleep(1)
+
     print "Freezing replica", source_replica["replica_path"]
     yt_source.freeze_table(source_replica["replica_path"], sync=True)
-    freezes.append([source_replica["cluster_name"], source_replica["replica_path"]])
+    freezes["source_replica"] = [source_replica["cluster_name"], source_replica["replica_path"]]
 
     dump_table = yt_source.create_temp_table(prefix=temp_prefix)
     assert dump_table != None
@@ -55,7 +69,7 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     assert yt_source.get(source_replica["replica_path"] + "/@tablet_state") == "frozen"
 
     print "Dump replica", source_replica["replica_path"], "to", dump_table
-    if yt_source.exists(source_replica["replica_path"] + "/@optimze_for"):
+    if yt_source.exists(source_replica["replica_path"] + "/@optimize_for"):
         yt_source.set(dump_table + "/@optimize_for", yt_source.get_attribute(source_replica["replica_path"], "optimize_for"))
     yt_source.alter_table(dump_table, schema=yt_source.get_attribute(source_replica["replica_path"], "schema"))
 
@@ -88,7 +102,7 @@ def safe_add_new_replica(args, freezes, tmp_objects):
 
     print "Unfreeze replica", source_replica["replica_path"]
     yt_source.unfreeze_table(source_replica["replica_path"])
-    freezes.pop(0)
+    freezes.pop("source_replica")
 
     print "Waiting for dump to complete"
     op.wait()
@@ -124,7 +138,9 @@ def safe_add_new_replica(args, freezes, tmp_objects):
         "desired_tablet_count", 
         "enable_tablet_balancer"]
     user_attributes = yt_source.get(source_replica["replica_path"] + "/@user_attribute_keys")
-    user_attributes.pop("forced_compaction_revision", None)
+    if "forced_compaction_revision" in user_attributes:
+        user_attributes.remove("forced_compaction_revision")
+
     for attr in builtin_attributes + user_attributes:
         if yt_source.exists(source_replica["replica_path"] + "/@" + attr):
             value = yt_source.get(source_replica["replica_path"] + "/@" + attr)
@@ -153,48 +169,44 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     print "Enabling new replica", replica_id
     yt.alter_table_replica(replica_id, True)
 
+    if "replicated_table" in freezes:
+        yt.unfreeze_table(replicated_table, sync=True)
+        freezes.pop("replicated_table")
+
     tmp_objects.pop("replica")
     tmp_objects.pop("replica_table")
 
     print "SUCCESS!!!!!!"
 
 def add_new_replica(args):
-    replicated_table = args.table
-    replica_cluster = args.replica_cluster
-    replica_path = args.replica_path
-    source_replica_id = args.source_replica
-    force = args.force
-
-    freezes = []
+    freezes = {}
     tmp_objects = {}
     success = True
     try:
         safe_add_new_replica(args, freezes, tmp_objects)
     except Exception as exc:
         print "Failed"
-        print exc
+        traceback.print_exc()
         success = False
-        pass
     except:
         pass
 
     if len(freezes) > 0:
         print "Executed abnormally, unfreeze tables: ", freezes
-        for cluster, table in freezes:
-            ytc = yt.YtClient(proxy=cluster)
+        for cluster, table in freezes.values():
+            ytc = yt.YtClient(proxy=cluster) if cluster is not None else yt
             ytc.unfreeze_table(table)
 
     if len(tmp_objects) > 0:
         print "Remove temporary tables:", tmp_objects
         for cluster, obj in tmp_objects.values():
-            ytc = yt.YtClient(proxy=cluster)
+            ytc = yt.YtClient(proxy=cluster) if cluster is not None else yt
             while True:
                 try:
                     ytc.remove(obj)
                     break
                 except Exception:
                     time.sleep(10)
-                    pass
 
     return success
 
@@ -207,6 +219,8 @@ if __name__ == "__main__":
     parser.add_argument("--source-replica", type=str, required=True, help="Use specific replica")
     parser.add_argument("--temp-prefix", type=str, default="//tmp/", help="Use specific replica")
     parser.add_argument("--force", action="store_true", default=False, help="Remove replica table if exists")
+    parser.add_argument("--no-preserve-timestamp-order", action="store_false", default=True,
+        dest="preserve_timestamp_order", help="Do not preserve strict timestamp order")
 
     args = parser.parse_args()
     yt.config.set_proxy(args.proxy)
