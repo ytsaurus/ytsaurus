@@ -42,8 +42,9 @@ download() {
         echo "Downloading package: ${package}, url: ${url}"
         curl -s "http://dist.yandex.ru/${url}" > "${name}.deb"
 
-        if [ "$package" == "yandex-yt" ]; then
-            dpkg --fsys-tarfile "${name}.deb" | tar xOf - ./usr/share/doc/yandex-yt/changelog.Debian.gz | zcat > debian/changelog
+        if [ "$package" == "yandex-yt-node" ]; then
+            dpkg --fsys-tarfile "${name}.deb" | tar xOf - ./usr/share/doc/yandex-yt-node/changelog.Debian.gz | zcat > debian/changelog
+	    sed -i 's/yandex-yt-node/yandex-yt/g' debian/changelog
         fi
 
         echo "" >> debian/control
@@ -60,6 +61,7 @@ download() {
     echo "Generating signature..."
     gpg --utf8-strings --clearsign --armor --textmode -u $USER $changes_file
     mv "${changes_file}.asc" $changes_file
+    cd ..
 }
 
 
@@ -72,6 +74,7 @@ upload() {
     local changes_file=$(get_changes_filename $version) #"yandex-yt_${version}.changes"
 
     dupload --to $repository --nomail --force $changes_file
+    cd ..
 }
 
 if [ "$1" == "--help" ]; then
@@ -104,4 +107,3 @@ mkdir -p $version
 download $src_repository $version
 upload $dst_repository $version
 rm -rf $version
-
