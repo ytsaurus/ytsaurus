@@ -87,7 +87,7 @@ private:
     TRWMutex RWMutex;
 
     Settings Settings_;
-    uint64_t ClickhousePort_;
+    uint64_t ClickHousePort_;
 
     Poco::Logger* Logger;
 
@@ -122,7 +122,7 @@ TClusterNodeTracker::TClusterNodeTracker(
     NInterop::IDirectoryPtr directory,
     uint64_t clickhousePort)
     : Directory(std::move(directory))
-    , ClickhousePort_(clickhousePort)
+    , ClickHousePort_(clickhousePort)
     , Logger(&Poco::Logger::get("ClusterNodeTracker"))
 {
 }
@@ -257,7 +257,7 @@ void TClusterNodeTracker::UpdateClusterNodes(const TClusterNodeNames& newNodeNam
         } else {
             IClusterNodePtr newNode;
             try {
-                newNode = CreateClusterNode(nodeName, Settings_, ClickhousePort_);
+                newNode = CreateClusterNode(nodeName, Settings_, ClickHousePort_);
             } catch (...) {
                 LOG_WARNING(Logger, "Failed to create cluster node " << nodeName.ToString());
                 // TODO: reschedule
