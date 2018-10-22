@@ -206,6 +206,7 @@ NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMa
 {
     std::vector<TString> secretParameters = {
         "/spec/secure_vault",
+        "/query",
     };
 
     if (commandName == "poll_job_shell") {
