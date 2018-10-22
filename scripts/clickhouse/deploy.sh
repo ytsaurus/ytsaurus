@@ -1,7 +1,7 @@
-BIN="/home/max42/yt_arc/build/ytserver-clickhouse"
+BIN="/home/max42/yt_arc/build-rel/bin/ytserver-clickhouse"
 VERSION="$($BIN --version)"
 CYPRESS_PATH="//sys/clickhouse/bin/ytserver-clickhouse-$VERSION"
-CYPRESS_PATH_LINK="//sys/clickhouse/bin/ytserver-clickhosue"
+CYPRESS_PATH_LINK="//sys/clickhouse/bin/ytserver-clickhouse"
 echo "Deploying $BIN of version $VERSION to $CYPRESS_PATH"
 cat $BIN | pv | yt write-file $CYPRESS_PATH
 yt set $CYPRESS_PATH/@executable "%true"
