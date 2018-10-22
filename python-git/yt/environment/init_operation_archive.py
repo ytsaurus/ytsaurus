@@ -426,9 +426,9 @@ def remove_partition_size_options(path):
     def action(client):
         logging.info("Unsetting *_partition_data_size options in %s archive", path)
         table = "{0}/{1}".format(BASE_PATH, path)
-        client.remove(table + "/@min_partition_data_size")
-        client.remove(table + "/@desired_partition_data_size")
-        client.remove(table + "/@max_partition_data_size")
+        client.remove(table + "/@min_partition_data_size", force=True)
+        client.remove(table + "/@desired_partition_data_size", force=True)
+        client.remove(table + "/@max_partition_data_size", force=True)
         client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
         client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
         client.remount_table(table)
