@@ -13,6 +13,7 @@ enum EEncoding : int
     E_IDENTITY  /* "identity" */,
     E_GZIP      /* "gzip" */,
     E_BROTLI    /* "br" */,
+    E_Z_LZ4     /* "z-lz4" */,
 };
 
 enum class ENodeReaderFormat : int
