@@ -108,14 +108,7 @@ TLocation::TLocation(
 
     IOEngine_ = CreateIOEngine(
         Config_->IOEngineType,
-        Config_->IOConfig
-            ? Config_->IOConfig
-            // TODO(aozeritsky) temporary workaround
-            : BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("read_thread_count").Value(Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
-                    .Item("write_thread_count").Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount)
-                .EndMap(),
+        Config_->IOConfig,
         id,
         Profiler_,
         NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
