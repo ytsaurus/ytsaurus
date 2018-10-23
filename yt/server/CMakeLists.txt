@@ -11,11 +11,15 @@ add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
 add_subdirectory(misc)
 add_subdirectory(containers)
+add_subdirectory(election)
+add_subdirectory(hydra)
 
 target_link_libraries(yt-library-server
   yt-library-ytlib
   yt-library-ytlib-auth
   yt-library-server-misc
+  yt-library-server-election
+  yt-library-server-hydra
   yt-core-re2
   yt-core-rpc-grpc
   deps-arcadia-library-http
