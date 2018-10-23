@@ -250,12 +250,13 @@ class RequestRetrier(Retrier):
         _process_request_backoff(request_start_time, client=self.client)
         request_info = {"headers": self.headers, "url": url, "params": self.params}
 
+        session = _get_session(client=self.client)
+        if isinstance(self.requests_timeout, tuple):
+            timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
+        else:
+            timeout = self.requests_timeout / 1000.0
+
         try:
-            session = _get_session(client=self.client)
-            if isinstance(self.requests_timeout, tuple):
-                timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
-            else:
-                timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
                                        request_info, self.error_format, self.client)
 
