@@ -33,7 +33,6 @@ from git_svn_lib import (
     Git,
     Svn,
     check_git_version,
-    check_git_working_tree,
     check_svn_url,
     extract_git_svn_revision_to_commit_mapping_as_dict,
     extract_git_svn_revision_to_commit_mapping_as_list,
@@ -70,6 +69,17 @@ ARGV0 = sys.argv[0]
 
 ##### Block to be moved ###########################################
 # TODO (ermolovd): this block should be moved to git-svn/
+
+def check_git_working_tree(git):
+    git.call("update-index", "-q", "--refresh")
+    if (
+        not git.test("diff-index", "HEAD", "--exit-code", "--quiet", "--ignore-submodules=untracked")
+        or not git.test("diff-index", "--cached", "HEAD", "--exit-code", "--quiet")
+    ):
+        raise CheckError(
+            "Git working tree has local modifications.\n"
+            "Use --skip-git-working-tree-check flag to skip this check.\n"
+        )
 
 class LocalSvn(object):
     def __init__(self, root):
@@ -494,6 +504,9 @@ def action_svn_commit(args):
     local_svn = LocalSvn(args.arcadia)
 
     common_git = checked_get_common_git(ctx_list)
+
+    logging.info("checking that working tree is clean")
+    check_git_working_tree(common_git)
 
     logger.info("checking that HEAD is present at github")
     git_verify_head_pushed(common_git)
