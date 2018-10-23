@@ -43,12 +43,12 @@ from git_svn_lib import (
     make_remote_ref,
     parse_git_svn_correspondence,
     pull_git_svn,
-    push_git_svn
 )
 
 import argparse
 import collections
 import filecmp
+import json
 import itertools
 import logging
 import re
@@ -65,6 +65,8 @@ GH = "git@github.yandex-team.ru:yt"
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
+
+ARGV0 = sys.argv[0]
 
 ##### Block to be moved ###########################################
 # TODO (ermolovd): this block should be moved to git-svn/
@@ -168,7 +170,7 @@ def git_abspath(git, relpath):
         raise ValueError("git object instance doesn't have work_dir attribute")
     return os.path.join(git.work_dir, relpath)
 
-def idented_lines(lines, ident_size=2):
+def indented_lines(lines, ident_size=2):
     ident = " " * ident_size
     return "".join(ident + l + "\n" for l in lines)
 
@@ -221,6 +223,23 @@ def git_verify_head_pushed(git):
     if not output:
         raise CheckError("remote repo doesn't contain HEAD")
 
+def check_head_is_attached(git):
+    msg = (
+        "Repository '{repo_root}' is in 'detached HEAD' state.\n"
+        "Please go to that repo and checkout some branch.\n").format(
+            repo_root=git.work_dir)
+
+    try:
+        ref = subprocess.check_output([
+            "git", "symbolic-ref", "HEAD"
+        ], cwd=git.work_dir)
+    except subprocess.CalledProcessError:
+        raise CheckError(msg)
+
+    if not ref.startswith("refs/heads/"):
+        raise CheckError(msg)
+
+
 def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
     git_rel_paths = set(iter_relpath_translate(git_iter_files_to_sync(git, ":/" + git_relpath), git_relpath, ""))
     svn_tracked_rel_paths = set(
@@ -243,8 +262,8 @@ def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
             "{only_in_git}\n"
             "files that are in svn and not in git:\n\n"
             "{only_in_svn}".format(
-                only_in_git=idented_lines(only_in_git),
-                only_in_svn=idented_lines(only_in_svn),
+                only_in_git=indented_lines(only_in_git),
+                only_in_svn=indented_lines(only_in_svn),
             ))
 
     diffed = []
@@ -257,9 +276,73 @@ def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
         raise CheckError(
             "Some files in svn working copy differs from corresponding files from git repo:\n"
             "{diffed}\n".format(
-                diffed=idented_lines(diffed)))
+                diffed=indented_lines(diffed)))
 
 ##### End of block to be moved #####################################
+
+COPY_TO_LOCAL_SVN_PROJECTS =  ".arcadia-sync-ng-projects.json"
+
+def save_projects(arcadia_dir, project_names):
+    with open(os.path.join(arcadia_dir, COPY_TO_LOCAL_SVN_PROJECTS), "w") as outf:
+        json.dump(project_names, outf)
+
+def load_projects(arcadia_dir):
+    filename = os.path.join(arcadia_dir, COPY_TO_LOCAL_SVN_PROJECTS)
+
+    copy_to_local_svn_cmd = "{ARGV0} copy-to-local-svn --arcadia {arcadia}".format(ARGV0=ARGV0, arcadia=arcadia_dir)
+    file_missing_msg = (
+        "File '{filename}' doesn't exist. Are you sure you have called:\n"
+        " $ {cmd} \n"
+        "???\n"
+        .format(
+            filename=filename,
+            cmd=copy_to_local_svn_cmd,
+        )
+    )
+    file_is_corrupted_msg = (
+        "File '{filename}' looks corrupted. Please rerun:\n"
+        " $ {cmd} \n"
+        .format(
+            filename=filename,
+            cmd=copy_to_local_svn_cmd,
+        )
+    )
+
+    if not os.path.exists(filename):
+        raise CheckError(file_missing_msg)
+
+    with open(filename) as outf:
+        projects = json.load(outf)
+
+    if not isinstance(projects, list) or len(projects) == 0:
+        raise CheckError(filename)
+
+    return projects
+
+def checked_get_common_git(ctx_list):
+    """
+    If contexts belongs to different git repositories raises CheckError.
+    Otherwise return common git instance.
+    """
+
+    if not ctx_list:
+        raise ValueError("ctx_list must be nonempty list")
+
+    git_dir_map = {}
+    for ctx in ctx_list:
+        git_dir_map.setdefault(ctx.git.git_dir, []).append(ctx)
+
+    if len(git_dir_map) == 1:
+        return git_dir_map.values()[0][0].git
+
+    first_ctx_list, second_ctx_list = git_dir_map.values()[:2]
+    raise CheckError(
+        "Projects '{first_name}' and '{second_name}' belong to different git repos.".format(
+            first_name=first_ctx_list[0].name,
+            second_name=second_ctx_list[0].name,
+        )
+    )
+
 
 def get_abi_major_minor_from_git_branch(git):
     ref = git.call("rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -318,97 +401,125 @@ def action_stitch(ctx, args):
     stitch_git_svn(ctx.git, "HEAD", ctx.arc_git_remote, ctx.arc_url)
 
 def action_pull(ctx, args):
+    check_head_is_attached(ctx.git)
     pull_git_svn(
         ctx.git,
         ctx.svn,
         ctx.arc_url,
         ctx.arc_git_remote,
-        "yt/",
-        "yt/%s/" % ctx.abi,
+        ctx.git_relpath,
+        ctx.svn_relpath,
         revision=args.revision,
         recent_push=args.recent_push)
 
-def action_copy_to_local_svn(ctx, args):
+def action_copy_to_local_svn(ctx_list, args):
     local_svn = LocalSvn(args.arcadia)
-    if args.check_unmerged_svn_commits:
-        logger.info("check that svn doesn't have any commits that are not merged to github")
-        verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
+    try:
+        checked_get_common_git(ctx_list)
+    except CheckError as e:
+        raise CheckError("Cannot push to arcadia projects that belongs to different repos.\n" + str(e))
 
-    logger.info("check svn repository for local modifications")
-    changed_files = list(local_svn_iter_changed_files(local_svn, ctx.svn_relpath))
-    if changed_files and not args.ignore_svn_modifications:
-        raise CheckError(
-            "svn repository has unstaged changed:\n"
-            "{changed_files}\n"
-            "Use --ignore-svn-modifications to ignore them.\n".format(
-                changed_files=idented_lines(["{0} {1}".format(s.status, s.relpath) for s in changed_files])))
-    local_svn.revert(ctx.svn_relpath)
+    for ctx in ctx_list:
+        if args.check_unmerged_svn_commits:
+            # TODO (ermolovd): merged --> pushed
+            logger.info("check that svn doesn't have any commits that are not pushed to github (project: {project})".format(project=ctx.name))
+            verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
 
-    logger.info("copying files to arcadia directory")
-    rmrf(local_svn.abspath(ctx.svn_relpath))
+    for ctx in ctx_list:
+        logger.info("check svn repository for local modifications (project: {project})".format(project=ctx.name))
+        changed_files = list(local_svn_iter_changed_files(local_svn, ctx.svn_relpath))
+        if changed_files and not args.ignore_svn_modifications:
+            raise CheckError(
+                "svn repository has uncommited changed:\n"
+                "{changed_files}\n"
+                "Use --ignore-svn-modifications to ignore them.\n".format(
+                    changed_files=indented_lines(["{0} {1}".format(s.status, s.relpath) for s in changed_files])))
+        local_svn.revert(ctx.svn_relpath)
 
-    # Copy files
-    git_rel_file_list = list(git_iter_files_to_sync(ctx.git, ":/" + ctx.git_relpath))
-    svn_rel_file_list = list(iter_relpath_translate(git_rel_file_list, ctx.git_relpath, ctx.svn_relpath))
-    assert len(git_rel_file_list) == len(svn_rel_file_list)
-    for rel_git_file, rel_svn_file in itertools.izip(git_rel_file_list, svn_rel_file_list):
-        git_file = git_abspath(ctx.git, rel_git_file)
-        svn_file = local_svn.abspath(rel_svn_file)
+    for ctx in ctx_list:
+        logger.info("copying files to arcadia directory (project: {project})".format(project=ctx.name))
+        rmrf(local_svn.abspath(ctx.svn_relpath))
 
-        svn_dir = os.path.dirname(svn_file)
-        if not os.path.exists(svn_dir):
-            os.makedirs(svn_dir)
-        shutil.copy2(git_file, svn_file)
+        # Copy files
+        git_rel_file_list = list(git_iter_files_to_sync(ctx.git, ":/" + ctx.git_relpath))
+        svn_rel_file_list = list(iter_relpath_translate(git_rel_file_list, ctx.git_relpath, ctx.svn_relpath))
+        assert len(git_rel_file_list) == len(svn_rel_file_list)
+        for rel_git_file, rel_svn_file in itertools.izip(git_rel_file_list, svn_rel_file_list):
+            git_file = git_abspath(ctx.git, rel_git_file)
+            svn_file = local_svn.abspath(rel_svn_file)
 
-    logger.info("notify svn about changes")
-    notify_svn(local_svn, ctx.svn_relpath, svn_rel_file_list)
+            svn_dir = os.path.dirname(svn_file)
+            if not os.path.exists(svn_dir):
+                os.makedirs(svn_dir)
+            shutil.copy2(git_file, svn_file)
+
+        logger.info("notify svn about changes (project: {project})".format(project=ctx.name))
+        notify_svn(local_svn, ctx.svn_relpath, svn_rel_file_list)
 
     logger.info("checking that HEAD is present at github")
-    must_push_before_commit = False
-    try:
-        git_verify_head_pushed(ctx.git)
-    except CheckError as e:
-        must_push_before_commit = True
+    upushed_ctx_list = []
+    for ctx in ctx_list:
+        try:
+            git_verify_head_pushed(ctx.git)
+        except CheckError as e:
+            upushed_ctx_list.append(ctx)
+
+    save_projects(args.arcadia, [ctx.name for ctx in ctx_list])
 
     print >>sys.stderr, (
         "====================================================\n"
-        "All files have beed copied to svn working copy. Please go to\n"
-        "  {arcadia_project_path}\n"
-        "and check that everything is ok. Once you are done run:\n"
+        "All files have beed copied to svn working copy. Changed directories:\n"
+        "{arcadia_project_path}"
+        "Please go to svn working copy and make sure that everything is ok. Once you are done run:\n"
         " $ {script} svn-commit --arcadia {arcadia}"
     ).format(
         arcadia=local_svn.abspath(""),
-        arcadia_project_path=local_svn.abspath(ctx.svn_relpath),
+        arcadia_project_path=indented_lines(local_svn.abspath(ctx.svn_relpath) for ctx in ctx_list),
         script=sys.argv[0])
 
-    if must_push_before_commit:
-        print >>sys.stderr, "WARNING:", e
-        print >>sys.stderr, "You can check for compileability but you will need to push changes to github before commit"
+    if upushed_ctx_list:
+        print >>sys.stderr, ""
+        print >>sys.stderr, "===================================================="
+        print >>sys.stderr, (
+            "WARNING: github doesn't contain HEAD of projects:\n"
+            "{projects}"
+            "You can check for compileability but you will need to push changes to github before commit.\n"
+        ).format(
+            projects=indented_lines(ctx.name for ctx in upushed_ctx_list)
+        )
 
-def action_svn_commit(ctx, args):
+def action_svn_commit(args):
+    project_list = load_projects(args.arcadia)
+    ctx_list = [create_project_context(p) for p in project_list]
     local_svn = LocalSvn(args.arcadia)
 
-    if args.check_unmerged_svn_commits:
-        logger.info("check that svn doesn't have any commits that are not merged to github")
-        verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
+    common_git = checked_get_common_git(ctx_list)
 
     logger.info("checking that HEAD is present at github")
-    git_verify_head_pushed(ctx.git)
+    git_verify_head_pushed(common_git)
 
-    logger.info("comparing svn copy and git copy")
-    verify_svn_match_git(ctx.git, ctx.git_relpath, local_svn, ctx.svn_relpath)
+    for ctx in ctx_list:
+        if args.check_unmerged_svn_commits:
+            logger.info("check that svn doesn't have any commits that are not merged to github (project: {project})".format(
+                project=ctx.name,
+            ))
+            verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
+
+        logger.info("comparing svn copy and git copy (project: {project}".format(
+            project=ctx.name,
+        ))
+        verify_svn_match_git(ctx.git, ctx.git_relpath, local_svn, ctx.svn_relpath)
 
     logger.info("prepare commit")
-    head = ctx.git.resolve_ref("HEAD")
-    fd, commit_message_file_name = tempfile.mkstemp("-yp-commit-message", text=True)
-    print commit_message_file_name
-    with os.fdopen(fd, 'w') as outf:
+    head = common_git.resolve_ref("HEAD")
+    commit_message_file_name = os.path.join(args.arcadia, "arcadia-sync-ng-commit-msg")
+    with open(commit_message_file_name, 'w') as outf:
         outf.write(
-            "Push {svn_path}/ to arcadia\n"
+            "Push {svn_path_list} to arcadia\n"
             "\n"
             "__BYPASS_CHECKS__\n"
             "yt:git_commit:{head}\n".format(
-                svn_path=ctx.svn_relpath,
+                svn_path_list=", ".join(ctx.svn_relpath + "/" for ctx in ctx_list),
                 head=head))
         if args.review:
             outf.write("\nREVIEW:new\n")
@@ -416,59 +527,130 @@ def action_svn_commit(ctx, args):
     print >>sys.stderr, "Commit is prepared, now run:\n"
     print >>sys.stderr, "$ {ya_path} svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
         ya_path=os.path.join(args.arcadia, "ya"),
-        arcadia_yp_path=local_svn.abspath(ctx.svn_relpath),
+        arcadia_yp_path=" ".join(local_svn.abspath(ctx.svn_relpath) for cxt in ctx_list),
         commit_message_file_name=commit_message_file_name)
 
-def snapshot_main(args):
-    class Ctx(collections.namedtuple("Ctx", ["git", "svn", "abi_major", "abi_minor"])):
-        @property
-        def abi(self):
-            return "%s_%s" % (self.abi_major, self.abi_minor)
 
-        @property
-        def svn_relpath(self):
-            return "yt/{0}/yt".format(self.abi)
-
-        @property
-        def git_relpath(self):
-            return "yt"
-
-        @property
-        def arc_url(self):
-            return "{0}/{1}".format(ARC, self.svn_relpath)
-
-        # TODO (ermolovd): rename to `git_svn_remote_id'
-        @property
-        def arc_git_remote(self):
-            return "arcadia_svn_%s" % (self.abi)
-
-    git = Git(repo=PROJECT_PATH)
+class BaseCtx(object):
     svn = Svn()
 
-    if args.check_git_version:
-        check_git_version(git)
-    if args.check_git_working_tree:
-        check_git_working_tree(git)
-    abi_major, abi_minor = get_abi_major_minor_from_git_branch(git)
+    @property
+    def arc_url(self):
+        return "{0}/{1}".format(ARC, self.svn_relpath)
 
-    ctx = Ctx(git, svn, abi_major, abi_minor)
-    if args.check_svn_url:
-        check_svn_url(ctx.svn, ctx.arc_url)
+
+class PythonCtx(BaseCtx):
+    name = "python"
+
+    arc_git_remote = "arcadia_svn_python"
+
+    git_relpath = "yt/" # NB: this is path relative to python repo
+    svn_relpath = "yt/python/yt" 
+
+    def __init__(self):
+        BaseCtx.__init__(self)
+        self.git = Git(os.path.join(PROJECT_PATH, "python"))
+
+    @classmethod
+    def create(cls):
+        return PythonCtx()
+
+
+class YpCtx(BaseCtx):
+    name = "yp"
+
+    arc_git_remote = "arcadia_yp"
+    git_relpath = "yp"
+    svn_relpath = "yp"
+
+    def __init__(self):
+        BaseCtx.__init__(self)
+        self.git = Git(os.path.join(PROJECT_PATH))
+
+    @classmethod
+    def create(cls):
+        return YpCtx()
+
+
+class YtCtx(BaseCtx):
+    name = "yt"
+
+    git_relpath = "yt"
+
+    def __init__(self, abi_major, abi_minor):
+        BaseCtx.__init__(self)
+        self._abi_major = abi_major
+        self._abi_minor = abi_minor
+        self.git = Git(os.path.join(PROJECT_PATH))
+
+    @property
+    def _abi(self):
+        return "%s_%s" % (self._abi_major, self._abi_minor)
+
+    @property
+    def svn_relpath(self):
+        return "yt/{0}/yt".format(self._abi)
+
+    @property
+    def arc_git_remote(self):
+        return "arcadia_svn_%s" % (self._abi)
+
+    @classmethod
+    def create(cls):
+        git = Git(repo=PROJECT_PATH)
+        abi_major, abi_minor = get_abi_major_minor_from_git_branch(git)
+        return YtCtx(abi_major, abi_minor)
+
+
+PROJECTS = {
+    "python": PythonCtx,
+    "yp": YpCtx,
+    "yt": YtCtx,
+}
+
+def create_project_context(project):
+    if project not in PROJECTS:
+        raise CheckError(
+            "Invalid project: '{project}'.\n"
+            "Choose one of:\n"
+            "{project_list}".format(
+                project=args.project, project_list=indented_lines(sorted(PROJECTS))))
+    return PROJECTS[project].create()
+
+def single_project_main(args):
+    ctx = create_project_context(args.project)
+
+    if args.check_git_version:
+        check_git_version(ctx.git)
+    if args.check_git_working_tree:
+        check_git_working_tree(ctx.git)
+
+    check_svn_url(ctx.svn, ctx.arc_url)
 
     args.action(ctx, args)
 
+def multiple_project_main(args):
+    ctx_list = []
+    for p in sorted(set(args.project)):
+        ctx = create_project_context(p)
+        if args.check_git_version:
+            check_git_version(ctx.git)
+        if args.check_git_working_tree:
+            check_git_working_tree(ctx.git)
+        ctx_list.append(ctx)
+    args.action(ctx_list, args)
 
-if __name__ == "__main__":
+def no_project_main(args):
+    args.action(args)
+
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--skip-git-version-check", action="store_false", dest="check_git_version", default=True,
-        help="(dangerous, do not use)")
+        help="DANGEROUS!!! do not check version of git binary")
     parser.add_argument(
         "--skip-git-working-tree-check", action="store_false", dest="check_git_working_tree", default=True,
-        help="(dangerous, do not use)")
-    parser.add_argument(
-        "--skip-svn-url", action="store_false", dest="check_svn_url", default=True,
-        help="(dangerous, do not use)")
+        help="DANGEROUS!!! do not ensure that git repo doesn't have modifications")
 
     logging_parser = parser.add_mutually_exclusive_group()
     logging_parser.add_argument(
@@ -481,24 +663,36 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers()
 
-    def add_parser(*args, **kwargs):
+    def add_single_project_parser(*args, **kwargs):
         parser = subparsers.add_parser(*args, **kwargs)
-        parser.set_defaults(main=snapshot_main)
+        parser.set_defaults(main=single_project_main)
+        parser.add_argument("project", help="project to sync, choose among: python,yp,yt")
         return parser
 
-    init_parser = add_parser(
+    def add_multiple_project_parser(*args, **kwargs):
+        parser = subparsers.add_parser(*args, **kwargs)
+        parser.set_defaults(main=multiple_project_main)
+        parser.add_argument("project", nargs="+", help="project to sync, choose among: python,yp,yt")
+        return parser
+
+    def add_no_projects_parser(*args, **kwargs):
+        parser = subparsers.add_parser(*args, **kwargs)
+        parser.set_defaults(main=no_project_main)
+        return parser
+
+    init_parser = add_single_project_parser(
         "init", help="prepare the main repository for further operations")
     init_parser.set_defaults(action=action_init)
 
-    fetch_parser = add_parser(
+    fetch_parser = add_single_project_parser(
         "fetch", help="fetch svn revisions from the remote repository")
     fetch_parser.set_defaults(action=action_fetch)
 
-    stitch_parser = add_parser(
+    stitch_parser = add_single_project_parser(
         "stitch", help="stitch svn revisions to converge git-svn histories")
     stitch_parser.set_defaults(action=action_stitch)
 
-    pull_parser = add_parser(
+    pull_parser = add_single_project_parser(
         "pull", help="initiate a merge from arcadia to github")
     pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
     pull_parser.add_argument(
@@ -515,14 +709,14 @@ if __name__ == "__main__":
         p.add_argument("--ignore-unmerged-svn-commits", dest="check_unmerged_svn_commits", default=True, action="store_false",
                        help="do not complain when svn has commits that are not merged into github")
 
-    copy_to_local_svn_parser = add_parser("copy-to-local-svn", help="push current git snapshot to svn working copy")
+    copy_to_local_svn_parser = add_multiple_project_parser("copy-to-local-svn", help="push current git snapshot to svn working copy")
     copy_to_local_svn_parser.add_argument("--ignore-svn-modifications", default=False, action="store_true",
                                           help="ignore and override changes in svn working copy")
     add_arcadia_argument(copy_to_local_svn_parser)
     add_ignore_unmerged_svn_commits_argument(copy_to_local_svn_parser)
     copy_to_local_svn_parser.set_defaults(action=action_copy_to_local_svn)
 
-    svn_commit_parser = add_parser("svn-commit", help="prepare commit of yt snapshot to svn")
+    svn_commit_parser = add_no_projects_parser("svn-commit", help="prepare commit of yt snapshot to svn")
     add_arcadia_argument(svn_commit_parser)
     add_ignore_unmerged_svn_commits_argument(svn_commit_parser)
     svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false',
@@ -538,4 +732,16 @@ if __name__ == "__main__":
         handler.setFormatter(formatter)
         logger.handlers.append(handler)
 
-    args.main(args)
+    try:
+        args.main(args)
+    except CheckError as e:
+        msg = str(e)
+        print >>sys.stderr, msg
+        if not msg.endswith("\n"):
+            print >>sys.stderr, ""
+
+        print >>sys.stderr, "Error occurred, exiting..."
+        exit(1)
+
+if __name__ == "__main__":
+    main()
