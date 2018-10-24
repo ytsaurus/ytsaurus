@@ -9,6 +9,8 @@ import pytest
 
 import time
 
+import __builtin__
+
 def id_to_parts(id):
     id_parts = id.split("-")
     id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
@@ -88,7 +90,7 @@ class TestGetJobStderr(YTEnvSetup):
         try:
             create("table", "//tmp/t1", authenticated_user="u")
             create("table", "//tmp/t2", authenticated_user="u")
-            write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}], authenticated_user="u")
+            write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}, {"foo": "lev"}], authenticated_user="u")
 
             op = map(
                 dont_track=True,
@@ -100,26 +102,36 @@ class TestGetJobStderr(YTEnvSetup):
                     "mapper": {
                         "input_format": "json",
                         "output_format": "json"
-                    }
+                    },
+                    "data_weight_per_job": 1,
                 },
                 authenticated_user="u")
 
-            job_id = wait_breakpoint()[0]
+            job_ids = wait_breakpoint(job_count=3)
+            job_id = job_ids[0]
 
             res = get_job_stderr(op.id, job_id, authenticated_user="u")
             assert res == "STDERR-OUTPUT\n"
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
+
+            update_op_parameters(op.id, parameters={"owners": ["other"]})
 
             release_breakpoint()
             op.track()
 
             time.sleep(1)
 
+            other_job_ids = __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
+            assert len(other_job_ids) == 1
+            other_job_id = list(other_job_ids)[0]
+
             res = get_job_stderr(op.id, job_id, authenticated_user="u")
             assert res == "STDERR-OUTPUT\n"
-            with pytest.raises(YtError):
-                get_job_stderr(op.id, job_id, authenticated_user="other")
+
+            # NB: Operation has fixed ACL and we use it while job presented in cypress.
+            # But archive contains old ACL.
+            get_job_stderr(op.id, job_id, authenticated_user="other")
 
             clean_operations(self.Env.create_native_client())
             time.sleep(1)
@@ -128,5 +140,7 @@ class TestGetJobStderr(YTEnvSetup):
             assert res == "STDERR-OUTPUT\n"
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
+
+            get_job_stderr(op.id, other_job_id, authenticated_user="other")
         finally:
             set("//sys/operations/@inherit_acl", True)

@@ -328,6 +328,8 @@ public:
 
     virtual void Dispose() override;
 
+    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters) override;
+
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
 
     virtual TOperationAlertMap GetAlerts() override;
@@ -355,11 +357,12 @@ protected:
     const TInstant StartTime;
     const TString AuthenticatedUser;
     const NYTree::IMapNodePtr SecureVault;
-    const std::vector<TString> Owners;
     const NTransactionClient::TTransactionId UserTransactionId;
 
     const NLogging::TLogger Logger;
     const std::vector<TString> CoreNotes_;
+
+    std::vector<TString> Owners;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.

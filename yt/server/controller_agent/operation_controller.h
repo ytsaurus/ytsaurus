@@ -406,6 +406,9 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: Controller invoker.
      */
     virtual void Dispose() = 0;
+
+    //! Updates runtime parameters.
+    virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)

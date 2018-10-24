@@ -505,6 +505,21 @@ public:
         LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
+    TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+    {
+        auto operation = GetOperationOrThrow(operationId);
+        if (runtimeParameters->Owners) {
+            operation->SetOwners(*runtimeParameters->Owners);
+            const auto& controller = operation->GetController();
+            if (controller) {
+                return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(runtimeParameters))
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
+            }
+        }
+        return VoidFuture;
+    }
+
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
         const TNullable<TControllerTransactionIds>& transactions)
@@ -1582,6 +1597,11 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
 TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId& operationId)
 {
     return Impl_->DisposeAndUnregisterOperation(operationId);
+}
+
+TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+{
+    return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters));
 }
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(

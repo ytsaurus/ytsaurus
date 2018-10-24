@@ -186,13 +186,13 @@ TOperationControllerBase::TOperationControllerBase(
     , StartTime(operation->GetStartTime())
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , SecureVault(operation->GetSecureVault())
-    , Owners(operation->GetOwners())
     , UserTransactionId(operation->GetUserTransactionId())
     , Logger(TLogger(ControllerLogger)
         .AddTag("OperationId: %v", OperationId))
     , CoreNotes_({
         Format("OperationId: %v", OperationId)
     })
+    , Owners(operation->GetOwners())
     , CancelableContext(New<TCancelableContext>())
     , InvokerPool(CreateFairShareInvokerPool(
         CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
@@ -6140,6 +6140,13 @@ void TOperationControllerBase::Dispose()
         headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
     ReleaseJobs(jobIdsToRelease);
+}
+
+void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters)
+{
+    if (runtimeParameters->Owners) {
+        Owners = *runtimeParameters->Owners;
+    }
 }
 
 TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
