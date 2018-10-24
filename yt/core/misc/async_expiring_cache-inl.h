@@ -1,7 +1,7 @@
 #pragma once
 #ifndef EXPIRING_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include async_expiring_cache.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "async_expiring_cache.h"
 #endif
 

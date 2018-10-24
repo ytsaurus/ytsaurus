@@ -1,7 +1,7 @@
 #pragma once
 #ifndef OBJECT_DETAIL_INL_H_
 #error "Direct inclusion of this file is not allowed, include object_detail.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "object_detail.h"
 #endif
 

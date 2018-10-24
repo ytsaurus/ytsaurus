@@ -1,7 +1,7 @@
 #pragma once
 #ifndef SKIP_LIST_INL_H_
 #error "Direct inclusion of this file is not allowed, include skip_list.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "skip_list.h"
 #endif
 

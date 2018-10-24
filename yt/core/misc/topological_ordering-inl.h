@@ -1,7 +1,7 @@
 #pragma once
 #ifndef TOPOLOGICAL_ORDERING_INL_H_
 #error "Direct inclusion of this file is not allowed, include topological_ordering.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "topological_ordering.h"
 #endif
 

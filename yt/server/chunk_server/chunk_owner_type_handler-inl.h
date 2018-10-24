@@ -1,7 +1,7 @@
 #pragma once
 #ifndef CHUNK_OWNER_TYPE_HANDLER_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_owner_type_handler.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "chunk_owner_type_handler.h"
 #endif
 

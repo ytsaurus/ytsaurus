@@ -1,7 +1,7 @@
 #pragma once
 #ifndef NODE_INL_H_
 #error "Direct inclusion of this file is not allowed, include node.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "node.h"
 #endif
 

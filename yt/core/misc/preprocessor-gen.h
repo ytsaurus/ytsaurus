@@ -12,7 +12,7 @@
 
 #ifndef PREPROCESSOR_GEN_H_
 #error "Direct inclusion of this file is not allowed, include preprocessor.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "preprocessor.h"
 #endif
 #undef PREPROCESSOR_GEN_H_

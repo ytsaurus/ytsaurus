@@ -2,7 +2,7 @@
 
 #ifndef AUTO_MERGE_TASK_INL_H
 #error "Direct inclusion of this file is not allowed, include auto_merge_task.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "auto_merge_task.h"
 #endif
 

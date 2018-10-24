@@ -1,7 +1,7 @@
 #pragma once
 #ifndef CRASH_HANDLER_INL_H_
 #error "Direct inclusion of this file is not allowed, include crash_handler-inl.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "crash_handler-inl.h"
 #endif
 

@@ -2,7 +2,7 @@
 
 #ifndef CONFIG_INL_H_
 #error "Direct inclusion of this file is not allowed, include config.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "config.h"
 #endif
 

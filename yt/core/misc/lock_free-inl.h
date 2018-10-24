@@ -1,7 +1,7 @@
 #pragma once
 #ifndef LOCK_FREE_INL_H_
 #error "Direct inclusion of this file is not allowed, include lock_free.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "lock_free.h"
 #endif
 

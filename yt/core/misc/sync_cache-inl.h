@@ -1,7 +1,7 @@
 #pragma once
 #ifndef SYNC_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sync_cache.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "sync_cache.h"
 #endif
 

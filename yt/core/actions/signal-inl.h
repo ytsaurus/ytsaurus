@@ -4,7 +4,7 @@
 
 #ifndef SIGNAL_INL_H_
 #error "Direct inclusion of this file is not allowed, include signal.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "signal.h"
 #endif
 #undef SIGNAL_INL_H_
