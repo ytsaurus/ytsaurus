@@ -16,6 +16,7 @@
 #include "internet_address_type_handler.h"
 #include "account_type_handler.h"
 #include "replica_set_type_handler.h"
+#include "dns_record_set_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -85,6 +86,7 @@ public:
         RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));
@@ -206,7 +208,7 @@ private:
             LOG_WARNING(ex, "Failed to perform removed objects sweep");
         }
     }
-    
+
     void SweepTable(
         const TDBTable* table,
         const TDBField* removalTimeField)

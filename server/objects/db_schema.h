@@ -260,6 +260,26 @@ extern const struct TNetworkProjectsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TDnsRecordSetsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TDnsRecordSetsTable()
+        : TDBTable("dns_record_sets")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec{"spec"};
+        TDBField Status{"status"};
+    } Fields;
+} DnsRecordSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TVirtualServicesTable
     : public TDBTable
     , public TObjectTableBase

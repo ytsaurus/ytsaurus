@@ -129,6 +129,7 @@ DEFINE_ENUM(EObjectType,
     ((InternetAddress)(11))
     ((Account)        (12))
     ((ReplicaSet)     (13))
+    ((DnsRecordSet)   (14))
     ((Schema)        (256))
 );
 
