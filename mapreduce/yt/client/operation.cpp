@@ -59,6 +59,8 @@
 namespace NYT {
 namespace NDetail {
 
+static const ui64 DefaultExrtaTmpfsSize = 1024LL * 1024LL;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -973,7 +975,9 @@ void BuildUserJobFluently1(
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
     TMaybe<double> cpuLimit = preparer.GetSpec().CpuLimit_;
 
-    auto tmpfsSize = preparer.GetSpec().ExtraTmpfsSize_.GetOrElse(0LL);
+    // Use 1MB extra tmpfs size by default, it helps to detect job sandbox as tmp directory
+    // for standard python libraries. See YTADMINREQ-14505 for more details.
+    auto tmpfsSize = preparer.GetSpec().ExtraTmpfsSize_.GetOrElse(DefaultExrtaTmpfsSize);
     if (preparer.ShouldMountSandbox()) {
         tmpfsSize += preparer.GetTotalFileSize();
         if (tmpfsSize == 0) {
