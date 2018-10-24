@@ -1,6 +1,8 @@
 #pragma once
 #ifndef PERSISTENT_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include persistent_queue.h"
+// For the sake of sane code completion
+#include "persistent_queue.h"
 #endif
 
 #include <yt/core/misc/serialize.h>

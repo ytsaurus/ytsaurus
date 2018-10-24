@@ -1,6 +1,8 @@
 #pragma once
 #ifndef SYNC_EXPIRING_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sync_expiring_cache.h"
+// For the sake of sane code completion
+#include "sync_expiring_cache.h"
 #endif
 
 #include <yt/core/concurrency/periodic_executor.h>

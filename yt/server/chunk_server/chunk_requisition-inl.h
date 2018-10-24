@@ -1,5 +1,7 @@
 #ifndef CHUNK_REQUISITION_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_requisition.h"
+// For the sake of sane code completion
+#include "chunk_requisition.h"
 #endif
 
 namespace NYT {

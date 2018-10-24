@@ -1,6 +1,8 @@
 #pragma once
 #ifndef SCHEDULER_INL_H_
 #error "Direct inclusion of this file is not allowed, include scheduler.h"
+// For the sake of sane code completion
+#include "scheduler.h"
 #endif
 #undef SCHEDULER_INL_H_
 

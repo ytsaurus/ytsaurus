@@ -1,6 +1,8 @@
 #pragma once
 #ifndef COROUTINE_INL_H_
 #error "Direct inclusion of this file is not allowed, include coroutine.h"
+// For the sake of sane code completion
+#include "coroutine.h"
 #endif
 #undef COROUTINE_INL_H_
 

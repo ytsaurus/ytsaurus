@@ -1,6 +1,8 @@
 #pragma once
 #ifndef TRAFFIC_METER_INL_H_
 #error "Direct inclusion of this file is not allowed, include traffic_meter.h"
+// For the sake of sane code completion
+#include "traffic_meter.h"
 #endif
 
 namespace NYT {

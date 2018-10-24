@@ -1,6 +1,8 @@
 #pragma once
 #ifndef CHUNK_VISITOR_INL_H
 #error "Direct inclusion of this file is not allowed, include chunk_visitor.h"
+// For the sake of sane code completion
+#include "chunk_visitor.h"
 #endif
 
 #include <yt/core/ytree/helpers.h>

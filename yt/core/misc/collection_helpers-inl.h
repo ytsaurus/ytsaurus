@@ -1,6 +1,8 @@
 #pragma once
 #ifndef COLLECTION_HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include collection_helpers.h"
+// For the sake of sane code completion
+#include "collection_helpers.h"
 #endif
 
 namespace NYT {

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef YSON_SERIALIZABLE_INL_H_
 #error "Direct inclusion of this file is not allowed, include yson_serializable.h"
+// For the sake of sane code completion
+#include "yson_serializable.h"
 #endif
 
 #include "convert.h"

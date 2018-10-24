@@ -1,6 +1,8 @@
 #pragma once
 #ifndef CHUNKED_MEMORY_POOL_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunked_memory_pool.h"
+// For the sake of sane code completion
+#include "chunked_memory_pool.h"
 #endif
 
 #include "serialize.h"

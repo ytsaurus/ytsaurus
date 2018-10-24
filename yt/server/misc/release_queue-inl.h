@@ -1,5 +1,7 @@
 #ifndef RELEASE_QUEUE_H_
 #error "Direct inclusion of this file is not allowed, include release_queue.h"
+// For the sake of sane code completion
+#include "release_queue.h"
 #endif
 
 namespace NYT {

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef FUNCTION_CONTEXT_INL_H_
 #error "Direct inclusion of this file is not allowed, include function_context.h"
+// For the sake of sane code completion
+#include "function_context.h"
 #endif
 
 namespace NYT {
