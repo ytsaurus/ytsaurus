@@ -1,7 +1,7 @@
 #pragma once
 #ifndef CODEGEN_MODULE_INL_H_
 #error "Direct inclusion of this file is not allowed, include module.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "module.h"
 #endif
 #undef CODEGEN_MODULE_INL_H_

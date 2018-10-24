@@ -2,7 +2,7 @@
 
 #ifndef UPDATE_EXECUTOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include update_executor.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "update_executor.h"
 #endif
 

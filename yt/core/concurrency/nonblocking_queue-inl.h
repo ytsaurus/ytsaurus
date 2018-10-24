@@ -1,7 +1,7 @@
 #pragma once
 #ifndef NONBLOCKING_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include nonblocking_queue.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "nonblocking_queue.h"
 #endif
 #undef NONBLOCKING_QUEUE_INL_H_

@@ -1,7 +1,7 @@
 #pragma once
 #ifndef OBJECT_SERVICE_PROXY_INL_H_
 #error "Direct inclusion of this file is not allowed, include object_service_proxy.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "object_service_proxy.h"
 #endif
 

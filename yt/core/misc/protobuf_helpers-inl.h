@@ -1,7 +1,7 @@
 #pragma once
 #ifndef PROTOBUF_HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include protobuf_helpers.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "protobuf_helpers.h"
 #endif
 

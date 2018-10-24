@@ -1,7 +1,7 @@
 #pragma once
 #ifndef CLIENT_INL_H_
 #error "Direct inclusion of this file is not allowed, include client.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "client.h"
 #endif
 

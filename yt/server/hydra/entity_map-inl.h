@@ -1,7 +1,7 @@
 #pragma once
 #ifndef ENTITY_MAP_INL_H_
 #error "Direct inclusion of this file is not allowed, include entity_map.h"
-// For the sake of sane code completion
+// For the sake of sane code completion.
 #include "entity_map.h"
 #endif
 
