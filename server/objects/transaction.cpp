@@ -244,7 +244,7 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->GetTypeHandlerOrThrow(type);
-        
+
         auto* schema = GetSchema(type);
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(schema, EAccessControlPermission::Create);
