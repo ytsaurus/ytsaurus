@@ -83,6 +83,8 @@ private:
             builder.AppendParam(param.first, param.second);
         }
         builder.AppendChar('&');
+        builder.AppendParam("attributes", "1008");
+        builder.AppendChar('&');
         builder.AppendParam("format", "json");
 
         auto realUrl = builder.FlushRealUrl();
