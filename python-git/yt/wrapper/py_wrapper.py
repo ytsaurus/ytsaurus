@@ -82,6 +82,12 @@ class OperationParameters(object):
         self.python_version = python_version
         self.is_local_mode = is_local_mode
 
+def get_local_temp_directory(client):
+    local_temp_directory = get_config(client)["local_temp_directory"]
+    if local_temp_directory is not None:
+        return local_temp_directory
+    return tempfile.gettempdir()
+
 # Md5 tools.
 def calc_md5_from_file(filename):
     with open(filename, mode="rb") as fin:
