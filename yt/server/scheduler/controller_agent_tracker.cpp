@@ -299,6 +299,17 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
     }
 
+    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersPtr runtimeParameters) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(IncarnationId_);
+
+        auto req = AgentProxy_->UpdateOperationRuntimeParameters();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        ToProto(req->mutable_parameters(), ConvertToYsonString(runtimeParameters).GetData());
+        return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
+    }
+
 
     virtual void OnJobStarted(const TJobPtr& job) override
     {

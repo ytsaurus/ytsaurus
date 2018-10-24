@@ -27,7 +27,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
-    DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
+    DEFINE_BYVAL_RW_PROPERTY(std::vector<TString>, Owners);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
     DEFINE_BYVAL_RW_PROPERTY(TMemoryTag, MemoryTag);

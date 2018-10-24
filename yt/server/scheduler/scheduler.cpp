@@ -910,6 +910,15 @@ public:
         WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
             .ThrowOnError();
 
+        auto controller = operation->GetController();
+        if (controller) {
+            WaitFor(controller->UpdateRuntimeParameters(runtimeParams))
+                .ThrowOnError();
+        }
+
+        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
+            .ThrowOnError();
+
         LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
             operation->GetId());
     }

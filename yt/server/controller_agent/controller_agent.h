@@ -118,6 +118,7 @@ public:
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
     TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId);
+    TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, NScheduler::TOperationRuntimeParametersPtr runtimeParameters);
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
         const TNullable<TControllerTransactionIds>& transactions);
