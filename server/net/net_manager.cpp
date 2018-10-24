@@ -133,7 +133,7 @@ private:
         if (pod->IsRemoving()) {
             return true;
         }
-        
+
         const auto* oldNode = pod->Spec().Node().LoadOld();
         const auto* newNode = pod->Spec().Node().Load();
         if (oldNode != newNode) {
@@ -303,7 +303,7 @@ private:
         if (pod->IsRemoving()) {
             return;
         }
-        
+
         const auto* node = pod->Spec().Node().Load();
         if (!node || node->IsRemoving()) {
             return;
