@@ -1,6 +1,8 @@
 #pragma once
 #ifndef COMPOSITE_AUTOMATON_INL_H_
 #error "Direct inclusion of this file is not allowed, include composite_automaton.h"
+// For the sake of sane code completion
+#include "composite_automaton.h"
 #endif
 
 #include "mutation.h"

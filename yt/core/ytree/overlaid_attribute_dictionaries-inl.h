@@ -1,5 +1,7 @@
 #ifndef OVERLAID_ATTRIBUTE_DICTIONARIES_INL_H_
 #error "Direct inclusion of this file is not allowed, include overlaid_attribute_dictionaries.h"
+// For the sake of sane code completion
+#include "overlaid_attribute_dictionaries.h"
 #endif
 
 namespace NYT {

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef RANDOM_ACCESS_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include random_access_queue.h"
+// For the sake of sane code completion
+#include "random_access_queue.h"
 #endif
 
 namespace NYT {

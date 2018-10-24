@@ -1,6 +1,8 @@
 #pragma once
 #ifndef PROTOBUF_INTEROP_INL_H_
 #error "Direct inclusion of this file is not allowed, include protobuf_interop.h"
+// For the sake of sane code completion
+#include "protobuf_interop.h"
 #endif
 
 namespace NYT {

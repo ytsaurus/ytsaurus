@@ -1,6 +1,8 @@
 #pragma once
 #ifndef MEMORY_USAGE_TRACKER_INL_H_
 #error "Direct inclusion of this file is not allowed, include memory_usage_tracker.h"
+// For the sake of sane code completion
+#include "memory_usage_tracker.h"
 #endif
 
 #include <yt/core/concurrency/thread_affinity.h>

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef TLS_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include tls_cache.h"
+// For the sake of sane code completion
+#include "tls_cache.h"
 #endif
 
 #include <util/generic/hash.h>

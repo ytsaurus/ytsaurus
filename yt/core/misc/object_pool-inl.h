@@ -1,6 +1,8 @@
 #pragma once
 #ifndef OBJECT_POOL_INL_H_
 #error "Direct inclusion of this file is not allowed, include object_pool.h"
+// For the sake of sane code completion
+#include "object_pool.h"
 #endif
 
 #include "mpl.h"

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef CHUNKED_MEMORY_ALLOCATOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunked_memory_allocator.h"
+// For the sake of sane code completion
+#include "chunked_memory_allocator.h"
 #endif
 
 #include "serialize.h"

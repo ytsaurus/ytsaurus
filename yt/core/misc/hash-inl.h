@@ -1,6 +1,8 @@
 #pragma once
 #ifndef HASH_INL_H_
 #error "Direct inclusion of this file is not allowed, include hash.h"
+// For the sake of sane code completion
+#include "hash.h"
 #endif
 
 namespace NYT {

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef INVOKER_INL_H_
 #error "Direct inclusion of this file is not allowed, include invoker.h"
+// For the sake of sane code completion
+#include "invoker.h"
 #endif
 #undef INVOKER_INL_H_
 

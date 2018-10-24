@@ -1,6 +1,8 @@
 #pragma once
 #ifndef EVENT_COUNT_INL_H_
 #error "Direct inclusion of this file is not allowed, include event_count.h"
+// For the sake of sane code completion
+#include "event_count.h"
 #endif
 #undef EVENT_COUNT_INL_H_
 
