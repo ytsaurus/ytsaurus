@@ -97,18 +97,17 @@ char* TChunkedMemoryPool::AllocateAlignedSlow(size_t size, int align)
 
 char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
 {
+    TMutableRef ref;
     if (size > RegularChunkSize) {
         auto block = ChunkProvider_->Allocate(size, TagCookie_);
-        auto result = block->GetRef().Begin();
+        ref = block->GetRef();
+        Size_ += ref.Size();
+        Capacity_ += ref.Size();
         OtherBlocks_.push_back(std::move(block));
-        Size_ += size;
-        Capacity_ += size;
-        return result;
+        return ref.Begin();
     }
 
     YCHECK(NextChunkIndex_ <= Chunks_.size());
-
-    TMutableRef ref;
 
     if (NextSmallSize_ < RegularChunkSize) {
         auto block = ChunkProvider_->Allocate(std::max(NextSmallSize_, size), TagCookie_);
