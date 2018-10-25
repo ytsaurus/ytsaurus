@@ -27,6 +27,7 @@ enum ERowModificationType
 {
     RMT_WRITE = 0;
     RMT_DELETE = 1;
+    RMT_MODIFY = 3;
 }
 
 enum EAtomicity
@@ -345,6 +346,7 @@ message TReqModifyRows
     required NYT.NProto.TGuid transaction_id = 1;
     required string path = 2;
     repeated ERowModificationType row_modification_types = 3;
+    repeated uint32 row_read_locks = 7;
 
     optional bool require_sync_replica = 4;
     optional NYT.NProto.TGuid upstream_replica_id = 5;

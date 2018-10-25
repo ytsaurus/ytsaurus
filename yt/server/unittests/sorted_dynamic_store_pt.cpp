@@ -62,7 +62,8 @@ public:
             context.Transaction = transaction.get();
             auto dynamicRow = Store_->ModifyRow(
                 row,
-                TSortedDynamicRow::PrimaryLockMask,
+                0,
+                PrimaryLockMask,
                 NApi::ERowModificationType::Write,
                 &context);
             transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
@@ -71,7 +72,7 @@ public:
             Store_->PrepareRow(transaction.get(), dynamicRow);
 
             CommitTransaction(transaction.get());
-            Store_->CommitRow(transaction.get(), dynamicRow);
+            Store_->CommitRow(transaction.get(), dynamicRow, PrimaryLockMask);
         };
 
         Cerr << "Warming up..." << Endl;

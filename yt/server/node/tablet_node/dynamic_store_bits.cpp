@@ -8,16 +8,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
-
-const int TSortedDynamicRow::PrimaryLockIndex;
-const ui32 TSortedDynamicRow::PrimaryLockMask;
-const ui32 TSortedDynamicRow::AllLocksMask;
-
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
 TOwningKey RowToKey(
     const TTableSchema& schema,
     TSortedDynamicRow row)

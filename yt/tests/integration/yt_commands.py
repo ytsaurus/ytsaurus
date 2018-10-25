@@ -441,6 +441,10 @@ def insert_rows(path, data, is_raw=False, **kwargs):
     else:
         return execute_command("insert_rows", kwargs, input_stream=StringIO(data))
 
+def lock_rows(path, data, **kwargs):
+    kwargs["path"] = path
+    return execute_command("lock_rows", kwargs, input_stream=_prepare_rows_stream(data))
+
 def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command("delete_rows", kwargs, input_stream=_prepare_rows_stream(data))

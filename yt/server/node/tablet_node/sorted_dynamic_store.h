@@ -82,7 +82,14 @@ public:
      */
     TSortedDynamicRow ModifyRow(
         NTableClient::TUnversionedRow row,
-        ui32 lockMask,
+        ui32 readLockMask,
+        ui32 writeLockMask,
+        NApi::ERowModificationType modificationType,
+        TWriteContext* context);
+
+    TSortedDynamicRow ModifyRow(
+        NTableClient::TUnversionedRow row,
+        ui32 writeLockMask,
         NApi::ERowModificationType modificationType,
         TWriteContext* context);
 
@@ -94,16 +101,17 @@ public:
         NTableClient::TVersionedRow row,
         TWriteContext* context);
 
-    TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row);
+    TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
-    void CommitRow(TTransaction* transaction, TSortedDynamicRow row);
-    void AbortRow(TTransaction* transaction, TSortedDynamicRow row);
+    void CommitRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask);
+    void AbortRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask);
 
     // The following functions are made public for unit-testing.
     TSortedDynamicRow FindRow(NTableClient::TUnversionedRow key);
     std::vector<TSortedDynamicRow> GetAllRows();
     Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
-    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex);
+    TTimestamp GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex);
+    TTimestamp GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex);
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -140,7 +148,8 @@ public:
     virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
-        ui32 lockMask) override;
+        ui32 readLockMask,
+        ui32 writeLockMask) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
@@ -191,17 +200,15 @@ private:
         ui32 lockMask,
         TWriteContext* context);
 
-    bool CheckRowLocks(
-        TSortedDynamicRow row,
-        ui32 lockMask,
-        TWriteContext* context);
     TError CheckRowLocks(
         TSortedDynamicRow row,
         TTransaction* transaction,
-        ui32 lockMask);
+        ui32 readLockMask,
+        ui32 writeLockMask);
     void AcquireRowLocks(
         TSortedDynamicRow row,
-        ui32 lockMask,
+        ui32 readLockMask,
+        ui32 writeLockMask,
         NApi::ERowModificationType modificationType,
         TWriteContext* context);
 

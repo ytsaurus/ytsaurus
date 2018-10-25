@@ -5,6 +5,7 @@
 #include "private.h"
 
 #include <yt/client/tablet_client/helpers.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -295,7 +296,8 @@ void TTransaction::ModifyRows(
         // TODO(sandello): handle versioned rows
         YCHECK(
             modification.Type == ERowModificationType::Write ||
-            modification.Type == ERowModificationType::Delete);
+            modification.Type == ERowModificationType::Delete ||
+            modification.Type == ERowModificationType::ReadLockWrite);
     }
 
     const auto& config = Connection_->GetConfig();
@@ -339,6 +341,7 @@ void TTransaction::ModifyRows(
     for (const auto& modification : modifications) {
         rows.emplace_back(modification.Row);
         req->add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
+        req->add_row_read_locks(modification.ReadLocks);
     }
 
     req->Attachments() = SerializeRowset(

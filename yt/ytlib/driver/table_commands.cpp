@@ -876,6 +876,56 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLockRowsCommand::TLockRowsCommand()
+{
+    RegisterParameter("table_writer", TableWriter)
+        .Default();
+    RegisterParameter("path", Path);
+    RegisterParameter("locks", Locks);
+}
+
+void TLockRowsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto config = UpdateYsonSerializable(
+        context->GetConfig()->TableWriter,
+        TableWriter);
+
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
+    auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
+    auto tableInfo = WaitFor(asyncTableInfo)
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+
+    auto transactionPool = context->GetDriver()->GetStickyTransactionPool();
+    auto transaction = transactionPool->GetTransactionAndRenewLease(Options.TransactionId);
+
+    struct TLockRowsBufferTag
+    { };
+
+    // Parse input data.
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Write],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+    auto keys = ParseRows(context, config, &valueConsumer);
+    auto rowBuffer = New<TRowBuffer>(TLockRowsBufferTag());
+    auto capturedKeys = rowBuffer->Capture(keys);
+    auto keyRange = MakeSharedRange(
+        std::vector<TKey>(capturedKeys.begin(), capturedKeys.end()),
+        std::move(rowBuffer));
+
+    // Run locks.
+    transaction->LockRows(
+        Path.GetPath(),
+        valueConsumer.GetNameTable(),
+        std::move(keyRange),
+        Locks);
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTrimRowsCommand::TTrimRowsCommand()
 {
     RegisterParameter("path", Path);

@@ -475,8 +475,6 @@ private:
 
     TSortedDynamicRowKeyComparer RowKeyComparer_;
 
-    int ColumnLockCount_ = -1;
-
     ITabletContext* const Context_;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;

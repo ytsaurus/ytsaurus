@@ -2455,9 +2455,12 @@ private:
         std::vector<TRowModification> modifications;
         modifications.reserve(rowsetSize);
         for (size_t index = 0; index < rowsetSize; ++index) {
+            ui32 readLocks = index < request->row_read_locks_size() ? request->row_read_locks(index) : 0;
+
             modifications.push_back({
                 CheckedEnumCast<ERowModificationType>(request->row_modification_types(index)),
-                rowsetRows[index].ToTypeErasedRow()
+                rowsetRows[index].ToTypeErasedRow(),
+                readLocks
             });
         }
 

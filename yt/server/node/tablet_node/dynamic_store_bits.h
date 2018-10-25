@@ -54,7 +54,12 @@ static_assert(
 
 struct TLockDescriptor
 {
-    TTransaction* Transaction;
+    // Each transaction can take read lock only once.
+    int ReadLockCount;
+    // The latest commit timestamp of a transaction that was holding this read lock.
+    TTimestamp LastReadLockTimestamp;
+
+    TTransaction* WriteTransaction;
     std::atomic<TTimestamp> PrepareTimestamp;
     std::atomic<TEditListHeader*> WriteRevisionList;
 };
@@ -373,10 +378,6 @@ public:
         return Header_ != nullptr;
     }
 
-    static const int PrimaryLockIndex = 0;
-    static const ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
-    static const ui32 AllLocksMask = 0xffffffff;
-
     TSortedDynamicRowHeader* GetHeader() const
     {
         return Header_;
@@ -424,7 +425,6 @@ public:
     {
         return Header_->DataWeight;
     }
-
 
     const TLockDescriptor* BeginLocks(int keyColumnCount) const
     {
@@ -548,17 +548,25 @@ struct TDynamicRowRef
     TRow Row;
 };
 
-using TSortedDynamicRowRef = TDynamicRowRef<
-    TSortedDynamicStore,
-    TSortedStoreManager,
-    TSortedDynamicRow
->;
+struct TSortedDynamicRowRef
+    : public TDynamicRowRef<TSortedDynamicStore, TSortedStoreManager, TSortedDynamicRow>
+{
+    using TBase = TDynamicRowRef<TSortedDynamicStore, TSortedStoreManager, TSortedDynamicRow>;
 
-using TOrderedDynamicRowRef = TDynamicRowRef<
-    TOrderedDynamicStore,
-    TOrderedStoreManager,
-    TOrderedDynamicRow
->;
+    TSortedDynamicRowRef() = default;
+    TSortedDynamicRowRef(const TSortedDynamicRowRef& other) = default;
+
+    TSortedDynamicRowRef(
+        TSortedDynamicStore* store,
+        TSortedStoreManager* storeManager,
+        TSortedDynamicRow row)
+        : TBase(store, storeManager, row)
+    { }
+
+    ui32 ReadLockMask = 0;
+};
+
+using TOrderedDynamicRowRef = TDynamicRowRef<TOrderedDynamicStore, TOrderedStoreManager, TOrderedDynamicRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

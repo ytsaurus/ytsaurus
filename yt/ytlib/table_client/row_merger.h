@@ -67,8 +67,9 @@ public:
 
     void AddPartialRow(TUnversionedRow row);
     void DeletePartialRow(TUnversionedRow row);
+    void InitPartialRow(TUnversionedRow row);
+    TUnversionedRow BuildDeleteRow();
     TUnversionedRow BuildMergedRow();
-    void Reset();
 
 private:
     const TRowBufferPtr RowBuffer_;
@@ -76,14 +77,8 @@ private:
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    bool Started_ = false;
-    bool Deleted_ = false;
-
     TMutableUnversionedRow MergedRow_;
     SmallVector<bool, TypicalColumnCount> ValidValues_;
-
-    void InitPartialRow(TUnversionedRow row);
-    void Cleanup();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
