@@ -904,12 +904,6 @@ public:
         WaitFor(MasterConnector_->FlushOperationNode(operation))
             .ThrowOnError();
 
-        LogEventFluently(ELogEventType::RuntimeParametersInfo)
-            .Item("runtime_params").Value(runtimeParams);
-
-        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
-            .ThrowOnError();
-
         auto controller = operation->GetController();
         if (controller) {
             WaitFor(controller->UpdateRuntimeParameters(runtimeParams))
@@ -918,6 +912,9 @@ public:
 
         WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
             .ThrowOnError();
+
+        LogEventFluently(ELogEventType::RuntimeParametersInfo)
+            .Item("runtime_params").Value(runtimeParams);
 
         LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
             operation->GetId());
