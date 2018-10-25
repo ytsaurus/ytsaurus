@@ -416,6 +416,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         _trim(18)
         _check(2, 0, chunk_ids[18:])
 
+    @pytest.mark.skipif("True", reason="YT-8142")
     def test_reshard_adds_tablets(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -444,6 +445,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                     j = i - 2
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
 
+    @pytest.mark.skipif("True", reason="YT-8142")
     def test_reshard_joins_tablets(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -485,6 +487,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
 
+    @pytest.mark.skipif("True", reason="YT-8142")
     def test_reshard_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -649,6 +652,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
+    @pytest.mark.skipif("True", reason="YT-8142")
     def test_reshard_trimmed_shared_yt_6948(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", tablet_count=5)
