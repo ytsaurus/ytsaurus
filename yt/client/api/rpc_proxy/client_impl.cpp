@@ -155,6 +155,9 @@ TFuture<void> TClient::MountTable(
     req->set_path(path);
 
     NYT::ToProto(req->mutable_cell_id(), options.CellId);
+    if (!options.TargetCellIds.empty()) {
+        NYT::ToProto(req->mutable_target_cell_ids(), options.TargetCellIds);
+    }
     req->set_freeze(options.Freeze);
 
     ToProto(req->mutable_mutating_options(), options);

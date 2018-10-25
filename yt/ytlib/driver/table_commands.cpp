@@ -353,6 +353,8 @@ TMountTableCommand::TMountTableCommand()
         .Optional();
     RegisterParameter("freeze", Options.Freeze)
         .Optional();
+    RegisterParameter("target_cell_ids", Options.TargetCellIds)
+        .Optional();
 }
 
 void TMountTableCommand::DoExecute(ICommandContextPtr context)

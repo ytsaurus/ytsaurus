@@ -1420,6 +1420,7 @@ private:
         if (request->has_cell_id()) {
             FromProto(&options.CellId, request->cell_id());
         }
+        FromProto(&options.TargetCellIds, request->target_cell_ids());
         if (request->has_freeze()) {
             options.Freeze = request->freeze();
         }
