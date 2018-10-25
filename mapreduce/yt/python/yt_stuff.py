@@ -68,26 +68,23 @@ class YtConfig(object):
         self.proxy_port = proxy_port
         self.node_count = node_count
 
-        with tempfile.NamedTemporaryFile(delete=False) as config_with_disabled_retries:
-            config_with_disabled_retries.write("""\
-                {
-                    "bus_server" = {
-                        "bind_retry_count" = 1;
-                    };
-                }""")
-
-        self.node_config = get_value(node_config, config_with_disabled_retries.name)
-        self.scheduler_config = get_value(scheduler_config, config_with_disabled_retries.name)
-        self.master_config = get_value(master_config, config_with_disabled_retries.name)
-
-        with tempfile.NamedTemporaryFile(delete=False) as proxy_config_with_disabled_retries:
-            proxy_config_with_disabled_retries.write("""
-                {
-                    "bind_retry_count": 1
+        default_node_config = {
+            "tablet_node": {
+                "hydra_manager": {
+                    "leader_lease_grace_delay": 21000,
+                    "leader_lease_check_period": 100,
+                    "leader_lease_timeout": 20000
                 }
-                """)
+            }
+        }
 
-        self.proxy_config = get_value(proxy_config, proxy_config_with_disabled_retries.name)
+        with tempfile.NamedTemporaryFile(delete=False) as node_config_with_fixed_hydra:
+            yson.dump(default_node_config, node_config_with_fixed_hydra)
+
+        self.node_config = get_value(node_config, node_config_with_fixed_hydra.name)
+        self.scheduler_config = scheduler_config
+        self.master_config = master_config
+        self.proxy_config = proxy_config
 
         controller_config = {
             "controller_agent": {
@@ -281,12 +278,9 @@ class YtStuff(object):
                     ('job-proxy', 'job_proxy_program'),
                     ('exec', 'exec_program'),
                     ('proxy', 'cell_proxy_program'),
-                    ('tools', 'tools_program')]
-        if self.version == '19_2':
-            programs += [('scheduler', 'cell_scheduler_program')]
-        else:
-            programs += [('scheduler', 'programs/scheduler'),
-                         ('controller-agent', 'programs/controller_agent')]
+                    ('tools', 'tools_program'),
+                    ('scheduler', 'programs/scheduler'),
+                    ('controller-agent', 'programs/controller_agent')]
 
         if self.version != "19_4":
             for binary, server_dir in programs:
