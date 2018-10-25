@@ -749,7 +749,7 @@ class YTInstance(object):
             if self.abi_version[0] == 19:
                 args = ["ytserver-" + component]
                 if self._kill_child_processes:
-                    args.extend(["--pdeathsig", str(signal.SIGKILL)])
+                    args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
             args.extend(["--config", self.config_paths[name][i]])
