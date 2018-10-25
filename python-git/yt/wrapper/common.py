@@ -17,6 +17,13 @@ import socket
 import sys
 import threading
 import warnings
+try:
+    from distro import linux_distribution
+except ImportError:
+    try:
+        from platform import linux_distribution
+    except ImportError:
+        linux_distribution = None
 
 from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
@@ -207,7 +214,10 @@ def get_python_version():
 
 def get_platform():
     if sys.platform in ("linux", "linux2"):
-        return "{0} {1} ({2})".format(*platform.linux_distribution())
+        if linux_distribution is not None:
+            return "{0} {1} ({2})".format(*linux_distribution())
+        else:
+            return platform.uname().system
     elif sys.platform == "darwin":
         return "Mac OS " + platform.mac_ver()[0]
     elif sys.platform == "win32":
@@ -328,17 +338,22 @@ def object_type_from_uuid(uuid):
 def is_master_transaction(transaction_id):
     return object_type_from_uuid(transaction_id) in (1, 4)
 
-class _DummyProcess(DummyProcess):
-    def start(self):
-        assert self._parent is dummy_current_process()
-        self._start_called = True
-        if hasattr(self._parent, "_children"):
-            self._parent._children[self] = None
-        threading.Thread.start(self)
 
-class ThreadPoolHelper(ThreadPool):
-    # See: http://bugs.python.org/issue10015
-    Process = _DummyProcess
+if not PY3:
+    class _DummyProcess(DummyProcess):
+        def start(self):
+            assert self._parent is dummy_current_process()
+            self._start_called = True
+            if hasattr(self._parent, "_children"):
+                self._parent._children[self] = None
+            threading.Thread.start(self)
+
+    class ThreadPoolHelper(ThreadPool):
+        # See: http://bugs.python.org/issue10015
+        Process = _DummyProcess
+else:
+    class ThreadPoolHelper(ThreadPool):
+        pass
 
 def escape_c(string):
     """Escapes string literal to be used in query language."""

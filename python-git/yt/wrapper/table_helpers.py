@@ -27,7 +27,10 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
-import collections
+try:
+    from collections import Iterable, Iterator
+except ImportError:
+    from collections.abc import Iterable, Iterator
 import itertools
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
@@ -46,7 +49,7 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
                 raise YtError("Cannot split unicode string into chunks, consider encoding it first")
         stream = BytesIO(stream)
 
-    iterable_types = [list, types.GeneratorType, collections.Iterator, collections.Iterable]
+    iterable_types = [list, types.GeneratorType, Iterator, Iterable]
 
     is_iterable = isinstance(stream, tuple(iterable_types))
     is_filelike = hasattr(stream, "read")

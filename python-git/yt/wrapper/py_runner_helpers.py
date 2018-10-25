@@ -142,7 +142,10 @@ class group_by_key_switch(object):
     def _grouper(self):
         while True:
             yield self.row
-            self._extract_next_row()
+            try:
+                self._extract_next_row()
+            except StopIteration:
+                return
             if self.rows.key_switch:
                 break
 
