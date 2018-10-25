@@ -2144,6 +2144,11 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
+        // Temporary disable reshard due to bug YT-8142.
+        if (!table->IsPhysicallySorted() && !table->IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard non-empty ordered table");
+        }
+
         if (newTabletCount <= 0) {
             THROW_ERROR_EXCEPTION("Tablet count must be positive");
         }

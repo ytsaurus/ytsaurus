@@ -1316,9 +1316,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     ToProto(response->mutable_node_id(), newNode->GetId());
     response->set_cell_tag(newNodeCellTag);
 
-    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+    context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
         newNodeId,
-        newNodeCellTag);
+        newNodeCellTag,
+        newNode->GetAccount()->GetName());
 
     context->Reply();
 }
