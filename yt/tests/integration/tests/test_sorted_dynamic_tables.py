@@ -1003,6 +1003,62 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
+    def test_transaction_locks(self):
+        sync_create_cells(1)
+
+        attributes = {"schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "a", "type": "int64", "lock": "a"},
+                {"name": "b", "type": "int64", "lock": "b"},
+                {"name": "c", "type": "int64", "lock": "c"}]
+            }
+        create_dynamic_table("//tmp/t", **attributes)
+        sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
+
+        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx2, sticky=True)
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
+
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+        tx3 = start_transaction(type="tablet", sticky=True)
+
+        insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1)
+
+        insert_rows("//tmp/t", [{"key": 2, "b": 2}], update=True, tx=tx2)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2)
+
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3)
+
+        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx2, sticky=True)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx3, sticky=True)
+
+        assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+
+        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1)
+        insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx1, sticky=True)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx2, sticky=True)
+
     def test_reshard_data(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for="scan")

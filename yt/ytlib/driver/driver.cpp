@@ -181,10 +181,12 @@ public:
         REGISTER_ALL(TLocateSkynetShareCommand,           "locate_skynet_share",           Null,       Structured, false, true );
 
         REGISTER    (TInsertRowsCommand,                  "insert_rows",                   Tabular,    Null,       true,  true , ApiVersion3);
+        REGISTER    (TLockRowsCommand,                    "lock_rows",                     Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TDeleteRowsCommand,                  "delete_rows",                   Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TTrimRowsCommand,                    "trim_rows",                     Null,       Null,       true,  true , ApiVersion3);
 
         REGISTER    (TInsertRowsCommand,                  "insert_rows",                   Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER    (TLockRowsCommand,                    "lock_rows",                     Tabular,    Structured, true,  true , ApiVersion4);
         REGISTER    (TDeleteRowsCommand,                  "delete_rows",                   Tabular,    Structured, true,  true , ApiVersion4);
         REGISTER    (TTrimRowsCommand,                    "trim_rows",                     Null,       Structured, true,  true , ApiVersion4);
 

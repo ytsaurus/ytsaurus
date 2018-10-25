@@ -382,6 +382,7 @@ TEST_F(TUnversionedRowMergerTest, Simple1)
 {
     auto merger = GetTypicalMerger();
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
@@ -395,6 +396,7 @@ TEST_F(TUnversionedRowMergerTest, Simple2)
 {
     auto merger = GetTypicalMerger();
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 3"));
@@ -408,17 +410,19 @@ TEST_F(TUnversionedRowMergerTest, Delete1)
 {
     auto merger = GetTypicalMerger();
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger->BuildMergedRow());
+        merger->BuildDeleteRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete2)
 {
     auto merger = GetTypicalMerger();
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
 
@@ -431,19 +435,21 @@ TEST_F(TUnversionedRowMergerTest, Delete3)
 {
     auto merger = GetTypicalMerger();
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger->BuildMergedRow());
+        merger->BuildDeleteRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete4)
 {
     auto merger = GetTypicalMerger();
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
@@ -458,6 +464,7 @@ TEST_F(TUnversionedRowMergerTest, Aggregate1)
 {
     auto merger = GetTypicalMerger(GetAggregateSumSchema());
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1"));
 
     EXPECT_EQ(
@@ -469,6 +476,7 @@ TEST_F(TUnversionedRowMergerTest, Aggregate2)
 {
     auto merger = GetTypicalMerger(GetAggregateSumSchema());
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=true> 1"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=true> 2"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=true> 3"));
@@ -482,6 +490,7 @@ TEST_F(TUnversionedRowMergerTest, DeletedAggregate1)
 {
     auto merger = GetTypicalMerger(GetAggregateSumSchema());
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=true> 1"));
     merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.15"));
@@ -495,6 +504,7 @@ TEST_F(TUnversionedRowMergerTest, ResetAggregate1)
 {
     auto merger = GetTypicalMerger(GetAggregateSumSchema());
 
+    merger->InitPartialRow(BuildUnversionedRow("<id=0> 0"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=true> 1"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=false> 2"));
     merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3;aggregate=true> 3"));

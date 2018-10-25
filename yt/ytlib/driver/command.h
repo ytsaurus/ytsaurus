@@ -262,6 +262,10 @@ struct TDeleteRowsOptions
     , public NApi::TModifyRowsOptions
 { };
 
+struct TLockRowsOptions
+    : public TTabletReadOptions
+{ };
+
 template <class TOptions, class = void>
 class TTabletWriteCommandBase
 { };

@@ -32,6 +32,8 @@ struct TRowModification
     ERowModificationType Type;
     //! Either a row (for write; versioned or unversioned) or a key (for delete; always unversioned).
     NTableClient::TTypeErasedRow Row;
+    //! Read locks
+    ui32 ReadLocks = 0;
 };
 
 struct TModifyRowsOptions
@@ -96,6 +98,23 @@ struct ITransaction
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
         const TModifyRowsOptions& options = TModifyRowsOptions());
+
+    void LockRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
+        ui32 lockMask = 0);
+
+    void LockRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys);
+
+    void LockRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
+        const std::vector<TString>& locks);
 
     virtual void ModifyRows(
         const NYPath::TYPath& path,

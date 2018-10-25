@@ -976,6 +976,73 @@ void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<TString, int> GetLocksMapping(
+    const NTableClient::TTableSchema& schema,
+    bool fullAtomicity,
+    std::vector<int>* columnIndexToLockIndex,
+    std::vector<TString>* lockIndexToName)
+{
+    if (columnIndexToLockIndex) {
+        // Assign dummy lock indexes to key components.
+        columnIndexToLockIndex->assign(schema.Columns().size(), -1);
+    }
+
+    if (lockIndexToName) {
+        lockIndexToName->push_back(PrimaryLockName);
+    }
+
+    THashMap<TString, int> groupToIndex;
+    if (fullAtomicity) {
+        // Assign lock indexes to data components.
+        for (int index = schema.GetKeyColumnCount(); index < schema.Columns().size(); ++index) {
+            const auto& columnSchema = schema.Columns()[index];
+            int lockIndex = PrimaryLockIndex;
+
+            if (columnSchema.Lock()) {
+                auto emplaced = groupToIndex.emplace(*columnSchema.Lock(), groupToIndex.size() + 1);
+                if (emplaced.second && lockIndexToName) {
+                    lockIndexToName->push_back(*columnSchema.Lock());
+                }
+                lockIndex = emplaced.first->second;
+            }
+
+            if (columnIndexToLockIndex) {
+                (*columnIndexToLockIndex)[index] = lockIndex;
+            }
+        }
+    } else if (columnIndexToLockIndex) {
+        // No locking supported for non-atomic tablets, however we still need the primary
+        // lock descriptor to maintain last commit timestamps.
+        for (int index = schema.GetKeyColumnCount(); index < schema.Columns().size(); ++index) {
+            (*columnIndexToLockIndex)[index] = PrimaryLockIndex;
+        }
+    }
+    return groupToIndex;
+}
+
+ui32 GetLockMask(
+    const NTableClient::TTableSchema& schema,
+    bool fullAtomicity,
+    const std::vector<TString>& locks)
+{
+    THashMap<TString, int> groupToIndex = GetLocksMapping(
+        schema,
+        fullAtomicity);
+
+    ui32 lockMask = 0;
+    for (const auto& lock : locks) {
+        auto it = groupToIndex.find(lock);
+        if (it != groupToIndex.end()) {
+            lockMask |= 1U << it->second;
+        } else {
+            THROW_ERROR_EXCEPTION("Lock group %Qv not found in schema", lock);
+        }
+    }
+    return lockMask;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 using NYT::ToProto;

@@ -20,6 +20,10 @@ DEFINE_ENUM(ESortOrder,
     (Ascending)
 )
 
+constexpr int PrimaryLockIndex = 0;
+constexpr ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
+constexpr ui32 AllLocksMask = 0xffffffff;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TColumnSchema
@@ -212,6 +216,19 @@ void ValidateTableSchema(
     bool isTableDynamic = false);
 
 void ValidateColumnUniqueness(const TTableSchema& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TString, int> GetLocksMapping(
+    const NTableClient::TTableSchema& schema,
+    bool fullAtomicity,
+    std::vector<int>* columnIndexToLockIndex = nullptr,
+    std::vector<TString>* lockIndexToName = nullptr);
+
+ui32 GetLockMask(
+    const NTableClient::TTableSchema& schema,
+    bool fullAtomicity,
+    const std::vector<TString>& locks);
 
 ////////////////////////////////////////////////////////////////////////////////
 

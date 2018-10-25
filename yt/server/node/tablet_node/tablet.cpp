@@ -21,6 +21,8 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -941,7 +943,7 @@ bool TTablet::IsReplicated() const
 
 int TTablet::GetColumnLockCount() const
 {
-    return ColumnLockCount_;
+    return LockIndexToName_.size();
 }
 
 i64 TTablet::GetTotalRowCount() const
@@ -1154,37 +1156,11 @@ void TTablet::Initialize()
         keyColumnCount,
         PhysicalSchema_);
 
-    ColumnIndexToLockIndex_.resize(PhysicalSchema_.Columns().size());
-    LockIndexToName_.push_back(PrimaryLockName);
-
-    // Assign dummy lock indexes to key components.
-    for (int index = 0; index < keyColumnCount; ++index) {
-        ColumnIndexToLockIndex_[index] = -1;
-    }
-
-    // Assign lock indexes to data components.
-    THashMap<TString, int> groupToIndex;
-    for (int index = keyColumnCount; index < PhysicalSchema_.Columns().size(); ++index) {
-        const auto& columnSchema = PhysicalSchema_.Columns()[index];
-        int lockIndex = TSortedDynamicRow::PrimaryLockIndex;
-        // No locking supported for non-atomic tablets, however we still need the primary
-        // lock descriptor to maintain last commit timestamps.
-        if (columnSchema.Lock() && Atomicity_ == EAtomicity::Full) {
-            auto it = groupToIndex.find(*columnSchema.Lock());
-            if (it == groupToIndex.end()) {
-                lockIndex = groupToIndex.size() + 1;
-                YCHECK(groupToIndex.insert(std::make_pair(*columnSchema.Lock(), lockIndex)).second);
-                LockIndexToName_.push_back(*columnSchema.Lock());
-            } else {
-                lockIndex = it->second;
-            }
-        } else {
-            lockIndex = TSortedDynamicRow::PrimaryLockIndex;
-        }
-        ColumnIndexToLockIndex_[index] = lockIndex;
-    }
-
-    ColumnLockCount_ = groupToIndex.size() + 1;
+    THashMap<TString, int> groupToIndex = GetLocksMapping(
+        PhysicalSchema_,
+        Atomicity_ == EAtomicity::Full,
+        &ColumnIndexToLockIndex_,
+        &LockIndexToName_);
 
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
 
