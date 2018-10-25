@@ -333,7 +333,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
             if hasattr(module, "__path__") and \
                     get_config(client)["pickling"]["create_init_file_for_package_modules"]:
                 init_file = tempfiles_manager.create_tempfile(
-                    get_local_temp_directory(client),
+                    dir=get_local_temp_directory(client),
                     prefix="__init__.py")
 
                 with open(init_file, "w") as f:
