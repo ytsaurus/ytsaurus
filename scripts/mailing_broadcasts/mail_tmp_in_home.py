@@ -4,8 +4,14 @@
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
-import json
 import smtplib
+
+import sys
+import json
+import re
+import yt.wrapper as yt
+
+
 
 MAIL_SERVER = "outbound-relay.yandex.net"
 
@@ -46,9 +52,50 @@ mail_body_template = u"""
 """
 
 
-def main():
+def make_stat(output_path, cluster):
+
+    def get_disk(path):
+        attrs = yt.get(path + '/@')
+        if attrs["type"] != "map_node":
+            return attrs["resource_usage"]["disk_space"]
+        return 0
+
+    yt.config["proxy"]["url"] = cluster
+    rx = re.compile("//home/[^/]+")
+    result = {}
+    folders = yt.search("//home",
+                        object_filter=lambda obj: obj.attributes.get("account") == "tmp",
+                        attributes=["account"])
+    for folder in folders:
+        try:
+            if not yt.exists(folder):
+                print "skip", folder
+                continue
+
+            prefix = rx.match(folder).group()
+
+            if prefix in result:
+                result[prefix]["paths"].append(folder)
+                result[prefix]["disk_space"] += get_disk(folder)
+                continue
+
+            account = yt.get(prefix + "/@account")
+            responsibles = yt.get("//sys/accounts/" + account + "/@responsibles") if yt.exists("//sys/accounts/" + account + "/@responsibles") else []
+            result[prefix] = {
+                "account": account,
+                "paths": [folder],
+                "disk_space": get_disk(folder),
+                "responsibles": responsibles
+            }
+        except:
+            print "bug on " + folder
+            raise
+    json.dump(result, open(output_path, 'w'), indent=True)
+
+
+def send(stats_path):
     s = smtplib.SMTP(MAIL_SERVER)
-    stats = json.load(open("/home/renadeen/purgetmp2/stats.json"))
+    stats = json.load(open(stats_path))
 
     for key in stats:
         stat = stats[key]
@@ -84,4 +131,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1] == "make_stat":
+        make_stat(sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == "send":
+        send(sys.argv[2])
+    else:
+        raise Exception("Wrong arguments")
