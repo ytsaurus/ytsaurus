@@ -2382,6 +2382,9 @@ private:
             if (options.CellId) {
                 ToProto(req.mutable_cell_id(), options.CellId);
             }
+            if (!options.TargetCellIds.empty()) {
+                ToProto(req.mutable_target_cell_ids(), options.TargetCellIds);
+            }
             req.set_freeze(options.Freeze);
 
             auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
@@ -2401,6 +2404,9 @@ private:
             }
             if (options.CellId) {
                 ToProto(req->mutable_cell_id(), options.CellId);
+            }
+            if (!options.TargetCellIds.empty()) {
+                ToProto(req->mutable_target_cell_ids(), options.TargetCellIds);
             }
             req->set_freeze(options.Freeze);
 

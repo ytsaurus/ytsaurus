@@ -1413,6 +1413,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
+        const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         TTimestamp mountTimestamp)
     {
@@ -1427,23 +1428,46 @@ public:
             return;
         }
 
+        auto validateCellBundle = [table] (const TTabletCell* cell) {
+            if (cell->GetCellBundle() != table->GetTabletCellBundle()) {
+                THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the table "
+                    "is configured to use bundle %Qv",
+                    cell->GetId(),
+                    cell->GetCellBundle()->GetName(),
+                    table->GetTabletCellBundle()->GetName());
+            }
+        };
+
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        TTabletCell* hintCell = nullptr;
-        if (hintCellId) {
-            hintCell = GetTabletCellOrThrow(hintCellId);
-        }
+        if (hintCellId || !targetCellIds.empty()) {
+            if (hintCellId && !targetCellIds.empty()) {
+                THROW_ERROR_EXCEPTION("At most one of \"cell_id\" and \"target_cell_ids\" must be specified");
+            }
 
-        if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
-            // Will throw :)
-            THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the table "
-                "is configured to use bundle %Qv",
-                hintCell->GetId(),
-                hintCell->GetCellBundle()->GetName(),
-                table->GetTabletCellBundle()->GetName());
-        }
+            if (hintCellId) {
+                auto hintCell = GetTabletCellOrThrow(hintCellId);
+                validateCellBundle(hintCell);
+            } else {
+                int tabletCount = lastTabletIndex - firstTabletIndex + 1;
+                if (!targetCellIds.empty() && targetCellIds.size() != tabletCount) {
+                    THROW_ERROR_EXCEPTION("\"target_cell_ids\" must either be empty or contain exactly "
+                        "\"last_tablet_index\" - \"first_tablet_index\" + 1 entries (%v != %v - %v + 1)",
+                        targetCellIds.size(),
+                        lastTabletIndex,
+                        firstTabletIndex);
+                }
 
-        if (!hintCell) {
+                for (const auto& cellId : targetCellIds) {
+                    auto targetCell = GetTabletCellOrThrow(cellId);
+                    if (!IsCellActive(targetCell)) {
+                        THROW_ERROR_EXCEPTION("Cannot mount tablet into cell %v since it is not active",
+                            cellId);
+                    }
+                    validateCellBundle(targetCell);
+                }
+            }
+        } else {
             ValidateHasHealthyCells(table->GetTabletCellBundle()); // may throw
         }
 
@@ -1516,6 +1540,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
+        const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         TTimestamp mountTimestamp)
     {
@@ -1550,19 +1575,32 @@ public:
         auto serializedWriterConfig = ConvertToYsonString(writerConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
-        std::vector<TTablet*> tabletsToMount;
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = allTablets[index];
-            if (!tablet->GetCell()) {
-                tabletsToMount.push_back(tablet);
+        std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
+
+        if (!targetCellIds.empty()) {
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = allTablets[index];
+                if (!tablet->GetCell()) {
+                    auto* cell = FindTabletCell(targetCellIds[index - firstTabletIndex]);
+                    assignment.emplace_back(tablet, cell);
+                }
             }
+        } else {
+            std::vector<TTablet*> tabletsToMount;
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = allTablets[index];
+                if (!tablet->GetCell()) {
+                    tabletsToMount.push_back(tablet);
+                }
+            }
+
+            assignment = ComputeTabletAssignment(
+                table,
+                mountConfig,
+                hintCell,
+                std::move(tabletsToMount));
         }
 
-        auto assignment = ComputeTabletAssignment(
-            table,
-            mountConfig,
-            hintCell,
-            std::move(tabletsToMount));
 
         DoMountTablets(
             table,
@@ -5853,6 +5891,7 @@ void TTabletManager::PrepareMountTable(
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
+    const std::vector<TTabletCellId>& targetCellIds,
     bool freeze,
     TTimestamp mountTimestamp)
 {
@@ -5861,6 +5900,7 @@ void TTabletManager::PrepareMountTable(
         firstTabletIndex,
         lastTabletIndex,
         hintCellId,
+        targetCellIds,
         freeze,
         mountTimestamp);
 }
@@ -5944,6 +5984,7 @@ void TTabletManager::MountTable(
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
+    const std::vector<TTabletCellId>& targetCellIds,
     bool freeze,
     TTimestamp mountTimestamp)
 {
@@ -5953,6 +5994,7 @@ void TTabletManager::MountTable(
         firstTabletIndex,
         lastTabletIndex,
         hintCellId,
+        targetCellIds,
         freeze,
         mountTimestamp);
 }

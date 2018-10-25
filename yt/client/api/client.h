@@ -141,6 +141,7 @@ struct TMountTableOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
+    std::vector<NTabletClient::TTabletCellId> TargetCellIds;
     bool Freeze = false;
 };
 

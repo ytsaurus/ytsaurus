@@ -907,6 +907,54 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
             sync_compact_table("//tmp/t")
             check_reads(True)
 
+    @parametrize_external
+    def test_mount_with_target_cell_ids(self, external):
+        cells = sync_create_cells(4)
+
+        set("//sys/tablet_cells/{}/@decommissioned".format(cells[3]), True)
+
+        if external:
+            self._create_sorted_table("//tmp/t", external_cell_tag=1)
+        else:
+            self._create_sorted_table("//tmp/t", external=False)
+
+        sync_reshard_table("//tmp/t", [[], [1], [2]])
+
+        # At most one of `cell_id` and `target_cell_ids` must be set.
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t", cell_id=cells[0], target_cell_ids=cells[:3])
+
+        # `target_cell_ids` must not contain invalid cell ids.
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t", target_cell_ids=[cells[0], cells[1], "1-2-3-4"])
+
+        # `target_cell_ids` must be of corresponding size.
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t", target_cell_ids=cells[:2])
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=1, target_cell_ids=cells[:3])
+
+        # Target cells may not be decommissioned.
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0, target_cell_ids=[cells[3]])
+
+        target_cell_ids = [cells[0], cells[0], cells[1]]
+        sync_mount_table("//tmp/t", target_cell_ids=target_cell_ids)
+        assert target_cell_ids == [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
+
+        # Cells are not changed for mounted tablets.
+        sync_mount_table("//tmp/t", target_cell_ids=[cells[0], cells[2], cells[2]])
+        assert target_cell_ids == [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
+
+        sync_unmount_table("//tmp/t", first_tablet_index=0, last_tablet_index=1)
+        sync_mount_table("//tmp/t", target_cell_ids=[cells[2], cells[1], cells[0]])
+        assert [cells[2], cells[1], cells[1]] == [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=2, target_cell_ids=[cells[1], cells[2]])
+        assert [None, cells[1], cells[2]] == [tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")]
+
+
 ##################################################################
 
 class TestDynamicTablesPermissions(TestDynamicTablesBase):

@@ -936,6 +936,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->last_tablet_index();
     auto cellId = FromProto<TTabletCellId>(request->cell_id());
+    auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
     bool freeze = request->freeze();
 
     context->SetRequestInfo(
@@ -952,6 +953,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
     options.FirstTabletIndex = firstTabletIndex;
     options.LastTabletIndex = lastTabletIndex;
     options.CellId = cellId;
+    options.TargetCellIds = targetCellIds;
     options.Freeze = freeze;
 
     CallViaNativeClient(context->GetUser(), [=] (const IClientPtr& client) {

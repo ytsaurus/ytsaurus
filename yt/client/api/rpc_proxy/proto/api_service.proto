@@ -806,6 +806,8 @@ message TReqMountTable
 
     optional TMutatingOptions mutating_options = 103;
     optional TTabletRangeOptions tablet_range_options = 104;
+
+    repeated NYT.NProto.TGuid target_cell_ids = 4;
 }
 
 message TRspMountTable
