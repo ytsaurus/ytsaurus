@@ -304,8 +304,8 @@ public:
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
 
-    virtual const TNullable<TOutputTable>& StderrTable() const override;
-    virtual const TNullable<TOutputTable>& CoreTable() const override;
+    virtual const TOutputTablePtr& StderrTable() const override;
+    virtual const TOutputTablePtr& CoreTable() const override;
 
     virtual void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) override;
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) override;
@@ -346,6 +346,8 @@ public:
     virtual void RegisterOutputRows(i64 count, int tableIndex) override;
 
     virtual TNullable<int> GetRowCountLimitTableIndex() override;
+
+    virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -423,15 +425,16 @@ protected:
     struct TRowBufferTag { };
     NTableClient::TRowBufferPtr RowBuffer;
 
-    std::vector<TInputTable> InputTables;
-    std::vector<TOutputTable> OutputTables_;
-    TNullable<TOutputTable> StderrTable_;
-    TNullable<TOutputTable> CoreTable_;
+    std::vector<TInputTablePtr> InputTables_;
+    THashMap<NYPath::TYPath, TOutputTablePtr> PathToOutputTable_;
+    std::vector<TOutputTablePtr> OutputTables_;
+    TOutputTablePtr StderrTable_;
+    TOutputTablePtr CoreTable_;
 
     // All output tables plus stderr and core tables (if present).
-    std::vector<TOutputTable*> UpdatingTables;
+    std::vector<TOutputTablePtr> UpdatingTables_;
 
-    TIntermediateTable IntermediateTable;
+    TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
 
     THashMap<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
@@ -586,9 +589,9 @@ protected:
 
     // Completion.
     void TeleportOutputChunks();
-    void BeginUploadOutputTables(const std::vector<TOutputTable*>& updatingTables);
-    void AttachOutputChunks(const std::vector<TOutputTable*>& tableList);
-    void EndUploadOutputTables(const std::vector<TOutputTable*>& tableList);
+    void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& updatingTables);
+    void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
+    void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tableList);
     void CommitTransactions();
     virtual void CustomCommit();
 
@@ -763,11 +766,11 @@ protected:
 
     i64 GetDataSliceCount() const;
 
-    typedef std::function<bool(const TInputTable& table)> TInputTableFilter;
+    typedef std::function<bool(const TInputTablePtr& table)> TInputTableFilter;
 
     NTableClient::TKeyColumns CheckInputTablesSorted(
         const NTableClient::TKeyColumns& keyColumns,
-        TInputTableFilter inputTableFilter = [](const TInputTable&) { return true; });
+        TInputTableFilter inputTableFilter = [](const TInputTablePtr& /* table */) { return true; });
 
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
@@ -777,7 +780,7 @@ protected:
         const NTransactionClient::TTransactionId& transactionId,
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
-    const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
+    const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
 
@@ -816,9 +819,6 @@ protected:
     void AddCoreOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet) const;
-
-    void SetInputDataSources(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
-    void SetIntermediateDataSource(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig) const;
@@ -872,7 +872,9 @@ protected:
     NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 
     int GetForeignInputTableCount() const;
-    
+
+    virtual void InitOutputTables();
+
     //! One output table can have row_count_limit attribute in operation.
     TNullable<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max();

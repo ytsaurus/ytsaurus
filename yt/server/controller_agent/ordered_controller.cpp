@@ -375,14 +375,14 @@ protected:
     void InitTeleportableInputTables()
     {
         if (IsTeleportationSupported()) {
-            for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic &&
-                    !InputTables[index].Path.GetColumns() &&
-                    InputTables[index].ColumnRenameDescriptors.empty())
+            for (int index = 0; index < InputTables_.size(); ++index) {
+                if (!InputTables_[index]->IsDynamic &&
+                    !InputTables_[index]->Path.GetColumns() &&
+                    InputTables_[index]->ColumnRenameDescriptors.empty())
                 {
-                    InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
-                        InputTables[index].Schema,
-                        OutputTables_[0].TableUploadOptions.TableSchema,
+                    InputTables_[index]->IsTeleportable = ValidateTableSchemaCompatibility(
+                        InputTables_[index]->Schema,
+                        OutputTables_[0]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                 }
             }
@@ -407,7 +407,7 @@ protected:
         }
 
         for (const auto& table : OutputTables_) {
-            if (!table.TableUploadOptions.TableSchema.IsSorted()) {
+            if (!table->TableUploadOptions.TableSchema.IsSorted()) {
                 OrderedOutputRequired_ = true;
             }
         }
@@ -455,7 +455,7 @@ protected:
             IsJobInterruptible() &&
             Config->EnableJobSplitting &&
             Spec_->EnableJobSplitting &&
-            InputTables.size() <= Options_->JobSplitter->MaxInputTableCount
+            InputTables_.size() <= Options_->JobSplitter->MaxInputTableCount
             ? Options_->JobSplitter
             : nullptr;
     }
@@ -545,7 +545,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0]->TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
@@ -563,7 +563,7 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
     }
 
@@ -578,7 +578,7 @@ private:
 
         auto inferFromInput = [&] () {
             if (Spec_->InputQuery) {
-                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
             } else {
                 InferSchemaFromInputOrdered();
             }
@@ -586,7 +586,7 @@ private:
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     inferFromInput();
                 } else {
                     ValidateOutputSchemaOrdered();
@@ -752,7 +752,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -911,7 +911,7 @@ private:
     {
         TOrderedControllerBase::DoInitialize();
 
-        auto& path = InputTables[0].Path;
+        auto& path = InputTables_[0]->Path;
         auto ranges = path.GetRanges();
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
@@ -938,29 +938,29 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0]->TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
-        table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
-        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
+        table->TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
+        table->TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         // Erase output MUST be sorted.
         if (Spec_->SchemaInferenceMode != ESchemaInferenceMode::FromOutput) {
-            table.Options->ExplodeOnValidationError = true;
+            table->Options->ExplodeOnValidationError = true;
         }
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    if (InputTables[0].SchemaMode == ETableSchemaMode::Strong) {
+                    if (InputTables_[0]->SchemaMode == ETableSchemaMode::Strong) {
                         ValidateTableSchemaCompatibility(
-                            InputTables[0].Schema,
-                            table.TableUploadOptions.TableSchema,
+                            InputTables_[0]->Schema,
+                            table->TableUploadOptions.TableSchema,
                             /* ignoreSortOrder */ false)
                             .ThrowOnError();
                     }
@@ -985,14 +985,14 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         const auto& table = OutputTables_[0];
-        if (table.TableUploadOptions.TableSchema.IsSorted()) {
-            ToProto(jobSpecExt->mutable_key_columns(), table.TableUploadOptions.TableSchema.GetKeyColumns());
+        if (table->TableUploadOptions.TableSchema.IsSorted()) {
+            ToProto(jobSpecExt->mutable_key_columns(), table->TableUploadOptions.TableSchema.GetKeyColumns());
         }
     }
 
@@ -1118,7 +1118,7 @@ private:
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                     break;
                 }
@@ -1129,14 +1129,14 @@ private:
 
                 // Since remote copy doesn't unpack blocks and validate schema, we must ensure
                 // that schemas are identical.
-                for (const auto& inputTable : InputTables) {
-                    if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
-                        inputTable.Schema.ToCanonical() != table.TableUploadOptions.TableSchema.ToCanonical())
+                for (const auto& inputTable : InputTables_) {
+                    if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
+                        inputTable->Schema.ToCanonical() != table->TableUploadOptions.TableSchema.ToCanonical())
                     {
                         THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
                             "input table schema differs from output table schema")
-                            << TErrorAttribute("input_table_schema", inputTable.Schema)
-                            << TErrorAttribute("output_table_schema", table.TableUploadOptions.TableSchema);
+                            << TErrorAttribute("input_table_schema", inputTable->Schema)
+                            << TErrorAttribute("output_table_schema", table->TableUploadOptions.TableSchema);
                     }
                 }
                 break;
@@ -1163,18 +1163,18 @@ private:
     virtual void CustomPrepare() override
     {
         if (Spec_->CopyAttributes) {
-            if (InputTables.size() > 1) {
+            if (InputTables_.size() > 1) {
                 THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
             }
 
-            const auto& table = InputTables[0];
-            const auto& path = table.Path.GetPath();
+            const auto& table = InputTables_[0];
+            const auto& path = table->Path.GetPath();
 
             auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, *table.TransactionId);
+            SetTransactionId(req, *table->TransactionId);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
@@ -1222,7 +1222,7 @@ private:
 
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
         schedulerJobSpecExt->set_table_reader_options("");
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
         if (Spec_->NetworkName) {

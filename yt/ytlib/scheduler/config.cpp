@@ -473,6 +473,12 @@ TVanillaTaskSpec::TVanillaTaskSpec()
         .GreaterThanOrEqual(1);
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
+    RegisterParameter("output_table_paths", OutputTablePaths)
+        .Default();
+
+    RegisterPostprocessor([&] {
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+    });
 }
 
 TInputlyQueryableSpec::TInputlyQueryableSpec()

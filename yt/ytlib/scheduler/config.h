@@ -550,6 +550,8 @@ public:
 
     TJobIOConfigPtr JobIO;
 
+    std::vector<NYPath::TRichYPath> OutputTablePaths;
+
     TVanillaTaskSpec();
 };
 

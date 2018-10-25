@@ -26,14 +26,36 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
+struct TDefaultUnwrapper
+{
+    static T& Unwrap(T& value) { return value; }
+};
+
+template <class T>
+struct TDefaultUnwrapper<TIntrusivePtr<T>>
+{
+    static T& Unwrap(const TIntrusivePtr<T>& value) { return *value; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class U = NDetail::TDefaultUnwrapper<T>>
 void GetUserObjectBasicAttributes(
     NApi::NNative::IClientPtr client,
     TMutableRange<T> objects,
     const NObjectClient::TTransactionId& defaultTransactionId,
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
-    bool suppressAccessTracking)
+    bool suppressAccessTracking = false)
 {
     const auto& Logger = logger;
 
@@ -45,7 +67,7 @@ void GetUserObjectBasicAttributes(
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto iterator = objects.Begin(); iterator != objects.End(); ++iterator) {
-        const auto& userObject = *iterator;
+        const auto& userObject = U::Unwrap(*iterator);
         auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(userObject.GetPath());
         req->set_permissions(static_cast<ui32>(permission));
         auto transactionId = userObject.TransactionId.Get(defaultTransactionId);
@@ -60,7 +82,7 @@ void GetUserObjectBasicAttributes(
 
     auto rspsOrError = batchRsp->GetResponses<NObjectClient::TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
     for (auto iterator = objects.Begin(); iterator != objects.End(); ++iterator) {
-        auto& userObject = *iterator;
+        auto& userObject = U::Unwrap(*iterator);
         const auto& path = userObject.GetPath();
         const auto& rspOrError = rspsOrError[iterator - objects.Begin()];
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",

@@ -2,12 +2,23 @@
 
 #include "serialize.h"
 
+#include <yt/server/chunk_pools/chunk_pool.h>nbr
+
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
 namespace NYT {
 namespace NControllerAgent {
 
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, LivePreviewTableId);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +54,7 @@ bool TOutputTable::IsBeginUploadCompleted() const
 void TOutputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
+    TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
     Persist(context, TableUploadOptions);
@@ -58,14 +70,16 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, OutputChunkTreeIds);
     Persist(context, EffectiveAcl);
     Persist(context, WriterConfig);
+    Persist(context, ChunkPoolInput);
 }
 
-TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate()
+TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
 {
     TEdgeDescriptor descriptor;
-    descriptor.DestinationPool = nullptr;
+    descriptor.DestinationPool = ChunkPoolInput;
     descriptor.TableUploadOptions = TableUploadOptions;
     descriptor.TableWriterOptions = CloneYsonSerializable(Options);
+    descriptor.TableWriterOptions->TableIndex = tableIndex;
     descriptor.TableWriterConfig = WriterConfig;
     descriptor.Timestamp = Timestamp;
     // Output tables never lose data (hopefully), so we do not need to store
@@ -79,7 +93,9 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate()
 ////////////////////////////////////////////////////////////////////////////////
 
 void TIntermediateTable::Persist(const TPersistenceContext& context)
-{ }
+{
+    TLivePreviewTableBase::Persist(context);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
