@@ -85,8 +85,8 @@ struct ITaskHost
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
 
-    virtual const TNullable<TOutputTable>& StderrTable() const = 0;
-    virtual const TNullable<TOutputTable>& CoreTable() const = 0;
+    virtual const TOutputTablePtr& StderrTable() const = 0;
+    virtual const TOutputTablePtr& CoreTable() const = 0;
 
     virtual void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
@@ -132,6 +132,8 @@ struct ITaskHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet) = 0;
+
+    virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

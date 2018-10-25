@@ -4,14 +4,16 @@
 #include "operation_controller_detail.h"
 #include "task.h"
 #include "config.h"
+#include "table.h"
+#include "job_info.h"
 
 #include <yt/server/chunk_pools/vanilla_chunk_pool.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/ypath/rich.h>
-
 #include <yt/ytlib/table_client/public.h>
+
+#include <yt/client/ypath/rich.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -30,8 +32,13 @@ class TVanillaTask
     : public TTask
 {
 public:
-    TVanillaTask(ITaskHostPtr taskHost, TVanillaTaskSpecPtr spec, TString name, TTaskGroupPtr taskGroup)
-        : TTask(std::move(taskHost))
+    TVanillaTask(
+        ITaskHostPtr taskHost,
+        TVanillaTaskSpecPtr spec,
+        TString name, TTaskGroupPtr
+        taskGroup,
+        std::vector<TEdgeDescriptor> edgeDescriptors)
+        : TTask(std::move(taskHost), std::move(edgeDescriptors))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
         , TaskGroup_(taskGroup.Get())
@@ -107,6 +114,7 @@ public:
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override
     {
         jobSpec->CopyFrom(JobSpecTemplate_);
+        AddOutputTableSpecs(jobSpec, joblet);
     }
 
     virtual EJobType GetJobType() const override
@@ -119,6 +127,15 @@ public:
         TTask::FinishInput();
 
         InitJobSpecTemplate();
+    }
+
+    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+    {
+        auto result = TTask::OnJobCompleted(joblet, jobSummary);
+
+        RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+        return result;
     }
 
 private:
@@ -186,6 +203,7 @@ public:
         Persist(context, Options_);
         Persist(context, Tasks_);
         Persist(context, TaskGroup_);
+        Persist(context, TaskOutputTables_);
     }
 
     virtual void CustomPrepare() override
@@ -195,7 +213,12 @@ public:
         for (const auto& pair : Spec_->Tasks) {
             const auto& taskName = pair.first;
             const auto& taskSpec = pair.second;
-            auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_);
+            std::vector<TEdgeDescriptor> edgeDescriptors;
+            int taskIndex = Tasks.size();
+            for (int index = 0; index < TaskOutputTables_[taskIndex].size(); ++index) {
+                edgeDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetEdgeDescriptorTemplate(index));
+            }
+            auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_, std::move(edgeDescriptors));
             RegisterTask(task);
             FinishTaskInput(task);
             Tasks_.emplace_back(std::move(task));
@@ -215,14 +238,31 @@ public:
             JobCounter->GetAbortedTotal());
     }
 
-    virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const
+    virtual std::vector<TRichYPath> GetInputTablePaths() const
     {
         return {};
     }
 
-    virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const
+    virtual void InitOutputTables() override
     {
-        return {};
+        for (const auto& pair : Spec_->Tasks) {
+            TaskOutputTables_.emplace_back();
+            const auto& taskName = pair.first;
+            const auto& taskSpec = pair.second;
+            for (const auto& outputTablePath : taskSpec->OutputTablePaths) {
+                TaskOutputTables_.back().emplace_back(RegisterOutputTable(outputTablePath));
+            }
+        }
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const
+    {
+        std::vector<TRichYPath> outputTablePaths;
+        for (const auto& pair : Spec_->Tasks) {
+            const auto& taskSpec = pair.second;
+            outputTablePaths.insert(outputTablePaths.end(), taskSpec->OutputTablePaths.begin(), taskSpec->OutputTablePaths.end());
+        }
+        return outputTablePaths;
     }
 
     virtual TNullable<TRichYPath> GetStderrTablePath() const override
@@ -324,6 +364,7 @@ private:
     TVanillaOperationOptionsPtr Options_;
 
     std::vector<TVanillaTaskPtr> Tasks_;
+    std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
     TTaskGroupPtr TaskGroup_;
 };
 

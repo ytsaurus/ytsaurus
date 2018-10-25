@@ -49,12 +49,14 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserJobIOFactoryBase::TUserJobIOFactoryBase(
+    IJobSpecHelperPtr jobSpecHelper,
     const TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr inBandwidthThrottler,
     IThroughputThrottlerPtr outBandwidthThrottler,
     IThroughputThrottlerPtr outRpsThrottler)
-    : BlockReadOptions_(blockReadOptions)
+    : JobSpecHelper_(std::move(jobSpecHelper))
+    , BlockReadOptions_(blockReadOptions)
     , TrafficMeter_(std::move(trafficMeter))
     , InBandwidthThrottler_(std::move(inBandwidthThrottler))
     , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
@@ -206,8 +208,13 @@ public:
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler))
-        , JobSpecHelper_(std::move(jobSpecHelper))
+        : TUserJobIOFactoryBase(
+            std::move(jobSpecHelper),
+            blockReadOptions,
+            std::move(trafficMeter),
+            std::move(inBandwidthThrottler),
+            std::move(outBandwidthThrottler),
+            std::move(outRpsThrottler))
         , UseParallelReader_(useParallelReader)
     { }
 
@@ -231,30 +238,7 @@ public:
             OutRpsThrottler_);
     }
 
-    virtual ISchemalessMultiChunkWriterPtr CreateWriter(
-        NApi::NNative::IClientPtr client,
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TChunkListId& chunkListId,
-        const TTransactionId& transactionId,
-        const TTableSchema& tableSchema,
-        const TChunkTimestamps& chunkTimestamps) override
-    {
-        return CreateTableWriter(
-            JobSpecHelper_,
-            std::move(client),
-            std::move(config),
-            std::move(options),
-            chunkListId,
-            transactionId,
-            tableSchema,
-            chunkTimestamps,
-            TrafficMeter_,
-            OutBandwidthThrottler_);
-    }
-
 private:
-    const IJobSpecHelperPtr JobSpecHelper_;
     const bool UseParallelReader_;
 };
 
@@ -272,8 +256,13 @@ public:
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler))
-        , JobSpecHelper_(jobSpecHelper)
+        : TUserJobIOFactoryBase(
+            std::move(jobSpecHelper),
+            blockReadOptions,
+            std::move(trafficMeter),
+            std::move(inBandwidthThrottler),
+            std::move(outBandwidthThrottler),
+            std::move(outRpsThrottler))
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
     { }
 
@@ -361,30 +350,7 @@ public:
         return readerFactory(primaryReaders, primaryKeyColumnCount, reduceKeyColumnCount, foreignReaders, foreignKeyColumnCount);
     }
 
-    virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        NNative::IClientPtr client,
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TChunkListId& chunkListId,
-        const TTransactionId& transactionId,
-        const TTableSchema& tableSchema,
-        const TChunkTimestamps& chunkTimestamps) override
-    {
-        return CreateTableWriter(
-            JobSpecHelper_,
-            std::move(client),
-            std::move(config),
-            std::move(options),
-            chunkListId,
-            transactionId,
-            tableSchema,
-            chunkTimestamps,
-            TrafficMeter_,
-            OutBandwidthThrottler_);
-    }
-
 private:
-    const IJobSpecHelperPtr JobSpecHelper_;
     const bool InterruptAtKeyEdge_;
 };
 
@@ -401,8 +367,13 @@ public:
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler))
-        , JobSpecHelper_(jobSpecHelper)
+        : TUserJobIOFactoryBase(
+            std::move(jobSpecHelper),
+            blockReadOptions,
+            std::move(trafficMeter),
+            std::move(inBandwidthThrottler),
+            std::move(outBandwidthThrottler),
+            std::move(outRpsThrottler))
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
@@ -480,9 +451,6 @@ public:
                 OutBandwidthThrottler_);
         }
     }
-
-private:
-    const IJobSpecHelperPtr JobSpecHelper_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,8 +466,13 @@ public:
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
-        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler))
-        , JobSpecHelper_(jobSpecHelper)
+        : TUserJobIOFactoryBase(
+            std::move(jobSpecHelper),
+            blockReadOptions,
+            std::move(trafficMeter),
+            std::move(inBandwidthThrottler),
+            std::move(outBandwidthThrottler),
+            std::move(outRpsThrottler))
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
@@ -544,41 +517,28 @@ public:
             InBandwidthThrottler_,
             OutRpsThrottler_);
     }
-
-    virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        NNative::IClientPtr client,
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TChunkListId& chunkListId,
-        const TTransactionId& transactionId,
-        const TTableSchema& tableSchema,
-        const TChunkTimestamps& chunkTimestamps) override
-    {
-        return CreateTableWriter(
-            JobSpecHelper_,
-            std::move(client),
-            std::move(config),
-            std::move(options),
-            chunkListId,
-            transactionId,
-            tableSchema,
-            chunkTimestamps,
-            TrafficMeter_,
-            OutBandwidthThrottler_);
-    }
-
-private:
-    const IJobSpecHelperPtr JobSpecHelper_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaJobIOFactory
-    : public IUserJobIOFactory
+    : public TUserJobIOFactoryBase
 {
 public:
-    explicit TVanillaJobIOFactory(IJobSpecHelperPtr jobSpecHelper)
-        : JobSpecHelper_(jobSpecHelper)
+    explicit TVanillaJobIOFactory(
+        IJobSpecHelperPtr jobSpecHelper,
+        const TClientBlockReadOptions& blockReadOptions,
+        NChunkClient::TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr inBandwidthThrottler,
+        IThroughputThrottlerPtr outBandwidthThrottler,
+        IThroughputThrottlerPtr outRpsThrottler)
+    : TUserJobIOFactoryBase(
+        std::move(jobSpecHelper),
+        blockReadOptions,
+        std::move(trafficMeter),
+        std::move(inBandwidthThrottler),
+        std::move(outBandwidthThrottler),
+        std::move(outRpsThrottler))
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
@@ -590,26 +550,37 @@ public:
     {
         return nullptr;
     }
-
-    virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        NNative::IClientPtr client,
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TChunkListId& chunkListId,
-        const TTransactionId& transactionId,
-        const TTableSchema& tableSchema,
-        const TChunkTimestamps& chunkTimestamps) override
-    {
-        return nullptr;
-    }
-
-private:
-    const IJobSpecHelperPtr JobSpecHelper_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::ISchemalessMultiChunkWriterPtr TUserJobIOFactoryBase::CreateWriter(
+    NNative::IClientPtr client,
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const TChunkListId& chunkListId,
+    const TTransactionId& transactionId,
+    const TTableSchema& tableSchema,
+    const TChunkTimestamps& chunkTimestamps)
+{
+    return CreateTableWriter(
+        JobSpecHelper_,
+        std::move(client),
+        std::move(config),
+        std::move(options),
+        chunkListId,
+        transactionId,
+        tableSchema,
+        chunkTimestamps,
+        TrafficMeter_,
+        OutBandwidthThrottler_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
@@ -642,7 +613,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TPartitionReduceJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
 
         case EJobType::Vanilla:
-            return New<TVanillaJobIOFactory>(jobSpecHelper);
+            return New<TVanillaJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
 
         default:
             THROW_ERROR_EXCEPTION(
