@@ -101,7 +101,7 @@ char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
     if (size > RegularChunkSize) {
         auto block = ChunkProvider_->Allocate(size, TagCookie_);
         ref = block->GetRef();
-        Size_ += ref.Size();
+        Size_ += size;
         Capacity_ += ref.Size();
         OtherBlocks_.push_back(std::move(block));
         return ref.Begin();
