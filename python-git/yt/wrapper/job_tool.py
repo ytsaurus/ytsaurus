@@ -5,7 +5,6 @@ from yt.wrapper.common import parse_bool, DoNotReplaceAction, chunk_iter_stream,
 from yt.wrapper.job_runner import make_run_script, get_output_descriptor_list
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
-import yt.yson as yson
 import yt.wrapper as yt
 
 import collections
