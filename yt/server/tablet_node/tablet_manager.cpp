@@ -1620,7 +1620,7 @@ private:
             storeManager->AddStore(store, false);
 
             TStoreId backingStoreId;
-            if (!IsRecovery() && descriptor.has_backing_store_id()) {
+            if (!IsRecovery() && descriptor.has_backing_store_id() && !tablet->GetUpstreamReplicaId()) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
                 auto backingStore = getBackingStore(backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
