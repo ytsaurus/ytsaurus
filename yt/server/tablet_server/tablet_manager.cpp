@@ -4592,7 +4592,12 @@ private:
             objectManager->RefObject(newRootChunkList);
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
-            YCHECK(newRootChunkList->Statistics() == statistics);
+            if (newRootChunkList->Statistics() != statistics) {
+                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid new root chunk list statistics (TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
+                    table->GetId(),
+                    newRootChunkList->Statistics(),
+                    statistics);
+            }
         } else {
             auto statistics = oldRootChunkList->Statistics();
 
@@ -4610,7 +4615,12 @@ private:
                 }
             }
 
-            YCHECK(oldRootChunkList->Statistics() == statistics);
+            if (oldRootChunkList->Statistics() != statistics) {
+                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid old root chunk list statistics (TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
+                    table->GetId(),
+                    oldRootChunkList->Statistics(),
+                    statistics);
+            }
         }
     }
 
