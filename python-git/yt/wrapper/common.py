@@ -18,7 +18,7 @@ import sys
 import threading
 import warnings
 try:
-    from distro import linux_distribution
+    from yt.packages.distro import linux_distribution
 except ImportError:
     try:
         from platform import linux_distribution
