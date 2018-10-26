@@ -125,5 +125,28 @@ void ProfileChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicMemoryUsageCounters
+{
+    explicit TDynamicMemoryUsageCounters(const TTagIdList& list)
+        : DynamicMemoryUsage("/dynamic_memory_usage", list)
+    { }
+
+    TSimpleGauge DynamicMemoryUsage;
+};
+
+using TDynamicMemoryProfilerTrait = TTabletProfilerTrait<TDynamicMemoryUsageCounters>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileDynamicMemoryUsage(
+    const NProfiling::TTagIdList& tags,
+    i64 delta)
+{
+    auto& counters = GetLocallyGloballyCachedValue<TDynamicMemoryProfilerTrait>(tags);
+    TabletNodeProfiler.Increment(counters.DynamicMemoryUsage, delta);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTabletNode
 } // namespace NYT
