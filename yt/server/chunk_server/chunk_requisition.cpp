@@ -323,7 +323,7 @@ void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisi
     }
 }
 
-bool FromProto(
+void FromProto(
     TChunkRequisition* requisition,
     const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
     const NSecurityServer::TSecurityManagerPtr& securityManager)
@@ -335,7 +335,7 @@ bool FromProto(
 
         // NB: an account may be removed between replicator sending a requisition and chunk manager receiving it.
         if (!IsObjectAlive(account)) {
-            return false;
+            continue;
         }
 
         requisition->AddEntry(
@@ -344,8 +344,6 @@ bool FromProto(
             TReplicationPolicy(entry.replication_factor(), entry.data_parts_only()),
             entry.committed());
     }
-
-    return true;
 }
 
 void TChunkRequisition::Save(NCellMaster::TSaveContext& context) const

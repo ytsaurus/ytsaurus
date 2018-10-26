@@ -333,8 +333,7 @@ private:
         TReplicationPolicy replicationPolicy,
         bool committed);
 
-    // NB: may fail and return false.
-    friend bool FromProto(
+    friend void FromProto(
         TChunkRequisition* requisition,
         const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition,
         const NSecurityServer::TSecurityManagerPtr& securityManager);

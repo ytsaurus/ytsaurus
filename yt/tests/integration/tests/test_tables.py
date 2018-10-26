@@ -5,7 +5,6 @@ from yt.yson import to_yson_type, loads
 from yt.environment.helpers import assert_items_equal
 
 import math
-from time import sleep
 
 import pytest
 
@@ -618,9 +617,7 @@ class TestTables(YTEnvSetup):
 
         remove("//tmp/t2")
 
-        gc_collect()
-        multicell_sleep()
-        assert not exists("#%s" % chunk_id)
+        wait(lambda: not exists("#%s" % chunk_id))
 
     def test_copy_to_the_same_table(self):
         create("table", "//tmp/t")
@@ -654,9 +651,7 @@ class TestTables(YTEnvSetup):
 
         remove("//tmp/t2")
 
-        gc_collect()
-        multicell_sleep()
-        assert not exists("#%s" % chunk_id)
+        wait(lambda: not exists("#%s" % chunk_id))
 
     def test_copy_not_sorted(self):
         create("table", "//tmp/t1")
@@ -742,13 +737,11 @@ class TestTables(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2")
         set("//tmp/t2/@replication_factor", 2)
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 2
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 2)
 
         remove("//tmp/t2")
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 1
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 1)
 
     def test_recursive_resource_usage(self):
         create("table", "//tmp/t1")
@@ -790,21 +783,24 @@ class TestTables(YTEnvSetup):
         tbl_a = read_table("//tmp/t", tx=tx)
 
         commit_transaction(tx)
-        sleep(1.0)
 
-        chunk_list_id = get("//tmp/t/@chunk_list_id")
-        statistics = get("#" + chunk_list_id + "/@statistics")
-        assert statistics["chunk_count"] == 1000
-        assert statistics["chunk_list_count"] == 2
-        assert statistics["row_count"] == 1000
-        assert statistics["rank"] == 2
+        def check():
+            chunk_list_id = get("//tmp/t/@chunk_list_id")
+            statistics = get("#" + chunk_list_id + "/@statistics")
+            return  statistics["chunk_count"] == 1000 and \
+                    statistics["chunk_list_count"] == 2 and \
+                    statistics["row_count"] == 1000 and \
+                    statistics["rank"] == 2
+        wait(check)
 
         assert tbl_a == read_table("//tmp/t")
 
     def _check_replication_factor(self, path, expected_rf):
         chunk_ids = get(path + "/@chunk_ids")
         for id in chunk_ids:
-            assert get_chunk_replication_factor(id) == expected_rf
+            if get_chunk_replication_factor(id) != expected_rf:
+                return False
+        return True
 
     # In tests below we intentionally issue vital/replication_factor updates
     # using a temporary user "u"; cf. YT-3579.
@@ -817,16 +813,16 @@ class TestTables(YTEnvSetup):
         def check_vital_chunks(is_vital):
             chunk_ids = get("//tmp/t/@chunk_ids")
             for id in chunk_ids:
-                assert get("#" + id + "/@vital") == is_vital
+                if get("#" + id + "/@vital") != is_vital:
+                    return False
+            return True
 
         assert get("//tmp/t/@vital")
-        check_vital_chunks(True)
+        assert check_vital_chunks(True)
 
         set("//tmp/t/@vital", False, authenticated_user="u")
         assert not get("//tmp/t/@vital")
-        sleep(2)
-
-        check_vital_chunks(False)
+        wait(lambda: check_vital_chunks(False))
 
     def test_replication_factor_update1(self):
         create("table", "//tmp/t")
@@ -834,8 +830,7 @@ class TestTables(YTEnvSetup):
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"})
         set("//tmp/t/@replication_factor", 4, authenticated_user="u")
-        sleep(2)
-        self._check_replication_factor("//tmp/t", 4)
+        wait(lambda: self._check_replication_factor("//tmp/t", 4))
 
     def test_replication_factor_update2(self):
         create("table", "//tmp/t")
@@ -845,8 +840,7 @@ class TestTables(YTEnvSetup):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
         set("//tmp/t/@replication_factor", 4, authenticated_user="u")
         commit_transaction(tx)
-        sleep(2)
-        self._check_replication_factor("//tmp/t", 4)
+        wait(lambda: self._check_replication_factor("//tmp/t", 4))
 
     def test_replication_factor_update3(self):
         create("table", "//tmp/t")
@@ -856,8 +850,7 @@ class TestTables(YTEnvSetup):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
         set("//tmp/t/@replication_factor", 2, authenticated_user="u")
         commit_transaction(tx)
-        sleep(2)
-        self._check_replication_factor("//tmp/t", 2)
+        wait(lambda: self._check_replication_factor("//tmp/t", 2))
 
     def test_key_columns1(self):
         create("table", "//tmp/t",
@@ -1021,7 +1014,7 @@ class TestTables(YTEnvSetup):
             with pytest.raises(YtError):
                 write_table("<append=%true>//tmp/t", rows)
             # XXX(babenko): workaround for YT-5604
-            sleep(1.0)
+            wait(lambda: get("//tmp/@lock_count") == 0)
 
         schema = make_schema([
             {"name": "key", "type": "int64"}],

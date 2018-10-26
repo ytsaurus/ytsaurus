@@ -375,6 +375,7 @@ public:
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
     {
+        RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
@@ -513,6 +514,16 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             &TImpl::HydraUpdateChunkRequisition,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
+        const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TImpl::HydraConfirmChunkListsRequisitionTraverseFinished,
             this);
     }
 
@@ -987,8 +998,46 @@ public:
 
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
     {
+        switch (chunkTree->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                ScheduleChunkRequisitionUpdate(chunkTree->AsChunk());
+                break;
+
+            case EObjectType::ChunkList:
+                ScheduleChunkRequisitionUpdate(chunkTree->AsChunkList());
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    void ScheduleChunkRequisitionUpdate(TChunkList* chunkList)
+    {
+        YCHECK(HasMutationContext());
+
+        if (!IsObjectAlive(chunkList)) {
+            return;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(chunkList);
+
+        ChunkListsAwaitingRequisitionTraverse_.insert(chunkList);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
+            chunkList->GetId());
+
         if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleRequisitionUpdate(chunkTree);
+            ChunkReplicator_->ScheduleRequisitionUpdate(chunkList);
+        }
+    }
+
+    void ScheduleChunkRequisitionUpdate(TChunk* chunk)
+    {
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleRequisitionUpdate(chunk);
         }
     }
 
@@ -1208,7 +1257,7 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
-    void MaybeRecomputeChunkRequisitons()
+    void MaybeRecomputeChunkRequisitions()
     {
         if (ChunkRequisitionsRecomputed_) {
             return;
@@ -1311,6 +1360,13 @@ private:
     TEnumIndexedVector<TTagId, EJobType, EJobType::ReplicatorFirst, EJobType::ReplicatorLast> JobTypeToTag_;
     THashMap<const TDataCenter*, TTagId> SourceDataCenterToTag_;
     THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
+
+    // Each requisition update scheduled for a chunk list should eventually be
+    // converted into a number of requisition update requests scheduled for its
+    // chunks. Before that conversion happens, however, the chunk list must be
+    // kept alive. Each chunk list in this multiset carries additional (strong) references
+    // (whose number coincides with the chunk list's multiplicity) to ensure that.
+    THashMultiSet<TChunkList*> ChunkListsAwaitingRequisitionTraverse_;
 
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
@@ -1653,6 +1709,34 @@ private:
         return GetDataCenterTag(dataCenter, DestinationDataCenterToTag_);
     }
 
+    void HydraConfirmChunkListsRequisitionTraverseFinished(NProto::TReqConfirmChunkListsRequisitionTraverseFinished* request)
+    {
+        auto chunkListIds = FromProto<std::vector<TChunkListId>>(request->chunk_list_ids());
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Confirming finished chunk lists requisition traverse (ChunkListIds: %v)",
+            chunkListIds);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto chunkListId : chunkListIds) {
+            auto* chunkList = FindChunkList(chunkListId);
+            if (!chunkList) {
+                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+                    chunkListId);
+                continue;
+            }
+
+            auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
+            if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
+                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                    chunkListId);
+                continue;
+            }
+
+            ChunkListsAwaitingRequisitionTraverse_.erase(it);
+            objectManager->UnrefObject(chunkList);
+        }
+    }
+
     void HydraUpdateChunkRequisition(NProto::TReqUpdateChunkRequisition* request)
     {
         // NB: Ordered map is a must to make the behavior deterministic.
@@ -1761,33 +1845,23 @@ private:
             }
 
             auto newRequisitionIndex = translateRequisitionIndex(update.chunk_requisition_index());
-            if (!newRequisitionIndex) {
-                // Requisition update is no longer valid (some account has been removed). Re-request.
-                ScheduleChunkRequisitionUpdate(chunk);
-                continue;
-            }
-
-            updates.emplace_back(TRequisitionUpdate{chunk, *newRequisitionIndex});
+            updates.emplace_back(TRequisitionUpdate{chunk, newRequisitionIndex});
         }
 
         return updates;
     }
 
-    std::function<TNullable<TChunkRequisitionIndex>(TChunkRequisitionIndex)>
+    std::function<TChunkRequisitionIndex(TChunkRequisitionIndex)>
     BuildChunkRequisitionIndexTranslator(const NProto::TReqUpdateChunkRequisition& request)
     {
-        THashMap<TChunkRequisitionIndex, TNullable<TChunkRequisitionIndex>> remoteToLocalIndexMap;
+        THashMap<TChunkRequisitionIndex, TChunkRequisitionIndex> remoteToLocalIndexMap;
         remoteToLocalIndexMap.reserve(request.chunk_requisition_dict_size());
         for (const auto& pair : request.chunk_requisition_dict()) {
             auto remoteIndex = pair.index();
 
             TChunkRequisition requisition;
-            TNullable<TChunkRequisitionIndex> localIndex;
-            if (FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager())) {
-                localIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, Bootstrap_->GetObjectManager());
-            }
-            // Else deserialization failed. Some account has been removed.
-            // A requisition update will be re-requested for affected chunks.
+            FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager());
+            auto localIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, Bootstrap_->GetObjectManager());
 
             YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
         }
@@ -2166,6 +2240,7 @@ private:
         ChunkListMap_.SaveValues(context);
         MediumMap_.SaveValues(context);
         Save(context, ChunkRequisitionRegistry_);
+        Save(context, ChunkListsAwaitingRequisitionTraverse_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -2193,6 +2268,11 @@ private:
         // COMPAT(shakurov)
         if (context.GetVersion() >= 700) {
             Load(context, ChunkRequisitionRegistry_);
+        }
+
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= 809) {
+            Load(context, ChunkListsAwaitingRequisitionTraverse_);
         }
 
         //COMPAT(savrus)
@@ -2273,7 +2353,7 @@ private:
 
         InitBuiltins();
 
-        MaybeRecomputeChunkRequisitons();
+        MaybeRecomputeChunkRequisitions();
 
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
@@ -2304,6 +2384,7 @@ private:
         TotalReplicaCount_ = 0;
 
         ChunkRequisitionRegistry_.Clear();
+        ChunkListsAwaitingRequisitionTraverse_.clear();
 
         MediumMap_.Clear();
         NameToMediumMap_.clear();
@@ -2526,6 +2607,20 @@ private:
 
         ChunkReplicator_->Start(AllChunks_.GetFront(), AllChunks_.GetSize());
         ChunkSealer_->Start(JournalChunks_.GetFront(), JournalChunks_.GetSize());
+
+        {
+            NProto::TReqConfirmChunkListsRequisitionTraverseFinished request;
+            std::vector<TChunkListId> chunkListIds;
+            for (auto* chunkList : ChunkListsAwaitingRequisitionTraverse_) {
+                ToProto(request.add_chunk_list_ids(), chunkList->GetId());
+            }
+
+            LOG_INFO("Scheduling chunk lists requisition traverse confirmation (Count: %v)",
+                request.chunk_list_ids_size());
+
+            CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request)
+                ->CommitAndLog(Logger);
+        }
     }
 
     virtual void OnStopLeading() override
@@ -3180,9 +3275,16 @@ NYTree::IYPathServicePtr TChunkManager::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
+std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(
+    const NProto::TReqUpdateChunkRequisition& request)
 {
     return Impl_->CreateUpdateChunkRequisitionMutation(request);
+}
+
+std::unique_ptr<NHydra::TMutation> TChunkManager::CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
+    const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request)
+{
+    return Impl_->CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request);
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
@@ -3374,9 +3476,9 @@ TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
     return Impl_->GetChunkRequisitionRegistry();
 }
 
-void TChunkManager::MaybeRecomputeChunkRequisitons()
+void TChunkManager::MaybeRecomputeChunkRequisitions()
 {
-    return Impl_->MaybeRecomputeChunkRequisitons();
+    return Impl_->MaybeRecomputeChunkRequisitions();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

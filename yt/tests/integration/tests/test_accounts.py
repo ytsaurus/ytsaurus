@@ -1236,4 +1236,30 @@ class TestAccounts(YTEnvSetup):
 
 class TestAccountsMulticell(TestAccounts):
     NUM_SECONDARY_MASTER_CELLS = 2
-    
+    NUM_SCHEDULERS = 1
+
+    def test_requisitions2(self):
+        create_account("a1")
+        create_account("a2")
+
+        create("table", "//tmp/t1", attributes={"account": "a1", "external_cell_tag": 1})
+        write_table("//tmp/t1", {"a" : "b"})
+
+        create("table", "//tmp/t2", attributes={"account": "a2", "external_cell_tag": 2})
+        merge(mode="unordered",
+              in_=["//tmp/t1", "//tmp/t1"],
+              out="//tmp/t2")
+
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        self._replicator_sleep()
+
+        requisition = get("#" + chunk_id + "/@requisition")
+        assert len(requisition) == 2
+
+        remove("//tmp/t1")
+
+        wait(lambda: len(get("#" + chunk_id + "/@owning_nodes")) == 1)
+        wait(lambda: len(get("#" + chunk_id + "/@requisition")) == 1)
