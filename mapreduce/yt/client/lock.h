@@ -13,13 +13,10 @@ class TLock
     : public ILock
 {
 public:
-    // Create nonwaitable lock.
-    TLock(const TLockId& lockId);
-
-    // Create waitable lock.
-    TLock(const TLockId& lockId, TClientPtr client);
+    TLock(const TLockId& lockId, TClientPtr client, bool waitable);
 
     virtual const TLockId& GetId() const override;
+    virtual TNodeId GetLockedNodeId() const override;
     virtual const NThreading::TFuture<void>& GetAcquiredFuture() const override;
 
 private:

@@ -670,11 +670,7 @@ ILockPtr TTransaction::Lock(
     const TLockOptions& options)
 {
     auto lockId = NYT::NDetail::Lock(Auth_, TransactionId_, path, mode, options);
-    if (options.Waitable_) {
-        return ::MakeIntrusive<TLock>(lockId, GetParentClient());
-    } else {
-        return ::MakeIntrusive<TLock>(lockId);
-    }
+    return ::MakeIntrusive<TLock>(lockId, GetParentClient(), options.Waitable_);
 }
 
 void TTransaction::Commit()

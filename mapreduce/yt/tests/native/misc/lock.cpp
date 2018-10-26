@@ -163,6 +163,18 @@ Y_UNIT_TEST_SUITE(Lock)
             tx2->Set("//testing/table/@attribute1", 12),
             TErrorResponse);
     }
+
+    Y_UNIT_TEST(TestGetLockedNodeId)
+    {
+        auto client = CreateTestClient();
+
+        client->Create("//testing/node_for_lock", NT_TABLE);
+        auto tx = client->StartTransaction();
+        auto lock = tx->Lock("//testing/node_for_lock", ELockMode::LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto expectedId = GetGuid(tx->Get("//testing/node_for_lock/@id").AsString());
+
+        UNIT_ASSERT_VALUES_EQUAL(lock->GetLockedNodeId(), expectedId);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

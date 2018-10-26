@@ -81,12 +81,7 @@ TFuture<ILockPtr> TBatchRequest::Lock(
     const TLockOptions& options)
 {
     auto convert = [waitable=options.Waitable_, client=Client_] (TFuture<TNodeId> nodeIdFuture) -> ILockPtr {
-        const auto& lockId = nodeIdFuture.GetValue();
-        if (waitable) {
-            return ::MakeIntrusive<TLock>(lockId, client);
-        } else {
-            return ::MakeIntrusive<TLock>(lockId);
-        }
+        return ::MakeIntrusive<TLock>(nodeIdFuture.GetValue(), client, waitable);
     };
     return Impl_->Lock(DefaultTransaction_, path, mode, options).Apply(convert);
 }
