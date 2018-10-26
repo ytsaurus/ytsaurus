@@ -12,6 +12,12 @@ namespace NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDnsResourceRecordType,
+    ((A)         (1))
+    ((PTR)      (12))
+    ((AAAA)     (28))
+);
+
 class TDnsRecordSet
     : public TObject
     , public NYT::TRefTracked<TDnsRecordSet>

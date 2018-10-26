@@ -8,6 +8,7 @@
 #include "resource.h"
 #include "network_project.h"
 #include "virtual_service.h"
+#include "dns_record_set.h"
 #include "account.h"
 #include "schema.h"
 #include "config.h"
@@ -541,6 +542,18 @@ public:
     TVirtualService* GetVirtualService(const TObjectId& id)
     {
         return GetTypedObject<TVirtualService>(id);
+    }
+
+
+    TDnsRecordSet* GetDnsRecordSet(const TObjectId& id)
+    {
+        return GetTypedObject<TDnsRecordSet>(id);
+    }
+
+
+    TDnsRecordSet* CreateDnsRecordSet(const TObjectId& id)
+    {
+        return CreateTypedObject<TDnsRecordSet>(id, {});
     }
 
 
@@ -2327,6 +2340,16 @@ TNetworkProject* TTransaction::GetNetworkProject(const TObjectId& id)
 TVirtualService* TTransaction::GetVirtualService(const TObjectId& id)
 {
     return Impl_->GetVirtualService(id);
+}
+
+TDnsRecordSet* TTransaction::GetDnsRecordSet(const TObjectId& id)
+{
+    return Impl_->GetDnsRecordSet(id);
+}
+
+TDnsRecordSet* TTransaction::CreateDnsRecordSet(const TObjectId& id)
+{
+    return Impl_->CreateDnsRecordSet(id);
 }
 
 TInternetAddress* TTransaction::GetInternetAddress(const TObjectId& id)

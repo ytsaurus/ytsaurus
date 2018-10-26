@@ -9,6 +9,7 @@
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
 #include <yp/server/objects/db_schema.h>
+#include <yp/server/objects/dns_record_set.h>
 #include <yp/server/objects/object.h>
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/node.h>
@@ -26,6 +27,9 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
+#include <util/string/hex.h>
+
+#include <algorithm>
 #include <array>
 
 namespace NYP {
@@ -40,6 +44,62 @@ using namespace NYT::NTransactionClient;
 using namespace NYT::NTableClient;
 using namespace NYT::NApi;
 using namespace NYT::NNet;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TString DnsRecordClass = "IN";
+
+class TDnsRecordSetBuilder
+{
+public:
+    explicit TDnsRecordSetBuilder(TDnsRecordSet* recordSet)
+        : RecordSet_(recordSet)
+    {
+        recordSet->Spec()->clear_records();
+    }
+
+    TDnsRecordSetBuilder& AddResourceRecord(EDnsResourceRecordType type, const TString& data)
+    {
+        auto* record = RecordSet_->Spec()->add_records();
+        record->set_class_(DnsRecordClass);
+        record->set_type(static_cast<NClient::NApi::NProto::TDnsRecordSetSpec_TResourceRecord_EType>(type));
+        record->set_data(data);
+
+        return *this;
+    }
+
+private:
+    TDnsRecordSet* const RecordSet_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString BuildIp6PtrDnsAddress(const TString& ip6Address)
+{
+    constexpr static TStringBuf DnsIPv6PtrRecordSuffix = AsStringBuf("ip6.arpa.");
+    constexpr static char DnsIPv6PtrRecordSymbolsDelimeter = '.';
+    constexpr static size_t OctetsInIPv6Address = 8;
+    constexpr static size_t CharsInOctet = 4;
+    constexpr static size_t IPv6PtrDnsRecordDataLength = 73;
+
+    const auto address = TIP6Address::FromString(ip6Address);
+    const ui16* octets = address.GetRawWords();
+    TString result;
+    result.reserve(IPv6PtrDnsRecordDataLength);
+    for (size_t octetIndex = 0; octetIndex < OctetsInIPv6Address; ++octetIndex) {
+        char octet[CharsInOctet];
+        HexEncode(octets + octetIndex, sizeof(octets[0]), octet);
+        std::swap(octet[0], octet[1]);
+        std::swap(octet[2], octet[3]);
+        for (size_t charIndex = 0; charIndex < CharsInOctet; ++charIndex) {
+            result += tolower(octet[charIndex]);
+            result += DnsIPv6PtrRecordSymbolsDelimeter;
+        }
+    }
+    result += DnsIPv6PtrRecordSuffix;
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +137,8 @@ public:
         const TTransactionPtr& transaction,
         TPod* pod)
     {
+        UnregisterDnsRecords(transaction, pod);
+
         if (ShouldReassignPodAddresses(transaction, pod)) {
             ReleasePodAddresses(transaction, pod);
             AcquirePodAddresss(transaction, pod);
@@ -84,6 +146,7 @@ public:
 
         if (ShouldUpdateAddressAllocations(pod)) {
             UpdateFqdns(pod);
+            RegisterDnsRecords(transaction, pod);
             UpdateVirtualServiceTunnel(transaction, pod);
         }
     }
@@ -248,6 +311,58 @@ private:
                         node->GetId(),
                         nonce));
             });
+    }
+
+    void RegisterDnsRecords(const TTransactionPtr& transaction, TPod* pod)
+    {
+        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
+        const auto& ip6AddressAllocations = pod->Status().Other().Load().ip6_address_allocations();
+
+        for (int index = 0; index < ip6AddressRequests.size(); ++index) {
+            const auto& request = ip6AddressRequests[index];
+            const auto& allocation = ip6AddressAllocations[index];
+
+            if (!request.enable_dns()) {
+                continue;
+            }
+
+            TDnsRecordSetBuilder(transaction->CreateDnsRecordSet(allocation.persistent_fqdn()))
+                .AddResourceRecord(EDnsResourceRecordType::AAAA, allocation.address());
+
+            TDnsRecordSetBuilder(transaction->CreateDnsRecordSet(allocation.transient_fqdn()))
+                .AddResourceRecord(EDnsResourceRecordType::AAAA, allocation.address());
+
+            TDnsRecordSetBuilder(transaction->CreateDnsRecordSet(BuildIp6PtrDnsAddress(allocation.address())))
+                .AddResourceRecord(EDnsResourceRecordType::PTR, allocation.persistent_fqdn());
+        }
+    }
+
+    void UnregisterDnsRecords(const TTransactionPtr& transaction, TPod* pod)
+    {
+        const auto& allocations = pod->Status().Other().Load().ip6_address_allocations();
+        for (const auto& allocation : allocations) {
+            if (allocation.has_persistent_fqdn()) {
+                {
+                    auto* record = transaction->GetDnsRecordSet(allocation.persistent_fqdn());
+                    if (record) {
+                        record->Remove();
+                    }
+                }
+                {
+                    auto* record = transaction->GetDnsRecordSet(BuildIp6PtrDnsAddress(allocation.address()));
+                    if (record) {
+                        record->Remove();
+                    }
+                }
+            }
+
+            if (allocation.has_transient_fqdn()) {
+                auto* record = transaction->GetDnsRecordSet(allocation.transient_fqdn());
+                if (record) {
+                    record->Remove();
+                }
+            }
+        }
     }
 
     void ReleasePodAddresses(const TTransactionPtr& transaction, TPod* pod)

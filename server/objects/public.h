@@ -65,6 +65,7 @@ class TEndpointSet;
 class TNetworkProject;
 class TReplicaSet;
 class TNodeSegment;
+class TDnsRecordSet;
 class TVirtualService;
 class TSubject;
 class TUser;

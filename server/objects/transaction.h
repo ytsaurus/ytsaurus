@@ -188,6 +188,10 @@ public:
 
     TVirtualService* GetVirtualService(const TObjectId& id);
 
+    TDnsRecordSet* GetDnsRecordSet(const TObjectId& id);
+
+    TDnsRecordSet* CreateDnsRecordSet(const TObjectId& id);
+
     TInternetAddress* GetInternetAddress(const TObjectId& id);
 
     TAccount* GetAccount(const TObjectId& id);
