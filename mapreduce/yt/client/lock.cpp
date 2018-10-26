@@ -6,6 +6,8 @@
 
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
+#include <util/string/builder.h>
+
 namespace NYT {
 namespace NDetail {
 
@@ -51,20 +53,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLock::TLock(const TLockId& lockId)
-    : LockId_(lockId)
-    , Acquired_(NThreading::MakeFuture())
-    , Client_(nullptr)
-{ }
-
-TLock::TLock(const TLockId& lockId, TClientPtr client)
+TLock::TLock(const TLockId& lockId, TClientPtr client, bool waitable)
     : LockId_(lockId)
     , Client_(std::move(client))
-{ }
+{
+    if (!waitable) {
+        Acquired_ = NThreading::MakeFuture();
+    }
+}
 
 const TLockId& TLock::GetId() const
 {
     return LockId_;
+}
+
+TNodeId TLock::GetLockedNodeId() const
+{
+    auto nodeIdNode = Client_->Get(
+        TStringBuilder() << '#' << GetGuidAsString(LockId_) << "/@node_id",
+        TGetOptions());
+    return GetGuid(nodeIdNode.AsString());
 }
 
 const NThreading::TFuture<void>& TLock::GetAcquiredFuture() const

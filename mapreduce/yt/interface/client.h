@@ -37,6 +37,9 @@ public:
 
     virtual const TLockId& GetId() const = 0;
 
+    // Returns locked Cypress node id.
+    virtual TNodeId GetLockedNodeId() const = 0;
+
     // Returns future that will be set once lock is in "acquired" state.
     //
     // Note that future might contain exception if some error occurred
