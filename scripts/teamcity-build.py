@@ -793,14 +793,6 @@ def run_unit_tests(options, build_context):
                 ] + args
             run(args, cwd=sandbox_current, timeout=20 * 60)
     except ChildHasNonZeroExitCode as err:
-        teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
-            sandbox_current, sandbox_archive), status="WARNING")
-        copytree(sandbox_current, sandbox_archive)
-        for unittest_binary in all_unittests:
-            shutil.copy2(
-                os.path.join(get_bin_dir(options), unittest_binary),
-                os.path.join(sandbox_archive, unittest_binary))
-
         raise StepFailedWithNonCriticalError(str(err))
     finally:
         process_core_dumps(options, "unit_tests", sandbox_current)
