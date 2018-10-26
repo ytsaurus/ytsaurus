@@ -281,8 +281,10 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
+    static TString MakeCodicilData(const TString& userName);
     void HydraExecuteLeader(
         const TString& userName,
+        const TString& codicilData,
         const NRpc::IServiceContextPtr& context,
         NHydra::TMutationContext*);
     void HydraExecuteFollower(NProto::TReqExecute* request);
