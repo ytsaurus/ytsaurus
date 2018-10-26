@@ -245,7 +245,8 @@ message TVolume {
 // maxExecutionTimeMs - ограничение на время выполнения.
 // Интервал между запусками рассчитывается по формуле
 // min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
-// step считается с 0 и равен max(0, ConsecutiveSuccessesCounter - 1)
+// step считается с 0 и равен max(0, ConsecutiveFailuresCounter - 1) для workload stop
+// и max(0, ConsecutiveSuccessesCounter - 1) для всех остальных хуков
 message TTimeLimit {
     uint64 InitialDelayMs = 1;
     uint64 RestartPeriodScaleMs = 2;
@@ -334,6 +335,13 @@ message TMutableWorkload {
     EWorkloadTargetState TargetState = 2;
 }
 
+// При переводе MutableTarget в состояние REMOVED или обновления ревизии workload или любой его зависимости
+// будет вызван stop hook, который должен выполнить gracefully завершение контейнера start
+// Если после завершения stop hook контейнер start находится в состоянии dead или stopped, то он будет уничтожен,
+// иначе stop hook будет перезапускаться до тех пор, пока контейнер start не перейдет в одно из этих состояний
+// Если stop hook был запущен MaxTries раз, но так и не перевел start в состоянии dead или stopped, то start будет немедленно убит
+// Если stop hook выполняется при помощи контейнера и завершился с НУЛЕВЫМ кодом возврата, но start не в состоянии dead или stopped,
+// то start будет немедленно убит
 message TStopPolicy {
     oneof Policy {
         TUtilityContainer Stop = 1;
