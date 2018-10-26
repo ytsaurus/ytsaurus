@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
@@ -26,7 +25,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
  * @author aozeritsky
  */
 public final class DataCenter {
-    private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
+    private static final Logger logger = LoggerFactory.getLogger(DataCenter.class);
 
     private final DataCenterMetricsHolder metricsHolder;
     private final BalancingDestinationMetricsHolder destMetricsHolder;
