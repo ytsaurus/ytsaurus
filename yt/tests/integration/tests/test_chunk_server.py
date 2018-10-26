@@ -21,9 +21,6 @@ class TestChunkServer(YTEnvSetup):
         }
     }
 
-    def teardown(self):
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", True, recursive=True)
-
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
@@ -128,7 +125,7 @@ class TestChunkServer(YTEnvSetup):
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         write_table("//tmp/t", {"a" : "b"})
 
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
+        sync_control_chunk_replicator(False)
 
         chunk_id = get("//tmp/t/@chunk_ids")[0]
         nodes = get("#%s/@stored_replicas" % chunk_id)
@@ -139,7 +136,7 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 12)
 
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", True, recursive=True)
+        sync_control_chunk_replicator(True)
 
         wait(lambda: get("//sys/nodes/%s/@decommissioned" % nodes[0]))
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 16)
@@ -153,9 +150,6 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": "b"}])
         ls("//sys/chunks", attributes=["owning_nodes"])
-
-    def _check_replicator(self, expected):
-        assert get("//sys/@chunk_replicator_enabled") == expected
 
     def test_disable_replicator_when_few_nodes_are_online(self):
         nodes = ls("//sys/nodes")
