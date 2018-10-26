@@ -285,8 +285,10 @@ class TestGetJobInput(YTEnvSetup):
         assert job_ids
         wait_for_data_in_job_archive(op.id, job_ids)
 
+        old_chunk_list_id = get("//tmp/t_input/@chunk_list_id")
         write_table("//tmp/t_input", [{"bar": i} for i in xrange(100)])
 
+        wait(lambda: not exists("#" + old_chunk_list_id))
         gc_collect()
 
         job_ids = os.listdir(self._tmpdir)

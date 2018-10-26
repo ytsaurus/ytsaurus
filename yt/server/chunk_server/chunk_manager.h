@@ -45,6 +45,8 @@ public:
 
     std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
         const NProto::TReqUpdateChunkRequisition& request);
+    std::unique_ptr<NHydra::TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
+        const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request);
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
@@ -135,6 +137,8 @@ public:
     void ScheduleNodeRefresh(TNode* node);
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
+    TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
+    void MaybeRecomputeChunkRequisitions();
 
     const THashSet<TChunk*>& LostVitalChunks() const;
     const THashSet<TChunk*>& LostChunks() const;
@@ -177,10 +181,6 @@ public:
 
     //! Returns the medium with a given name (throws if none).
     TMedium* GetMediumByNameOrThrow(const TString& name) const;
-
-    TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
-
-    void MaybeRecomputeChunkRequisitons();
 
 private:
     class TImpl;

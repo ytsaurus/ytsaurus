@@ -28,9 +28,7 @@ class TestFiles(YTEnvSetup):
 
         remove("//tmp/file")
 
-        gc_collect()
-        multicell_sleep()
-        assert not exists("#%s" % chunk_id)
+        wait(lambda: not exists("#%s" % chunk_id))
 
     def test_empty(self):
         create("file", "//tmp/file")
@@ -92,9 +90,7 @@ class TestFiles(YTEnvSetup):
 
         remove("//tmp/f2")
 
-        gc_collect()
-        multicell_sleep()
-        assert not exists("#%s" % chunk_id)
+        wait(lambda: not exists("#%s" % chunk_id))
 
     def test_copy_tx(self):
         content = "some_data"
@@ -118,9 +114,7 @@ class TestFiles(YTEnvSetup):
 
         remove("//tmp/f2")
         
-        gc_collect()
-        multicell_sleep()
-        assert not exists("#%s" % chunk_id)
+        wait(lambda: not exists("#%s" % chunk_id))
 
     def test_replication_factor_attr(self):
         content = "some_data"
