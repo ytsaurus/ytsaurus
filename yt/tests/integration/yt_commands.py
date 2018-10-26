@@ -1359,3 +1359,7 @@ def create_dynamic_table(path, **attributes):
         attributes.update({"dynamic": True})
     create_table_with_attributes(path, **attributes)
 
+def sync_control_chunk_replicator(enabled):
+    print >>sys.stderr, "Setting chunk replicator state to", enabled
+    set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
+    wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=driver) == enabled for driver in clusters_drivers["primary"]))
