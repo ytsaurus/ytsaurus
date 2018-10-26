@@ -280,11 +280,11 @@ public:
             auto parent = GetInstance(Executor_, parentName);
             auto parentLimits = parent->GetResourceLimitsRecursive();
 
-            if (resourceLimits.Cpu == 0 || parentLimits.Cpu < resourceLimits.Cpu) {
+            if (resourceLimits.Cpu == 0 || (parentLimits.Cpu < resourceLimits.Cpu && parentLimits.Cpu > 0)) {
                 resourceLimits.Cpu = parentLimits.Cpu;
             }
 
-            if (resourceLimits.Memory == 0 || parentLimits.Memory < resourceLimits.Memory) {
+            if (resourceLimits.Memory == 0 || (parentLimits.Memory < resourceLimits.Memory && parentLimits.Memory > 0)) {
                 resourceLimits.Memory = parentLimits.Memory;
             }
         }
