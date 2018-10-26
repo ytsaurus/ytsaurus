@@ -1605,9 +1605,10 @@ private:
             auto store = tablet->GetStore(storeId);
             storeManager->RemoveStore(store);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v, StoreMemoryUsage: %v)",
                 tabletId,
-                storeId);
+                storeId,
+                store->GetMemoryUsage());
         }
 
         std::vector<TStoreId> addedStoreIds;
@@ -2814,9 +2815,11 @@ private:
     void SetBackingStore(TTablet* tablet, IChunkStorePtr store, IDynamicStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
-        LOG_DEBUG("Backing store set (StoreId: %v, BackingStoreId: %v)",
+        LOG_DEBUG("Backing store set (TabletId: %v, StoreId: %v, BackingStoreId: %v, BackingStoreMemoryUsage: %v)",
+            tablet->GetId(),
             store->GetId(),
-            backingStore->GetId());
+            backingStore->GetId(),
+            backingStore->GetMemoryUsage());
 
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
