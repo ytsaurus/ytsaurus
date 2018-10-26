@@ -47,6 +47,8 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
+#include <yt/core/misc/crash_handler.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -801,6 +803,7 @@ std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(
         &TObjectManager::HydraExecuteLeader,
         MakeStrong(this),
         userName,
+        MakeCodicilData(userName),
         context));
     return mutation;
 }
@@ -1139,12 +1142,20 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     multicellManager->PostToMaster(req, cellTag);
 }
 
+TString TObjectManager::MakeCodicilData(const TString& userName)
+{
+    return Format("User: %v", userName);
+}
+
 void TObjectManager::HydraExecuteLeader(
     const TString& userName,
+    const TString& codicilData,
     const IServiceContextPtr& context,
     TMutationContext*)
 {
     TWallTimer timer;
+
+    TCodicilGuard codicilGuard(codicilData);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
@@ -1183,7 +1194,8 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto requestMessage = TSharedRefArray(std::move(parts));
     auto context = CreateYPathContext(std::move(requestMessage));
-    HydraExecuteLeader(userName, std::move(context), nullptr);
+    auto codicilData = MakeCodicilData(userName);
+    HydraExecuteLeader(userName, codicilData, std::move(context), nullptr);
 }
 
 void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
