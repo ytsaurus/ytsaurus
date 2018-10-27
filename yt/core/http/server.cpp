@@ -12,7 +12,10 @@
 #include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/misc/finally.h>
+
 #include <yt/core/ytree/convert.h>
+
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NHttp {
@@ -162,10 +165,16 @@ private:
             auto handler = Handlers_.Match(path);
             if (handler) {
                 closeResponse = false;
+
                 if (request->IsExpecting100Continue()) {
                     response->Flush100Continue();
                 }
-                handler->HandleRequest(request, response);
+
+                {
+                    // TODO(babenko): consider passing traceId via HTTP headers
+                    NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateRootTraceContext(false));
+                    handler->HandleRequest(request, response);
+                }
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
                     request->GetRequestId());
