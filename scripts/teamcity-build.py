@@ -8,7 +8,7 @@ from teamcity import (build_step, cleanup_step, teamcity_main,
                       teamcity_message, teamcity_interact,
                       StepFailedWithNonCriticalError)
 
-from helpers import (mkdirp, run, run_captured, cwd, copytree,
+from helpers import (mkdirp, run, run_captured, cwd,
                      kill_by_name, sudo_rmtree, ls, get_size,
                      rmtree, rm_content, clear_system_tmp,
                      format_yes_no, parse_yes_no_bool, cleanup_cgroups,
