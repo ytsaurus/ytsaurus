@@ -31,12 +31,6 @@ protected:
     void SplitColumns(const DB::Names& names, DB::Names& physical, DB::Names& virtual_) const;
 
 private:
-/* TODO still need?
-    const DB::NamesAndTypesList& getColumnsListImpl() const override
-    {
-        return ListPhysicalColumns();
-    }
-*/
 
     bool FindColumnImpl(const std::string& name, DB::NameAndTypePair& found) const;
 };

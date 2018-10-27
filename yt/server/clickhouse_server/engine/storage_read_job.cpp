@@ -49,7 +49,9 @@ public:
         , Columns(std::move(columns))
         , JobSpec(std::move(jobSpec))
         , Logger(&Poco::Logger::get("StorageReadJob"))
-    {}
+    {
+        setColumns(ColumnsDescription(Columns));
+    }
 
     std::string getName() const override { return "YT"; }
 
