@@ -2975,7 +2975,10 @@ public:
 
     static T* Get()
     {
-        return Singleton<T>();
+        // NB: Pass max priority to make sure these guys die first.
+        // Indeed, no one depends on them but they depend on others
+        // (e.g. TBackgroundThread implicitly depends on TPosixFadvise through TFileHandle).
+        return SingletonWithPriority<T, std::numeric_limits<size_t>::max()>();
     }
 
 private:
