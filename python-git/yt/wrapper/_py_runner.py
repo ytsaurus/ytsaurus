@@ -6,7 +6,7 @@ def get_platform_version():
     name = sys.platform
     version.append(name)
     if name in ("linux", "linux2"):
-        version.append(platform.linux_distribution())
+        version.append(platform.libc_ver())
     return tuple(version)
 
 def filter_out_modules(module_path, filter_function):
