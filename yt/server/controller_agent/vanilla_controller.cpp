@@ -34,7 +34,7 @@ public:
         : TTask(std::move(taskHost))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
-        , TaskGroup_(std::move(taskGroup))
+        , TaskGroup_(taskGroup.Get())
         , VanillaChunkPool_(CreateVanillaChunkPool(Spec_->JobCount))
     { }
 
@@ -126,7 +126,7 @@ private:
 
     TVanillaTaskSpecPtr Spec_;
     TString Name_;
-    TTaskGroupPtr TaskGroup_;
+    TTaskGroup* TaskGroup_;
 
     TJobSpec JobSpecTemplate_;
 
