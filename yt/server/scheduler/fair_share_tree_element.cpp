@@ -2588,10 +2588,10 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         if (!Dominates(jobLimits, startDescriptor.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
             LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
-                FormatResources(jobLimits),
-                FormatResources(startDescriptor.ResourceLimits),
                 jobId,
-                OperationId_);
+                OperationId_,
+                FormatResources(jobLimits),
+                FormatResources(startDescriptor.ResourceLimits));
 
             Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 
