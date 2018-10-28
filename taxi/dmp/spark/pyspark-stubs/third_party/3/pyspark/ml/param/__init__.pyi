@@ -5,7 +5,7 @@
 from typing import overload
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 from pyspark.ml.util import Identifiable
-from pyspark.ml.linalg import DenseVector
+from pyspark.ml.linalg import DenseVector, Matrix
 
 T = TypeVar('T')
 ParamMap = Dict[Param, Any]
@@ -32,6 +32,8 @@ class TypeConverters:
     def toListString(value: Any) -> List[str]: ...
     @staticmethod
     def toVector(value: Any) -> DenseVector: ...
+    @staticmethod
+    def toMatrix(value: Any) -> Matrix: ...
     @staticmethod
     def toFloat(value: Any) -> float: ...
     @staticmethod
