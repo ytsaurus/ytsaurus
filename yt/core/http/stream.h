@@ -3,6 +3,7 @@
 #include "http.h"
 
 #include <yt/core/net/public.h>
+#include <yt/core/net/connection.h>
 #include <yt/core/net/address.h>
 
 #include <yt/contrib/http-parser/http_parser.h>
@@ -138,6 +139,7 @@ private:
     TGuid ConnectionId_;
     TGuid RequestId_;
     i64 StartByteCount_ = 0;
+    NNet::TConnectionStatistics StartStatistics_;
     TInstant LastProgressLogTime_;
 
     bool SafeToReuse_ = false;
@@ -209,6 +211,7 @@ private:
     TGuid ConnectionId_;
     TGuid RequestId_;
     i64 StartByteCount_ = 0;
+    NNet::TConnectionStatistics StartStatistics_;
     bool HeadersLogged_ = false;
     TInstant LastProgressLogTime_;
 
