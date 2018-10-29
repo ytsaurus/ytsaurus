@@ -622,12 +622,13 @@ PROJECTS = {
 }
 
 def create_project_context(project):
-    if project not in PROJECTS:
-        raise CheckError(
+    err = CheckError(
             "Invalid project: '{project}'.\n"
             "Choose one of:\n"
             "{project_list}".format(
-                project=args.project, project_list=indented_lines(sorted(PROJECTS))))
+                project=project, project_list=indented_lines(sorted(PROJECTS))))
+    if project not in PROJECTS:
+        raise err
     return PROJECTS[project].create()
 
 def single_project_main(args):
