@@ -538,7 +538,6 @@ def package_common_packages(options, build_context):
         "--output-dir", artifacts_dir,
         "--work-dir", options.working_directory,
     ])
-    exit(0)
 
 
 @build_step
