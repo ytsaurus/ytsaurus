@@ -245,7 +245,7 @@ void RemoveDirContentAsRoot(const TString& path)
             path);
     }
 
-    auto isRemovable = [&] (TStlIterator<TDirIterator>::TIterator it) {
+    auto isRemovable = [&] (auto it) {
         if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
             return false;
         }
