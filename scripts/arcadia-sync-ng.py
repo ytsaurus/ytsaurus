@@ -518,7 +518,7 @@ def action_svn_commit(args):
             ))
             verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
 
-        logger.info("comparing svn copy and git copy (project: {project}".format(
+        logger.info("comparing svn copy and git copy (project: {project})".format(
             project=ctx.name,
         ))
         verify_svn_match_git(ctx.git, ctx.git_relpath, local_svn, ctx.svn_relpath)
@@ -540,7 +540,7 @@ def action_svn_commit(args):
     print >>sys.stderr, "Commit is prepared, now run:\n"
     print >>sys.stderr, "$ {ya_path} svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
         ya_path=os.path.join(args.arcadia, "ya"),
-        arcadia_yp_path=" ".join(local_svn.abspath(ctx.svn_relpath) for cxt in ctx_list),
+        arcadia_yp_path=" ".join(local_svn.abspath(ctx.svn_relpath) for ctx in ctx_list),
         commit_message_file_name=commit_message_file_name)
 
 
