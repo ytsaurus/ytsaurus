@@ -5,6 +5,7 @@
 #include "action.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_tracker.h>
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
@@ -57,7 +58,8 @@ public:
         IChannelPtr masterChannel,
         const TString& user,
         ITimestampProviderPtr timestampProvider,
-        TCellDirectoryPtr cellDirectory);
+        TCellDirectoryPtr cellDirectory,
+        TCellTrackerPtr downedCellTracker);
 
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
@@ -71,7 +73,6 @@ public:
 
 private:
     friend class TTransaction;
-    class TCellTracker;
 
     const TTransactionManagerConfigPtr Config_;
     const TCellId PrimaryCellId_;
@@ -79,7 +80,7 @@ private:
     const TString User_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellDirectoryPtr CellDirectory_;
-    const TIntrusivePtr<TCellTracker> DownedCellTracker_;
+    const TCellTrackerPtr DownedCellTracker_;
 
     TSpinLock SpinLock_;
     THashSet<TTransaction::TImpl*> AliveTransactions_;
@@ -94,45 +95,6 @@ private:
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTransactionManager::TImpl::TCellTracker
-    : public TRefCounted
-{
-public:
-    std::vector<TCellId> Select(const std::vector<TCellId>& candidates)
-    {
-        auto guard = Guard(SpinLock_);
-
-        std::vector<TCellId> result;
-        result.reserve(candidates.size());
-
-        for (const auto& id : candidates) {
-            if (CellIds_.find(id) != CellIds_.end()) {
-                result.push_back(id);
-            }
-        }
-
-        return result;
-    }
-
-    void Update(const std::vector<TCellId>& toRemove, const std::vector<TCellId>& toAdd)
-    {
-        auto guard = Guard(SpinLock_);
-
-        for (const auto& id : toRemove) {
-            CellIds_.erase(id);
-        }
-        for (const auto& id : toAdd) {
-            CellIds_.insert(id);
-        }
-    }
-
-private:
-    TSpinLock SpinLock_;
-    THashSet<TCellId> CellIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1105,14 +1067,15 @@ TTransactionManager::TImpl::TImpl(
     IChannelPtr masterChannel,
     const TString& user,
     ITimestampProviderPtr timestampProvider,
-    TCellDirectoryPtr cellDirectory)
+    TCellDirectoryPtr cellDirectory,
+    TCellTrackerPtr downedCellTracker)
     : Config_(config)
     , PrimaryCellId_(primaryCellId)
     , MasterChannel_(masterChannel)
     , User_(user)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
-    , DownedCellTracker_(New<TCellTracker>())
+    , DownedCellTracker_(downedCellTracker)
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
@@ -1257,14 +1220,16 @@ TTransactionManager::TTransactionManager(
     IChannelPtr masterChannel,
     const TString& user,
     ITimestampProviderPtr timestampProvider,
-    TCellDirectoryPtr cellDirectory)
+    TCellDirectoryPtr cellDirectory,
+    TCellTrackerPtr downedCellTracker)
     : Impl_(New<TImpl>(
         config,
         primaryCellId,
         masterChannel,
         user,
         timestampProvider,
-        cellDirectory))
+        cellDirectory,
+        downedCellTracker))
 { }
 
 TTransactionManager::~TTransactionManager() = default;
