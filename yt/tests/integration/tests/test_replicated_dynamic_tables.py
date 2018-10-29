@@ -12,7 +12,7 @@ from flaky import flaky
 
 ##################################################################
 
-SIMPLE_SCHEMA = [
+SIMPLE_SCHEMA_SORTED = [
     {"name": "key", "type": "int64", "sort_order": "ascending"},
     {"name": "value1", "type": "string"},
     {"name": "value2", "type": "int64"}
@@ -71,7 +71,7 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
     }
 
     def setup(self):
-        self.SIMPLE_SCHEMA = SIMPLE_SCHEMA
+        self.SIMPLE_SCHEMA_SORTED = SIMPLE_SCHEMA_SORTED
         self.SIMPLE_SCHEMA_ORDERED = SIMPLE_SCHEMA_ORDERED
         self.PERTURBED_SCHEMA = PERTURBED_SCHEMA
         self.AGGREGATE_SCHEMA = AGGREGATE_SCHEMA
@@ -92,14 +92,14 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
             "schema": schema
         }
 
-    def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA, mount=True, **attributes):
+    def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA_SORTED, mount=True, **attributes):
         attributes.update(self._get_table_attributes(schema))
         attributes["enable_replication_logging"] = True
         create("replicated_table", path, attributes=attributes)
         if mount:
             sync_mount_table(path)
 
-    def _create_replica_table(self, path, replica_id=None, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None, **kwargs):
+    def _create_replica_table(self, path, replica_id=None, schema=SIMPLE_SCHEMA_SORTED, mount=True, replica_driver=None, **kwargs):
         if not replica_driver:
             replica_driver = self.replica_driver
         attributes = self._get_table_attributes(schema)
@@ -130,16 +130,16 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             copy("//tmp/t", "//tmp/s")
 
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_simple(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
-        if (schema is self.SIMPLE_SCHEMA):
+        if (schema is self.SIMPLE_SCHEMA_SORTED):
             delete_rows("//tmp/t", [{"key": 2}], require_sync_replica=False)
 
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replicated_tablet_node_profiling(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema, enable_profiling=True)
@@ -160,7 +160,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get_all_counters() == (1, 1, 13, 13)
 
     @flaky(max_runs=5)
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replica_tablet_node_profiling(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema, enable_profiling=True)
@@ -207,7 +207,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
 
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replication_error(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
@@ -662,7 +662,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_sync_replication_switch(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA, replicated_table_options={"enable_replicated_table_tracker": "true"})
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true"})
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
@@ -695,8 +695,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value2": 456}])
 
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
-    def test_wait_for_sync(self, schema):
+    # XXX(babenko): ordered tables may currently return stale data  
+    @pytest.mark.parametrize("schema,wait_for_sync_replica", [
+        (SIMPLE_SCHEMA_SORTED, False),
+        (SIMPLE_SCHEMA_ORDERED, True)
+    ])
+    def test_wait_for_sync(self, schema, wait_for_sync_replica):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
@@ -738,7 +742,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 return False
         wait(lambda: check_writable())
 
-        assert select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1)
+        def check_sync_replica():
+            return select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1)
+
+        if wait_for_sync_replica:
+            wait(check_sync_replica)
+        else:
+            assert check_sync_replica()
 
         wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1))
 
@@ -781,7 +791,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
 
     @pytest.mark.parametrize("with_data, schema",
-         [(False, SIMPLE_SCHEMA), (True, SIMPLE_SCHEMA), (False, SIMPLE_SCHEMA_ORDERED), (True, SIMPLE_SCHEMA_ORDERED)]
+         [(False, SIMPLE_SCHEMA_SORTED), (True, SIMPLE_SCHEMA_SORTED), (False, SIMPLE_SCHEMA_ORDERED), (True, SIMPLE_SCHEMA_ORDERED)]
     )
     def test_start_replication_timestamp(self, with_data, schema):
         self._create_cells()
@@ -811,7 +821,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             ([_maybe_add_system_fields({"key": 2, "value1": "test", "value2": YsonEntity()})] if with_data else \
             []))
 
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_start_replication_row_indexes(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
@@ -966,9 +976,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_shard_replication(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA, pivot_keys=[[], [10]])
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, pivot_keys=[[], [10]])
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA)
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
 
         sync_enable_table_replica(replica_id)
 
@@ -985,9 +995,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_reshard_replication(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA, mount=False)
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, mount=False)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA)
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
 
         sync_enable_table_replica(replica_id)
 
@@ -1090,7 +1100,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         create("table", "//tmp/z", attributes={
             "dynamic": True,
-            "schema": self.SIMPLE_SCHEMA
+            "schema": self.SIMPLE_SCHEMA_SORTED
         })
         with pytest.raises(YtError): select_rows("* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key")
 
