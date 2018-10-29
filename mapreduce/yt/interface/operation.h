@@ -1049,6 +1049,11 @@ struct TListJobsResult
 
 ////////////////////////////////////////////////////////////////////
 
+struct TGetJobOptions
+{
+    using TSelf = TGetJobOptions;
+};
+
 struct TGetJobInputOptions
 {
     using TSelf = TGetJobInputOptions;
@@ -1148,6 +1153,12 @@ struct IOperation
     // Update operation runtime parameters.
     virtual void UpdateParameters(
         const TUpdateOperationParametersOptions& options) = 0;
+
+    //
+    // Get job attributes.
+    virtual TJobAttributes GetJob(
+        const TJobId& jobId,
+        const TGetJobOptions& options = TGetJobOptions()) = 0;
 
     //
     // List jobs satisfying given filters.
@@ -1313,6 +1324,13 @@ struct IOperationClient
     virtual void UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options) = 0;
+
+    //
+    // Get job attributes.
+    virtual TJobAttributes GetJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options = TGetJobOptions()) = 0;
 
     //
     // List jobs satisfying given filters.

@@ -2045,6 +2045,7 @@ public:
     void CompleteOperation();
     TOperationAttributes GetAttributes(const TGetOperationOptions& options);
     void UpdateParameters(const TUpdateOperationParametersOptions& options);
+    TJobAttributes GetJob(const TJobId& jobId, const TGetJobOptions& options);
     TListJobsResult ListJobs(const TListJobsOptions& options);
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
@@ -2249,6 +2250,11 @@ void TOperation::TOperationImpl::UpdateParameters(const TUpdateOperationParamete
     return NYT::NDetail::UpdateOperationParameters(Auth_, Id_, options);
 }
 
+TJobAttributes TOperation::TOperationImpl::GetJob(const TJobId& jobId, const TGetJobOptions& options)
+{
+    return NYT::NDetail::GetJob(Auth_, Id_, jobId, options);
+}
+
 TListJobsResult TOperation::TOperationImpl::ListJobs(const TListJobsOptions& options)
 {
     return NYT::NDetail::ListJobs(Auth_, Id_, options);
@@ -2386,6 +2392,11 @@ TOperationAttributes TOperation::GetAttributes(const TGetOperationOptions& optio
 void TOperation::UpdateParameters(const TUpdateOperationParametersOptions& options)
 {
     Impl_->UpdateParameters(options);
+}
+
+TJobAttributes TOperation::GetJob(const TJobId& jobId, const TGetJobOptions& options)
+{
+    return Impl_->GetJob(jobId, options);
 }
 
 TListJobsResult TOperation::ListJobs(const TListJobsOptions& options)

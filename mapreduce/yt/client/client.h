@@ -195,6 +195,11 @@ public:
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options) override;
 
+    TJobAttributes GetJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options) override;
+
     TListJobsResult ListJobs(
         const TOperationId& operationId,
         const TListJobsOptions& options = TListJobsOptions()) override;

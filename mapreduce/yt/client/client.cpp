@@ -473,6 +473,14 @@ void TClientBase::UpdateOperationParameters(
     return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, options);
 }
 
+TJobAttributes TClientBase::GetJob(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& options)
+{
+    return NYT::NDetail::GetJob(Auth_, operationId, jobId, options);
+}
+
 TListJobsResult TClientBase::ListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options)

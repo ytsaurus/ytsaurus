@@ -334,6 +334,17 @@ TNode SerializeParamsForUpdateOperationParameters(
         ("parameters", parameters);
 }
 
+TNode SerializeParamsForGetJob(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& /* options */)
+{
+    TNode result;
+    result["operation_id"] = GetGuidAsString(operationId);
+    result["job_id"] = GetGuidAsString(jobId);
+    return result;
+}
+
 TNode SerializeParamsForListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options)

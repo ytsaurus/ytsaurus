@@ -366,9 +366,15 @@ TJobAttributes ParseJobAttributes(const TNode& node)
     const auto& mapNode = node.AsMap();
     TJobAttributes result;
 
-    if (auto idNode = mapNode.FindPtr("id")) {
+    // Currently "get_job" returns "job_id" field and "list_jobs" returns "id" field.
+    auto idNode = mapNode.FindPtr("id");
+    if (!idNode) {
+        idNode = mapNode.FindPtr("job_id");
+    }
+    if (idNode) {
         result.Id = GetGuid(idNode->AsString());
     }
+
     if (auto typeNode = mapNode.FindPtr("type")) {
         result.Type = FromString<EJobType>(typeNode->AsString());
     }
@@ -424,6 +430,20 @@ TJobAttributes ParseJobAttributes(const TNode& node)
         }
     }
     return result;
+}
+
+TJobAttributes GetJob(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("GET", "get_job");
+    header.MergeParameters(NDetail::SerializeParamsForGetJob(operationId, jobId, options));
+    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
+    auto resultNode = NodeFromYsonString(responseInfo.Response);
+    return ParseJobAttributes(resultNode);
 }
 
 TListJobsResult ListJobs(

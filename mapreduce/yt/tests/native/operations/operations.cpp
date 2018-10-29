@@ -2165,6 +2165,41 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_DOUBLES_EQUAL(client->Get(weightPath).AsDouble(), 10.0, 1e-9);
     }
 
+    Y_UNIT_TEST(GetJob)
+    {
+        TTabletFixture tabletFixture;
+
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        auto beforeStart = TInstant::Now();
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .JobCount(1),
+            new TMapperThatWritesStderr);
+        auto afterFinish = TInstant::Now();
+
+        auto jobs = client->ListJobs(op->GetId()).Jobs;
+        UNIT_ASSERT_VALUES_EQUAL(jobs.size(), 1);
+        UNIT_ASSERT(jobs.front().Id);
+        auto jobId = *jobs.front().Id;
+
+        for (const auto& job : {client->GetJob(op->GetId(), jobId), op->GetJob(jobId)}) {
+            UNIT_ASSERT_VALUES_EQUAL(job.Id, jobId);
+            UNIT_ASSERT_VALUES_EQUAL(job.State, EJobState::Completed);
+            UNIT_ASSERT_VALUES_EQUAL(job.Type, EJobType::Map);
+
+            UNIT_ASSERT(job.StartTime);
+            UNIT_ASSERT(*job.StartTime > beforeStart);
+
+            UNIT_ASSERT(job.FinishTime);
+            UNIT_ASSERT(*job.FinishTime < afterFinish);
+        }
+    }
+
     Y_UNIT_TEST(ListJobs)
     {
         auto client = CreateTestClient();

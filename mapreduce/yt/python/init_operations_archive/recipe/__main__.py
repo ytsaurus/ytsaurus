@@ -11,28 +11,43 @@ import yatest.common
 def start_and_init(args):
     scheduler_config = tempfile.NamedTemporaryFile(delete=False)
     scheduler_config.write("""
-    {
-        "scheduler" = {
-            "operations_cleaner"= {
-                "enable"= %true;
-                "analysis_period"= 100;
+        {
+            "scheduler" = {
+                "operations_cleaner"= {
+                    "enable"= %true;
+                    "analysis_period"= 100;
+                };
+                "enable_job_reporter" = %true;
+                "enable_job_stderr_reporter" = %true;
+                "enable_job_fail_context_reporter" = %true;
+                "enable_job_spec_reporter" = %true;
             };
-            "enable_job_reporter" = %true;
-            "enable_job_stderr_reporter" = %true;
-            "enable_job_fail_context_reporter" = %true;
-            "enable_job_spec_reporter" = %true;
-        };
-    }
+        }
     """)
     scheduler_config.close()
-    yt = start(args, YtConfig(scheduler_config=scheduler_config.name))
+
+    node_config = tempfile.NamedTemporaryFile(delete=False)
+    node_config.write("""
+        {
+            "exec_agent"= {
+                "statistics_reporter"= {
+                    "enabled" = %true;
+                    "reporting_period" = 10;
+                    "min_repeat_delay" = 10;
+                    "max_repeat_delay" = 10;
+                };
+            };
+        }
+    """)
+    node_config.close()
+
+    yt = start(args, YtConfig(scheduler_config=scheduler_config.name, node_config=node_config.name))
     yt_address = "localhost:" + str(yt.yt_proxy_port)
 
-#    XXX
-#    yatest.common.execute([
-#        yatest.common.binary_path("mapreduce/yt/python/init_operations_archive/init_operations_archive"),
-#        yt_address
-#    ])
+    yatest.common.execute([
+        yatest.common.binary_path("mapreduce/yt/python/init_operations_archive/init_operations_archive"),
+        yt_address,
+    ])
 
 
 if __name__ == "__main__":

@@ -290,6 +290,8 @@ namespace NYT {
 
     struct TListOperationsOptions;
 
+    struct TGetJobOptions;
+
     struct TListJobsOptions;
 
     struct IOperationClient;
