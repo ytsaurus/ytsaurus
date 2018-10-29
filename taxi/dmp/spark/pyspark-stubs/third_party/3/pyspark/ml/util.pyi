@@ -6,8 +6,9 @@ from pyspark.context import SparkContext
 from pyspark.sql.context import SQLContext
 from pyspark.sql.session import SparkSession
 
-basestring = ...  # type: type
-unicode = ...  # type: type
+basestring = str
+unicode = str
+long = int
 
 class Identifiable:
     uid = ...  # type: str
