@@ -1,12 +1,17 @@
 #include "dynamic_channel_pool.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/roaming_channel.h>
 
+#include <yt/core/utilex/random.h>
+
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
+
+#include <util/random/shuffle.h>
 
 namespace NYT {
 namespace NApi {
@@ -19,19 +24,6 @@ using namespace NConcurrency;
 static const auto& Logger = RpcProxyClientLogger;
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChannelPool)
-DEFINE_REFCOUNTED_TYPE(TExpiringChannel)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<NRpc::IChannelPtr> TExpiringChannel::GetChannel()
-{
-    return Channel_;
-}
-
-bool TExpiringChannel::IsExpired()
-{
-    return IsExpired_;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +32,10 @@ class TProxyChannelProvider
 {
 public:
     TProxyChannelProvider(
-        TDynamicChannelPoolPtr pool)
+        TDynamicChannelPoolPtr pool,
+        bool sticky)
         : Pool_(std::move(pool))
+        , Sticky_(sticky)
         , EndpointDescription_("RpcProxy")
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -50,11 +44,7 @@ public:
     { }
 
     ~TProxyChannelProvider()
-    {
-        if (ChannelCookie_) {
-            Pool_->EvictChannel(ChannelCookie_);
-        }
-    }
+    { }
 
     virtual const TString& GetEndpointDescription() const override
     {
@@ -68,215 +58,237 @@ public:
 
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
-        auto guard = Guard(SpinLock_);
-        if (Terminated_) {
-            return MakeFuture<IChannelPtr>(TError("Channel is terminated"));
+        if (!Sticky_) {
+            return Pool_->GetRandomChannel();
+        } else {
+            auto guard = Guard(SpinLock_);
+            if (!Channel_) {
+                Channel_ = Pool_->GetRandomChannel();
+            }
+            return Channel_;
         }
-        if (!ChannelCookie_ || ChannelCookie_->IsExpired()) {
-            ChannelCookie_ = Pool_->CreateChannel();
-        }
-
-        return ChannelCookie_->GetChannel();
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        TFuture<IChannelPtr> channel;
-        {
-            auto guard = Guard(SpinLock_);
-            Terminated_ = true;
-            if (ChannelCookie_) {
-                channel = ChannelCookie_->GetChannel();
-            }
-        }
-
-        if (channel) {
-            return channel.Apply(BIND([error] (const TErrorOr<IChannelPtr>& channel) {
-                return channel.ValueOrThrow()->Terminate(error);
-            }));
-        } else {
-            return VoidFuture;
-        }
+        return VoidFuture;
     }
 
 private:
     const TDynamicChannelPoolPtr Pool_;
+    const bool Sticky_;
 
     const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     TSpinLock SpinLock_;
-    TExpiringChannelPtr ChannelCookie_;
-    bool Terminated_ = false;
+    TFuture<IChannelPtr> Channel_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TDynamicChannelPool::TChannelSlot::IsWarm(TInstant now)
+{
+    auto channelWarmupTime = TDuration::Seconds(1);
+    return CreationTime + channelWarmupTime < now;
+}
+
 TDynamicChannelPool::TDynamicChannelPool(
-    IChannelFactoryPtr channelFactory)
+    IChannelFactoryPtr channelFactory,
+    TConnectionConfigPtr config)
     : ChannelFactory_(std::move(channelFactory))
-{ }
-
-
-TExpiringChannelPtr TDynamicChannelPool::CreateChannel()
+    , Config_(std::move(config))
 {
-    auto channelCookie = New<TExpiringChannel>();
-    TFuture<std::vector<TString>> addresses;
-    {
-        auto guard = Guard(SpinLock_);
-        addresses = Addresses_;
-    }
-    
-    channelCookie->Channel_ = addresses
-        .Apply(BIND([this, this_ = MakeStrong(this), channelCookie] (const TErrorOr<std::vector<TString>>& addressesOrError) {
-            if (!addressesOrError.IsOK()) {
-                EvictChannel(channelCookie);
-            }
-
-            const auto& addresses = addressesOrError.ValueOrThrow();
-            YCHECK(!addresses.empty());
-            auto address = addresses[RandomNumber(addresses.size())];
-
-            auto channel = ChannelFactory_->CreateChannel(address);
-            channel = CreateFailureDetectingChannel(
-                std::move(channel),
-                BIND([pool = MakeWeak(this), cookie = MakeWeak(channelCookie)] (IChannelPtr channel) {
-                    auto strongPool = pool.Lock();
-                    auto strongCookie = cookie.Lock();
-                    if (strongPool && strongCookie && !strongCookie->IsExpired()) {
-                        strongPool->EvictChannel(strongCookie);
-                    }
-                }));
-            
-            auto guard = Guard(SpinLock_);
-            if (Terminated_) {
-                channel->Terminate(TError("Channel pool is terminated"));
-                THROW_ERROR_EXCEPTION("Channel pool is terminated");
-            }
-
-            if (channelCookie->IsExpired_) {
-                THROW_ERROR_EXCEPTION("Channel is expired");
-            }
-
-            channelCookie->Address_ = address;
-            channelCookie->IsActive_ = true;
-            ActiveChannels_[address].insert(channelCookie);
-            return channel;
-        }));
-    
-    return channelCookie;
-}
-
-void TDynamicChannelPool::EvictChannel(TExpiringChannelPtr channelCookie)
-{
-    auto guard = Guard(SpinLock_);
-    channelCookie->IsExpired_ = true;
-
-    if (channelCookie->IsActive_) {
-        auto it = ActiveChannels_.find(channelCookie->Address_);
-        if (it == ActiveChannels_.end()) {
-            return;
-        }
-        it->second.erase(channelCookie);
+    for (int i = 0; i < Config_->ChannelPoolSize; ++i) {
+        Slots_.push_back(New<TChannelSlot>());
     }
 }
 
-TErrorOr<IChannelPtr> TDynamicChannelPool::TryCreateChannel()
+TFuture<IChannelPtr> TDynamicChannelPool::GetRandomChannel()
 {
-    auto guard = Guard(SpinLock_);
-    if (Addresses_ && Addresses_.IsSet() && Addresses_.Get().IsOK()) {
-        if (Terminated_) {
-            return TError("Channel pool is terminated");
-        }
+    constexpr int TryCount = 3;
+    auto now = TInstant::Now();
 
-        const auto& addresses = Addresses_.Get().Value();
-        YCHECK(!addresses.empty());
-        auto address = addresses[RandomNumber(addresses.size())];
-        return ChannelFactory_->CreateChannel(address);
-    } else {
-        return TError("Address list is invalid");
+    TReaderGuard guard(SpinLock_);
+    if (Terminated_) {
+        return MakeFuture<IChannelPtr>(TError("Channel pool is terminated"));
     }
+
+    YCHECK(!Slots_.empty());
+
+    int index = RandomNumber(Slots_.size());
+    for (int i = 0; i < TryCount; ++i) {
+        if (Slots_[index]->SeemsBroken || !Slots_[index]->IsWarm(now)) {
+            index = RandomNumber(Slots_.size());
+            continue;
+        }
+    }
+
+    return Slots_[index]->Channel;
 }
 
 void TDynamicChannelPool::Terminate()
 {
-    THashMap<TString, THashSet<TExpiringChannelPtr>> activeChannels;
-    {
-        auto guard = Guard(SpinLock_);
-        Terminated_ = true;
-        activeChannels = std::move(ActiveChannels_);
-    }
-
+    std::vector<IChannelPtr> aliveChannels;
     auto error = TError("Channel pool is terminated");
-    for (auto& address : activeChannels) {
-        for (auto& channel : address.second) {
-            YCHECK(channel->Channel_.IsSet() && channel->Channel_.Get().IsOK());
-            auto terminateError = WaitFor(channel->Channel_.Get().Value()->Terminate(error));
-            if (!terminateError.IsOK()) {
-                LOG_ERROR(terminateError, "Error while terminating channel pool");
+
+    {
+        TWriterGuard guard(SpinLock_);
+        if (Terminated_) {
+            return;
+        }
+        Terminated_ = true;
+        for (auto& slot : Slots_) {
+            slot->Channel.TrySet(error);
+
+            if (slot->Channel.IsSet()) {
+                auto channelOrError = slot->Channel.Get();
+                if (channelOrError.IsOK()) {
+                    aliveChannels.push_back(channelOrError.Value());
+                }
             }
         }
+        Slots_.clear();
     }
-}
 
-void TDynamicChannelPool::SetAddressList(TFuture<std::vector<TString>> addresses)
-{
-    {
-        auto guard = Guard(SpinLock_);
-        if (!Addresses_ || (Addresses_.IsSet() && !Addresses_.Get().IsOK())) {
-            Addresses_ = addresses;
+    for (auto channel : aliveChannels) {
+        auto terminateError = WaitFor(channel->Terminate(error));
+        if (!terminateError.IsOK()) {
+            LOG_ERROR(terminateError, "Error while terminating channel pool");
         }
     }
 
-    addresses.Apply(BIND(&TDynamicChannelPool::OnAddressListChange, MakeStrong(this)));
+    auto guard = Guard(OpenChannelsLock_);
+    for (auto channel : OpenChannels_) {
+        auto terminateError = WaitFor(channel.second->Terminate(error));
+        if (!terminateError.IsOK()) {
+            LOG_ERROR(terminateError, "Error while terminating channel pool");
+        }
+    }
+    OpenChannels_.clear();
 }
 
-void TDynamicChannelPool::OnAddressListChange(const TErrorOr<std::vector<TString>>& addressesOrError)
+void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& addressesOrError)
 {
+    auto broadcastError = [this] (const TError& error)
+    {
+        TWriterGuard guard(SpinLock_);
+        for (const auto& slot : Slots_) {
+            slot->Channel.TrySet(error);
+        }
+    };
+
     if (!addressesOrError.IsOK()) {
-        LOG_ERROR(addressesOrError, "Address list update failed");
+        broadcastError(addressesOrError);
         return;
     }
 
     auto addresses = addressesOrError.Value();
     if (addresses.empty()) {
-        LOG_ERROR("Address list is empty");
+        broadcastError(TError("Address list is empty"));
         return;
     }
 
-    std::sort(addresses.begin(), addresses.end());
+    auto rebalanceInterval = RandomDuration(Config_->ChannelPoolRebalanceInterval) +
+        Config_->ChannelPoolRebalanceInterval;
+    auto now = TInstant::Now();
 
-    std::vector<TString> expiredAddresses;
-    std::vector<TExpiringChannelPtr> expiredChannels;
+    std::vector<TChannelSlotPtr> replaced;
     {
-        auto guard = Guard(SpinLock_);
-        for (auto&& address : ActiveChannels_) {
-            if (std::binary_search(addresses.begin(), addresses.end(), address.first)) {
+        TWriterGuard guard(SpinLock_);
+        if (Terminated_) {
+            return;
+        }
+        for (int i = 0; i < Slots_.size(); ++i) {
+            if (Slots_[i]->SeemsBroken) {
+                Slots_[i] = New<TChannelSlot>();
+                replaced.push_back(Slots_[i]);
                 continue;
             }
 
-            expiredAddresses.push_back(address.first);
-            expiredChannels.insert(expiredChannels.end(), address.second.begin(), address.second.end());
+            if (!Slots_[i]->Channel.IsSet()) {
+                replaced.push_back(Slots_[i]);
+                continue;
+            }
+
+            if (Slots_[i]->Channel.IsSet() && !Slots_[i]->Channel.Get().IsOK()) {
+                Slots_[i] = New<TChannelSlot>();
+                replaced.push_back(Slots_[i]);
+                continue;
+            }
         }
 
-        for (auto&& address : expiredAddresses) {
-            ActiveChannels_.erase(address);
+        int randomVictim = -1;
+        if (replaced.empty() && LastRebalance_ + rebalanceInterval < now) {
+            LastRebalance_ = now;
+            randomVictim = RandomNumber(Slots_.size());
         }
 
-        Addresses_ = MakeFuture(addresses);
+        if (replaced.empty()) {
+            Slots_[randomVictim] = New<TChannelSlot>();
+            replaced.push_back(Slots_[randomVictim]);
+        }
     }
 
-    for (auto&& address : expiredAddresses) {
-        LOG_ERROR("Proxy is anavailable (Address: %s)", address);
+    ShuffleRange(addresses);
+    for (int i = 0; i < replaced.size(); i++) {
+        auto address = addresses[i % addresses.size()];
+        auto channel = CreateChannel(address);
+        channel = CreateFailureDetectingChannel(
+            std::move(channel),
+            BIND([slot = MakeWeak(replaced[i])] (IChannelPtr channel) {
+                auto strongSlot = slot.Lock();
+                if (strongSlot) {
+                    strongSlot->SeemsBroken = true;
+                }
+            }));
+
+        replaced[i]->Channel.TrySet(channel);
     }
+
+    TerminateIdleChannels();
+}
+
+void TDynamicChannelPool::TerminateIdleChannels()
+{
+    auto guard = Guard(OpenChannelsLock_);
+    std::vector<TString> idle;
+    for (auto& channel : OpenChannels_) {
+        if (channel.second->GetRefCount() == 1) {
+            idle.push_back(channel.first);
+        }
+    }
+
+    for (auto idleAddress : idle) {
+        auto channel = OpenChannels_[idleAddress];
+        OpenChannels_.erase(idleAddress);
+        channel->Terminate(TError("Channel is idle"));
+    }
+}
+
+IChannelPtr TDynamicChannelPool::CreateChannel(const TString& address)
+{
+    auto guard = Guard(OpenChannelsLock_);
+    auto& channel = OpenChannels_[address];
+    if (!channel) {
+        channel = ChannelFactory_->CreateChannel(address);
+    }
+    return channel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChannelPtr CreateDynamicChannel(
+NRpc::IChannelPtr CreateDynamicChannel(
     TDynamicChannelPoolPtr pool)
 {
-    auto provider = New<TProxyChannelProvider>(std::move(pool));
+    auto provider = New<TProxyChannelProvider>(std::move(pool), false);
+    return CreateRoamingChannel(std::move(provider));
+}
+
+NRpc::IChannelPtr CreateStickyChannel(
+    TDynamicChannelPoolPtr pool)
+{
+    auto provider = New<TProxyChannelProvider>(std::move(pool), true);
     return CreateRoamingChannel(std::move(provider));
 }
 

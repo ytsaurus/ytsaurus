@@ -28,6 +28,8 @@ protected:
     virtual TClientPtr GetRpcProxyClient() = 0;
     // Must return an RPC channel to use for API call.
     virtual NRpc::IChannelPtr GetChannel() = 0;
+    // Must return an RPC channel to use for API calls within single transaction.
+    virtual NRpc::IChannelPtr GetStickyChannel() = 0;
 
 public:
     virtual NApi::IConnectionPtr GetConnection() override;

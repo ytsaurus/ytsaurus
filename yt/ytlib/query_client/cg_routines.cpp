@@ -867,6 +867,12 @@ void MultiJoinOpHelper(
 
             std::vector<TRow> orderedKeys;
             for (TValue* key : closure.Items[joinId].OrderedKeys) {
+                // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
+                size_t id = 0;
+                for (auto* value = key; value < key + closure.Items[joinId].KeySize; ++value) {
+                    value->Aggregate = false;
+                    value->Id = id++;
+                }
                 orderedKeys.push_back(TRow(reinterpret_cast<const TUnversionedRowHeader*>(key) - 1));
             }
 

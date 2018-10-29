@@ -3,6 +3,7 @@
 #include "init.h"
 #include "routine_registry.h"
 #include "llvm_migrate_helpers.h"
+#include "msan.h"
 
 #include <llvm/ADT/Triple.h>
 
@@ -22,8 +23,10 @@
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/CodeGen/Passes.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Instrumentation.h>
 
 #define PRINT_PASSES_TIME
 #ifdef PRINT_PASSES_TIME
@@ -31,6 +34,7 @@
 #include <llvm/Transforms/Scalar.h>
 #endif
 
+#include <util/system/sanitizers.h>
 
 #include <mutex>
 
@@ -38,6 +42,19 @@
     #include <link.h>
     #include <dlfcn.h>
 #endif
+
+#include "msan.h"
+
+struct __emutls_control;
+
+extern "C" void* yt__emutls_get_address(__emutls_control* control) __attribute__((no_sanitize("memory")))
+{
+    auto fn = (void(*)(void*))control;
+    void* p;
+    fn(&p);
+    return p;
+}
+
 
 namespace NYT {
 namespace NCodegen {
@@ -97,12 +114,27 @@ public:
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
+#if defined(_msan_enabled_)
+        if (name == "__emutls_get_address") {
+            return (int64_t)yt__emutls_get_address;
+        }
+
+#define XX(msan_tls_variable) \
+        if (name == "__emutls_v." #msan_tls_variable) { \
+            int64_t p = (int64_t) yt_ ## msan_tls_variable; \
+            return p; \
+        }
+MSAN_TLS_STUBS
+#undef XX
+#endif
+
         auto address = llvm::SectionMemoryManager::getSymbolAddress(name);
         if (address) {
             return address;
         }
 
-        return RoutineRegistry_->GetAddress(name.c_str());
+        address = RoutineRegistry_->GetAddress(name.c_str());
+        return address;
     }
 
 private:
@@ -155,14 +187,15 @@ public:
 
         // Create engine.
         std::string what;
-        Engine_.reset(llvm::EngineBuilder(std::move(module))
+        llvm::EngineBuilder builder(std::move(module));
+        builder
             .setEngineKind(llvm::EngineKind::JIT)
             .setOptLevel(llvm::CodeGenOpt::Default)
             .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
             .setMCPU(hostCpu)
             .setErrorStr(&what)
-            .setTargetOptions(targetOptions)
-            .create());
+            .setTargetOptions(targetOptions);
+        Engine_.reset(builder.create());
 
         if (!Engine_) {
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine")
@@ -317,6 +350,9 @@ private:
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
         functionPassManager = std::make_unique<FunctionPassManager>(Module_);
+        if (NSan::MSanIsOn()) {
+            functionPassManager->add(llvm::createMemorySanitizerPass());
+        }
         passManagerBuilder.populateFunctionPassManager(*functionPassManager);
 
         functionPassManager->doInitialization();

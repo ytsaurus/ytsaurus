@@ -5,6 +5,8 @@
 #include "private.h"
 #include "table_mount_cache.h"
 #include "timestamp_provider.h"
+#include "credentials_injecting_channel.h"
+#include "dynamic_channel_pool.h"
 
 #include <yt/core/net/address.h>
 
@@ -46,11 +48,36 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IChannelPtr CreateCredentialsInjectingChannel(
+    IChannelPtr underlying,
+    const TClientOptions& options)
+{
+    if (options.Token) {
+        return CreateTokenInjectingChannel(
+            underlying,
+            options.PinnedUser,
+            *options.Token);
+    } else if (options.SessionId || options.SslSessionId) {
+        return CreateCookieInjectingChannel(
+            underlying,
+            options.PinnedUser,
+            options.SessionId.Get(TString()),
+            options.SslSessionId.Get(TString()));
+    } else {
+        return CreateUserInjectingChannel(underlying, options.PinnedUser);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClient::TClient(
     TConnectionPtr connection,
-    IChannelPtr channel)
+    TDynamicChannelPoolPtr channelPool,
+    const TClientOptions& clientOptions)
     : Connection_(std::move(connection))
-    , Channel_(channel)
+    , ChannelPool_(channelPool)
+    , Channel_(CreateCredentialsInjectingChannel(CreateDynamicChannel(channelPool), clientOptions))
+    , ClientOptions_(clientOptions)
     , TableMountCache_(
         CreateTableMountCache(
             Connection_->GetConfig()->TableMountCache,
@@ -96,6 +123,13 @@ TClientPtr TClient::GetRpcProxyClient()
 IChannelPtr TClient::GetChannel()
 {
     return Channel_;
+}
+
+IChannelPtr TClient::GetStickyChannel()
+{
+    return CreateCredentialsInjectingChannel(
+        CreateStickyChannel(ChannelPool_),
+        ClientOptions_);
 }
 
 ITransactionPtr TClient::AttachTransaction(

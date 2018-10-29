@@ -5,6 +5,8 @@
 
 #include <yt/core/misc/finally.h>
 
+#include <util/system/sanitizers.h>
+
 namespace NYT {
 
 using NYson::TToken;
@@ -110,8 +112,11 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     // TODO(asaitgalin): Make singleton with all global variables and
     // free all objects there before interpreter exit.
     thread_local PyObject* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
+    NSan::MarkAsIntentionallyLeaked(SignedInt64Min);
     thread_local PyObject* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
+    NSan::MarkAsIntentionallyLeaked(SignedInt64Max);
     thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());;
+    NSan::MarkAsIntentionallyLeaked(UnsignedInt64Max);
 
     if (PyObject_RichCompareBool(UnsignedInt64Max, obj.ptr(), Py_LT) == 1 ||
         PyObject_RichCompareBool(obj.ptr(), SignedInt64Min, Py_LT) == 1)
