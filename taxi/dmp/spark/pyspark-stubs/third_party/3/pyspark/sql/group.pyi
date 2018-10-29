@@ -2,8 +2,8 @@
 #
 
 from typing import overload
-from typing import Any, Dict, List, Optional
-from pyspark.sql._typing import LiteralType 
+from typing import Any, Callable, Dict, List, Optional
+from pyspark.sql._typing import LiteralType
 from pyspark.sql.context import SQLContext
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
@@ -12,7 +12,7 @@ from py4j.java_gateway import JavaObject  # type: ignore
 
 class GroupedData:
     sql_ctx = ...  # type: SQLContext
-    def __init__(self, jgd: JavaObject, sql_ctx: SQLContext) -> None: ...
+    def __init__(self, jgd: JavaObject, df: DataFrame) -> None: ...
     @overload
     def agg(self, *exprs: Column) -> DataFrame: ...
     @overload
@@ -24,3 +24,4 @@ class GroupedData:
     def min(self, *cols: str) -> DataFrame: ...
     def sum(self, *cols: str) -> DataFrame: ...
     def pivot(self, pivot_col: str, values: Optional[List[LiteralType]] = ...) -> 'GroupedData': ...
+    def apply(self, udf: Callable[..., Column]) -> DataFrame: ...
