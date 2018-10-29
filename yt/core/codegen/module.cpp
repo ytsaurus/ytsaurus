@@ -34,6 +34,7 @@
 #include <llvm/Transforms/Scalar.h>
 #endif
 
+#include <util/system/compiler.h>
 #include <util/system/sanitizers.h>
 
 #include <mutex>
@@ -47,7 +48,7 @@
 
 struct __emutls_control;
 
-extern "C" void* yt__emutls_get_address(__emutls_control* control) __attribute__((no_sanitize("memory")))
+extern "C" void* yt__emutls_get_address(__emutls_control* control) Y_NO_SANITIZE("memory")
 {
     auto fn = (void(*)(void*))control;
     void* p;
