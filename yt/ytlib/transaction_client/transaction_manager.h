@@ -134,7 +134,8 @@ public:
         NRpc::IChannelPtr masterChannel,
         const TString& user,
         ITimestampProviderPtr timestampProvider,
-        NHiveClient::TCellDirectoryPtr cellDirectory);
+        NHiveClient::TCellDirectoryPtr cellDirectory,
+        NHiveClient::TCellTrackerPtr downedCellTracker);
 
     ~TTransactionManager();
 
