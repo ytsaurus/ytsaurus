@@ -53,7 +53,7 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     // Keep some stuff to reuse it in the transaction.
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
-    auto channel = GetChannel();
+    auto channel = GetStickyChannel();
     const auto& config = connection->GetConfig();
 
     auto timeout = options.Timeout.Get(config->DefaultTransactionTimeout);

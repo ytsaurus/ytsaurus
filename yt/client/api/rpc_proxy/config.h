@@ -22,6 +22,10 @@ public:
     TNullable<TString> ClusterUrl;
     TNullable<TString> ProxyRole;
     std::vector<TString> Addresses;
+    //! Number of open connection to rpc proxies.
+    int ChannelPoolSize;
+    TDuration ChannelPoolRebalanceInterval;
+
     TDuration PingPeriod;
     TDuration ProxyListUpdatePeriod;
     TDuration ProxyListRetryPeriod;
@@ -35,7 +39,6 @@ public:
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
     bool EnableProxyDiscovery;
-
 
     TConnectionConfig();
 };
