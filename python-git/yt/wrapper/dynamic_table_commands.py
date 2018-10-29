@@ -290,7 +290,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
         return format.load_rows(response)
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
-                freeze=False, sync=False, client=None):
+                freeze=False, sync=False, target_cell_ids=None, client=None):
     """Mounts table.
 
     TODO
@@ -303,6 +303,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
     set_param(params, "cell_id", cell_id)
+    set_param(params, "target_cell_ids", target_cell_ids)
     set_param(params, "freeze", freeze)
 
     response = make_request("mount_table", params, client=client)
