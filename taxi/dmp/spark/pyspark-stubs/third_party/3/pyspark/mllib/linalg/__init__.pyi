@@ -2,10 +2,14 @@
 #
 
 from typing import overload
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Generic, Iterable, List, Optional, Tuple, TypeVar, Union
 from pyspark.ml import linalg as newlinalg
 from pyspark.sql.types import StructType, UserDefinedType
 from numpy import float64, ndarray  # type: ignore
+
+
+QT = TypeVar("QT")
+RT = TypeVar("RT")
 
 class VectorUDT(UserDefinedType):
     @classmethod
@@ -193,9 +197,9 @@ class Matrices:
     @staticmethod
     def fromML(mat: newlinalg.Matrix) -> Matrix: ...
 
-class QRDecomposition:
-    def __init__(self, Q: Matrix, R: Matrix) -> None: ...
+class QRDecomposition(Generic[QT, RT]):
+    def __init__(self, Q: QT, R: RT) -> None: ...
     @property
-    def Q(self) -> Matrix: ...
+    def Q(self) -> QT: ...
     @property
-    def R(self) -> Matrix: ...
+    def R(self) -> RT: ...
