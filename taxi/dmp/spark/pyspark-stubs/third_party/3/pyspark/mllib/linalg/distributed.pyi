@@ -1,14 +1,18 @@
 # Stubs for pyspark.mllib.linalg.distributed (Python 3.5)
 #
 
-from typing import Any, Sequence, Tuple, Union
+from typing import Any, Generic, Sequence, Optional, Tuple, TypeVar, Union
 from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
+from pyspark.mllib.common import JavaModelWrapper
 from pyspark.mllib.linalg import Vector, Matrix, QRDecomposition
 from pyspark.mllib.stat import MultivariateStatisticalSummary
 from numpy import ndarray  # type: ignore
 
 VectorLike = Union[Vector, Sequence[Union[float, int]]]
+
+UT = TypeVar("UT")
+VT = TypeVar("VT")
 
 class DistributedMatrix:
     def numRows(self) -> int: ...
@@ -24,7 +28,15 @@ class RowMatrix(DistributedMatrix):
     def computeCovariance(self) -> Matrix: ...
     def computeGramianMatrix(self) -> Matrix: ...
     def columnSimilarities(self, threshold: float = ...) -> CoordinateMatrix: ...
-    def tallSkinnyQR(self, computeQ: bool = ...) -> QRDecomposition: ...
+    def tallSkinnyQR(self, computeQ: bool = ...) -> QRDecomposition[RowMatrix, Matrix]: ...
+
+class SingularValueDecomposition(JavaModelWrapper, Generic[UT, VT]):
+    @property
+    def U(self) -> Optional[UT]: ...
+    @property
+    def s(self) -> Vector: ...
+    @property
+    def V(self) -> VT: ...
 
 class IndexedRow:
     index = ...  # type: int
