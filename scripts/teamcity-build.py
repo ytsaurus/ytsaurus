@@ -533,6 +533,7 @@ def package_common_packages(options, build_context):
     build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
     run([
         build_python_packages,
+        "--source-dir", options.checkout_directory,
         "--install-dir", get_lib_dir_for_python(options, "2.7"),
         "--output-dir", artifacts_dir
     ])

@@ -127,6 +127,11 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--source-dir",
+        required=True,
+        help="path to source directory")
+
+    parser.add_argument(
         "--install-dir",
         required=True,
         help="path to install dir used during ya build (we expect to find config file and .so libraries there)")
