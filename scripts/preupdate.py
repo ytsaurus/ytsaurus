@@ -3,6 +3,7 @@
 from subprocess import check_output, Popen, PIPE, STDOUT
 from pprint import pprint
 from time import sleep
+from collections import Counter
 
 import requests
 import argparse
@@ -16,6 +17,7 @@ import yt.wrapper
 class Colors:
     GREEN = "\033[32m"
     RED = "\033[91m"
+    YELLOW = "\033[93m"
     END = "\033[0m"
 
 CHANGELOG_FILES = [
@@ -39,7 +41,7 @@ COMPONENTS = ["nodes", "masters", "schedulers", "controller_agents", "rpc_proxie
 
 def is_valid_revision(revision):
     return Popen(
-        ["/usr/bin/git", "rev-parse", revision],
+        ["/usr/bin/git", "rev-parse", "--verify", revision],
         stderr=STDOUT,
         stdout=open(os.devnull, "w")
     ).wait() == 0
@@ -89,6 +91,7 @@ def common_base(revisions):
     return check_output([
         "/usr/bin/git",
         "merge-base",
+        "--",
         revisions[0],
         common_base(revisions[1:])
     ]).strip()
@@ -119,26 +122,42 @@ def get_versions_from_cluster(cluster_name):
             continue
 
         components = {}
-        errors_per_component = {}
         for component_name, instances in rsp.json().items():
             component_name = str(component_name)
             versions = set()
+            unknown_versions = Counter()
             for host, attr in instances.items():
                 try:
                     version = str(attr["version"])
                     if "~" in version:
-                        versions.add(version.split("~")[1])
+                        split_version = version.split("~")[1]
+                        if split_version in versions or split_version in unknown_versions:
+                            continue
+                        if is_valid_revision(split_version):
+                            versions.add(split_version)
+                        else:
+                            unknown_versions[version] += 1
                     else:
-                        versions.add("UNKNOWN")
-                except:
-                    errors_per_component[component_name] = errors_per_component.get(component_name, 0) + 1
-                    versions.add("UNKNOWN")
+                        unknown_versions[version] += 1
+                except Exception, e:
+                    unknown_versions["CANNOT_FETCH_VERSION"] += 1
             components[component_name] = list(versions)
 
-        for component, error_count in errors_per_component.items():
-            print>>sys.stderr, "Could not fetch versions for {} {}".format(error_count, component)
+            if unknown_versions:
+                total_count = len(instances)
+                error_count = sum(unknown_versions.itervalues())
+                print>>sys.stderr, "{}WARNING: Some {} versions are not known revisions ({} out of {}):{}".format(
+                    Colors.YELLOW,
+                    component_name,
+                    error_count,
+                    total_count,
+                    Colors.END)
+                for version, count in unknown_versions.iteritems():
+                    print>>sys.stderr, "  {} ({} instances)".format(version, count)
 
         components["masters"] = list(set(components.pop("primary_masters") + components.pop("secondary_masters")))
+
+        print>>sys.stderr
 
         return components
 
@@ -189,7 +208,7 @@ def build_precautions(from_revision, to_revision, show_diff=False, components_to
                 " (reason: diff in {}).\n".format(", ".join(reason))
 
     if general:
-        result += "Consider these special requests (diff in Changelog):\n" + general
+        result += "Consider these special requests (diff in Changelog):\n" + general + "\n"
 
     if show_diff:
         result += total_diff
