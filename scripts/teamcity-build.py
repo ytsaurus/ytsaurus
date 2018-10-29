@@ -535,8 +535,10 @@ def package_common_packages(options, build_context):
         build_python_packages,
         "--source-dir", options.checkout_directory,
         "--install-dir", get_lib_dir_for_python(options, "2.7"),
-        "--output-dir", artifacts_dir
+        "--output-dir", artifacts_dir,
+        "--work-dir", options.working_directory,
     ])
+    exit(0)
 
 
 @build_step
