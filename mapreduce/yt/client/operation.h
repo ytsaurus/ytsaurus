@@ -36,6 +36,7 @@ public:
     virtual void CompleteOperation() override;
     virtual TOperationAttributes GetAttributes(const TGetOperationOptions& options) override;
     virtual void UpdateParameters(const TUpdateOperationParametersOptions& options) override;
+    virtual TJobAttributes GetJob(const TJobId& jobId, const TGetJobOptions& options) override;
     virtual TListJobsResult ListJobs(const TListJobsOptions& options) override;
 
 private:

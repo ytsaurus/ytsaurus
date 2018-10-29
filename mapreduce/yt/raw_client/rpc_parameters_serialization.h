@@ -76,6 +76,11 @@ TNode SerializeParamsForUpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options);
 
+TNode SerializeParamsForGetJob(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& options);
+
 TNode SerializeParamsForListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options);

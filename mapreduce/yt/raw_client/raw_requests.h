@@ -120,6 +120,13 @@ TNode ListJobsOld(
     const TListJobsOptions& options = TListJobsOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
+TJobAttributes GetJob(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& options = TGetJobOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
+
 TListJobsResult ListJobs(
     const TAuth& auth,
     const TOperationId& operationId,
