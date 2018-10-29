@@ -247,7 +247,6 @@ public:
     {
         for (const auto& pair : Spec_->Tasks) {
             TaskOutputTables_.emplace_back();
-            const auto& taskName = pair.first;
             const auto& taskSpec = pair.second;
             for (const auto& outputTablePath : taskSpec->OutputTablePaths) {
                 TaskOutputTables_.back().emplace_back(RegisterOutputTable(outputTablePath));
