@@ -596,7 +596,7 @@ public:
             --RecursionDepth_;
             return;
         }
-        
+
         auto logIfNeeded = [&] (const auto& timeVariable, TStringBuf what) {
             // Y_POD_STATIC_THREAD declares instances of NTls::TValue for MacOS.
             // This typecast provides a portable way for accessing the underlying value.
@@ -612,7 +612,7 @@ public:
                     elapsedTime);
             }
         };
-        
+
         logIfNeeded(ElapsedSyscallTime_, AsStringBuf("Syscalls"));
         logIfNeeded(ElapsedLockingTime_, AsStringBuf("Locking"));
 
@@ -770,7 +770,7 @@ private:
     template <class F>
     auto RunSyscall(F func) -> decltype(func())
     {
-        // Sadly, TWallTimer cannot be used prior to all statics being initialized.   
+        // Sadly, TWallTimer cannot be used prior to all statics being initialized.
         if (!ConfigurationManager->IsLoggingEnabled()) {
             return func();
         }
@@ -1406,7 +1406,7 @@ public:
         }
 
         result[ETotalCounter::BytesLazyFree] = LazyFreeBytes_.load();
-        
+
         return result;
     }
 
@@ -1418,19 +1418,19 @@ public:
         result[ESmallCounter::BytesAllocated] = totalCounters[ETotalCounter::BytesAllocated];
         result[ESmallCounter::BytesFreed] = totalCounters[ETotalCounter::BytesFreed];
         result[ESmallCounter::BytesUsed] = totalCounters[ETotalCounter::BytesUsed];
-        
+
         auto largeArenaCounters = GetLargeArenaCounters();
         for (size_t rank = 0; rank < LargeRankCount; ++rank) {
             result[ESmallCounter::BytesAllocated] -= largeArenaCounters[rank][ELargeArenaCounter::BytesAllocated];
             result[ESmallCounter::BytesFreed] -= largeArenaCounters[rank][ELargeArenaCounter::BytesFreed];
             result[ESmallCounter::BytesUsed] -= largeArenaCounters[rank][ELargeArenaCounter::BytesUsed];
         }
-        
+
         auto hugeCounters = GetHugeCounters();
         result[ESmallCounter::BytesAllocated] -= hugeCounters[EHugeCounter::BytesAllocated];
         result[ESmallCounter::BytesFreed] -= hugeCounters[EHugeCounter::BytesFreed];
         result[ESmallCounter::BytesUsed] -= hugeCounters[EHugeCounter::BytesUsed];
-        
+
         return result;
     }
 
@@ -2927,7 +2927,7 @@ private:
          auto* this_ = TBackgroundThread::Get();
          this_->Forked_ = true;
     }
-    
+
     static void* ThreadMainStatic(void* opaque)
     {
         auto* this_ = static_cast<TBackgroundThread*>(opaque);
@@ -3058,7 +3058,7 @@ void YTFree(void* ptr)
     }
 }
 
-#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_)
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
 
 size_t YTGetSize(void* ptr)
 {
