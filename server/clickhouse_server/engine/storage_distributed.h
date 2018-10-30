@@ -74,7 +74,7 @@ public:
         const DB::Names& columnNames,
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
-        DB::QueryProcessingStage::Enum& processedStage,
+        DB::QueryProcessingStage::Enum processedStage,
         size_t maxBlockSize,
         unsigned numStreams) override;
 
