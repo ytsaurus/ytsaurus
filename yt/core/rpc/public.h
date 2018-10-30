@@ -102,6 +102,7 @@ DEFINE_ENUM(EErrorCode,
     ((RequestQueueSizeLimitExceeded)(108))
     ((AuthenticationError)          (109))
     ((CsrfTokenExpired)             (110))
+    ((InvalidCredentials)           (111))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

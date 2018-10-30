@@ -125,7 +125,7 @@ private:
         if (statusId.Value() != EBlackboxStatus::Valid && statusId.Value() != EBlackboxStatus::NeedReset) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
-            return TError("Blackbox rejected session cookie")
+            return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
                 << TErrorAttribute("reason", reason);
         }
 
