@@ -86,7 +86,7 @@ NInterop::IRangeFilterPtr CreateRangeFilter(
 {
     auto pkExpression = std::make_shared<ExpressionActions>(
         schema.KeyColumns,
-        context.getSettingsRef());
+        context);
 
     return std::make_shared<TRangeFilter>(
         context,
