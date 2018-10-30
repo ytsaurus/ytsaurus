@@ -185,7 +185,7 @@ void Run(const char* configFilename)
         operations,
         earliestTime);
 
-    simulatorControlThread->Init(poolTreesNode);
+    simulatorControlThread->Initialize(poolTreesNode);
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 }
