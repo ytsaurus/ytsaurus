@@ -558,20 +558,21 @@ private:
                             remoteOptions,
                             this,
                             this_ = MakeStrong(this)
-                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) mutable {
+                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
                             TDataRanges dataSource;
-                            std::tie(subquery, dataSource) = GetForeignQuery(
+                            TQueryPtr foreignQuery;
+                            std::tie(foreignQuery, dataSource) = GetForeignQuery(
                                 subquery,
                                 joinClause,
                                 std::move(keys),
                                 permanentBuffer);
 
-                            LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+                            LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
 
                             auto pipe = New<NTableClient::TSchemafulPipe>();
 
                             auto asyncResult = remoteExecutor->Execute(
-                                subquery,
+                                foreignQuery,
                                 MountInfos_,
                                 ExternalCGInfo_,
                                 std::move(dataSource),
