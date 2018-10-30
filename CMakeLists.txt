@@ -167,7 +167,7 @@ endif()
 
 # Discover Python 3.4 world.
 if(YT_BUILD_ENABLE_PYTHON_3_4)
-  check_python_kind("3_7" "/usr/local/include/python3.7m")
+  check_python_kind("3_4" "/usr/include/python3.4")
 endif()
 
 message(STATUS "[PYTHON] Using following kinds of Python: \"${PYTHON_KINDS}\"")
