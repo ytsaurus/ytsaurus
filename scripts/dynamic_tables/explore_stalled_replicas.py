@@ -61,6 +61,8 @@ def main():
     print "tablet_orchids", len(tablet_orchids)
 
     for s, t in zip(sources, tablet_orchids):
+        if t is None:
+            continue
         if "replicas" not in t:
             continue
         for r in t["replicas"].values():
