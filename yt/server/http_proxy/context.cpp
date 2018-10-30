@@ -271,7 +271,11 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         LOG_DEBUG(authResult, "Authentication error");
 
-        Response_->SetStatus(EStatusCode::InternalServerError);
+        if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
+            Response_->SetStatus(EStatusCode::Unauthorized);
+        } else {
+            Response_->SetStatus(EStatusCode::InternalServerError);
+        }
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(authResult));

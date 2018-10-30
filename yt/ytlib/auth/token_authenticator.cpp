@@ -100,7 +100,7 @@ private:
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             AuthProfiler.Increment(RejectedTokens_);
-            return TError("Blackbox rejected token")
+            return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected token")
                 << TErrorAttribute("reason", reason);
         }
 
