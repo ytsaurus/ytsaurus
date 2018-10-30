@@ -1755,6 +1755,10 @@ bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool ag
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
+    if (!Enabled_) {
+        return false;
+    }
+
     const auto* properties = GetJobProperties(jobId);
     return aggressivePreemptionEnabled ? properties->AggressivelyPreemptable : properties->Preemptable;
 }
