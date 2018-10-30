@@ -23,10 +23,10 @@ static const auto& Logger = SchedulerSimulatorLogger;
 TControlThreadEvent::TControlThreadEvent(EControlThreadEventType type, TInstant time)
     : Type(type)
     , Time(time)
-    , OperationId(TGuid())
+    , OperationId()
 { }
 
-TControlThreadEvent TControlThreadEvent::OperationStarted(TInstant time, NScheduler::TOperationId id)
+TControlThreadEvent TControlThreadEvent::OperationStarted(TInstant time, TOperationId id)
 {
     TControlThreadEvent event(EControlThreadEventType::OperationStarted, time);
     event.OperationId = id;
@@ -95,7 +95,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     }
 }
 
-void TSimulatorControlThread::Init(const NYTree::INodePtr& poolTreesNode)
+void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
 {
     YCHECK(!Initialized_.load());
     WaitFor(
@@ -121,7 +121,7 @@ TFuture<void> TSimulatorControlThread::AsyncRun()
 
 void TSimulatorControlThread::Run()
 {
-    LOG_INFO("Simulation started using (%v) threads", Config_->ThreadCount);
+    LOG_INFO("Simulation started (ThreadCount: %v)", Config_->ThreadCount);
     OperationStatisticsOutput_.PrintHeader();
 
     std::vector<TFuture<void>> asyncWorkerResults;
@@ -134,7 +134,7 @@ void TSimulatorControlThread::Run()
         iter += 1;
         if (iter % Config_->CyclesPerFlush == 0) {
             LOG_INFO(
-                "Simulated (%v) cycles (FinishedOperations: %v, RunningOperation: %v, "
+                "Simulated %v cycles (FinishedOperations: %v, RunningOperation: %v, "
                 "TotalOperations: %v, RunningJobs: %v)",
                 iter,
                 JobAndOperationCounter_.GetFinishedOperationCount(),
@@ -187,7 +187,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     auto runtimeParameters = New<TOperationRuntimeParameters>();
     SchedulerStrategy_->InitOperationRuntimeParameters(
         runtimeParameters,
-        NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(description.Spec),
+        NYTree::ConvertTo<TOperationSpecBasePtr>(description.Spec),
         description.AuthenticatedUser,
         description.Type);
     auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
