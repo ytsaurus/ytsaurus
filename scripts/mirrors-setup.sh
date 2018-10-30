@@ -141,3 +141,4 @@ configure_github_mirror dateutil-dateutil
 configure_github_mirror terencehonles-fusepy
 configure_github_mirror tqdm-tqdm
 configure_github_mirror kxxoling-PTable
+configure_github_mirror nir0s-distro
