@@ -972,8 +972,9 @@ void BuildUserJobFluently1(
     const TMaybe<TFormat>& outputFormat,
     TFluentMap fluent)
 {
-    TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
-    TMaybe<double> cpuLimit = preparer.GetSpec().CpuLimit_;
+    const auto& userJobSpec = preparer.GetSpec();
+    TMaybe<i64> memoryLimit = userJobSpec.MemoryLimit_;
+    TMaybe<double> cpuLimit = userJobSpec.CpuLimit_;
 
     // Use 1MB extra tmpfs size by default, it helps to detect job sandbox as tmp directory
     // for standard python libraries. See YTADMINREQ-14505 for more details.
@@ -992,6 +993,16 @@ void BuildUserJobFluently1(
         .Item("file_paths").List(preparer.GetFiles())
         .Item("command").Value(preparer.GetCommand())
         .Item("class_name").Value(preparer.GetClassName())
+        .DoIf(!userJobSpec.Environment_.empty(), [&] (TFluentMap fluentMap) {
+            TNode environment;
+            for (const auto& item : userJobSpec.Environment_) {
+                environment[item.first] = item.second;
+            }
+            fluentMap.Item("environment").Value(std::move(environment));
+        })
+        .DoIf(userJobSpec.DiskSpaceLimit_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("disk_space_limit").Value(*userJobSpec.DiskSpaceLimit_);
+        })
         .DoIf(inputFormat.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("input_format").Value(inputFormat->Config);
         })

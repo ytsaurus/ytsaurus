@@ -1166,6 +1166,30 @@ Y_UNIT_TEST_SUITE(Operations)
         }
     }
 
+    Y_UNIT_TEST(JobEnvironment)
+    {
+        auto client = CreateTestClient();
+        auto inputTable = TRichYPath("//testing/input");
+        auto outputTable = TRichYPath("//testing/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("input", "dummy"));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .MapperSpec(TUserJobSpec().AddEnvironment("TEST_ENV", "foo bar baz"))
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable),
+            new TMapperThatUsesEnv("TEST_ENV"),
+            TOperationOptions());
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "foo bar baz");
+        }
+    }
+
     Y_UNIT_TEST(MapReduceMapOutput)
     {
         auto client = CreateTestClient();

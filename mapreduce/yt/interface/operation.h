@@ -1,15 +1,15 @@
 #pragma once
 
 #include "client_method_options.h"
+#include "errors.h"
 #include "io.h"
 #include "job_statistics.h"
-#include "errors.h"
 
 #include <library/threading/future/future.h>
 
-#include <util/system/file.h>
 #include <util/generic/variant.h>
 #include <util/generic/vector.h>
+#include <util/system/file.h>
 
 namespace NYT {
 
@@ -296,10 +296,19 @@ struct TUserJobSpec
     TUserJobSpec& JobBinaryCypressPath(TString path);
     const TJobBinaryConfig& GetJobBinary() const;
 
+    //
     // Prefix and suffix for specific kind of job
     // Overrides common prefix and suffix in TOperationOptions
     FLUENT_FIELD(TString, JobCommandPrefix);
     FLUENT_FIELD(TString, JobCommandSuffix);
+
+    //
+    // Map of environment variables that will be set for jobs.
+    FLUENT_MAP_FIELD(TString, TString, Environment);
+
+    //
+    // Limit for all files inside job sandbox.
+    FLUENT_FIELD_OPTION(ui64, DiskSpaceLimit);
 
 private:
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;
