@@ -124,7 +124,7 @@ public:
             .Default(Null);
 
         RegisterPostprocessor([&] () {
-            if (ThreadCount) {
+            if (ThreadCount && ReadThreadCount == 1 && WriteThreadCount == 1) {
                 if (ThreadCount.Get() == 1) {
                     ThreadCount = 2;
                 }
