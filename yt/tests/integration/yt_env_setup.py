@@ -368,6 +368,13 @@ class YTEnvSetup(object):
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
+        "operation_options": {
+            "spec_template": {
+                "max_failed_job_count": 1,
+            }
+        },
+    }
     DELTA_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {}
 
@@ -549,7 +556,10 @@ class YTEnvSetup(object):
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
-            configs["controller_agent"][index] = update_inplace(config, delta_config)
+            configs["controller_agent"][index] = update_inplace(
+                update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
+                delta_config)
+
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
             configs["node"][index] = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
