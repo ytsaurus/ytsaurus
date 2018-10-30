@@ -90,14 +90,34 @@ bool TRefCountedTracker::TKey::operator<(const TKey& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedTracker::TAnonymousSlot::TAnonymousSlot(const TAnonymousSlot& other)
+    : InstancesAllocated_(other.InstancesAllocated_.load())
+    , InstancesFreed_(other.InstancesFreed_.load())
+    , TagInstancesAllocated_(other.TagInstancesAllocated_.load())
+    , TagInstancesFreed_(other.TagInstancesFreed_.load())
+    , SpaceSizeAllocated_(other.SpaceSizeAllocated_.load())
+    , SpaceSizeFreed_(other.SpaceSizeFreed_.load())
+{ }
+
+TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator=(const TAnonymousSlot& other)
+{
+    InstancesAllocated_ = other.InstancesAllocated_.load();
+    InstancesFreed_ = other.InstancesFreed_.load();
+    TagInstancesAllocated_ = other.TagInstancesAllocated_.load();
+    TagInstancesFreed_ = other.TagInstancesFreed_.load();
+    SpaceSizeAllocated_ = other.SpaceSizeAllocated_.load();
+    SpaceSizeFreed_ = other.SpaceSizeFreed_.load();
+    return *this;
+}
+
 TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator+=(const TAnonymousSlot& other)
 {
-    InstancesAllocated_ += other.InstancesAllocated_;
-    InstancesFreed_ += other.InstancesFreed_;
-    TagInstancesAllocated_ += other.TagInstancesAllocated_;
-    TagInstancesFreed_ += other.TagInstancesFreed_;
-    SpaceSizeAllocated_ += other.SpaceSizeAllocated_;
-    SpaceSizeFreed_ += other.SpaceSizeFreed_;
+    IncreaseRelaxed(InstancesAllocated_, other.InstancesAllocated_);
+    IncreaseRelaxed(InstancesFreed_, other.InstancesFreed_);
+    IncreaseRelaxed(TagInstancesAllocated_, other.TagInstancesAllocated_);
+    IncreaseRelaxed(TagInstancesFreed_, other.TagInstancesFreed_);
+    IncreaseRelaxed(SpaceSizeAllocated_, other.SpaceSizeAllocated_);
+    IncreaseRelaxed(SpaceSizeFreed_, other.SpaceSizeFreed_);
     return *this;
 }
 

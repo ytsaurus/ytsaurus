@@ -1,6 +1,8 @@
 #include "phdr_cache.h"
 
-#ifdef __linux__
+#include <util/system/sanitizers.h>
+
+#if defined(__linux__) && !defined(_tsan_enabled_)
 
 #include <link.h>
 #include <dlfcn.h>
@@ -9,8 +11,6 @@
 #include <cstddef>
 
 #include <yt/core/misc/assert.h>
-
-#include <util/system/sanitizers.h>
 
 namespace NYT {
 namespace NPhdrCache {
@@ -71,7 +71,7 @@ namespace NYT {
 
 void EnablePhdrCache()
 {
-#ifdef __linux__
+#if defined(__linux__) && !defined(_tsan_enabled_)
     using namespace NPhdrCache;
     // Fill out ELF header cache for access without locking.
     // This assumes no dynamic object loading/unloading after this point

@@ -128,7 +128,7 @@ public:
         if (it != TagToId.end()) {
             return it->second;
         }
-        
+
         auto id = static_cast<TTagId>(IdToTag.size());
         IdToTag.push_back(tag);
         YCHECK(TagToId.insert(std::make_pair(pair, id)).second);
@@ -174,7 +174,7 @@ private:
                 return false;
             }
             lastTime = sample.Time;
-        
+
             // Samples are ordered by time.
             // Search for an appropriate insertion point starting from the the back,
             // this should usually be fast.
@@ -315,8 +315,8 @@ private:
     };
 
     const std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
-    volatile bool WasStarted;
-    volatile bool WasShutdown;
+    std::atomic<bool> WasStarted;
+    std::atomic<bool> WasShutdown;
     TInvokerQueuePtr EventQueue;
     TIntrusivePtr<TThread> Thread;
     TEnqueuedAction CurrentAction;

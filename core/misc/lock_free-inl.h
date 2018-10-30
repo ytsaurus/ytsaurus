@@ -69,7 +69,7 @@ bool TMultipleProducerSingleConsumerLockFreeStack<T>::Dequeue(T* value)
 {
     TNode* expected;
     do {
-        expected = Head.load(std::memory_order_relaxed);
+        expected = Head.load(std::memory_order_acquire);
         if (!expected) {
             return false;
         }

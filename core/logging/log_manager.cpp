@@ -947,8 +947,8 @@ private:
             }
         }
 
-        category->MinLevel = level;
-        category->CurrentVersion = GetVersion();
+        category->MinLevel.store(level, std::memory_order_relaxed);
+        category->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
     void DoUpdatePosition(TLoggingPosition* position, const TString& message)
@@ -961,8 +961,8 @@ private:
             }
         }
 
-        position->Enabled = positionEnabled;
-        position->CurrentVersion = GetVersion();
+        position->Enabled.store(positionEnabled, std::memory_order_relaxed);
+        position->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
     TMonotonicCounter* GetCategoryEventsCounter(const TString& category)
