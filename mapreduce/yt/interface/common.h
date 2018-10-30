@@ -5,6 +5,7 @@
 #include <mapreduce/yt/node/node.h>
 
 #include <util/generic/guid.h>
+#include <util/generic/map.h>
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
 #include <util/generic/type_name.h>
@@ -46,6 +47,14 @@ namespace NYT {
     TSelf& Add##name(const type& value) \
     { \
         name##s_.push_back(value); \
+        return static_cast<TSelf&>(*this);\
+    }
+
+#define FLUENT_MAP_FIELD(keytype, valuetype, name) \
+    TMap<keytype,valuetype> name##_; \
+    TSelf& Add##name(const keytype& key, const valuetype& value) \
+    { \
+        name##_.emplace(key, value); \
         return static_cast<TSelf&>(*this);\
     }
 
