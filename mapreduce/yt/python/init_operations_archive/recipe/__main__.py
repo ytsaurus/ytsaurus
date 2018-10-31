@@ -37,6 +37,11 @@ def start_and_init(args):
                     "max_repeat_delay" = 10;
                 };
             };
+            "tablet_node" = {
+                "resource_limits" = {
+                    "slots" = 2;
+                };
+            };
         }
     """)
     node_config.close()
