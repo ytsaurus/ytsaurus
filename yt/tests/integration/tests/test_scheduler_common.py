@@ -4040,10 +4040,10 @@ class TestDynamicCpuAdjustment(YTEnvSetup):
         stats_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy/".format(node, job_id)
         min_cpu_limit = self.DELTA_NODE_CONFIG["exec_agent"]["job_cpu_monitor"]["min_cpu_limit"]
 
-        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] < 10)
-        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] == int((1 - min_cpu_limit)*100))
+        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] <= 15)
+        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] >= 85)
 
         release_breakpoint()
 
-        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] > 90)
+        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] >= 85)
         wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] == 0)
