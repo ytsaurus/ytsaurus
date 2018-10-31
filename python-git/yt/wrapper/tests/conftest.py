@@ -1,10 +1,10 @@
 from __future__ import print_function
 
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
-                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
+                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path,
+                      yatest_common, create_job_events)
 
 from yt.environment import YTInstance
-from yt.test_helpers.job_events import JobEvents
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace
@@ -31,7 +31,6 @@ import shutil
 import tempfile
 import logging
 import pytest
-import stat
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -446,6 +445,4 @@ def yt_env_job_archive(request, test_environment_job_archive):
 
 @pytest.fixture(scope="function")
 def job_events(request):
-    tmpdir = tempfile.mkdtemp(prefix="job_events", dir=get_tests_sandbox())
-    os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-    return JobEvents(tmpdir)
+    return create_job_events()
