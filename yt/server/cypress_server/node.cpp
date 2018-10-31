@@ -127,6 +127,11 @@ TClusterResources TCypressNodeBase::GetTotalResourceUsage() const
     return result;
 }
 
+ui64 TCypressNodeBase::GetRevision() const
+{
+    return Max(AttributesRevision_, ContentRevision_);
+}
+
 bool TCypressNodeBase::IsBeingCreated() const
 {
     return GetRevision() == NHydra::GetCurrentMutationContext()->GetVersion().ToRevision();
@@ -149,7 +154,8 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     Save(context, ExpirationTime_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
-    Save(context, Revision_);
+    Save(context, AttributesRevision_);
+    Save(context, ContentRevision_);
     Save(context, Account_);
     Save(context, Acd_);
     Save(context, Opaque_);
@@ -183,7 +189,17 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, ExpirationTime_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
-    Load(context, Revision_);
+    // COMPAT(aozeritsky)
+    if (context.GetVersion() < 811) {
+        i64 revision;
+        Load(context, revision);
+
+        AttributesRevision_ = revision;
+        ContentRevision_ = revision;
+    } else {
+        Load(context, AttributesRevision_);
+        Load(context, ContentRevision_);
+    }
     Load(context, Account_);
     // COMPAT(shakurov)
     if (context.GetVersion() < 700) {

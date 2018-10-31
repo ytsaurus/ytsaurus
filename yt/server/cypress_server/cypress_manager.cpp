@@ -923,12 +923,13 @@ public:
 
     void SetModified(
         TCypressNodeBase* trunkNode,
-        TTransaction* transaction)
+        TTransaction* transaction,
+        EModificationType modificationType)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         Y_ASSERT(trunkNode->IsTrunk());
 
-        AccessTracker_->SetModified(trunkNode, transaction);
+        AccessTracker_->SetModified(trunkNode, transaction, modificationType);
     }
 
     void SetAccessed(TCypressNodeBase* trunkNode)
@@ -1396,7 +1397,8 @@ private:
         node->SetCreationTime(mutationContext->GetTimestamp());
         node->SetModificationTime(mutationContext->GetTimestamp());
         node->SetAccessTime(mutationContext->GetTimestamp());
-        node->SetRevision(mutationContext->GetVersion().ToRevision());
+        node->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
+        node->SetContentRevision(mutationContext->GetVersion().ToRevision());
 
         if (node->IsExternal()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
@@ -2606,9 +2608,10 @@ TLock* TCypressManager::CreateLock(
 
 void TCypressManager::SetModified(
     TCypressNodeBase* trunkNode,
-    TTransaction* transaction)
+    TTransaction* transaction,
+    EModificationType modificationType)
 {
-    Impl_->SetModified(trunkNode, transaction);
+    Impl_->SetModified(trunkNode, transaction, modificationType);
 }
 
 void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)

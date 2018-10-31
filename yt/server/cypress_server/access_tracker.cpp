@@ -56,7 +56,8 @@ void TAccessTracker::Stop()
 
 void TAccessTracker::SetModified(
     TCypressNodeBase* trunkNode,
-    TTransaction* transaction)
+    TTransaction* transaction,
+    EModificationType modificationType)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
@@ -70,7 +71,16 @@ void TAccessTracker::SetModified(
 
     const auto* mutationContext = GetCurrentMutationContext();
     node->SetModificationTime(mutationContext->GetTimestamp());
-    node->SetRevision(mutationContext->GetVersion().ToRevision());
+    switch (modificationType) {
+        case EModificationType::Attributes:
+            node->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
+            break;
+        case EModificationType::Content:
+            node->SetContentRevision(mutationContext->GetVersion().ToRevision());
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
