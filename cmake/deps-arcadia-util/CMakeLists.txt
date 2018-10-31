@@ -284,6 +284,7 @@ set(RANDOM_SRCS
   ${RANDOM_BASE}/easy.cpp
   ${RANDOM_BASE}/entropy.cpp
   ${RANDOM_BASE}/fast.cpp
+  ${RANDOM_BASE}/init_atfork.cpp
   ${RANDOM_BASE}/lcg_engine.cpp
   ${RANDOM_BASE}/mersenne32.cpp
   ${RANDOM_BASE}/mersenne64.cpp

@@ -4,13 +4,25 @@ set(SRCS
   ${BASE}/common/entropy_common.c
   ${BASE}/common/error_private.c
   ${BASE}/common/fse_decompress.c
+  ${BASE}/common/pool.c
+  ${BASE}/common/threading.c
   ${BASE}/common/xxhash.c
   ${BASE}/common/zstd_common.c
   ${BASE}/compress/fse_compress.c
   ${BASE}/compress/huf_compress.c
   ${BASE}/compress/zstd_compress.c
+  ${BASE}/compress/zstd_double_fast.c
+  ${BASE}/compress/zstd_fast.c
+  ${BASE}/compress/zstd_lazy.c
+  ${BASE}/compress/zstd_ldm.c
+  ${BASE}/compress/zstd_opt.c
+  ${BASE}/compress/zstdmt_compress.c
   ${BASE}/decompress/huf_decompress.c
   ${BASE}/decompress/zstd_decompress.c
+  ${BASE}/deprecated/zbuff_common.c
+  ${BASE}/deprecated/zbuff_compress.c
+  ${BASE}/deprecated/zbuff_decompress.c
+  ${BASE}/dictBuilder/cover.c
   ${BASE}/dictBuilder/divsufsort.c
   ${BASE}/dictBuilder/zdict.c
   ${BASE}/legacy/zstd_v01.c
