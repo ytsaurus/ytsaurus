@@ -2961,9 +2961,11 @@ class TBackgroundThreadInitializer
 public:
     TBackgroundThreadInitializer()
     {
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
         // Like some others, this singleton depends on TLogManager and TProfileManager.
         // Luckily, these guys are configured to die after all other (default configured) singletons.
         TBackgroundThread::Get();
+#endif
     }
 } BackgroundThreadInitializer;
 
