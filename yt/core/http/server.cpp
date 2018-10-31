@@ -153,7 +153,7 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7ReqId: %v, L7RealIP: %v, UserAgent: %Qv)",
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7RequestId: %v, L7RealIP: %v, UserAgent: %v)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
                 request->GetMethod(),
