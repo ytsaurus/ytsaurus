@@ -1480,7 +1480,6 @@ void TNodeShard::ProcessHeartbeatJobs(
 
         auto job = ProcessJobHeartbeat(
             node,
-            request,
             response,
             &jobStatus,
             forceJobsLogging);
@@ -1557,7 +1556,6 @@ NLogging::TLogger TNodeShard::CreateJobLogger(
 
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
-    NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobStatus* jobStatus,
     bool forceJobsLogging)
