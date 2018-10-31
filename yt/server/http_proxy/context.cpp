@@ -129,7 +129,7 @@ TContext::TContext(
 
 void TContext::ProcessDebugHeaders()
 {
-    Response_->GetHeaders()->Add("X-YT-Request-ID", ToString(Request_->GetRequestId()));
+    Response_->GetHeaders()->Add("X-YT-Request-Id", ToString(Request_->GetRequestId()));
     Response_->GetHeaders()->Add("X-YT-Proxy", Api_->GetCoordinator()->GetSelf()->GetHost());
 
     auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
