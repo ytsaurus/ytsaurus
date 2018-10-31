@@ -21,7 +21,8 @@ using namespace NBus;
 TJobSatelliteConnection::TJobSatelliteConnection(
     const TJobId& jobId,
     TTcpBusServerConfigPtr jobProxyRpcServerConfig,
-    EJobEnvironmentType environmentType)
+    EJobEnvironmentType environmentType,
+    bool enableSecureVaultVariablesInJobShell)
     : JobId_(jobId)
 {
     ConnectionConfig_ = New<TJobSatelliteConnectionConfig>();
@@ -29,6 +30,7 @@ TJobSatelliteConnection::TJobSatelliteConnection(
     ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName = unixDomainName;
     ConnectionConfig_->JobProxyRpcClientConfig->UnixDomainName = jobProxyRpcServerConfig->UnixDomainName;
     ConnectionConfig_->EnvironmentType = environmentType;
+    ConnectionConfig_->EnableSecureVaultVariablesInJobShell = enableSecureVaultVariablesInJobShell;
 }
 
 TString TJobSatelliteConnection::GetConfigPath() const

@@ -113,6 +113,9 @@ message TUserJobSpec
 
     // Number of requested ports.
     optional bool use_porto_memory_tracking = 36;
+
+    // Enables secure vault variables in job shell.
+    optional bool enable_secure_vault_variables_in_job_shell = 37 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

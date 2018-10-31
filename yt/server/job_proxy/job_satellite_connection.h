@@ -28,6 +28,7 @@ public:
     //Job -> JobSatellite -> JobProxy synchronization.
     NBus::TTcpBusClientConfigPtr JobProxyRpcClientConfig;
     NExecAgent::EJobEnvironmentType EnvironmentType;
+    bool EnableSecureVaultVariablesInJobShell;
 
     TJobSatelliteConnectionConfig()
     {
@@ -37,6 +38,8 @@ public:
             .DefaultNew();
         RegisterParameter("environment_type", EnvironmentType)
             .Default(NExecAgent::EJobEnvironmentType::Simple);
+        RegisterParameter("enable_secure_vault_variables_in_job_shell", EnableSecureVaultVariablesInJobShell)
+            .Default(true);
     }
 };
 
@@ -50,7 +53,8 @@ public:
     TJobSatelliteConnection(
         const NJobTrackerClient::TJobId& jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig,
-        NExecAgent::EJobEnvironmentType environmentType);
+        NExecAgent::EJobEnvironmentType environmentType,
+        bool enableSecureVaultVariablesInJobShell);
     TString GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
     const NJobTrackerClient::TJobId& GetJobId() const;
