@@ -18,6 +18,8 @@ message TReqStartTransaction
     required string user_name = 5;
 
     repeated int32 replicate_to_cell_tags = 9;
+
+    optional int64 deadline = 10;
 }
 
 message TReqPrepareTransactionCommit

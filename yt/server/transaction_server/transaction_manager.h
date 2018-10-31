@@ -50,6 +50,7 @@ public:
         const NObjectClient::TCellTagList& secondaryCellTags,
         const NObjectClient::TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
+        TInstant deadline,
         const TNullable<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
         const TTransactionId& hintId = NullTransactionId);

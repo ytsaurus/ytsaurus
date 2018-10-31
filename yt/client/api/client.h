@@ -275,6 +275,8 @@ struct TTransactionStartOptions
     NTransactionClient::TTransactionId ParentId;
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
 
+    TInstant Deadline;
+
     bool AutoAbort = true;
     bool Sticky = false;
 

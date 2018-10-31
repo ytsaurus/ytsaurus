@@ -560,6 +560,7 @@ private:
             transaction->GetId(),
             NullTransactionId,
             transaction->GetTimeout(),
+            /* deadline */ TInstant(),
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
         transaction->SetHasLease(true);

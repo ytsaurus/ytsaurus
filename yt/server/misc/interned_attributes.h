@@ -58,6 +58,7 @@
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
+    XX(Deadline, deadline) \
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
     XX(DependentTransactionIds, dependent_transaction_ids) \

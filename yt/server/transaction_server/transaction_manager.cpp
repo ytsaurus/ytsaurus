@@ -185,6 +185,7 @@ public:
         const TCellTagList& secondaryCellTags,
         const TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
+        TInstant deadline,
         const TNullable<TString>& title,
         const IAttributeDictionary& attributes,
         const TTransactionId& hintId)
@@ -232,6 +233,10 @@ public:
             transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
         }
 
+        if (!foreign && deadline) {
+            transaction->SetDeadline(deadline);
+        }
+
         if (IsLeader()) {
             CreateLease(transaction);
         }
@@ -270,7 +275,7 @@ public:
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "SecondaryCellTags: %v, Timeout: %v, Title: %v)",
+            "SecondaryCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableRange(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
@@ -278,6 +283,7 @@ public:
             }),
             transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
+            MakeNullable(transaction->GetDeadline() != TInstant::Zero(), transaction->GetDeadline()),
             title);
 
         return transaction;
@@ -703,6 +709,7 @@ private:
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
         auto timeout = FromProto<TDuration>(request->timeout());
+        auto deadline = FromProto<TInstant>(request->deadline());
 
         TCellTagList secondaryCellTags;
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
@@ -721,6 +728,7 @@ private:
             secondaryCellTags,
             replicateToCellTags,
             timeout,
+            deadline,
             title,
             *attributes,
             hintId);
@@ -840,6 +848,8 @@ private:
         }
         transaction->DependentTransactions().clear();
 
+        transaction->SetDeadline(TInstant());
+
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
@@ -938,6 +948,7 @@ private:
             transaction->GetId(),
             GetObjectId(transaction->GetParent()),
             transaction->GetTimeout(),
+            transaction->GetDeadline(),
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
     }
@@ -1008,6 +1019,7 @@ TTransaction* TTransactionManager::StartTransaction(
     const TCellTagList& secondaryCellTags,
     const TCellTagList& replicateToCellTags,
     TNullable<TDuration> timeout,
+    TInstant deadline,
     const TNullable<TString>& title,
     const IAttributeDictionary& attributes,
     const TTransactionId& hintId)
@@ -1018,6 +1030,7 @@ TTransaction* TTransactionManager::StartTransaction(
         secondaryCellTags,
         replicateToCellTags,
         timeout,
+        deadline,
         title,
         attributes,
         hintId);

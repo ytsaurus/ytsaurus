@@ -63,6 +63,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Acd_);
     Save(context, PrerequisiteTransactions_);
     Save(context, DependentTransactions_);
+    Save(context, Deadline_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
