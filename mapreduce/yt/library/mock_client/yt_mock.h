@@ -86,6 +86,7 @@ namespace NTesting {
         MOCK_METHOD2(AlterTableReplica, void(const TReplicaId& replicaid, const TAlterTableReplicaOptions&));
 
         MOCK_METHOD0(WhoAmI, TAuthorizationInfo());
+        MOCK_METHOD0(GetParentClient, IClientPtr());
     };
 
     class TTransactionMock : public ITransaction {
@@ -152,6 +153,7 @@ namespace NTesting {
         MOCK_METHOD0(Commit, void());
         MOCK_METHOD0(Abort, void());
         MOCK_METHOD0(Ping, void());
+        MOCK_METHOD0(GetParentClient, IClientPtr());
     };
 
     class TLockMock : public ILock {

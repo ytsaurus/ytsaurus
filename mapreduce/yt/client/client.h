@@ -224,10 +224,12 @@ public:
 
     TBatchRequestPtr CreateBatchRequest() override;
 
+    IClientPtr GetParentClient() override;
+
     const TAuth& GetAuth() const;
 
 protected:
-    virtual TClientPtr GetParentClient() = 0;
+    virtual TClientPtr GetParentClientImpl() = 0;
 
 protected:
     const TAuth Auth_;
@@ -298,7 +300,7 @@ public:
 
     void Ping() override;
 
-    TClientPtr GetParentClient() override;
+    TClientPtr GetParentClientImpl() override;
 
 private:
     THolder<TPingableTransaction> PingableTx_;
@@ -392,7 +394,7 @@ public:
     TYtPoller& GetYtPoller();
 
 protected:
-    TClientPtr GetParentClient() override;
+    TClientPtr GetParentClientImpl() override;
 
 private:
     template <class TOptions>
