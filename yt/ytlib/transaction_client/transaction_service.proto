@@ -17,6 +17,7 @@ message TReqStartTransaction
     repeated int32 replicate_to_cell_tags = 7;
 
     required int64 timeout = 3;
+    optional int64 deadline = 8;
 }
 
 message TRspStartTransaction

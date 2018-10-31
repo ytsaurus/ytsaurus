@@ -37,6 +37,8 @@ TStartTransactionCommand::TStartTransactionCommand()
         .Optional();
     RegisterParameter("prerequisite_transaction_ids", Options.PrerequisiteTransactionIds)
         .Optional();
+    RegisterParameter("deadline", Options.Deadline)
+        .Default(TInstant());
     RegisterParameter("atomicity", Options.Atomicity)
         .Optional();
     RegisterParameter("durability", Options.Durability)

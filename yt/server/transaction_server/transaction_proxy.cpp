@@ -87,6 +87,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::MulticellResourceUsage);
         descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
+            .SetPresent(transaction->GetDeadline() != TInstant()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -177,6 +179,14 @@ private:
                     .DoListFor(transaction->DependentTransactions(), [=] (auto fluent, const auto* transaction) {
                         fluent.Item().Value(transaction->GetId());
                     });
+                return true;
+
+            case EInternedAttributeKey::Deadline:
+                if (!transaction->GetDeadline()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetDeadline());
                 return true;
 
             default:

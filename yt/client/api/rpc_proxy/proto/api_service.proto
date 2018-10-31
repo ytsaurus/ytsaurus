@@ -151,6 +151,8 @@ message TReqStartTransaction
     optional EDurability durability = 10 [default = D_SYNC];
 
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 11;
+
+    optional int64 deadline = 12;
 }
 
 message TRspStartTransaction

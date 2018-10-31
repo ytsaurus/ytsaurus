@@ -672,6 +672,7 @@ private:
             ToProto(req->mutable_parent_id(), options.ParentId);
         }
         ToProto(req->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
+        req->set_deadline(ToProto<i64>(options.Deadline));
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         if (Multicell_) {
