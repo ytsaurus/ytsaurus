@@ -7006,6 +7006,8 @@ void TOperationControllerBase::InitUserJobSpec(
             }
             jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, value));
         }
+
+        jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
     }
 
     if (StderrCount_ >= Spec_->MaxStderrCount) {

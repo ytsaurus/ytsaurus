@@ -278,6 +278,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("secure_vault", SecureVault)
         .Default();
 
+    RegisterParameter("enable_secure_vault_variables_in_job_shell", EnableSecureVaultVariablesInJobShell)
+        .Default(true);
+
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 

@@ -410,6 +410,9 @@ public:
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
 
+    //! This flag enables secure vault variables in job shell.
+    bool EnableSecureVaultVariablesInJobShell;
+
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 

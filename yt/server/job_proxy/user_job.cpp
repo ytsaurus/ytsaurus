@@ -169,7 +169,8 @@ public:
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
-            JobEnvironmentType_)
+            JobEnvironmentType_,
+            UserJobSpec_.enable_secure_vault_variables_in_job_shell())
     {
         Synchronizer_ = New<TUserJobSynchronizer>();
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
