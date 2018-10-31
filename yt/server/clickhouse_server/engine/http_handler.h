@@ -5,12 +5,16 @@
 #include <Poco/Net/HTTPRequestHandlerFactory.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(
     DB::IServer& server);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

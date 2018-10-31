@@ -2,6 +2,9 @@
 
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/table_schema.h>
+#include <yt/server/clickhouse_server/native/value.h>
+
 #include <DataTypes/DataTypeFactory.h>
 
 #include <IO/WriteHelpers.h>
@@ -16,44 +19,45 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* GetTypeName(const NInterop::TColumn& column)
+const char* GetTypeName(const NNative::TColumn& column)
 {
     switch (column.Type) {
         /// Invalid type.
-        case NInterop::EColumnType::Invalid:
+        case NNative::EColumnType::Invalid:
             break;
 
         /// Signed integer value.
-        case NInterop::EColumnType::Int8:     return "Int8";
-        case NInterop::EColumnType::Int16:    return "Int16";
-        case NInterop::EColumnType::Int32:    return "Int32";
-        case NInterop::EColumnType::Int64:    return "Int64";
+        case NNative::EColumnType::Int8:     return "Int8";
+        case NNative::EColumnType::Int16:    return "Int16";
+        case NNative::EColumnType::Int32:    return "Int32";
+        case NNative::EColumnType::Int64:    return "Int64";
 
         /// Unsigned integer value.
-        case NInterop::EColumnType::UInt8:    return "UInt8";
-        case NInterop::EColumnType::UInt16:   return "UInt16";
-        case NInterop::EColumnType::UInt32:   return "UInt32";
-        case NInterop::EColumnType::UInt64:   return "UInt64";
+        case NNative::EColumnType::UInt8:    return "UInt8";
+        case NNative::EColumnType::UInt16:   return "UInt16";
+        case NNative::EColumnType::UInt32:   return "UInt32";
+        case NNative::EColumnType::UInt64:   return "UInt64";
 
         /// Floating point value.
-        case NInterop::EColumnType::Float:    return "Float32";
-        case NInterop::EColumnType::Double:   return "Float64";
+        case NNative::EColumnType::Float:    return "Float32";
+        case NNative::EColumnType::Double:   return "Float64";
 
         /// Boolean value.
-        case NInterop::EColumnType::Boolean:  return "UInt8";
+        case NNative::EColumnType::Boolean:  return "UInt8";
 
         /// DateTime value.
-        case NInterop::EColumnType::Date:     return "Date";
-        case NInterop::EColumnType::DateTime: return "DateTime";
+        case NNative::EColumnType::Date:     return "Date";
+        case NNative::EColumnType::DateTime: return "DateTime";
 
         /// String value.
-        case NInterop::EColumnType::String:   return "String";
+        case NNative::EColumnType::String:   return "String";
     }
 
     throw Exception(
@@ -67,7 +71,7 @@ DB::DataTypePtr GetDataType(const std::string& name)
     return DB::DataTypeFactory::instance().get(name);
 }
 
-DB::NamesAndTypesList GetTableColumns(const NInterop::TTable& table)
+DB::NamesAndTypesList GetTableColumns(const NNative::TTable& table)
 {
     const auto& dataTypeFactory = DB::DataTypeFactory::instance();
 
@@ -82,30 +86,30 @@ DB::NamesAndTypesList GetTableColumns(const NInterop::TTable& table)
     return columns;
 }
 
-void GetField(const NInterop::TValue& value, std::vector<Field>& fields)
+void GetField(const NNative::TValue& value, std::vector<Field>& fields)
 {
     switch (value.Type) {
-        case NInterop::EValueType::Null:
+        case NNative::EClickHouseValueType::Null:
             fields.emplace_back();
             return;
 
-        case NInterop::EValueType::Int:
+        case NNative::EClickHouseValueType::Int:
             fields.emplace_back(value.Int);
             return;
 
-        case NInterop::EValueType::UInt:
+        case NNative::EClickHouseValueType::UInt:
             fields.emplace_back(value.UInt);
             return;
 
-        case NInterop::EValueType::Float:
+        case NNative::EClickHouseValueType::Float:
             fields.emplace_back(value.Float);
             return;
 
-        case NInterop::EValueType::Boolean:
+        case NNative::EClickHouseValueType::Boolean:
             fields.emplace_back(static_cast<UInt64>(value.Boolean ? 1 : 0));
             return;
 
-        case NInterop::EValueType::String:
+        case NNative::EClickHouseValueType::String:
             fields.emplace_back(value.String, value.Length);
             return;
     }
@@ -116,7 +120,7 @@ void GetField(const NInterop::TValue& value, std::vector<Field>& fields)
         ErrorCodes::UNKNOWN_TYPE);
 }
 
-std::vector<Field> GetFields(const NInterop::TValue* values, size_t count)
+std::vector<Field> GetFields(const NNative::TValue* values, size_t count)
 {
     std::vector<Field> fields;
     fields.reserve(count);
@@ -128,5 +132,6 @@ std::vector<Field> GetFields(const NInterop::TValue* values, size_t count)
     return fields;
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

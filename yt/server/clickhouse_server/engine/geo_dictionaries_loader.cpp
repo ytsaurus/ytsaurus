@@ -4,6 +4,9 @@
 #include "type_helpers.h"
 #include "updates_tracker.h"
 
+#include <yt/server/clickhouse_server/native/auth_token.h>
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Common/Exception.h>
 
 #include <Dictionaries/Embedded/GeodataProviders/IHierarchiesProvider.h>
@@ -21,7 +24,8 @@
 // TODO: use NGeoBase::TLookupPtr in data sources/providers
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 namespace {
 
@@ -43,8 +47,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void EnsureExists(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr token,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr token,
     const std::string& path) {
 
     if (!storage->Exists(*token, ToString(path))) {
@@ -60,16 +64,16 @@ class TRegionsHierarchyDataSource
     : public IRegionsHierarchyDataSource
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string FilePath;
 
     IUpdatesTrackerPtr UpdatesTracker;
 
 public:
     TRegionsHierarchyDataSource(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string path)
         : Storage(std::move(storage))
         , Token(std::move(token))
@@ -104,8 +108,8 @@ class TRegionsHierarchiesDataProvider
     : public IRegionsHierarchiesDataProvider
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string DirectoryPath;
 
     using THierarchyFiles = std::unordered_map<std::string, std::string>;
@@ -113,8 +117,8 @@ private:
 
 public:
     TRegionsHierarchiesDataProvider(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string directoryPath)
         : Storage(std::move(storage))
         , Token(std::move(token))
@@ -134,7 +138,7 @@ private:
     std::string GetDefaultHierarchyFile() const;
     void CheckDefaultHierarchy() const;
 
-    bool LooksLikeHierarchyFile(const NInterop::TObjectListItem object) const;
+    bool LooksLikeHierarchyFile(const NNative::TObjectListItem object) const;
     void DiscoverFilesWithCustomHierarchies();
 };
 
@@ -179,16 +183,16 @@ void TRegionsHierarchiesDataProvider::CheckDefaultHierarchy() const
         throw Poco::Exception("File with default regions hierarchy not found: " + defaultFile);
     }
     const auto attributes = Storage->GetObjectAttributes(*Token, ToString(defaultFile));
-    if (attributes.Type != NInterop::EObjectType::File) {
+    if (attributes.Type != NNative::EObjectType::File) {
         throw Poco::Exception(
-            "File with default regions hierarchy has unexpected type: " +
-            ToStdString(::ToString(attributes.Type)));
+            "File with default regions hierarchy has unexpected type: ");
+//          +  ToStdString(::ToString(attributes.Type)));
     }
 }
 
 bool TRegionsHierarchiesDataProvider::LooksLikeHierarchyFile(
-    const NInterop::TObjectListItem object) const {
-    return object.Attributes.Type == NInterop::EObjectType::File &&
+    const NNative::TObjectListItem object) const {
+    return object.Attributes.Type == NNative::EObjectType::File &&
            object.Name.size() == 2;
 }
 
@@ -208,8 +212,8 @@ class TLanguageRegionsNamesDataSource
     : public ILanguageRegionsNamesDataSource
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string FilePath;
     std::string Language;
 
@@ -217,8 +221,8 @@ private:
 
 public:
     TLanguageRegionsNamesDataSource(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string path,
         std::string language)
         : Storage(std::move(storage))
@@ -277,14 +281,14 @@ class TRegionsNamesDataProvider
     : public IRegionsNamesDataProvider
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string DirectoryPath;
 
 public:
     TRegionsNamesDataProvider(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string directoryPath)
         : Storage(std::move(storage))
         , Token(std::move(token))
@@ -325,14 +329,14 @@ class TGeoDictionariesLoader
     : public IGeoDictionariesLoader
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string GeodataPath;
 
 public:
     TGeoDictionariesLoader(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string geodataPath)
         : Storage(std::move(storage))
         , Token(std::move(token))
@@ -377,8 +381,8 @@ std::unique_ptr<RegionsNames> TGeoDictionariesLoader::reloadRegionsNames(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string& geodataPath)
 {
     return std::make_unique<TGeoDictionariesLoader>(
@@ -387,6 +391,8 @@ std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(
         geodataPath);
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

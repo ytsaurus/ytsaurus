@@ -1,12 +1,13 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Core/NamesAndTypes.h>
 #include <Core/SortDescription.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,9 +31,12 @@ public:
 
     DB::DataTypes GetKeyDataTypes() const;
 
-    static TTableSchema From(const NInterop::TTable& table);
+    static TTableSchema From(const NNative::TTable& table);
 };
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT
 

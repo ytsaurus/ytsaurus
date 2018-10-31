@@ -1,20 +1,22 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Interpreters/IRuntimeComponentsFactory.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
-    NInterop::IStoragePtr storage,
+    NNative::IStoragePtr storage,
     std::string cliqueId,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IAuthorizationTokenPtr authToken,
     std::string homePath,
-    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+    NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

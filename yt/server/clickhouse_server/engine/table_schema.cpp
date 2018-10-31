@@ -2,10 +2,13 @@
 
 #include "db_helpers.h"
 
+#include <yt/server/clickhouse_server/native/table_schema.h>
+
 #include <DataTypes/DataTypeFactory.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +32,7 @@ DB::DataTypes TTableSchema::GetKeyDataTypes() const
     return dataTypes;
 }
 
-TTableSchema TTableSchema::From(const NInterop::TTable& table)
+TTableSchema TTableSchema::From(const NNative::TTable& table)
 {
     const auto& dataTypes = DB::DataTypeFactory::instance();
 
@@ -53,5 +56,8 @@ TTableSchema TTableSchema::From(const NInterop::TTable& table)
         std::move(primarySortColumns));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

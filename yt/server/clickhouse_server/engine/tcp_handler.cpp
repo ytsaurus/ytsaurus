@@ -5,7 +5,8 @@
 #include <common/logger_useful.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -46,5 +47,6 @@ Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(IServer& serv
     return new TTcpHandlerFactory(server);
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

@@ -6,7 +6,8 @@
 #include <string>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,5 +17,8 @@ using IConfigPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
 
 IConfigPtr LoadConfigFromLocalFile(const std::string& path);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

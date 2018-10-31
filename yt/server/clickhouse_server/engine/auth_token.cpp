@@ -1,9 +1,13 @@
 #include "auth_token.h"
 
+#include <yt/server/clickhouse_server/native/auth_token.h>
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Interpreters/Context.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -23,23 +27,23 @@ std::string MapUserName(const std::string& user)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::IAuthorizationTokenPtr CreateAuthToken(
-    NInterop::IAuthorizationTokenService& auth,
+NNative::IAuthorizationTokenPtr CreateAuthToken(
+    NNative::IAuthorizationTokenService& auth,
     const std::string& user)
 {
-    NInterop::TStringMap attrs;
+    THashMap<TString, TString> attrs;
     attrs["user"] = MapUserName(user);
 
     return auth.CreateToken(attrs);
 }
 
-NInterop::IAuthorizationTokenPtr CreateAuthToken(
-    NInterop::IAuthorizationTokenService& auth,
+NNative::IAuthorizationTokenPtr CreateAuthToken(
+    NNative::IAuthorizationTokenService& auth,
     const Context& context)
 {
     const auto& clientInfo = context.getClientInfo();
 
-    NInterop::TStringMap attrs;
+    THashMap<TString, TString> attrs;
     attrs["user"] = MapUserName(clientInfo.initial_user);
 
     return auth.CreateToken(attrs);
@@ -47,12 +51,14 @@ NInterop::IAuthorizationTokenPtr CreateAuthToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::IAuthorizationTokenPtr CreateAuthToken(
-    NInterop::IStorage& storage,
+NNative::IAuthorizationTokenPtr CreateAuthToken(
+    NNative::IStorage& storage,
     const DB::Context& context)
 {
     return CreateAuthToken(*storage.AuthTokenService(), context);
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT
+

@@ -6,7 +6,8 @@
 #include <vector>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +16,8 @@ std::string Quoted(const std::string& name);
 
 std::string JoinStrings(const TString& delimiter, const std::vector<TString>& strings);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

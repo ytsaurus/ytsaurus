@@ -7,10 +7,14 @@
 #include <Poco/Logger.h>
 #include <Poco/Util/XMLConfiguration.h>
 
+#include <yt/server/clickhouse_server/native/storage.h>
+#include <yt/server/clickhouse_server/native/path.h>
+
 #include <common/logger_useful.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 namespace {
 
@@ -27,6 +31,8 @@ TLayeredConfigPtr BuildLayeredConfig(IConfigPtr staticConfig, IConfigPtr dynamic
     }
     return config;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -129,8 +135,8 @@ TLayeredConfigPtr TConfigManager::LoadConfig(const std::string& name) const
 
 std::unique_ptr<IConfigManager> CreateConfigManager(
     IConfigPtr staticBootstrapConfig,
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken)
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken)
 {
     auto storageHomePath = staticBootstrapConfig->getString("storage_home_path");
 
@@ -150,5 +156,6 @@ std::unique_ptr<IConfigManager> CreateConfigManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

@@ -1,18 +1,22 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Interpreters/IExternalLoaderConfigRepository.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderConfigRepository(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string& path);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

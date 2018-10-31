@@ -1,16 +1,18 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Poco/AutoPtr.h>
 #include <Poco/Logger.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Channel> WrapToLogChannel(NInterop::ILoggerPtr logger);
+Poco::AutoPtr<Poco::Channel> WrapToLogChannel(NNative::ILoggerPtr logger);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

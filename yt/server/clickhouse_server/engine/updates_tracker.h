@@ -1,12 +1,13 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <memory>
 #include <string>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,9 +27,12 @@ using IUpdatesTrackerPtr = std::unique_ptr<IUpdatesTracker>;
 ////////////////////////////////////////////////////////////////////////////////
 
 IUpdatesTrackerPtr CreateUpdatesTracker(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr token,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr token,
     const std::string& path);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

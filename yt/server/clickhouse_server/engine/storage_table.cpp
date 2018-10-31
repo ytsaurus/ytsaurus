@@ -5,6 +5,8 @@
 #include "storage_distributed.h"
 #include "virtual_columns.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
 #include <Parsers/ASTFunction.h>
@@ -25,7 +27,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -35,12 +38,12 @@ class TStorageTable final
     : public TStorageDistributed
 {
 private:
-    NInterop::TTablePtr Table;
+    NNative::TTablePtr Table;
 
 public:
     TStorageTable(
-        NInterop::IStoragePtr storage,
-        NInterop::TTablePtr table,
+        NNative::IStoragePtr storage,
+        NNative::TTablePtr table,
         IExecutionClusterPtr cluster);
 
     std::string getTableName() const override
@@ -54,10 +57,10 @@ private:
         return ListSystemVirtualColumns();
     }
 
-    NInterop::TTablePartList GetTableParts(
+    NNative::TTablePartList GetTableParts(
         const ASTPtr& queryAst,
         const Context& context,
-        NInterop::IRangeFilterPtr rangeFilter,
+        NNative::IRangeFilterPtr rangeFilter,
         size_t maxParts) override;
 
     ASTPtr RewriteSelectQueryForTablePart(
@@ -67,8 +70,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStorageTable::TStorageTable(NInterop::IStoragePtr storage,
-                             NInterop::TTablePtr table,
+TStorageTable::TStorageTable(NNative::IStoragePtr storage,
+                             NNative::TTablePtr table,
                              IExecutionClusterPtr cluster)
     : TStorageDistributed(
         std::move(storage),
@@ -78,10 +81,10 @@ TStorageTable::TStorageTable(NInterop::IStoragePtr storage,
     , Table(std::move(table))
 {}
 
-NInterop::TTablePartList TStorageTable::GetTableParts(
+NNative::TTablePartList TStorageTable::GetTableParts(
     const ASTPtr& queryAst,
     const Context& context,
-    NInterop::IRangeFilterPtr rangeFilter,
+    NNative::IRangeFilterPtr rangeFilter,
     size_t maxParts)
 {
     Y_UNUSED(queryAst);
@@ -136,8 +139,8 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageTable(
-    NInterop::IStoragePtr storage,
-    NInterop::TTablePtr table,
+    NNative::IStoragePtr storage,
+    NNative::TTablePtr table,
     IExecutionClusterPtr cluster)
 {
     return std::make_shared<TStorageTable>(
@@ -146,5 +149,6 @@ DB::StoragePtr CreateStorageTable(
         std::move(cluster));
 }
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

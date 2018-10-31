@@ -7,6 +7,8 @@
 #include "type_helpers.h"
 #include "updates_tracker.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Common/Exception.h>
 #include <DataStreams/IBlockInputStream.h>
 #include <Dictionaries/DictionarySourceFactory.h>
@@ -27,7 +29,8 @@ namespace ErrorCodes
 }
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using DB::Exception;
 
@@ -39,8 +42,8 @@ class TTableDictionarySource
     : public DB::IDictionarySource
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string TableName;
     DB::NamesAndTypesList Columns;
 
@@ -48,8 +51,8 @@ private:
 
 public:
     TTableDictionarySource(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string name,
         DB::NamesAndTypesList columns);
 
@@ -77,20 +80,21 @@ public:
     bool hasUpdateField() const override { return false; }
 
 private:
-    void ValidateStructure(const NInterop::TTable& table);
+    void ValidateStructure(const NNative::TTable& table);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableDictionarySource::TTableDictionarySource(NInterop::IStoragePtr storage,
-                                               NInterop::IAuthorizationTokenPtr token,
-                                               std::string name,
-                                               DB::NamesAndTypesList columns)
-   : Storage(std::move(storage))
-   , Token(std::move(token))
-   , TableName(std::move(name))
-   , Columns(std::move(columns))
-   , UpdatesTracker(CreateUpdatesTracker(Storage, Token, TableName))
+TTableDictionarySource::TTableDictionarySource(
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr token,
+    std::string name,
+    DB::NamesAndTypesList columns)
+    : Storage(std::move(storage))
+    , Token(std::move(token))
+    , TableName(std::move(name))
+    , Columns(std::move(columns))
+    , UpdatesTracker(CreateUpdatesTracker(Storage, Token, TableName))
 {
 }
 
@@ -103,7 +107,7 @@ DB::BlockInputStreamPtr TTableDictionarySource::loadAll()
     auto table = Storage->GetTable(*Token, ToString(TableName));
     ValidateStructure(*table);
 
-    NInterop::TTableReaderOptions readerOptions;
+    NNative::TTableReaderOptions readerOptions;
     readerOptions.Unordered = false;
 
     auto reader = Storage->CreateTableReader(*Token, ToString(TableName), readerOptions);
@@ -150,7 +154,7 @@ std::string TTableDictionarySource::toString() const
     return "Table " + TableName;
 }
 
-void TTableDictionarySource::ValidateStructure(const NInterop::TTable& table)
+void TTableDictionarySource::ValidateStructure(const NNative::TTable& table)
 {
     const auto tableColumns = GetTableColumns(table);
 
@@ -165,8 +169,8 @@ void TTableDictionarySource::ValidateStructure(const NInterop::TTable& table)
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::DictionarySourcePtr CreateTableDictionarySource(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string& tableName,
     const DB::Block& sampleBlock)
 {
@@ -180,8 +184,8 @@ DB::DictionarySourcePtr CreateTableDictionarySource(
 ////////////////////////////////////////////////////////////////////////////////
 
 void RegisterTableDictionarySource(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken)
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken)
 {
     auto createTableSource = [=] (
         const DB::DictionaryStructure& dictStructure,
@@ -197,5 +201,8 @@ void RegisterTableDictionarySource(
     DB::DictionarySourceFactory::instance().registerSource("yt_table", createTableSource);
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

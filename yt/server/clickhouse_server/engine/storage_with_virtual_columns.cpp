@@ -16,7 +16,8 @@ namespace ErrorCodes
 }
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 namespace {
 
@@ -61,8 +62,9 @@ bool IStorageWithVirtualColumns::FindColumnImpl(
     const std::string& name,
     DB::NameAndTypePair& found) const
 {
-    return FindColumnInList(ListPhysicalColumns(), name, found) ||
-           FindColumnInList(ListVirtualColumns(), name, found);
+    return
+        FindColumnInList(ListPhysicalColumns(), name, found) ||
+        FindColumnInList(ListVirtualColumns(), name, found);
 }
 
 void IStorageWithVirtualColumns::SplitColumns(
@@ -81,5 +83,8 @@ void IStorageWithVirtualColumns::SplitColumns(
     }
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <string>
 
@@ -9,25 +9,27 @@ namespace DB {
 }
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::IAuthorizationTokenPtr CreateAuthToken(
-    NInterop::IAuthorizationTokenService& auth,
+NNative::IAuthorizationTokenPtr CreateAuthToken(
+    NNative::IAuthorizationTokenService& auth,
     const std::string& user = {});
 
-NInterop::IAuthorizationTokenPtr CreateAuthToken(
-    NInterop::IAuthorizationTokenService& auth,
+NNative::IAuthorizationTokenPtr CreateAuthToken(
+    NNative::IAuthorizationTokenService& auth,
     const DB::Context& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Storage helpers
 
-NInterop::IAuthorizationTokenPtr CreateAuthToken(
-    NInterop::IStorage& storage,
+NNative::IAuthorizationTokenPtr CreateAuthToken(
+    NNative::IStorage& storage,
     const DB::Context& context);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT
