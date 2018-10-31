@@ -66,7 +66,7 @@ TClientBase::TClientBase(
 ITransactionPtr TClientBase::StartTransaction(
     const TStartTransactionOptions& options)
 {
-    return MakeIntrusive<TTransaction>(GetParentClient(), Auth_, TransactionId_, true, options);
+    return MakeIntrusive<TTransaction>(GetParentClientImpl(), Auth_, TransactionId_, true, options);
 }
 
 TNodeId TClientBase::Create(
@@ -261,7 +261,7 @@ IOperationPtr TClientBase::DoMap(
         spec,
         mapper,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::RawMap(
@@ -275,7 +275,7 @@ IOperationPtr TClientBase::RawMap(
         spec,
         mapper.Get(),
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::DoReduce(
@@ -289,7 +289,7 @@ IOperationPtr TClientBase::DoReduce(
         spec,
         reducer,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::RawReduce(
@@ -303,7 +303,7 @@ IOperationPtr TClientBase::RawReduce(
         spec,
         reducer.Get(),
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::DoJoinReduce(
@@ -317,7 +317,7 @@ IOperationPtr TClientBase::DoJoinReduce(
         spec,
         reducer,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::RawJoinReduce(
@@ -331,7 +331,7 @@ IOperationPtr TClientBase::RawJoinReduce(
         spec,
         reducer.Get(),
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::DoMapReduce(
@@ -357,7 +357,7 @@ IOperationPtr TClientBase::DoMapReduce(
         outputReduceCombinerDesc,
         inputReducerDesc,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::RawMapReduce(
@@ -375,7 +375,7 @@ IOperationPtr TClientBase::RawMapReduce(
         reduceCombiner.Get(),
         reducer.Get(),
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::Sort(
@@ -387,7 +387,7 @@ IOperationPtr TClientBase::Sort(
         TransactionId_,
         spec,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::Merge(
@@ -399,7 +399,7 @@ IOperationPtr TClientBase::Merge(
         TransactionId_,
         spec,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::Erase(
@@ -411,7 +411,7 @@ IOperationPtr TClientBase::Erase(
         TransactionId_,
         spec,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::RunVanilla(
@@ -423,12 +423,12 @@ IOperationPtr TClientBase::RunVanilla(
         TransactionId_,
         spec,
         options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::AttachOperation(const TOperationId& operationId)
 {
-    auto operation = ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    auto operation = ::MakeIntrusive<TOperation>(operationId, GetParentClientImpl());
     operation->GetBriefState(); // check that operation exists
     return operation;
 }
@@ -635,7 +635,12 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 
 TBatchRequestPtr TClientBase::CreateBatchRequest()
 {
-    return MakeIntrusive<TBatchRequest>(TransactionId_, GetParentClient());
+    return MakeIntrusive<TBatchRequest>(TransactionId_, GetParentClientImpl());
+}
+
+IClientPtr TClientBase::GetParentClient()
+{
+    return GetParentClientImpl();
 }
 
 const TAuth& TClientBase::GetAuth() const
@@ -678,7 +683,7 @@ ILockPtr TTransaction::Lock(
     const TLockOptions& options)
 {
     auto lockId = NYT::NDetail::Lock(Auth_, TransactionId_, path, mode, options);
-    return ::MakeIntrusive<TLock>(lockId, GetParentClient(), options.Waitable_);
+    return ::MakeIntrusive<TLock>(lockId, GetParentClientImpl(), options.Waitable_);
 }
 
 void TTransaction::Commit()
@@ -705,7 +710,7 @@ void TTransaction::Ping()
     PingTx(Auth_, TransactionId_, &retryPolicy);
 }
 
-TClientPtr TTransaction::GetParentClient()
+TClientPtr TTransaction::GetParentClientImpl()
 {
     return ParentClient_;
 }
@@ -947,7 +952,7 @@ TYtPoller& TClient::GetYtPoller()
     return *YtPoller_;
 }
 
-TClientPtr TClient::GetParentClient()
+TClientPtr TClient::GetParentClientImpl()
 {
     return this;
 }

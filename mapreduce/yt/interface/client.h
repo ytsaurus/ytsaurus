@@ -76,6 +76,10 @@ public:
     // Create batch request object that allows to execute several light requests in parallel.
     // https://wiki.yandex-team.ru/yt/userdoc/api/#executebatch18.4
     virtual TBatchRequestPtr CreateBatchRequest() = 0;
+
+    //
+    // Return 'this' for IClient and the underlying client for ITransaction.
+    virtual IClientPtr GetParentClient() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
