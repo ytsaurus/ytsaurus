@@ -5,6 +5,9 @@
 #include "storage_stub.h"
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+#include <yt/server/clickhouse_server/native/table_schema.h>
+
 #include <Common/Exception.h>
 #include <Common/LRUCache.h>
 #include <Interpreters/Context.h>
@@ -25,7 +28,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -51,13 +55,13 @@ class TDatabase
     : public IDatabase
 {
 private:
-    const NInterop::IStoragePtr Storage;
+    const NNative::IStoragePtr Storage;
     const IExecutionClusterPtr Cluster;
 
     mutable TUserTablesCache UserTablesCache;
 
 public:
-    TDatabase(NInterop::IStoragePtr storage, IExecutionClusterPtr cluster)
+    TDatabase(NNative::IStoragePtr storage, IExecutionClusterPtr cluster)
         : Storage(std::move(storage))
         , Cluster(std::move(cluster))
         , UserTablesCache(CacheSize, TUserTablesCache::Delay(CacheExpirationDelay))
@@ -146,15 +150,15 @@ class TDatabaseIterator
     : public IDatabaseIterator
 {
 private:
-    const NInterop::TTableList Tables;
+    const NNative::TTableList Tables;
 
-    NInterop::TTableList::const_iterator Current;
+    NNative::TTableList::const_iterator Current;
 
     mutable std::string CurrentName;
     mutable StoragePtr CurrentTable;
 
 public:
-    TDatabaseIterator(NInterop::TTableList tables)
+    TDatabaseIterator(NNative::TTableList tables)
         : Tables(std::move(tables))
         , Current(Tables.begin())
     {}
@@ -402,7 +406,7 @@ void TDatabase::drop()
 ////////////////////////////////////////////////////////////////////////////////
 
 DatabasePtr CreateDatabase(
-    NInterop::IStoragePtr storage,
+    NNative::IStoragePtr storage,
     IExecutionClusterPtr cluster)
 {
     return std::make_shared<TDatabase>(
@@ -410,5 +414,6 @@ DatabasePtr CreateDatabase(
         std::move(cluster));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

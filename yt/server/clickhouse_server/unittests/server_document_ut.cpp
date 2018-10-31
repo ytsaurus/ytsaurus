@@ -1,20 +1,21 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse_server/server/document.h>
+#include <yt/server/clickhouse_server/native/document.h>
 
 #include <yt/core/ytree/convert.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+
+using namespace NClickHouseServer::NNative;
 
 using NYson::TYsonString;
 using NYTree::ConvertToNode;
-using NClickHouse::CreateDocument;
-using NInterop::TDocumentKeys;
+using NClickHouseServer::CreateDocument;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDocumentTest, NestedNodesAccess)
+/*TEST(TDocumentTest, NestedNodesAccess)
 {
     TString yson = "{a={b={c={d=1}}}}";
     auto node = ConvertToNode(TYsonString(yson));
@@ -93,9 +94,9 @@ TEST(TDocumentTest, Serialize)
     auto document = CreateDocument(std::move(node));
 
     EXPECT_EQ(yson, document->Serialize());
-}
+}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouse
-} // NYT
+} // namespace NClickHouseServer
+} // namespace NYT

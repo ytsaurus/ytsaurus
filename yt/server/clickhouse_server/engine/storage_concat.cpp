@@ -7,6 +7,10 @@
 #include "storage_distributed.h"
 #include "virtual_columns.h"
 
+#include <yt/server/clickhouse_server/native/table_schema.h>
+#include <yt/server/clickhouse_server/native/table_partition.h>
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
 #include <Parsers/ASTFunction.h>
@@ -28,7 +32,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -38,12 +43,12 @@ class TStorageConcat final
     : public TStorageDistributed
 {
 private:
-    NInterop::TTableList Tables;
+    NNative::TTableList Tables;
 
 public:
     TStorageConcat(
-        NInterop::IStoragePtr storage,
-        NInterop::TTableList tables,
+        NNative::IStoragePtr storage,
+        NNative::TTableList tables,
         TTableSchema schema,
         IExecutionClusterPtr cluster);
 
@@ -60,10 +65,10 @@ private:
 
     std::vector<TString> GetTableNames() const;
 
-    NInterop::TTablePartList GetTableParts(
+    NNative::TTablePartList GetTableParts(
         const ASTPtr& queryAst,
         const Context& context,
-        NInterop::IRangeFilterPtr rangeFilter,
+        NNative::IRangeFilterPtr rangeFilter,
         size_t maxParts) override;
 
     ASTPtr RewriteSelectQueryForTablePart(
@@ -73,10 +78,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStorageConcat::TStorageConcat(NInterop::IStoragePtr storage,
-                               NInterop::TTableList tables,
-                               TTableSchema schema,
-                               IExecutionClusterPtr cluster)
+TStorageConcat::TStorageConcat(
+    NNative::IStoragePtr storage,
+    NNative::TTableList tables,
+    TTableSchema schema,
+    IExecutionClusterPtr cluster)
     : TStorageDistributed(
         std::move(storage),
         std::move(cluster),
@@ -95,10 +101,10 @@ std::vector<TString> TStorageConcat::GetTableNames() const
     return names;
 }
 
-NInterop::TTablePartList TStorageConcat::GetTableParts(
+NNative::TTablePartList TStorageConcat::GetTableParts(
     const ASTPtr& queryAst,
     const Context& context,
-    NInterop::IRangeFilterPtr rangeFilter,
+    NNative::IRangeFilterPtr rangeFilter,
     size_t maxParts)
 {
     Y_UNUSED(queryAst);
@@ -143,7 +149,7 @@ ASTPtr TStorageConcat::RewriteSelectQueryForTablePart(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VerifyThatSchemasAreIdentical(const NInterop::TTableList& tables)
+void VerifyThatSchemasAreIdentical(const NNative::TTableList& tables)
 {
     if (tables.size() <= 1) {
         return;
@@ -164,8 +170,8 @@ void VerifyThatSchemasAreIdentical(const NInterop::TTableList& tables)
 }
 
 DB::StoragePtr CreateStorageConcat(
-    NInterop::IStoragePtr storage,
-    NInterop::TTableList tables,
+    NNative::IStoragePtr storage,
+    NNative::TTableList tables,
     IExecutionClusterPtr cluster)
 {
     if (tables.empty()) {
@@ -186,5 +192,8 @@ DB::StoragePtr CreateStorageConcat(
         std::move(cluster));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

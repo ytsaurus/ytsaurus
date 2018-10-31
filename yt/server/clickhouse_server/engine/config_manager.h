@@ -3,6 +3,8 @@
 #include "config_reloader.h"
 #include "config_repository.h"
 
+#include <yt/server/clickhouse_server/native/public.h>
+
 #include <Common/config.h>
 #include <Interpreters/Context.h>
 
@@ -11,7 +13,8 @@
 #include <memory>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,10 +40,11 @@ using IConfigManagerPtr = std::unique_ptr<IConfigManager>;
 
 IConfigManagerPtr CreateConfigManager(
     IConfigPtr staticBootstrapConfig,
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken);
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

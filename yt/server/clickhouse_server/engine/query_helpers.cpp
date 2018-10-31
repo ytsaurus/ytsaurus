@@ -4,7 +4,8 @@
 #include <Parsers/ASTLiteral.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -29,5 +30,8 @@ ASTTableExpression* GetFirstTableExpression(ASTSelectQuery& select)
     return static_cast<ASTTableExpression *>(tablesElement.table_expression.get());
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

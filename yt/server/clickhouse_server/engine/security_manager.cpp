@@ -2,6 +2,8 @@
 
 #include "format_helpers.h"
 
+#include <yt/server/clickhouse_server/native/clique_authorization_manager.h>
+
 #include <Poco/Net/IPAddress.h>
 #include <Poco/Util/AbstractConfiguration.h>
 
@@ -30,7 +32,8 @@ namespace ErrorCodes
 }
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using DB::String;
 using UserPtr = DB::ISecurityManager::UserPtr;
@@ -140,10 +143,10 @@ class TSecurityManager
 private:
     mutable TUserRegistry Users;
     std::string CliqueId;
-    NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
+    NNative::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
 
 public:
-    TSecurityManager(std::string cliqueId, NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+    TSecurityManager(std::string cliqueId, NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
     void loadFromConfig(Poco::Util::AbstractConfiguration& config) override;
 
@@ -167,7 +170,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(std::string cliqueId, NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+TSecurityManager::TSecurityManager(std::string cliqueId, NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
     : CliqueId(std::move(cliqueId))
     , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
 { }
@@ -222,10 +225,13 @@ void TSecurityManager::Authorize(
 
 std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
     std::string cliqueId,
-    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+    NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
 {
     return std::make_unique<TSecurityManager>(std::move(cliqueId), std::move(cliqueAuthorizationManager));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

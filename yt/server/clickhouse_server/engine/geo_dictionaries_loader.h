@@ -1,20 +1,22 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
 
 #include <memory>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string& geodataPath);
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

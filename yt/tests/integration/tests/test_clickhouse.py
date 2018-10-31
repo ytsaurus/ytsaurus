@@ -13,6 +13,7 @@ import psutil
 import subprocess
 import random
 
+"""
 @require_ytserver_root_privileges
 class TestClickhouse(YTEnvSetup):
     NUM_MASTERS = 1
@@ -169,3 +170,4 @@ class TestClickhouse(YTEnvSetup):
         result = self._make_query(clique, 'select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
         assert result["data"] == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
+"""

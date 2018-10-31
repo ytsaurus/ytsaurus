@@ -4,7 +4,7 @@
 #include "storage_with_virtual_columns.h"
 #include "table_schema.h"
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/table_partition.h>
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
@@ -12,17 +12,18 @@
 #include <Poco/Logger.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTablePartAllocation
 {
-    NInterop::TTablePart TablePart;
+    NNative::TTablePart TablePart;
     IClusterNodePtr TargetClusterNode;
 
     TTablePartAllocation(
-        NInterop::TTablePart part,
+        NNative::TTablePart part,
         IClusterNodePtr node)
         : TablePart(std::move(part))
         , TargetClusterNode(std::move(node))
@@ -40,14 +41,14 @@ class TStorageDistributed
     : public IStorageWithVirtualColumns
 {
 private:
-    const NInterop::IStoragePtr Storage;
+    const NNative::IStoragePtr Storage;
     const IExecutionClusterPtr Cluster;
     TTableSchema Schema;
 
     Poco::Logger* Logger;
 
 public:
-    TStorageDistributed(NInterop::IStoragePtr storage,
+    TStorageDistributed(NNative::IStoragePtr storage,
                         IExecutionClusterPtr cluster,
                         TTableSchema schema,
                         Poco::Logger* logger)
@@ -79,10 +80,10 @@ public:
         unsigned numStreams) override;
 
 protected:
-    virtual NInterop::TTablePartList GetTableParts(
+    virtual NNative::TTablePartList GetTableParts(
         const DB::ASTPtr& queryAst,
         const DB::Context& context,
-        NInterop::IRangeFilterPtr rangeFilter,
+        NNative::IRangeFilterPtr rangeFilter,
         const size_t maxParts) = 0;
 
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
@@ -90,7 +91,7 @@ protected:
         const std::string& jobSpec) = 0;
 
 protected:
-    const NInterop::IStoragePtr& GetStorage() const
+    const NNative::IStoragePtr& GetStorage() const
     {
         return Storage;
     }
@@ -121,7 +122,7 @@ private:
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context);
 
-    NInterop::IRangeFilterPtr CreateRangeFilter(
+    NNative::IRangeFilterPtr CreateRangeFilter(
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context);
 
@@ -143,6 +144,8 @@ private:
         DB::QueryProcessingStage::Enum processedStage);
 };
 
-} // namespace NClickHouse
-} // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

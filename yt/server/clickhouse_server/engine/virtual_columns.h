@@ -1,17 +1,21 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/system_columns.h>
 
 #include <Core/NamesAndTypes.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const DB::NamesAndTypesList& ListSystemVirtualColumns();
 
-NInterop::TSystemColumns GetSystemColumns(const DB::Names& names);
+NNative::TSystemColumns GetSystemColumns(const DB::Names& names);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

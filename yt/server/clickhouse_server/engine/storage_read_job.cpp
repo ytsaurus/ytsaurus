@@ -8,6 +8,10 @@
 #include "type_helpers.h"
 #include "virtual_columns.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+#include <yt/server/clickhouse_server/native/table_reader.h>
+#include <yt/server/clickhouse_server/native/table_schema.h>
+
 #include <Interpreters/Context.h>
 
 #include <Poco/Logger.h>
@@ -25,7 +29,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -35,14 +40,14 @@ class TStorageReadJob
     : public IStorageWithVirtualColumns
 {
 private:
-    const NInterop::IStoragePtr Storage;
+    const NNative::IStoragePtr Storage;
     const NamesAndTypesList Columns;
     const std::string JobSpec;
 
     Poco::Logger* Logger;
 
 public:
-    TStorageReadJob(NInterop::IStoragePtr storage,
+    TStorageReadJob(NNative::IStoragePtr storage,
                     NamesAndTypesList columns,
                     std::string jobSpec)
         : Storage(std::move(storage))
@@ -97,7 +102,7 @@ BlockInputStreams TStorageReadJob::read(
 
     auto token = CreateAuthToken(*Storage, context);
 
-    NInterop::TTableReaderOptions readerOptions;
+    NNative::TTableReaderOptions readerOptions;
     readerOptions.Unordered = true;
 
     auto tableReaders = Storage->CreateTableReaders(
@@ -119,8 +124,8 @@ BlockInputStreams TStorageReadJob::read(
 ////////////////////////////////////////////////////////////////////////////////
 
 StoragePtr CreateStorageReadJob(
-    NInterop::IStoragePtr storage,
-    NInterop::TTableList tables,
+    NNative::IStoragePtr storage,
+    NNative::TTableList tables,
     std::string jobSpec)
 {
     if (tables.empty()) {
@@ -138,5 +143,8 @@ StoragePtr CreateStorageReadJob(
         std::move(jobSpec));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

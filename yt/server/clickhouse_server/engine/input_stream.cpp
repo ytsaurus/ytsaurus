@@ -3,6 +3,8 @@
 #include "column_builder.h"
 #include "db_helpers.h"
 
+#include <yt/server/clickhouse_server/native/table_reader.h>
+
 #include <Core/Block.h>
 #include <DataStreams/IProfilingBlockInputStream.h>
 #include <DataTypes/DataTypeFactory.h>
@@ -12,7 +14,8 @@
 #include <vector>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -22,12 +25,12 @@ class TStorageInputStream
     : public IProfilingBlockInputStream
 {
 private:
-    const NInterop::ITableReaderPtr TableReader;
+    const NNative::ITableReaderPtr TableReader;
 
     const Block Sample;
 
 public:
-    TStorageInputStream(NInterop::ITableReaderPtr tableReader)
+    TStorageInputStream(NNative::ITableReaderPtr tableReader)
         : TableReader(std::move(tableReader))
         , Sample(PrepareBlock())
     {}
@@ -40,14 +43,14 @@ private:
     Block readImpl() override;
 
     Block PrepareBlock() const;
-    NInterop::TColumnBuilderList PrepareColumns(const Block& block) const;
+    NNative::TColumnBuilderList PrepareColumns(const Block& block) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string TStorageInputStream::getName() const
 {
-    const NInterop::TTableList& tables = TableReader->GetTables();
+    const NNative::TTableList& tables = TableReader->GetTables();
     if (tables.size() == 1) {
         return tables.front()->Name;
     } else {
@@ -81,10 +84,9 @@ Block TStorageInputStream::PrepareBlock() const
     return block;
 }
 
-NInterop::TColumnBuilderList TStorageInputStream::PrepareColumns(
-    const Block& block) const
+NNative::TColumnBuilderList TStorageInputStream::PrepareColumns(const Block& block) const
 {
-    NInterop::TColumnBuilderList columnBuilders;
+    NNative::TColumnBuilderList columnBuilders;
     columnBuilders.resize(block.columns());
 
     const auto& readerColumns = TableReader->GetColumns();
@@ -99,12 +101,14 @@ NInterop::TColumnBuilderList TStorageInputStream::PrepareColumns(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-BlockInputStreamPtr CreateStorageInputStream(
-    NInterop::ITableReaderPtr tableReader)
+BlockInputStreamPtr CreateStorageInputStream(NNative::ITableReaderPtr tableReader)
 {
     return std::make_shared<TStorageInputStream>(
         std::move(tableReader));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

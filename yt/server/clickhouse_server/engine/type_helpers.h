@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/core/misc/public.h>
 
 #include <Poco/Timestamp.h>
 
@@ -8,7 +8,8 @@
 #include <vector>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +38,8 @@ inline Poco::Timestamp ToTimestamp(TInstant t)
     return t.MicroSeconds();
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

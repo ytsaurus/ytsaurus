@@ -1,9 +1,12 @@
 #include "logger.h"
 
+#include <yt/server/clickhouse_server/native/logger.h>
+
 #include <util/system/thread.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,16 +14,16 @@ class TLogChannel
     : public Poco::Channel
 {
 private:
-    const NInterop::ILoggerPtr Logger;
+    const NNative::ILoggerPtr Logger;
 
 public:
-    TLogChannel(NInterop::ILoggerPtr logger)
+    TLogChannel(NNative::ILoggerPtr logger)
         : Logger(std::move(logger))
     {}
 
     void log(const Poco::Message& message) override
     {
-        NInterop::TLogEvent event;
+        NNative::TLogEvent event;
         event.Level = GetLogLevel(message.getPriority());
         event.Message = message.getText();
         event.Timestamp = TInstant::Now();
@@ -30,33 +33,36 @@ public:
     }
 
 private:
-    static NInterop::ELogLevel GetLogLevel(Poco::Message::Priority priority)
+    static NNative::ELogLevel GetLogLevel(Poco::Message::Priority priority)
     {
         switch (priority) {
             case Poco::Message::PRIO_FATAL:
             case Poco::Message::PRIO_CRITICAL:
-                return NInterop::ELogLevel::Fatal;
+                return NNative::ELogLevel::Fatal;
             case Poco::Message::PRIO_ERROR:
-                return NInterop::ELogLevel::Error;
+                return NNative::ELogLevel::Error;
             case Poco::Message::PRIO_WARNING:
-                return NInterop::ELogLevel::Warning;
+                return NNative::ELogLevel::Warning;
             case Poco::Message::PRIO_NOTICE:
             case Poco::Message::PRIO_INFORMATION:
-                return NInterop::ELogLevel::Info;
+                return NNative::ELogLevel::Info;
             case Poco::Message::PRIO_DEBUG:
-                return NInterop::ELogLevel::Debug;
+                return NNative::ELogLevel::Debug;
             case Poco::Message::PRIO_TRACE:
-                return NInterop::ELogLevel::Trace;
+                return NNative::ELogLevel::Trace;
         }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Channel> WrapToLogChannel(NInterop::ILoggerPtr logger)
+Poco::AutoPtr<Poco::Channel> WrapToLogChannel(NNative::ILoggerPtr logger)
 {
     return new TLogChannel(std::move(logger));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

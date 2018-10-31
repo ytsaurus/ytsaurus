@@ -1,7 +1,8 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
-#include <yt/server/clickhouse_server/server/public.h>
+#include <yt/server/clickhouse_server/native/public.h>
+
+#include <yt/server/clickhouse_server/engine/server.h>
 
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
@@ -18,14 +19,14 @@
 #include <util/generic/string.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
 {
 private:
-    const TConfigPtr Config;
+    const NNative::TConfigPtr Config;
     const NYTree::INodePtr ConfigNode;
     const TString XmlConfig;
     TString InstanceId_;
@@ -34,7 +35,6 @@ private:
     ui16 MonitoringPort_;
     ui16 TcpPort_;
     ui16 HttpPort_;
-
 
     NConcurrency::TActionQueuePtr ControlQueue;
 
@@ -45,30 +45,31 @@ private:
     ICoreDumperPtr CoreDumper;
 
     NApi::NNative::IConnectionPtr Connection;
-    INativeClientCachePtr NativeClientCache;
+    NNative::INativeClientCachePtr NativeClientCache;
     NConcurrency::IThroughputThrottlerPtr ScanThrottler;
 
-    NInterop::IStoragePtr Storage;
-    NInterop::ICoordinationServicePtr CoordinationService;
-    NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
-    NInterop::IServerPtr Server;
+    NNative::IStoragePtr Storage;
+    NNative::ICoordinationServicePtr CoordinationService;
+    NNative::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
+    std::unique_ptr<NEngine::TServer> Server;
 
 public:
-    TBootstrap(TConfigPtr config,
-               NYTree::INodePtr configNode,
-               TString xmlConfig,
-               TString instanceId,
-               TString cliqueId,
-               ui16 rpcPort,
-               ui16 monitoringPort,
-               ui16 tcpPort,
-               ui16 httpPort);
+    TBootstrap(
+        NNative::TConfigPtr config,
+        NYTree::INodePtr configNode,
+        TString xmlConfig,
+        TString instanceId,
+        TString cliqueId,
+        ui16 rpcPort,
+        ui16 monitoringPort,
+        ui16 tcpPort,
+        ui16 httpPort);
     ~TBootstrap();
 
     void Initialize();
     void Run();
 
-    TConfigPtr GetConfig() const;
+    NNative::TConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     NApi::NNative::IConnectionPtr GetConnection() const;
     NConcurrency::IThroughputThrottlerPtr GetScanThrottler() const;
@@ -78,5 +79,7 @@ private:
     void DoRun();
 };
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NClickHouseServer
+} // namespace NYT

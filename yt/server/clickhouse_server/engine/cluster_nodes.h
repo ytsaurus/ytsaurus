@@ -5,7 +5,10 @@
 #include <Interpreters/Context.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TClusterNodeName
 {
@@ -33,15 +36,16 @@ struct TClusterNodeName
     }
 };
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT
 
 namespace std {
 
 template <>
-struct hash<NYT::NClickHouse::TClusterNodeName>
+struct hash<NYT::NClickHouseServer::NEngine::TClusterNodeName>
 {
-    size_t operator()(const NYT::NClickHouse::TClusterNodeName& name) const
+    size_t operator()(const NYT::NClickHouseServer::NEngine::TClusterNodeName& name) const
     {
         return std::hash<std::string>()(name.Host);
     }
@@ -50,7 +54,8 @@ struct hash<NYT::NClickHouse::TClusterNodeName>
 }   // namespace std
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using TClusterNodeNames = std::unordered_set<TClusterNodeName>;
 
@@ -77,5 +82,8 @@ IClusterNodePtr CreateClusterNode(
     const DB::Settings& settings,
     uint64_t clickhouse_port);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

@@ -12,7 +12,8 @@
 #include <Parsers/queryToString.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -131,12 +132,12 @@ TTableAllocation TStorageDistributed::AllocateTablePartsToClusterNodes(
     return allocation;
 }
 
-NInterop::IRangeFilterPtr TStorageDistributed::CreateRangeFilter(
+NNative::IRangeFilterPtr TStorageDistributed::CreateRangeFilter(
     const SelectQueryInfo& queryInfo,
     const Context& context)
 {
     if (Schema.HasPrimaryKey()) {
-        return NYT::NClickHouse::CreateRangeFilter(
+        return NEngine::CreateRangeFilter(
             context,
             queryInfo,
             Schema);
@@ -223,5 +224,8 @@ BlockInputStreamPtr TStorageDistributed::CreateRemoteStream(
     return stream;
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

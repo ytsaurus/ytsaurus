@@ -15,10 +15,11 @@
 #include <util/string/cast.h>
 #include <util/system/rwlock.h>
 
-#include <memory>
+#include <memory>////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -36,7 +37,7 @@ using TClusterNodeTrackerPtr = std::shared_ptr<TClusterNodeTracker>;
 // and do not control its lifetime
 
 class TClusterDirectoryEventHandler
-    : public NInterop::INodeEventHandler
+    : public NNative::INodeEventHandler
 {
 private:
     TGuardedPtr<TClusterNodeTracker> Tracker;
@@ -48,7 +49,7 @@ public:
 
     void OnUpdate(
         const TString& path,
-        NInterop::TNodeRevision newRevision) override;
+        NNative::TNodeRevision newRevision) override;
 
     void OnRemove(const TString& path) override;
 
@@ -80,7 +81,7 @@ class TClusterNodeTracker
 {
     using TClusterNodeMap = std::unordered_map<TClusterNodeName, IClusterNodePtr>;
 private:
-    NInterop::IDirectoryPtr Directory;
+    NNative::IDirectoryPtr Directory;
     TClusterDirectoryEventHandlerPtr EventHandler{nullptr};
 
     TClusterNodeMap ClusterNodes;
@@ -93,7 +94,7 @@ private:
 
 public:
     TClusterNodeTracker(
-        NInterop::IDirectoryPtr directory,
+        NNative::IDirectoryPtr directory,
         uint64_t clickhousePort);
 
     void StartTrack(const Context& context) override;
@@ -106,20 +107,20 @@ public:
 
     // Notifications
 
-    void OnUpdate(NInterop::TNodeRevision newRevision);
+    void OnUpdate(NNative::TNodeRevision newRevision);
     void OnRemove();
     void OnError(const TString& errorMessage);
 
 private:
     TClusterDirectoryEventHandlerPtr CreateEventHandler();
-    TClusterNodeNames ProcessNodeList(NInterop::TDirectoryListing listing);
+    TClusterNodeNames ProcessNodeList(NNative::TDirectoryListing listing);
     void UpdateClusterNodes(const TClusterNodeNames& nodeNames);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterNodeTracker::TClusterNodeTracker(
-    NInterop::IDirectoryPtr directory,
+    NNative::IDirectoryPtr directory,
     uint64_t clickhousePort)
     : Directory(std::move(directory))
     , ClickHousePort_(clickhousePort)
@@ -150,7 +151,7 @@ TClusterNodeTicket TClusterNodeTracker::EnterCluster(const std::string& id, cons
 
     // Synchronously update cluster directory.
     LOG_DEBUG(Logger, "Forcing cluster directory update");
-    OnUpdate(static_cast<NInterop::TNodeRevision>(-2));
+    OnUpdate(static_cast<NNative::TNodeRevision>(-2));
     return result;
 }
 
@@ -177,11 +178,11 @@ TClusterNodes TClusterNodeTracker::GetAvailableNodes()
     return nodes;
 }
 
-void TClusterNodeTracker::OnUpdate(NInterop::TNodeRevision newRevision)
+void TClusterNodeTracker::OnUpdate(NNative::TNodeRevision newRevision)
 {
     LOG_DEBUG(Logger, "Cluster directory updated: new revision = " << newRevision);
 
-    NInterop::TDirectoryListing listing;
+    NNative::TDirectoryListing listing;
 
     try {
         listing = Directory->ListNodes();
@@ -220,7 +221,7 @@ TClusterDirectoryEventHandlerPtr TClusterNodeTracker::CreateEventHandler()
     return std::make_shared<TClusterDirectoryEventHandler>(shared_from_this());
 }
 
-TClusterNodeNames TClusterNodeTracker::ProcessNodeList(NInterop::TDirectoryListing listing)
+TClusterNodeNames TClusterNodeTracker::ProcessNodeList(NNative::TDirectoryListing listing)
 {
     LOG_INFO(
         Logger,
@@ -274,7 +275,7 @@ void TClusterNodeTracker::UpdateClusterNodes(const TClusterNodeNames& newNodeNam
 
 void TClusterDirectoryEventHandler::OnUpdate(
     const TString& /*path*/,
-    NInterop::TNodeRevision newRevision)
+    NNative::TNodeRevision newRevision)
 {
     if (auto tracker = Tracker.Lock()) {
         tracker->OnUpdate(newRevision);
@@ -306,8 +307,8 @@ void TClusterDirectoryEventHandler::Detach()
 ////////////////////////////////////////////////////////////////////////////////
 
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
-    NInterop::ICoordinationServicePtr coordinationService,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::ICoordinationServicePtr coordinationService,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string directoryPath,
     uint64_t clickhousePort)
 {
@@ -320,5 +321,6 @@ IClusterNodeTrackerPtr CreateClusterNodeTracker(
         clickhousePort);
 }
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

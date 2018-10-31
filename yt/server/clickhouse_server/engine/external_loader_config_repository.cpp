@@ -10,7 +10,8 @@
 #include <common/logger_useful.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,13 +85,16 @@ Poco::AutoPtr<Poco::Util::AbstractConfiguration> TExternalLoaderConfigRepository
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderConfigRepository(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string& path)
 {
     auto repository = CreateConfigRepository(std::move(storage), std::move(authToken), path);
     return std::make_unique<TExternalLoaderConfigRepository>(std::move(repository));
 }
 
-} // namespace NClickHouse
-} // namespace YT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

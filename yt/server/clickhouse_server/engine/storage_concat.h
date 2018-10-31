@@ -2,20 +2,24 @@
 
 #include "cluster_tracker.h"
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/table_reader.h>
 
 #include <Interpreters/Cluster.h>
 #include <Storages/IStorage.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageConcat(
-    NInterop::IStoragePtr storage,
-    NInterop::TTableList tables,
+    NNative::IStoragePtr storage,
+    NNative::TTableList tables,
     IExecutionClusterPtr cluster);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

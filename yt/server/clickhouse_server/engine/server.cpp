@@ -13,6 +13,8 @@
 #include "table_functions_concat.h"
 #include "tcp_handler.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
@@ -61,7 +63,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -85,15 +88,14 @@ std::string GetCanonicalPath(std::string path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServer
+class TServer::TImpl
     : public IServer
-    , public NInterop::IServer
 {
 private:
-    const NInterop::ILoggerPtr AppLogger;
-    const NInterop::IStoragePtr Storage;
-    const NInterop::ICoordinationServicePtr CoordinationService;
-    const NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
+    const NNative::ILoggerPtr AppLogger;
+    const NNative::IStoragePtr Storage;
+    const NNative::ICoordinationServicePtr CoordinationService;
+    const NNative::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
     const std::string ConfigFile;
     const std::string CliqueId_;
     const std::string InstanceId_;
@@ -102,7 +104,7 @@ private:
 
     IConfigPtr StaticBootstrapConfig;
 
-    NInterop::IAuthorizationTokenPtr ServerAuthToken;
+    NNative::IAuthorizationTokenPtr ServerAuthToken;
 
     IConfigManagerPtr ConfigManager;
 
@@ -126,15 +128,16 @@ private:
     std::atomic<bool> Cancelled { false };
 
 public:
-    TServer(NInterop::ILoggerPtr logger,
-            NInterop::IStoragePtr storage,
-            NInterop::ICoordinationServicePtr coordinationService,
-            NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-            std::string configFile,
-            std::string cliqueId,
-            std::string instanceId,
-            ui16 tcpPort,
-            ui16 httpPort)
+    TImpl(
+        NNative::ILoggerPtr logger,
+        NNative::IStoragePtr storage,
+        NNative::ICoordinationServicePtr coordinationService,
+        NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
+        std::string configFile,
+        std::string cliqueId,
+        std::string instanceId,
+        ui16 tcpPort,
+        ui16 httpPort)
         : AppLogger(std::move(logger))
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
@@ -146,8 +149,56 @@ public:
         , HttpPort_(httpPort)
     {}
 
-    void Start() override;
-    void Shutdown() override;
+    void Start()
+    {
+        SetupRootLogger();
+        LoadStaticBootstrapConfig();
+        CreateServerAuthToken();
+        SetupConfigurationManager();
+        SetupLoggers();
+        SetupExecutionClusterNodeTracker();
+        SetupContext();
+        WarmupDictionaries();
+        EnterExecutionCluster();
+        SetupHandlers();
+    }
+
+    void Shutdown()
+    {
+        ClusterNodeTicket->Release();
+        ExecutionClusterNodeTracker->StopTrack();
+
+        Poco::Logger* log = &logger();
+
+        Cancelled = true;
+
+        for (auto& server: Servers) {
+            server->stop();
+        }
+
+        Servers.clear();
+        ServerPool.reset();
+
+        AsynchronousMetrics.reset();
+        SessionCleaner.reset();
+
+        ConfigManager.reset();
+
+        // Ask to cancel background jobs all table engines, and also query_log.
+        // It is important to do early, not in destructor of Context, because
+        // table engines could use Context on destroy.
+        LOG_INFO(log, "Shutting down storages.");
+        Context->shutdown();
+        LOG_DEBUG(log, "Shutted down storages.");
+
+        // Explicitly destroy Context. It is more convenient than in destructor of Server,
+        // because logger is still available.
+        // At this moment, no one could own shared part of Context.
+        Context.reset();
+        LOG_DEBUG(log, "Destroyed global context.");
+
+        ExecutionClusterNodeTracker.reset();
+    }
 
     Poco::Logger& logger() const override
     {
@@ -170,364 +221,299 @@ public:
     }
 
 private:
-    void SetupRootLogger();
-    void LoadStaticBootstrapConfig();
-    void CreateServerAuthToken();
-    void SetupConfigurationManager();
-    void SetupLoggers();
-    void SetupExecutionClusterNodeTracker();
-    void SetupContext();
-    void WarmupDictionaries();
-    void SetupHandlers();
-    void EnterExecutionCluster();
+    void SetupRootLogger()
+    {
+        LogChannel = WrapToLogChannel(AppLogger);
+
+        auto& rootLogger = Poco::Logger::root();
+        rootLogger.close();
+        rootLogger.setChannel(LogChannel);
+
+        // default logging level during bootstrapping stage
+        rootLogger.setLevel("information");
+    }
+
+    void LoadStaticBootstrapConfig()
+    {
+        StaticBootstrapConfig = LoadConfigFromLocalFile(ConfigFile);
+    }
+
+    void CreateServerAuthToken()
+    {
+        auto serverUser = StaticBootstrapConfig->getString("auth.server_user");
+        auto* auth = Storage->AuthTokenService();
+        ServerAuthToken = CreateAuthToken(*auth, serverUser);
+    }
+
+    void SetupConfigurationManager()
+    {
+        ConfigManager = CreateConfigManager(StaticBootstrapConfig, Storage, ServerAuthToken);
+
+        Config = ConfigManager->LoadServerConfig();
+        UsersConfig = ConfigManager->LoadUsersConfig();
+        ClustersConfig = ConfigManager->LoadClustersConfig();
+    }
+
+    void SetupLoggers()
+    {
+        logger().setLevel(Config->getString("logger.level", "trace"));
+
+        Poco::Util::AbstractConfiguration::Keys levels;
+        Config->keys("logger.levels", levels);
+
+        for (auto it = levels.begin(); it != levels.end(); ++it) {
+            Logger::get(*it).setLevel(Config->getString("logger.levels." + *it, "trace"));
+        }
+    }
+
+    void SetupExecutionClusterNodeTracker()
+    {
+        LOG_INFO(&logger(), "Starting cluster node tracker...");
+
+        ExecutionClusterNodeTracker = CreateClusterNodeTracker(
+            CoordinationService,
+            ServerAuthToken,
+            Config->getString("cluster_discovery.directory_path"),
+            TcpPort_);
+    }
+
+    void SetupContext()
+    {
+        Poco::Logger* log = &logger();
+
+        auto storageHomePath = Config->getString("storage_home_path");
+
+        // Context contains all that query execution is dependent:
+        // settings, available functions, data types, aggregate functions, databases...
+        auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
+            Storage,
+            CliqueId_,
+            ServerAuthToken,
+            storageHomePath,
+            CliqueAuthorizationManager_);
+        Context = std::make_unique<DB::Context>(
+            Context::createGlobal(std::move(runtimeComponentsFactory)));
+        Context->setGlobalContext(*Context);
+        Context->setApplicationType(Context::ApplicationType::SERVER);
+
+        Context->setConfig(Config);
+        Context->setUsersConfig(UsersConfig);
+        Context->setClustersConfig(ClustersConfig);
+        ConfigManager->SubscribeToUpdates(Context.get());
+
+        registerFunctions();
+        registerAggregateFunctions();
+        registerTableFunctions();
+
+        RegisterTableFunctionsExt(Storage);
+        RegisterConcatenatingTableFunctions(Storage, ExecutionClusterNodeTracker);
+
+        RegisterTableDictionarySource(Storage, ServerAuthToken);
+
+        // Initialize DateLUT early, to not interfere with running time of first query.
+        LOG_DEBUG(log, "Initializing DateLUT.");
+        DateLUT::instance();
+        LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
+
+        // Limit on total number of concurrently executed queries.
+        Context->getProcessList().setMaxSize(Config->getInt("max_concurrent_queries", 0));
+
+        // Size of cache for uncompressed blocks. Zero means disabled.
+        size_t uncompressedCacheSize = Config->getUInt64("uncompressed_cache_size", 0);
+        if (uncompressedCacheSize) {
+            Context->setUncompressedCache(uncompressedCacheSize);
+        }
+
+        // Load global settings from default profile.
+        //std::string defaultProfileName = Config->getString("default_profile", "default");
+        //Context->setDefaultProfileName(defaultProfileName);
+        //Context->setSetting("profile", defaultProfileName);
+        Context->setDefaultProfiles(*Config);
+
+        std::string path = GetCanonicalPath(Config->getString("path"));
+        Poco::File(path).createDirectories();
+        Context->setPath(path);
+
+        // Directory with temporary data for processing of hard queries.
+        {
+            std::string tmpPath = Config->getString("tmp_path", path + "tmp/");
+            Poco::File(tmpPath).createDirectories();
+            Context->setTemporaryPath(tmpPath);
+
+            // Clearing old temporary files.
+            for (Poco::DirectoryIterator it(tmpPath), end; it != end; ++it) {
+                if (it->isFile() && startsWith(it.name(), "tmp")) {
+                    LOG_DEBUG(log, "Removing old temporary file " << it->path());
+                    it->remove();
+                }
+            }
+        }
+
+#if defined(COLLECT_ASYNCHRONUS_METRICS)
+        // This object will periodically calculate some metrics.
+        AsynchronousMetrics.reset(new DB::AsynchronousMetrics(*Context));
+#endif
+
+        // This object will periodically cleanup sessions.
+        SessionCleaner.reset(new DB::SessionCleaner(*Context));
+
+        // Database for system tables.
+        {
+            auto systemDatabase = std::make_shared<DatabaseMemory>("system");
+
+            AttachSystemTables(*systemDatabase, ExecutionClusterNodeTracker);
+
+            if (AsynchronousMetrics) {
+                attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
+            }
+
+            Context->addDatabase("system", systemDatabase);
+        }
+
+        // Default database that wraps connection to YT cluster.
+        {
+            auto defaultDatabase = CreateDatabase(Storage, ExecutionClusterNodeTracker);
+            LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
+            Context->addDatabase("default", defaultDatabase);
+            Context->addDatabase(CliqueId_, defaultDatabase);
+        }
+
+        std::string defaultDatabase = Config->getString("default_database", "default");
+        Context->setCurrentDatabase(defaultDatabase);
+    }
+
+    void WarmupDictionaries()
+    {
+        Context->getEmbeddedDictionaries();
+        Context->getExternalDictionaries();
+    }
+
+    void SetupHandlers()
+    {
+        Poco::Logger* log = &logger();
+
+        const auto& settings = Context->getSettingsRef();
+
+        ServerPool = std::make_unique<Poco::ThreadPool>(3, Config->getInt("max_connections", 1024));
+
+        auto listenHosts = DB::getMultipleValuesFromConfig(*Config, "", "listen_host");
+
+        bool tryListen = false;
+        if (listenHosts.empty()) {
+            listenHosts.emplace_back("::1");
+            listenHosts.emplace_back("127.0.0.1");
+            tryListen = true;
+        }
+
+        auto makeSocketAddress = [&] (const std::string& host, UInt16 port) {
+            Poco::Net::SocketAddress socketAddress;
+            try {
+                socketAddress = Poco::Net::SocketAddress(host, port);
+            } catch (const Poco::Net::DNSException& e) {
+                if (e.code() == EAI_FAMILY
+#if defined(EAI_ADDRFAMILY)
+                    || e.code() == EAI_ADDRFAMILY
+#endif
+                    )
+                {
+                    LOG_ERROR(log,
+                        "Cannot resolve listen_host (" << host << "), error: " << e.message() << ". "
+                        "If it is an IPv6 address and your host has disabled IPv6, then consider to "
+                        "specify IPv4 address to listen in <listen_host> element of configuration "
+                        "file. Example: <listen_host>0.0.0.0</listen_host>");
+                }
+
+                throw;
+            }
+            return socketAddress;
+        };
+
+        for (const auto& listenHost: listenHosts) {
+            try {
+                // HTTP
+                {
+                    auto socketAddress = makeSocketAddress(listenHost, HttpPort_);
+
+                    Poco::Net::ServerSocket socket(socketAddress);
+                    socket.setReceiveTimeout(settings.receive_timeout);
+                    socket.setSendTimeout(settings.send_timeout);
+
+                    Poco::Timespan keepAliveTimeout(Config->getInt("keep_alive_timeout", 10), 0);
+
+                    Poco::Net::HTTPServerParams::Ptr httpParams = new Poco::Net::HTTPServerParams();
+                    httpParams->setTimeout(settings.receive_timeout);
+                    httpParams->setKeepAliveTimeout(keepAliveTimeout);
+
+                    Servers.emplace_back(new Poco::Net::HTTPServer(
+                        CreateHttpHandlerFactory(*this),
+                        *ServerPool,
+                        socket,
+                        httpParams));
+
+                    LOG_INFO(log, "Listening http://" + socketAddress.toString());
+                }
+
+                // TCP
+                {
+                    auto socketAddress = makeSocketAddress(listenHost, TcpPort_);
+
+                    Poco::Net::ServerSocket socket(socketAddress);
+                    socket.setReceiveTimeout(settings.receive_timeout);
+                    socket.setSendTimeout(settings.send_timeout);
+
+                    Servers.emplace_back(new Poco::Net::TCPServer(
+                        CreateTcpHandlerFactory(*this),
+                        *ServerPool,
+                        socket,
+                        new Poco::Net::TCPServerParams()));
+
+                    LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
+                }
+            } catch (const Poco::Net::NetException& e) {
+                if (!(tryListen && e.code() == POCO_EPROTONOSUPPORT)) {
+                    throw;
+                }
+
+                LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
+                    << "  If it is an IPv6 or IPv4 address and your host has disabled IPv6 or IPv4, then consider to "
+                    "specify not disabled IPv4 or IPv6 address to listen in <listen_host> element of configuration "
+                    "file. Example for disabled IPv6: <listen_host>0.0.0.0</listen_host> ."
+                    " Example for disabled IPv4: <listen_host>::</listen_host>");
+            }
+        }
+
+        for (auto& server: Servers) {
+            server->start();
+        }
+
+        LOG_INFO(log, "Ready for connections.");
+    }
+
+    void EnterExecutionCluster()
+    {
+        ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
+            InstanceId_,
+            Config->getString("interconnect_hostname", GetFQDNHostName()),
+            TcpPort_,
+            HttpPort_);
+
+        ExecutionClusterNodeTracker->StartTrack(*Context);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TServer::Start()
-{
-    SetupRootLogger();
-    LoadStaticBootstrapConfig();
-    CreateServerAuthToken();
-    SetupConfigurationManager();
-    SetupLoggers();
-    SetupExecutionClusterNodeTracker();
-    SetupContext();
-    WarmupDictionaries();
-    EnterExecutionCluster();
-    SetupHandlers();
-}
-
-void TServer::SetupRootLogger()
-{
-    LogChannel = WrapToLogChannel(AppLogger);
-
-    auto& rootLogger = Poco::Logger::root();
-    rootLogger.close();
-    rootLogger.setChannel(LogChannel);
-
-    // default logging level during bootstrapping stage
-    rootLogger.setLevel("information");
-}
-
-void TServer::LoadStaticBootstrapConfig()
-{
-    StaticBootstrapConfig = LoadConfigFromLocalFile(ConfigFile);
-}
-
-void TServer::CreateServerAuthToken()
-{
-    auto serverUser = StaticBootstrapConfig->getString("auth.server_user");
-    auto* auth = Storage->AuthTokenService();
-    ServerAuthToken = CreateAuthToken(*auth, serverUser);
-}
-
-void TServer::SetupConfigurationManager()
-{
-    ConfigManager = CreateConfigManager(StaticBootstrapConfig, Storage, ServerAuthToken);
-
-    Config = ConfigManager->LoadServerConfig();
-    UsersConfig = ConfigManager->LoadUsersConfig();
-    ClustersConfig = ConfigManager->LoadClustersConfig();
-}
-
-void TServer::SetupLoggers()
-{
-    logger().setLevel(Config->getString("logger.level", "trace"));
-
-    Poco::Util::AbstractConfiguration::Keys levels;
-    Config->keys("logger.levels", levels);
-
-    for (auto it = levels.begin(); it != levels.end(); ++it) {
-        Logger::get(*it).setLevel(Config->getString("logger.levels." + *it, "trace"));
-    }
-}
-
-void TServer::SetupExecutionClusterNodeTracker()
-{
-    LOG_INFO(&logger(), "Starting cluster node tracker...");
-
-    ExecutionClusterNodeTracker = CreateClusterNodeTracker(
-        CoordinationService,
-        ServerAuthToken,
-        Config->getString("cluster_discovery.directory_path"),
-        TcpPort_);
-}
-
-void TServer::SetupContext()
-{
-    Poco::Logger* log = &logger();
-
-    auto storageHomePath = Config->getString("storage_home_path");
-
-    // Context contains all that query execution is dependent:
-    // settings, available functions, data types, aggregate functions, databases...
-    auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
-        Storage,
-        CliqueId_,
-        ServerAuthToken,
-        storageHomePath,
-        CliqueAuthorizationManager_);
-    Context = std::make_unique<DB::Context>(
-        Context::createGlobal(std::move(runtimeComponentsFactory)));
-    Context->setGlobalContext(*Context);
-    Context->setApplicationType(Context::ApplicationType::SERVER);
-
-    Context->setConfig(Config);
-    Context->setUsersConfig(UsersConfig);
-    Context->setClustersConfig(ClustersConfig);
-    ConfigManager->SubscribeToUpdates(Context.get());
-
-    registerFunctions();
-    registerAggregateFunctions();
-    registerTableFunctions();
-
-    RegisterTableFunctionsExt(Storage);
-    RegisterConcatenatingTableFunctions(Storage, ExecutionClusterNodeTracker);
-
-    RegisterTableDictionarySource(Storage, ServerAuthToken);
-
-    // Initialize DateLUT early, to not interfere with running time of first query.
-    LOG_DEBUG(log, "Initializing DateLUT.");
-    DateLUT::instance();
-    LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
-
-    // Limit on total number of concurrently executed queries.
-    Context->getProcessList().setMaxSize(Config->getInt("max_concurrent_queries", 0));
-
-    // Size of cache for uncompressed blocks. Zero means disabled.
-    size_t uncompressedCacheSize = Config->getUInt64("uncompressed_cache_size", 0);
-    if (uncompressedCacheSize) {
-        Context->setUncompressedCache(uncompressedCacheSize);
-    }
-
-    // Load global settings from default profile.
-    //std::string defaultProfileName = Config->getString("default_profile", "default");
-    //Context->setDefaultProfileName(defaultProfileName);
-    //Context->setSetting("profile", defaultProfileName);
-    Context->setDefaultProfiles(*Config);
-
-    std::string path = GetCanonicalPath(Config->getString("path"));
-    Poco::File(path).createDirectories();
-    Context->setPath(path);
-
-    // Directory with temporary data for processing of hard queries.
-    {
-        std::string tmpPath = Config->getString("tmp_path", path + "tmp/");
-        Poco::File(tmpPath).createDirectories();
-        Context->setTemporaryPath(tmpPath);
-
-        // Clearing old temporary files.
-        for (Poco::DirectoryIterator it(tmpPath), end; it != end; ++it) {
-            if (it->isFile() && startsWith(it.name(), "tmp")) {
-                LOG_DEBUG(log, "Removing old temporary file " << it->path());
-                it->remove();
-            }
-        }
-    }
-
-#if defined(COLLECT_ASYNCHRONUS_METRICS)
-    // This object will periodically calculate some metrics.
-    AsynchronousMetrics.reset(new DB::AsynchronousMetrics(*Context));
-#endif
-
-    // This object will periodically cleanup sessions.
-    SessionCleaner.reset(new DB::SessionCleaner(*Context));
-
-    // Database for system tables.
-    {
-        auto systemDatabase = std::make_shared<DatabaseMemory>("system");
-
-        AttachSystemTables(*systemDatabase, ExecutionClusterNodeTracker);
-
-        if (AsynchronousMetrics) {
-            attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
-        }
-
-        Context->addDatabase("system", systemDatabase);
-    }
-
-    // Default database that wraps connection to YT cluster.
-    {
-        auto defaultDatabase = CreateDatabase(Storage, ExecutionClusterNodeTracker);
-        LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
-        Context->addDatabase("default", defaultDatabase);
-        Context->addDatabase(CliqueId_, defaultDatabase);
-    }
-
-    std::string defaultDatabase = Config->getString("default_database", "default");
-    Context->setCurrentDatabase(defaultDatabase);
-}
-
-void TServer::WarmupDictionaries()
-{
-    Context->getEmbeddedDictionaries();
-    Context->getExternalDictionaries();
-}
-
-void TServer::SetupHandlers()
-{
-    Poco::Logger* log = &logger();
-
-    const auto& settings = Context->getSettingsRef();
-
-    ServerPool = std::make_unique<Poco::ThreadPool>(3, Config->getInt("max_connections", 1024));
-
-    auto listenHosts = DB::getMultipleValuesFromConfig(*Config, "", "listen_host");
-
-    bool tryListen = false;
-    if (listenHosts.empty()) {
-        listenHosts.emplace_back("::1");
-        listenHosts.emplace_back("127.0.0.1");
-        tryListen = true;
-    }
-
-    auto makeSocketAddress = [&] (const std::string& host, UInt16 port) {
-        Poco::Net::SocketAddress socketAddress;
-        try {
-            socketAddress = Poco::Net::SocketAddress(host, port);
-        } catch (const Poco::Net::DNSException& e) {
-            if (e.code() == EAI_FAMILY
-#if defined(EAI_ADDRFAMILY)
-                || e.code() == EAI_ADDRFAMILY
-#endif
-                )
-            {
-                LOG_ERROR(log,
-                    "Cannot resolve listen_host (" << host << "), error: " << e.message() << ". "
-                    "If it is an IPv6 address and your host has disabled IPv6, then consider to "
-                    "specify IPv4 address to listen in <listen_host> element of configuration "
-                    "file. Example: <listen_host>0.0.0.0</listen_host>");
-            }
-
-            throw;
-        }
-        return socketAddress;
-    };
-
-    for (const auto& listenHost: listenHosts) {
-        try {
-            // HTTP
-            {
-                auto socketAddress = makeSocketAddress(listenHost, HttpPort_);
-
-                Poco::Net::ServerSocket socket(socketAddress);
-                socket.setReceiveTimeout(settings.receive_timeout);
-                socket.setSendTimeout(settings.send_timeout);
-
-                Poco::Timespan keepAliveTimeout(Config->getInt("keep_alive_timeout", 10), 0);
-
-                Poco::Net::HTTPServerParams::Ptr httpParams = new Poco::Net::HTTPServerParams();
-                httpParams->setTimeout(settings.receive_timeout);
-                httpParams->setKeepAliveTimeout(keepAliveTimeout);
-
-                Servers.emplace_back(new Poco::Net::HTTPServer(
-                    CreateHttpHandlerFactory(*this),
-                    *ServerPool,
-                    socket,
-                    httpParams));
-
-                LOG_INFO(log, "Listening http://" + socketAddress.toString());
-            }
-
-            // TCP
-            {
-                auto socketAddress = makeSocketAddress(listenHost, TcpPort_);
-
-                Poco::Net::ServerSocket socket(socketAddress);
-                socket.setReceiveTimeout(settings.receive_timeout);
-                socket.setSendTimeout(settings.send_timeout);
-
-                Servers.emplace_back(new Poco::Net::TCPServer(
-                    CreateTcpHandlerFactory(*this),
-                    *ServerPool,
-                    socket,
-                    new Poco::Net::TCPServerParams()));
-
-                LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
-            }
-        } catch (const Poco::Net::NetException& e) {
-            if (!(tryListen && e.code() == POCO_EPROTONOSUPPORT)) {
-                throw;
-            }
-
-            LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
-                << "  If it is an IPv6 or IPv4 address and your host has disabled IPv6 or IPv4, then consider to "
-                "specify not disabled IPv4 or IPv6 address to listen in <listen_host> element of configuration "
-                "file. Example for disabled IPv6: <listen_host>0.0.0.0</listen_host> ."
-                " Example for disabled IPv4: <listen_host>::</listen_host>");
-        }
-    }
-
-    for (auto& server: Servers) {
-        server->start();
-    }
-
-    LOG_INFO(log, "Ready for connections.");
-}
-
-void TServer::EnterExecutionCluster()
-{
-    ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
-        InstanceId_,
-        Config->getString("interconnect_hostname", GetFQDNHostName()),
-        TcpPort_,
-        HttpPort_);
-
-    ExecutionClusterNodeTracker->StartTrack(*Context);
-}
-
-void TServer::Shutdown()
-{
-    ClusterNodeTicket->Release();
-    ExecutionClusterNodeTracker->StopTrack();
-
-    Poco::Logger* log = &logger();
-
-    Cancelled = true;
-
-    for (auto& server: Servers) {
-        server->stop();
-    }
-
-    Servers.clear();
-    ServerPool.reset();
-
-    AsynchronousMetrics.reset();
-    SessionCleaner.reset();
-
-    ConfigManager.reset();
-
-    // Ask to cancel background jobs all table engines, and also query_log.
-    // It is important to do early, not in destructor of Context, because
-    // table engines could use Context on destroy.
-    LOG_INFO(log, "Shutting down storages.");
-    Context->shutdown();
-    LOG_DEBUG(log, "Shutted down storages.");
-
-    // Explicitly destroy Context. It is more convenient than in destructor of Server,
-    // because logger is still available.
-    // At this moment, no one could own shared part of Context.
-    Context.reset();
-    LOG_DEBUG(log, "Destroyed global context.");
-
-    ExecutionClusterNodeTracker.reset();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-NInterop::IServerPtr CreateServer(
-    NInterop::ILoggerPtr logger,
-    NInterop::IStoragePtr storage,
-    NInterop::ICoordinationServicePtr coordinationService,
-    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
+TServer::TServer(
+    NNative::ILoggerPtr logger,
+    NNative::IStoragePtr storage,
+    NNative::ICoordinationServicePtr coordinationService,
+    NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
     std::string configFile,
     std::string cliqueId,
     std::string instanceId,
     ui16 tcpPort,
     ui16 httpPort)
-{
-    return std::make_shared<TServer>(
+    : Impl_(std::make_unique<TImpl>(
         std::move(logger),
         std::move(storage),
         std::move(coordinationService),
@@ -536,8 +522,23 @@ NInterop::IServerPtr CreateServer(
         std::move(cliqueId),
         std::move(instanceId),
         tcpPort,
-        httpPort);
+        httpPort))
+{ }
+
+void TServer::Start()
+{
+    Impl_->Start();
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+void TServer::Shutdown()
+{
+    Impl_->Shutdown();
+}
+
+TServer::~TServer() = default;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT
