@@ -1014,7 +1014,7 @@ private:
     THashMap<TLogWritersCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
-    volatile bool ReopenRequested_ = false;
+    std::atomic<bool> ReopenRequested_ = {false};
     std::atomic<bool> ShutdownRequested_ = {false};
 
     TPeriodicExecutorPtr FlushExecutor_;
