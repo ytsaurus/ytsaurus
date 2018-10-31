@@ -65,15 +65,11 @@ int main(int argc, const char** argv)
     auto opResult = op->Watch();
     opResult.Wait();
 
-    try {
-        opResult.GetValue();
-        Y_FAIL("Operation was expected to throw");
-    } catch (const TOperationFailedError& ) {
-    }
+    UNIT_ASSERT_EXCEPTION(opResult.GetValue(), TOperationFailedError);
 
     auto failedJobInfo = op->GetFailedJobInfo();
-    Y_VERIFY(failedJobInfo.size() == 1);
+    UNIT_ASSERT_VALUES_EQUAL(failedJobInfo.size(), 1);
     TString expectedString = "Inside mapper\nInside JobOnExitFunction\n";
-    Y_VERIFY(failedJobInfo[0].Stderr == expectedString, "%s != %s", ~failedJobInfo[0].Stderr, ~expectedString);
+    UNIT_ASSERT_VALUES_EQUAL(failedJobInfo[0].Stderr, expectedString);
     return 0;
 }
