@@ -197,7 +197,7 @@ protected:
         TNullable<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication* newReplication);
 
-    void SetModified();
+    void SetModified(EModificationType modificationType = EModificationType::Content);
     void SuppressModificationTracking();
 
     void SetAccessed();

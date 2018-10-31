@@ -88,7 +88,8 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetParent(originatingNode->GetParent());
     branchedNode->SetCreationTime(originatingNode->GetCreationTime());
     branchedNode->SetModificationTime(originatingNode->GetModificationTime());
-    branchedNode->SetRevision(originatingNode->GetRevision());
+    branchedNode->SetAttributesRevision(originatingNode->GetAttributesRevision());
+    branchedNode->SetContentRevision(originatingNode->GetContentRevision());
     branchedNode->SetLockMode(lockRequest.Mode);
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
@@ -124,7 +125,8 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
     originatingNode->SetModificationTime(mutationContext->GetTimestamp());
-    originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
+    originatingNode->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
+    originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
 }
 
 TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(

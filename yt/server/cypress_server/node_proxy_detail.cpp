@@ -141,7 +141,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     auto* userAttributes = node->GetMutableAttributes();
     userAttributes->Attributes()[key] = value;
 
-    Proxy_->SetModified();
+    Proxy_->SetModified(EModificationType::Attributes);
 }
 
 bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
@@ -185,7 +185,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
         userAttributes->Attributes()[key] = TYsonString();
     }
 
-    Proxy_->SetModified();
+    Proxy_->SetModified(EModificationType::Attributes);
     return true;
 }
 
@@ -533,6 +533,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(EInternedAttributeKey::AccessTime);
     descriptors->push_back(EInternedAttributeKey::AccessCounter);
     descriptors->push_back(EInternedAttributeKey::Revision);
+    descriptors->push_back(EInternedAttributeKey::AttributesRevision);
+    descriptors->push_back(EInternedAttributeKey::ContentRevision);
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
         .SetOpaque(true));
@@ -659,6 +661,16 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         case EInternedAttributeKey::Revision:
             BuildYsonFluently(consumer)
                 .Value(node->GetRevision());
+            return true;
+
+        case EInternedAttributeKey::AttributesRevision:
+            BuildYsonFluently(consumer)
+                .Value(node->GetAttributesRevision());
+            return true;
+
+        case EInternedAttributeKey::ContentRevision:
+            BuildYsonFluently(consumer)
+                .Value(node->GetContentRevision());
             return true;
 
         case EInternedAttributeKey::ResourceUsage: {
@@ -1111,11 +1123,11 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
     return true;
 }
 
-void TNontemplateCypressNodeProxyBase::SetModified()
+void TNontemplateCypressNodeProxyBase::SetModified(EModificationType modificationType)
 {
     if (TrunkNode->IsAlive() && !ModificationTrackingSuppressed) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetModified(TrunkNode, Transaction);
+        cypressManager->SetModified(TrunkNode, Transaction, modificationType);
     }
 }
 
