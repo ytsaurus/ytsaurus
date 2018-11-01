@@ -15,14 +15,6 @@ namespace NTesting {
         MOCK_METHOD2(Remove, void(const TYPath&, const TRemoveOptions&));
         MOCK_METHOD1(Exists, bool(const TYPath&));
         MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
-        MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
-        MOCK_METHOD1(ListOperations, TListOperationsResult(const TListOperationsOptions&));
-        MOCK_METHOD2(UpdateOperationParameters, void(const TOperationId&, const TUpdateOperationParametersOptions&));
-        MOCK_METHOD3(GetJob, TJobAttributes(const TOperationId&, const TJobId&, const TGetJobOptions&));
-        MOCK_METHOD2(ListJobs, TListJobsResult(const TOperationId&, const TListJobsOptions&));
-        MOCK_METHOD2(GetJobInput, IFileReaderPtr(const TJobId&, const TGetJobInputOptions&));
-        MOCK_METHOD3(GetJobFailContext, IFileReaderPtr(const TOperationId&, const TJobId&, const TGetJobFailContextOptions&));
-        MOCK_METHOD3(GetJobStderr, IFileReaderPtr(const TOperationId&, const TJobId&, const TGetJobStderrOptions&));
         MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
         MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));
         MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));
@@ -86,6 +78,16 @@ namespace NTesting {
         MOCK_METHOD2(AlterTableReplica, void(const TReplicaId& replicaid, const TAlterTableReplicaOptions&));
 
         MOCK_METHOD0(WhoAmI, TAuthorizationInfo());
+
+        MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
+        MOCK_METHOD1(ListOperations, TListOperationsResult(const TListOperationsOptions&));
+        MOCK_METHOD2(UpdateOperationParameters, void(const TOperationId&, const TUpdateOperationParametersOptions&));
+        MOCK_METHOD3(GetJob, TJobAttributes(const TOperationId&, const TJobId&, const TGetJobOptions&));
+        MOCK_METHOD2(ListJobs, TListJobsResult(const TOperationId&, const TListJobsOptions&));
+        MOCK_METHOD2(GetJobInput, IFileReaderPtr(const TJobId&, const TGetJobInputOptions&));
+        MOCK_METHOD3(GetJobFailContext, IFileReaderPtr(const TOperationId&, const TJobId&, const TGetJobFailContextOptions&));
+        MOCK_METHOD3(GetJobStderr, IFileReaderPtr(const TOperationId&, const TJobId&, const TGetJobStderrOptions&));
+
         MOCK_METHOD0(GetParentClient, IClientPtr());
     };
 
@@ -98,10 +100,6 @@ namespace NTesting {
         MOCK_METHOD2(Remove, void(const TYPath&, const TRemoveOptions&));
         MOCK_METHOD1(Exists, bool(const TYPath&));
         MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
-        MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
-        MOCK_METHOD2(UpdateOperationParameters, void(const TOperationId&, const TUpdateOperationParametersOptions&));
-        MOCK_METHOD3(GetJob, TJobAttributes(const TOperationId&, const TJobId&, const TGetJobOptions&));
-        MOCK_METHOD2(ListJobs, TListJobsResult(const TOperationId&, const TListJobsOptions&));
         MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
         MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));
         MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));
@@ -153,6 +151,7 @@ namespace NTesting {
         MOCK_METHOD0(Commit, void());
         MOCK_METHOD0(Abort, void());
         MOCK_METHOD0(Ping, void());
+
         MOCK_METHOD0(GetParentClient, IClientPtr());
     };
 

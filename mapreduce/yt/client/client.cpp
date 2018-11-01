@@ -453,64 +453,6 @@ void TClientBase::WaitForOperation(const TOperationId& operationId)
     NYT::NDetail::WaitForOperation(Auth_, operationId);
 }
 
-TOperationAttributes TClientBase::GetOperation(
-    const TOperationId& operationId,
-    const TGetOperationOptions& options)
-{
-    return NYT::NDetail::GetOperation(Auth_, operationId, options);
-}
-
-TListOperationsResult TClientBase::ListOperations(
-    const TListOperationsOptions& options)
-{
-    return NYT::NDetail::ListOperations(Auth_, options);
-}
-
-void TClientBase::UpdateOperationParameters(
-    const TOperationId& operationId,
-    const TUpdateOperationParametersOptions& options)
-{
-    return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, options);
-}
-
-TJobAttributes TClientBase::GetJob(
-    const TOperationId& operationId,
-    const TJobId& jobId,
-    const TGetJobOptions& options)
-{
-    return NYT::NDetail::GetJob(Auth_, operationId, jobId, options);
-}
-
-TListJobsResult TClientBase::ListJobs(
-    const TOperationId& operationId,
-    const TListJobsOptions& options)
-{
-    return NYT::NDetail::ListJobs(Auth_, operationId, options);
-}
-
-IFileReaderPtr TClientBase::GetJobInput(
-    const TJobId& jobId,
-    const TGetJobInputOptions& options)
-{
-    return NYT::NDetail::GetJobInput(Auth_, jobId, options);
-}
-
-IFileReaderPtr TClientBase::GetJobFailContext(
-    const TOperationId& operationId,
-    const TJobId& jobId,
-    const TGetJobFailContextOptions& options)
-{
-    return NYT::NDetail::GetJobFailContext(Auth_, operationId, jobId, options);
-}
-
-IFileReaderPtr TClientBase::GetJobStderr(
-    const TOperationId& operationId,
-    const TJobId& jobId,
-    const TGetJobStderrOptions& options)
-{
-    return NYT::NDetail::GetJobStderr(Auth_, operationId, jobId, options);
-}
-
 void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
@@ -938,6 +880,64 @@ TAuthorizationInfo TClient::WhoAmI()
     result.Login = jsonValue["login"].GetString();
     result.Realm = jsonValue["realm"].GetString();
     return result;
+}
+
+TOperationAttributes TClient::GetOperation(
+    const TOperationId& operationId,
+    const TGetOperationOptions& options)
+{
+    return NYT::NDetail::GetOperation(Auth_, operationId, options);
+}
+
+TListOperationsResult TClient::ListOperations(
+    const TListOperationsOptions& options)
+{
+    return NYT::NDetail::ListOperations(Auth_, options);
+}
+
+void TClient::UpdateOperationParameters(
+    const TOperationId& operationId,
+    const TUpdateOperationParametersOptions& options)
+{
+    return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, options);
+}
+
+TJobAttributes TClient::GetJob(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& options)
+{
+    return NYT::NDetail::GetJob(Auth_, operationId, jobId, options);
+}
+
+TListJobsResult TClient::ListJobs(
+    const TOperationId& operationId,
+    const TListJobsOptions& options)
+{
+    return NYT::NDetail::ListJobs(Auth_, operationId, options);
+}
+
+IFileReaderPtr TClient::GetJobInput(
+    const TJobId& jobId,
+    const TGetJobInputOptions& options)
+{
+    return NYT::NDetail::GetJobInput(Auth_, jobId, options);
+}
+
+IFileReaderPtr TClient::GetJobFailContext(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobFailContextOptions& options)
+{
+    return NYT::NDetail::GetJobFailContext(Auth_, operationId, jobId, options);
+}
+
+IFileReaderPtr TClient::GetJobStderr(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& options)
+{
+    return NYT::NDetail::GetJobStderr(Auth_, operationId, jobId, options);
 }
 
 TYtPoller& TClient::GetYtPoller()
