@@ -55,7 +55,9 @@
 #define MADV_FREE 8
 #endif
 
+#ifndef NDEBUG
 #define PARANOID
+#endif
 
 #ifdef PARANOID
 #define PARANOID_CHECK(condition) YCHECK(condition)
