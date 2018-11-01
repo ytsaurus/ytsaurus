@@ -122,22 +122,29 @@ class TestEventLog(YTEnvSetup):
         assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
         # wait for scheduler to dump the event log
-        time.sleep(2)
-        res = read_table("//sys/scheduler/event_log")
-        event_types = __builtin__.set()
-        for item in res:
-            event_types.add(item["event_type"])
-            if item["event_type"] == "job_completed":
-                stats = item["statistics"]
-                user_time = get_statistics(stats, "user_job.cpu.user")
-                # our job should burn enough cpu
-                assert user_time > 0
-            if item["event_type"] == "job_started":
-                limits = item["resource_limits"]
-                assert limits["cpu"] > 0
-                assert limits["user_memory"] > 0
-                assert limits["user_slots"] > 0
-        assert "operation_started" in event_types
+        def check():
+            res = read_table("//sys/scheduler/event_log")
+            event_types = __builtin__.set()
+            for item in res:
+                event_types.add(item["event_type"])
+                if item["event_type"] == "job_completed":
+                    stats = item["statistics"]
+                    user_time = get_statistics(stats, "user_job.cpu.user")
+                    # our job should burn enough cpu
+                    if  user_time == 0:
+                        return False
+                if item["event_type"] == "job_started":
+                    limits = item["resource_limits"]
+                    if limits["cpu"] == 0:
+                        return False
+                    if limits["user_memory"] == 0:
+                        return False
+                    if limits["user_slots"] == 0:
+                        return False
+            if "operation_started" not in event_types:
+                return False
+            return True
+        wait(check)
 
     def test_scheduler_event_log_buffering(self):
         create("table", "//tmp/t1")
@@ -160,12 +167,14 @@ class TestEventLog(YTEnvSetup):
 
         op.track()
 
-        time.sleep(2)
-        res = read_table("//sys/scheduler/event_log")
-        event_types = __builtin__.set([item["event_type"] for item in res])
-        for event in ["scheduler_started", "operation_started", "operation_completed"]:
-            assert event in event_types
-
+        def check():
+            res = read_table("//sys/scheduler/event_log")
+            event_types = __builtin__.set([item["event_type"] for item in res])
+            for event in ["scheduler_started", "operation_started", "operation_completed"]:
+                if event not in event_types:
+                    return False
+            return True
+        wait(check)
 
 ##################################################################
 
@@ -204,16 +213,14 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             command="cat",
             spec={"testing": testing_options})
 
-        while True:
-            try:
-                jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
-                assert jobs["running"] == 0
-                assert jobs["completed"]["total"] == 0
-                if jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0:
-                    break
-            except:
-                pass
-            time.sleep(1)
+        def check():
+            jobs = get(op.get_path() + "/@progress/jobs", default=None)
+            if jobs is None:
+                return False
+            assert jobs["running"] == 0
+            assert jobs["completed"]["total"] == 0
+            return jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0
+        wait(check)
 
 ##################################################################
 
