@@ -6,7 +6,12 @@ def get_platform_version():
     name = sys.platform
     version.append(name)
     if name in ("linux", "linux2"):
-        version.append(platform.libc_ver())
+        try:
+            version.append(platform.libc_ver())
+        except IOError:
+            # In some cases libc_ver detection can fail
+            # because of inability to open sys.executable file.
+            pass
     return tuple(version)
 
 def filter_out_modules(module_path, filter_function):

@@ -77,19 +77,23 @@ class YtTestEnvironment(object):
 
         common_delta_node_config = {
             "exec_agent" : {
-                "enable_cgroups" : ENABLE_JOB_CONTROL,
                 "slot_manager" : {
-                    "enforce_job_control" : ENABLE_JOB_CONTROL
+                    "enforce_job_control" : ENABLE_JOB_CONTROL,
+                    "job_environment": {
+                        "type": "cgroups",
+                        "memory_watchdog_period": 100,
+                        "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
+                    },
                 },
                 "statistics_reporter": {
-                    "reporting_period": 1000
+                    "reporting_period": 1000,
                 }
             },
             "data_node": {
                 "store_locations": [
                     {
-                        "max_trash_ttl": 2000
-                    }
+                        "max_trash_ttl": 2000,
+                    },
                 ]
             },
         }

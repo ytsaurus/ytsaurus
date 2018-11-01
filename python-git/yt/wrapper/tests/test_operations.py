@@ -349,7 +349,7 @@ class TestOperations(object):
         check(op)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations(self, yt_env):
+    def test_python_operations_common(self, yt_env):
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -382,8 +382,8 @@ class TestOperations(object):
 
         def write_statistics(row):
             yt.write_statistics({"row_count": 1})
-            yt.get_blkio_cgroup_statistics()
-            yt.get_memory_cgroup_statistics()
+            assert yt.get_blkio_cgroup_statistics()
+            assert not yt.get_memory_cgroup_statistics()
             yield row
 
         table = TEST_DIR + "/table"
