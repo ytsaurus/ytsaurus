@@ -227,7 +227,7 @@ private:
 
     bool IsEnqueueEnabled(const TTraceContext& context)
     {
-        return context.IsEnabled() && Thread_->IsStarted() && !Thread_->IsShutdown();
+        return context.IsVerbose() && Thread_->IsStarted() && !Thread_->IsShutdown();
     }
 
     void EnqueueEvent(const NProto::TTraceEvent& event)
