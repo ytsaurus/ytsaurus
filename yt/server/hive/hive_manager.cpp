@@ -1246,8 +1246,9 @@ private:
     static void AnnotateWithTraceContext(TEncapsulatedMessage* message)
     {
         auto traceContext = CreateChildTraceContext();
-        if (!traceContext.IsEnabled())
+        if (!traceContext.IsEnabled()) {
             return;
+        }
 
         TRACE_ANNOTATION(
             traceContext,

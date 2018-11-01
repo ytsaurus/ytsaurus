@@ -205,6 +205,9 @@ TClientContextPtr TClientRequest::CreateClientContext()
         SetTraceContext(&Header(), traceContext);
         TraceRequest(traceContext);
     }
+    if (traceContext.IsVerbose()) {
+        TraceRequest(traceContext);
+    }
 
     return New<TClientContext>(
         GetRequestId(),

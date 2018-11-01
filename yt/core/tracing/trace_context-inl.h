@@ -30,6 +30,11 @@ Y_FORCE_INLINE bool TTraceContext::IsEnabled() const
     return TraceId_ != InvalidTraceId;
 }
 
+Y_FORCE_INLINE bool TTraceContext::IsVerbose() const
+{
+    return (TraceId_ & 1) != 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(const TTraceContext& context)
@@ -105,19 +110,19 @@ Y_FORCE_INLINE void TNullTraceContextGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE bool IsTracingEnabled(const TString&)
+Y_FORCE_INLINE bool IsVerboseTracing(const TString&)
 {
-    return NTracing::IsTracingEnabled();
+    return NTracing::IsVerboseTracing();
 }
 
-Y_FORCE_INLINE bool IsTracingEnabled(const char*)
+Y_FORCE_INLINE bool IsVerboseTracing(const char*)
 {
-    return GetCurrentTraceContext().IsEnabled();
+    return GetCurrentTraceContext().IsVerbose();
 }
 
-Y_FORCE_INLINE bool IsTracingEnabled(const TTraceContext& context)
+Y_FORCE_INLINE bool IsVerboseTracing(const TTraceContext& context)
 {
-    return context.IsEnabled();
+    return context.IsVerbose();
 }
 
 template <class T>
