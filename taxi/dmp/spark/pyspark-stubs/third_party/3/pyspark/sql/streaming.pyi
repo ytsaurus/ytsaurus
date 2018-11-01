@@ -2,11 +2,13 @@
 #
 
 from typing import overload
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
+
+from pyspark.sql._typing import SupportsProcess
 from pyspark.sql.context import SQLContext
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.readwriter import OptionUtils
-from pyspark.sql.types import StructType
+from pyspark.sql.types import Row, StructType
 from pyspark.sql.utils import StreamingQueryException
 
 class StreamingQuery:
@@ -70,5 +72,8 @@ class DataStreamWriter:
     @overload
     def trigger(self, continuous: bool) -> 'DataStreamWriter': ...
     def start(self, path: Optional[str] = ..., format: Optional[str] = ..., outputMode: Optional[str] = ..., partitionBy: Optional[Union[str, List[str]]] = ..., queryName: Optional[str] = ..., **options: str) -> StreamingQuery: ...
-    def foreach(self, f: Any): ...
-    def foreachBatch(self, func: Any): ...
+    @overload
+    def foreach(self, f: Callable[[Row], None]) -> DataStreamWriter: ...
+    @overload
+    def foreach(self, f: SupportsProcess) -> DataStreamWriter: ...
+    def foreachBatch(self, func: Callable[[DataFrame, int], None]) -> DataStreamWriter: ...
