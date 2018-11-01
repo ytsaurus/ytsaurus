@@ -1317,56 +1317,6 @@ struct IOperationClient
     // Will throw TErrorResponse exception if operation doesn't exist.
     virtual IOperationPtr AttachOperation(const TOperationId& operationId) = 0;
 
-    //
-    // Get operation attributes.
-    virtual TOperationAttributes GetOperation(
-        const TOperationId& operationId,
-        const TGetOperationOptions& options = TGetOperationOptions()) = 0;
-
-    //
-    // List operations satisfying given filters.
-    virtual TListOperationsResult ListOperations(
-        const TListOperationsOptions& options = TListOperationsOptions()) = 0;
-
-    //
-    // Update operation runtime parameters.
-    virtual void UpdateOperationParameters(
-        const TOperationId& operationId,
-        const TUpdateOperationParametersOptions& options) = 0;
-
-    //
-    // Get job attributes.
-    virtual TJobAttributes GetJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobOptions& options = TGetJobOptions()) = 0;
-
-    //
-    // List jobs satisfying given filters.
-    virtual TListJobsResult ListJobs(
-        const TOperationId& operationId,
-        const TListJobsOptions& options = TListJobsOptions()) = 0;
-
-    //
-    // Get the input of a running or failed job.
-    virtual IFileReaderPtr GetJobInput(
-        const TJobId& jobId,
-        const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
-
-    //
-    // Get fail context of a failed job.
-    virtual IFileReaderPtr GetJobFailContext(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
-
-    //
-    // Get stderr of a running or failed job.
-    virtual IFileReaderPtr GetJobStderr(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
-
 private:
     virtual IOperationPtr DoMap(
         const TMapOperationSpec& spec,

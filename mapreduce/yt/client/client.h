@@ -184,40 +184,6 @@ public:
 
     void WaitForOperation(const TOperationId& operationId) override;
 
-    TOperationAttributes GetOperation(
-        const TOperationId& operationId,
-        const TGetOperationOptions& options) override;
-
-    TListOperationsResult ListOperations(
-        const TListOperationsOptions& options) override;
-
-    void UpdateOperationParameters(
-        const TOperationId& operationId,
-        const TUpdateOperationParametersOptions& options) override;
-
-    TJobAttributes GetJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobOptions& options) override;
-
-    TListJobsResult ListJobs(
-        const TOperationId& operationId,
-        const TListJobsOptions& options = TListJobsOptions()) override;
-
-    IFileReaderPtr GetJobInput(
-        const TJobId& jobId,
-        const TGetJobInputOptions& options = TGetJobInputOptions()) override;
-
-    IFileReaderPtr GetJobFailContext(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) override;
-
-    IFileReaderPtr GetJobStderr(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobStderrOptions& options = TGetJobStderrOptions()) override;
-
     void AlterTable(
         const TYPath& path,
         const TAlterTableOptions& options) override;
@@ -389,6 +355,40 @@ public:
     ui64 GenerateTimestamp() override;
 
     TAuthorizationInfo WhoAmI() override;
+
+    TOperationAttributes GetOperation(
+        const TOperationId& operationId,
+        const TGetOperationOptions& options) override;
+
+    TListOperationsResult ListOperations(
+        const TListOperationsOptions& options) override;
+
+    void UpdateOperationParameters(
+        const TOperationId& operationId,
+        const TUpdateOperationParametersOptions& options) override;
+
+    TJobAttributes GetJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options) override;
+
+    TListJobsResult ListJobs(
+        const TOperationId& operationId,
+        const TListJobsOptions& options = TListJobsOptions()) override;
+
+    IFileReaderPtr GetJobInput(
+        const TJobId& jobId,
+        const TGetJobInputOptions& options = TGetJobInputOptions()) override;
+
+    IFileReaderPtr GetJobFailContext(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) override;
+
+    IFileReaderPtr GetJobStderr(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobStderrOptions& options = TGetJobStderrOptions()) override;
 
     // Helper methods
     TYtPoller& GetYtPoller();
