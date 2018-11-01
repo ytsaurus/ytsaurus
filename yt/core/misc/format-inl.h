@@ -206,16 +206,29 @@ TFormattableRange<TRange, TFormatter> MakeFormattableRange(
 }
 
 template <class TRange, class TFormatter>
-void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter)
+TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
+    const TRange& range,
+    const TFormatter& formatter,
+    ui32 limit)
+{
+    return TFormattableRange<TRange, TFormatter>{range, formatter, limit};
+}
+
+template <class TRange, class TFormatter>
+void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, ui32 limit = ui32(-1))
 {
     builder->AppendChar('[');
-    bool firstItem = true;
+    ui32 i = 0;
     for (const auto& item : range) {
-        if (!firstItem) {
+        if (i > 0) {
             builder->AppendString(DefaultJoinToStringDelimiter);
         }
+        if (i == limit) {
+            builder->AppendString(DefaultRangeEllipsisFormat);
+            break;
+        }
         formatter(builder, item);
-        firstItem = false;
+        ++i;
     }
     builder->AppendChar(']');
 }
@@ -226,7 +239,7 @@ struct TValueFormatter<TFormattableRange<TRange, TFormatter>>
 {
     static void Do(TStringBuilder* builder, const TFormattableRange<TRange, TFormatter>& range, TStringBuf /*format*/)
     {
-        FormatRange(builder, range.Range, range.Formatter);
+        FormatRange(builder, range.Range, range.Formatter, range.Limit);
     }
 };
 
