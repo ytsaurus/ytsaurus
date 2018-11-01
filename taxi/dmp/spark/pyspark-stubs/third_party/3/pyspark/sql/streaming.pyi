@@ -11,8 +11,10 @@ from pyspark.sql.readwriter import OptionUtils
 from pyspark.sql.types import Row, StructType
 from pyspark.sql.utils import StreamingQueryException
 
+from py4j.java_gateway import JavaObject  # type: ignore
+
 class StreamingQuery:
-    def __init__(self, jsq) -> None: ...
+    def __init__(self, jsq: JavaObject) -> None: ...
     @property
     def id(self) -> str: ...
     @property
