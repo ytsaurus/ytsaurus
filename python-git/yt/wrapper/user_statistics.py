@@ -37,6 +37,7 @@ def get_blkio_cgroup_statistics():
 
 def get_memory_cgroup_statistics():
     """Returns map with memory statistics from cgroups."""
+    # TODO(ignat): this env variable does not exist anymore. YT-9716.
     memory_cgroup_path = os.environ.get("YT_CGROUP_MEMORY")
     if not memory_cgroup_path:
         return {}
