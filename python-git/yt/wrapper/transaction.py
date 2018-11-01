@@ -10,6 +10,7 @@ import yt.logger as logger
 
 from yt.packages.six.moves._thread import interrupt_main
 
+from copy import deepcopy
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
@@ -108,14 +109,19 @@ class Transaction(object):
             self._old_sigusr_handler = signal.signal(signal.SIGUSR1, _sigusr_handler)
 
         if self._ping:
+            # TODO(ignat): remove this local import
+            from .client import YtClient
+            pinger_client = YtClient(config=deepcopy(get_config(self._client)))
+            # For sticky transaction we must use the same client as at transaction creation.
+            for option in ("_driver", "_requests_session"):
+                set_option("_driver", get_option("_driver", client=self._client), client=pinger_client)
             delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
             self._ping_thread = PingTransaction(
                 self.transaction_id,
                 delay,
                 sticky=self.sticky,
                 interrupt_on_failed=interrupt_on_failed,
-                # TODO(ignat): it is not safe to pass client into another thread.
-                client=self._client)
+                client=pinger_client)
             self._ping_thread.start()
 
     def abort(self):
