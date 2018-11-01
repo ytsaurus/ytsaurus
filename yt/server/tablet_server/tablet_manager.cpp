@@ -1908,11 +1908,6 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
-        // Temporary disable reshard due to bug YT-8142.
-        if (!table->IsPhysicallySorted() && !table->IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard non-empty ordered table");
-        }
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
