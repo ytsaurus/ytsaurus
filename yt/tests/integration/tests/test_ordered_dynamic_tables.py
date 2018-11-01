@@ -36,6 +36,16 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 return all(s["preload_state"] == "complete" for s in tablet_data["stores"].itervalues() if s["store_state"] == "persistent")
             wait(lambda: all_preloaded())
 
+    def _verify_chunk_tree_statistics(self, table):
+        chunk_list_id = get(table + "/@chunk_list_id")
+        statistics = get("#{0}/@statistics".format(chunk_list_id))
+        tablet_chunk_lists = get("#{0}/@child_ids".format(chunk_list_id))
+        tablet_statistics = [get("#{0}/@statistics".format(c)) for c in tablet_chunk_lists]
+        assert statistics["row_count"] == sum([c["row_count"] for c in tablet_statistics])
+        assert statistics["chunk_count"] == sum([c["chunk_count"] for c in tablet_statistics])
+        assert statistics["logical_row_count"] == sum([c["logical_row_count"] for c in tablet_statistics])
+        assert statistics["logical_chunk_count"] == sum([c["logical_chunk_count"] for c in tablet_statistics])
+
     def test_mount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -426,7 +436,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
             trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
         reshard_table("//tmp/t", 5, first_tablet_index=1, last_tablet_index=3)
+        self._verify_chunk_tree_statistics("//tmp/t")
         sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 7
@@ -444,6 +456,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 else:
                     j = i - 2
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
+        self._verify_chunk_tree_statistics("//tmp/t")
 
     @pytest.mark.skipif("True", reason="YT-8142")
     def test_reshard_joins_tablets(self):
@@ -456,7 +469,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             if i < 2 or i > 3:
                 trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
         reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=3)
+        self._verify_chunk_tree_statistics("//tmp/t")
         sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 4
@@ -475,6 +490,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 else:
                     j = i + 1
                 assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
+        self._verify_chunk_tree_statistics("//tmp/t")
 
     def test_reshard_join_fails_on_trimmed_rows(self):
         sync_create_cells(1)
@@ -486,6 +502,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
+        self._verify_chunk_tree_statistics("//tmp/t")
 
     @pytest.mark.skipif("True", reason="YT-8142")
     def test_reshard_after_trim(self):
@@ -504,11 +521,61 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         _verify(1, 1)
         reshard_table("//tmp/t", 1)
+        self._verify_chunk_tree_statistics("//tmp/t")
         _verify(1, 1)
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
         sync_unmount_table("//tmp/t")
         _verify(2, 1)
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    def test_snapshot_lock_after_reshard_after_trim(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", 2)
+        self._verify_chunk_tree_statistics("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": 1}])
+        insert_rows("//tmp/t", [{"$tablet_index": 1, "a": 2}])
+        sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        trim_rows("//tmp/t", 1, 1)
+
+        def check():
+            chunk_list = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_lists = get("#{0}/@child_ids".format(chunk_list))
+            props = [get("#{0}/@statistics".format(l)) for l in tablet_chunk_lists]
+            return all([p["row_count"] != p["logical_row_count"] for p in props])
+
+        wait(check)
+
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", 1)
+        self._verify_chunk_tree_statistics("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": 3}])
+        sync_flush_table("//tmp/t")
+        abort_transaction(tx)
+
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", 2)
+        self._verify_chunk_tree_statistics("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": 4}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"$tablet_index": 1, "a": 5}])
+        sync_flush_table("//tmp/t")
+
+        self._verify_chunk_tree_statistics("//tmp/t")
 
     def test_freeze_empty(self):
         sync_create_cells(1)
@@ -672,6 +739,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         copy("//tmp/t", "//tmp/t2")
         reshard_table("//tmp/t", 1)
+        self._verify_chunk_tree_statistics("//tmp/t")
 
     def test_copy_trimmed_yt_7422(self):
         sync_create_cells(1)
