@@ -12,11 +12,12 @@ from pyspark.sql.streaming import DataStreamWriter
 from pyspark.sql.column import Column
 from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
+from py4j.java_gateway import JavaObject  # type: ignore
 
 class DataFrame:
     sql_ctx = ...  # type: SQLContext
     is_cached = ...  # type: bool
-    def __init__(self, jdf, sql_ctx) -> None: ...
+    def __init__(self, jdf: JavaObject, sql_ctx: SQLContext) -> None: ...
     @property
     def rdd(self) -> RDD[Row]: ...
     @property
