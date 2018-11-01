@@ -910,7 +910,7 @@ public:
         , Layers_(layers)
     {
         auto callback = BIND(&TVolumeState::OnLayerEvicted, MakeWeak(this));
-        for (auto& layer : Layers_) {
+        for (auto& layer : layers) {
             layer->SubscribeEvicted(callback);
         }
     }
