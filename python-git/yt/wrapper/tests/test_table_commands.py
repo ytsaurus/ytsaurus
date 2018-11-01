@@ -304,7 +304,7 @@ class TestTableCommands(object):
             self._sync_create_tablet_cell()
 
             yt.mount_table(table, sync=True)
-            vanilla_client = yt.YtClient(config=yt.config)
+            vanilla_client = yt.YtClient(config=yt.config.config)
 
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []

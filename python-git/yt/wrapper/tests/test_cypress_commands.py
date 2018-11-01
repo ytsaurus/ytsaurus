@@ -383,7 +383,7 @@ class TestCypressCommands(object):
         def read_table(client=None):
             return list(yt.read_table(table, client=client))
 
-        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
+        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config.config)
 
         with yt.Transaction():
             yt.write_table(table, [{"x": 2}])
@@ -444,7 +444,7 @@ class TestCypressCommands(object):
 
     @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
     def test_signal_in_transactions(self):
-        new_client = yt.YtClient(token=yt.config["token"], config=yt.config)
+        new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
 
         yt.config["transaction_use_signal_if_ping_failed"] = True
         old_request_timeout = yt.config["proxy"]["request_timeout"]
