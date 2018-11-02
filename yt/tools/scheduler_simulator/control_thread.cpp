@@ -197,7 +197,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
 
     RunningOperationsMap_.Insert(operation->GetId(), operation);
     OperationStatistics_.OnOperationStarted(operation->GetId());
-    LOG_INFO("Operation started (OperationId: %v)", operation->GetId());
+    LOG_INFO("Operation started (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
 
     // Notify scheduler.
     SchedulerStrategy_->RegisterOperation(operation.Get());
@@ -210,9 +210,9 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 {
     auto updateTime = event.Time;
 
-    LOG_INFO("Started waiting for struggling node shards");
+    LOG_INFO("Started waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
     NodeShardEvents_.WaitForStrugglingNodeShards(updateTime);
-    LOG_INFO("Finished waiting for struggling node shards");
+    LOG_INFO("Finished waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
 
     SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
     if (Config_->EnableFullEventLog) {

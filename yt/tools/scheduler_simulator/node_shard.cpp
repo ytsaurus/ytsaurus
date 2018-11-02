@@ -114,7 +114,7 @@ void TSimulatorNodeShard::RunOnce()
 
 void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
 {
-    LOG_DEBUG("Heartbeat started (NodeIndex: %v)", event.NodeIndex);
+    LOG_DEBUG("Heartbeat started (VirtualTimestamp: %v, NodeIndex: %v)", event.Time, event.NodeIndex);
 
     const auto& node = (*ExecNodes_)[event.NodeIndex];
 
@@ -138,7 +138,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         // Notify scheduler.
         job->SetState(EJobState::Running);
 
-        LOG_DEBUG("Job started (JobId: %v, OperationId: %v, FinishTime: %v, NodeIndex: %v)",
+        LOG_DEBUG("Job started (VirtualTimestamp: %v, JobId: %v, OperationId: %v, FinishTime: %v, NodeIndex: %v)",
+            event.Time,
             job->GetId(),
             job->GetOperationId(),
             event.Time + duration,
@@ -180,7 +181,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         nextHeartbeat.Time += TDuration::MilliSeconds(Config_->HeartbeatPeriod);
         Events_->InsertNodeShardEvent(ShardId_, nextHeartbeat);
     }
-    LOG_DEBUG("Heartbeat finished (NodeIndex: %v)", event.NodeIndex);
+    LOG_DEBUG("Heartbeat finished (VirtualTimestamp: %v, NodeIndex: %v)", event.Time, event.NodeIndex);
 }
 
 void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
@@ -196,7 +197,8 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
     YCHECK(job->GetNode()->Jobs().erase(job) == 1);
 
     LOG_DEBUG(
-        "Job finished (JobId: %v, OperationId: %v, NodeIndex: %v)",
+        "Job finished (VirtualTimestamp: %v, JobId: %v, OperationId: %v, NodeIndex: %v)",
+        event.Time,
         job->GetId(),
         job->GetOperationId(),
         event.NodeIndex);
@@ -253,7 +255,7 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
 
         JobAndOperationCounter_->OnOperationFinished();
 
-        LOG_INFO("Operation finished (OperationId: %v)", operation->GetId());
+        LOG_INFO("Operation finished (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
 
         const auto& id = operation->GetId();
         auto stats = OperationStatistics_->OnOperationFinished(

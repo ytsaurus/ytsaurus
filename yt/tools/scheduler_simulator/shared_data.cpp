@@ -185,16 +185,17 @@ TNullable<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
 {
     auto& localEventsSet = NodeShardEvents_[workerId];
     if (localEventsSet->empty()) {
+        NodeShardClocks_[workerId]->store(ControlThreadTime_.load() + MaxAllowedOutrunning_);
         return Null;
     }
     auto beginIt = localEventsSet->begin();
     auto event = *beginIt;
 
+    NodeShardClocks_[workerId]->store(event.Time);
     if (event.Time > ControlThreadTime_.load() + MaxAllowedOutrunning_) {
         return Null;
     }
 
-    NodeShardClocks_[workerId]->store(event.Time);
     localEventsSet->erase(beginIt);
     return event;
 }
