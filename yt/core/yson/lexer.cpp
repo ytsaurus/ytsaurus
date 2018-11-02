@@ -20,5 +20,15 @@ size_t TStatelessLexer::GetToken(TStringBuf data, TToken* token)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t GetToken(TStringBuf data, TToken* token)
+{
+    NDetail::TLexer<TStringReader, false> Lexer = NDetail::TLexer<TStringReader, false>(TStringReader());
+    Lexer.SetBuffer(data.begin(), data.end());
+    Lexer.GetToken(token);
+    return Lexer.Current() - data.begin();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYson
 } // namespace NYT
