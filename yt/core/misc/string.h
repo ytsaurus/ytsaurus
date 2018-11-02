@@ -330,4 +330,16 @@ TString FormatEnum(T value, typename TEnumTraits<T>::TType* = 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCaseInsensitiveStringHasher
+{
+    size_t operator()(const TString& arg) const;
+};
+
+struct TCaseInsensitiveStringComparer
+{
+    bool operator()(const TString& lhs, const TString& rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

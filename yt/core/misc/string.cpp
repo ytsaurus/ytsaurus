@@ -333,4 +333,38 @@ TString EncodeEnumValue(TStringBuf value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t TCaseInsensitiveStringHasher::operator()(const TString& arg) const
+{
+    const size_t SmallSize = 256;
+    if (arg.length() <= SmallSize) {
+        std::array<char, SmallSize> buffer;
+        for (size_t index = 0; index < arg.length(); ++index) {
+            buffer[index] = ToLower(arg[index]);
+        }
+        return TString::hashVal(buffer.data(), arg.length());
+    } else {
+        auto copy = arg;
+        to_lower(copy);
+        return TString::hashVal(copy.data(), copy.length());
+    }
+}
+
+bool TCaseInsensitiveStringComparer::operator()(const TString& lhs, const TString& rhs) const
+{
+    auto commonLength = std::min(lhs.length(), rhs.length());
+    for (size_t index = 0; index < commonLength; ++index) {
+        auto lhsChar = ToLower(lhs[index]);
+        auto rhsChar = ToLower(rhs[index]);
+        if (lhsChar < rhsChar) {
+            return true;
+        }
+        if (lhsChar > rhsChar) {
+            return false;
+        }
+    }
+    return lhs.length() < rhs.length();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
