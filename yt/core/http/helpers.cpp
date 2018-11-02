@@ -17,6 +17,7 @@
 
 #include <util/string/strip.h>
 #include <util/string/join.h>
+#include <util/string/cast.h>
 
 namespace NYT {
 namespace NHttp {
@@ -30,6 +31,30 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString XYTErrorHeaderName("X-YT-Error");
+static const TString XYTResponseCodeHeaderName("X-YT-Response-Code");
+static const TString XYTResponseMessageHeaderName("X-YT-Response-Message");
+static const TString AccessControlAllowCredentialsHeaderName("Access-Control-Allow-Credentials");
+static const TString AccessControlAllowOriginHeaderName("Access-Control-Allow-Origin");
+static const TString AccessControlAllowMethodsHeaderName("Access-Control-Allow-Methods");
+static const TString AccessControlMaxAgeHeaderName("Access-Control-Max-Age");
+static const TString AccessControlAllowHeadersHeaderName("Access-Control-Allow-Headers");
+static const TString AccessControlExposeHeadersHeaderName("Access-Control-Expose-Headers");
+static const TString XSourcePortYHeaderName("X-Source-Port-Y");
+static const TString XForwardedForYHeaderName("X-Forwarded-For-Y");
+static const TString ContentTypeHeaderName("Content-Type");
+static const TString PragmaHeaderName("Pragma");
+static const TString ExpiresHeaderName("Expires");
+static const TString CacheControlHeaderName("Cache-Control");
+static const TString XContentTypeOptionsHeaderName("X-Content-Type-Options");
+static const TString XFrameOptionsHeaderName("X-Frame-Options");
+static const TString XDnsPrefetchControlHeaderName("X-DNS-Prefetch-Control");
+static const TString XYTTraceIdHeaderName("X-YT-Trace-Id");
+static const TString XYTSpanIdHeaderName("X-YT-Span-Id");
+static const TString XYTParentSpanIdHeaderName("X-YT-Parent-Span-Id");
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FillYTError(const THeadersPtr& headers, const TError& error)
 {
     TString errorJson;
@@ -38,10 +63,9 @@ void FillYTError(const THeadersPtr& headers, const TError& error)
     Serialize(error, jsonWriter.get());
     jsonWriter->Flush();
 
-    headers->Add("X-YT-Error", errorJson);
-    headers->Add("X-YT-Response-Code",
-        ToString(static_cast<i64>(error.GetCode())));
-    headers->Add("X-YT-Response-Message", error.GetMessage());
+    headers->Add(XYTErrorHeaderName, errorJson);
+    headers->Add(XYTResponseCodeHeaderName, ToString(static_cast<int>(error.GetCode())));
+    headers->Add(XYTResponseMessageHeaderName, error.GetMessage());
 }
 
 void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
@@ -57,24 +81,26 @@ void FillYTErrorTrailers(const IResponseWriterPtr& rsp, const TError& error)
 TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers)
 {
     TString source;
-
     const TString* errorHeader;
-    if (!fromTrailers) {
-        source = "header";
-        errorHeader = rsp->GetHeaders()->Find("X-YT-Error");
+    if (fromTrailers) {
+        static const TString TrailerSource("trailer");
+        source = TrailerSource;
+        errorHeader = rsp->GetTrailers()->Find(XYTErrorHeaderName);
     } else {
-        source = "trailer";
-        errorHeader = rsp->GetTrailers()->Find("X-YT-Error");
+        static const TString HeaderSource("header");
+        source = HeaderSource;
+        errorHeader = rsp->GetHeaders()->Find(XYTErrorHeaderName);
     }
 
     TString errorJson;
-    if (!errorHeader) {
-        source = "body";
-        errorJson = ToString(rsp->ReadBody());
-    } else {
+    if (errorHeader) {
         errorJson = *errorHeader;
+    } else {
+        static const TString BodySource("body");
+        source = BodySource;
+        errorJson = ToString(rsp->ReadBody());
     }
-    
+
     TStringInput errorJsonInput(errorJson);
     std::unique_ptr<IBuildingYsonConsumer<TError>> buildingConsumer;
     CreateBuildingYsonConsumer(&buildingConsumer, EYsonType::Node);
@@ -92,8 +118,8 @@ class TErrorWrappingHttpHandler
     : public virtual IHttpHandler
 {
 public:
-    explicit TErrorWrappingHttpHandler(const IHttpHandlerPtr& underlying)
-        : Underlying_(underlying)
+    explicit TErrorWrappingHttpHandler(IHttpHandlerPtr underlying)
+        : Underlying_(std::move(underlying))
     { }
 
     virtual void HandleRequest(
@@ -117,12 +143,12 @@ public:
     }
 
 private:
-    IHttpHandlerPtr Underlying_;
+    const IHttpHandlerPtr Underlying_;
 };
 
-IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying)
+IHttpHandlerPtr WrapYTException(IHttpHandlerPtr underlying)
 {
-    return New<TErrorWrappingHttpHandler>(underlying);
+    return New<TErrorWrappingHttpHandler>(std::move(underlying));
 }
 
 static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
@@ -154,19 +180,19 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
         auto url = ParseUrl(*origin);
         bool allow = url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
         if (allow) {
-            rsp->GetHeaders()->Add("Access-Control-Allow-Credentials", "true");
-            rsp->GetHeaders()->Add("Access-Control-Allow-Origin", *origin);
-            rsp->GetHeaders()->Add("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
-            rsp->GetHeaders()->Add("Access-Control-Max-Age", "3600");
+            rsp->GetHeaders()->Add(AccessControlAllowCredentialsHeaderName, "true");
+            rsp->GetHeaders()->Add(AccessControlAllowOriginHeaderName, *origin);
+            rsp->GetHeaders()->Add(AccessControlAllowMethodsHeaderName, "POST, PUT, GET, OPTIONS");
+            rsp->GetHeaders()->Add(AccessControlMaxAgeHeaderName, "3600");
 
             if (req->GetMethod() == EMethod::Options) {
-                rsp->GetHeaders()->Add("Access-Control-Allow-Headers", HeadersWhitelist);
+                rsp->GetHeaders()->Add(AccessControlAllowHeadersHeaderName, HeadersWhitelist);
                 rsp->SetStatus(EStatusCode::OK);
                 WaitFor(rsp->Close())
                     .ThrowOnError();
                 return true;
             } else {
-                rsp->GetHeaders()->Add("Access-Control-Expose-Headers", HeadersWhitelist);
+                rsp->GetHeaders()->Add(AccessControlExposeHeadersHeaderName, HeadersWhitelist);
             }
         }
     }
@@ -202,19 +228,20 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies)
 
 void ProtectCsrfToken(const IResponseWriterPtr& rsp)
 {
-    auto headers = rsp->GetHeaders();
+    const auto& headers = rsp->GetHeaders();
 
-    headers->Set("Pragma", "nocache");
-    headers->Set("Expires", "Thu, 01 Jan 1970 00:00:01 GMT");
-    headers->Set("Cache-Control", "max-age=0, must-revalidate, proxy-revalidate, no-cache, no-store, private");
-    headers->Set("X-Content-Type-Options", "nosniff");
-    headers->Set("X-Frame-Options", "SAMEORIGIN");
-    headers->Set("X-DNS-Prefetch-Control", "off");
+    headers->Set(PragmaHeaderName, "nocache");
+    headers->Set(ExpiresHeaderName, "Thu, 01 Jan 1970 00:00:01 GMT");
+    headers->Set(CacheControlHeaderName, "max-age=0, must-revalidate, proxy-revalidate, no-cache, no-store, private");
+    headers->Set(XContentTypeOptionsHeaderName, "nosniff");
+    headers->Set(XFrameOptionsHeaderName, "SAMEORIGIN");
+    headers->Set(XDnsPrefetchControlHeaderName, "off");
 }
 
 TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
 {
-    auto header = req->GetHeaders()->Find("X-Req-Id");
+    static const TString XReqIdHeaderName("X-Req-Id");
+    auto header = req->GetHeaders()->Find(XReqIdHeaderName);
     if (header) {
         return *header;
     }
@@ -224,10 +251,10 @@ TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
 
 TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
 {
-    auto headers = req->GetHeaders();
+    const auto& headers = req->GetHeaders();
 
-    auto forwardedFor = headers->Find("X-Forwarded-For-Y");
-    auto sourcePort = headers->Find("X-Source-Port-Y");
+    auto forwardedFor = headers->Find(XForwardedForYHeaderName);
+    auto sourcePort = headers->Find(XSourcePortYHeaderName);
 
     if (forwardedFor && sourcePort) {
         return Format("[%v]:%v", *forwardedFor, *sourcePort);
@@ -248,7 +275,7 @@ TNullable<TString> GetUserAgent(const IRequestPtr& req)
 
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer)
 {
-    rsp->GetHeaders()->Set("Content-Type", "application/json");
+    rsp->GetHeaders()->Set(ContentTypeHeaderName, "application/json");
 
     TBufferOutput out;
 
@@ -260,6 +287,61 @@ void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonCon
     out.Buffer().AsString(body);
     WaitFor(rsp->WriteBody(TSharedRef::FromString(body)))
         .ThrowOnError();
+}
+
+namespace {
+
+template <class T, T NullValue>
+T GetTracingId(const IRequestPtr& req, const TString& headerName)
+{
+    const auto& headers = req->GetHeaders();
+    auto id = headers->Find(XYTTraceIdHeaderName);
+    if (!id) {
+        return NullValue;
+    }
+    return IntFromString<T, 16>(*id);
+}
+
+template <class T, T NullValue>
+void SetTracingId(const IResponseWriterPtr& rsp, T id, const TString& headerName)
+{
+    if (id == NullValue) {
+        return;
+    }
+    const auto& headers = rsp->GetHeaders();
+    headers->Set(headerName, IntToString<16>(id));
+}
+
+} // namespace
+
+NTracing::TTraceId GetTraceId(const IRequestPtr& req)
+{
+    return GetTracingId<NTracing::TTraceId, NTracing::InvalidTraceId>(req, XYTTraceIdHeaderName);
+}
+
+void SetTraceId(const IResponseWriterPtr& rsp, NTracing::TTraceId traceId)
+{
+    SetTracingId<NTracing::TTraceId, NTracing::InvalidTraceId>(rsp, traceId, XYTTraceIdHeaderName);
+}
+
+NTracing::TSpanId GetSpanId(const IRequestPtr& req)
+{
+    return GetTracingId<NTracing::TSpanId, NTracing::InvalidSpanId>(req, XYTSpanIdHeaderName);
+}
+
+void SetSpanId(const IResponseWriterPtr& rsp, NTracing::TSpanId spanId)
+{
+    SetTracingId<NTracing::TSpanId , NTracing::InvalidSpanId>(rsp, spanId, XYTSpanIdHeaderName);
+}
+
+NTracing::TSpanId GetParentSpanId(const IRequestPtr& req)
+{
+    return GetTracingId<NTracing::TSpanId, NTracing::InvalidSpanId>(req, XYTParentSpanIdHeaderName);
+}
+
+void SetParentSpanId(const IResponseWriterPtr& rsp, NTracing::TSpanId parentSpanId)
+{
+    SetTracingId<NTracing::TSpanId , NTracing::InvalidSpanId>(rsp, parentSpanId, XYTParentSpanIdHeaderName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
