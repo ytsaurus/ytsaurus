@@ -141,7 +141,7 @@ private:
         }
     }
 
-    bool HandleRequest(const THttpInputPtr& request, THttpOutputPtr& response)
+    bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
     {
         response->SetStatus(EStatusCode::InternalServerError);
 
@@ -170,11 +170,21 @@ private:
                     response->Flush100Continue();
                 }
 
-                {
-                    // TODO(babenko): consider passing traceId via HTTP headers
-                    NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateRootTraceContext(false));
-                    handler->HandleRequest(request, response);
+                NTracing::TTraceContext traceContext(
+                    GetTraceId(request),
+                    GetSpanId(request),
+                    GetParentSpanId(request));
+                if (!traceContext.IsEnabled()) {
+                    traceContext = NTracing::CreateRootTraceContext(false);
                 }
+
+                NTracing::TTraceContextGuard traceContextGuard(traceContext);
+
+                SetTraceId(response, traceContext.GetTraceId());
+                SetSpanId(response, traceContext.GetSpanId());
+                SetParentSpanId(response, traceContext.GetParentSpanId());
+
+                handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
                     request->GetRequestId());
