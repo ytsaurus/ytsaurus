@@ -993,10 +993,7 @@ private:
 
         auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
         ResourceUsage_ = ZeroNodeResources();
-
-        if (Dominates(resourceDelta, ZeroNodeResources())) {
-            ResourcesUpdated_.Fire(resourceDelta);
-        }
+        ResourcesUpdated_.Fire(resourceDelta);
         PortsReleased_.Fire();
 
         if (Slot_) {
