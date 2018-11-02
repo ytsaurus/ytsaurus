@@ -155,7 +155,7 @@ public:
 
         auto req = AgentProxy_->InitializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         if (transactions) {
             req->set_clean(false);
             ToProto(req->mutable_transaction_ids(), *transactions);
@@ -190,7 +190,7 @@ public:
 
         auto req = AgentProxy_->PrepareOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspPrepareOperationPtr& rsp) {
                 return TOperationControllerPrepareResult{
@@ -205,7 +205,7 @@ public:
         YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->MaterializeOperation();
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
@@ -224,7 +224,7 @@ public:
         }
 
         auto req = AgentProxy_->ReviveOperation();
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
             BIND([
@@ -262,7 +262,7 @@ public:
 
         auto req = AgentProxy_->CommitOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).As<void>();
     }
 
@@ -278,7 +278,7 @@ public:
 
         auto req = AgentProxy_->AbortOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspAbortOperation>(req).As<void>();
     }
 
@@ -289,7 +289,7 @@ public:
 
         auto req = AgentProxy_->CompleteOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
@@ -303,7 +303,7 @@ public:
 
         auto req = AgentProxy_->UnregisterOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
     }
 
@@ -315,7 +315,7 @@ public:
         auto req = AgentProxy_->UpdateOperationRuntimeParameters();
         ToProto(req->mutable_operation_id(), OperationId_);
         ToProto(req->mutable_parameters(), ConvertToYsonString(runtimeParameters).GetData());
-        req->SetTimeout(Config_->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
     }
 
