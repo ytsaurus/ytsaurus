@@ -355,7 +355,9 @@ class PushMapper(object):
         self.logbroker = logbroker
 
     def __call__(self, row):
-        logger.handlers = [logging.StreamHandler()]
+        handler = logging.StreamHandler()
+        handler.setFormatter("%(asctime)s - %(message)s")
+        logger.handlers = [handler]
         logger.setLevel(logging.INFO)
         pipe_from_yt_to_logbroker(self.yt_client, self.logbroker, **row)
         if False:
