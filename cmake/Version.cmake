@@ -22,7 +22,7 @@ endif()
 if (NOT YT_BUILD_GIT_DEPTH)
   set(YT_BUILD_GIT_DEPTH 0)
   if (_GIT)
-    find_program(_PYTHON NAMES python)
+    find_program(_PYTHON NAMES python2)
     if (_PYTHON)
       execute_process(
         COMMAND ${_PYTHON} git-depth.py
