@@ -190,13 +190,18 @@ scheduler_simulator_config = {
 
         "rules": [
             {
+                "min_level": "warning",
+                "writers": ["stderr"],
+            },
+            {
                 "min_level": "debug",
                 "writers": ["debug"],
-            }
+            },
         ],
 
         "writers": {
-            "debug": {"file_name": None, "type": "file"}
+            "debug": {"file_name": None, "type": "file"},
+            "stderr": {"type": "stderr"},
         },
     },
 }
