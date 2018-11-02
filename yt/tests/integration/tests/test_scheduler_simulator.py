@@ -37,7 +37,7 @@ def is_job_completion_event(row):
     return row["event_type"] not in ["job_started"]
 
 def is_operation_completion_event(row):
-    return row["event_type"] not in ["operation_started", "operation_prepared"]
+    return row["event_type"] not in ["operation_started", "operation_prepared", "operation_materialized"]
 
 def is_operation_prepared_event(row):
     return row["event_type"] == "operation_prepared"
@@ -185,6 +185,20 @@ scheduler_simulator_config = {
     "scheduler_config_file": None,
     "node_groups_file": None,
     "cycles_per_flush": 1000000,
+    "logging": {
+        "flush_period": 1000,
+
+        "rules": [
+            {
+                "min_level": "debug",
+                "writers": ["debug"],
+            }
+        ],
+
+        "writers": {
+            "debug": {"file_name": None, "type": "file"}
+        },
+    },
 }
 
 node_groups = [{"count": 1, "tags": ["internal"],
@@ -345,6 +359,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         files["pools_test_yson_file"] = os.path.join(simulator_data_dir, "pools_test.yson")
         files["operations_stats_file"] = os.path.join(simulator_data_dir, "operations_stats_test.csv")
         files["scheduler_event_log_file"] = os.path.join(simulator_data_dir, "scheduler_event_log_test.txt")
+        files["simulator_debug_logs"] = os.path.join(simulator_data_dir, "simulator_debug_logs.txt")
         return files
 
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
@@ -354,5 +369,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         scheduler_simulator_config["event_log_file"] = simulator_files_path["scheduler_event_log_file"]
         scheduler_simulator_config["node_groups_file"] = simulator_files_path["node_groups_yson_file"]
         scheduler_simulator_config["scheduler_config_file"] = simulator_files_path["scheduler_config_yson_file"]
+        scheduler_simulator_config["logging"]["writers"]["debug"]["file_name"] = \
+            simulator_files_path["simulator_debug_logs"]
 
 ##################################################################
