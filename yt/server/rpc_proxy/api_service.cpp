@@ -1160,6 +1160,9 @@ private:
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
 
         context->SetRequestInfo("Path: %v",
             path);
