@@ -1,4 +1,4 @@
-from yt.common import date_string_to_timestamp
+from yt.common import date_string_to_timestamp, YT_NULL_TRANSACTION_ID
 
 from yt.packages.six import iteritems
 from yt.packages.six.moves import xrange, map as imap
@@ -405,7 +405,8 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
                                      "session_count": session_count, "seqno": seqno})
                     yt_client.write_table(input_table, rows)
 
-                    stderr_table = yt_client.create_temp_table()
+                    with yt_client.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+                        stderr_table = yt_client.create_temp_table()
 
                     logger.info("Starting push operation (input: %s, output: %s, stderr: %s, task_count: %d)", input_table, output_table, stderr_table, len(tasks))
                     yt_client.config["allow_http_requests_to_yt_from_job"] = True
