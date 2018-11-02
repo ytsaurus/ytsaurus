@@ -91,6 +91,9 @@ private:
     class TAnonymousSlot
     {
     public:
+        TAnonymousSlot() = default;
+        TAnonymousSlot(const TAnonymousSlot& other);
+
         void AllocateInstance();
         void FreeInstance();
 
@@ -101,16 +104,19 @@ private:
         void FreeSpace(size_t size);
         void ReallocateSpace(size_t sizeFreed, size_t sizeAllocated);
 
+        TAnonymousSlot& operator = (const TAnonymousSlot& other);
         TAnonymousSlot& operator += (const TAnonymousSlot& other);
 
     protected:
-        size_t InstancesAllocated_ = 0;
-        size_t InstancesFreed_ = 0;
-        size_t TagInstancesAllocated_ = 0;
-        size_t TagInstancesFreed_ = 0;
-        size_t SpaceSizeAllocated_ = 0;
-        size_t SpaceSizeFreed_ = 0;
+        std::atomic<size_t> InstancesAllocated_ = 0;
+        std::atomic<size_t> InstancesFreed_ = 0;
+        std::atomic<size_t> TagInstancesAllocated_ = 0;
+        std::atomic<size_t> TagInstancesFreed_ = 0;
+        std::atomic<size_t> SpaceSizeAllocated_ = 0;
+        std::atomic<size_t> SpaceSizeFreed_ = 0;
 
+    private:
+        static void IncreaseRelaxed(std::atomic<size_t>& counter, size_t delta);
     };
 
     using TAnonymousStatistics = std::vector<TAnonymousSlot>;

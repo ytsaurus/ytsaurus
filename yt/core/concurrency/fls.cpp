@@ -20,7 +20,7 @@ struct TFlsSlot
 };
 
 static const int FlsMaxSize = 256;
-static int FlsSize = 0;
+static std::atomic<int> FlsSize(0);
 
 static std::atomic_flag FlsLock = ATOMIC_FLAG_INIT;
 static TFlsSlot FlsSlots[FlsMaxSize] = {};

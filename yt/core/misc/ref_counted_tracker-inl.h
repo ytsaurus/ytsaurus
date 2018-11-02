@@ -73,40 +73,47 @@ Y_FORCE_INLINE TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::GetPerThr
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::IncreaseRelaxed(std::atomic<size_t>& counter, size_t delta)
+{
+    counter.store(
+        counter.load(std::memory_order_relaxed) + delta,
+        std::memory_order_relaxed);
+}
+
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateInstance()
 {
-    ++InstancesAllocated_;
+    IncreaseRelaxed(InstancesAllocated_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeInstance()
 {
-    ++InstancesFreed_;
+    IncreaseRelaxed(InstancesFreed_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateTagInstance()
 {
-    ++TagInstancesAllocated_;
+    IncreaseRelaxed(TagInstancesAllocated_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeTagInstance()
 {
-    ++TagInstancesFreed_;
+    IncreaseRelaxed(TagInstancesFreed_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateSpace(size_t size)
 {
-    SpaceSizeAllocated_ += size;
+    IncreaseRelaxed(SpaceSizeAllocated_, size);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeSpace(size_t size)
 {
-    SpaceSizeFreed_ += size;
+    IncreaseRelaxed(SpaceSizeFreed_, size);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::ReallocateSpace(size_t sizeFreed, size_t sizeAllocated)
 {
-    SpaceSizeFreed_ += sizeFreed;
-    SpaceSizeAllocated_ += sizeAllocated;
+    IncreaseRelaxed(SpaceSizeFreed_, sizeFreed);
+    IncreaseRelaxed(SpaceSizeAllocated_, sizeAllocated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

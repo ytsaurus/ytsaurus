@@ -635,7 +635,7 @@ public:
         if (EventCount_ >= EventBufferSize) {
             return;
         }
-        
+
         Events_[EventCount_++] = {
             type,
             duration,
@@ -1555,19 +1555,19 @@ public:
         result[ESmallCounter::BytesAllocated] = totalCounters[ETotalCounter::BytesAllocated];
         result[ESmallCounter::BytesFreed] = totalCounters[ETotalCounter::BytesFreed];
         result[ESmallCounter::BytesUsed] = totalCounters[ETotalCounter::BytesUsed];
-        
+
         auto largeArenaCounters = GetLargeArenaCounters();
         for (size_t rank = 0; rank < LargeRankCount; ++rank) {
             result[ESmallCounter::BytesAllocated] -= largeArenaCounters[rank][ELargeArenaCounter::BytesAllocated];
             result[ESmallCounter::BytesFreed] -= largeArenaCounters[rank][ELargeArenaCounter::BytesFreed];
             result[ESmallCounter::BytesUsed] -= largeArenaCounters[rank][ELargeArenaCounter::BytesUsed];
         }
-        
+
         auto hugeCounters = GetHugeCounters();
         result[ESmallCounter::BytesAllocated] -= hugeCounters[EHugeCounter::BytesAllocated];
         result[ESmallCounter::BytesFreed] -= hugeCounters[EHugeCounter::BytesFreed];
         result[ESmallCounter::BytesUsed] -= hugeCounters[EHugeCounter::BytesUsed];
-        
+
         return result;
     }
 
@@ -2996,7 +2996,7 @@ private:
          auto* this_ = T::Get();
          this_->Forked_ = true;
     }
-    
+
     static void* ThreadMainStatic(void* opaque)
     {
         auto* this_ = static_cast<TBackgroundThreadBase*>(opaque);
@@ -3057,9 +3057,11 @@ class TBackgroundThreadInitializer
 public:
     TBackgroundThreadInitializer()
     {
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
         // Like some others, this singleton depends on TLogManager and TProfileManager.
         // Luckily, these guys are configured to die after all other (default configured) singletons.
         TBackgroundThread::Get();
+#endif
     }
 } BackgroundThreadInitializer;
 
@@ -3180,7 +3182,7 @@ void YTFree(void* ptr)
     }
 }
 
-#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_)
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
 
 size_t YTGetSize(void* ptr)
 {

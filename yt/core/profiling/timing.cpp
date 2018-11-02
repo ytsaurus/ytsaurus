@@ -2,6 +2,7 @@
 #include "profiler.h"
 
 #include <util/system/hp_timer.h>
+#include <util/system/sanitizers.h>
 
 #include <util/generic/singleton.h>
 
@@ -49,7 +50,7 @@ private:
         TInstant Instant;
     };
 
-    TCpuInstant NextCalibrationCpuInstant_ = 0;
+    std::atomic<TCpuInstant> NextCalibrationCpuInstant_ = 0;
     TSpinLock CalibrationLock_;
     std::array<TCalibrationState, 2> CalibrationStates_;
     std::atomic<ui32> CalibrationStateIndex_ = {0};
@@ -89,7 +90,14 @@ private:
     TCalibrationState GetCalibrationState()
     {
         CalibrateIfNeeded();
-        return CalibrationStates_[CalibrationStateIndex_];
+        if (NSan::TSanIsOn()) {
+            // The data structure is designed to avoid locking on read
+            // but we cannot explain it to TSan.
+            TGuard<TSpinLock> guard(CalibrationLock_);
+            return CalibrationStates_[CalibrationStateIndex_];
+        } else {
+            return CalibrationStates_[CalibrationStateIndex_];
+        }
     }
 };
 
