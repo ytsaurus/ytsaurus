@@ -37,6 +37,8 @@
 
 #include <yt/core/misc/fs.h>
 
+#include <yt/core/net/helpers.h>
+
 namespace NYT {
 namespace NJobAgent {
 
@@ -52,6 +54,7 @@ using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NScheduler;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -481,19 +484,17 @@ void TJobController::TImpl::StartWaitingJobs()
         if (job->GetState() != EJobState::Waiting)
             continue;
 
+        NLogging::TLogger jobLogger = JobTrackerServerLogger;
+        jobLogger.AddTag("JobId: %v", job->GetId());
+
+        const auto& Logger = jobLogger;
+
         auto portCount = job->GetPortCount();
-        if (portCount > 0 && FreePorts_.size() < portCount) {
-            LOG_DEBUG("Not enough free ports to start job (JobId: %v, PortCount: %v, FreePortCount: %v)",
-                job->GetId(),
-                portCount,
-                FreePorts_.size());
-            continue;
-        }
 
         auto jobResources = job->GetResourceUsage();
         auto usedResources = GetResourceUsage();
         if (!HasEnoughResources(jobResources, usedResources)) {
-            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: %v, UsedResources: %v)",
+            LOG_DEBUG("Not enough resources to start waiting job (JobResources: %v, UsedResources: %v)",
                 job->GetId(),
                 FormatResources(jobResources),
                 FormatResourceUsage(usedResources, GetResourceLimits()));
@@ -510,8 +511,7 @@ void TJobController::TImpl::StartWaitingJobs()
 
             auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
-                    job->GetId());
+                LOG_DEBUG(error, "Not enough memory to start waiting job");
                 continue;
             }
         }
@@ -526,20 +526,33 @@ void TJobController::TImpl::StartWaitingJobs()
 
             auto error = GetSystemMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
-                    job->GetId());
+                LOG_DEBUG(error, "Not enough memory to start waiting job");
                 continue;
             }
         }
 
+        std::vector<int> ports;
+
+        try {
+            ports = AllocateFreePorts(portCount, FreePorts_, jobLogger);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
+            continue;
+        }
+
+        if (ports.size() < portCount) {
+            LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
+                portCount,
+                ports.size());
+            continue;
+        }
+
         if (portCount > 0) {
-            std::vector<int> ports(portCount);
-            for (int index = 0; index < portCount; ++index) {
-                ports[index] = *FreePorts_.begin();
-                FreePorts_.erase(FreePorts_.begin());
+            for (int port : ports) {
+                FreePorts_.erase(port);
             }
             job->SetPorts(ports);
-            LOG_DEBUG("Ports allocated (JobId: %v, Count: %v)", job->GetId(), ports.size());
+            LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
         }
 
         job->SubscribeResourcesUpdated(
@@ -697,7 +710,9 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
 {
     auto job_ = job.Lock();
     if (job_) {
-        for (auto port : job_->GetPorts()) {
+        const auto& ports = job_->GetPorts();
+        LOG_INFO("Releasing ports (JobId: %v, PortCount: %v, Ports: %v)", job_->GetId(), ports.size(), ports);
+        for (auto port : ports) {
             YCHECK(FreePorts_.insert(port).second);
         }
     }

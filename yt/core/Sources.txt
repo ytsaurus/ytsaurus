@@ -134,12 +134,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/net/address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/dialer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/dns_resolver.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/listener.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/local_address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/socket.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/net/dns_resolver.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/net/local_address.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/pipes/io_dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/pipe.cpp
