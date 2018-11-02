@@ -2322,9 +2322,6 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
         {
             const auto& schedulerResultExt = summary.Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
-        })
-        .DoIf(static_cast<bool>(job->InputPaths), [&] (TFluentMap fluent) {
-            fluent.Item("input_paths").Value(job->InputPaths);
         });
 }
 
@@ -4040,8 +4037,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         summary->ArchiveJobSpec = true;
     }
 
-    auto inputPaths = BuildInputPathYson(joblet);
-    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
+    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
@@ -6766,21 +6762,6 @@ void TOperationControllerBase::LogProgress(bool force)
     }
 }
 
-TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joblet) const
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
-    if (!joblet->Task->SupportsInputPathYson()) {
-        return TYsonString();
-    }
-
-    return BuildInputPaths(
-        GetInputTablePaths(),
-        joblet->InputStripeList,
-        OperationType,
-        joblet->JobType);
-}
-
 void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -7177,9 +7158,9 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     for (const auto& table : InputTables_) {
         if (table->SchemaMode != OutputTables_[0]->TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-                << TErrorAttribute("input_table1_path", table->GetPath())
+                << TErrorAttribute("input_table1_path", table->Path.GetPath())
                 << TErrorAttribute("input_table1_schema_mode", table->SchemaMode)
-                << TErrorAttribute("input_table2_path", InputTables_[0]->GetPath())
+                << TErrorAttribute("input_table2_path", InputTables_[0]->Path.GetPath())
                 << TErrorAttribute("input_table2_schema_mode", InputTables_[0]->SchemaMode);
         }
     }

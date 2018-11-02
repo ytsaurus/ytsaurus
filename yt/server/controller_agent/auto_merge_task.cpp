@@ -260,11 +260,6 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, RegisteredTeleportChunkCount_);
 }
 
-bool TAutoMergeTask::SupportsInputPathYson() const
-{
-    return false;
-}
-
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////

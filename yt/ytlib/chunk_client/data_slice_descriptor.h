@@ -19,19 +19,15 @@ struct TDataSliceDescriptor
 
     TDataSliceDescriptor() = default;
     explicit TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
-    TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec);
+    explicit TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec);
 
     int GetDataSourceIndex() const;
+    int GetRangeIndex() const;
 
     const NProto::TChunkSpec& GetSingleChunk() const;
 
     TNullable<i64> GetTag() const;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(psushin)
-const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +41,10 @@ struct TInterruptDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MergeInterruptDescriptors(TInterruptDescriptor* source, TInterruptDescriptor&& target);
+// Return read limits relative to table (e.g. row index is calculated with addition of table row index).
+
+TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned);
+TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned);
 
 ////////////////////////////////////////////////////////////////////////////////
 

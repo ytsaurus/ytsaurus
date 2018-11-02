@@ -54,12 +54,6 @@ bool CheckJobActivity(
 // Performs statistics parsing and put it inside jobSummary.
 void ParseStatistics(TJobSummary* jobSummary, const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());
 
-NYson::TYsonString BuildInputPaths(
-    const std::vector<NYPath::TRichYPath>& inputPaths,
-    const NChunkPools::TChunkStripeListPtr& inputStripeList,
-    EOperationType operationType,
-    EJobType jobType);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TScheduleJobStatistics

@@ -166,6 +166,13 @@ public:
         ThrowUnimplemented("get_job_input");
     }
 
+    virtual TFuture<NYson::TYsonString> GetJobInputPaths(
+        const NJobTrackerClient::TJobId&,
+        const NApi::TGetJobInputPathsOptions&) override
+    {
+        ThrowUnimplemented("get_job_input_paths");
+    }
+
     virtual TFuture<TSharedRef> GetJobStderr(
         const NJobTrackerClient::TOperationId&,
         const NJobTrackerClient::TJobId&,

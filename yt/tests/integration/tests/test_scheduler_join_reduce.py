@@ -958,7 +958,7 @@ echo {v = 2} >&7
 
         result = read_table("//tmp/output", verbose=False)
         for row in result:
-            print "key:", row["key"], "value:", row["value"]
+            print >>sys.stderr, "key:", row["key"], "value:", row["value"]
         assert len(result) == 11
         row_index = 0
         job_indexes = []

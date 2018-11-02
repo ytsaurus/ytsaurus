@@ -264,6 +264,10 @@ def get_job_input(job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_input", kwargs)
 
+def get_job_input_paths(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    return execute_command("get_job_input_paths", kwargs)
+
 def get_table_columnar_statistics(paths, **kwargs):
     kwargs["paths"] = paths
     return yson.loads(execute_command("get_table_columnar_statistics", kwargs))

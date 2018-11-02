@@ -66,6 +66,22 @@ void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetJobInputPathsCommand::TGetJobInputPathsCommand()
+{
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto inputPaths = WaitFor(context->GetClient()->GetJobInputPaths(JobId, Options))
+        .ValueOrThrow();
+
+    auto output = context->Request().OutputStream;
+    output->Write(TSharedRef::FromString(std::move(inputPaths.GetData())));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetJobStderrCommand::TGetJobStderrCommand()
 {
     RegisterParameter("operation_id", OperationId);

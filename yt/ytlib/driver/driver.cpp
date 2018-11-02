@@ -256,6 +256,7 @@ public:
         REGISTER_ALL(TReadJournalCommand,                 "read_journal",                  Null,       Tabular,    false, true );
 
         REGISTER_ALL(TGetJobInputCommand,                 "get_job_input",                 Null,       Binary,     false, true );
+        REGISTER_ALL(TGetJobInputPathsCommand,            "get_job_input_paths",           Null,       Structured, false, true );
         REGISTER_ALL(TGetJobStderrCommand,                "get_job_stderr",                Null,       Binary,     false, true );
         REGISTER_ALL(TGetJobFailContextCommand,           "get_job_fail_context",          Null,       Binary,     false, true );
         REGISTER_ALL(TListOperationsCommand,              "list_operations",               Null,       Structured, false, false);

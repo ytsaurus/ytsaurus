@@ -1112,8 +1112,6 @@ private:
 
     static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
 
-    NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
-
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
 

@@ -690,39 +690,6 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
-    @unix_only
-    def test_map_reduce_input_paths_attr(self):
-        create("table", "//tmp/input")
-        create("table", "//tmp/output")
-
-        for i in xrange(3):
-            write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
-
-        op = map_reduce(
-            dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
-            mapper_command="cat; [ $YT_JOB_INDEX == 0 ] && exit 1 || true",
-            reducer_command="cat; exit 2",
-            sort_by=["key"],
-            spec={
-                "max_failed_job_count": 2
-            })
-        with pytest.raises(YtError):
-            op.track();
-
-        jobs_path = op.get_path() + "/jobs"
-        job_ids = ls(jobs_path)
-        assert len(job_ids) == 2
-        for job_id in job_ids:
-            job = get("{0}/{1}/@".format(jobs_path, job_id))
-            if job["job_type"] == "partition_map":
-                expected = yson.loads('[<ranges=[{lower_limit={row_index=0};upper_limit={row_index=3}}]>"//tmp/input"]')
-                assert  job["input_paths"] == expected
-            else:
-                assert job["job_type"] == "partition_reduce"
-                assert "input_paths" not in job
-
     @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_reduce_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
