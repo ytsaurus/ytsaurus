@@ -405,10 +405,12 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
                                      "session_count": session_count, "seqno": seqno})
                     yt_client.write_table(input_table, rows)
 
-                    logger.info("Starting push operation (input: %s, output: %s, task_count: %d)", input_table, output_table, len(tasks))
+                    stderr_table = yt_client.create_temp_table()
+
+                    logger.info("Starting push operation (input: %s, output: %s, stderr: %s, task_count: %d)", input_table, output_table, stderr_table, len(tasks))
                     yt_client.config["allow_http_requests_to_yt_from_job"] = True
                     yt_client.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "raven" in module.__file__
-                    yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table,
+                    yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table, stderr_table=stderr_table,
                                       spec={"data_size_per_job": 1, "mapper": {"memory_limit": 1024 * 1024 * 1024}})
                     logger.info("Push operation successfully finished (pushed_row_count: %d)", pushed_row_count)
 
