@@ -123,10 +123,10 @@ TReadOnlyTabletCommandBase<
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions>
-TSuppressableAccessTrackingCommmandBase<
+TSuppressableAccessTrackingCommandBase<
     TOptions,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>::TType
->::TSuppressableAccessTrackingCommmandBase()
+>::TSuppressableAccessTrackingCommandBase()
 {
     this->RegisterParameter("suppress_access_tracking", this->Options.SuppressAccessTracking)
         .Optional();

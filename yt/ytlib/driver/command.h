@@ -173,18 +173,18 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions, class = void>
-class TSuppressableAccessTrackingCommmandBase
+class TSuppressableAccessTrackingCommandBase
 { };
 
 template <class TOptions>
-class TSuppressableAccessTrackingCommmandBase<
+class TSuppressableAccessTrackingCommandBase<
     TOptions,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>::TType
 >
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TSuppressableAccessTrackingCommmandBase();
+    TSuppressableAccessTrackingCommandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,7 +291,7 @@ class TTypedCommand
     , public TMutatingCommandBase<TOptions>
     , public TReadOnlyMasterCommandBase<TOptions>
     , public TReadOnlyTabletCommandBase<TOptions>
-    , public TSuppressableAccessTrackingCommmandBase<TOptions>
+    , public TSuppressableAccessTrackingCommandBase<TOptions>
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
 { };
