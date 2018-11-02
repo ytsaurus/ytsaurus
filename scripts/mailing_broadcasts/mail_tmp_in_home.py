@@ -55,7 +55,10 @@ mail_body_template = u"""
 def make_stat(output_path, cluster):
 
     def get_disk(path):
-        attrs = yt.get(path + '/@')
+        try:
+            attrs = yt.get(path + '/@')
+        except:
+            return 0
         if attrs["type"] != "map_node":
             return attrs["resource_usage"]["disk_space"]
         return 0
