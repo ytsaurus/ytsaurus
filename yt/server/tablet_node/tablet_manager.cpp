@@ -1556,6 +1556,11 @@ private:
             storeIdsToRemove);
     }
 
+    bool IsBackingStoreRequired(TTablet* tablet)
+    {
+        return tablet->GetAtomicity() == EAtomicity::Full && !tablet->GetUpstreamReplicaId();
+    }
+
     void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1621,7 +1626,7 @@ private:
             storeManager->AddStore(store, false);
 
             TStoreId backingStoreId;
-            if (!IsRecovery() && descriptor.has_backing_store_id() && !tablet->GetUpstreamReplicaId()) {
+            if (!IsRecovery() && descriptor.has_backing_store_id() && IsBackingStoreRequired(tablet)) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
                 auto backingStore = getBackingStore(backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
