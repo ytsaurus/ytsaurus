@@ -14,9 +14,11 @@ from flaky import flaky
 
 import pprint
 import random
+import socket
 import sys
 import time
 import __builtin__
+
 from collections import defaultdict
 
 ##################################################################
@@ -3700,6 +3702,41 @@ class TestPorts(YTEnvSetup):
         assert ports[0] != ports[1]
 
         assert all(port >= 20000 and port < 20003 for port in ports)
+
+    def test_preliminary_bind(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 1}])
+
+        server_socket = None
+        try:
+            server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            server_socket.bind(("::1", 20001))
+
+            # We run test several times to make sure that ports did not stuck inside node.
+            for iteration in range(3):
+                if iteration in [0, 1]:
+                    expected_ports = [{"port": 20000}, {"port": 20002}]
+                else:
+                    server_socket.close()
+                    server_socket = None
+                    expected_ports = [{"port": 20000}, {"port": 20001}]
+
+                map(in_="//tmp/t_in",
+                    out="//tmp/t_out",
+                    command='echo "{port=$YT_PORT_0}; {port=$YT_PORT_1}"',
+                    spec={
+                        "mapper": {
+                            "port_count": 2,
+                            "format": "yson",
+                        }
+                    })
+
+                ports = read_table("//tmp/t_out")
+                assert ports == expected_ports
+        finally:
+            if server_socket is not None:
+                server_socket.close()
 
 class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
