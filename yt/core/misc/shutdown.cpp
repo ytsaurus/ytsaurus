@@ -16,7 +16,7 @@ static std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
     return &shutdownCallbacks;
 }
 
-static std::atomic<bool> ShutdownStarted = false;
+static std::atomic<bool> ShutdownStarted{false};
 
 void RegisterShutdownCallback(double priority, void(*callback)())
 {
