@@ -22,7 +22,7 @@ BlockInputStreams TStorageDistributed::read(
     const Names& columnNames,
     const SelectQueryInfo& queryInfo,
     const Context& context,
-    QueryProcessingStage::Enum& processedStage,
+    QueryProcessingStage::Enum processedStage,
     size_t maxBlockSize,
     unsigned numStreams)
 {

@@ -23,8 +23,8 @@ namespace NLogging {
 struct TLoggingCategory
 {
     const char* Name;
-    ELogLevel MinLevel;
-    int CurrentVersion;
+    std::atomic<ELogLevel> MinLevel;
+    std::atomic<int> CurrentVersion;
     std::atomic<int>* ActualVersion;
 };
 
@@ -32,8 +32,8 @@ struct TLoggingCategory
 
 struct TLoggingPosition
 {
-    bool Enabled;
-    int CurrentVersion;
+    std::atomic<bool> Enabled;
+    std::atomic<int> CurrentVersion;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

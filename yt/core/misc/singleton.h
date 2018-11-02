@@ -12,7 +12,7 @@ template <class T>
 TIntrusivePtr<T> RefCountedSingleton()
 {
     static std::atomic<T*> instance;
-    auto* relaxedInstance = instance.load(std::memory_order_relaxed);
+    auto* relaxedInstance = instance.load(std::memory_order_acquire);
 
     if (Y_LIKELY(relaxedInstance)) {
         return relaxedInstance;
