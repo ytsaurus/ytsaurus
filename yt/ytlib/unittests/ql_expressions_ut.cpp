@@ -1465,7 +1465,8 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("i1", EValueType::Int64),
         TColumnSchema("i2", EValueType::Int64),
         TColumnSchema("u1", EValueType::Uint64),
-        TColumnSchema("u2", EValueType::Uint64)
+        TColumnSchema("u2", EValueType::Uint64),
+        TColumnSchema("any", EValueType::Any)
     });
 
     auto expr = PrepareExpression(exprString, schema);
@@ -1536,8 +1537,28 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "u1=17271244077285990991u",
             "u1=17271244077285990991",
-            MakeBoolean(true))
-
+            MakeBoolean(true)),
+        ///
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=%false",
+            "boolean(any)",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=123u",
+            "int64(any)",
+            MakeInt64(123)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=123",
+            "uint64(any)",
+            MakeUint64(123)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=123",
+            "double(any)",
+            MakeDouble(123)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=\"hello\"",
+            "string(any)",
+            MakeString("hello"))
 ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -1625,7 +1646,7 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
         HasSubstr("Format string is too long"));
 }
 
-class TArithmeticErrorTest
+class TExpressionErrorTest
     : public ::testing::Test
 {
 protected:
@@ -1633,14 +1654,12 @@ protected:
     { }
 };
 
-TEST_F(TArithmeticErrorTest, Int64_DivisionByZero)
+TEST_F(TExpressionErrorTest, Int64_DivisionByZero)
 {
     TTableSchema schema({
         TColumnSchema("i1", EValueType::Int64),
         TColumnSchema("i2", EValueType::Int64)
     });
-
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("i1 / i2", schema);
     auto buffer = New<TRowBuffer>();
@@ -1652,14 +1671,12 @@ TEST_F(TArithmeticErrorTest, Int64_DivisionByZero)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TArithmeticErrorTest, Int64_ModuloByZero)
+TEST_F(TExpressionErrorTest, Int64_ModuloByZero)
 {
     TTableSchema schema({
         TColumnSchema("i1", EValueType::Int64),
         TColumnSchema("i2", EValueType::Int64)
     });
-
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("i1 % i2", schema);
     auto buffer = New<TRowBuffer>();
@@ -1671,14 +1688,12 @@ TEST_F(TArithmeticErrorTest, Int64_ModuloByZero)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TArithmeticErrorTest, UInt64_DivisionByZero)
+TEST_F(TExpressionErrorTest, UInt64_DivisionByZero)
 {
     TTableSchema schema({
         TColumnSchema("u1", EValueType::Uint64),
         TColumnSchema("u2", EValueType::Uint64)
     });
-
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("u1 / u2", schema);
     auto buffer = New<TRowBuffer>();
@@ -1690,14 +1705,12 @@ TEST_F(TArithmeticErrorTest, UInt64_DivisionByZero)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TArithmeticErrorTest, UInt64_ModuloByZero)
+TEST_F(TExpressionErrorTest, UInt64_ModuloByZero)
 {
     TTableSchema schema({
         TColumnSchema("u1", EValueType::Uint64),
         TColumnSchema("u2", EValueType::Uint64)
     });
-
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("u1 % u2", schema);
     auto buffer = New<TRowBuffer>();
@@ -1709,14 +1722,12 @@ TEST_F(TArithmeticErrorTest, UInt64_ModuloByZero)
         HasSubstr("Division by zero"));
 }
 
-TEST_F(TArithmeticErrorTest, Int64_DivisionIntMinByMinusOne)
+TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)
 {
     TTableSchema schema({
         TColumnSchema("i1", EValueType::Int64),
         TColumnSchema("i2", EValueType::Int64)
     });
-
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("i1 / i2", schema);
     auto buffer = New<TRowBuffer>();
@@ -1726,6 +1737,37 @@ TEST_F(TArithmeticErrorTest, Int64_DivisionIntMinByMinusOne)
     EXPECT_THROW_THAT(
         [&] { EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer); },
         HasSubstr("Division INT_MIN by -1"));
+}
+
+TEST_F(TExpressionErrorTest, ConvertFromAny)
+{
+    TTableSchema schema({
+        TColumnSchema("any", EValueType::Any)
+    });
+
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("string(any)", schema);
+            EvaluateExpression(expr, "any=1", schema, &result, buffer);
+        },
+        HasSubstr("Can not convert value"));
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("int64(any)", schema);
+            EvaluateExpression(expr, "any=\"hello\"", schema, &result, buffer);
+        },
+        HasSubstr("Can not convert value"));
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("int64(any)", schema);
+            EvaluateExpression(expr, "any=%true", schema, &result, buffer);
+        },
+        HasSubstr("Can not convert value"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
