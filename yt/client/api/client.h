@@ -665,6 +665,11 @@ struct TGetJobInputOptions
     : public TTimeoutOptions
 { };
 
+struct TGetJobInputPathsOptions
+    : public TTimeoutOptions
+{ };
+
+
 struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
@@ -1208,6 +1213,10 @@ struct IClient
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
+
+    virtual TFuture<NYson::TYsonString> GetJobInputPaths(
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobInputPathsOptions& options = TGetJobInputPathsOptions()) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
         const NJobTrackerClient::TOperationId& operationId,

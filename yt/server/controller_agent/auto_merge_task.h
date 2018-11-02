@@ -89,8 +89,6 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
-    virtual bool SupportsInputPathYson() const override;
-
 protected:
     NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 

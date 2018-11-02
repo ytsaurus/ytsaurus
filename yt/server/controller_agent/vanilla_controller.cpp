@@ -90,11 +90,6 @@ public:
         return Spec_;
     }
 
-    virtual bool SupportsInputPathYson() const override
-    {
-        return false;
-    }
-
     virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
     {
         return GetMinNeededResourcesHeavy();

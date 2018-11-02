@@ -105,11 +105,9 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
 TFinishedJobInfo::TFinishedJobInfo(
     const TJobletPtr& joblet,
-    TJobSummary summary,
-    NYson::TYsonString inputPaths)
+    TJobSummary summary)
     : TJobInfo(TJobInfoBase(*joblet))
     , Summary(std::move(summary))
-    , InputPaths(std::move(inputPaths))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +136,6 @@ void TFinishedJobInfo::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Summary);
-    Persist(context, InputPaths);
 
     TJobInfoBase::Persist(context);
 }
