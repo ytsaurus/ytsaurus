@@ -176,8 +176,8 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-        const auto& prerequiesitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-        objectManager->ValidatePrerequisites(prerequiesitesExt);
+        const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        objectManager->ValidatePrerequisites(prerequisitesExt);
     }
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
