@@ -28,7 +28,7 @@ TRefCountedTypeKey GetRefCountedTypeKey()
 template <class T>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
-    static auto cookie = NullRefCountedTypeCookie;
+    static std::atomic<TRefCountedTypeCookie> cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
@@ -41,7 +41,7 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 template <class T, class TTag, int Counter>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
 {
-    static auto cookie = NullRefCountedTypeCookie;
+    static std::atomic<TRefCountedTypeCookie> cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
