@@ -929,7 +929,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         uploadTransactionSecondaryCellTags,
         uploadTransactionReplicationCellTags,
         uploadTransactionTimeout,
-        /* deadline */ TInstant(),
+        /* deadline */ Null,
         uploadTransactionTitle,
         EmptyAttributes(),
         uploadTransactionIdHint);

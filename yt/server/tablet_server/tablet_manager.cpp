@@ -5237,7 +5237,7 @@ private:
             secondaryCellTags,
             secondaryCellTags,
             Null,
-            /* deadline */ TInstant(),
+            /* deadline */ Null,
             Format("Prerequisite for cell %v", cell->GetId()),
             EmptyAttributes());
 

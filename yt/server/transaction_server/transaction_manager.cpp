@@ -185,7 +185,7 @@ public:
         const TCellTagList& secondaryCellTags,
         const TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
-        TInstant deadline,
+        TNullable<TInstant> deadline,
         const TNullable<TString>& title,
         const IAttributeDictionary& attributes,
         const TTransactionId& hintId)
@@ -233,9 +233,7 @@ public:
             transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
         }
 
-        if (!foreign && deadline) {
-            transaction->SetDeadline(deadline);
-        }
+        transaction->SetDeadline(deadline);
 
         if (IsLeader()) {
             CreateLease(transaction);
@@ -283,7 +281,7 @@ public:
             }),
             transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
-            MakeNullable(transaction->GetDeadline() != TInstant::Zero(), transaction->GetDeadline()),
+            transaction->GetDeadline(),
             title);
 
         return transaction;
@@ -709,7 +707,10 @@ private:
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto deadline = FromProto<TInstant>(request->deadline());
+        TNullable<TInstant> deadline;
+        if (request->has_deadline()) {
+            deadline = FromProto<TInstant>(request->deadline());
+        }
 
         TCellTagList secondaryCellTags;
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
@@ -848,7 +849,7 @@ private:
         }
         transaction->DependentTransactions().clear();
 
-        transaction->SetDeadline(TInstant());
+        transaction->SetDeadline(Null);
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
@@ -1019,7 +1020,7 @@ TTransaction* TTransactionManager::StartTransaction(
     const TCellTagList& secondaryCellTags,
     const TCellTagList& replicateToCellTags,
     TNullable<TDuration> timeout,
-    TInstant deadline,
+    TNullable<TInstant> deadline,
     const TNullable<TString>& title,
     const IAttributeDictionary& attributes,
     const TTransactionId& hintId)
