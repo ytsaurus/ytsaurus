@@ -104,6 +104,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         Load(context, PrerequisiteTransactions_);
         Load(context, DependentTransactions_);
     }
+    // COMPAT(ignat)
+    if (context.GetVersion() >= 810) {
+        Load(context, Deadline_);
+    }
 }
 
 void TTransaction::RecomputeResourceUsage()

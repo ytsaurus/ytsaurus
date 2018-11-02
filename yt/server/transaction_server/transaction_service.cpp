@@ -41,7 +41,10 @@ private:
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto deadline = FromProto<TInstant>(request->deadline());
+        TNullable<TInstant> deadline;
+        if (request->has_deadline()) {
+            deadline = FromProto<TInstant>(request->deadline());
+        }
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
@@ -50,14 +53,16 @@ private:
             prerequisiteTransactionIds,
             timeout,
             title,
-            MakeNullable(deadline != TInstant::Zero(), deadline));
+            deadline);
 
         NTransactionServer::NProto::TReqStartTransaction hydraRequest;
         hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
         hydraRequest.mutable_parent_id()->Swap(request->mutable_parent_id());
         hydraRequest.mutable_prerequisite_transaction_ids()->Swap(request->mutable_prerequisite_transaction_ids());
         hydraRequest.set_timeout(request->timeout());
-        hydraRequest.set_deadline(request->deadline());
+        if (request->has_deadline()) {
+            hydraRequest.set_deadline(request->deadline());
+        }
         hydraRequest.set_user_name(context->GetUser());
         hydraRequest.mutable_hint_id()->Swap(request->mutable_hint_id());
         hydraRequest.mutable_replicate_to_cell_tags()->Swap(request->mutable_replicate_to_cell_tags());

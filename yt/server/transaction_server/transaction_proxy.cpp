@@ -88,7 +88,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
-            .SetPresent(transaction->GetDeadline() != TInstant()));
+            .SetPresent(transaction->GetDeadline().HasValue()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override

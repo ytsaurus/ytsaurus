@@ -56,7 +56,7 @@ public:
         const TTransactionId& transactionId,
         const TTransactionId& parentId,
         TNullable<TDuration> timeout,
-        TInstant deadline,
+        TNullable<TInstant> deadline,
         TTransactionLeaseExpirationHandler expirationHandler);
 
     //! Unregisters a transaction.
@@ -112,7 +112,7 @@ private:
         TTransactionId TransactionId;
         TTransactionId ParentId;
         TNullable<TDuration> Timeout;
-        TInstant Deadline;
+        TNullable<TInstant> Deadline;
         TTransactionLeaseExpirationHandler ExpirationHandler;
     };
 
@@ -149,7 +149,7 @@ private:
         TTransactionId TransactionId;
         TTransactionId ParentId;
         TNullable<TDuration> Timeout;
-        TInstant UserDeadline;
+        TNullable<TInstant> UserDeadline;
         TTransactionLeaseExpirationHandler ExpirationHandler;
         TInstant Deadline;
         TInstant LastPingTime;

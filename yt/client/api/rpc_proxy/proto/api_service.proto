@@ -152,7 +152,7 @@ message TReqStartTransaction
 
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 11;
 
-    optional int64 deadline = 12;
+    optional uint64 deadline = 12;
 }
 
 message TRspStartTransaction
