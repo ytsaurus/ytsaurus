@@ -657,6 +657,7 @@ message TReqSetNode
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMutatingOptions mutating_options = 103;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
 message TRspSetNode

@@ -429,6 +429,7 @@ struct TSetNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
+    , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;

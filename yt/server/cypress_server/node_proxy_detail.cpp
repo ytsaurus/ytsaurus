@@ -141,7 +141,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     auto* userAttributes = node->GetMutableAttributes();
     userAttributes->Attributes()[key] = value;
 
-    cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+    Proxy_->SetModified();
 }
 
 bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
@@ -185,7 +185,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
         userAttributes->Attributes()[key] = TYsonString();
     }
 
-    cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+    Proxy_->SetModified();
     return true;
 }
 

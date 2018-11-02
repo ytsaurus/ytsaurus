@@ -2739,6 +2739,7 @@ private:
 
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
+        SetSuppressAccessTracking(req, options);
         SetMutationId(req, options);
 
         // Binarize the value.

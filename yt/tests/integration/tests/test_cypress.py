@@ -1054,6 +1054,15 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/f/@access_counter")
         assert c1 == c2
 
+    def test_modification_suppress1(self):
+        create("map_node", "//tmp/m")
+        time.sleep(1)
+        time1 = get("//tmp/m/@modification_time")
+        set("//tmp/m/@x", 1, suppress_modification_tracking=True)
+        time.sleep(1)
+        time2 = get("//tmp/m/@modification_time")
+        assert time1 == time2
+
     def test_chunk_maps(self):
         gc_collect()
         assert get("//sys/chunks/@count") == 0
