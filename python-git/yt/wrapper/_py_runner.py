@@ -7,7 +7,8 @@ def get_platform_version():
     version.append(name)
     if name in ("linux", "linux2"):
         try:
-            version.append(platform.libc_ver())
+            version.append(platform.linux_distribution())
+            #version.append(platform.libc_ver())
         except IOError:
             # In some cases libc_ver detection can fail
             # because of inability to open sys.executable file.
