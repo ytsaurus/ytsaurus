@@ -3124,7 +3124,7 @@ void InitializeGlobals()
 ////////////////////////////////////////////////////////////////////////////////
 // YTAlloc public API
 
-void* YTAlloc(size_t size)
+Y_FORCE_INLINE void* YTAlloc(size_t size)
 {
 #define XX() \
     size_t rank; \
@@ -3163,7 +3163,7 @@ void* YTAllocPageAligned(size_t size)
     return AlignUp(ptr, PageSize);
 }
 
-void YTFree(void* ptr)
+Y_FORCE_INLINE void YTFree(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
         return;
