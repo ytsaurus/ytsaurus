@@ -107,8 +107,8 @@ public:
     explicit TCGMemoryManager(TRoutineRegistry* routineRegistry)
         : RoutineRegistry_(routineRegistry)
     {
-        static std::once_flag onceFlag;
 #ifdef _linux_
+        static std::once_flag onceFlag;
         std::call_once(onceFlag, &LoadDynamicLibrarySymbols);
 #endif
     }
