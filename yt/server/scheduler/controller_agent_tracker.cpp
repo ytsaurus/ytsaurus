@@ -310,7 +310,9 @@ public:
     virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersPtr runtimeParameters) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(IncarnationId_);
+        if (!IncarnationId_) {
+            return VoidFuture;
+        }
 
         auto req = AgentProxy_->UpdateOperationRuntimeParameters();
         ToProto(req->mutable_operation_id(), OperationId_);
