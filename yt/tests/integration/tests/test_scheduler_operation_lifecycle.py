@@ -5,6 +5,7 @@ from yt_commands import *
 
 from flaky import flaky
 
+import os
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -770,15 +771,16 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._create_table("//tmp/t_out")
 
-        op = self._start_op("echo '{foo=bar}'; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 100; fi;",
-                 dont_track=True,
-                 spec={
-                     "testing": {
-                         "delay_inside_operation_commit": 5000,
-                         "delay_inside_operation_commit_stage": stage,
-                     },
-                     "job_count": 2
-                 })
+        op = self._start_op(
+            "echo '{foo=bar}'; " + events_on_fs().execute_once("sleep 100"),
+            dont_track=True,
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 5000,
+                    "delay_inside_operation_commit_stage": stage,
+                },
+                "job_count": 2
+            })
 
         self._wait_for_state(op, "running")
 
@@ -845,14 +847,16 @@ class SchedulerReviveBase(YTEnvSetup):
         remove("//tmp/t_out", force=True)
         self._create_table("//tmp/t_out")
 
-        op = self._start_op("echo '{foo=bar}'; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 100; fi;", dont_track=True,
-                 spec={
-                     "testing": {
-                         "delay_inside_operation_commit": 4000,
-                         "delay_inside_operation_commit_stage": "stage4",
-                     },
-                     "job_count": 2
-                 })
+        op = self._start_op(
+            "echo '{foo=bar}'; " + events_on_fs().execute_once("sleep 100"),
+            dont_track=True,
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 4000,
+                    "delay_inside_operation_commit_stage": "stage4",
+                },
+                "job_count": 2
+            })
 
         self._wait_for_state(op, "running")
 
