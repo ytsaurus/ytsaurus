@@ -7,6 +7,7 @@ import datetime
 import os
 import sys
 import time
+import tempfile
 
 class TimeoutError(Exception):
     pass
@@ -82,6 +83,18 @@ class JobEvents(object):
             job_breakpoint=job_breakpoint,
             breakpoint_released=breakpoint_released,
             wait_limit=wait_limit)
+
+    def execute_once(self, cmd):
+        shared_file = self._create_temp_file()
+        tmp_file_pattern = os.path.join(self._tmpdir, "XXXXXX")
+        return 'tmpfile=$(mktemp "{tmp_file_pattern}"); '\
+               'touch "$tmpfile"; '\
+               'mv -n "$tmpfile" "{shared_file}"; '\
+               'if [ ! -e "$tmpfile" ]; then {cmd}; fi; '\
+                .format(
+                    tmp_file_pattern=tmp_file_pattern,
+                    shared_file=shared_file,
+                    cmd=cmd)
 
     def wait_breakpoint(self, breakpoint_name="default", job_id=None, job_count=None, check_fn=None, timeout=datetime.timedelta(seconds=60)):
         """ Wait until some job reaches breakpoint.
@@ -164,3 +177,9 @@ class JobEvents(object):
         if not event_name:
             raise ValueError("event_name must be non empty")
         return os.path.join(self._tmpdir, event_name)
+
+    def _create_temp_file(self):
+        fd, path = tempfile.mkstemp(dir=self._tmpdir)
+        os.close(fd)
+        os.remove(path)
+        return path
