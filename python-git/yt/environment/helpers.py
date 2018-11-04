@@ -104,12 +104,13 @@ class OpenPortIterator(Iterator):
                 continue
 
             if self.port_locks_path is not None:
+                lock_fd = None
                 try:
                     lock_fd = os.open(os.path.join(self.port_locks_path, str(port)),
                                       os.O_CREAT | os.O_RDWR)
                     fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except IOError:
-                    if lock_fd != -1:
+                    if lock_fd is not None and lock_fd != -1:
                         os.close(lock_fd)
                     self.busy_ports.add(port)
                     continue
