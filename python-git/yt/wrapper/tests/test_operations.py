@@ -380,12 +380,6 @@ class TestOperations(object):
                 sum += int(x)
             sys.stdout.write("sum={0}\n".format(sum))
 
-        def write_statistics(row):
-            yt.write_statistics({"row_count": 1})
-            assert yt.get_blkio_cgroup_statistics()
-            assert not yt.get_memory_cgroup_statistics()
-            yield row
-
         table = TEST_DIR + "/table"
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
@@ -413,6 +407,15 @@ class TestOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_user_statistics_in_jobs(self):
+        def write_statistics(row):
+            yt.write_statistics({"row_count": 1})
+            assert yt.get_blkio_cgroup_statistics()
+            assert not yt.get_memory_cgroup_statistics()
+            yield row
+
+        table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
