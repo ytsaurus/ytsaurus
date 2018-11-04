@@ -3,6 +3,41 @@
 #include <util/system/compiler.h>
 
 namespace NYT {
+namespace NYTAlloc {
+
+////////////////////////////////////////////////////////////////////////////////
+// YTAlloc public API
+
+void* YTAlloc(size_t size)
+{
+    return InlineYTAlloc(size);
+}
+
+void* YTAllocPageAligned(size_t size)
+{
+    return InlineYTAllocPageAligned(size);
+}
+
+void YTFree(void* ptr)
+{
+    InlineYTFree(ptr);
+}
+
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
+
+size_t YTGetSize(void* ptr)
+{
+    return InlineYTGetSize(ptr);
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTAlloc
+} // namespace NYT
+
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Memory tags API bridge
@@ -44,7 +79,7 @@ using namespace NYT::NYTAlloc;
 
 extern "C" YTALLOC_WEAK void* malloc(size_t size)
 {
-    return YTAlloc(size);
+    return InlineYTAlloc(size);
 }
 
 extern "C" YTALLOC_WEAK void* valloc(size_t size)
@@ -89,7 +124,7 @@ extern "C" void* __libc_memalign(size_t alignment, size_t size)
 
 extern "C" YTALLOC_WEAK void free(void* ptr)
 {
-    YTFree(ptr);
+    InlineYTFree(ptr);
 }
 
 extern "C" YTALLOC_WEAK void* calloc(size_t n, size_t elemSize)
@@ -100,7 +135,7 @@ extern "C" YTALLOC_WEAK void* calloc(size_t n, size_t elemSize)
         return nullptr;
     }
 
-    void* result = YTAlloc(size);
+    void* result = InlineYTAlloc(size);
     ::memset(result, 0, size);
     return result;
 }

@@ -3122,9 +3122,8 @@ void InitializeGlobals()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// YTAlloc public API
 
-void* YTAlloc(size_t size)
+Y_FORCE_INLINE void* InlineYTAlloc(size_t size)
 {
 #define XX() \
     size_t rank; \
@@ -3157,13 +3156,13 @@ void* YTAlloc(size_t size)
 #undef XX
 }
 
-void* YTAllocPageAligned(size_t size)
+Y_FORCE_INLINE void* InlineYTAllocPageAligned(size_t size)
 {
     auto* ptr = TBlobAllocator::Allocate(size + PageSize);
     return AlignUp(ptr, PageSize);
 }
 
-void YTFree(void* ptr)
+Y_FORCE_INLINE void InlineYTFree(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
         return;
@@ -3184,7 +3183,7 @@ void YTFree(void* ptr)
 
 #if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
 
-size_t YTGetSize(void* ptr)
+Y_FORCE_INLINE size_t InlineYTGetSize(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
         return 0;
