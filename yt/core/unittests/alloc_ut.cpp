@@ -31,12 +31,12 @@ TEST_P(TYTAllocTaggedTest, LargeCounters)
     constexpr auto Eps = 1_MB;
     auto total1 = GetTotalCounters()[ETotalCounter::BytesUsed];
     auto largeTotal1 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
-    auto* ptr = YTAlloc(N);
+    auto* ptr = NYTAlloc::Allocate(N);
     auto total2 = GetTotalCounters()[ETotalCounter::BytesUsed];
     auto largeTotal2 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
     EXPECT_LE(std::abs(total2 - total1 - N), Eps);
     EXPECT_LE(std::abs(largeTotal2 - largeTotal1 - N), Eps);
-    YTFree(ptr);
+    NYTAlloc::Free(ptr);
     auto total3 = GetTotalCounters()[ETotalCounter::BytesUsed];
     auto largeTotal3 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
     EXPECT_LE(std::abs(total3 - total1), Eps);
@@ -50,12 +50,12 @@ TEST_P(TYTAllocTaggedTest, HugeCounters)
     constexpr auto Eps = 1_MB;
     auto total1 = GetTotalCounters()[ETotalCounter::BytesUsed];
     auto hugeTotal1 = GetHugeCounters()[EHugeCounter::BytesUsed];
-    auto* ptr = YTAlloc(N);
+    auto* ptr = NYTAlloc::Allocate(N);
     auto total2 = GetTotalCounters()[ETotalCounter::BytesUsed];
     auto hugeTotal2 = GetHugeCounters()[EHugeCounter::BytesUsed];
     EXPECT_LE(std::abs(total2 - total1 - N), Eps);
     EXPECT_LE(std::abs(hugeTotal2 - hugeTotal1 - N), Eps);
-    YTFree(ptr);
+    NYTAlloc::Free(ptr);
     auto total3 = GetTotalCounters()[ETotalCounter::BytesUsed];
     auto hugeTotal3 = GetHugeCounters()[EHugeCounter::BytesUsed];
     EXPECT_LE(std::abs(total3 - total1), Eps);
@@ -79,8 +79,8 @@ TEST(TYTAllocTest, AroundLargeBlobThreshold)
     constexpr size_t HugeSizeThreshold = 1ULL << (LargeRankCount - 1);
     for (int i = -10; i <= 10; ++i) {
         size_t size = HugeSizeThreshold + i * 10;
-        void* ptr = YTAlloc(size);
-        YTFree(ptr);
+        void* ptr = NYTAlloc::Allocate(size);
+        NYTAlloc::Free(ptr);
     }
 }
 

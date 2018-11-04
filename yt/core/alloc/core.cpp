@@ -1,6 +1,6 @@
 // This file contains the core parts of YTAlloc but no malloc/free-bridge.
 // The latter bridge is placed into alloc.cpp, which includes (sic!) core.cpp.
-// This ensures that YTAlloc/YTFree calls are properly inlined into malloc/free.
+// This ensures that AllocateInline/FreeInline calls are properly inlined into malloc/free.
 // Also core.cpp can be directly included in, e.g., benchmarks.
 
 #include "alloc.h"
@@ -2184,7 +2184,7 @@ public:
         }
     }
 
-    static size_t GetSize(void* ptr)
+    static size_t GetAllocationSize(void* ptr)
     {
         auto rank = PtrToSmallRank(ptr);
         auto size = SmallRankToSize[rank];
@@ -2382,7 +2382,7 @@ public:
         }
     }
 
-    static size_t GetSize(void* ptr)
+    static size_t GetAllocationSize(void* ptr)
     {
         UnalignPtr<TLargeBlobHeader>(ptr);
         const auto* blob = PtrToHeader<TLargeBlobHeader>(ptr);
@@ -2900,7 +2900,7 @@ public:
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BytesFreed, size);
     }
 
-    static size_t GetSize(void* ptr)
+    static size_t GetAllocationSize(void* ptr)
     {
         UnalignPtr<THugeBlobHeader>(ptr);
         const auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
@@ -3123,7 +3123,7 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void* InlineYTAlloc(size_t size)
+Y_FORCE_INLINE void* AllocateInline(size_t size)
 {
 #define XX() \
     size_t rank; \
@@ -3156,13 +3156,13 @@ Y_FORCE_INLINE void* InlineYTAlloc(size_t size)
 #undef XX
 }
 
-Y_FORCE_INLINE void* InlineYTAllocPageAligned(size_t size)
+Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
 {
     auto* ptr = TBlobAllocator::Allocate(size + PageSize);
     return AlignUp(ptr, PageSize);
 }
 
-Y_FORCE_INLINE void InlineYTFree(void* ptr)
+Y_FORCE_INLINE void FreeInline(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
         return;
@@ -3183,7 +3183,7 @@ Y_FORCE_INLINE void InlineYTFree(void* ptr)
 
 #if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
 
-Y_FORCE_INLINE size_t InlineYTGetSize(void* ptr)
+Y_FORCE_INLINE size_t GetAllocationSizeInline(void* ptr)
 {
     if (Y_UNLIKELY(!ptr)) {
         return 0;
@@ -3191,16 +3191,16 @@ Y_FORCE_INLINE size_t InlineYTGetSize(void* ptr)
 
     if (reinterpret_cast<uintptr_t>(ptr) < UntaggedSmallZonesEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxUntaggedSmallPtr);
-        return TSmallAllocator::GetSize(ptr);
+        return TSmallAllocator::GetAllocationSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < TaggedSmallZonesEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxTaggedSmallPtr);
-        return TSmallAllocator::GetSize(ptr);
+        return TSmallAllocator::GetAllocationSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
-        return TLargeBlobAllocator::GetSize(ptr);
+        return TLargeBlobAllocator::GetAllocationSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
-        return THugeBlobAllocator::GetSize(ptr);
+        return THugeBlobAllocator::GetAllocationSize(ptr);
     } else {
         Y_UNREACHABLE();
     }
