@@ -55,7 +55,7 @@ class TestJobCommands(object):
         shell.make_request("spawn", term="screen-256color", height=50, width=132)
 
         output_before_prompt = self._poll_until_prompt(shell)
-        assert "YT_OPERATION_ID" in output_before_prompt
+        assert b"YT_OPERATION_ID" in output_before_prompt
 
         command = b"echo $TERM; tput lines; tput cols; id -u; id -g\r"
         shell.make_request("update", keys=command, input_offset=0)
@@ -127,8 +127,8 @@ class TestJobCommands(object):
         shell.make_request("spawn", term="screen-256color", height=50, width=132)
 
         output_before_prompt = self._poll_until_prompt(shell)
-        assert "YT_OPERATION_ID" in output_before_prompt
-        assert "YT_SECURE_VAULT_MY_VAR" in output_before_prompt
+        assert b"YT_OPERATION_ID" in output_before_prompt
+        assert b"YT_SECURE_VAULT_MY_VAR" in output_before_prompt
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
@@ -154,8 +154,8 @@ class TestJobCommands(object):
         shell.make_request("spawn", term="screen-256color", height=50, width=132)
 
         output_before_prompt = self._poll_until_prompt(shell)
-        assert "YT_OPERATION_ID" in output_before_prompt
-        assert "YT_SECURE_VAULT_MY_VAR" not in output_before_prompt
+        assert b"YT_OPERATION_ID" in output_before_prompt
+        assert b"YT_SECURE_VAULT_MY_VAR" not in output_before_prompt
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
