@@ -13,7 +13,7 @@ namespace NYTAlloc {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Support build without YTAlloc
-Y_WEAK size_t YTGetSize(void* /*ptr*/)
+Y_WEAK size_t GetAllocationSize(void* /*ptr*/)
 {
     return 0;
 }
@@ -42,7 +42,7 @@ TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
 {
     auto requestedSize = sizeof(TDerived) + size;
     auto* ptr = ::malloc(requestedSize);
-    auto allocatedSize = NYTAlloc::YTGetSize(ptr);
+    auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
     if (allocatedSize) {
         size += allocatedSize - requestedSize;
     }
