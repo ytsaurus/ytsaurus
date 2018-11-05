@@ -71,7 +71,7 @@ class TProcessJobEnvironmentBase
     : public IJobEnvironment
 {
 public:
-    TProcessJobEnvironmentBase(TJobEnvironmentConfigPtr config, const TBootstrap* bootstrap)
+    TProcessJobEnvironmentBase(TJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
         : BasicConfig_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
@@ -169,7 +169,7 @@ protected:
 
     const TJobEnvironmentConfigPtr BasicConfig_;
     THashMap<int, TJobProxyProcess> JobProxyProcesses_;
-    const TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
 
     TFuture<void> JobProxyResult_;
@@ -240,7 +240,7 @@ class TCGroupJobEnvironment
     : public TProcessJobEnvironmentBase
 {
 public:
-    TCGroupJobEnvironment(TCGroupJobEnvironmentConfigPtr config, const TBootstrap* bootstrap)
+    TCGroupJobEnvironment(TCGroupJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
     {
@@ -348,7 +348,7 @@ class TSimpleJobEnvironment
     : public TProcessJobEnvironmentBase
 {
 public:
-    TSimpleJobEnvironment(TSimpleJobEnvironmentConfigPtr config, const TBootstrap* bootstrap)
+    TSimpleJobEnvironment(TSimpleJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
     { }
@@ -410,7 +410,7 @@ class TPortoJobEnvironment
     : public TProcessJobEnvironmentBase
 {
 public:
-    TPortoJobEnvironment(TPortoJobEnvironmentConfigPtr config, const TBootstrap* bootstrap)
+    TPortoJobEnvironment(TPortoJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
         , PortoExecutor_(CreatePortoExecutor(Config_->PortoWaitTime, Config_->PortoPollPeriod))
@@ -694,7 +694,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* bootstrap)
+IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, TBootstrap* bootstrap)
 {
     auto config = ConvertTo<TJobEnvironmentConfigPtr>(configNode);
     switch (config->Type) {

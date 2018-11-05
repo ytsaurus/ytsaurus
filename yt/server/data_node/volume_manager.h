@@ -33,8 +33,8 @@ DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 
 #ifdef __linux__
 IVolumeManagerPtr CreatePortoVolumeManager(
-    const TVolumeManagerConfigPtr& config,
-    const NCellNode::TBootstrap* bootstrap);
+    TVolumeManagerConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
