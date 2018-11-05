@@ -1702,7 +1702,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
 
     LOG_DEBUG_IF(enableLogging,
         "Update preemptable job lists inputs (FairShareRatio: %v, TotalResourceLimits: %v, "
-        "PreemtionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
+        "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
         fairShareRatio,
         FormatResources(totalResourceLimits),
         preemptionSatisfactionThreshold,
