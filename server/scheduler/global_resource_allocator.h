@@ -10,21 +10,18 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGlobalResourceAllocator
+struct IGlobalResourceAllocator
+    : public virtual TRefCounted
 {
-public:
-    void ReconcileState(
-        const TClusterPtr& cluster);
-
-    TErrorOr<TNode*> ComputeAllocation(TPod* pod);
-
-private:
-    bool TryAllocation(TNode* node, TPod* pod);
-
-private:
-    TClusterPtr Cluster_;
-    THashMap<TString, size_t> NetworkModuleIdToFreeAddressCount_;
+    virtual void ReconcileState(const TClusterPtr& cluster) = 0;
+    virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IGlobalResourceAllocator)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

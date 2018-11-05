@@ -77,9 +77,10 @@ public:
     TUserIdList GetObjectAccessAllowedFor(
         NObjects::TObject* object,
         EAccessControlPermission permission);
-    
+
     void SetAuthenticatedUser(const NObjects::TObjectId& userId);
     void ResetAuthenticatedUser();
+    bool HasAuthenticatedUser();
     NObjects::TObjectId GetAuthenticatedUser();
 
     void ValidatePermission(

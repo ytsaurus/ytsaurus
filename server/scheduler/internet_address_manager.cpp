@@ -58,7 +58,7 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
 
         auto scheduledInternetAddressId = TakeInternetAddress(node->Spec().Load().network_module_id());
         if (!scheduledInternetAddressId.HasValue()) {
-            THROW_ERROR_EXCEPTION("There is no spare internet address with %Qv network module id for pod %Qv on node %Qv",
+            THROW_ERROR_EXCEPTION("No spare internet addresses in network module %Qv for pod %Qv at node %Qv",
                 node->Spec().Load().network_module_id(),
                 pod->GetId(),
                 node->GetId());

@@ -100,7 +100,7 @@ private:
         auto* node = transaction->GetNode(nodeId);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->ProcessHeartbeat(
+        auto error = nodeTracker->ProcessHeartbeat(
             transaction,
             node,
             epochId,
@@ -111,7 +111,7 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        context->Reply();
+        context->Reply(error);
     }
 
 

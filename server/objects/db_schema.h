@@ -16,6 +16,7 @@ extern const struct TObjectTableBase
     struct TFields
     {
         TDBField Meta_Id{"meta.id"};
+        TDBField Meta_Other{"meta.other"};
         TDBField Meta_CreationTime{"meta.creation_time"};
         TDBField Meta_RemovalTime{"meta.removal_time"};
         TDBField Meta_InheritAcl{"meta.inherit_acl"};
@@ -154,6 +155,7 @@ extern const struct TPodsTable
         TDBField Spec_IssPayload{"spec.iss_payload"};
         TDBField Spec_PodAgentPayload{"spec.pod_agent_payload"};
         TDBField Spec_EnableScheduling{"spec.enable_scheduling"};
+        TDBField Spec_Secrets{"spec.secrets"};
         TDBField Spec_UpdateTag{"spec.update_tag"};
         TDBField Spec_Other{"spec.other"};
     } Fields;

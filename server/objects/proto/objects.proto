@@ -5,6 +5,15 @@ import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Cf. NYP.NClient.NApi.NProto.TXXXMeta
+message TMetaOther
+{
+    optional string uuid = 12;
+    optional string name = 13;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Cf. NYP.NClient.NApi.NProto.TNodeStatus
 message TNodeStatusOther
 {

@@ -1,12 +1,14 @@
 #include "global_resource_allocator.h"
 #include "cluster.h"
 #include "internet_address.h"
+#include "network_module.h"
 #include "pod.h"
 #include "pod_set.h"
 #include "node.h"
 #include "node_segment.h"
 #include "label_filter_cache.h"
 #include "helpers.h"
+#include "config.h"
 
 namespace NYP {
 namespace NServer {
@@ -14,16 +16,36 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetPodRequestedInternetAddressCount(const TPod* pod)
+{
+    int result = 0;
+
+    for (const auto& addressRequest : pod->SpecOther().ip6_address_requests()) {
+        if (addressRequest.enable_internet()) {
+            ++result;
+        }
+    }
+
+    return result;
+}
+
+TNetworkModule* GetNodeNetworkModule(const TNode* node, const TClusterPtr& cluster)
+{
+    return node->Spec().has_network_module_id()
+        ? cluster->FindNetworkModule(node->Spec().network_module_id())
+        : nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInternetAddressAllocationContext
 {
 public:
     TInternetAddressAllocationContext(
-        const TNode* node,
-        const TPod* pod,
-        THashMap<TString, size_t>* networkModuleIdToFreeAddressCount)
-        : Node_(node)
+        TNetworkModule* networkModule,
+        const TPod* pod)
+        : NetworkModule_(networkModule)
         , Pod_(pod)
-        , NetworkModuleIdToFreeAddressCount_(networkModuleIdToFreeAddressCount)
     { }
 
     bool TryAllocate()
@@ -46,48 +68,39 @@ private:
     void ReleaseAddresses()
     {
         if (AllocationSize_ > 0) {
-            (*NetworkModuleIdToFreeAddressCount_)[NetworkModuleId_] += AllocationSize_;
+            YCHECK(NetworkModule_);
+            YCHECK(NetworkModule_->AllocatedInternetAddressCount() >= AllocationSize_);
+            NetworkModule_->AllocatedInternetAddressCount() -= AllocationSize_;
             AllocationSize_ = 0;
         }
     }
 
     bool TryAcquireAddresses()
     {
-        size_t allocationSize = 0;
-
-        for (const auto& addressRequest : Pod_->SpecOther().ip6_address_requests()) {
-            if (addressRequest.enable_internet()) {
-                ++allocationSize;
-            }
-        }
+        auto allocationSize = GetPodRequestedInternetAddressCount(Pod_);
 
         if (allocationSize == 0) {
             return true;
         }
 
-        const auto& networkModuleId = Node_->Spec().network_module_id();
-        if (!NetworkModuleIdToFreeAddressCount_->has(networkModuleId)) {
+        if (!NetworkModule_) {
             return false;
         }
 
-        auto& freeAddressCount = (*NetworkModuleIdToFreeAddressCount_)[networkModuleId];
-        if (freeAddressCount < allocationSize) {
+        if (NetworkModule_->AllocatedInternetAddressCount() + allocationSize > NetworkModule_->InternetAddressCount()) {
             return false;
         }
-        freeAddressCount -= allocationSize;
 
-        NetworkModuleId_ = networkModuleId;
+        NetworkModule_->AllocatedInternetAddressCount() += allocationSize;
         AllocationSize_ = allocationSize;
 
         return true;
     }
 
-    const TNode* Node_;
+    TNetworkModule* NetworkModule_;
     const TPod* Pod_;
 
-    THashMap<TString, size_t>* NetworkModuleIdToFreeAddressCount_;
-    TString NetworkModuleId_;
-    size_t AllocationSize_ = 0;
+    int AllocationSize_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,116 +138,367 @@ private:
     TPod* const Pod_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAllocationErrorType,
+    (AntiaffinityUnsatisfied)
+    (InternetAddressUnsatisfied)
+    (CpuUnsatisfied)
+    (MemoryUnsatisfied)
+    (DiskUnsatisfied)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGlobalResourceAllocator::ReconcileState(
-    const TClusterPtr& cluster)
+class TGlobalResourceAllocatorStatistics
 {
-    Cluster_ = std::move(cluster);
-
-    NetworkModuleIdToFreeAddressCount_.clear();
-    for (auto* address : cluster->GetInternetAddresses()) {
-        if (!address->Status().has_pod_id()) {
-            const auto& networkModuleId = address->Spec().network_module_id();
-            ++NetworkModuleIdToFreeAddressCount_[networkModuleId];
-        }
+public:
+    void RegisterAttempt()
+    {
+        ++AttemptCount_;
     }
-}
 
-TErrorOr<TNode*> TGlobalResourceAllocator::ComputeAllocation(TPod* pod)
+    void RegisterError(EAllocationErrorType errorType)
+    {
+        ++ErrorCountPerType_[errorType];
+    }
+
+    int GetAttemptCount() const
+    {
+        return AttemptCount_;
+    }
+
+    TString FormatErrors() const
+    {
+        return Format("%v", ErrorCountPerType_);
+    }
+
+private:
+    int AttemptCount_ = 0;
+    TEnumIndexedVector<int, EAllocationErrorType> ErrorCountPerType_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAllocatorNodeSelectionStrategy,
+    (Every)
+    (Random)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBasicGlobalResourceAllocator
+    : public IGlobalResourceAllocator
 {
-    auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
-    const auto& cache = nodeSegment->GetSchedulableNodeLabelFilterCache();
+public:
+    explicit TBasicGlobalResourceAllocator(EAllocatorNodeSelectionStrategy nodeSelectionStrategy)
+        : NodeSelectionStrategy_(nodeSelectionStrategy)
+    { }
 
-    const auto& allSegmentNodesOrError = cache->GetFilteredObjects(TString());
-    YCHECK(allSegmentNodesOrError.IsOK());
-    const auto& allSegmentNodes = allSegmentNodesOrError.Value();
-    if (allSegmentNodes.empty()) {
-        return TError("No schedulable nodes in segment %Qv",
-            nodeSegment->GetId());
+    virtual void ReconcileState(const TClusterPtr& cluster) override
+    {
+        Cluster_ = cluster;
     }
 
-    const auto& nodeFilter = pod->SpecOther().node_filter();
-    const auto& nodesOrError = cache->GetFilteredObjects(nodeFilter);
-    if (!nodesOrError.IsOK()) {
-        return TError("Error applying pod node filter %Qv",
-            nodeFilter)
-            << TError(nodesOrError);
-    }
+    virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) override
+    {
+        LOG_DEBUG("Started computing pod allocation via basic global resource allocator (PodId: %v, NodeSelectionStrategy: %v)",
+            pod->GetId(),
+            NodeSelectionStrategy_);
 
-    const auto& nodes = nodesOrError.Value();
-    if (nodes.empty()) {
-        return TError("No alive node in segment %Qv matches pod filter %Qv",
-            nodeSegment->GetId(),
-            nodeFilter)
-            << TError(nodesOrError);
-    }
+        auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
+        const auto& cache = nodeSegment->GetSchedulableNodeLabelFilterCache();
 
-    const int MaxAttempts = 10;
-    for (int attempt = 0; attempt < MaxAttempts; ++attempt) {
-        auto* node = nodes[RandomNumber(nodes.size())];
-        if (TryAllocation(node, pod)) {
-            return node;
+        const auto& allSegmentNodesOrError = cache->GetFilteredObjects(TString());
+        YCHECK(allSegmentNodesOrError.IsOK());
+        const auto& allSegmentNodes = allSegmentNodesOrError.Value();
+        if (allSegmentNodes.empty()) {
+            return TError("No schedulable nodes in segment %Qv",
+                nodeSegment->GetId());
+        }
+
+        const auto& nodeFilter = pod->SpecOther().node_filter();
+        const auto& nodesOrError = cache->GetFilteredObjects(nodeFilter);
+        if (!nodesOrError.IsOK()) {
+            return TError("Error applying pod node filter %Qv",
+                nodeFilter)
+                << TError(nodesOrError);
+        }
+
+        const auto& nodes = nodesOrError.Value();
+        if (nodes.empty()) {
+            return TError("No alive nodes in segment %Qv match filter %Qv",
+                nodeSegment->GetId(),
+                nodeFilter)
+                << TError(nodesOrError);
+        }
+
+        TGlobalResourceAllocatorStatistics statistics;
+        switch (NodeSelectionStrategy_) {
+            case EAllocatorNodeSelectionStrategy::Random: {
+                const int MaxAttempts = 10;
+                for (int attempt = 0; attempt < MaxAttempts; ++attempt) {
+                    auto* node = nodes[RandomNumber(nodes.size())];
+                    if (TryAllocation(node, pod, &statistics)) {
+                        return node;
+                    }
+                }
+                return TError("No matching node from a random sample of size %v could be allocated for pod due to errors %v",
+                    statistics.GetAttemptCount(),
+                    statistics.FormatErrors());
+            }
+            case EAllocatorNodeSelectionStrategy::Every: {
+                for (auto* node : nodes) {
+                    if (TryAllocation(node, pod, &statistics)) {
+                        return node;
+                    }
+                }
+                return TError("No matching alive node (from %v in total after filtering) could be allocated for pod due to errors %v",
+                    nodes.size(),
+                    statistics.FormatErrors());
+            }
+            default:
+                Y_UNIMPLEMENTED();
         }
     }
 
-    return TError("No matching alive node could be allocated for pod");
-}
+private:
+    const EAllocatorNodeSelectionStrategy NodeSelectionStrategy_;
 
-bool TGlobalResourceAllocator::TryAllocation(TNode* node, TPod* pod)
-{
-    TNodeAllocationContext nodeAllocationContext(node, pod);
-    TInternetAddressAllocationContext internetAddressAllocationContext(node, pod, &NetworkModuleIdToFreeAddressCount_);
+    TClusterPtr Cluster_;
 
-    if (!nodeAllocationContext.TryAcquireAntiaffinityVacancies()) {
-        return false;
-    }
+    bool TryAllocation(
+        TNode* node,
+        TPod* pod,
+        TGlobalResourceAllocatorStatistics* statistics)
+    {
+        statistics->RegisterAttempt();
 
-    if (!internetAddressAllocationContext.TryAllocate()) {
-        return false;
-    }
+        TNodeAllocationContext nodeAllocationContext(node, pod);
+        TInternetAddressAllocationContext internetAddressAllocationContext(
+            GetNodeNetworkModule(node, Cluster_),
+            pod);
 
-    const auto& resourceRequests = pod->SpecOther().resource_requests();
+        bool result = true;
 
-    if (resourceRequests.vcpu_guarantee() > 0) {
-        if (!nodeAllocationContext.CpuResource().TryAllocate(MakeCpuCapacities(resourceRequests.vcpu_guarantee()))) {
-            return false;
+        if (!nodeAllocationContext.TryAcquireAntiaffinityVacancies()) {
+            result = false;
+            statistics->RegisterError(EAllocationErrorType::AntiaffinityUnsatisfied);
         }
-    }
 
-    if (resourceRequests.memory_limit() > 0) {
-        if (!nodeAllocationContext.MemoryResource().TryAllocate(MakeMemoryCapacities(resourceRequests.memory_limit()))) {
-            return false;
+        if (!internetAddressAllocationContext.TryAllocate()) {
+            result = false;
+            statistics->RegisterError(EAllocationErrorType::InternetAddressUnsatisfied);
         }
-    }
 
-    for (const auto& volumeRequest : pod->SpecOther().disk_volume_requests()) {
-        const auto& storageClass = volumeRequest.storage_class();
-        auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
-        auto capacities = GetDiskVolumeRequestCapacities(volumeRequest);
-        bool exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
-        bool satisfied = false;
-        for (auto& diskResource : nodeAllocationContext.DiskResources()) {
-            if (diskResource.TryAllocate(exclusive, storageClass, policy, capacities)) {
-                satisfied = true;
+        const auto& resourceRequests = pod->SpecOther().resource_requests();
+
+        if (resourceRequests.vcpu_guarantee() > 0) {
+            if (!nodeAllocationContext.CpuResource().TryAllocate(MakeCpuCapacities(resourceRequests.vcpu_guarantee()))) {
+                result = false;
+                statistics->RegisterError(EAllocationErrorType::CpuUnsatisfied);
+            }
+        }
+
+        if (resourceRequests.memory_limit() > 0) {
+            if (!nodeAllocationContext.MemoryResource().TryAllocate(MakeMemoryCapacities(resourceRequests.memory_limit()))) {
+                result = false;
+                statistics->RegisterError(EAllocationErrorType::MemoryUnsatisfied);
+            }
+        }
+
+        bool allDiskVolumeRequestsSatisfied = true;
+        for (const auto& volumeRequest : pod->SpecOther().disk_volume_requests()) {
+            const auto& storageClass = volumeRequest.storage_class();
+            auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
+            auto capacities = GetDiskVolumeRequestCapacities(volumeRequest);
+            bool exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
+            bool satisfied = false;
+            for (auto& diskResource : nodeAllocationContext.DiskResources()) {
+                if (diskResource.TryAllocate(exclusive, storageClass, policy, capacities)) {
+                    satisfied = true;
+                    break;
+                }
+            }
+            if (!satisfied) {
+                allDiskVolumeRequestsSatisfied = false;
                 break;
             }
         }
-        if (!satisfied) {
-            return false;
+
+        if (!allDiskVolumeRequestsSatisfied) {
+            result = false;
+            statistics->RegisterError(EAllocationErrorType::DiskUnsatisfied);
         }
+
+        if (result) {
+            nodeAllocationContext.Commit();
+            internetAddressAllocationContext.Commit();
+        }
+
+        return result;
     }
-
-    nodeAllocationContext.Commit();
-    internetAddressAllocationContext.Commit();
-
-    return true;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCompositeGlobalResourceAllocator
+    : public IGlobalResourceAllocator
+{
+public:
+    explicit TCompositeGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config)
+        : Config_(std::move(config))
+        , RandomNodeSelectionAllocator_(
+            New<TBasicGlobalResourceAllocator>(EAllocatorNodeSelectionStrategy::Random))
+        , EveryNodeSelectionAllocator_(
+            New<TBasicGlobalResourceAllocator>(EAllocatorNodeSelectionStrategy::Every))
+    {
+        YCHECK(Config_->EveryNodeSelectionStrategy->Enable);
+    }
+
+    virtual void ReconcileState(const TClusterPtr& cluster) override
+    {
+        VERIFY_THREAD_AFFINITY(SchedulerThread);
+
+        LOG_DEBUG("Started reconciling state of the global resource allocator");
+
+        RandomNodeSelectionAllocator_->ReconcileState(cluster);
+        EveryNodeSelectionAllocator_->ReconcileState(cluster);
+
+        std::vector<TObjectId> expiredPodIds;
+        int removedPodCount = 0;
+        int assignedPodCount = 0;
+        for (const auto& pair : PodComputeAllocationHistory_) {
+            const auto& podId = pair.first;
+            const auto& history = pair.second;
+
+            const auto* pod = cluster->FindPod(podId);
+
+            // We compare uuids here to overcome possible pod ids collision:
+            // current pod could be removed and another pod could be created with the same pod_id
+            // between consecutive state reconcilations.
+            if (!pod || pod->MetaOther().uuid() != history->Uuid) {
+                ++removedPodCount;
+                expiredPodIds.push_back(podId);
+            } else if (pod->GetNode()) {
+                ++assignedPodCount;
+                expiredPodIds.push_back(podId);
+            }
+        }
+
+        LOG_DEBUG("Erasing expired pods from the global resource allocator history (RemovedPodCount: %v, AssignedPodCount: %v, HistorySize: %v)",
+            removedPodCount,
+            assignedPodCount,
+            PodComputeAllocationHistory_.size());
+
+        for (const auto& podId : expiredPodIds) {
+            YCHECK(PodComputeAllocationHistory_.erase(podId));
+        }
+
+        LOG_DEBUG("State of the global resource allocator reconciled");
+    }
+
+    virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) override
+    {
+        VERIFY_THREAD_AFFINITY(SchedulerThread);
+
+        auto* history = GetOrCreatePodComputeAllocationHistory(pod);
+
+        TErrorOr<TNode*> nodeOrError;
+        if (history->IterationCountToEveryNodeSelection == 0) {
+            history->IterationCountToEveryNodeSelection = GenerateIterationCountToEveryNodeSelection();
+
+            nodeOrError = EveryNodeSelectionAllocator_->ComputeAllocation(pod);
+            if (!nodeOrError.IsOK()) {
+                history->StrategyToLastError[EAllocatorNodeSelectionStrategy::Every] = nodeOrError;
+            }
+        } else {
+            --history->IterationCountToEveryNodeSelection;
+
+            nodeOrError = RandomNodeSelectionAllocator_->ComputeAllocation(pod);
+            if (!nodeOrError.IsOK()) {
+                history->StrategyToLastError[EAllocatorNodeSelectionStrategy::Random] = nodeOrError;
+            }
+        }
+
+        if (nodeOrError.IsOK()) {
+            YCHECK(PodComputeAllocationHistory_.erase(pod->GetId()));
+            return nodeOrError;
+        }
+
+        TError combinedError("Could not compute pod allocation");
+        for (auto nodeSelectionStrategy : TEnumTraits<EAllocatorNodeSelectionStrategy>::GetDomainValues()) {
+            const auto& error = history->StrategyToLastError[nodeSelectionStrategy];
+            if (!error.IsOK()) {
+                combinedError.InnerErrors().push_back(error);
+            }
+        }
+
+        return combinedError;
+    }
+
+private:
+    const TGlobalResourceAllocatorConfigPtr Config_;
+
+    IGlobalResourceAllocatorPtr RandomNodeSelectionAllocator_;
+    IGlobalResourceAllocatorPtr EveryNodeSelectionAllocator_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(SchedulerThread);
+
+    struct TPodComputeAllocationHistory
+    {
+        // Last error occurred while computing allocation per node selection strategy.
+        TEnumIndexedVector<TError, EAllocatorNodeSelectionStrategy> StrategyToLastError;
+
+        // Loop iteration count before next usage of every node selection strategy.
+        int IterationCountToEveryNodeSelection;
+
+        // Used to track pod identity.
+        TObjectId Uuid;
+    };
+
+    THashMap<TObjectId, std::unique_ptr<TPodComputeAllocationHistory>> PodComputeAllocationHistory_;
+
+    int GenerateIterationCountToEveryNodeSelection() const
+    {
+        const auto& config = Config_->EveryNodeSelectionStrategy;
+        auto result = std::max(config->IterationPeriod, 1) - 1;
+        if (config->IterationSplay > 0) {
+            result += RandomNumber(static_cast<size_t>(config->IterationSplay));
+        }
+        return result;
+    }
+
+    TPodComputeAllocationHistory* GetOrCreatePodComputeAllocationHistory(TPod* pod)
+    {
+        const auto& podId = pod->GetId();
+        auto it = PodComputeAllocationHistory_.find(podId);
+        if (it == PodComputeAllocationHistory_.end()) {
+            auto history = std::make_unique<TPodComputeAllocationHistory>();
+            history->IterationCountToEveryNodeSelection = GenerateIterationCountToEveryNodeSelection();
+            history->Uuid = pod->MetaOther().uuid();
+
+            it = PodComputeAllocationHistory_.emplace(podId, std::move(history)).first;
+        } else {
+            const auto& history = it->second;
+
+            YCHECK(history->Uuid == pod->MetaOther().uuid());
+        }
+        return it->second.get();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config)
+{
+    if (config->EveryNodeSelectionStrategy->Enable) {
+        return New<TCompositeGlobalResourceAllocator>(std::move(config));
+    }
+    return New<TBasicGlobalResourceAllocator>(EAllocatorNodeSelectionStrategy::Random);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NObjects
 } // namespace NScheduler
 } // namespace NYP
-

@@ -83,7 +83,7 @@ public:
         return node;
     }
 
-    void ProcessHeartbeat(
+    TError ProcessHeartbeat(
         const TTransactionPtr& transaction,
         TNode* node,
         const TEpochId& epochId,
@@ -161,14 +161,21 @@ public:
             }
         }
 
-        if (node->Status().Other()->unknown_pod_ids_size() > 0) {
-            THROW_ERROR_EXCEPTION("Unknown pods found at node, heartbeat ignored");
+        if (node->Status().Other()->unknown_pod_ids_size() > 0 &&
+            !node->Spec().Load().force_remove_unknown_pods())
+        {
+            return TError("Unknown pods found at node, heartbeat ignored");
         }
 
         // Actually examine pods from the heartbeat.
         for (const auto& podEntry : request->pods()) {
-            auto currentState = static_cast<EPodCurrentState>(podEntry.status().current_state());
             auto podId = FromProto<TObjectId>(podEntry.pod_id());
+
+            auto currentState = static_cast<EPodCurrentState>(podEntry.current_state());
+            // TODO(babenko): remove after agents are updated
+            if (currentState == EPodCurrentState::Unknown) {
+                currentState = static_cast<EPodCurrentState>(podEntry.status().current_state());
+            }
 
             YCHECK(reportedPodIds.insert(podId).second);
 
@@ -187,9 +194,13 @@ public:
                 auto* pod = podIt->second;
                 auto agentTimestamp = podEntry.spec_timestamp();
                 auto masterTimestamp = pod->Spec().UpdateTimestamp().Load();
+                // TODO(babenko): remove after agents are updated
+                if (currentState == EPodCurrentState::Unknown) {
+                    currentState = pod->Status().Agent().State().Load();
+                }
 
                 if (agentTimestamp > masterTimestamp) {
-                    THROW_ERROR_EXCEPTION("Node %Qv has pod %Qv with spec revision %llx while only revision %llx is available at master",
+                    THROW_ERROR_EXCEPTION("Node %Qv has pod %Qv with spec timestamp %llx while only timestamp %llx is available at master",
                         node->GetId(),
                         podId,
                         agentTimestamp,
@@ -197,8 +208,9 @@ public:
                 }
 
                 if (agentTimestamp < masterTimestamp) {
-                    LOG_DEBUG("Sending pod spec update (PodId: %v, SpecRevision: %llx -> %llx)",
+                    LOG_DEBUG("Sending pod spec update (PodId: %v, CurrentState: %v, SpecTimestamp: %llx -> %llx)",
                         podId,
+                        currentState,
                         agentTimestamp,
                         masterTimestamp);
                     pod->Spec().IssPayload().ScheduleLoad();
@@ -211,7 +223,7 @@ public:
                     }
                 }
 
-                if (currentState != EPodCurrentState::Unknown) {
+                if (podEntry.has_status()) {
                     LOG_DEBUG("Pod status update received (PodId: %v, CurrentState: %v)",
                         podId,
                         currentState);
@@ -257,6 +269,7 @@ public:
             ToProto(podEntry->mutable_pod_id(), pod->GetId());
             podEntry->set_spec_timestamp(pod->Spec().UpdateTimestamp().Load());
             podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_ACTIVE);
+            podEntry->set_target_state(NClient::NApi::NProto::PTS_ACTIVE);
             PopulateAgentSpec(podEntry->mutable_spec(), node, pod);
         }
 
@@ -264,13 +277,14 @@ public:
             auto* podEntry = response->add_pods();
             ToProto(podEntry->mutable_pod_id(), pod->GetId());
             podEntry->set_spec_timestamp(pod->Spec().UpdateTimestamp().Load());
-            podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_ACTIVE);
+            podEntry->set_target_state(NClient::NApi::NProto::PTS_ACTIVE);
         }
 
         for (const auto& podId : podIdsToRemove) {
             auto* podEntry = response->add_pods();
             ToProto(podEntry->mutable_pod_id(), podId);
             podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
+            podEntry->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
         }
 
         for (auto* resource : node->Resources().Load()) {
@@ -301,6 +315,8 @@ public:
                 actualAllocations->back().MergeFrom(scheduledAllocation);
             }
         }
+
+        return {};
     }
 
     void NotifyAgent(TNode* node)
@@ -435,7 +451,7 @@ TNode* TNodeTracker::ProcessHandshake(
         address);
 }
 
-void TNodeTracker::ProcessHeartbeat(
+TError TNodeTracker::ProcessHeartbeat(
     const TTransactionPtr& transaction,
     TNode* node,
     const TEpochId& epochId,
@@ -443,7 +459,7 @@ void TNodeTracker::ProcessHeartbeat(
     const TReqHeartbeat* request,
     TRspHeartbeat* response)
 {
-    Impl_->ProcessHeartbeat(
+    return Impl_->ProcessHeartbeat(
         transaction,
         node,
         epochId,

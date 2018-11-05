@@ -1,6 +1,8 @@
 #pragma once
 #ifndef PERSISTENCE_INL_H_
 #error "Direct inclusion of this file is not allowed, include persistence.h"
+// For the sake of sane code completion.
+#include "persistence.h"
 #endif
 
 #include <yt/client/table_client/row_buffer.h>

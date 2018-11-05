@@ -88,6 +88,11 @@ const TScalarAttributeSchema<TPod, bool> TPod::TSpec::EnableSchedulingSchema{
     [] (TPod* pod) { return &pod->Spec().EnableScheduling(); }
 };
 
+const TScalarAttributeSchema<TPod, TPod::TSpec::TSecrets> TPod::TSpec::SecretsSchema{
+    &PodsTable.Fields.Spec_Secrets,
+    [] (TPod* pod) { return &pod->Spec().Secrets(); }
+};
+
 const TTimestampAttributeSchema TPod::TSpec::UpdateTimestampSchema{
     &PodsTable.Fields.Spec_UpdateTag
 };
@@ -102,6 +107,7 @@ TPod::TSpec::TSpec(TPod* pod)
     , IssPayload_(pod, &IssPayloadSchema)
     , PodAgentPayload_(pod, &PodAgentPayloadSchema)
     , EnableScheduling_(pod, &EnableSchedulingSchema)
+    , Secrets_(pod, &SecretsSchema)
     , UpdateTimestamp_(pod, &UpdateTimestampSchema)
     , Other_(pod, &OtherSchema)
 { }

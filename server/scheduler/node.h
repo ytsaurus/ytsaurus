@@ -23,6 +23,7 @@ public:
     TResourceBase(const TResourceBase&) = default;
 
     const TResourceCapacities& GetTotalCapacities() const;
+    const TResourceCapacities& GetAllocatedCapacities() const;
 
 protected:
     TResourceCapacities TotalCapacities_ = {};

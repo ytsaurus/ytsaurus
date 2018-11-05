@@ -17,6 +17,9 @@ using namespace NYT::NYTree;
 using namespace NYT::NQueryClient;
 using namespace NYT::NQueryClient::NAst;
 
+using std::placeholders::_1;
+using std::placeholders::_2;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectTypeHandlerBase::TObjectTypeHandlerBase(
@@ -44,7 +47,12 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
 
                     MakeAttributeSchema("acl")
                         ->SetAttribute(TObject::AclSchema)
+                        ->SetUpdatable(),
+
+                    MakeFallbackAttributeSchema()
+                        ->SetAttribute(TObject::MetaOtherSchema)
                         ->SetUpdatable()
+                        ->SetValidator<TObject>(std::bind(&TObjectTypeHandlerBase::ValidateMetaOther, this, _1, _2))
                 }),
 
             MakeAttributeSchema("labels")
@@ -124,6 +132,7 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
     }
 
     object->CreationTime() = TInstant::Now();
+    object->MetaOther()->set_uuid(GenerateUuid());
     object->Labels() = GetEphemeralNodeFactory()->CreateMap();
 
     const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
@@ -135,7 +144,9 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
         for (auto permission : GetDefaultPermissions()) {
             ace.add_permissions(static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission));
         }
-        ace.add_subjects(accessControlManager->GetAuthenticatedUser());
+        if (accessControlManager->HasAuthenticatedUser()) {
+            ace.add_subjects(accessControlManager->GetAuthenticatedUser());
+        }
         object->Acl()->push_back(std::move(ace));        
     }
 }
@@ -150,9 +161,9 @@ void TObjectTypeHandlerBase::BeforeObjectRemoved(
     TObject* object)
 {
     if (object->IsBuiltin()) {
-        THROW_ERROR_EXCEPTION("Cannot remove built-in %v %Qv",
+        THROW_ERROR_EXCEPTION("Cannot remove built-in %v %v",
             GetCapitalizedHumanReadableTypeName(object->GetType()),
-            object->GetId());
+            GetObjectDisplayName(object));
     }
 }
 
@@ -182,6 +193,26 @@ std::vector<EAccessControlPermission> TObjectTypeHandlerBase::GetDefaultPermissi
         EAccessControlPermission::Read,
         EAccessControlPermission::Write,
     };
+}
+
+bool TObjectTypeHandlerBase::IsObjectNameSupported() const
+{
+    return false;
+}
+
+void TObjectTypeHandlerBase::ValidateMetaOther(TTransaction* /*transaction*/, TObject* object)
+{
+    const auto& metaOtherNew = object->MetaOther().Load();
+    const auto& metaOtherOld = object->MetaOther().LoadOld();
+
+    if (object->DidExist() && metaOtherOld.uuid() != metaOtherNew.uuid()) {
+        THROW_ERROR_EXCEPTION("Changing /meta/uuid is forbidden");
+    }
+
+    if (metaOtherNew.has_name() && !IsObjectNameSupported()) {
+        THROW_ERROR_EXCEPTION("Cannot set /meta/name for %v objects",
+            GetLowercaseHumanReadableTypeName(GetType()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,7 +16,9 @@ DEFINE_ENUM(EAccessControlAction,
 );
 
 DEFINE_ENUM(EAccessControlPermission,
+    ((None)          (0))
     ((Read)          (1))
+    ((ReadSecrets)   (8))
     ((Write)         (2))
     ((Create)        (3))
     ((SshAccess)     (4))

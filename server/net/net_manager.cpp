@@ -315,6 +315,7 @@ private:
 
     void RegisterDnsRecords(const TTransactionPtr& transaction, TPod* pod)
     {
+        return;
         const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
         const auto& ip6AddressAllocations = pod->Status().Other().Load().ip6_address_allocations();
 
@@ -339,6 +340,7 @@ private:
 
     void UnregisterDnsRecords(const TTransactionPtr& transaction, TPod* pod)
     {
+        return;
         const auto& allocations = pod->Status().Other().Load().ip6_address_allocations();
         for (const auto& allocation : allocations) {
             if (allocation.has_persistent_fqdn()) {

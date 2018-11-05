@@ -140,6 +140,7 @@ DEFINE_ENUM(EPodCurrentState,
     ((Started)       (200))
     ((StopPending)   (300))
     ((Stopped)       (400))
+    ((StartFailed)   (500))
 );
 
 DEFINE_ENUM(EPodTargetState,

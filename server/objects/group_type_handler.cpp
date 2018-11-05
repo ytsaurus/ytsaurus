@@ -47,9 +47,15 @@ public:
         return std::unique_ptr<TObject>(new TGroup(id, this, session));
     }
 
+protected:
     virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
     {
         return {};
+    }
+
+    virtual bool IsObjectNameSupported() const override
+    {
+        return true;
     }
 };
 

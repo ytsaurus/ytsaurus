@@ -24,7 +24,7 @@ public:
         RegisterParameter("removed_objects_sweep_period", RemovedObjectsSweepPeriod)
             .Default(TDuration::Minutes(10));
         RegisterParameter("removed_objects_grace_timeout", RemovedObjectsGraceTimeout)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Hours(24));
     }
 };
 

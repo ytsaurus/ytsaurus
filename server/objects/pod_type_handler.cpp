@@ -119,6 +119,11 @@ public:
                     ->SetAttribute(TPod::TSpec::EnableSchedulingSchema)
                     ->SetUpdatable(),
 
+                MakeAttributeSchema("secrets")
+                    ->SetAttribute(TPod::TSpec::SecretsSchema)
+                    ->SetUpdatable()
+                    ->SetReadPermission(NAccessControl::EAccessControlPermission::ReadSecrets),
+
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TPod::TSpec::OtherSchema)
                     ->SetUpdatable()
@@ -277,6 +282,8 @@ private:
         if (spec.Other().IsChanged()) {
             transaction->ScheduleValidateAccounting(pod);
         }
+
+        pod->Spec().UpdateTimestamp().Touch();
     }
 
     void ValidateSpec(TTransaction* /*transaction*/, TPod* pod)

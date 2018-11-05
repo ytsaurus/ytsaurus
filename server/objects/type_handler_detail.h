@@ -72,6 +72,10 @@ protected:
 
 protected:
     virtual std::vector<NAccessControl::EAccessControlPermission> GetDefaultPermissions();
+    virtual bool IsObjectNameSupported() const;
+
+private:
+    void ValidateMetaOther(TTransaction* transaction, TObject* object);
 
 };
 

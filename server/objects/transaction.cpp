@@ -121,11 +121,18 @@ public:
     TQueryContext(
         NMaster::TBootstrap* bootstrap,
         EObjectType objectType,
-        TQuery* query)
+        TQuery* query,
+        bool areReadPermissionsAllowed)
         : Bootstrap_(bootstrap)
         , ObjectType_(objectType)
         , Query_(query)
+        , AreReadPermissionsAllowed_(areReadPermissionsAllowed)
     { }
+
+    virtual bool AreReadPermissionsAllowed() const override
+    {
+        return AreReadPermissionsAllowed_;
+    }
 
     virtual TExpressionPtr GetFieldExpression(const TDBField* field) override
     {
@@ -169,6 +176,7 @@ private:
     NMaster::TBootstrap* const Bootstrap_;
     const EObjectType ObjectType_;
     TQuery* const Query_;
+    const bool AreReadPermissionsAllowed_;
 
     THashMap<const TDBField*, TExpressionPtr> FieldToExpression_;
     THashMap<TString, TExpressionPtr> AnnotationNameToExpression_;
@@ -347,7 +355,11 @@ public:
 
         query->WherePredicate = TExpressionList{matcherExpr};
 
-        TQueryContext queryContext(Bootstrap_, type, query.get());
+        TQueryContext queryContext(
+            Bootstrap_,
+            type,
+            query.get(),
+            /* areReadPermissionsAllowed */ true);
         TAttributeFetcherContext fetcherContext;
         auto fetchers = BuildAttributeFetchers(
             typeHandler,
@@ -372,12 +384,27 @@ public:
 
         TGetQueryResult result;
         result.Object.Emplace();
+
         for (auto& fetcher : fetchers) {
             fetcher.Prefetch(row);
         }
+
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        for (const auto& fetcher : fetchers) {
+            const auto& permissions = fetcher.GetReadPermissions();
+            if (permissions.empty()) {
+                continue;
+            }
+            auto* object = fetcher.GetObject(row);
+            for (auto permission : permissions) {
+                accessControlManager->ValidatePermission(object, permission);
+            }
+        }
+
         for (auto& fetcher : fetchers) {
             result.Object->Values.push_back(fetcher.Fetch(row));
         }
+
         return result;
     }
 
@@ -410,7 +437,11 @@ public:
 
         auto query = MakeQuery(typeHandler);
 
-        TQueryContext queryContext(Bootstrap_, type, query.get());
+        TQueryContext queryContext(
+            Bootstrap_,
+            type,
+            query.get(),
+            /* areReadPermissionsAllowed */ false);
         TAttributeFetcherContext fetcherContext;
         auto fetchers = BuildAttributeFetchers(
             typeHandler,
@@ -1502,9 +1533,9 @@ private:
                     auto* object = checker->GetObject();
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::DuplicateObjectId,
-                        "Object %Qv of type %Qlv already exists",
-                        object->GetId(),
-                        object->GetType());
+                        "%v %v of already exists",
+                        GetCapitalizedHumanReadableTypeName(object->GetType()),
+                        GetObjectDisplayName(object));
                 }
             }
 
@@ -1512,11 +1543,11 @@ private:
                 if (!pair.second->DoesExist()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::NoSuchObject,
-                        "Parent %v %Qv of %v %Qv does not exist",
+                        "Parent %v %v of %v %v does not exist",
                         GetLowercaseHumanReadableTypeName(pair.second->GetType()),
-                        pair.second->GetId(),
+                        GetObjectDisplayName(pair.second),
                         GetLowercaseHumanReadableTypeName(pair.first->GetType()),
-                        pair.first->GetId());
+                        GetObjectDisplayName(pair.first));
                 }
             }
 
@@ -2097,10 +2128,10 @@ private:
                     Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating attribute %v of %v %Qv",
+            THROW_ERROR_EXCEPTION("Error updating attribute %v of %v %v",
                 match.Schema->GetPath(),
                 GetLowercaseHumanReadableTypeName(object->GetType()),
-                object->GetId())
+                GetObjectDisplayName(object))
                 << ex;
         }
     }

@@ -66,9 +66,15 @@ public:
         }
     }
 
+protected:
     virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
     {
         return {};
+    }
+
+    virtual bool IsObjectNameSupported() const override
+    {
+        return true;
     }
 };
 

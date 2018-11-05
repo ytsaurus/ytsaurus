@@ -3,6 +3,8 @@
 #include "object.h"
 #include "transaction.h"
 
+#include <yp/server/access_control/public.h>
+
 // TODO(babenko): replace with public
 #include <yt/ytlib/query_client/ast.h>
 
@@ -19,6 +21,8 @@ namespace NObjects {
 struct IQueryContext
 {
     virtual ~IQueryContext() = default;
+
+    virtual bool AreReadPermissionsAllowed() const = 0;
 
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetFieldExpression(const TDBField* field) = 0;
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetAnnotationExpression(const TString& name) = 0;
@@ -52,6 +56,9 @@ public:
 
     TAttributeSchema* SetFallback();
     bool IsFallback() const;
+
+    TAttributeSchema* SetReadPermission(NAccessControl::EAccessControlPermission permission);
+    NAccessControl::EAccessControlPermission GetReadPermission() const;
 
     void AddChild(TAttributeSchema* child);
     TAttributeSchema* AddChildren(const std::vector<TAttributeSchema*>& children);
@@ -182,6 +189,7 @@ private:
     bool Annotations_ = false;
     bool Opaque_ = false;
     bool Fallback_ = false;
+    NAccessControl::EAccessControlPermission ReadPermission_ = NAccessControl::EAccessControlPermission::None;
 
 
     void InitExpressionBuilder(const TDBField* field, const char* udfFormatter = nullptr);

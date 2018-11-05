@@ -1,6 +1,8 @@
 #pragma once
 #ifndef LABEL_FILTER_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include label_filter_cache.h"
+// For the sake of sane code completion.
+#include "label_filter_cache.h"
 #endif
 
 namespace NYP {

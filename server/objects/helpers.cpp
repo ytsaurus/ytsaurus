@@ -73,6 +73,14 @@ TResolveResult ResolveAttribute(
 
 namespace {
 
+void ValidateHasExpressionBuilder(TAttributeSchema *attribute)
+{
+    if (!attribute->HasExpressionBuilder()) {
+        THROW_ERROR_EXCEPTION("Attribute %v cannot be queried",
+            attribute->GetPath());
+    }
+}
+
 TExpressionPtr BuildSelector(
     IQueryContext* context,
     TAttributeSchema* attribute,
@@ -87,10 +95,7 @@ TExpressionPtr BuildCompositeGetter(
         const auto& key = pair.first;
         auto* child = pair.second;
         args.push_back(New<TLiteralExpression>(TSourceLocation(), key));
-        if (!child->HasExpressionBuilder()) {
-            THROW_ERROR_EXCEPTION("Attribute %v cannot be queried",
-                child->GetPath());
-        }
+        ValidateHasExpressionBuilder(child);
         args.push_back(BuildSelector(context, child, TYPath()));
     }
 
@@ -110,11 +115,7 @@ TExpressionPtr BuildSelector(
         YCHECK(path.empty());
         return BuildCompositeGetter(context, attribute);
     }
-
-    if (!attribute->HasExpressionBuilder()) {
-        THROW_ERROR_EXCEPTION("Attribute %v cannot be queried",
-            attribute->GetPath());
-    }
+    ValidateHasExpressionBuilder(attribute);
     return attribute->RunExpressionBuilder(context, path);
 }
 
@@ -141,9 +142,13 @@ TAttributeFetcher::TAttributeFetcher(
     , RootResolveResult_(resolveResult)
     , Transaction_(std::move(transaction))
     , FetcherContext_(fetcherContext)
+    , QueryContext_(queryContext)
     , StartIndex_(static_cast<int>(fetcherContext->SelectExprs.size()))
 {
     DoPrepare(RootResolveResult_, queryContext);
+
+    std::sort(ReadPermissions_.begin(), ReadPermissions_.end());
+    ReadPermissions_.erase(std::unique(ReadPermissions_.begin(), ReadPermissions_.end()), ReadPermissions_.end());
 }
 
 void TAttributeFetcher::Prefetch(TUnversionedRow row)
@@ -159,6 +164,21 @@ TYsonString TAttributeFetcher::Fetch(TUnversionedRow row)
     CurrentIndex_ = StartIndex_;
     DoFetch(row, RootResolveResult_, &valueWriter);
     return TYsonString(std::move(valueYson));
+}
+
+const std::vector<NAccessControl::EAccessControlPermission>& TAttributeFetcher::GetReadPermissions() const
+{
+    return ReadPermissions_;
+}
+
+TObject* TAttributeFetcher::GetObject(TUnversionedRow row) const
+{
+    YCHECK(FetcherContext_->ObjectIdIndex >= 0);
+    auto objectId = FromUnversionedValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
+    auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
+        ? TObjectId()
+        : FromUnversionedValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
+    return Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
 }
 
 EAttributeFetchMethod TAttributeFetcher::GetFetchMethod(const TResolveResult& resolveResult)
@@ -185,6 +205,7 @@ void TAttributeFetcher::DoPrepare(
     IQueryContext* queryContext)
 {
     auto* attribute = resolveResult.Attribute;
+    ProcessReadPermissions(attribute, queryContext);
     switch (GetFetchMethod(resolveResult)) {
         case EAttributeFetchMethod::Composite: {
             for (const auto& pair : attribute->KeyToChild()) {
@@ -208,14 +229,7 @@ void TAttributeFetcher::DoPrepare(
         }
 
         case EAttributeFetchMethod::Evaluator:
-            if (FetcherContext_->ObjectIdIndex < 0) {
-                FetcherContext_->ObjectIdIndex = static_cast<int>(FetcherContext_->SelectExprs.size());
-                FetcherContext_->SelectExprs.push_back(queryContext->GetFieldExpression(TypeHandler_->GetIdField()));
-                if (TypeHandler_->GetParentType() != EObjectType::Null) {
-                    FetcherContext_->ParentIdIndex = static_cast<int>(FetcherContext_->SelectExprs.size());
-                    FetcherContext_->SelectExprs.push_back(queryContext->GetFieldExpression(TypeHandler_->GetParentIdField()));
-                }
-            }
+            WillNeedObject();
             break;
 
         default:
@@ -249,11 +263,7 @@ void TAttributeFetcher::DoPrefetch(
 
         case EAttributeFetchMethod::Evaluator:
             if (attribute->HasPreevaluator()) {
-                auto objectId = FromUnversionedValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
-                auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
-                    ? TObjectId()
-                    : FromUnversionedValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
-                auto* object = Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
+                auto* object = GetObject(row);
                 attribute->RunPreevaluator(Transaction_, object);
             }
             break;
@@ -312,17 +322,13 @@ void TAttributeFetcher::DoFetch(
         }
 
         case EAttributeFetchMethod::ExpressionBuilder: {
-            const auto& value = row[CurrentIndex_++];
+            const auto& value = RetrieveNextValue(row);
             UnversionedValueToYson(value, consumer);
             break;
         }
 
         case EAttributeFetchMethod::Evaluator: {
-            auto objectId = FromUnversionedValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
-            auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
-                ? TObjectId()
-                : FromUnversionedValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
-            auto* object = Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
+            auto* object = GetObject(row);
             if (resolveResult.SuffixPath.empty()) {
                 attribute->RunEvaluator(Transaction_, object, consumer);
             } else {
@@ -334,17 +340,58 @@ void TAttributeFetcher::DoFetch(
                 auto valueNode = NYTree::ConvertToNode(TYsonString(std::move(valueYson)));
                 consumer->OnRaw(NYTree::SyncYPathGet(valueNode, resolveResult.SuffixPath));
             }
-            if (CurrentIndex_ == FetcherContext_->ObjectIdIndex) {
-                ++CurrentIndex_;
-            }
-            if (CurrentIndex_ == FetcherContext_->ParentIdIndex) {
-                ++CurrentIndex_;
-            }
             break;
         }
 
         default:
             Y_UNREACHABLE();
+    }
+}
+
+void TAttributeFetcher::ProcessReadPermissions(
+    TAttributeSchema* attribute,
+    IQueryContext* queryContext)
+{
+    NLogging::TLogger Logger("XXX");
+    LOG_ERROR("ProcessReadPermissions %v", attribute->GetPath());
+    auto* current = attribute;
+    while (current) {
+        LOG_ERROR("ProcessReadPermissions checks %v", current->GetPath());
+        auto readPermission = current->GetReadPermission();
+        if (readPermission != NAccessControl::EAccessControlPermission::None) {
+            if (!queryContext->AreReadPermissionsAllowed()) {
+                THROW_ERROR_EXCEPTION("Attribute %v cannot be referenced since it requires special read permission %Qlv",
+                    current->GetPath(),
+                    readPermission);
+            }
+            ReadPermissions_.push_back(readPermission);
+            WillNeedObject();
+        }
+        current = current->GetParent();
+    }
+}
+
+TUnversionedValue TAttributeFetcher::RetrieveNextValue(TUnversionedRow row)
+{
+    if (CurrentIndex_ == FetcherContext_->ObjectIdIndex) {
+        ++CurrentIndex_;
+    }
+    if (CurrentIndex_ == FetcherContext_->ParentIdIndex) {
+        ++CurrentIndex_;
+    }
+    return row[CurrentIndex_++];
+}
+
+void TAttributeFetcher::WillNeedObject()
+{
+    if (FetcherContext_->ObjectIdIndex >= 0) {
+        return;
+    }
+    FetcherContext_->ObjectIdIndex = static_cast<int>(FetcherContext_->SelectExprs.size());
+    FetcherContext_->SelectExprs.push_back(QueryContext_->GetFieldExpression(TypeHandler_->GetIdField()));
+    if (TypeHandler_->GetParentType() != EObjectType::Null) {
+        FetcherContext_->ParentIdIndex = static_cast<int>(FetcherContext_->SelectExprs.size());
+        FetcherContext_->SelectExprs.push_back(QueryContext_->GetFieldExpression(TypeHandler_->GetParentIdField()));
     }
 }
 
@@ -478,6 +525,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Internet address");
         case EObjectType::Account:
             return AsStringBuf("Account");
+        case EObjectType::DnsRecordSet:
+            return AsStringBuf("DNS record set");
         default:
             Y_UNREACHABLE();
     }
@@ -516,9 +565,25 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("internet address");
         case EObjectType::Account:
             return AsStringBuf("account");
+        case EObjectType::DnsRecordSet:
+            return AsStringBuf("DNS record set");
         default:
             Y_UNREACHABLE();
     }
+}
+
+TString GetObjectDisplayName(const TObject* object)
+{
+    return object->MetaOther().Load().has_name()
+        ? Format("%Qv (id %Qv)", object->MetaOther().Load().name(), object->GetId())
+        : Format("%Qv", object->GetId());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectId GenerateUuid()
+{
+    return ToString(TGuid::Create());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

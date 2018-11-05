@@ -3,6 +3,7 @@
 #include "pod.h"
 #include "pod_set.h"
 #include "internet_address.h"
+#include "network_module.h"
 #include "topology_zone.h"
 #include "node_segment.h"
 #include "account.h"
@@ -113,7 +114,8 @@ public:
         if (!segment) {
             THROW_ERROR_EXCEPTION(
                 NClient::NApi::EErrorCode::NoSuchObject,
-                "No such node segment %Qv", id);
+                "No such node segment %Qv",
+                id);
         }
         return segment;
     }
@@ -141,11 +143,16 @@ public:
     TPodSet* GetPodSetOrThrow(const TObjectId& id)
     {
         if (!id) {
-            THROW_ERROR_EXCEPTION("Pod set id cannot be null");
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::InvalidObjectId,
+                "Pod set id cannot be null");
         }
         auto* podSet = FindPodSet(id);
         if (!podSet) {
-            THROW_ERROR_EXCEPTION("No such pod set %Qv", id);
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::NoSuchObject,
+                "No such pod set %Qv",
+                id);
         }
         return podSet;
     }
@@ -165,7 +172,9 @@ public:
     TPod* FindPod(const TObjectId& id)
     {
         if (!id) {
-            THROW_ERROR_EXCEPTION("Pod id cannot be null");
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::InvalidObjectId,
+                "Pod id cannot be null");
         }
         auto it = PodMap_.find(id);
         return it == PodMap_.end() ? nullptr : it->second.get();
@@ -178,7 +187,10 @@ public:
         }
         auto* pod = FindPod(id);
         if (!pod) {
-            THROW_ERROR_EXCEPTION("No such pod %Qv", id);
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::NoSuchObject,
+                "No such pod %Qv",
+                id);
         }
         return pod;
     }
@@ -234,16 +246,26 @@ public:
     }
 
 
+    TNetworkModule* FindNetworkModule(const TObjectId& id)
+    {
+        if (!id) {
+            THROW_ERROR_EXCEPTION("Network module id cannot be null");
+        }
+        auto it = NetworkModuleMap_.find(id);
+        return it == NetworkModuleMap_.end() ? nullptr : it->second.get();
+    }
+
+
     void LoadSnapshot()
     {
         try {
-            LOG_DEBUG("Started loading cluster snapshot");
+            LOG_INFO("Started loading cluster snapshot");
 
             PROFILE_TIMING("/cluster_snapshot/time/clear") {
                 Clear();
             }
 
-            LOG_DEBUG("Starting snapshot transaction");
+            LOG_INFO("Starting snapshot transaction");
 
             TTransactionPtr transaction;
             PROFILE_TIMING("/cluster_snapshot/time/start_transaction") {
@@ -254,7 +276,7 @@ public:
 
             Timestamp_ = transaction->GetStartTimestamp();
 
-            LOG_DEBUG("Snapshot transaction started (Timestamp: %llx)",
+            LOG_INFO("Snapshot transaction started (Timestamp: %llx)",
                 Timestamp_);
 
             auto* session = transaction->GetSession();
@@ -265,14 +287,14 @@ public:
                         context->ScheduleSelect(
                             GetInternetAddressQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing internet addresses");
+                                LOG_INFO("Parsing internet addresses");
                                 for (auto row : rowset->GetRows()) {
                                     ParseInternetAddressFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying internet addresses");
+                LOG_INFO("Querying internet addresses");
                 session->FlushLoads();
             }
 
@@ -282,14 +304,14 @@ public:
                         context->ScheduleSelect(
                             GetNodeQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing nodes");
+                                LOG_INFO("Parsing nodes");
                                 for (auto row : rowset->GetRows()) {
                                     ParseNodeFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying nodes");
+                LOG_INFO("Querying nodes");
                 session->FlushLoads();
             }
 
@@ -299,14 +321,14 @@ public:
                         context->ScheduleSelect(
                             GetAccountQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing accounts");
+                                LOG_INFO("Parsing accounts");
                                 for (auto row : rowset->GetRows()) {
                                     ParseAccountFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying accounts");
+                LOG_INFO("Querying accounts");
                 session->FlushLoads();
             }
 
@@ -316,14 +338,14 @@ public:
                         context->ScheduleSelect(
                             GetAccountHierarchyQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing accounts hierarchy");
+                                LOG_INFO("Parsing accounts hierarchy");
                                 for (auto row : rowset->GetRows()) {
                                     ParseAccountHierarchyFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying accounts hierarchy");
+                LOG_INFO("Querying accounts hierarchy");
                 session->FlushLoads();
             }
 
@@ -343,14 +365,14 @@ public:
                         context->ScheduleSelect(
                             GetNodeSegmentQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing node segments");
+                                LOG_INFO("Parsing node segments");
                                 for (auto row : rowset->GetRows()) {
                                     ParseNodeSegmentFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying node segments");
+                LOG_INFO("Querying node segments");
                 session->FlushLoads();
             }
 
@@ -360,14 +382,14 @@ public:
                         context->ScheduleSelect(
                             GetPodSetQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing pod sets");
+                                LOG_INFO("Parsing pod sets");
                                 for (auto row : rowset->GetRows()) {
                                     ParsePodSetFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying pod sets");
+                LOG_INFO("Querying pod sets");
                 session->FlushLoads();
             }
 
@@ -377,14 +399,14 @@ public:
                         context->ScheduleSelect(
                             GetPodQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing pods");
+                                LOG_INFO("Parsing pods");
                                 for (auto row : rowset->GetRows()) {
                                     ParsePodFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying pods");
+                LOG_INFO("Querying pods");
                 session->FlushLoads();
             }
 
@@ -394,14 +416,14 @@ public:
                         context->ScheduleSelect(
                             GetResourceQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing resources");
+                                LOG_INFO("Parsing resources");
                                 for (auto row : rowset->GetRows()) {
                                     ParseResourceFromRow(row);
                                 }
                             });
                     });
 
-                LOG_DEBUG("Querying resources");
+                LOG_INFO("Querying resources");
                 session->FlushLoads();
             }
 
@@ -409,8 +431,9 @@ public:
             InitializePodSetPods();
             InitializeAccountPodSets();
             InitializeAntiaffinityVacancies();
+            InitializeNetworkModules();
 
-            LOG_DEBUG("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
+            LOG_INFO("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
                 PodMap_.size(),
                 NodeMap_.size(),
                 NodeSegmentMap_.size());
@@ -433,6 +456,7 @@ private:
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
     THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
     THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
+    THashMap<TObjectId, std::unique_ptr<TNetworkModule>> NetworkModuleMap_;
 
     THashMap<std::pair<TString, TString>, std::unique_ptr<TTopologyZone>> TopologyZoneMap_;
     THashMultiMap<TString, TTopologyZone*> TopologyKeyZoneMap_;
@@ -472,6 +496,19 @@ private:
             auto* node = pod->GetNode();
             if (node) {
                 node->AcquireAntiaffinityVacancies(pod);
+            }
+        }
+    }
+
+    void InitializeNetworkModules()
+    {
+        for (const auto& pair : InternetAddressMap_) {
+            const auto* internetAddress = pair.second.get();
+            const auto& networkModuleId = internetAddress->Spec().network_module_id();
+            auto* networkModule = GetOrCreateNetworkModule(networkModuleId);
+            ++networkModule->InternetAddressCount();
+            if (internetAddress->Status().has_pod_id()) {
+                ++networkModule->AllocatedInternetAddressCount();
             }
         }
     }
@@ -533,24 +570,36 @@ private:
         auto totalCapacities = GetResourceCapacities(spec);
 
         auto aggregateAllocations = [&] (const auto& allocations) {
-            TAllocationStatistics statistics;
+            THashMap<TStringBuf, TAllocationStatistics> podIdToStatistics;
             for (const auto& allocation : allocations) {
+                auto& statistics = podIdToStatistics[allocation.pod_id()];
                 statistics.Capacities += GetAllocationCapacities(allocation);
                 statistics.Used |= true;
                 statistics.UsedExclusively |= GetAllocationExclusive(allocation);
             }
-            return statistics;
+            return podIdToStatistics;
         };
 
-        auto scheduledStatistics = aggregateAllocations(scheduledAllocations);
-        auto actualStatistics = aggregateAllocations(actualAllocations);
-        auto maxStatistics = Max(scheduledStatistics, actualStatistics);
+        auto podIdToScheduledStatistics = aggregateAllocations(scheduledAllocations);
+        auto podIdToActualStatistics = aggregateAllocations(actualAllocations);
+        
+        auto podIdToMaxStatistics = podIdToScheduledStatistics;
+        for (const auto& pair : podIdToActualStatistics) {
+            auto& current = podIdToMaxStatistics[pair.first];
+            current = Max(current, pair.second);
+        }
+
+        TAllocationStatistics allocatedStatistics;
+        for (const auto& pair : podIdToMaxStatistics) {
+            allocatedStatistics += pair.second;
+        }
+
         switch (kind) {
             case EResourceKind::Cpu:
-                node->CpuResource() = THomogeneousResource(totalCapacities, maxStatistics.Capacities);
+                node->CpuResource() = THomogeneousResource(totalCapacities, allocatedStatistics.Capacities);
                 break;
             case EResourceKind::Memory:
-                node->MemoryResource() = THomogeneousResource(totalCapacities, maxStatistics.Capacities);
+                node->MemoryResource() = THomogeneousResource(totalCapacities, allocatedStatistics.Capacities);
                 break;
             case EResourceKind::Disk: {
                 TDiskVolumePolicyList supportedPolicies;
@@ -561,9 +610,9 @@ private:
                     spec.disk().storage_class(),
                     supportedPolicies,
                     totalCapacities,
-                    maxStatistics.Used,
-                    maxStatistics.UsedExclusively,
-                    maxStatistics.Capacities);
+                    allocatedStatistics.Used,
+                    allocatedStatistics.UsedExclusively,
+                    allocatedStatistics.Capacities);
                 break;
             }
             default:
@@ -818,9 +867,10 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v]) and [%v] = true",
+            "[%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v]) and [%v] = true",
             PodsTable.Fields.Meta_Id.Name,
             PodsTable.Fields.Meta_PodSetId.Name,
+            PodsTable.Fields.Meta_Other.Name,
             PodsTable.Fields.Spec_NodeId.Name,
             PodsTable.Fields.Spec_Other.Name,
             PodsTable.Fields.Status_Other.Name,
@@ -834,6 +884,7 @@ private:
     {
         TObjectId podId;
         TObjectId podSetId;
+        NServer::NObjects::NProto::TMetaOther metaOther;
         TObjectId nodeId;
         NServer::NObjects::NProto::TPodSpecOther specOther;
         NServer::NObjects::NProto::TPodStatusOther statusOther;
@@ -842,6 +893,7 @@ private:
             row,
             &podId,
             &podSetId,
+            &metaOther,
             &nodeId,
             &specOther,
             &statusOther,
@@ -866,10 +918,11 @@ private:
         auto pod = std::make_unique<TPod>(
             podId,
             podSet,
-            std::move(labels),
+            std::move(metaOther),
             node,
             std::move(specOther),
-            std::move(statusOther));
+            std::move(statusOther),
+            std::move(labels));
         YCHECK(PodMap_.emplace(pod->GetId(), std::move(pod)).second);
     }
 
@@ -929,6 +982,19 @@ private:
     }
 
 
+    TNetworkModule* GetOrCreateNetworkModule(const TObjectId& id)
+    {
+        if (!id) {
+            THROW_ERROR_EXCEPTION("Network module id cannot be null");
+        }
+        auto it = NetworkModuleMap_.find(id);
+        if (it == NetworkModuleMap_.end()) {
+            it = NetworkModuleMap_.emplace(id, std::make_unique<TNetworkModule>()).first;
+        }
+        return it->second.get();
+    }
+
+
     void Clear()
     {
         NodeMap_.clear();
@@ -936,6 +1002,7 @@ private:
         PodSetMap_.clear();
         AccountMap_.clear();
         InternetAddressMap_.clear();
+        NetworkModuleMap_.clear();
         TopologyZoneMap_.clear();
         TopologyKeyZoneMap_.clear();
         NodeSegmentMap_.clear();
@@ -1004,6 +1071,11 @@ std::vector<TInternetAddress*> TCluster::GetInternetAddresses()
 std::vector<TAccount*> TCluster::GetAccounts()
 {
     return Impl_->GetAccounts();
+}
+
+TNetworkModule* TCluster::FindNetworkModule(const TObjectId& id)
+{
+    return Impl_->FindNetworkModule(id);
 }
 
 void TCluster::LoadSnapshot()

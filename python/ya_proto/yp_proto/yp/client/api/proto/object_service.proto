@@ -160,6 +160,8 @@ message TReqCreateObjects
         // Object attributes; in YSON.
         optional bytes attributes = 2 [(NYT.NYson.NProto.yson_string) = true];
     }
+
+    // Subrequests to serve.
     repeated TSubrequest subrequests = 2;
 }
 
@@ -171,6 +173,7 @@ message TRspCreateObjects
         required string object_id = 1;
     }
 
+    // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
 }
 
@@ -208,6 +211,8 @@ message TReqRemoveObjects
         // Id of the object to remove.
         required string object_id = 2;
     }
+
+    // Subrequests to serve.
     repeated TSubrequest subrequests = 2;
 }
 
@@ -260,6 +265,8 @@ message TReqUpdateObjects
         // Describes remove-like updates.
         repeated TRemoveUpdate remove_updates = 4;
     }
+
+    // Subrequests to serve.
     repeated TSubrequest subrequests = 2;
 }
 
@@ -342,6 +349,8 @@ message TReqCheckObjectPermissions
         // Permission to check.
         required EAccessControlPermission permission = 4;
     }
+
+    // Subrequests to serve.
     repeated TSubrequest subrequests = 1;
 
     // Provides snapshot isolation.
@@ -365,6 +374,8 @@ message TRspCheckObjectPermissions
         //! Subject to which the decision applies. Can be null.
         optional string subject_id = 4;
     }
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
 }
 
@@ -383,6 +394,8 @@ message TReqGetObjectAccessAllowedFor
         // Permission to check.
         required EAccessControlPermission permission = 4;
     }
+
+    // Subrequests to serve.
     repeated TSubrequest subrequests = 1;
 
     // Provides snapshot isolation.
@@ -397,6 +410,8 @@ message TRspGetObjectAccessAllowedFor
         // Ids of users that are granted access.
         repeated string user_ids = 1;
     }
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
 }
 

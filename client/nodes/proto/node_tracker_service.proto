@@ -40,7 +40,8 @@ message TPodStatus
     }
 
     // The current state of POD's FSM at the agent.
-    required NYP.NClient.NApi.NProto.EPodCurrentState current_state = 2;
+    // TODO(babenko): this is deprecated and moved to TReqHeartbeat.TPodEntry
+    optional NYP.NClient.NApi.NProto.EPodCurrentState current_state = 2;
 
     // If given, contains the error occurred during pod lifecycle at agent.
     optional NYT.NProto.TError execution_error = 3;
@@ -70,8 +71,9 @@ message TPodSpec
 
     // Controls pod state transitions.
     // If target_state == ETargetState.Removed and current_state == ECurrentState.Stopped then
-    // the master is allowed to forget about the pod and stop passing it in hearbeat responses.
-    required NYP.NClient.NApi.NProto.EPodTargetState target_state = 3;
+    // the master is allowed to forget about the pod and stop passing it in heartbeat responses.
+    // TODO(babenko): this is deprecated and moved to TRspHeartbeat.TPodEntry
+    optional NYP.NClient.NApi.NProto.EPodTargetState target_state = 3;
 
     // The following section of fields contains values obtained from pod spec/status.
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 4;
@@ -103,6 +105,10 @@ message TReqHeartbeat
         // If present, requests the master to update pod status.
         // The agent is encouraged to leave this null if no status change happens since last successful heartbeat.
         optional TPodStatus status = 4;
+
+        // The current state of POD's FSM at the agent.
+        // TODO(babenko): mark as required
+        optional NYP.NClient.NApi.NProto.EPodCurrentState current_state = 5;
     }
 
     // The id of the node issuing the request; cf. TRspHeartbeat.node_id.
@@ -139,6 +145,12 @@ message TRspHeartbeat
         // If present, requests the needed pod spec updates.
         // In particular, this is always present when the pod is first started.
         optional TPodSpec spec = 3;
+
+        // Controls pod state transitions.
+        // If target_state == ETargetState.Removed and current_state == ECurrentState.Stopped then
+        // the master is allowed to forget about the pod and stop passing it in heartbeat responses.
+        // TODO(babenko): mark as required
+        optional NYP.NClient.NApi.NProto.EPodTargetState target_state = 4;
     }
 
     // Describes all pods that are expected to be present at the node.

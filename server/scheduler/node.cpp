@@ -24,6 +24,11 @@ const TResourceCapacities& TResourceBase::GetTotalCapacities() const
     return TotalCapacities_;
 }
 
+const TResourceCapacities& TResourceBase::GetAllocatedCapacities() const
+{
+    return AllocatedCapacities_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool THomogeneousResource::TryAllocate(const TResourceCapacities& capacities)

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yp/server/access_control/public.h>
+
 #include <yt/ytlib/query_client/ast.h>
 
 #include <yt/core/ypath/public.h>
@@ -52,14 +54,19 @@ public:
     void Prefetch(NYT::NTableClient::TUnversionedRow row);
     NYT::NYson::TYsonString Fetch(NYT::NTableClient::TUnversionedRow row);
 
+    const std::vector<NAccessControl::EAccessControlPermission>& GetReadPermissions() const;
+    TObject* GetObject(NYT::NTableClient::TUnversionedRow row) const;
+
 private:
     IObjectTypeHandler* const TypeHandler_;
     const TResolveResult RootResolveResult_;
     TTransaction* const Transaction_;
     TAttributeFetcherContext* const FetcherContext_;
+    IQueryContext* const QueryContext_;
     const int StartIndex_;
     
     int CurrentIndex_;
+    std::vector<NAccessControl::EAccessControlPermission> ReadPermissions_;
 
     static EAttributeFetchMethod GetFetchMethod(const TResolveResult& resolveResult);
 
@@ -73,6 +80,14 @@ private:
         NYT::NTableClient::TUnversionedRow row,
         const TResolveResult& resolveResult,
         NYson::IYsonConsumer* consumer);
+
+    void ProcessReadPermissions(
+        TAttributeSchema* attribute,
+        IQueryContext* queryContext);
+
+    NYT::NTableClient::TUnversionedValue RetrieveNextValue(NYT::NTableClient::TUnversionedRow row);
+
+    void WillNeedObject();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +105,11 @@ NYT::NQueryClient::NAst::TExpressionPtr BuildAndExpression(
 
 TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type);
 TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type);
+TString GetObjectDisplayName(const TObject* object);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectId GenerateUuid();
 
 ////////////////////////////////////////////////////////////////////////////////
 

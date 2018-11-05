@@ -50,6 +50,7 @@ public:
             BIND(&TImpl::OnSchedulingLoop, MakeWeak(this)),
             Config_->LoopPeriod))
         , Cluster_(New<TCluster>(bootstrap))
+        , GlobalResourceAllocator_(CreateGlobalResourceAllocator(Config_->GlobalResourceAllocator))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(LoopActionQueue_->GetInvoker(), LoopThread);
     }
@@ -76,6 +77,8 @@ private:
 
     TClusterPtr Cluster_;
     TScheduleQueue ScheduleQueue_;
+
+    IGlobalResourceAllocatorPtr GlobalResourceAllocator_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(LoopThread);
@@ -123,7 +126,6 @@ private:
 
         TInternetAddressManager InternetAddressManager_;
 
-        TGlobalResourceAllocator Allocator_;
         TAllocationPlan AllocationPlan_;
 
 
@@ -146,7 +148,7 @@ private:
             // TODO(babenko): profiling
             AllocationPlan_.Clear();
             InternetAddressManager_.ReconcileState(Owner_->Cluster_);
-            Allocator_.ReconcileState(Owner_->Cluster_);
+            Owner_->GlobalResourceAllocator_->ReconcileState(Owner_->Cluster_);
 
             LOG_DEBUG("State reconciled");
         }
@@ -294,7 +296,7 @@ private:
                     continue;
                 }
 
-                auto nodeOrError = Allocator_.ComputeAllocation(pod);
+                auto nodeOrError = Owner_->GlobalResourceAllocator_->ComputeAllocation(pod);
                 if (nodeOrError.IsOK()) {
                     auto* node = nodeOrError.Value();
                     if (node) {

@@ -23,12 +23,14 @@ public:
     TPod(
         const TObjectId& id,
         TPodSet* podSet,
-        NYT::NYson::TYsonString labels,
+        NServer::NObjects::NProto::TMetaOther metaOther,
         TNode* node,
         NServer::NObjects::NProto::TPodSpecOther specOther,
-        NServer::NObjects::NProto::TPodStatusOther statusOther);
+        NServer::NObjects::NProto::TPodStatusOther statusOther,
+        NYT::NYson::TYsonString labels);
 
     DEFINE_BYVAL_RO_PROPERTY(TPodSet*, PodSet);
+    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TMetaOther, MetaOther);
     DEFINE_BYVAL_RO_PROPERTY(TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodSpecOther, SpecOther);
     DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodStatusOther, StatusOther);

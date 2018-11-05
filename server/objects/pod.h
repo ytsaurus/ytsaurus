@@ -91,6 +91,10 @@ public:
         static const TScalarAttributeSchema<TPod, bool> EnableSchedulingSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<bool>, EnableScheduling);
 
+        using TSecrets = THashMap<TString, NClient::NApi::NProto::TPodSpec_TSecret>;
+        static const TScalarAttributeSchema<TPod, TSecrets> SecretsSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSecrets>, Secrets);
+
         static const TTimestampAttributeSchema UpdateTimestampSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TTimestampAttribute, UpdateTimestamp);
 

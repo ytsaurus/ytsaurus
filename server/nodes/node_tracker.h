@@ -25,7 +25,12 @@ public:
         const NObjects::TObjectId& nodeId,
         const TString& address);
 
-    void ProcessHeartbeat(
+    /*!
+     * The returned error is replied to the agent.
+     * The transaction, however, will commit even in case the result is not OK.
+     * This is helpful, e.g., for updating /node/status/unknown_pod_ids.
+     */
+    TError ProcessHeartbeat(
         const NObjects::TTransactionPtr& transaction,
         NObjects::TNode* node,
         const TEpochId& epochId,

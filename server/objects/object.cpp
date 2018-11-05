@@ -17,6 +17,11 @@ const TScalarAttributeSchema<TObject, TInstant> TObject::CreationTimeSchema{
     [] (TObject* object) { return &object->CreationTime(); }
 };
 
+const TScalarAttributeSchema<TObject, TObject::TMetaOther> TObject::MetaOtherSchema{
+    &ObjectsTable.Fields.Meta_Other,
+    [] (TObject* object) { return &object->MetaOther(); }
+};
+
 const TScalarAttributeSchema<TObject, NYT::NYTree::IMapNodePtr> TObject::LabelsSchema{
     &ObjectsTable.Fields.Labels,
     [] (TObject* object) { return &object->Labels(); }
@@ -38,6 +43,7 @@ TObject::TObject(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : CreationTime_(this, &CreationTimeSchema)
+    , MetaOther_(this, &MetaOtherSchema)
     , Labels_(this, &LabelsSchema)
     , Annotations_(this)
     , InheritAcl_(this, &InheritAclSchema)
@@ -128,9 +134,9 @@ void TObject::ValidateExists() const
     if (!DoesExist()) {
         THROW_ERROR_EXCEPTION(
             NClient::NApi::EErrorCode::NoSuchObject,
-            "%v %Qv does not exist",
+            "%v %v does not exist",
             GetCapitalizedHumanReadableTypeName(GetType()),
-            Id_);
+            GetObjectDisplayName(this));
     }
 }
 

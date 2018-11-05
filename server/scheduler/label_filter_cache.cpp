@@ -43,6 +43,11 @@ class TQueryContext
     : public IQueryContext
 {
 public:
+    virtual bool AreReadPermissionsAllowed() const override
+    {
+        return false;
+    }
+
     virtual NAst::TExpressionPtr GetFieldExpression(const TDBField* field) override
     {
         if (field->Name != ObjectsTable.Fields.Labels.Name) {

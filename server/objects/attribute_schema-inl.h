@@ -1,6 +1,8 @@
 #pragma once
 #ifndef ATTRIBUTE_SCHEMA_INL_H_
 #error "Direct inclusion of this file is not allowed, include attribute_schema.h"
+// For the sake of sane code completion.
+#include "attribute_schema.h"
 #endif
 
 #include "helpers.h"

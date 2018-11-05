@@ -8,6 +8,7 @@ YP_PROTOS="
     yp/client/api/proto/discovery_service.proto
     yp/client/api/proto/object_service.proto
     yp/client/api/proto/replica_set.proto
+    yp/client/api/proto/secrets.proto
 "
 
 PROTO_PATHS=""

@@ -508,6 +508,11 @@ public:
         AuthenticatedUserId_->Reset();
     }
 
+    bool HasAuthenticatedUser()
+    {
+        return static_cast<bool>(*AuthenticatedUserId_);
+    }
+
     TObjectId GetAuthenticatedUser()
     {
         auto userId = *AuthenticatedUserId_;
@@ -528,20 +533,20 @@ public:
             if (result.ObjectId && result.SubjectId) {
                 error = TError(
                     NClient::NApi::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission for %v %Qv is denied for %Qv by ACE at %v %Qv",
+                    "Access denied: %Qlv permission for %v %v is denied for %Qv by ACE at %v %v",
                     permission,
                     GetLowercaseHumanReadableTypeName(object->GetType()),
-                    object->GetId(),
+                    GetObjectDisplayName(object),
                     result.SubjectId,
                     GetLowercaseHumanReadableTypeName(result.ObjectType),
                     result.ObjectId);
             } else {
                 error = TError(
                     NClient::NApi::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission for %v %Qv is not allowed by any matching ACE",
+                    "Access denied: %Qlv permission for %v %v is not allowed by any matching ACE",
                     permission,
                     GetLowercaseHumanReadableTypeName(object->GetType()),
-                    object->GetId());
+                    GetObjectDisplayName(object));
             }
             error.Attributes().Set("permission", permission);
             error.Attributes().Set("user_id", userId);
@@ -802,6 +807,11 @@ void TAccessControlManager::ResetAuthenticatedUser()
 TObjectId TAccessControlManager::GetAuthenticatedUser()
 {
     return Impl_->GetAuthenticatedUser();
+}
+
+bool TAccessControlManager::HasAuthenticatedUser()
+{
+    return Impl_->HasAuthenticatedUser();
 }
 
 void TAccessControlManager::ValidatePermission(TObject* object, EAccessControlPermission permission)

@@ -131,11 +131,37 @@ message TResourceTotals
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Most TXXXMeta messages are same (up to minor changes); here we only document
+// TSchemaMeta; these descriptions apply to all meta fields with matching names.
 message TSchemaMeta
 {
+    // Object id; unique within its type.
+    // Object is typically provided by the user upon object construction and can be reused.
+    // Once assigned, object id cannot be changed.
     optional string id = 1;
+
+    // Univerally unique id; assigned by YP master and is never reused.
+    // Helpful to track object identity.
+    optional string uuid = 12;
+
+    // Optional descriptive name that is displayed in e.g. error messages or UI.
+    // In contrast to id, YP master does not guarantee uniqueness of names.
+    // Names can be changed at any time.
+    // Not all object types support custom names; attempting to set this attribute for those lacking support
+    // raises an error.
+    optional string name = 13;
+
+    // Type of the object.
     optional EObjectType type = 2;
+
+    // The instant of time the object was constructed.
     optional uint64 creation_time = 3;
+
+    // If true, the object inherits all ACEs from appropriate "parent".
+    // For schemas this is assumed to be always false.
+    optional bool inherit_acl = 10;
+
+    // The list of ACEs comprising object's ACL.
     repeated TAccessControlEntry acl = 11;
 }
 
@@ -183,6 +209,8 @@ enum EDiskVolumePolicy
 message TResourceMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     required string node_id = 4;
@@ -321,6 +349,8 @@ enum ENodeMaintenanceState
 message TNodeMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -366,6 +396,9 @@ message TNodeSpec
 
     // NOC module in "physical" network topology.
     optional string network_module_id = 6;
+
+    // If true then YP Master instructs node agents to drop all unknown pods.
+    optional bool force_remove_unknown_pods = 7;
 }
 
 message TNodeStatus
@@ -409,6 +442,10 @@ message TNodeStatus
     }
     // Maintenance workflow.
     optional TMaintenance maintenance = 6;
+
+    // Contains ids of pods that are reported to be present at the node
+    // but are neither known to exist nor were recently removed.
+    repeated string unknown_pod_ids = 7;
 }
 
 message TNodeControl
@@ -475,6 +512,8 @@ enum EPodTargetState
 message TPodMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     required string pod_set_id = 4;
@@ -667,6 +706,16 @@ message TPodSpec
     // Determines the kind of "hostname" Porto property: either
     // "persistent" or "transient" pod FQDN can be used.
     optional EPodHostNameKind host_name_kind = 15;
+
+    message TSecret
+    {
+        required string secret_id = 1;
+        required string secret_version = 2;
+        required string delegation_token = 3;
+    }
+
+    // Defines secrets to be delivered to the pod.
+    map<string, TSecret> secrets = 16 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 enum EEvictionState
@@ -906,6 +955,8 @@ message TPod
 message TPodSetMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -941,6 +992,8 @@ message TPodSet
 message TEndpointMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     required string endpoint_set_id = 4;
@@ -974,6 +1027,8 @@ message TEndpoint
 message TEndpointSetMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1009,6 +1064,8 @@ message TEndpointSet
 message TNetworkProjectMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1038,6 +1095,8 @@ message TNetworkProject
 message TNodeSegmentMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1071,6 +1130,8 @@ message TNodeSegment
 message TVirtualServiceMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1102,6 +1163,8 @@ message TVirtualService
 message TUserMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1131,6 +1194,8 @@ message TUser
 message TGroupMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1160,6 +1225,8 @@ message TGroup
 message TInternetAddressMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
@@ -1239,6 +1306,8 @@ message TDnsRecordSet
 message TAccountMeta
 {
     optional string id = 1;
+    optional string uuid = 12;
+    optional string name = 13;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;

@@ -19,7 +19,7 @@ def setup_package(name, python_dependent_requires):
         "yandex-yt >= 0.8.43",
         "yandex-yt-proto",
         "protobuf >= 3.2.1",
-        "grpcio == 1.2.0rc1"
+        "grpcio == 1.16.0rc1"
     ] + python_dependent_requires
 
     version = get_version()

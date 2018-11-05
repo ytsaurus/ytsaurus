@@ -18,6 +18,8 @@ option java_outer_classname = "ReplicaSet";
 message TReplicaSetMeta
 {
     string id = 1;
+    string uuid = 12;
+    string name = 13;
     EObjectType type = 2;
     uint64 creation_time = 3;
     bool inherit_acl = 10;

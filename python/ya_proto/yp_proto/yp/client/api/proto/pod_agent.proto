@@ -11,13 +11,14 @@ option java_outer_classname = "Pod";
 package NInfra.NPodAgent.API;
 
 import "google/protobuf/timestamp.proto";
+import "yp_proto/yp/client/api/proto/secrets.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 
 //TODO: добавить секреты
 //TODO: itype (labels)
-//TODO: propabilty + core dump
+//TODO: probabilty + core dump
 
 // NOTE: На первой итерации хочется выкристаллизовать минималистичный /spec /status интерфейс и по мере проработки use case
 // добавлять дополнительные поля.
@@ -48,6 +49,17 @@ message TPodAgentSpec {
 
     //Часть Worklaod, изменение которой не приведет к полной пересборке Workload
     repeated TMutableWorkload MutableWorkloads = 9;
+}
+
+// Конфигурация Пода, содержащая секреты
+// NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
+// NOTE: Валидация - все id секретов различны
+message TPodAgentRequest {
+    // Конфигурация Пода
+    TPodAgentSpec Spec = 1;
+
+    // Секреты (raw, unencrypted)
+    repeated NYP.NClient.NApi.NProto.TSecret Secrets = 2;
 }
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
@@ -109,6 +121,8 @@ message TPodAgentDebugStatus {
 
 //============================== SPEC ==========================
 message TComputeResources {
+    reserved 1;
+
     // Ограничения по CPU, в виртуальных миллиядрах (vcpu). Тем самым, заказав vcpu = 1000, мы получим одно виртуальное ядро.
     uint64 VCpuGuarantee = 2;
     uint64 VCpuLimit = 3;
@@ -117,10 +131,6 @@ message TComputeResources {
     uint64 MemoryGuarantee = 4;
     uint64 MemoryLimit = 5;
     uint64 AnonymousMemoryLimit = 6;
-
-    // Свойства porto-контейнеров, задаваемые непосредственно.
-    // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 1 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 // Проверки целостности ресурса
@@ -235,7 +245,8 @@ message TVolume {
 // maxExecutionTimeMs - ограничение на время выполнения.
 // Интервал между запусками рассчитывается по формуле
 // min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
-// step считается с 0 и равен max(0, ConsecutiveSuccessesCounter - 1)
+// step считается с 0 и равен max(0, ConsecutiveFailuresCounter - 1) для workload stop
+// и max(0, ConsecutiveSuccessesCounter - 1) для всех остальных хуков
 message TTimeLimit {
     uint64 InitialDelayMs = 1;
     uint64 RestartPeriodScaleMs = 2;
@@ -252,8 +263,10 @@ message TTimeLimitStatus {
     uint32 ConsecutiveFailuresCounter = 3;
 }
 
-//Уточню позже
+// Id секрета из TPodAgentRequest.Secrets
+// В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
 message SecretEnvSelector {
+    string SecretId = 1;
 }
 
 message LiteralEnvSelector {
@@ -322,6 +335,13 @@ message TMutableWorkload {
     EWorkloadTargetState TargetState = 2;
 }
 
+// При переводе MutableTarget в состояние REMOVED или обновления ревизии workload или любой его зависимости
+// будет вызван stop hook, который должен выполнить gracefully завершение контейнера start
+// Если после завершения stop hook контейнер start находится в состоянии dead или stopped, то он будет уничтожен,
+// иначе stop hook будет перезапускаться до тех пор, пока контейнер start не перейдет в одно из этих состояний
+// Если stop hook был запущен MaxTries раз, но так и не перевел start в состоянии dead или stopped, то start будет немедленно убит
+// Если stop hook выполняется при помощи контейнера и завершился с НУЛЕВЫМ кодом возврата, но start не в состоянии dead или stopped,
+// то start будет немедленно убит
 message TStopPolicy {
     oneof Policy {
         TUtilityContainer Stop = 1;
@@ -356,6 +376,7 @@ message THttpGet {
 
     // Путь к ручке, например: "/ping"
     string Path = 2;
+    // Только для Readiness check и Liveness check
     string ExpectedAnswer = 3;
 
     //@see TimeLimit
@@ -386,6 +407,14 @@ message TLivenessCheck {
     }
 }
 
+message TCoreDump {
+    // porto property core_command
+    string CoreCommand = 1;
+
+    // porto property ulimit[core]
+    string CoreUlimit = 2;
+}
+
 //Наследует Env от TWorkload
 message TUtilityContainer {
     //атрибуты контейнера (по сути это сквозной проброс опций Porto)
@@ -396,6 +425,9 @@ message TUtilityContainer {
 
     //@see TimeLimit
     TTimeLimit TimeLimit = 4;
+
+    // параметры обработки корок
+    TCoreDump CoreDump = 5;
 }
 
 //Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
@@ -533,6 +565,8 @@ enum EContainerState {
 //A: Я считаю, что в данном случае сливать статистику в обратную связь бесполезно, т.к. нет возможности строить графики
 //    если статистика реально нужна, то её надо выливать в какой-то из существующих сервисов: YT, solomon, golovan, statface
 message TContainerStatus {
+    reserved 12, 13, 14;
+
     EContainerState State = 1;
 
     int32 ReturnCode = 2;
@@ -550,10 +584,6 @@ message TContainerStatus {
     uint32 TimeoutCounter = 9;
     uint32 KilledExternallyCounter = 10;
     uint32 SystemFailureCounter = 11;
-    // Use TimeLimit instead
-    uint32 ConsecutiveFailuresCounter = 12 [deprecated=true];
-    uint32 ConsecutiveSuccessesCounter = 13 [deprecated=true];
-    google.protobuf.Timestamp LastStartTime = 14 [deprecated=true];
 
     TTimeLimitStatus TimeLimit = 15;
 }
@@ -572,7 +602,7 @@ message TCondition {
 }
 
 message TWorkloadStatus {
-    reserved 13;
+    reserved 5, 13;
 
     // уникальный в рамках pod идентификатор Workload
     string Id = 1;
@@ -584,7 +614,7 @@ message TWorkloadStatus {
     //Добавить валидацию, что указан непустой start
     TContainerStatus Start = 4;
 
-    TContainerStatus Stop = 5;
+    TStopStatus StopStatus = 14;
 
     TReadinessStatus ReadinessStatus = 6;
 
@@ -601,19 +631,19 @@ message TWorkloadStatus {
     uint32 Revision = 12;
 }
 
-enum EHttpCheckState {
-    EHttpCheckState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+enum EHttpGetState {
+    EHttpGetState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
     // Ошибка во время выполнения(превышен таймаут, ошибка соединения, ...)
-    EHttpCheckState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
-    // Ответ не равен THttpGet::ExpectedAnswer
-    EHttpCheckState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
+    EHttpGetState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
+    // Ответ не равен THttpGet::ExpectedAnswer, только для Readiness check и Liveness check
+    EHttpGetState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
 
-    EHttpCheckState_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
+    EHttpGetState_RUNNING = 3 [(NYT.NYson.NProto.enum_value_name) = "running"];
     // Ожидание истечения InitialDelayMs
-    EHttpCheckState_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
+    EHttpGetState_WAITING_INIT = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_init"];
     // Ожидание истечения restart period - см. TTimeLimit
-    EHttpCheckState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
+    EHttpGetState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
 }
 
 enum ETcpCheckState {
@@ -630,23 +660,29 @@ enum ETcpCheckState {
 }
 
 message TTcpCheckStatus {
+    reserved 2, 3, 4;
+
     ETcpCheckState State = 1;
-    // Use TimeLimit instead
-    google.protobuf.Timestamp LastRequestTime = 2 [deprecated=true];
-    uint32 ConsecutiveSuccessesCounter = 3 [deprecated=true];
-    uint32 ConsecutiveFailuresCounter = 4 [deprecated=true];
+
     TTimeLimitStatus TimeLimit = 5;
     string FailReason = 6;
 }
 
 message THttpGetStatus {
-    EHttpCheckState State = 1;
-    // Use TimeLimit instead
-    google.protobuf.Timestamp LastRequestTime = 2 [deprecated=true];
-    uint32 ConsecutiveSuccessesCounter = 3 [deprecated=true];
-    uint32 ConsecutiveFailuresCounter = 4 [deprecated=true];
+    reserved 2, 3, 4;
+
+    EHttpGetState State = 1;
+
     TTimeLimitStatus TimeLimit = 5;
     string FailReason = 6;
+    uint32 RequestsCount = 7;
+}
+
+message TStopStatus {
+    oneof Status {
+        TContainerStatus ContainerStatus = 1;
+        THttpGetStatus HttpStopStatus = 2;
+    }
 }
 
 message TReadinessStatus {

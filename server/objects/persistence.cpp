@@ -74,7 +74,8 @@ void TObjectExistenceChecker::ScheduleCheck() const
     Object_->GetSession()->ScheduleLoad(
         [=] (ILoadContext* context) {
             this_->LoadFromDB(context);
-        });
+        },
+        ISession::ParentLoadPriority);
 }
 
 bool TObjectExistenceChecker::Check() const
@@ -299,9 +300,9 @@ void TParentIdAttribute::LoadFromDB(ILoadContext* context)
                         Owner_->GetType(),
                         ParentId_);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error loading parent id value for %v %Qv",
+                    THROW_ERROR_EXCEPTION("Error loading parent id value for %v %v",
                         GetLowercaseHumanReadableTypeName(Owner_->GetType()),
-                        Owner_->GetId())
+                        GetObjectDisplayName(Owner_))
                         << ex;
                 }
             } else {
@@ -443,11 +444,18 @@ void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
         return;
     }
 
-    auto key = CaptureCompositeObjectKey(Owner_, context->GetRowBuffer());
-
     auto* typeHandler = Owner_->GetTypeHandler();
-    const auto* table = typeHandler->GetTable();
 
+    // NB: CaptureCompositeObjectKey will be retrieving object's parent and be raising
+    // an exception in case the object does not exist. Let's prevent this from happening
+    // by pre-checking object's existence.
+    if (typeHandler->GetParentType() != EObjectType::Null && !Owner_->DidExist()) {
+        Missing_ = true;
+        return;
+    }
+
+    auto key = CaptureCompositeObjectKey(Owner_, context->GetRowBuffer());
+    const auto* table = typeHandler->GetTable();
     context->ScheduleLookup(
         table,
         key,
@@ -458,11 +466,11 @@ void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
                 try {
                     LoadOldValue((*maybeValues)[0], context);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for %v %Qv",
+                    THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for %v %v",
                         table->Name,
                         Schema_->Field->Name,
                         GetLowercaseHumanReadableTypeName(Owner_->GetType()),
-                        Owner_->GetId())
+                        GetObjectDisplayName(Owner_))
                         << ex;
                 }
             } else {
@@ -491,7 +499,7 @@ void TScalarAttributeBase::StoreToDB(IStoreContext* context)
             table->Name,
             Schema_->Field->Name,
             GetLowercaseHumanReadableTypeName(Owner_->GetType()),
-            Owner_->GetId())
+            GetObjectDisplayName(Owner_))
             << ex;
     }
 

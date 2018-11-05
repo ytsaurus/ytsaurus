@@ -19,6 +19,7 @@
 #include <yp/server/objects/account.h>
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/pod_set.h>
+#include <yp/server/objects/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -29,8 +30,9 @@ namespace NServer {
 namespace NAccounting {
 
 using namespace NScheduler;
-
 using namespace NYT::NConcurrency;
+
+using NObjects::GetObjectDisplayName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,8 +277,8 @@ private:
         const auto* currentAccount = account;
         while (currentAccount) {
             if (!visitedAccounts.insert(currentAccount)) {
-                THROW_ERROR_EXCEPTION("Cyclic dependendies found while checking limits of account %Qv",
-                    account->GetId());
+                THROW_ERROR_EXCEPTION("Cyclic dependencies found while checking limits of account %v",
+                    GetObjectDisplayName(account));
             }
 
             auto usage = account->Status().Load().resource_usage() + usageDelta;
@@ -302,8 +304,8 @@ private:
                 if (usagePerSegment.cpu().capacity() > limitsPerSegment.cpu().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
-                        "Account %Qv is over CPU limit in segment %Qv",
-                        currentAccount->GetId(),
+                        "Account %v is over CPU limit in segment %Qv",
+                        GetObjectDisplayName(currentAccount),
                         segmentId)
                         << TErrorAttribute("usage", usagePerSegment.cpu().capacity())
                         << TErrorAttribute("limit", limitsPerSegment.cpu().capacity());
@@ -312,8 +314,8 @@ private:
                 if (usagePerSegment.memory().capacity() > limitsPerSegment.memory().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
-                        "Account %Qv is over memory limit in segment %Qv",
-                        currentAccount->GetId(),
+                        "Account %v is over memory limit in segment %Qv",
+                        GetObjectDisplayName(currentAccount),
                         segmentId)
                         << TErrorAttribute("usage", usagePerSegment.memory().capacity())
                         << TErrorAttribute("limit", limitsPerSegment.memory().capacity());
@@ -322,8 +324,8 @@ private:
                 if (limitsPerSegment.has_internet_address() && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
-                        "Account %Qv is over internet address limit in segment %Qv",
-                        currentAccount->GetId(),
+                        "Account %v is over internet address limit in segment %Qv",
+                        GetObjectDisplayName(currentAccount),
                         segmentId)
                         << TErrorAttribute("usage", usagePerSegment.internet_address().capacity())
                         << TErrorAttribute("limit", limitsPerSegment.internet_address().capacity());
@@ -344,8 +346,8 @@ private:
                     if (usagePerStorageClass.capacity() > limitsPerStorageClass.capacity()) {
                         THROW_ERROR_EXCEPTION(
                             NClient::NApi::EErrorCode::AccountLimitExceeded,
-                            "Account %Qv is over disk limit in segment %Qv for storage class %Qv",
-                            currentAccount->GetId(),
+                            "Account %v is over disk limit in segment %Qv for storage class %Qv",
+                            GetObjectDisplayName(currentAccount),
                             segmentId,
                             storageClass)
                             << TErrorAttribute("usage", usagePerStorageClass.capacity())

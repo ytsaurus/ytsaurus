@@ -4,6 +4,8 @@
 #include <yp/server/scheduler/node.h>
 #include <yp/server/scheduler/pod.h>
 
+#include <yp/server/objects/helpers.h>
+
 #include <yp/server/objects/proto/objects.pb.h>
 
 #include <memory>
@@ -15,6 +17,8 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NYP::NServer::NObjects::GenerateUuid;
+
 TObjectId GenerateUniqueId()
 {
     static int lastObjectIndex = 0;
@@ -25,13 +29,17 @@ TObjectId GenerateUniqueId()
 
 std::unique_ptr<TPod> CreateMockPod()
 {
+    NServer::NObjects::NProto::TMetaOther metaOther;
+    metaOther.set_uuid(GenerateUuid());
+
     return std::make_unique<TPod>(
         GenerateUniqueId(),
         /* podSet */ nullptr,
-        /* labels */ NYT::NYson::TYsonString(),
+        std::move(metaOther),
         /* node */ nullptr,
         NObjects::NProto::TPodSpecOther(),
-        NObjects::NProto::TPodStatusOther());
+        NObjects::NProto::TPodStatusOther(),
+        /* labels */ NYT::NYson::TYsonString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

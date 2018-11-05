@@ -34,6 +34,8 @@ public:
 
     std::vector<TAccount*> GetAccounts();
 
+    TNetworkModule* FindNetworkModule(const TObjectId& id);
+
     void LoadSnapshot();
 
 private:

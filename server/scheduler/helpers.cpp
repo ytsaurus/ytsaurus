@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include <yp/server/objects/helpers.h>
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/resource.h>
 
@@ -326,7 +327,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             request.Exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
             auto it = idToDiskAllocation.find(request.Id);
             if (it == idToDiskAllocation.end()) {
-                request.AllocationId = ToString(TGuid::Create());
+                request.AllocationId = GenerateUuid();
             } else {
                 const auto* allocation = it->second;
                 request.AllocationId = allocation->volume_id();

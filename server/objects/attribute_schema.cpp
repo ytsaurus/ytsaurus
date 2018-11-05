@@ -68,9 +68,9 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
                         }
                     } else {
                         if (!recursive) {
-                            THROW_ERROR_EXCEPTION("%v %Qv has no annotation %Qv",
+                            THROW_ERROR_EXCEPTION("%v %v has no annotation %Qv",
                                 GetCapitalizedHumanReadableTypeName(object->GetType()),
-                                object->GetId(),
+                                GetObjectDisplayName(object),
                                 key);
                         }
                         existingNode = GetEphemeralNodeFactory()->CreateMap();
@@ -113,9 +113,9 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
             if (tokenizer.Advance() != ETokenType::EndOfStream) {
                 auto maybeExistingYson = attribute->Load(key);
                 if (!maybeExistingYson) {
-                    THROW_ERROR_EXCEPTION("%v %Qv has no annotation %Qv",
+                    THROW_ERROR_EXCEPTION("%v %v has no annotation %Qv",
                         GetCapitalizedHumanReadableTypeName(object->GetType()),
-                        object->GetId(),
+                        GetObjectDisplayName(object),
                         key);
                 }
 
@@ -123,10 +123,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
                 try {
                     existingNode = ConvertToNode(*maybeExistingYson);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of %v %Qv",
+                    THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of %v %v",
                         key,
                         GetLowercaseHumanReadableTypeName(object->GetType()),
-                        object->GetId())
+                        GetObjectDisplayName(object))
                         << ex;
                 }
 
@@ -468,6 +468,17 @@ TAttributeSchema* TAttributeSchema::SetFallback()
 bool TAttributeSchema::IsFallback() const
 {
     return Fallback_;
+}
+
+TAttributeSchema* TAttributeSchema::SetReadPermission(NAccessControl::EAccessControlPermission permission)
+{
+    ReadPermission_ = permission;
+    return this;
+}
+
+NAccessControl::EAccessControlPermission TAttributeSchema::GetReadPermission() const
+{
+    return ReadPermission_;
 }
 
 void TAttributeSchema::InitExpressionBuilder(
