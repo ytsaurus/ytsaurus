@@ -217,6 +217,11 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             jobs = get(op.get_path() + "/@progress/jobs", default=None)
             if jobs is None:
                 return False
+            # Progress is updates by controller, but abort is initiated by scheduler after job was scheduled.
+            # Therefore races are possible.
+            if jobs["running"] > 0:
+                return False
+
             assert jobs["running"] == 0
             assert jobs["completed"]["total"] == 0
             return jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0
