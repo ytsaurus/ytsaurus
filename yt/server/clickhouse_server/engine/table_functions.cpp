@@ -149,7 +149,7 @@ StoragePtr TGetTableParts::executeImpl(
     args[1] = evaluateConstantExpressionAsLiteral(args[1], context);
 
     auto tableName = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
-    auto maxJobsCount = static_cast<const ASTLiteral &>(*args[1]).value.safeGet<size_t>();
+    auto maxJobsCount = static_cast<const ASTLiteral &>(*args[1]).value.safeGet<UInt64>();
 
     return Execute(context, tableName, maxJobsCount);
 }
@@ -173,8 +173,8 @@ StoragePtr TGetTableParts::Execute(
 
     for (const auto& tablePart: tableParts) {
         job_spec_column->insert(ToStdString(tablePart.JobSpec));
-        data_weight_column->insert(tablePart.DataWeight);
-        row_count_column->insert(tablePart.RowCount);
+        data_weight_column->insert(static_cast<UInt64>(tablePart.DataWeight));
+        row_count_column->insert(static_cast<UInt64>(tablePart.RowCount));
     }
 
     ColumnWithTypeAndName jobSpec(

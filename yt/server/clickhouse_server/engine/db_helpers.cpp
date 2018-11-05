@@ -94,11 +94,11 @@ void GetField(const NNative::TValue& value, std::vector<Field>& fields)
             return;
 
         case NNative::EClickHouseValueType::Int:
-            fields.emplace_back(value.Int);
+            fields.emplace_back(static_cast<Int64>(value.Int));
             return;
 
         case NNative::EClickHouseValueType::UInt:
-            fields.emplace_back(value.UInt);
+            fields.emplace_back(static_cast<UInt64>(value.UInt));
             return;
 
         case NNative::EClickHouseValueType::Float:
