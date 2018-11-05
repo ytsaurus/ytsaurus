@@ -2,13 +2,14 @@
 #
 
 from typing import overload
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 from pyspark.ml import Estimator, Model
 from pyspark.ml.evaluation import Evaluator
 from pyspark.ml.param import Param
 from pyspark.ml.param.shared import *
 from pyspark.ml.util import *
 
+T = TypeVar("T")
 ParamMap = Dict[Param, Any]
 
 class ParamGridBuilder:
@@ -24,11 +25,11 @@ class ValidatorParams(HasSeed):
     estimator = ...  # type: Param
     estimatorParamMaps = ...  # type: Param
     evaluator = ...  # type: Param
-    def setEstimator(self, value: Estimator) -> ValidatorParams: ...
+    def setEstimator(self: T, value: Estimator) -> T: ...
     def getEstimator(self) -> Estimator: ...
-    def setEstimatorParamMaps(self, value: List[ParamMap]) -> ValidatorParams: ...
+    def setEstimatorParamMaps(self: T, value: List[ParamMap]) -> T: ...
     def getEstimatorParamMaps(self) -> List[ParamMap]: ...
-    def setEvaluator(self, value: Evaluator) -> ValidatorParams: ...
+    def setEvaluator(self: T, value: Evaluator) -> T: ...
     def getEvaluator(self) -> Evaluator: ...
 
 class CrossValidator(Estimator, ValidatorParams, HasParallelism, HasCollectSubModels, MLReadable, MLWritable):
