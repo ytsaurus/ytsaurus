@@ -2,10 +2,13 @@
 
 #include "db_helpers.h"
 
+#include <yt/server/clickhouse_server/native/system_columns.h>
+
 #include <Core/Names.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,11 +20,11 @@ const DB::NamesAndTypesList& ListSystemVirtualColumns()
     return columns;
 }
 
-NInterop::TSystemColumns GetSystemColumns(const DB::Names& virtual_)
+NNative::TSystemColumns GetSystemColumns(const DB::Names& virtual_)
 {
     DB::NameSet names(virtual_.begin(), virtual_.end());
 
-    NInterop::TSystemColumns systemColumns;
+    NNative::TSystemColumns systemColumns;
 
     if (names.find("_table") != names.end()) {
         systemColumns.TableName = "_table";
@@ -30,5 +33,6 @@ NInterop::TSystemColumns GetSystemColumns(const DB::Names& virtual_)
     return systemColumns;
 }
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

@@ -60,6 +60,7 @@ void TTransactionLeaseTracker::RegisterTransaction(
     const TTransactionId& transactionId,
     const TTransactionId& parentId,
     TNullable<TDuration> timeout,
+    TNullable<TInstant> deadline,
     TTransactionLeaseExpirationHandler expirationHandler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -68,6 +69,7 @@ void TTransactionLeaseTracker::RegisterTransaction(
         transactionId,
         parentId,
         timeout,
+        deadline,
         std::move(expirationHandler)
     });
 }
@@ -199,11 +201,13 @@ void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& re
     descriptor.ParentId = request.ParentId;
     descriptor.ExpirationHandler = request.ExpirationHandler;
     descriptor.Timeout = request.Timeout;
+    descriptor.UserDeadline = request.Deadline;
     RegisterDeadline(&descriptor);
 
-    LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v)",
+    LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
         request.TransactionId,
-        request.Timeout);
+        request.Timeout,
+        request.Deadline);
 }
 
 void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest& request)
@@ -284,6 +288,9 @@ void TTransactionLeaseTracker::RegisterDeadline(TTransactionDescriptor* descript
     descriptor->Deadline = descriptor->Timeout
         ? descriptor->LastPingTime + *descriptor->Timeout
         : TInstant::Max();
+    if (descriptor->UserDeadline) {
+        descriptor->Deadline = std::min(descriptor->Deadline, *descriptor->UserDeadline);
+    }
     YCHECK(DeadlineMap_.insert(descriptor).second);
 }
 

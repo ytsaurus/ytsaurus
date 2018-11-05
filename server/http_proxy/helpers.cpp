@@ -101,11 +101,6 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
     for (size_t i = 0; i < at.size(); ++i) {
         i64 intValue = 0;
         if (at[i] == "" || TryFromString(at[i], intValue)) {
-            if (intValue < 0 || intValue > MaxListSize) {
-                THROW_ERROR_EXCEPTION("Invalid list index in query argument")
-                    << TErrorAttribute("index", intValue);
-            }
-
             if (!current) {
                 current = factory->CreateList();
                 linkBack(current);
@@ -116,9 +111,18 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
                 intValue = listNode->GetChildCount();
             }
 
+            if (intValue < 0 || intValue > MaxListSize) {
+                THROW_ERROR_EXCEPTION("Invalid list index in query argument")
+                    << TErrorAttribute("index", intValue);
+            }
+
             current = listNode->FindChild(intValue);
-            linkBack = [intValue, listNode] (const INodePtr& node) {
-                listNode->AddChild(node, intValue);
+            linkBack = [intValue, listNode, factory] (const INodePtr& node) {
+                while (intValue >= listNode->GetChildCount()) {
+                    listNode->AddChild(factory->CreateEntity());
+                }
+
+                listNode->ReplaceChild(listNode->FindChild(intValue), node);
             };
         } else {
             if (!current) {
@@ -202,6 +206,7 @@ NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMa
 {
     std::vector<TString> secretParameters = {
         "/spec/secure_vault",
+        "/query",
     };
 
     if (commandName == "poll_job_shell") {

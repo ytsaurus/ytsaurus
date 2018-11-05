@@ -2,9 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hydra/public.h>
-
 #include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/scheduler/operation_id_or_alias.h>
+
+#include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -83,7 +85,7 @@ public:
     void Disconnect(const TError& error);
 
     TOperationPtr FindOperation(const TOperationId& id) const;
-    TOperationPtr GetOperationOrThrow(const TOperationId& id) const;
+    TOperationPtr GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const;
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,

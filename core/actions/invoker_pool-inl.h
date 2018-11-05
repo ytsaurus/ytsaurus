@@ -1,6 +1,8 @@
 #pragma once
 #ifndef INVOKER_POOL_INL_H_
 #error "Direct inclusion of this file is not allowed, include invoker_pool.h"
+// For the sake of sane code completion.
+#include "invoker_pool.h"
 #endif
 #undef INVOKER_POOL_INL_H_
 

@@ -3,6 +3,7 @@ package NYT.NQueryClient.NProto;
 import "yt/core/misc/proto/guid.proto";
 import "yt/client/misc/proto/workload.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt/ytlib/table_client/table_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,6 +220,18 @@ message TDataRanges
 
     optional bytes keys = 5;
     optional uint64 key_width = 6 [default = 0];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTableMountInfo
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    repeated NYT.NTableClient.NProto.TTabletInfo tablets = 3;
+    required bool dynamic = 4;
+    required NYT.NProto.TGuid upstream_replica_id = 5;
+    repeated NYT.NTableClient.NProto.TReplicaInfo replicas = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -46,6 +46,7 @@ DECLARE_REFCOUNTED_STRUCT(IServiceWithReflection)
 DECLARE_REFCOUNTED_STRUCT(IServiceContext)
 DECLARE_REFCOUNTED_STRUCT(IChannel)
 DECLARE_REFCOUNTED_STRUCT(IChannelFactory)
+DECLARE_REFCOUNTED_STRUCT(ICachingChannelFactory)
 DECLARE_REFCOUNTED_STRUCT(IRoamingChannelProvider)
 DECLARE_REFCOUNTED_STRUCT(IAuthenticator)
 
@@ -54,6 +55,7 @@ DECLARE_REFCOUNTED_CLASS(TServiceBase)
 DECLARE_REFCOUNTED_CLASS(TChannelWrapper)
 DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
 DECLARE_REFCOUNTED_CLASS(TClientRequestControlThunk)
+DECLARE_REFCOUNTED_CLASS(TCachingChannelFactory)
 
 DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
 
@@ -100,6 +102,7 @@ DEFINE_ENUM(EErrorCode,
     ((RequestQueueSizeLimitExceeded)(108))
     ((AuthenticationError)          (109))
     ((CsrfTokenExpired)             (110))
+    ((InvalidCredentials)           (111))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

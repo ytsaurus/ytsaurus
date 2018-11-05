@@ -1,6 +1,8 @@
 #pragma once
 #ifndef PHOENIX_INL_H_
 #error "Direct inclusion of this file is not allowed, include phoenix.h"
+// For the sake of sane code completion.
+#include "phoenix.h"
 #endif
 
 namespace NYT {

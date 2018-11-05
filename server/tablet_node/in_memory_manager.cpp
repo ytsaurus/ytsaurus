@@ -43,7 +43,7 @@
 
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/rpc/channel.h>
+#include <yt/core/rpc/local_channel.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -132,7 +132,11 @@ public:
             NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
-        , Throttler_(CreateReconfigurableThroughputThrottler(config->PreloadThrottler))
+        , Throttler_(CreateReconfigurableThroughputThrottler(
+            config->PreloadThrottler,
+            Logger,
+            NProfiling::TProfiler(
+                TabletNodeProfiler.GetPathPrefix() + "/in_memory_manager/preload_throttler")))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
@@ -961,13 +965,17 @@ public:
 
 IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     NNative::IClientPtr client,
+    NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     EInMemoryMode inMemoryMode,
     TInMemoryManagerConfigPtr config)
 {
     std::vector<TNodePtr> nodes;
     for (const auto& target : cellDescriptor.Peers) {
-        auto channel = client->GetChannelFactory()->CreateChannel(target);
+        auto channel = target.GetVoting()
+            // There is just one voting peer -- the local one.
+            ? CreateLocalChannel(localRpcServer)
+            : client->GetChannelFactory()->CreateChannel(target);
 
         TInMemoryServiceProxy proxy(channel);
 
@@ -976,14 +984,13 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
         req->set_in_memory_mode(static_cast<int>(inMemoryMode));
 
         auto rspOrError = WaitFor(req->Invoke());
-
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error starting in-memory session at node %v",
                 target.GetDefaultAddress())
                 << rspOrError;
         }
 
-        auto rsp = rspOrError.Value();
+        const auto& rsp = rspOrError.Value();
         auto sessionId = FromProto<TInMemorySessionId>(rsp->session_id());
 
         auto node = New<TNode>(
@@ -1016,6 +1023,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     NNative::IClientPtr client,
+    NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     EInMemoryMode inMemoryMode,
     TInMemoryManagerConfigPtr config)
@@ -1026,7 +1034,7 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
 
     return BIND(&DoCreateRemoteInMemoryBlockCache)
         .AsyncVia(GetCurrentInvoker())
-        .Run(client, cellDescriptor, inMemoryMode, config);
+        .Run(client, localRpcServer, cellDescriptor, inMemoryMode, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

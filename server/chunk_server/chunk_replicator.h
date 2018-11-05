@@ -92,7 +92,6 @@ public:
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes);
 
-    void ScheduleRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleRequisitionUpdate(TChunk* chunk);
     void ScheduleRequisitionUpdate(TChunkList* chunkList);
 
@@ -174,6 +173,12 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> RequisitionUpdateScanner_;
+
+    const NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
+
+    // Contains the chunk list ids for which requisition update traversals
+    // have finished. These confirmations are batched and then flushed.
+    std::vector<TChunkListId> ChunkListIdsWithFinishedRequisitionTraverse_;
 
     //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
@@ -308,6 +313,9 @@ private:
 
     //! Computes the actual requisition the chunk must have.
     TChunkRequisition ComputeChunkRequisition(const TChunk* chunk);
+
+    void ConfirmChunkListRequisitionTraverseFinished(TChunkList* chunkList);
+    void OnFinishedRequisitionTraverseFlush();
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.

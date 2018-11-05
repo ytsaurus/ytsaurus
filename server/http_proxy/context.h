@@ -84,12 +84,11 @@ private:
     TNullable<NAuth::TAuthenticationResult> Auth_;
     TNullable<NFormats::TFormat> HeadersFormat_;
     TNullable<NFormats::TFormat> InputFormat_;
-    TNullable<EContentEncoding> InputCompression_;
+    TNullable<TContentEncoding> InputContentEncoding_;
 
     TNullable<NFormats::TFormat> OutputFormat_;
     TNullable<TString> ContentType_;
-    TNullable<EContentEncoding> OutputCompression_;
-    TNullable<TString> OutputContentEncoding_;
+    TNullable<TContentEncoding> OutputContentEncoding_;
 
     TNullable<ui64> IfNoneMatch_;
 
@@ -108,7 +107,8 @@ private:
     void DispatchUnavailable(const TString& retryAfter, const TString& message);
     void DispatchNotFound(const TString& message);
 
-    void FakeError(const TString& message);
+    void ReplyError(const TError& error);
+    void ReplyFakeError(const TString& message);
 
     void OnOutputParameters();
 };

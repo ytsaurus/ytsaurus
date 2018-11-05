@@ -3,6 +3,8 @@
 #include "scheduler.h"
 #include "bootstrap.h"
 
+#include <yt/client/scheduler/operation_id_or_alias.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
@@ -54,7 +56,6 @@ private:
     TBootstrap* const Bootstrap_;
     const TResponseKeeperPtr ResponseKeeper_;
 
-
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
         auto type = EOperationType(request->type());
@@ -101,9 +102,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
     {
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        FromProto(&operationIdOrAlias, *request);
 
-        context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -120,7 +122,7 @@ private:
             error = error << TError(request->abort_message());
         }
 
-        auto operation = scheduler->GetOperationOrThrow(operationId);
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->AbortOperation(
             operation,
             error,
@@ -131,11 +133,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
     {
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        FromProto(&operationIdOrAlias, *request);
+
         bool abortRunningJobs = request->abort_running_jobs();
 
-        context->SetRequestInfo("OperationId: %v", operationId);
-        context->SetRequestInfo("AbortRunningJobs: %v", abortRunningJobs);
+        context->SetRequestInfo("%v, AbortRunningJobs: %v", GetOperationIdOrAliasContextInfo(operationIdOrAlias), abortRunningJobs);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -144,7 +147,7 @@ private:
             return;
         }
 
-        auto operation = scheduler->GetOperationOrThrow(operationId);
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->SuspendOperation(
             operation,
             context->GetUser(),
@@ -155,9 +158,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
     {
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        FromProto(&operationIdOrAlias, *request);
 
-        context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -166,7 +170,7 @@ private:
             return;
         }
 
-        auto operation = scheduler->GetOperationOrThrow(operationId);
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->ResumeOperation(
             operation,
             context->GetUser());
@@ -176,9 +180,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CompleteOperation)
     {
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        FromProto(&operationIdOrAlias, *request);
 
-        context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -187,7 +192,7 @@ private:
             return;
         }
 
-        auto operation = scheduler->GetOperationOrThrow(operationId);
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->CompleteOperation(
             operation,
             TError("Operation completed by user request"),
@@ -198,9 +203,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, UpdateOperationParameters)
     {
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        FromProto(&operationIdOrAlias, *request);
 
-        context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -217,7 +223,7 @@ private:
                 << ex;
         }
 
-        auto operation = scheduler->GetOperationOrThrow(operationId);
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->UpdateOperationParameters(operation, context->GetUser(), parametersNode);
         context->ReplyFrom(asyncResult);
     }

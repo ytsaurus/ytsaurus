@@ -50,10 +50,10 @@ private:
         TInstant Instant;
     };
 
-    std::atomic<TCpuInstant> NextCalibrationCpuInstant_ = 0;
+    std::atomic<TCpuInstant> NextCalibrationCpuInstant_{0};
     TSpinLock CalibrationLock_;
     std::array<TCalibrationState, 2> CalibrationStates_;
-    std::atomic<ui32> CalibrationStateIndex_ = {0};
+    std::atomic<ui32> CalibrationStateIndex_{0};
 
 
     Y_DECLARE_SINGLETON_FRIEND();

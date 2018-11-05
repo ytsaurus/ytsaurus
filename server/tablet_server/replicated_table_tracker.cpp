@@ -389,16 +389,22 @@ private:
             auto lock = Guard(Lock_);
             futures.reserve(Tables_.size());
             for (const auto& item : Tables_) {
+                const auto& tableId = item.first;
                 if (!item.second->IsEnabled()) {
                     LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
-                        item.first);
+                        tableId);
                     continue;
                 }
-                futures.push_back(item.second->Check(Bootstrap_));
+                auto future = item.second->Check(Bootstrap_);
+                future.Subscribe(BIND([tableId] (const TErrorOr<void>& errorOr) {
+                    LOG_DEBUG_UNLESS(errorOr.IsOK(), errorOr, "Error on checking table (TableId: %v)",
+                        tableId);
+                }));
+                futures.push_back(future);
             }
         }
 
-        WaitFor(Combine(futures))
+        WaitFor(CombineAll(futures))
             .ThrowOnError();
     }
 

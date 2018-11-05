@@ -34,6 +34,7 @@
 #include <llvm/Transforms/Scalar.h>
 #endif
 
+#include <util/system/compiler.h>
 #include <util/system/sanitizers.h>
 
 #include <mutex>
@@ -47,7 +48,7 @@
 
 struct __emutls_control;
 
-extern "C" void* yt__emutls_get_address(__emutls_control* control) __attribute__((no_sanitize("memory")))
+extern "C" void* yt__emutls_get_address(__emutls_control* control) Y_NO_SANITIZE("memory")
 {
     auto fn = (void(*)(void*))control;
     void* p;
@@ -106,8 +107,8 @@ public:
     explicit TCGMemoryManager(TRoutineRegistry* routineRegistry)
         : RoutineRegistry_(routineRegistry)
     {
-        static std::once_flag onceFlag;
 #ifdef _linux_
+        static std::once_flag onceFlag;
         std::call_once(onceFlag, &LoadDynamicLibrarySymbols);
 #endif
     }
@@ -299,6 +300,7 @@ private:
 
         LOG_DEBUG("Started compiling module");
 
+        // See YT-8035 for details why we are clearing COMDAT.
         for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
             it->setComdat(nullptr);
         }

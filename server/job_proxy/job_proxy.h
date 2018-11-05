@@ -67,6 +67,10 @@ public:
     virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
 
+    TDuration GetSpentCpuTime() const;
+
+    void SetCpuLimit(double cpuLimit);
+
 private:
     const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
@@ -74,6 +78,8 @@ private:
 
     //! Can be null if running in non-porto and non-cgroups environment.
     IJobProxyEnvironmentPtr JobProxyEnvironment_;
+
+    TCpuMonitorPtr CpuMonitor_;
 
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
@@ -90,10 +96,11 @@ private:
 
     // Memory reserve approved by the node.
     std::atomic<i64> ApprovedMemoryReserve_ = {0};
+    std::atomic<i64> RequestedMemoryReserve_ = {0};
 
     std::atomic<i32> NetworkUsage_ = {0};
 
-    double CpuLimit_ = 0;
+    std::atomic<double> CpuLimit_ = {0};
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
@@ -145,7 +152,7 @@ private:
 
     IJobPtr CreateBuiltinJob();
 
-    void UpdateResourceUsage(i64 memoryReserve);
+    void UpdateResourceUsage();
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;

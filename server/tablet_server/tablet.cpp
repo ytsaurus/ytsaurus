@@ -74,6 +74,10 @@ void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceCont
     if (context.GetVersion() >= 800) {
         Persist(context, Decommissioned);
     }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 807) {
+        Persist(context, Health);
+    }
 }
 
 void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -223,6 +227,7 @@ void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellSt
     protoStatistics->set_dynamic_memory_pool_size(statistics.DynamicMemoryPoolSize);
     protoStatistics->set_tablet_count(statistics.TabletCount);
     protoStatistics->set_decommissioned(statistics.Decommissioned);
+    protoStatistics->set_health(static_cast<i32>(statistics.Health));
 
     ToProto(protoStatistics->mutable_disk_space_per_medium(), TRange<i64>(statistics.DiskSpacePerMedium, MaxMediumCount));
     ToProto(protoStatistics->mutable_tablet_count_per_memory_mode(), statistics.TabletCountPerMemoryMode);
@@ -243,6 +248,7 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     statistics->DynamicMemoryPoolSize = protoStatistics.dynamic_memory_pool_size();
     statistics->TabletCount = protoStatistics.tablet_count();
     statistics->Decommissioned = protoStatistics.decommissioned();
+    statistics->Health = static_cast<ETabletCellHealth>(protoStatistics.health());
 
     auto diskSpacePerMedium = TMutableRange<i64>(statistics->DiskSpacePerMedium, MaxMediumCount);
     FromProto(&diskSpacePerMedium, protoStatistics.disk_space_per_medium());
@@ -327,6 +333,7 @@ TSerializableUncountableTabletCellStatisticsBase::TSerializableUncountableTablet
 void TSerializableUncountableTabletCellStatisticsBase::InitParameters()
 {
     RegisterParameter("decommissioned", Decommissioned);
+    RegisterParameter("health", Health);
 }
 
 TSerializableTabletCellStatistics::TSerializableTabletCellStatistics()

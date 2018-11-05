@@ -1,15 +1,19 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void RegisterTableDictionarySource(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr authToken);
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr authToken);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

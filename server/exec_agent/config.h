@@ -100,9 +100,9 @@ public:
     TNullable<TString> ExternalJobRootVolume;
 
     THashMap<TString, TString> ExternalBinds;
-
-    double JobsCpuWeight;
+    
     double JobsIOWeight;
+    double NodeDedicatedCpu;
 
     TPortoJobEnvironmentConfig()
     {
@@ -126,6 +126,9 @@ public:
 
         RegisterParameter("jobs_io_weight", JobsIOWeight)
             .Default(0.05);
+        RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
+            .GreaterThanOrEqual(0)
+            .Default(2);
     }
 };
 
@@ -277,6 +280,8 @@ public:
     NLogging::TLogConfigPtr JobProxyLogging;
     NTracing::TTraceManagerConfigPtr JobProxyTracing;
 
+    NJobProxy::TJobCpuMonitorConfigPtr JobCpuMonitor;
+
     TDuration SupervisorRpcTimeout;
     TDuration JobProberRpcTimeout;
 
@@ -309,6 +314,8 @@ public:
         RegisterParameter("job_proxy_logging", JobProxyLogging)
             .DefaultNew();
         RegisterParameter("job_proxy_tracing", JobProxyTracing)
+            .DefaultNew();
+        RegisterParameter("job_cpu_monitor", JobCpuMonitor)
             .DefaultNew();
 
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)

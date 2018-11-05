@@ -151,6 +151,8 @@ message TReqStartTransaction
     optional EDurability durability = 10 [default = D_SYNC];
 
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 11;
+
+    optional uint64 deadline = 12;
 }
 
 message TRspStartTransaction
@@ -655,6 +657,7 @@ message TReqSetNode
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMutatingOptions mutating_options = 103;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
 message TRspSetNode
@@ -806,6 +809,8 @@ message TReqMountTable
 
     optional TMutatingOptions mutating_options = 103;
     optional TTabletRangeOptions tablet_range_options = 104;
+
+    repeated NYT.NProto.TGuid target_cell_ids = 4;
 }
 
 message TRspMountTable
@@ -997,7 +1002,10 @@ message TRspStartOperation
 
 message TReqAbortOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     optional string abort_message = 2;
 }
 
@@ -1009,7 +1017,10 @@ message TRspAbortOperation
 
 message TReqSuspendOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     optional bool abort_running_jobs = 2 [default = false];
 }
 
@@ -1021,7 +1032,10 @@ message TRspSuspendOperation
 
 message TReqResumeOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 2;
+    }
 }
 
 message TRspResumeOperation
@@ -1032,8 +1046,10 @@ message TRspResumeOperation
 
 message TReqCompleteOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
-}
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 2;
+    }}
 
 message TRspCompleteOperation
 {
@@ -1043,7 +1059,10 @@ message TRspCompleteOperation
 
 message TReqUpdateOperationParameters
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     required bytes parameters = 2; // YSON
 }
 
@@ -1055,7 +1074,10 @@ message TRspUpdateOperationParameters
 
 message TReqGetOperation
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 4;
+    }
     repeated string attributes = 2;
     optional bool include_runtime = 3 [default = false];
 

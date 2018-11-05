@@ -28,6 +28,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, AbortOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, WriteOperationControllerCoreDump);
     DEFINE_RPC_PROXY_METHOD(NProto, UnregisterOperation);
+    DEFINE_RPC_PROXY_METHOD(NProto, UpdateOperationRuntimeParameters);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

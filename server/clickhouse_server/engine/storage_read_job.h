@@ -1,21 +1,25 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/table_schema.h>
 
 #include <Storages/IStorage.h>
 
 #include <string>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: NInterop::ITablePartPtr instead of tables
+// TODO: NNative::ITablePartPtr instead of tables
 DB::StoragePtr CreateStorageReadJob(
-    NInterop::IStoragePtr storage,
-    NInterop::TTableList tables,
+    NNative::IStoragePtr storage,
+    NNative::TTableList tables,
     std::string jobSpec);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

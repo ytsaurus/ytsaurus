@@ -28,6 +28,7 @@ public:
     TJobSizeConstraintsBase(
         i64 inputDataWeight,
         i64 primaryInputDataWeight,
+        TOperationSpecBasePtr spec,
         TOperationOptionsPtr options,
         TLogger logger,
         i64 inputRowCount = -1,
@@ -44,6 +45,7 @@ public:
         , MergePrimaryInputTableCount_(mergePrimaryInputTableCount)
         , InitialInputDataWeight_(inputDataWeight)
         , Options_(std::move(options))
+        , Spec_(std::move(spec))
         , SamplingConfig_(std::move(samplingConfig))
     {
         if (SamplingConfig_ && SamplingConfig_->SamplingRate) {
@@ -68,10 +70,14 @@ public:
         return *SamplingPrimaryDataWeightPerJob_;
     }
 
+    virtual i64 GetMaxBuildRetryCount() const override
+    {
+        return Options_->MaxBuildRetryCount;
+    }
+
     virtual double GetDataWeightPerJobRetryFactor() const override
     {
-        // TODO(max42): make customizable.
-        return 2.0;
+        return Options_->DataWeightPerJobRetryFactor;
     }
 
     virtual i64 GetInputSliceDataWeight() const override
@@ -97,6 +103,16 @@ public:
         }
 
         return sliceDataSize;
+    }
+
+    virtual i64 GetMaxDataWeightPerJob() const override
+    {
+        return Spec_->MaxDataWeightPerJob;
+    }
+
+    virtual i64 GetMaxPrimaryDataWeightPerJob() const override
+    {
+        return Spec_->MaxPrimaryDataWeightPerJob;
     }
 
     virtual i64 GetInputSliceRowCount() const override
@@ -125,6 +141,7 @@ public:
         using NYT::Persist;
 
         Persist(context, Options_);
+        Persist(context, Spec_);
         Persist(context, InputDataWeight_);
         Persist(context, PrimaryInputDataWeight_);
         Persist(context, InitialInputDataWeight_);
@@ -152,6 +169,7 @@ private:
     int MergePrimaryInputTableCount_ = -1;
     i64 InitialInputDataWeight_ = -1;
     TOperationOptionsPtr Options_;
+    TOperationSpecBasePtr Spec_;
     TNullable<i64> SamplingDataWeightPerJob_;
     TNullable<i64> SamplingPrimaryDataWeightPerJob_;
     TSamplingConfigPtr SamplingConfig_;
@@ -213,6 +231,7 @@ public:
         : TJobSizeConstraintsBase(
             primaryInputDataWeight + foreignInputDataWeight,
             primaryInputDataWeight,
+            spec,
             options,
             logger,
             inputRowCount,
@@ -304,11 +323,6 @@ public:
             : 1);
     }
 
-    virtual i64 GetMaxDataWeightPerJob() const override
-    {
-        return Spec_->MaxDataWeightPerJob;
-    }
-
     virtual void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
@@ -368,6 +382,7 @@ public:
         : TJobSizeConstraintsBase(
             inputDataWeight,
             inputDataWeight,
+            spec,
             options,
             logger,
             std::numeric_limits<i64>::max() /* inputRowCount */,
@@ -440,11 +455,6 @@ public:
             : 1);
     }
 
-    virtual i64 GetMaxDataWeightPerJob() const override
-    {
-        return Spec_->MaxDataWeightPerJob;
-    }
-
     virtual i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max();
@@ -483,7 +493,7 @@ public:
         const TSortOperationOptionsBasePtr& options,
         TLogger logger,
         i64 inputDataWeight)
-        : TJobSizeConstraintsBase(inputDataWeight, inputDataWeight, options, logger)
+        : TJobSizeConstraintsBase(inputDataWeight, inputDataWeight, spec, options, logger)
         , Spec_(spec)
         , Options_(options)
     {
@@ -517,11 +527,6 @@ public:
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
-    }
-
-    virtual i64 GetMaxDataWeightPerJob() const override
-    {
-        return Spec_->MaxDataWeightPerJob;
     }
 
     virtual i64 GetInputSliceRowCount() const override
@@ -568,6 +573,7 @@ public:
         : TJobSizeConstraintsBase(
             inputDataWeight,
             inputDataWeight,
+            spec,
             options,
             logger,
             inputRowCount,
@@ -640,11 +646,6 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual i64 GetMaxDataWeightPerJob() const override
-    {
-        return Spec_->MaxDataWeightPerJob;
-    }
-
     virtual void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
@@ -683,11 +684,14 @@ public:
         i64 primaryDataWeightPerJob,
         i64 maxDataSlicesPerJob,
         i64 maxDataWeightPerJob,
+        i64 maxPrimaryDataWeightPerJob,
         i64 inputSliceDataWeight,
         i64 inputSliceRowCount,
         TNullable<double> samplingRate,
         i64 samplingDataWeightPerJob,
-        i64 samplingPrimaryDataWeightPerJob)
+        i64 samplingPrimaryDataWeightPerJob,
+        i64 maxBuildRetryCount,
+        double dataWeightPerJobRetryFactor)
         : CanAdjustDataWeightPerJob_(canAdjustDataWeightPerJob)
         , IsExplicitJobCount_(isExplicitJobCount)
         , JobCount_(jobCount)
@@ -695,11 +699,14 @@ public:
         , PrimaryDataWeightPerJob_(primaryDataWeightPerJob)
         , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
         , MaxDataWeightPerJob_(maxDataWeightPerJob)
+        , MaxPrimaryDataWeightPerJob_(maxPrimaryDataWeightPerJob)
         , InputSliceDataWeight_(inputSliceDataWeight)
         , InputSliceRowCount_(inputSliceRowCount)
         , SamplingRate_(samplingRate)
         , SamplingDataWeightPerJob_(samplingDataWeightPerJob)
         , SamplingPrimaryDataWeightPerJob_(samplingPrimaryDataWeightPerJob)
+        , MaxBuildRetryCount_(maxBuildRetryCount)
+        , DataWeightPerJobRetryFactor_(dataWeightPerJobRetryFactor)
     { }
 
     virtual bool CanAdjustDataWeightPerJob() const override
@@ -737,6 +744,11 @@ public:
         return MaxDataWeightPerJob_;
     }
 
+    virtual i64 GetMaxPrimaryDataWeightPerJob() const override
+    {
+        return MaxPrimaryDataWeightPerJob_;
+    }
+
     virtual i64 GetInputSliceDataWeight() const override
     {
         return InputSliceDataWeight_;
@@ -766,7 +778,12 @@ public:
 
     virtual double GetDataWeightPerJobRetryFactor() const override
     {
-        return 2.0;
+        return DataWeightPerJobRetryFactor_;
+    }
+
+    virtual i64 GetMaxBuildRetryCount() const override
+    {
+        return MaxBuildRetryCount_;
     }
 
     virtual void UpdateInputDataWeight(i64 inputDataWeight) override
@@ -784,11 +801,14 @@ public:
         Persist(context, PrimaryDataWeightPerJob_);
         Persist(context, MaxDataSlicesPerJob_);
         Persist(context, MaxDataWeightPerJob_);
+        Persist(context, MaxPrimaryDataWeightPerJob_);
         Persist(context, InputSliceDataWeight_);
         Persist(context, InputSliceRowCount_);
         Persist(context, SamplingRate_);
         Persist(context, SamplingDataWeightPerJob_);
         Persist(context, SamplingPrimaryDataWeightPerJob_);
+        Persist(context, MaxBuildRetryCount_);
+        Persist(context, DataWeightPerJobRetryFactor_);
     }
 
 private:
@@ -801,11 +821,14 @@ private:
     i64 PrimaryDataWeightPerJob_;
     i64 MaxDataSlicesPerJob_;
     i64 MaxDataWeightPerJob_;
+    i64 MaxPrimaryDataWeightPerJob_;
     i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
     TNullable<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_;
     i64 SamplingPrimaryDataWeightPerJob_;
+    i64 MaxBuildRetryCount_;
+    double DataWeightPerJobRetryFactor_;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints);
@@ -898,17 +921,18 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         outputTableCount * options->MaxPartitionCount);
     i64 estimatedDataSizePerPartition = 2 * spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob);
 
-    i64 minDataSizePerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
-    i64 dataSizePerJob = std::max(minDataSizePerJob, spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob));
+    i64 minDataWeightPerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
+    i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
         false /* canAdjustDataSizePerJob */,
         false /* isExplicitJobCount */,
         0 /* jobCount */,
-        dataSizePerJob /* dataSizePerJob */,
-        dataSizePerJob /* dataSizePerJob */,
+        dataWeightPerJob /* dataWeightPerJob */,
+        dataWeightPerJob /* primaryDataWeightPerJob */,
         options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
-        std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
+        std::numeric_limits<i64>::max() /* maxDataWeightPerJob */,
+        std::numeric_limits<i64>::max() /* maxPrimaryDataWeightPerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */,
         Null /* samplingRate */);
@@ -921,12 +945,15 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 dataSizePerJob,
     i64 primaryDataSizePerJob,
     i64 maxDataSlicesPerJob,
-    i64 maxDataSizePerJob,
+    i64 maxDataWeightPerJob,
+    i64 maxPrimaryDataWeightPerJob,
     i64 inputSliceDataSize,
     i64 inputSliceRowCount,
     TNullable<double> samplingRate,
     i64 samplingDataWeightPerJob,
-    i64 samplingPrimaryDataWeightPerJob)
+    i64 samplingPrimaryDataWeightPerJob,
+    i64 maxBuildRetryCount,
+    double dataWeightPerJobRetryFactor)
 {
     return New<TExplicitJobSizeConstraints>(
         canAdjustDataSizePerJob,
@@ -935,12 +962,15 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         dataSizePerJob,
         primaryDataSizePerJob,
         maxDataSlicesPerJob,
-        maxDataSizePerJob,
+        maxDataWeightPerJob,
+        maxPrimaryDataWeightPerJob,
         inputSliceDataSize,
         inputSliceRowCount,
         samplingRate,
         samplingDataWeightPerJob,
-        samplingPrimaryDataWeightPerJob);
+        samplingPrimaryDataWeightPerJob,
+        maxBuildRetryCount,
+        dataWeightPerJobRetryFactor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

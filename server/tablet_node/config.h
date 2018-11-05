@@ -99,7 +99,7 @@ public:
     TNullable<ui64> ForcedCompactionRevision;
 
     TNullable<TDuration> DynamicStoreAutoFlushPeriod;
-    TDuration DynamicStoreFlushPeriodSkew;
+    TDuration DynamicStoreFlushPeriodSplay;
     TNullable<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
@@ -233,8 +233,8 @@ public:
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
             .Default(TDuration::Minutes(15));
-        RegisterParameter("dynamic_store_flush_period_skew", DynamicStoreFlushPeriodSkew)
-            .Default(TDuration::Minutes(5));
+        RegisterParameter("dynamic_store_flush_period_splay", DynamicStoreFlushPeriodSplay)
+            .Default(TDuration::Minutes(1));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 

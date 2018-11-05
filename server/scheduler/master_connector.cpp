@@ -165,7 +165,6 @@ public:
                 .Do(BIND(&BuildMinimalOperationAttributes, operation))
                 .Item("opaque").Value(true)
                 .Item("acl").Do(std::bind(&TImpl::BuildAcl, operation, _1))
-                .Item("owners").Value(operation->GetOwners())
                 .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .EndAttributes()
             .BeginMap()
@@ -176,20 +175,11 @@ public:
             .EndMap()
             .GetData();
 
-        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
-
-        auto secureVaultPaths = GetOperationPaths(
-            operationId,
-            operation->GetEnableCompatibleStorageMode(),
-            "secure_vault");
-
-        for (const auto& path : paths) {
-            auto req = TYPathProxy::Set(path);
-            req->set_value(operationYson);
-            req->set_recursive(true);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
-        }
+        auto req = TYPathProxy::Set(GetOperationPath(operationId));
+        req->set_value(operationYson);
+        req->set_recursive(true);
+        GenerateMutationId(req);
+        batchReq->AddRequest(req);
 
         if (operation->GetSecureVault()) {
             // Create secure vault.
@@ -199,13 +189,11 @@ public:
             attributes->Set("acl", BuildYsonStringFluently()
                 .Do(std::bind(&TImpl::BuildAcl, operation, _1)));
 
-            for (const auto& path : secureVaultPaths) {
-                auto req = TCypressYPathProxy::Create(path);
-                req->set_type(static_cast<int>(EObjectType::Document));
-                ToProto(req->mutable_node_attributes(), *attributes);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
-            }
+            auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
+            req->set_type(static_cast<int>(EObjectType::Document));
+            ToProto(req->mutable_node_attributes(), *attributes);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
         }
 
         return batchReq->Invoke().Apply(
@@ -232,17 +220,14 @@ public:
                 .Item("brief_spec").Value(operation->BriefSpec())
             .EndMap());
 
-        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
-        for (const auto& path : paths) {
-            auto req = TYPathProxy::Multiset(path + "/@");
-            GenerateMutationId(req);
-            for (const auto& key : attributes->List()) {
-                auto* subrequest = req->add_subrequests();
-                subrequest->set_key(key);
-                subrequest->set_value(attributes->GetYson(key).GetData());
-            }
-            batchReq->AddRequest(req);
+        auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
+        GenerateMutationId(req);
+        for (const auto& key : attributes->List()) {
+            auto* subrequest = req->add_subrequests();
+            subrequest->set_key(key);
+            subrequest->set_value(attributes->GetYson(key).GetData());
         }
+        batchReq->AddRequest(req);
 
         return batchReq->Invoke().Apply(
             BIND(
@@ -321,15 +306,12 @@ public:
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-        auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
 
         auto mapNode = ConvertToNode(params)->AsMap();
 
-        for (const auto& operationPath : paths) {
-            auto req = TYPathProxy::Set(operationPath + "/@runtime_parameters");
-            req->set_value(ConvertToYsonString(mapNode).GetData());
-            batchReq->AddRequest(req);
-        }
+        auto req = TYPathProxy::Set(GetOperationPath(operation->GetId()) + "/@runtime_parameters");
+        req->set_value(ConvertToYsonString(mapNode).GetData());
+        batchReq->AddRequest(req);
 
         auto rspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(rspOrError);
@@ -622,7 +604,6 @@ private:
             SyncClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
-            SyncOperationNodes();
             SubmitOperationsToCleaner();
             FireHandshake();
         }
@@ -821,8 +802,8 @@ private:
                 for (const auto& operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
-                    auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
-                    auto secureVaultPath = GetNewSecureVaultPath(operationId);
+                    auto operationAttributesPath = GetOperationPath(operationId) + "/@";
+                    auto secureVaultPath = GetSecureVaultPath(operationId);
 
                     // Retrieve operation attributes.
                     {
@@ -917,8 +898,8 @@ private:
                 runtimeParams,
                 user,
                 attributes.Get<TInstant>("start_time"),
-                spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
+                spec->Alias,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 /* suspended */ attributes.Get<bool>("suspended", false));
@@ -959,23 +940,6 @@ private:
         void FireHandshake()
         {
             Owner_->MasterHandshake_.Fire(Result_);
-        }
-
-        void SyncOperationNodes()
-        {
-            LOG_INFO("Synchronizing operation nodes (UnsynchronizedCount: %v)", OperationIdsToSync_.size());
-
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Leader);
-
-            for (const auto& operationId : OperationIdsToSync_) {
-                auto req = TCypressYPathProxy::Copy(GetOperationPath(operationId));
-                req->set_source_path(GetNewOperationPath(operationId));
-                req->set_force(true);
-                batchReq->AddRequest(req, "copy_operation_node");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
 
         void SubmitOperationsToCleaner()
@@ -1028,8 +992,8 @@ private:
 
             for (const auto& operation : operations) {
                 const auto& operationId = operation->GetId();
-                auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
-                auto secureVaultPath = GetNewSecureVaultPath(operationId);
+                auto operationAttributesPath = GetOperationPath(operationId) + "/@";
+                auto secureVaultPath = GetSecureVaultPath(operationId);
 
                 // Retrieve operation attributes.
                 {
@@ -1145,7 +1109,7 @@ private:
 
                 for (auto transactionId : possibleTransactions)
                 {
-                    auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
+                    auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
                     std::vector<TString> attributeKeys{
                         "committed"
                     };
@@ -1348,78 +1312,77 @@ private:
             auto batchReq = StartObjectBatchRequest();
             GenerateMutationId(batchReq);
 
-            auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
-            for (const auto& operationPath : paths) {
-                // Set operation acl.
-                if (operation->GetShouldFlushAcl()) {
-                    auto aclBatchReq = StartObjectBatchRequest();
-                    auto req = TYPathProxy::Set(operationPath + "/@acl");
-                    req->set_value(BuildYsonStringFluently()
-                        .Do(std::bind(&TImpl::BuildAcl, operation, _1))
-                        .GetData());
-                    aclBatchReq->AddRequest(req, "set_acl");
+            auto operationPath = GetOperationPath(operation->GetId());
 
-                    auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
+            // Set operation acl.
+            if (operation->GetShouldFlushAcl()) {
+                auto aclBatchReq = StartObjectBatchRequest();
+                auto req = TYPathProxy::Set(operationPath + "/@acl");
+                req->set_value(BuildYsonStringFluently()
+                    .Do(std::bind(&TImpl::BuildAcl, operation, _1))
+                    .GetData());
+                aclBatchReq->AddRequest(req, "set_acl");
 
-                    auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
-                    if (!rspOrErr.IsOK()) {
-                        auto error = TError("Failed to set operation ACL")
-                            << TErrorAttribute("operation_id", operation->GetId())
-                            << rspOrErr;
-                        operation->SetAlert(EOperationAlertType::InvalidAcl, error);
-                        LOG_INFO(error);
-                    } else {
-                        operation->ResetAlert(EOperationAlertType::InvalidAcl);
-                    }
+                auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
+
+                auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
+                if (!rspOrErr.IsOK()) {
+                    auto error = TError("Failed to set operation ACL")
+                        << TErrorAttribute("operation_id", operation->GetId())
+                        << rspOrErr;
+                    operation->SetAlert(EOperationAlertType::InvalidAcl, error);
+                    LOG_INFO(error);
+                } else {
+                    operation->ResetAlert(EOperationAlertType::InvalidAcl);
                 }
-
-                auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
-
-                // Set suspended flag.
-                {
-                    auto req = multisetReq->add_subrequests();
-                    req->set_key("suspended");
-                    req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
-                }
-
-                // Set events.
-                {
-                    auto req = multisetReq->add_subrequests();
-                    req->set_key("events");
-                    req->set_value(ConvertToYsonString(operation->Events()).GetData());
-                }
-
-                // Set result.
-                if (operation->IsFinishedState()) {
-                    auto req = multisetReq->add_subrequests();
-                    req->set_key("result");
-                    req->set_value(operation->BuildResultString().GetData());
-                }
-
-                // Set end time, if given.
-                if (operation->GetFinishTime()) {
-                    auto req = multisetReq->add_subrequests();
-                    req->set_key("finish_time");
-                    req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
-                }
-
-                // Set state.
-                {
-                    auto req = multisetReq->add_subrequests();
-                    req->set_key("state");
-                    req->set_value(ConvertToYsonString(operation->GetState()).GetData());
-                }
-
-                // Set alerts.
-                {
-                    auto req = multisetReq->add_subrequests();
-                    req->set_key("alerts");
-                    req->set_value(operation->BuildAlertsString().GetData());
-                }
-
-                batchReq->AddRequest(multisetReq, "update_op_node");
             }
+
+            auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
+
+            // Set suspended flag.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("suspended");
+                req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
+            }
+
+            // Set events.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("events");
+                req->set_value(ConvertToYsonString(operation->Events()).GetData());
+            }
+
+            // Set result.
+            if (operation->IsFinishedState()) {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("result");
+                req->set_value(operation->BuildResultString().GetData());
+            }
+
+            // Set end time, if given.
+            if (operation->GetFinishTime()) {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("finish_time");
+                req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
+            }
+
+            // Set state.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("state");
+                req->set_value(ConvertToYsonString(operation->GetState()).GetData());
+            }
+
+            // Set alerts.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("alerts");
+                req->set_value(operation->BuildAlertsString().GetData());
+            }
+
+            batchReq->AddRequest(multisetReq, "update_op_node");
                     
             operation->SetShouldFlushAcl(false);
 

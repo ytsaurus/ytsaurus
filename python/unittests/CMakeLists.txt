@@ -17,6 +17,7 @@ target_include_directories(unittester-python
 target_link_libraries(unittester-python
   yt-core-test-framework
   yt-core
+  yt-core-alloc
   yt-library-ytlib
   yt-python-2-7-common
   yt-python-2-7-pycxx

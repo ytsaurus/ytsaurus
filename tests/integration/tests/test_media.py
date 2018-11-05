@@ -6,15 +6,12 @@ from yt_commands import *
 import copy
 import __builtin__
 
-from time import sleep
-
 ################################################################################
 
 class TestMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 10
 
-    REPLICATOR_REACTION_TIME = 3.5
     NON_DEFAULT_MEDIUM = "hdd2"
 
     @classmethod
@@ -49,12 +46,14 @@ class TestMedia(YTEnvSetup):
             create_medium("hdd" + str(medium_count))
             medium_count += 1
 
-    def _assert_all_chunks_on_medium(self, tbl, medium):
+    def _check_all_chunks_on_medium(self, tbl, medium):
         chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
         for chunk_id in chunk_ids:
             replicas = get("#" + chunk_id + "/@stored_replicas")
             for replica in replicas:
-                assert replica.attributes["medium"] == medium
+                if replica.attributes["medium"] != medium:
+                    return False
+        return True
 
     def _count_chunks_on_medium(self, tbl, medium):
         chunk_count = 0
@@ -67,11 +66,46 @@ class TestMedia(YTEnvSetup):
 
         return chunk_count
 
-    def _assert_account_and_table_usage_equal(self, tbl):
-        multicell_sleep()
+    def _check_account_and_table_usage_equal(self, tbl):
         account_usage = get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium")
         table_usage = get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl))
-        assert account_usage == table_usage
+        return account_usage == table_usage
+
+    def _check_chunk_ok(self, ok, chunk_id, media):
+        available = get("#%s/@available" % chunk_id)
+        replication_status = get("#%s/@replication_status" % chunk_id)
+        lvc = ls("//sys/lost_vital_chunks")
+        for medium in media:
+            if ok:
+                if not available or \
+                   replication_status[medium]["underreplicated"] or \
+                   replication_status[medium]["lost"] or \
+                   replication_status[medium]["data_missing"] or \
+                   replication_status[medium]["parity_missing"] or \
+                   len(lvc) != 0:
+                   return False
+            else:
+                if available or \
+                   not replication_status[medium]["lost"] or \
+                   not replication_status[medium]["data_missing"] or \
+                   not replication_status[medium]["parity_missing"] or \
+                   len(lvc) == 0:
+                   return False
+        return True
+
+    def _get_chunk_replica_nodes(self, chunk_id):
+        return __builtin__.set(str(r) for r in get("#{0}/@stored_replicas".format(chunk_id)))
+
+    def _get_chunk_replica_media(self, chunk_id):
+        return __builtin__.set(r.attributes["medium"] for r in get("#{0}/@stored_replicas".format(chunk_id)))
+
+    def _ban_nodes(self, nodes):
+        banned = False
+        for node in ls("//sys/nodes"):
+            if node in nodes:
+                set("//sys/nodes/{0}/@banned".format(node), True)
+                banned = True
+        assert banned
 
     def test_default_store_medium_name(self):
         assert get("//sys/media/default/@name") == "default"
@@ -128,7 +162,7 @@ class TestMedia(YTEnvSetup):
         tbl_media = get("//tmp/t1/@media")
         assert tbl_media["default"]["replication_factor"] == replication_factor
         assert not tbl_media["default"]["data_parts_only"]
-        self._assert_account_and_table_usage_equal("t1")
+        wait(lambda: self._check_account_and_table_usage_equal("t1"))
 
     def test_assign_additional_medium(self):
         create("table", "//tmp/t2")
@@ -148,11 +182,9 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t2/@primary_medium") == TestMedia.NON_DEFAULT_MEDIUM
         assert get("//tmp/t2/@replication_factor") == 7
 
-        sleep(TestMedia.REPLICATOR_REACTION_TIME)
-
-        assert self._count_chunks_on_medium("t2", "default") == 3
-        assert self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
-        self._assert_account_and_table_usage_equal("t2")
+        wait(lambda: self._count_chunks_on_medium("t2", "default") == 3 and \
+                     self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7 and \
+                     self._check_account_and_table_usage_equal("t2"))
 
     def test_move_between_media(self):
         create("table", "//tmp/t3")
@@ -175,10 +207,8 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t3/@primary_medium") == TestMedia.NON_DEFAULT_MEDIUM
         assert get("//tmp/t3/@replication_factor") == 3
 
-        sleep(TestMedia.REPLICATOR_REACTION_TIME)
-
-        self._assert_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
-        self._assert_account_and_table_usage_equal("t3")
+        wait(lambda: self._check_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM) and \
+                     self._check_account_and_table_usage_equal("t3"))
 
     def test_move_between_media_shortcut(self):
         create("table", "//tmp/t4")
@@ -195,10 +225,8 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t4/@primary_medium") == TestMedia.NON_DEFAULT_MEDIUM
         assert get("//tmp/t4/@replication_factor") == 3
 
-        sleep(TestMedia.REPLICATOR_REACTION_TIME)
-
-        self._assert_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
-        self._assert_account_and_table_usage_equal("t4")
+        wait(lambda: self._check_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM) and \
+                     self._check_account_and_table_usage_equal("t4"))
 
     def test_assign_empty_medium_fails(self):
         create("table", "//tmp/t5")
@@ -215,8 +243,9 @@ class TestMedia(YTEnvSetup):
         # Move table into non-default medium.
         set("//tmp/t6/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
         write_table("<append=true>//tmp/t6", {"a" : "b"}, table_writer={"medium_name": TestMedia.NON_DEFAULT_MEDIUM})
-        self._assert_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
-        self._assert_account_and_table_usage_equal("t6")
+
+        wait(lambda: self._check_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM) and \
+                     self._check_account_and_table_usage_equal("t6"))
 
     def test_chunks_inherit_properties(self):
         create("table", "//tmp/t7")
@@ -249,10 +278,8 @@ class TestMedia(YTEnvSetup):
         chunk_media_2 = copy.deepcopy(tbl_media_2)
         chunk_vital_2 = tbl_vital_2
 
-        sleep(2.0) # Wait for chunk update to take effect.
-
-        assert chunk_media_2 == get("#" + chunk_id + "/@media")
-        assert chunk_vital_2 == get("#" + chunk_id + "/@vital")
+        wait(lambda: chunk_media_2 == get("#" + chunk_id + "/@media") and \
+                     chunk_vital_2 == get("#" + chunk_id + "/@vital"))
 
     def test_no_create_cache_media(self):
         with pytest.raises(YtError): create_medium("new_cache", attributes={"cache": True})
@@ -273,10 +300,8 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t8/@media/default/replication_factor") == TestMedia.NUM_NODES
         assert get("//tmp/t8/@media/{}/replication_factor".format(TestMedia.NON_DEFAULT_MEDIUM)) == TestMedia.NUM_NODES
 
-        sleep(self.REPLICATOR_REACTION_TIME)
-
-        assert self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
-        assert self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
+        wait(lambda: self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES and \
+                     self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES)
 
     def test_default_media_priorities(self):
         assert get("//sys/media/default/@priority") == 0
@@ -339,33 +364,16 @@ class TestMedia(YTEnvSetup):
         set("//tmp/t9/@erasure_codec", codec)
         write_table("//tmp/t9", {"a" : "b"})
 
-        # Actually replicating multiple data pieces takes time -
-        # single REPLICATOR_REACTION_TIME is not enough.
-        time.sleep(2*TestMedia.REPLICATOR_REACTION_TIME)
+        assert get("//tmp/t9/@chunk_count") == 1
+        chunk_id = get("//tmp/t9/@chunk_ids/0")
 
-        chunk_ids = get("//tmp/t9/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        wait(lambda: self._check_chunk_ok(True, chunk_id, {"default"}) and \
+                     len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count and \
+                     self._get_chunk_replica_media(chunk_id) == {"default"})
 
-        self._assert_chunk_ok(True, chunk_id, {"default"})
+        self._ban_nodes(self._get_chunk_replica_nodes(chunk_id))
 
-        stored_replicas = get("#{0}/@stored_replicas".format(chunk_id))
-        assert len(stored_replicas) == codec_replica_count
-
-        replicas = __builtin__.set()
-        replica_media = __builtin__.set()
-
-        for r in stored_replicas:
-            replicas.add(str(r)) # str() is for attribute stripping.
-            replica_media.add(r.attributes["medium"])
-
-        assert {"default"} == replica_media
-
-        self._ban_nodes(replicas)
-
-        time.sleep(TestMedia.REPLICATOR_REACTION_TIME)
-
-        self._assert_chunk_ok(False, chunk_id, {"default"})
+        wait(lambda: self._check_chunk_ok(False, chunk_id, {"default"}))
 
     def test_chunk_statuses_2_media(self):
         codec = "reed_solomon_6_3"
@@ -381,60 +389,16 @@ class TestMedia(YTEnvSetup):
 
         relevant_media = {"default", TestMedia.NON_DEFAULT_MEDIUM}
 
-        # Actually replicating multiple data pieces takes time -
-        # single REPLICATOR_REACTION_TIME is not enough.
-        time.sleep(2*TestMedia.REPLICATOR_REACTION_TIME)
+        assert get("//tmp/t9/@chunk_count") == 1
+        chunk_id = get("//tmp/t9/@chunk_ids/0")
 
-        chunk_ids = get("//tmp/t9/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        wait(lambda: self._check_chunk_ok(True, chunk_id, relevant_media) and \
+                     len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count and \
+                     self._get_chunk_replica_media(chunk_id) == relevant_media)
 
-        self._assert_chunk_ok(True, chunk_id, relevant_media)
+        self._ban_nodes(self._get_chunk_replica_nodes(chunk_id))
 
-        stored_replicas = get("#{0}/@stored_replicas".format(chunk_id))
-        assert len(stored_replicas) == len(relevant_media) * codec_replica_count
-
-        replicas = __builtin__.set()
-        replica_media = __builtin__.set()
-
-        for r in stored_replicas:
-            replicas.add(str(r)) # str() is for attribute stripping.
-            replica_media.add(r.attributes["medium"])
-
-        assert relevant_media == replica_media
-
-        self._ban_nodes(replicas)
-
-        time.sleep(TestMedia.REPLICATOR_REACTION_TIME)
-
-        self._assert_chunk_ok(False, chunk_id, relevant_media)
-
-    def _assert_chunk_ok(self, ok, chunk_id, media):
-        available = get("#%s/@available" % chunk_id)
-        replication_status = get("#%s/@replication_status" % chunk_id)
-        lvc = ls("//sys/lost_vital_chunks")
-        for medium in media:
-            if ok:
-                assert available
-                assert not replication_status[medium]["underreplicated"]
-                assert not replication_status[medium]["lost"]
-                assert not replication_status[medium]["data_missing"]
-                assert not replication_status[medium]["parity_missing"]
-                len(lvc) == 0
-            else:
-                assert not available
-                assert replication_status[medium]["lost"]
-                assert replication_status[medium]["data_missing"]
-                assert replication_status[medium]["parity_missing"]
-                len(lvc) != 0
-
-    def _ban_nodes(self, nodes):
-        banned = False
-        for node in ls("//sys/nodes"):
-            if node in nodes:
-                set("//sys/nodes/{0}/@banned".format(node), True)
-                banned = True
-        assert banned
+        wait(lambda: self._check_chunk_ok(False, chunk_id, relevant_media))
 
     def test_create_with_invalid_attrs_yt_7093(self):
         with pytest.raises(YtError): create_medium("x", attributes={"priority": "hello"})

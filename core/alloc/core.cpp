@@ -18,6 +18,7 @@
 #include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
@@ -43,14 +44,20 @@
 #endif
 
 #ifndef MADV_POPULATE
-#define MADV_POPULATE 0x59410001
+#define MADV_POPULATE 0x59410003
+#endif
+
+#ifndef MADV_STOCKPILE
+#define MADV_STOCKPILE 0x59410004
 #endif
 
 #ifndef MADV_FREE
 #define MADV_FREE 8
 #endif
 
+#ifndef NDEBUG
 #define PARANOID
+#endif
 
 #ifdef PARANOID
 #define PARANOID_CHECK(condition) YCHECK(condition)
@@ -86,9 +93,11 @@ namespace NYTAlloc {
 
 using ::AlignUp;
 
-// Period between background activities.
+// Periods between background activities.
 constexpr auto BackgroundInterval = TDuration::Seconds(1);
-constexpr auto LazyFreeBytesRecomputePeriod = TDuration::Seconds(15);
+constexpr auto StockpileInterval = TDuration::MilliSeconds(10);
+
+constexpr size_t StockpileSize = 1_GB;
 
 constexpr size_t PageSize = 4_KB;
 constexpr size_t ZoneSize = 1_TB;
@@ -122,7 +131,8 @@ constexpr size_t SmallSegmentSize = 1_MB;
 constexpr size_t LargeExtentSize = 1_GB;
 constexpr size_t HugeSizeThreshold = 1ULL << (LargeRankCount - 1);
 
-constexpr const char* ThreadName = "YTAlloc";
+constexpr const char* BackgroundThreadName = "YTAllocBack";
+constexpr const char* StockpileThreadName = "YTAllocStock";
 constexpr const char* LoggerCategory = "YTAlloc";
 constexpr const char* ProfilerPath = "/yt_alloc";
 
@@ -461,8 +471,14 @@ public:
         if (auto* item = Shards_[state->GetInitialShardIndex()].Extract()) {
             return item;
         }
+        return ExtractRoundRobin(state);
+    }
 
-        for (size_t index = 0; index < ShardCount; ++index) {
+    // Attempts to extract an item from all shards in round-robin fashion.
+    template <class TState>
+    T* ExtractRoundRobin(TState* state)
+    {
+       for (size_t index = 0; index < ShardCount; ++index) {
             if (auto* item = Shards_[state->GetNextShardIndex()].Extract()) {
                 return item;
             }
@@ -569,12 +585,127 @@ private:
     std::atomic<bool> ProfilingEnabled_ = {false};
     std::atomic<double> LargeUnreclaimableCoeff_ = {0.05};
     std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
-    std::atomic<ui64> SlowCallWarningThreshold_ = {10000000}; // in microseconds, 10 ms by default
+    std::atomic<ui64> SlowCallWarningThreshold_ = {10000}; // in microseconds, 10 ms by default
 };
 
 TBox<TConfigurationManager> ConfigurationManager;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETimingEventType,
+    (Mmap)
+    (Munmap)
+    (MadvisePopulate)
+    (MadviseFree)
+    (MadviseDontNeed)
+    (Locking)
+    (Prefault)
+);
+
+struct TTimingEvent
+{
+    ETimingEventType Type;
+    TDuration Duration;
+    size_t Size;
+    TInstant Timestamp;
+    NConcurrency::TFiberId FiberId;
+};
+
+class TTimingManager
+{
+public:
+    void DisableForCurrentThread()
+    {
+        DisabledForCurrentThread_ = true;
+    }
+
+    void EnqueueEvent(ETimingEventType type, TDuration duration, size_t size = 0)
+    {
+        if (DisabledForCurrentThread_) {
+            return;
+        }
+        auto timestamp = NProfiling::GetInstant();
+        auto fiberId = NConcurrency::GetCurrentFiberId();
+        auto guard = Guard(EventLock_);
+
+        auto& counters = EventCounters_[type];
+        counters.Count += 1;
+        counters.Size += size;
+
+        if (EventCount_ >= EventBufferSize) {
+            return;
+        }
+
+        Events_[EventCount_++] = {
+            type,
+            duration,
+            size,
+            timestamp,
+            fiberId
+        };
+    }
+
+    void RunBackgroundTasks(const TBackgroundContext& context)
+    {
+        const auto& Logger = context.Logger;
+        if (Logger) {
+            for (const auto& event : PullEvents()) {
+                LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
+                    event.Type,
+                    event.Duration,
+                    event.Size,
+                    event.Timestamp,
+                    event.FiberId);
+            }
+        }
+
+        if (context.Profiler.GetEnabled()) {
+            for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
+                NProfiling::TProfiler profiler(
+                    context.Profiler.GetPathPrefix() + "/timing_events",
+                    {
+                        NProfiling::TProfileManager::Get()->RegisterTag("type", type)
+                    });
+                auto& counters = EventCounters_[type];
+                profiler.Enqueue("/count", counters.Count, NProfiling::EMetricType::Gauge);
+                profiler.Enqueue("/size", counters.Size, NProfiling::EMetricType::Gauge);
+            }
+        }
+    }
+
+private:
+    static constexpr size_t EventBufferSize = 1000;
+    NConcurrency::TForkAwareSpinLock EventLock_;
+    size_t EventCount_ = 0;
+    std::array<TTimingEvent, EventBufferSize> Events_;
+
+    Y_POD_STATIC_THREAD(bool) DisabledForCurrentThread_;
+
+    struct TPerEventTimeCounters
+    {
+        size_t Count = 0;
+        size_t Size = 0;
+    };
+    TEnumIndexedVector<TPerEventTimeCounters, ETimingEventType> EventCounters_;
+
+private:
+    std::vector<TTimingEvent> PullEvents()
+    {
+        std::vector<TTimingEvent> events;
+        events.reserve(EventBufferSize);
+
+        auto guard = Guard(EventLock_);
+        for (size_t index = 0; index < EventCount_; ++index) {
+            events.push_back(Events_[index]);
+        }
+        EventCount_ = 0;
+        return events;
+    }
+};
+
+Y_POD_THREAD(bool) TTimingManager::DisabledForCurrentThread_;
+
+TBox<TTimingManager> TimingManager;
 
 // Used to log statistics about long-running syscalls and lock acquisitions.
 // Maintains recursion depth and execution stats in TLS.
@@ -585,76 +716,38 @@ class TTimingGuard
     : public TNonCopyable
 {
 public:
-    TTimingGuard()
-    {
-        ++RecursionDepth_;
-    }
+    explicit TTimingGuard(ETimingEventType eventType, size_t size = 0)
+        : EventType_(eventType)
+        , Size_(size)
+        // Sadly, TWallTimer cannot be used prior to all statics being initialized.
+        , StartTime_(ConfigurationManager->IsLoggingEnabled() ? NProfiling::GetCpuInstant() : 0)
+    { }
 
     ~TTimingGuard()
     {
-        if (RecursionDepth_ > 1) {
-            --RecursionDepth_;
+        if (StartTime_ == 0) {
             return;
         }
 
-        auto logIfNeeded = [&] (const auto& timeVariable, TStringBuf what) {
-            // Y_POD_STATIC_THREAD declares instances of NTls::TValue for MacOS.
-            // This typecast provides a portable way for accessing the underlying value.
-            ui64 elapsedTime = timeVariable;
-
-            if (ConfigurationManager->IsLoggingEnabled() &&
-                TDuration::MicroSeconds(elapsedTime) > ConfigurationManager->GetSlowCallWarningThreshold())
-            {
-                // These calls may cause allocations so we RecursionDepth_ must remain positive here.
-                static const NLogging::TLogger Logger(LoggerCategory);
-                LOG_DEBUG("%v took too long (Time: %v)",
-                    what,
-                    elapsedTime);
-            }
+        auto endTime = NProfiling::GetCpuInstant();
+        auto duration = NProfiling::CpuDurationToDuration(endTime - StartTime_);
+        if (duration > ConfigurationManager->GetSlowCallWarningThreshold()) {
+            TimingManager->EnqueueEvent(EventType_, duration, Size_);
         };
-
-        logIfNeeded(ElapsedSyscallTime_, AsStringBuf("Syscalls"));
-        logIfNeeded(ElapsedLockingTime_, AsStringBuf("Locking"));
-
-        RecursionDepth_ = 0;
-        ElapsedSyscallTime_ = 0;
-        ElapsedLockingTime_ = 0;
-    }
-
-    static void ChargeSyscallTime(TDuration time)
-    {
-        if (RecursionDepth_ > 0) {
-            ElapsedSyscallTime_ += time.MicroSeconds();
-        }
-    }
-
-    static void ChargeLockingTime(TDuration time)
-    {
-        if (RecursionDepth_ > 0) {
-            ElapsedLockingTime_ += time.MicroSeconds();
-        }
     }
 
 private:
-    Y_POD_STATIC_THREAD(int) RecursionDepth_;
-    Y_POD_STATIC_THREAD(ui64) ElapsedSyscallTime_; // in microseconds
-    Y_POD_STATIC_THREAD(ui64) ElapsedLockingTime_; // in microseconds
+    const ETimingEventType EventType_;
+    const size_t Size_;
+    const NProfiling::TCpuInstant StartTime_;
 };
-
-Y_POD_THREAD(int) TTimingGuard::RecursionDepth_;
-Y_POD_THREAD(ui64) TTimingGuard::ElapsedSyscallTime_;
-Y_POD_THREAD(ui64) TTimingGuard::ElapsedLockingTime_;
 
 template <class T>
 Y_FORCE_INLINE TGuard<T> GuardWithTiming(const T& lock)
 {
-    if (!ConfigurationManager->IsLoggingEnabled()) {
-        return Guard(lock);
-    }
-    NProfiling::TWallTimer timer;
-    TGuard<T> guard(lock);
-    TTimingGuard::ChargeLockingTime(timer.GetElapsedTime());
-    return guard;
+    TTimingGuard timingGuard(ETimingEventType::Locking);
+    TGuard<T> lockingGuard(lock);
+    return lockingGuard;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -663,8 +756,8 @@ Y_FORCE_INLINE TGuard<T> GuardWithTiming(const T& lock)
 // The latter are invoked with MADV_POPULATE and MADV_FREE flags
 // and may fail if the OS support is missing. These failures are logged (once) and
 // handled as follows:
-// * if MADV_POPULATE fails then its subsequent attempts are suppressed
-// (since this is just an optimization)
+// * if MADV_POPULATE fails then we fallback to manual per-page prefault
+// for all subsequent attempts;
 // * if MADV_FREE fails then it (and all subsequent attempts) is replaced with MADV_DONTNEED
 // (which is non-lazy and is less efficient but will somehow do).
 // Also this class mlocks all VMAs on startup to prevent pagefaults in our heavy binaries
@@ -681,69 +774,61 @@ public:
 
     void* Map(uintptr_t hint, size_t size, int flags)
     {
-        return RunSyscall(
-            [&] {
-                auto* result = ::mmap(
-                    reinterpret_cast<void*>(hint),
-                    size,
-                    PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | flags,
-                    -1,
-                    0);
-                if (result == MAP_FAILED) {
-                    auto error = errno;
-                    if (error == ENOMEM) {
-                        OnOOM();
-                    }
-                    Y_UNREACHABLE();
-                }
-                return result;
-            });
+        TTimingGuard timingGuard(ETimingEventType::Mmap, size);
+        auto* result = ::mmap(
+            reinterpret_cast<void*>(hint),
+            size,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | flags,
+            -1,
+            0);
+        if (result == MAP_FAILED) {
+            auto error = errno;
+            if (error == ENOMEM) {
+                OnOOM();
+            }
+            Y_UNREACHABLE();
+        }
+        return result;
     }
 
     void Unmap(void* ptr, size_t size)
     {
-        RunSyscall(
-            [&] {
-                auto result = ::munmap(ptr, size);
-                YCHECK(result == 0);
-            });
+        TTimingGuard timingGuard(ETimingEventType::Munmap, size);
+        auto result = ::munmap(ptr, size);
+        YCHECK(result == 0);
     }
 
     void Populate(void* ptr, size_t size)
     {
-        RunSyscall([&] {
-            if (!PopulateUnavailable_.load(std::memory_order_relaxed)) {
-                auto result = ::madvise(ptr, size, MADV_POPULATE);
-                if (result != 0) {
-                    auto error = errno;
-                    if (error == ENOMEM) {
-                        OnOOM();
-                    }
-                    YCHECK(error == EINVAL);
-                    PopulateUnavailable_.store(true);
-                }
-            }
-        });
+        if (PopulateUnavailable_.load(std::memory_order_relaxed)) {
+            DoPrefault(ptr, size);
+        } else if (!TryMadvisePopulate(ptr, size)) {
+            PopulateUnavailable_.store(true);
+            DoPrefault(ptr, size);
+        }
     }
 
     void Release(void* ptr, size_t size)
     {
-        RunSyscall([&] {
-            if (!FreeUnavailable_.load(std::memory_order_relaxed)) {
-                auto result = ::madvise(ptr, size, MADV_FREE);
-                if (result != 0) {
-                    auto error = errno;
-                    YCHECK(error == EINVAL);
-                    FreeUnavailable_.store(true);
-                }
-            }
-            if (FreeUnavailable_.load()) {
-                auto result = ::madvise(ptr, size, MADV_DONTNEED);
-                // Must not fail.
-                YCHECK(result == 0);
-            }
-        });
+        if (FreeUnavailable_.load(std::memory_order_relaxed)) {
+            DoMadviseDontNeed(ptr, size);
+        } else if (!TryMadviseFree(ptr, size)) {
+            FreeUnavailable_.store(true);
+            DoMadviseDontNeed(ptr, size);
+        }
+    }
+
+    bool Stockpile(size_t size)
+    {
+        if (StockpileUnavailable_.load(std::memory_order_relaxed)) {
+            return false;
+        }
+        if (!TryMadviseStockpile(size)) {
+            StockpileUnavailable_.store(true);
+            return false;
+        }
+        return true;
     }
 
     void RunBackgroundTasks(const TBackgroundContext& context)
@@ -764,21 +849,10 @@ public:
             LOG_WARNING("MADV_FREE is not supported");
             FreeUnavailableLogged_ = true;
         }
-    }
-
-private:
-    template <class F>
-    auto RunSyscall(F func) -> decltype(func())
-    {
-        // Sadly, TWallTimer cannot be used prior to all statics being initialized.
-        if (!ConfigurationManager->IsLoggingEnabled()) {
-            return func();
+        if (StockpileUnavailable_.load() && !StockpileUnavailableLogged_) {
+            LOG_WARNING("MADV_STOCKPILE is not supported");
+            StockpileUnavailableLogged_ = true;
         }
-        NProfiling::TWallTimer timer;
-        auto guard = Finally([&] {
-            TTimingGuard::ChargeSyscallTime(timer.GetElapsedTime());
-        });
-        return func();
     }
 
 private:
@@ -791,7 +865,69 @@ private:
     std::atomic<bool> FreeUnavailable_ = {false};
     bool FreeUnavailableLogged_ = false;
 
+    std::atomic<bool> StockpileUnavailable_ = {false};
+    bool StockpileUnavailableLogged_ = false;
+
 private:
+    bool TryMadvisePopulate(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::MadvisePopulate, size);
+        auto result = ::madvise(ptr, size, MADV_POPULATE);
+        if (result != 0) {
+            auto error = errno;
+            if (error == ENOMEM) {
+                OnOOM();
+            }
+            YCHECK(error == EINVAL);
+            return false;
+        }
+        return true;
+    }
+
+    void DoPrefault(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::Prefault, size);
+        auto* begin = static_cast<char*>(ptr);
+        for (auto* current = begin; current < begin + size; current += PageSize) {
+            *current = 0;
+        }
+    }
+
+    bool TryMadviseFree(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::MadviseFree, size);
+        auto result = ::madvise(ptr, size, MADV_FREE);
+        if (result != 0) {
+            auto error = errno;
+            YCHECK(error == EINVAL);
+            return false;
+        }
+        return true;
+    }
+
+    void DoMadviseDontNeed(void* ptr, size_t size)
+    {
+        TTimingGuard timingGuard(ETimingEventType::MadviseDontNeed, size);
+        auto result = ::madvise(ptr, size, MADV_DONTNEED);
+        // Must not fail.
+        YCHECK(result == 0);
+    }
+    
+    bool TryMadviseStockpile(size_t size)
+    {
+        auto result = ::madvise(nullptr, size, MADV_STOCKPILE);
+        if (result != 0) {
+            auto error = errno;
+            if (error == ENOMEM || error == EAGAIN || error == EINTR) {
+                // The call is advisory, ignore ENOMEM, EAGAIN, and EINTR.
+                return true;
+            }
+            YCHECK(error == EINVAL);
+            return false;
+        }
+        return true;
+    }
+
     void OnOOM()
     {
         fprintf(stderr, "YTAlloc has detected an out-of-memory condition; terminating\n");
@@ -1405,7 +1541,8 @@ public:
             result[ETotalCounter::BytesCommitted] += largeArenaCounters[rank][ELargeArenaCounter::BytesCommitted];
         }
 
-        result[ETotalCounter::BytesLazyFree] = LazyFreeBytes_.load();
+        auto rss = GetProcessMemoryUsage().Rss;
+        result[ETotalCounter::BytesUnaccounted] = std::max<ssize_t>(static_cast<ssize_t>(rss) - result[ETotalCounter::BytesCommitted], 0);
 
         return result;
     }
@@ -1545,7 +1682,6 @@ public:
         PushSmallStatistics(context);
         PushLargeStatistics(context);
         PushHugeStatistics(context);
-        ComputeLazyFreeBytes(context);
     }
 
 private:
@@ -1665,47 +1801,10 @@ private:
         }
     }
 
-    void ComputeLazyFreeBytes(const TBackgroundContext& /*context*/)
-    {/*
-        auto now = TInstant::Now();
-        if (now < LastLazyFreeBytesComputeTime_ + LazyFreeBytesRecomputePeriod) {
-            return;
-        }
-
-        const auto& Logger = context.Logger;
-        LOG_DEBUG("Started computing lazy free bytes");
-
-        ssize_t lazyFreeBytes = 0;
-
-        try {
-            TIFStream file("/proc/self/smaps");
-            auto lines = file.ReadAll();
-            for (const auto& line : SplitString(lines, "\n")) {
-                if (line.StartsWith("Shared_Clean:") || line.StartsWith("Private_Clean:")) {
-                    auto tokens = SplitString(line, " ");
-                    if (tokens.size() < 3) {
-                        continue;
-                    }
-                    lazyFreeBytes += FromString<ssize_t>(tokens[1]) * 1_KB;
-                }
-            }
-            LOG_DEBUG("Finished computing lazy free bytes (LazyFreeBytes: %vM)",
-                lazyFreeBytes / 1_MB);
-
-            LastLazyFreeBytesComputeTime_ = now;
-            LazyFreeBytes_.store(lazyFreeBytes);
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to compute lazy free bytes");
-        }*/
-    }
-
 private:
     TGlobalSystemCounters SystemCounters_;
     std::array<TGlobalSmallCounters, SmallRankCount> SmallArenaCounters_;
     TGlobalHugeCounters HugeCounters_;
-
-    TInstant LastLazyFreeBytesComputeTime_;
-    std::atomic<ssize_t> LazyFreeBytes_ = {0};
 };
 
 TBox<TStatisticsManager> StatisticsManager;
@@ -1882,8 +1981,6 @@ private:
 
     void PopulateAnotherSegment()
     {
-        TTimingGuard timingGuard;
-
         auto lockGuard = GuardWithTiming(SegmentLock_);
 
         auto* oldPtr = CurrentPtr_.load();
@@ -2101,7 +2198,6 @@ private:
     template <EAllocationKind Kind>
     static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
-        TTimingGuard timingGuard;
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
     }
@@ -2109,7 +2205,6 @@ private:
     template <EAllocationKind Kind>
     static void FreeGlobal(TMemoryTag tag, void* ptr, size_t rank, size_t size)
     {
-        TTimingGuard timingGuard;
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesFreed, size);
         (*GlobalSmallChunkCaches)[Kind]->MoveOneToGlobal(ptr, rank);
     }
@@ -2304,7 +2399,6 @@ private:
     template <class TState>
     void PopulateArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
-        TTimingGuard timingGuard;
         MappedMemoryManager->Populate(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesPopulated, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesPopulated, size / PageSize);
@@ -2315,7 +2409,6 @@ private:
     template <class TState>
     void ReleaseArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
-        TTimingGuard timingGuard;
         MappedMemoryManager->Release(ptr, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesReleased, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesReleased, size / PageSize);
@@ -2424,16 +2517,7 @@ private:
             return;
         }
 
-        struct TDisposeEntry
-        {
-            TLargeBlobExtent* Extent;
-            char* Ptr;
-            size_t Size;
-        };
-        std::vector<TDisposeEntry> disposeEntries;
-
         auto rank = arena->Rank;
-        auto* blob = arena->SpareBlobs.ExtractAll();
         auto* state = TThreadManager::GetThreadState();
 
         const auto& Logger = context.Logger;
@@ -2442,57 +2526,44 @@ private:
             rank);
 
         size_t bytesReclaimed = 0;
-        size_t spareBlobCount = 0;
-        while (blob) {
-            auto* nextBlob = blob->Next;
+        size_t blobsReclaimed = 0;
+        while (bytesToReclaim > 0) {
+            auto* blob = arena->SpareBlobs.ExtractRoundRobin(state);
+            if (!blob) {
+                break;
+            }
+            
             PARANOID_CHECK(blob->BytesAllocated == 0);
-            if (bytesToReclaim > 0) {
-                auto bytesAcquired = blob->BytesAcquired;
-                StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesSpare, -bytesAcquired);
-                bytesToReclaim -= bytesAcquired;
-                bytesReclaimed += bytesAcquired;
-                auto* extent = blob->Extent;
-                disposeEntries.push_back({
-                    extent,
-                    reinterpret_cast<char*>(blob),
-                    bytesAcquired
-                });
-            } else {
-                arena->SpareBlobs.Put(state, blob);
-            }
-            ++spareBlobCount;
-            blob = nextBlob;
-        }
+            auto bytesAcquired = blob->BytesAcquired;
 
-        if (!disposeEntries.empty()) {
-            LOG_DEBUG("Releasing pages from arena (Rank: %v, Blobs: %v, Pages: %v)",
-                arena->Rank,
-                disposeEntries.size(),
-                bytesReclaimed / PageSize);
+            StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesSpare, -bytesAcquired);
+            bytesToReclaim -= bytesAcquired;
+            bytesReclaimed += bytesAcquired;
+            blobsReclaimed += 1;
+            
+            auto* extent = blob->Extent;
+            auto* ptr = reinterpret_cast<char*>(blob);
+            ReleaseArenaPages(
+                state,
+                arena,
+                ptr,
+                bytesAcquired);
 
-            for (const auto& entry : disposeEntries) {
-                ReleaseArenaPages(
-                    state,
-                    arena,
-                    entry.Ptr,
-                    entry.Size);
-                auto* extent = entry.Extent;
-                size_t segmentIndex = (entry.Ptr - extent->Ptr) / arena->SegmentSize;
-                __atomic_store_n(&extent->DisposedFlags[segmentIndex], TLargeBlobExtent::DisposedTrue, __ATOMIC_RELEASE);
+            size_t segmentIndex = (ptr - extent->Ptr) / arena->SegmentSize;
+            __atomic_store_n(&extent->DisposedFlags[segmentIndex], TLargeBlobExtent::DisposedTrue, __ATOMIC_RELEASE);
 
-                auto* disposedSegment = DisposedSegmentPool_.Allocate();
-                disposedSegment->Index = segmentIndex;
-                disposedSegment->Extent = extent;
-                arena->DisposedSegments.Put(disposedSegment);
-            }
+            auto* disposedSegment = DisposedSegmentPool_.Allocate();
+            disposedSegment->Index = segmentIndex;
+            disposedSegment->Extent = extent;
+            arena->DisposedSegments.Put(disposedSegment);
         }
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::SpareBytesReclaimed, bytesReclaimed);
 
-        LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, SpareBlobs: %v)",
+        LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, BlobsReclaimed: %v)",
             arena->Rank,
             bytesReclaimed / 1_MB,
-            spareBlobCount);
+            blobsReclaimed);
     }
 
     void ReclaimOverheadMemory(const TBackgroundContext& context, TLargeArena* arena, ssize_t bytesToReclaim)
@@ -2630,8 +2701,6 @@ private:
     template <class TState>
     void AllocateArenaExtent(TState* state, TLargeArena* arena)
     {
-        TTimingGuard timingGuard;
-
         auto rank = arena->Rank;
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::ExtentsAllocated, 1);
 
@@ -2802,8 +2871,6 @@ public:
 
     void* Allocate(size_t size)
     {
-        TTimingGuard timingGuard;
-
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
         auto* blob = static_cast<THugeBlobHeader*>(ZoneAllocator_.Allocate(rawSize, MAP_POPULATE));
@@ -2820,8 +2887,6 @@ public:
 
     void Free(void* ptr)
     {
-        TTimingGuard timingGuard;
-
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
@@ -2889,18 +2954,18 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Runs background activities.
-class TBackgroundThread
+// Base class for all background threads.
+template <class T>
+class TBackgroundThreadBase
 {
 public:
-    TBackgroundThread()
+    TBackgroundThreadBase()
         : Thread_(ThreadMainStatic, this)
     {
         pthread_atfork(nullptr, nullptr, &OnFork);
-        Thread_.Start();
     }
 
-    ~TBackgroundThread()
+    virtual ~TBackgroundThreadBase()
     {
         if (Forked_) {
             Thread_.Detach();
@@ -2910,37 +2975,67 @@ public:
         }
     }
 
-    static TBackgroundThread* Get()
+    static T* Get()
     {
-        return Singleton<TBackgroundThread>();
+        // NB: Pass max priority to make sure these guys die first.
+        // Indeed, no one depends on them but they depend on others
+        // (e.g. TBackgroundThread implicitly depends on TPosixFadvise through TFileHandle).
+        return SingletonWithPriority<T, std::numeric_limits<size_t>::max()>();
     }
 
 private:
     TThread Thread_;
     TManualEvent StopEvent_;
 
+
     bool Forked_ = false;
 
 private:
     static void OnFork()
     {
-         auto* this_ = TBackgroundThread::Get();
+         auto* this_ = T::Get();
          this_->Forked_ = true;
     }
 
     static void* ThreadMainStatic(void* opaque)
     {
-        auto* this_ = static_cast<TBackgroundThread*>(opaque);
+        auto* this_ = static_cast<TBackgroundThreadBase*>(opaque);
         this_->ThreadMain();
         return nullptr;
     }
 
-    void ThreadMain()
+    virtual void ThreadMain() = 0;
+
+protected:
+    void Start()
+    {
+        Thread_.Start();
+    }
+    
+    bool IsDone(TDuration interval)
+    {
+        return StopEvent_.WaitT(interval);
+    }
+};
+
+// Runs basic background activities: reclaim, logging, profiling etc.
+class TBackgroundThread
+    : public TBackgroundThreadBase<TBackgroundThread>
+{
+public:
+    TBackgroundThread()
+    {
+        Start();
+    }
+
+private:
+    virtual void ThreadMain() override
     {
         InitializeGlobals();
-        TThread::CurrentThreadSetName(ThreadName);
+        TThread::CurrentThreadSetName(BackgroundThreadName);
+        TimingManager->DisableForCurrentThread();
 
-        while (!StopEvent_.WaitT(BackgroundInterval)) {
+        while (!IsDone(BackgroundInterval)) {
             TBackgroundContext context;
             if (ConfigurationManager->IsLoggingEnabled()) {
                 context.Logger = NLogging::TLogger(LoggerCategory);
@@ -2952,6 +3047,7 @@ private:
             StatisticsManager->RunBackgroundTasks(context);
             LargeBlobAllocator->RunBackgroundTasks(context);
             MappedMemoryManager->RunBackgroundTasks(context);
+            TimingManager->RunBackgroundTasks(context);
         }
     }
 };
@@ -2969,6 +3065,31 @@ public:
     }
 } BackgroundThreadInitializer;
 
+// Invokes madvise(MADV_STOCKPILE) periodically. 
+class TStockpileThread
+    : public TBackgroundThreadBase<TStockpileThread>
+{
+public:
+    TStockpileThread()
+    {
+        Start();
+    }
+
+private:
+    virtual void ThreadMain() override
+    {
+        InitializeGlobals();
+        TThread::CurrentThreadSetName(StockpileThreadName);
+
+        while (!IsDone(StockpileInterval)) {
+            if (!MappedMemoryManager->Stockpile(StockpileSize)) {
+                // No use to proceed.
+                break;
+            }
+        }
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitializeGlobals()
@@ -2983,6 +3104,7 @@ void InitializeGlobals()
         HugeBlobAllocator.Construct();
         ConfigurationManager.Construct();
         SystemAllocator.Construct();
+        TimingManager.Construct();
 
         SmallArenaAllocators.Construct();
         auto constructSmallArenaAllocators = [&] (EAllocationKind kind, uintptr_t zonesStart) {
@@ -3097,6 +3219,12 @@ void EnableProfiling()
 {
     InitializeGlobals();
     ConfigurationManager->EnableProfiling();
+}
+
+void EnableStockpile()
+{
+    InitializeGlobals();
+    TStockpileThread::Get();
 }
 
 void SetLargeUnreclaimableCoeff(double value)

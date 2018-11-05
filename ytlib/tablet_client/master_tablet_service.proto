@@ -18,6 +18,8 @@ message TReqMount
 
     required NYT.NProto.TGuid table_id = 6;
     required string path = 7;
+
+    repeated NYT.NProto.TGuid target_cell_ids = 8;
 }
 
 message TRspMount

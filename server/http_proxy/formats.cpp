@@ -149,11 +149,11 @@ TNullable<TString> GetBestAcceptedType(
     const TString& clientAcceptHeader)
 {
     if (clientAcceptHeader.Contains(";q=")) {
-        THROW_ERROR_EXCEPTION("Quality value inside \"Accept\" header is not supported");
+        return {};
     }
 
     if (clientAcceptHeader.Contains(",")) {
-        THROW_ERROR_EXCEPTION("Multiple MIME types inside \"Accept\" header are not supported");
+        return {};
     }
 
     if (outputType == EDataType::Structured) {
@@ -175,42 +175,6 @@ TNullable<TString> GetBestAcceptedType(
             if (mimeType == clientAcceptHeader) {
                 return clientAcceptHeader;
             }
-        }
-    }
-
-    return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const std::vector<std::pair<TString, EContentEncoding>> AllEncodings = {
-    { "gzip", EContentEncoding::Gzip },
-    { "identity", EContentEncoding::None },
-    { "br", EContentEncoding::Brotli },
-    { "x-lzop", EContentEncoding::Lzop },
-    { "y-lzo", EContentEncoding::Lzo },
-    { "y-lzf", EContentEncoding::Lzf },
-    { "y-snappy", EContentEncoding::Snappy },
-    { "deflate", EContentEncoding::Deflate },
-};
-
-TNullable<TString> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader)
-{
-    // TODO(prime@): Implement spec.
-    for (const auto& encoding : AllEncodings) {
-        if (clientAcceptEncodingHeader.Contains(encoding.first)) {
-            return encoding.first;
-        }
-    }
-
-    return {};
-}
-
-TNullable<EContentEncoding> EncodingToCompression(const TString& encoding)
-{
-    for (const auto& supportedEncoding : AllEncodings) {
-        if (encoding == supportedEncoding.first) {
-            return supportedEncoding.second;
         }
     }
 

@@ -113,10 +113,13 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
 
     BlackboxActionQueue_ = New<TActionQueue>("Blackbox");
-    std::tie(TokenAuthenticator_, CookieAuthenticator_) = CreateAuthenticators(
+    
+    auto authenticationManager = New<NAuth::TAuthenticationManager>(
         Config_->Auth,
         BlackboxActionQueue_->GetInvoker(),
         Client_);
+    TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
+    CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
 
     HttpAuthenticator_ = New<THttpAuthenticator>(Config_->Auth, TokenAuthenticator_, CookieAuthenticator_);
 

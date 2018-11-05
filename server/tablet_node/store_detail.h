@@ -96,6 +96,8 @@ protected:
     TOwningKey RowToKey(TUnversionedRow row) const;
     TOwningKey RowToKey(TSortedDynamicRow row) const;
 
+    virtual void OnAftereStoreLoaded();
+
 private:
     i64 MemoryUsage_ = 0;
     TCallbackList<void(i64 delta)> MemoryUsageUpdated_;
@@ -113,6 +115,8 @@ public:
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet);
+
+    ~TDynamicStoreBase();
 
     i64 Lock();
     i64 Unlock();
@@ -163,11 +167,15 @@ protected:
     i64 StoreLockCount_ = 0;
     i64 StoreValueCount_ = 0;
 
+    TCallback<void(i64 delta)> MemoryProfilingCallback_;
 
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     virtual void OnSetPassive() = 0;
 
+    void UpdateMemoryProfilingCallback();
+
+    virtual void OnAftereStoreLoaded() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

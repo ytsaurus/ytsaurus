@@ -6,7 +6,8 @@
 #include <util/string/join.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +26,8 @@ std::string JoinStrings(const TString& delimiter, const std::vector<TString>& st
     return ToStdString(::JoinRange(delimiter, strings.begin(), strings.end()));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

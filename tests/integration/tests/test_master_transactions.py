@@ -4,9 +4,13 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.environment.helpers import assert_items_equal
 
+from yt.common import datetime_to_string
+
 from flaky import flaky
 
 from time import sleep
+from datetime import datetime, timedelta
+import calendar
 
 ##################################################################
 
@@ -132,6 +136,18 @@ class TestMasterTransactions(YTEnvSetup):
     @flaky(max_runs=5)
     def test_timeout(self):
         tx = start_transaction(timeout=2000)
+
+        # check that transaction is still alive after 1 seconds
+        sleep(1.0)
+        assert exists("//sys/transactions/" + tx)
+
+        # check that transaction is expired after 3 seconds
+        sleep(3.0)
+        assert not exists("//sys/transactions/" + tx)
+
+    @flaky(max_runs=5)
+    def test_deadline(self):
+        tx = start_transaction(timeout=10000, deadline=datetime_to_string(datetime.utcnow() + timedelta(seconds=2)))
 
         # check that transaction is still alive after 1 seconds
         sleep(1.0)

@@ -1,24 +1,41 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <string>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::IServerPtr CreateServer(
-    NInterop::ILoggerPtr logger,
-    NInterop::IStoragePtr storage,
-    NInterop::ICoordinationServicePtr coordinationService,
-    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-    std::string configFile,
-    std::string cliqueId,
-    std::string instanceId,
-    ui16 rpcPort,
-    ui16 tcpPort);
+class TServer
+{
+public:
+    TServer(
+        NNative::ILoggerPtr logger,
+        NNative::IStoragePtr storage,
+        NNative::ICoordinationServicePtr coordinationService,
+        NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
+        std::string configFile,
+        std::string cliqueId,
+        std::string instanceId,
+        ui16 tcpPort,
+        ui16 httpPort);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+    ~TServer();
+
+    void Start();
+    void Shutdown();
+
+private:
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

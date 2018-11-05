@@ -611,6 +611,20 @@ void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
     ValidateExpectedTabletState(message, false);
 }
 
+std::vector<TError> TTableNode::GetTabletErrors(TNullable<int> limit) const
+{
+    auto* trunkNode = GetTrunkNode();
+    std::vector<TError> errors;
+    for (const auto& tablet : trunkNode->Tablets()) {
+        const auto& tabletErrors = tablet->GetErrors();
+        errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
+        if (limit && errors.size() >= *limit) {
+            break;
+        }
+    }
+    return errors;
+}
+
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////

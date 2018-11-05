@@ -172,6 +172,7 @@ public:
 
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
@@ -187,6 +188,7 @@ public:
                 .AsyncVia(Invoker_)
                 .Run(
                     std::move(query),
+                    mountInfos,
                     std::move(externalCGInfo),
                     std::move(dataSource),
                     options,
@@ -269,6 +271,7 @@ private:
 
     std::vector<std::pair<TDataRanges, TString>> InferRanges(
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         const TDataRanges& dataSource,
         const TQueryOptions& options,
         TRowBufferPtr rowBuffer,
@@ -276,9 +279,21 @@ private:
     {
         const auto& tableId = dataSource.Id;
 
-        auto tableMountCache = Connection_->GetTableMountCache();
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
-            .ValueOrThrow();
+        NTabletClient::TTableMountInfoPtr tableInfo;
+
+        for (const auto& item : mountInfos) {
+            if (item->TableId == tableId) {
+                tableInfo = item;
+                break;
+            }
+        }
+
+        // COMPAT(lukyan): YT-9605
+        if (!tableInfo) {
+            auto tableMountCache = Connection_->GetTableMountCache();
+            tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
+                .ValueOrThrow();
+        }
 
         tableInfo->ValidateDynamic();
         tableInfo->ValidateNotReplicated();
@@ -477,6 +492,7 @@ private:
 
     TQueryStatistics DoCoordinateAndExecute(
         const TConstQueryPtr& query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
@@ -517,7 +533,13 @@ private:
                     address,
                     options.MaxSubqueries);
 
-                return Delegate(std::move(subquery), externalCGInfo, options, std::move(dataSources), address);
+                return Delegate(
+                    std::move(subquery),
+                    mountInfos,
+                    externalCGInfo,
+                    options,
+                    std::move(dataSources),
+                    address);
             },
             [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
@@ -534,6 +556,7 @@ private:
 
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         const TQueryOptions& options,
@@ -545,6 +568,7 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
         auto allSplits = InferRanges(
             query,
+            mountInfos,
             dataSource,
             options,
             rowBuffer,
@@ -581,6 +605,7 @@ private:
 
         return DoCoordinateAndExecute(
             query,
+            mountInfos,
             externalCGInfo,
             options,
             blockReadOptions,
@@ -593,6 +618,7 @@ private:
 
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         const TQueryOptions& options,
@@ -604,6 +630,7 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag());
         auto allSplits = InferRanges(
             query,
+            mountInfos,
             dataSource,
             options,
             rowBuffer,
@@ -627,6 +654,7 @@ private:
 
         return DoCoordinateAndExecute(
             query,
+            mountInfos,
             externalCGInfo,
             options,
             blockReadOptions,
@@ -645,6 +673,7 @@ private:
 
     std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
+        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         std::vector<TDataRanges> dataSources,
@@ -659,7 +688,7 @@ private:
             TQueryServiceProxy proxy(channel);
 
             auto req = proxy.Execute();
-            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+            // TODO(babenko): set proper band
             if (options.Deadline != TInstant::Max()) {
                 req->SetTimeout(options.Deadline - Now());
             }
@@ -667,6 +696,12 @@ private:
             TDuration serializationTime;
             {
                 NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
+
+                // TODO(lukyan): remove after refactoring protobuf in client
+                for (const auto& item : mountInfos) {
+                    ToProto(req->add_mount_infos(), item);
+                }
+
                 ToProto(req->mutable_query(), query);
                 req->mutable_query()->set_input_row_limit(options.InputRowLimit);
                 req->mutable_query()->set_output_row_limit(options.OutputRowLimit);

@@ -39,6 +39,7 @@ public:
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Fail() override;
+    virtual TCpuStatistics GetCpuStatistics() const override;
 
 protected:
     const IJobHostPtr Host_;

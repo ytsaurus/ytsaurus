@@ -5,8 +5,11 @@
 #include "security_manager.h"
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,19 +17,19 @@ class TRuntimeComponentsFactory
     : public DB::IRuntimeComponentsFactory
 {
 private:
-    NInterop::IStoragePtr Storage;
+    NNative::IStoragePtr Storage;
     std::string CliqueId;
-    NInterop::IAuthorizationTokenPtr AuthToken;
+    NNative::IAuthorizationTokenPtr AuthToken;
     std::string HomePath;
-    NInterop::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
+    NNative::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
 
 public:
     TRuntimeComponentsFactory(
-        NInterop::IStoragePtr storage,
+        NNative::IStoragePtr storage,
         std::string cliqueId,
-        NInterop::IAuthorizationTokenPtr authToken,
+        NNative::IAuthorizationTokenPtr authToken,
         std::string homePath,
-        NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+        NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
         : Storage(std::move(storage))
         , CliqueId(std::move(cliqueId))
         , AuthToken(std::move(authToken))
@@ -79,11 +82,11 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
-    NInterop::IStoragePtr storage,
+    NNative::IStoragePtr storage,
     std::string cliqueId,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::IAuthorizationTokenPtr authToken,
     std::string homePath,
-    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+    NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
 {
     return std::make_unique<TRuntimeComponentsFactory>(
         std::move(storage),
@@ -93,5 +96,8 @@ std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
         std::move(cliqueAuthorizationManager));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

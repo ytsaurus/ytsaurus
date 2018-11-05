@@ -158,6 +158,24 @@ struct TJobFailContextTableDescriptor
     const TIndex Index;
 };
 
+struct TOperationAliasesTableDescriptor
+{
+    TOperationAliasesTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& n);
+
+        const int AliasHash;
+        const int Alias;
+        const int OperationIdHi;
+        const int OperationIdLo;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Index;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NAPI

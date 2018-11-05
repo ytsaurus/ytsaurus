@@ -119,6 +119,10 @@ TChunkReplicator::TChunkReplicator(
     , RequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate))
+    , FinishedRequisitionTraverseFlushExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this)),
+        Config_->FinishedChunkListsRequisitionTraverseFlushPeriod))
     , MissingPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
@@ -153,6 +157,7 @@ void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
     RequisitionUpdateScanner_->Start(frontChunk, chunkCount);
     RefreshExecutor_->Start();
     RequisitionUpdateExecutor_->Start();
+    FinishedRequisitionTraverseFlushExecutor_->Start();
     EnabledCheckExecutor_->Start();
 }
 
@@ -1326,10 +1331,17 @@ bool TChunkReplicator::CreateRepairJob(
             [&] (int index) {
                 return mediumStatistics.DecommissionedReplicaCount[index] == 0;
             });
-        // Limit the number of parts to attempt repairing at once.
-        erasedPartIndexes.erase(
-            erasedPartIndexes.begin() + guaranteedRepairablePartCount,
-            erasedPartIndexes.end());
+
+        // Try popping decommissioned replicas as long repair cannot be performed.
+        do {
+            if (mediumStatistics.DecommissionedReplicaCount[erasedPartIndexes.back()] == 0) {
+                LOG_ERROR("Erasure chunk has not enough replicas to repair (ChunkId: %v)",
+                    chunk->GetId());
+                return false;
+            }
+            erasedPartIndexes.pop_back();
+        } while (!codec->CanRepair(erasedPartIndexes));
+
         std::sort(erasedPartIndexes.begin(), erasedPartIndexes.end());
     }
 
@@ -2071,24 +2083,6 @@ int TChunkReplicator::GetRequisitionUpdateQueueSize() const
     return RequisitionUpdateScanner_->GetQueueSize();
 }
 
-void TChunkReplicator::ScheduleRequisitionUpdate(TChunkTree* chunkTree)
-{
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-            // Erasure chunks have no RF but still can update Vital.
-            ScheduleRequisitionUpdate(chunkTree->AsChunk());
-            break;
-
-        case EObjectType::ChunkList:
-            ScheduleRequisitionUpdate(chunkTree->AsChunkList());
-            break;
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 {
     class TVisitor
@@ -2102,11 +2096,11 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             : Bootstrap_(bootstrap)
             , Owner_(std::move(owner))
             , Root_(root)
-            , RootId_(Root_->GetId())
         { }
 
         void Run()
         {
+            YCHECK(IsObjectAlive(Root_));
             auto callbacks = CreatePreemptableChunkTraverserCallbacks(
                 Bootstrap_,
                 NCellMaster::EAutomatonThreadQueue::ChunkRequisitionUpdateTraverser);
@@ -2116,8 +2110,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
     private:
         TBootstrap* const Bootstrap_;
         const TChunkReplicatorPtr Owner_;
-        TChunkList* Root_;
-        const TChunkListId RootId_;
+        TChunkList* const Root_;
 
         virtual bool OnChunk(
             TChunk* chunk,
@@ -2133,13 +2126,9 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
         {
             if (!error.IsOK()) {
                 // Try restarting.
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                Root_ = chunkManager->FindChunkList(RootId_);
-                if (!IsObjectAlive(Root_)) {
-                    return;
-                }
-
                 Run();
+            } else {
+                Owner_->ConfirmChunkListRequisitionTraverseFinished(Root_);
             }
         }
     };
@@ -2337,6 +2326,38 @@ void TChunkReplicator::CacheRequisition(const TChunk* chunk, const TChunkRequisi
     } else {
         ChunkRequisitionCache_.LastChunkUpdatedRequisition = requisition;
     }
+}
+
+void TChunkReplicator::ConfirmChunkListRequisitionTraverseFinished(TChunkList* chunkList)
+{
+    auto chunkListId = chunkList->GetId();
+    LOG_DEBUG("Chunk list requisition traverse finished (ChunkListId: %v)",
+        chunkListId);
+    ChunkListIdsWithFinishedRequisitionTraverse_.push_back(chunkListId);
+}
+
+void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
+{
+    if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
+        return;
+    }
+
+    if (ChunkListIdsWithFinishedRequisitionTraverse_.empty()) {
+        return;
+    }
+
+    LOG_DEBUG("Flushing finished chunk lists requisition traverse confirmations (Count: %v)",
+        ChunkListIdsWithFinishedRequisitionTraverse_.size());
+
+    TReqConfirmChunkListsRequisitionTraverseFinished request;
+    ToProto(request.mutable_chunk_list_ids(), ChunkListIdsWithFinishedRequisitionTraverse_);
+    ChunkListIdsWithFinishedRequisitionTraverse_.clear();
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto asyncResult = chunkManager
+        ->CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request)
+        ->CommitAndLog(Logger);
+    Y_UNUSED(WaitFor(asyncResult));
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)

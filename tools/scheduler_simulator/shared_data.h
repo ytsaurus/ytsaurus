@@ -19,34 +19,31 @@ namespace NSchedulerSimulator {
 DEFINE_ENUM(EEventType,
     (Heartbeat)
     (JobFinished)
-    (OperationStarted)
 );
 
-struct TSchedulerEvent
+struct TNodeShardEvent
 {
     EEventType Type;
     TInstant Time;
     NScheduler::TOperationId OperationId;
-    int NodeIndex;
+    NNodeTrackerClient::TNodeId NodeId;
     NScheduler::TJobPtr Job;
     NScheduler::TExecNodePtr JobNode;
     bool ScheduledOutOfBand;
 
-    static TSchedulerEvent OperationStarted(TInstant time, NScheduler::TOperationId id);
+    static TNodeShardEvent Heartbeat(TInstant time, NNodeTrackerClient::TNodeId nodeId, bool scheduledOutOfBand);
 
-    static TSchedulerEvent Heartbeat(TInstant time, int nodeIndex, bool scheduledOutOfBand);
-
-    static TSchedulerEvent JobFinished(
+    static TNodeShardEvent JobFinished(
         TInstant time,
-        NScheduler::TJobPtr job,
-        NScheduler::TExecNodePtr execNode,
-        int nodeIndex);
+        const NScheduler::TJobPtr& job,
+        const NScheduler::TExecNodePtr& execNode,
+        NNodeTrackerClient::TNodeId nodeId);
 
 private:
-    TSchedulerEvent(EEventType type, TInstant time);
+    TNodeShardEvent(EEventType type, TInstant time);
 };
 
-bool operator<(const TSchedulerEvent& lhs, const TSchedulerEvent& rhs);
+bool operator<(const TNodeShardEvent& lhs, const TNodeShardEvent& rhs);
 
 
 struct TOperationStatistics
@@ -68,12 +65,10 @@ struct TOperationStatistics
     TSpinLock Lock;
 };
 
-using TOperationDescriptions = THashMap<NScheduler::TOperationId, TOperationDescription>;
-
 class TSharedOperationStatistics
 {
 public:
-    explicit TSharedOperationStatistics(const TOperationDescriptions& operationDescriptions);
+    explicit TSharedOperationStatistics(const std::vector<TOperationDescription>& operations);
 
     void OnJobStarted(const NScheduler::TOperationId& operationId, TDuration duration);
 
@@ -91,43 +86,37 @@ public:
     const TOperationDescription& GetOperationDescription(const NScheduler::TOperationId& operationId) const;
 
 private:
-    using TOperationStorage = THashMap<NScheduler::TOperationId, TMutable<TOperationStatistics>>;
-
-    const TOperationDescriptions& OperationDescriptions_;
-    const TOperationStorage OperationStorage_;
-
-    TOperationStorage InitializeOperationsStorage(const TOperationDescriptions& operationDescriptions);
+    const THashMap<NScheduler::TOperationId, TOperationDescription> OperationDescriptionById_;
+    const THashMap<NScheduler::TOperationId, TMutable<TOperationStatistics>> OperationStorage_;
 };
 
 
-class TSharedSchedulerEvents
+class TSharedEventQueue
 {
 public:
-    TSharedSchedulerEvents(
-        const std::vector<TOperationDescription>& operations,
+    TSharedEventQueue(
+        const std::vector<NScheduler::TExecNodePtr>& execNodes,
         int heartbeatPeriod,
         TInstant earliestTime,
-        int execNodeCount,
-        int workerCount);
+        int nodeShardCount,
+        TDuration maxAllowedOutrunning);
 
-    void InsertEvent(int workerId, TSchedulerEvent event);
+    void InsertNodeShardEvent(int workerId, TNodeShardEvent event);
 
-    TNullable<TSchedulerEvent> PopEvent(int workerId);
+    TNullable<TNodeShardEvent> PopNodeShardEvent(int workerId);
+
+    void WaitForStrugglingNodeShards(TInstant timeBarrier);
+    void UpdateControlThreadTime(TInstant time);
+
+    void OnNodeShardSimulationFinished(int workerId);
 
 private:
-    const std::vector<TMutable<std::multiset<TSchedulerEvent>>> LocalEvents_;
+    const std::vector<TMutable<std::multiset<TNodeShardEvent>>> NodeShardEvents_;
 
-    // Protected by SharedEventsLock_.
-    std::multiset<TSchedulerEvent> SharedEvents_;
-    TSpinLock SharedEventsLock_;
+    std::atomic<TInstant> ControlThreadTime_;
+    const std::vector<TMutable<std::atomic<TInstant>>> NodeShardClocks_;
 
-    TNullable<TSchedulerEvent> PopLocalEvent(int workerId);
-
-    // SharedEventsLock_ must be acquired.
-    TNullable<TSchedulerEvent> PopSharedEvent();
-
-    // SharedEventsLock_ must be acquired.
-    bool PreferLocalEvent(int workerId);
+    const TDuration MaxAllowedOutrunning_;
 };
 
 
@@ -182,16 +171,13 @@ private:
 using TSharedRunningOperationsMap = TLockProtectedMap<NScheduler::TOperationId, NSchedulerSimulator::TOperationPtr>;
 
 
-class TSharedSchedulingStrategy
+class TSharedSchedulerStrategy
 {
 public:
-    TSharedSchedulingStrategy(
+    TSharedSchedulerStrategy(
+        const NScheduler::ISchedulerStrategyPtr& schedulerStrategy,
         TSchedulerStrategyHost& strategyHost,
-        const IInvokerPtr& invoker,
-        const TSchedulerSimulatorConfigPtr& config,
-        const NScheduler::TSchedulerConfigPtr& schedulerConfig,
-        TInstant earliestTime,
-        int workerCount);
+        const IInvokerPtr& controlThreadInvoker);
 
     void ScheduleJobs(const NScheduler::ISchedulingContextPtr& schedulingContext);
 
@@ -202,57 +188,15 @@ public:
         std::vector<std::pair<NScheduler::TOperationId, NScheduler::TJobId>>* successfullyUpdatedJobs,
         std::vector<NScheduler::TJobId>* jobsToAbort);
 
-    void InitOperationRuntimeParameters(
-        const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters,
-        const NScheduler::TOperationSpecBasePtr& spec,
-        const TString& user,
-        NControllerAgent::EOperationType type);
-
-    void OnEvent(int workerId, const TSchedulerEvent& event);
-
-    void OnSimulationFinished(int workerId);
-
-#define SchedulerStrategyOpProxy(OpName) \
-    template <typename... T> auto OpName(T&&... args) \
-    { \
-        auto strategyGuard = Guard(StrategyLock_); \
-        return SchedulerStrategy_->OpName(std::forward<T>(args)...); \
-    }
-
-    // These methods are called only when an operation starts or finishes (rare events).
-    SchedulerStrategyOpProxy(RegisterOperation)
-    SchedulerStrategyOpProxy(EnableOperation)
-    SchedulerStrategyOpProxy(UnregisterOperation)
-
-#undef SchedulerStrategyOpProxy
-
-    // This method is supposed to be called only after the simulation is finished.
-    void OnMasterDisconnected(const IInvokerPtr& invoker);
+    void UnregisterOperation(NScheduler::IOperationStrategyHost* operation);
 
 private:
-    TSchedulerStrategyHost& StrategyHost_;
-
-    // Protected by StrategyLock_.
     NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
-    TSpinLock StrategyLock_;
-
-    // Protected by FairShareUpdateLock_.
-    std::atomic<TInstant> LastFairShareUpdateTime_;
-    TSpinLock FairShareUpdateLock_;
-
-    const TDuration FairShareUpdateAndLogPeriod_;
-    const TDuration MaxAllowedOutrunningPeriod_;
-    const bool EnableFullEventLog_;
-    const std::vector<TMutable<std::atomic<TInstant>>> WorkerClocks_;
-
-    void SetWorkerTime(int workerId, TInstant currentWorkerTime);
-
-    void WaitForOldEventsAt(TInstant timeBarrier);
-
-    void DoUpdateAndLogAt(TInstant updateTime);
+    TSchedulerStrategyHost& StrategyHost_;
+    IInvokerPtr ControlThreadInvoker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NSchedulerSimulator
-} // namesapce NYT
+} // namespace NSchedulerSimulator
+} // namespace NYT

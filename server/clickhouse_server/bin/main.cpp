@@ -1,5 +1,5 @@
 #include <yt/server/clickhouse_server/bootstrap.h>
-#include <yt/server/clickhouse_server/server/config.h>
+#include <yt/server/clickhouse_server/native/config.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -10,14 +10,14 @@
 #include <util/generic/string.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProgram
     : public NYT::TProgram
     , public TProgramPdeathsigMixin
-    , public TProgramConfigMixin<TConfig>
+    , public TProgramConfigMixin<NNative::TConfig>
 {
 private:
     TString XmlConfig;
@@ -107,12 +107,14 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
     Sleep(TDuration::Max());
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NClickHouseServer
+} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, const char** argv)
 {
-    return NYT::NClickHouse::TProgram().Run(argc, argv);
+    return NYT::NClickHouseServer::TProgram().Run(argc, argv);
 }

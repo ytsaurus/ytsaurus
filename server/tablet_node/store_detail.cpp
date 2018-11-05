@@ -1,10 +1,11 @@
-#include "store_detail.h"
-#include "private.h"
 #include "automaton.h"
-#include "tablet.h"
 #include "config.h"
 #include "in_memory_manager.h"
+#include "private.h"
+#include "store_detail.h"
 #include "store_manager.h"
+#include "tablet.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
@@ -163,6 +164,9 @@ void TStoreBase::Load(TLoadContext& context)
     Load(context, StoreState_);
 }
 
+void TStoreBase::OnAftereStoreLoaded()
+{ }
+
 void TStoreBase::BuildOrchidYson(TFluentMap fluent)
 {
     fluent
@@ -247,6 +251,15 @@ TDynamicStoreBase::TDynamicStoreBase(
         Config_->PoolChunkSize))
 {
     StoreState_ = EStoreState::ActiveDynamic;
+    UpdateMemoryProfilingCallback();
+}
+
+TDynamicStoreBase::~TDynamicStoreBase()
+{ }
+
+void TDynamicStoreBase::OnAftereStoreLoaded()
+{
+    UpdateMemoryProfilingCallback();
 }
 
 i64 TDynamicStoreBase::GetLockCount() const
@@ -291,6 +304,8 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
         OnSetPassive();
     }
     TStoreBase::SetStoreState(state);
+
+    UpdateMemoryProfilingCallback();
 }
 
 i64 TDynamicStoreBase::GetCompressedDataSize() const
@@ -371,6 +386,55 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
+}
+
+void TDynamicStoreBase::UpdateMemoryProfilingCallback()
+{
+    if (MemoryProfilingCallback_) {
+        UnsubscribeMemoryUsageUpdated(MemoryProfilingCallback_);
+    }
+
+    TStringBuf memoryType;
+    switch (StoreState_) {
+        case EStoreState::ActiveDynamic:
+            memoryType = "active";
+            break;
+
+        case EStoreState::PassiveDynamic:
+            memoryType = "passive";
+            break;
+
+        case EStoreState::Removed:
+            memoryType = "backing";
+            break;
+
+        default:
+            memoryType = "other";
+            break;
+    }
+
+    auto tags = Tablet_->GetProfilerTags();
+    tags.push_back(NProfiling::TProfileManager::Get()->RegisterTag("memory_type", memoryType));
+
+    auto callback = BIND([tags = std::move(tags)] (i64 delta) {
+        ProfileDynamicMemoryUsage(tags, delta);
+    });
+
+    TDelayedExecutorCookie cookie;
+    MemoryProfilingCallback_ = BIND([=] (i64 delta) mutable {
+        callback(delta);
+
+        if (cookie) {
+            NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
+        }
+
+        // Update profiler counter after it's interval expires.
+        cookie = NConcurrency::TDelayedExecutor::Submit(
+            BIND(callback, 0),
+            TDuration::Seconds(2));
+    });
+
+    SubscribeMemoryUsageUpdated(MemoryProfilingCallback_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -528,7 +592,12 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("row_count").Value(MiscExt_.row_count())
         .Item("creation_time").Value(TInstant::MicroSeconds(MiscExt_.creation_time()))
         .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
-            fluent.Item("backing_store_id").Value(backingStore->GetId());
+            fluent
+                .Item("backing_store").DoMap([&] (TFluentMap fluent) {
+                    fluent
+                        .Item(ToString(backingStore->GetId()))
+                        .DoMap(BIND(&IStore::BuildOrchidYson, backingStore));
+                });
         });
 }
 
@@ -545,7 +614,7 @@ void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
-    BackingStore_ = std::move(store);
+    std::swap(store, BackingStore_);
 }
 
 bool TChunkStoreBase::HasBackingStore() const

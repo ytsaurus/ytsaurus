@@ -69,6 +69,10 @@ public:
         , Profiler("/tablet_node/store_flusher")
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreFlusher->MaxConcurrentFlushes, Profiler, "/running_store_fluhses"))
+        , DynamicMemoryUsageActiveCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "active")})
+        , DynamicMemoryUsagePassiveCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "passive")})
+        , DynamicMemoryUsageBackingCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "backing")})
+        , DynamicMemoryUsageOtherCounter_("/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "other")})
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -84,6 +88,11 @@ private:
     TThreadPoolPtr ThreadPool_;
     TProfiledAsyncSemaphorePtr Semaphore_;
 
+    NProfiling::TSimpleGauge DynamicMemoryUsageActiveCounter_;
+    NProfiling::TSimpleGauge DynamicMemoryUsagePassiveCounter_;
+    NProfiling::TSimpleGauge DynamicMemoryUsageBackingCounter_;
+    NProfiling::TSimpleGauge DynamicMemoryUsageOtherCounter_;
+
     struct TForcedRotationCandidate
     {
         i64 MemoryUsage;
@@ -93,14 +102,17 @@ private:
 
     TSpinLock SpinLock_;
     i64 PassiveMemoryUsage_;
+    i64 ActiveMemoryUsage_;
+    i64 BackingMemoryUsage_;
     std::vector<TForcedRotationCandidate> ForcedRotationCandidates_;
-
 
     void OnBeginSlotScan()
     {
         // NB: Strictly speaking, this locking is redundant.
         TGuard<TSpinLock> guard(SpinLock_);
+        ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
+        BackingMemoryUsage_ = 0;
         ForcedRotationCandidates_.clear();
     }
 
@@ -126,6 +138,15 @@ private:
             ForcedRotationCandidates_.swap(candidates);
         }
 
+        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
+            ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_;
+
+        Profiler.Update(DynamicMemoryUsageActiveCounter_, ActiveMemoryUsage_);
+        Profiler.Update(DynamicMemoryUsagePassiveCounter_, PassiveMemoryUsage_);
+        Profiler.Update(DynamicMemoryUsageBackingCounter_, BackingMemoryUsage_);
+        Profiler.Update(DynamicMemoryUsageOtherCounter_, otherUsage);
+
         // Order candidates by increasing memory usage.
         std::sort(
             candidates. begin(),
@@ -145,12 +166,12 @@ private:
             if (!tabletSnapshot)
                 continue;
 
-            const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
-                "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
+                "TotalMemoryUsage: %v, PassiveMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
                 tracker->GetUsed(EMemoryCategory::TabletDynamic),
+                PassiveMemoryUsage_,
                 candidate.MemoryUsage,
                 tracker->GetLimit(EMemoryCategory::TabletDynamic));
 
@@ -193,6 +214,15 @@ private:
             if (store->GetStoreState() == EStoreState::PassiveDynamic) {
                 TGuard<TSpinLock> guard(SpinLock_);
                 PassiveMemoryUsage_ += store->GetMemoryUsage();
+            } else if (store->GetStoreState() == EStoreState::ActiveDynamic) {
+                TGuard<TSpinLock> guard(SpinLock_);
+                ActiveMemoryUsage_ += store->GetMemoryUsage();
+            } else if (store->GetStoreState() == EStoreState::Persistent) {
+                auto backingStore = store->AsChunk()->GetBackingStore();
+                if (backingStore) {
+                    TGuard<TSpinLock> guard(SpinLock_);
+                    BackingMemoryUsage_ += backingStore->GetMemoryUsage();
+                }
             }
         }
 

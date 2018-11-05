@@ -114,6 +114,7 @@ DEFINE_REFCOUNTED_TYPE(IRemoteInMemoryBlockCache)
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     NApi::NNative::IClientPtr client,
+    NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     NTabletClient::EInMemoryMode inMemoryMode,
     TInMemoryManagerConfigPtr config);

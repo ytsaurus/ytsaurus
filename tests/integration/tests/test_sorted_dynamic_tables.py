@@ -2459,7 +2459,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         # Client invalidate&retry doesn't rebuild driver's key so this lookup has no chances to be completed.
         try:
             lookup_rows("//tmp/t", [{"key": 0}])
-        except:
+        except YtError:
             pass
 
         insert_rows("//tmp/t", rows)

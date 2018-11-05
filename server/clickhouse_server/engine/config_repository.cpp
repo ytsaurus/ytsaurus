@@ -5,6 +5,8 @@
 #include "logging_helpers.h"
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Poco/Logger.h>
 #include <Poco/Util/XMLConfiguration.h>
 
@@ -13,7 +15,8 @@
 #include <util/string/cast.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 namespace {
 
@@ -38,20 +41,20 @@ class TPoller
     : public IConfigPoller
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string ConfigPath;
 
 public:
-    TPoller(NInterop::IStoragePtr storage,
-                  NInterop::IAuthorizationTokenPtr token,
+    TPoller(NNative::IStoragePtr storage,
+                  NNative::IAuthorizationTokenPtr token,
                   std::string configPath)
         : Storage(std::move(storage))
         , Token(std::move(token))
         , ConfigPath(std::move(configPath))
     {}
 
-    TMaybe<NInterop::TRevision> GetRevision() const override
+    TMaybe<NNative::TRevision> GetRevision() const override
     {
         return Storage->GetObjectRevision(
             *Token,
@@ -68,29 +71,29 @@ class TConfigRepository
     : public IConfigRepository
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string ConfigsPath;
 
     Poco::Logger* Logger;
 
 public:
-    TConfigRepository(NInterop::IStoragePtr storage,
-                      NInterop::IAuthorizationTokenPtr token,
+    TConfigRepository(NNative::IStoragePtr storage,
+                      NNative::IAuthorizationTokenPtr token,
                       std::string configsPath);
 
     std::string GetAddress() const override;
 
     bool Exists(const std::string& name) const override;
     std::vector<std::string> List() const override;
-    NInterop::TObjectAttributes GetAttributes(const std::string& name) const override;
+    NNative::TObjectAttributes GetAttributes(const std::string& name) const override;
 
     IConfigPtr Load(const std::string& name) const override;
 
     IConfigPollerPtr CreatePoller(const std::string& name) const override;
 
 private:
-    bool LooksLikeConfig(const NInterop::TObjectAttributes& attributes) const;
+    bool LooksLikeConfig(const NNative::TObjectAttributes& attributes) const;
 
     IConfigPtr LoadFromFile(const std::string& path) const;
     IConfigPtr LoadFromDocument(const std::string& path) const;
@@ -100,8 +103,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConfigRepository::TConfigRepository(NInterop::IStoragePtr storage,
-                                     NInterop::IAuthorizationTokenPtr token,
+TConfigRepository::TConfigRepository(NNative::IStoragePtr storage,
+                                     NNative::IAuthorizationTokenPtr token,
                                      std::string configsPath)
     : Storage(std::move(storage))
     , Token(std::move(token))
@@ -135,15 +138,15 @@ std::vector<std::string> TConfigRepository::List() const
     return names;
 }
 
-NInterop::TObjectAttributes TConfigRepository::GetAttributes(const std::string& name) const
+NNative::TObjectAttributes TConfigRepository::GetAttributes(const std::string& name) const
 {
     return Storage->GetObjectAttributes(*Token, ToString(GetConfigPath(name)));
 }
 
-bool TConfigRepository::LooksLikeConfig(const NInterop::TObjectAttributes& attributes) const
+bool TConfigRepository::LooksLikeConfig(const NNative::TObjectAttributes& attributes) const
 {
-    return attributes.Type == NInterop::EObjectType::Document ||
-           attributes.Type == NInterop::EObjectType::File;
+    return attributes.Type == NNative::EObjectType::Document ||
+           attributes.Type == NNative::EObjectType::File;
 }
 
 IConfigPtr TConfigRepository::LoadFromFile(const std::string& path) const
@@ -170,7 +173,7 @@ IConfigPtr TConfigRepository::LoadFromDocument(const std::string& path) const
 {
     LOG_INFO(Logger, "Loading configuration from document " << Quoted(path));
 
-    NInterop::IDocumentPtr document;
+    NNative::IDocumentPtr document;
     try {
         document = Storage->ReadDocument(*Token, ToString(path));
     } catch (...) {
@@ -186,7 +189,7 @@ IConfigPtr TConfigRepository::Load(const std::string& name) const
 
     LOG_DEBUG(Logger, "Loading configuration " << Quoted(name) << " from " << Quoted(path));
 
-    NInterop::TObjectAttributes attributes;
+    NNative::TObjectAttributes attributes;
     try {
         attributes = Storage->GetObjectAttributes(*Token, ToString(path));
     } catch (...) {
@@ -195,13 +198,13 @@ IConfigPtr TConfigRepository::Load(const std::string& name) const
     }
 
     switch (attributes.Type) {
-        case NInterop::EObjectType::File:
+        case NNative::EObjectType::File:
             return LoadFromFile(path);
-        case NInterop::EObjectType::Document:
+        case NNative::EObjectType::Document:
             return LoadFromDocument(path);
         default:
             LOG_WARNING(Logger,
-                "Unexpected configuration object type: " << ToStdString(::ToString(attributes.Type)));
+                "Unexpected configuration object type: " << ToStdString(::ToString(static_cast<int>(attributes.Type))));
             return nullptr;
     }
 
@@ -222,8 +225,8 @@ std::string TConfigRepository::GetConfigPath(const std::string& name) const
 ////////////////////////////////////////////////////////////////////////////////
 
 IConfigRepositoryPtr CreateConfigRepository(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr token,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr token,
     const std::string& path)
 {
     return std::make_shared<TConfigRepository>(
@@ -232,5 +235,6 @@ IConfigRepositoryPtr CreateConfigRepository(
         path);
 }
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

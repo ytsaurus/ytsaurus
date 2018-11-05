@@ -411,7 +411,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto path = GetNewOperationPath(operationId)
+        auto path = GetOperationPath(operationId)
             + (accessType == EAccessType::Ownership ? "/@effective_acl" : "/@full_spec/intermediate_data_acl");
 
         auto result = WaitFor(Bootstrap_->GetMasterClient()->GetNode(path))
@@ -503,6 +503,21 @@ public:
         MasterConnector_->UnregisterOperation(operationId);
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
+    }
+
+    TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+    {
+        auto operation = GetOperationOrThrow(operationId);
+        if (runtimeParameters->Owners) {
+            operation->SetOwners(*runtimeParameters->Owners);
+            const auto& controller = operation->GetController();
+            if (controller) {
+                return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(runtimeParameters))
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
+            }
+        }
+        return VoidFuture;
     }
 
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
@@ -1582,6 +1597,11 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
 TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId& operationId)
 {
     return Impl_->DisposeAndUnregisterOperation(operationId);
+}
+
+TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+{
+    return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters));
 }
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef ASYNC_RW_LOCK_INL_H_
 #error "Direct inclusion of this file is not allowed, include async_rw_lock.h"
+// For the sake of sane code completion.
+#include "async_rw_lock.h"
 #endif
 #undef ASYNC_RW_LOCK_INL_H_
 

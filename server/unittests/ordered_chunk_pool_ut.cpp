@@ -66,6 +66,7 @@ protected:
             Inf64,
             MaxDataSlicesPerJob_,
             0 /* maxDataSizePerJob_ */,
+            0 /* maxPrimaryDataWeightPerJob_ */,
             InputSliceDataSize_,
             InputSliceRowCount_,
             SamplingRate_);

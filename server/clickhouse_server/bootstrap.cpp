@@ -1,12 +1,13 @@
 #include "bootstrap.h"
 
 #include <yt/server/clickhouse_server/engine/server.h>
-#include <yt/server/clickhouse_server/server/client_cache.h>
-#include <yt/server/clickhouse_server/server/config.h>
-#include <yt/server/clickhouse_server/server/directory.h>
-#include <yt/server/clickhouse_server/server/logger.h>
-#include <yt/server/clickhouse_server/server/storage.h>
-#include <yt/server/clickhouse_server/server/clique_authorization_manager.h>
+
+#include <yt/server/clickhouse_server/native/client_cache.h>
+#include <yt/server/clickhouse_server/native/config.h>
+#include <yt/server/clickhouse_server/native/directory.h>
+#include <yt/server/clickhouse_server/native/logger.h>
+#include <yt/server/clickhouse_server/native/storage.h>
+#include <yt/server/clickhouse_server/native/clique_authorization_manager.h>
 
 #include <yt/server/admin_server/admin_service.h>
 
@@ -23,15 +24,20 @@
 #include <yt/client/api/client.h>
 
 #include <yt/core/bus/tcp/server.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/http/server.h>
+
 #include <yt/core/rpc/bus/server.h>
+
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -39,17 +45,18 @@
 #include <util/datetime/base.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
 
-using namespace NYT::NAdmin;
-using namespace NYT::NApi;
-using namespace NYT::NBus;
-using namespace NYT::NConcurrency;
-using namespace NYT::NMonitoring;
-using namespace NYT::NOrchid;
-using namespace NYT::NProfiling;
-using namespace NYT::NRpc;
-using namespace NYT::NYTree;
+using namespace NAdmin;
+using namespace NApi;
+using namespace NBus;
+using namespace NConcurrency;
+using namespace NMonitoring;
+using namespace NOrchid;
+using namespace NProfiling;
+using namespace NRpc;
+using namespace NYTree;
+using namespace NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,15 +65,16 @@ const NLogging::TLogger BootstrapLogger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TConfigPtr config,
-                       INodePtr configNode,
-                       TString xmlConfig,
-                       TString instanceId,
-                       TString cliqueId,
-                       ui16 rpcPort,
-                       ui16 monitoringPort,
-                       ui16 tcpPort,
-                       ui16 httpPort)
+TBootstrap::TBootstrap(
+    TConfigPtr config,
+    INodePtr configNode,
+    TString xmlConfig,
+    TString instanceId,
+    TString cliqueId,
+    ui16 rpcPort,
+    ui16 monitoringPort,
+    ui16 tcpPort,
+    ui16 httpPort)
     : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , XmlConfig(std::move(xmlConfig))
@@ -122,8 +130,6 @@ void TBootstrap::DoInitialize()
 
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
-    LFAllocProfiler = std::make_unique<NLFAlloc::TLFAllocProfiler>();
-
     if (Config->CoreDumper) {
         CoreDumper = NCoreDump::CreateCoreDumper(Config->CoreDumper);
     }
@@ -152,10 +158,10 @@ void TBootstrap::DoInitialize()
         "/orchid/",
         GetOrchidYPathHttpHandler(orchidRoot));
 
-    NNative::TConnectionOptions connectionOptions;
+    NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
 
-    Connection = NNative::CreateConnection(
+    Connection = NApi::NNative::CreateConnection(
         Config->ClusterConnection,
         connectionOptions);
 
@@ -178,7 +184,7 @@ void TBootstrap::DoInitialize()
     auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
     CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config->ValidateOperationPermission);
 
-    Server = CreateServer(
+    Server = std::make_unique<NEngine::TServer>(
         logger,
         Storage,
         CoordinationService,
@@ -221,7 +227,7 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-NNative::IConnectionPtr TBootstrap::GetConnection() const
+NApi::NNative::IConnectionPtr TBootstrap::GetConnection() const
 {
     return Connection;
 }
@@ -231,5 +237,7 @@ IThroughputThrottlerPtr TBootstrap::GetScanThrottler() const
     return ScanThrottler;
 }
 
-}   // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+}   // namespace NClickHouseServer
 }   // namespace NYT

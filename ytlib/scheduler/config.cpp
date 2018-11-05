@@ -2,12 +2,16 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/client/scheduler/operation_id_or_alias.h>
+
 #include <util/string/split.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static const int MaxAllowedProfilingTagCount = 200;
 
 TPoolName::TPoolName()
 { }
@@ -239,6 +243,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Alias("max_data_size_per_job")
         .Default(200_GB)
         .GreaterThan(0);
+    RegisterParameter("max_primary_data_weight_per_job", MaxPrimaryDataWeightPerJob)
+        .Default(std::numeric_limits<i64>::max())
+        .GreaterThan(0);
 
     RegisterParameter("max_failed_job_count", MaxFailedJobCount)
         .Default(10)
@@ -270,6 +277,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("secure_vault", SecureVault)
         .Default();
+
+    RegisterParameter("enable_secure_vault_variables_in_job_shell", EnableSecureVaultVariablesInJobShell)
+        .Default(true);
 
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
@@ -325,19 +335,25 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("sampling", Sampling)
         .DefaultNew();
 
+    RegisterParameter("alias", Alias)
+        .Default(Null);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
         {
             THROW_ERROR_EXCEPTION("Your tactics conflicts with your strategy, Luke!");
         }
-    });
 
-    RegisterPostprocessor([&] () {
         if (SecureVault) {
             for (const auto& name : SecureVault->GetKeys()) {
                 ValidateEnvironmentVariableName(name);
             }
+        }
+
+        if (Alias && !Alias->StartsWith(OperationAliasPrefix)) {
+            THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
+                << TErrorAttribute("operation_alias", Alias);
         }
     });
 }
@@ -460,6 +476,12 @@ TVanillaTaskSpec::TVanillaTaskSpec()
         .GreaterThanOrEqual(1);
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
+    RegisterParameter("output_table_paths", OutputTablePaths)
+        .Default();
+
+    RegisterPostprocessor([&] {
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+    });
 }
 
 TInputlyQueryableSpec::TInputlyQueryableSpec()
@@ -1086,6 +1108,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("ephemeral_subpools_mode", EphemeralSubpoolsMode)
         .Default(ESchedulingMode::FairShare);
+
+    RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
+        .Default();
 }
 
 void TPoolConfig::Validate()
@@ -1096,6 +1121,11 @@ void TPoolConfig::Validate()
             "max_running_operation_count",
             *MaxOperationCount,
             *MaxRunningOperationCount);
+    }
+    if (AllowedProfilingTags.size() > MaxAllowedProfilingTagCount) {
+        THROW_ERROR_EXCEPTION("Limit for the number of allowed profiling tags exceeded")
+            << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
+            << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount);
     }
 }
 
@@ -1117,6 +1147,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .DefaultNew();
     RegisterParameter("update_preemptable_jobs_list_logging_period", UpdatePreemptableJobsListLoggingPeriod)
         .Default(1000);
+    RegisterParameter("custom_profiling_tag", CustomProfilingTag)
+        .Default();
 }
 
 TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()

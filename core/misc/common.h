@@ -24,6 +24,27 @@
 #include <vector>
 #include <type_traits>
 
+
+#if !defined(YT_IN_ARCADIA)
+/**
+ * Backport of Y_NO_RETURN from old util
+ * @def Y_NO_RETURN
+ *
+ * Macro to use before a function declaration/definition to designate
+ * it as not returning normally.
+ */
+#if !defined(Y_NO_RETURN)
+#if defined(_MSC_VER)
+#define Y_NO_RETURN __declspec(noreturn)
+#elif defined(__GNUC__)
+#define Y_NO_RETURN __attribute__((__noreturn__))
+#else
+#define Y_NO_RETURN
+#endif
+#endif
+#endif
+
+
 namespace std {
 
 // Assume sane platform by default.

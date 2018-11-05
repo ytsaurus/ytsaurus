@@ -1,5 +1,7 @@
 #include "storage_stub.h"
 
+#include <yt/server/clickhouse_server/native/table_schema.h>
+
 namespace DB {
 
 namespace ErrorCodes
@@ -10,7 +12,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -20,11 +23,11 @@ class TStorageStub
     : public IStorage
 {
 private:
-    const NInterop::TTablePtr Table;
+    const NNative::TTablePtr Table;
     const NamesAndTypesList Columns;
 
 public:
-    TStorageStub(NInterop::TTablePtr table)
+    TStorageStub(NNative::TTablePtr table)
         : Table(std::move(table))
     {}
 
@@ -50,10 +53,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StoragePtr CreateStorageStub(NInterop::TTablePtr table)
+StoragePtr CreateStorageStub(NNative::TTablePtr table)
 {
     return std::make_shared<TStorageStub>(std::move(table));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

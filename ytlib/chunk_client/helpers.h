@@ -145,15 +145,6 @@ struct TUserObject
     void Persist(const TStreamPersistenceContext& context);
 };
 
-template <class T>
-void GetUserObjectBasicAttributes(
-    NApi::NNative::IClientPtr client,
-    TMutableRange<T> objects,
-    const NObjectClient::TTransactionId& defaultTransactionId,
-    const NLogging::TLogger& logger,
-    NYTree::EPermission permission,
-    bool suppressAccessTracking = false);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRpcPtr>

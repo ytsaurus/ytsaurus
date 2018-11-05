@@ -20,6 +20,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/re2/re2.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -119,6 +121,8 @@ public:
 
     //! Enables profiling strategy attributes for operations.
     bool EnableOperationsProfiling;
+
+    NRe2::TRe2Ptr CustomProfilingTagFilter;
 
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
@@ -285,6 +289,9 @@ public:
 
     // Strategy to pick controller agent for operation.
     EControllerAgentPickStrategy AgentPickStrategy;
+
+    // Agent score weight will be raised to this power.
+    double MemoryBalancedPickStrategyScorePower;
 
     // Agent must have at least #MinAgentAvailableMemory free memory to serve new operation.
     i64 MinAgentAvailableMemory;

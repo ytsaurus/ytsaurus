@@ -66,7 +66,6 @@ class TGrpcMetadataArray
 {
 public:
     TGrpcMetadataArray();
-
     ~TGrpcMetadataArray();
 
     TGrpcMetadataArray(const TGrpcMetadataArray&) = delete;

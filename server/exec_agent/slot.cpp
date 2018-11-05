@@ -51,12 +51,14 @@ public:
         Location_->IncreaseSessionCount();
     }
 
-    virtual void Cleanup() override
+    virtual void CleanProcesses() override
     {
         // First kill all processes that may hold open handles to slot directories.
         JobEnvironment_->CleanProcesses(SlotIndex_);
+    }
 
-        // After that clean the filesystem.
+    virtual void CleanSandbox()
+    {
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
             .ThrowOnError();

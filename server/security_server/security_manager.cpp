@@ -1837,7 +1837,7 @@ private:
         }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->MaybeRecomputeChunkRequisitons();
+        chunkManager->MaybeRecomputeChunkRequisitions();
 
         DumpAccountResourceUsage(false);
 

@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
+#include <yt/ytlib/scheduler/config.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -16,6 +18,8 @@ using namespace NRpc;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NScheduler;
+using namespace NYson;
+using namespace NYTree;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -45,6 +49,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteOperationControllerCoreDump));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationRuntimeParameters));
     }
 
 private:
@@ -348,6 +353,28 @@ private:
             context->ReplyFrom(
                 controllerAgent->DisposeAndUnregisterOperation(operationId)
             );
+        });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, UpdateOperationRuntimeParameters)
+    {
+        auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+            incarnationId,
+            operationId);
+
+        auto runtimeParameters = ConvertTo<TOperationRuntimeParametersPtr>(TYsonString(request->parameters()));
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        controllerAgent->ValidateConnected();
+        controllerAgent->ValidateIncarnation(incarnationId);
+
+        WrapAgentException([&] {
+            WaitFor(controllerAgent->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters)))
+                .ThrowOnError();
+
+            context->Reply();
         });
     }
 };

@@ -33,6 +33,8 @@ struct TArchiveOperationRequest
     NYson::TYsonString UnrecognizedSpec;
     // Archive version >= 22
     NYson::TYsonString RuntimeParameters;
+    // Archive version >= 26
+    TNullable<TString> Alias;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 
@@ -82,6 +84,9 @@ public:
     bool IsEnabled() const;
 
     void BuildOrchid(NYTree::TFluentMap fluent) const;
+
+    //! Raised when a new portion of operations has been archived.
+    DECLARE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsArchived);
 
 private:
     class TImpl;

@@ -32,27 +32,27 @@ TEST_W(TPeriodicTest, Simple)
     int count = 0;
 
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(20)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(200)));
         ++count;
     });
     auto actionQueue = New<TActionQueue>();
     auto executor = New<TPeriodicExecutor>(
         actionQueue->GetInvoker(),
         callback,
-        TDuration::MilliSeconds(10));
+        TDuration::MilliSeconds(100));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(50)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
     WaitFor(executor->Stop());
     EXPECT_EQ(2, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(50)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
     WaitFor(executor->Stop());
     EXPECT_EQ(4, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(20)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(200)));
     WaitFor(executor->GetExecutedEvent());
     EXPECT_EQ(6, count);
     WaitFor(executor->Stop());
@@ -63,7 +63,7 @@ TEST_W(TPeriodicTest, ParallelStop)
     int count = 0;
 
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(50)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
         ++count;
     });
     auto actionQueue = New<TActionQueue>();
@@ -73,7 +73,7 @@ TEST_W(TPeriodicTest, ParallelStop)
         TDuration::MilliSeconds(10));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(30)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
     {
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
@@ -82,7 +82,7 @@ TEST_W(TPeriodicTest, ParallelStop)
     EXPECT_EQ(1, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(30)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
     {
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
@@ -97,7 +97,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
     int count = 0;
 
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(50)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
         ++count;
     });
     auto actionQueue = New<TActionQueue>();
@@ -107,7 +107,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
         TDuration::MilliSeconds(10));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(30)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
@@ -116,7 +116,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
     EXPECT_EQ(2, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(45)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(450)));
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
@@ -131,17 +131,17 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     int count = 0;
 
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)));
         ++count;
     });
     auto actionQueue = New<TActionQueue>();
     auto executor = New<TPeriodicExecutor>(
         actionQueue->GetInvoker(),
         callback,
-        TDuration::MilliSeconds(40));
+        TDuration::MilliSeconds(400));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(30)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
@@ -150,7 +150,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     EXPECT_EQ(2, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)));
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();

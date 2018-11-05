@@ -1,6 +1,8 @@
 #pragma once
 #ifndef SERIALIZE_INL_H_
 #error "Direct inclusion of this file is not allowed, include serialize.h"
+// For the sake of sane code completion.
+#include "serialize.h"
 #endif
 
 #include "node.h"

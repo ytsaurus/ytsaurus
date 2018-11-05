@@ -5,12 +5,16 @@
 #include <Poco/Net/TCPServerConnectionFactory.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(
     DB::IServer& server);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

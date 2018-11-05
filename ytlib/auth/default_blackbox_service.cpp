@@ -1,6 +1,7 @@
 #include "default_blackbox_service.h"
 #include "blackbox_service.h"
 #include "config.h"
+#include "helpers.h"
 #include "private.h"
 #include "helpers.h"
 
@@ -36,10 +37,13 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<INodePtr> Call(const TString& method, const THashMap<TString, TString>& params) override
+    virtual TFuture<INodePtr> Call(
+        const TString& method,
+        const THashMap<TString, TString>& params,
+        const THashMap<TString, TString>& headers) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, deadline)
+        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, headers, deadline)
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -57,77 +61,36 @@ private:
     const TDefaultBlackboxServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
 
-    static const THashSet<TString> PrivateUrlParams_;
-
     TMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
     TMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
     TMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
 
 private:
-    static std::pair<TString, TString> BuildUrl(const TString& method, const THashMap<TString, TString>& params)
-    {
-        TStringBuilder realUrl;
-        TStringBuilder safeUrl;
-
-        auto appendString = [&] (const char* string) {
-            realUrl.AppendString(string);
-            safeUrl.AppendString(string);
-        };
-
-        auto appendChar = [&] (const char ch) {
-            realUrl.AppendChar(ch);
-            safeUrl.AppendChar(ch);
-        };
-
-        auto appendParam = [&] (const TString& key, const TString& value) {
-            auto size = key.length() + 4 + CgiEscapeBufLen(value.length());
-
-            char* realBegin = realUrl.Preallocate(size);
-            char* realIt = realBegin;
-            memcpy(realIt, key.c_str(), key.length());
-            realIt += key.length();
-            *realIt = '=';
-            realIt += 1;
-            auto realEnd = CGIEscape(realIt, value.c_str(), value.length());
-            realUrl.Advance(realEnd - realBegin);
-
-            char* safeBegin = safeUrl.Preallocate(size);
-            char* safeEnd = safeBegin;
-            if (PrivateUrlParams_.has(key)) {
-                memcpy(safeEnd, realBegin, realIt - realBegin);
-                safeEnd += realIt - realBegin;
-                memcpy(safeEnd, "***", 3);
-                safeEnd += 3;
-            } else {
-                memcpy(safeEnd, realBegin, realEnd - realBegin);
-                safeEnd += realEnd - realBegin;
-            }
-            safeUrl.Advance(safeEnd - safeBegin);
-        };
-
-        appendString("/blackbox?");
-        appendParam("method", method);
-        for (const auto& param : params) {
-            appendChar('&');
-            appendParam(param.first, param.second);
-        }
-        appendChar('&');
-        appendParam("attributes", "1008");
-        appendChar('&');
-        appendParam("format", "json");
-
-        return std::make_pair(realUrl.Flush(), safeUrl.Flush());
-    }
-
-    INodePtr DoCall(const TString& method, const THashMap<TString, TString>& params, TInstant deadline)
+    INodePtr DoCall(
+        const TString& method,
+        const THashMap<TString, TString>& params,
+        const THashMap<TString, TString>& headers,
+        TInstant deadline)
     {
         auto host = AddSchemePrefix(TString(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
         auto port = Config_->Port;
 
-        TString realUrl, safeUrl;
-        std::tie(realUrl, safeUrl) = BuildUrl(method, params);
+        TSafeUrlBuilder builder;
+        builder.AppendString("/blackbox?");
+        builder.AppendParam(AsStringBuf("method"), method);
+        for (const auto& param : params) {
+            builder.AppendChar('&');
+            builder.AppendParam(param.first, param.second);
+        }
+        builder.AppendChar('&');
+        builder.AppendParam("attributes", "1008");
+        builder.AppendChar('&');
+        builder.AppendParam("format", "json");
 
-        ui64 callId = RandomNumber<ui64>();
+        auto realUrl = builder.FlushRealUrl();
+        auto safeUrl = builder.FlushSafeUrl();
+
+        auto callId = TGuid::Create();
 
         std::vector<TError> accumulatedErrors;
 
@@ -135,7 +98,15 @@ private:
             INodePtr result;
             try {
                 AuthProfiler.Increment(BlackboxCalls_);
-                result = DoCallOnce(callId, attempt, host, port, realUrl, safeUrl, deadline);
+                result = DoCallOnce(
+                    callId,
+                    attempt,
+                    host,
+                    port,
+                    realUrl,
+                    safeUrl,
+                    headers,
+                    deadline);
             } catch (const std::exception& ex) {
                 AuthProfiler.Increment(BlackboxCallErrors_);
             
@@ -200,12 +171,13 @@ private:
     }
 
     INodePtr DoCallOnce(
-        ui64 callId,
+        TGuid callId,
         int attempt,
         const TString& host,
         ui16 port,
         const TString& realUrl,
         const TString& safeUrl,
+        const THashMap<TString, TString>& headers,
         TInstant deadline)
     {
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
@@ -224,7 +196,7 @@ private:
         {
             TSimpleHttpClient httpClient(host, port, timeout, timeout);
             TStringOutput outputStream(buffer);
-            httpClient.DoGet(realUrl, &outputStream);
+            httpClient.DoGet(realUrl, &outputStream, headers);
         }
 
         LOG_DEBUG("Received Blackbox reply (CallId: %v, Attempt: %v)\n%v",
@@ -254,13 +226,6 @@ private:
 
         return result;
     }
-};
-
-const THashSet<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
-    "userip",
-    "oauth_token",
-    "sessionid",
-    "sslsessionid"
 };
 
 IBlackboxServicePtr CreateDefaultBlackboxService(

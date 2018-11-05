@@ -406,6 +406,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Client_,
+            TabletContext_->GetLocalRpcServer(),
             Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
             inMemoryMode,
             InMemoryManager_->GetConfig());

@@ -110,37 +110,6 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     index2.Close();
 }
 
-TEST_P(TAsyncFileChangelogIndexTest, BackwardCompatibility)
-{
-    TString IndexFileName = GenerateRandomFileName("TAsyncFileChangelogOldIndexTest.index");
-    TFileWrapper file(IndexFileName, WrOnly | CreateAlways);
-    TChangelogIndexHeader header;
-    int indexRecords = 5;
-    header.IndexRecordCount = indexRecords;
-    header.Signature = TChangelogIndexHeader::ExpectedSignatureOld;
-    file.Write(&header, 12);
-
-    for (int i = 0; i < indexRecords; ++i) {
-        TChangelogIndexRecord record(i, i);
-        file.Write(&record, sizeof(record));
-    }
-    file.Flush();
-    file.Close();
-
-    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 4096, 16);
-    index.Read();
-    index.TruncateInvalidRecords(index.Records().size());
-
-    const auto& records = index.Records();
-    ASSERT_EQ(records.size(), indexRecords);
-
-    for (int i = 0; i < indexRecords; ++i) {
-        const auto& record = records[i];
-        EXPECT_EQ(record.RecordId, i);
-        EXPECT_EQ(record.FilePosition, i);
-    }
-}
-
 INSTANTIATE_TEST_CASE_P(
     TAsyncFileChangelogIndexTest,
     TAsyncFileChangelogIndexTest,

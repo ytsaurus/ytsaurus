@@ -24,13 +24,10 @@ from collections import defaultdict
 # This is a mix of options for 18.4 and 18.5
 cgroups_delta_node_config = {
     "exec_agent": {
-        "enable_cgroups": True,                                       # <= 18.4
-        "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
         "slot_manager": {
-            "enforce_job_control": True,                              # <= 18.4
             "job_environment": {
-                "type": "cgroups",                                   # >= 18.5
-                "supported_cgroups": [                                # >= 18.5
+                "type": "cgroups",
+                "supported_cgroups": [
                     "cpuacct",
                     "blkio",
                     "cpu"],
@@ -125,22 +122,29 @@ class TestEventLog(YTEnvSetup):
         assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
         # wait for scheduler to dump the event log
-        time.sleep(2)
-        res = read_table("//sys/scheduler/event_log")
-        event_types = __builtin__.set()
-        for item in res:
-            event_types.add(item["event_type"])
-            if item["event_type"] == "job_completed":
-                stats = item["statistics"]
-                user_time = get_statistics(stats, "user_job.cpu.user")
-                # our job should burn enough cpu
-                assert user_time > 0
-            if item["event_type"] == "job_started":
-                limits = item["resource_limits"]
-                assert limits["cpu"] > 0
-                assert limits["user_memory"] > 0
-                assert limits["user_slots"] > 0
-        assert "operation_started" in event_types
+        def check():
+            res = read_table("//sys/scheduler/event_log")
+            event_types = __builtin__.set()
+            for item in res:
+                event_types.add(item["event_type"])
+                if item["event_type"] == "job_completed":
+                    stats = item["statistics"]
+                    user_time = get_statistics(stats, "user_job.cpu.user")
+                    # our job should burn enough cpu
+                    if  user_time == 0:
+                        return False
+                if item["event_type"] == "job_started":
+                    limits = item["resource_limits"]
+                    if limits["cpu"] == 0:
+                        return False
+                    if limits["user_memory"] == 0:
+                        return False
+                    if limits["user_slots"] == 0:
+                        return False
+            if "operation_started" not in event_types:
+                return False
+            return True
+        wait(check)
 
     def test_scheduler_event_log_buffering(self):
         create("table", "//tmp/t1")
@@ -163,12 +167,14 @@ class TestEventLog(YTEnvSetup):
 
         op.track()
 
-        time.sleep(2)
-        res = read_table("//sys/scheduler/event_log")
-        event_types = __builtin__.set([item["event_type"] for item in res])
-        for event in ["scheduler_started", "operation_started", "operation_completed"]:
-            assert event in event_types
-
+        def check():
+            res = read_table("//sys/scheduler/event_log")
+            event_types = __builtin__.set([item["event_type"] for item in res])
+            for event in ["scheduler_started", "operation_started", "operation_completed"]:
+                if event not in event_types:
+                    return False
+            return True
+        wait(check)
 
 ##################################################################
 
@@ -207,16 +213,14 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             command="cat",
             spec={"testing": testing_options})
 
-        while True:
-            try:
-                jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
-                assert jobs["running"] == 0
-                assert jobs["completed"]["total"] == 0
-                if jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0:
-                    break
-            except:
-                pass
-            time.sleep(1)
+        def check():
+            jobs = get(op.get_path() + "/@progress/jobs", default=None)
+            if jobs is None:
+                return False
+            assert jobs["running"] == 0
+            assert jobs["completed"]["total"] == 0
+            return jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0
+        wait(check)
 
 ##################################################################
 
@@ -866,7 +870,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         context = read_file("//tmp/input_context")
         assert get("//tmp/input_context/@description/type") == "input_context"
-        assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
+        assert JsonFormat().loads_row(context)["foo"] == "bar"
 
     def test_dump_job_context_permissions(self):
         create_user("abc")
@@ -3867,3 +3871,186 @@ class TestConnectToMaster(YTEnvSetup):
             if "Error connecting to master" in line and "Cluster is in safe mode" in line:
                 return True
         return False
+
+
+class TestOperationAliasesBase(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": True,
+                # Analyze all operations each 100ms
+                "analysis_period": 100,
+                # Wait each batch to remove not more than 100ms
+                "remove_batch_timeout": 100,
+                # Wait each batch to archive not more than 100ms
+                "archive_batch_timeout": 100,
+                # Retry sleeps
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                # Leave no more than 5 completed operations
+                "soft_retained_operation_count": 0,
+                # Operations older than 50ms can be considered for removal
+                "clean_delay": 50,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100
+        }
+    }
+
+    def setup(self):
+        # Init operations archive.
+        sync_create_cells(1)
+
+    def _test_aliases(self):
+        with pytest.raises(YtError):
+            # Alias should start with *.
+            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                          "alias": "my_op"})
+
+
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     dont_track=True)
+
+        assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
+        assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
+
+        # It is not allowed to use alias of already running operation.
+        with pytest.raises(YtError):
+            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                          "alias": "*my_op"})
+
+        suspend_op("*my_op")
+        assert get(op.get_path() + "/@suspended")
+        resume_op("*my_op")
+        assert not get(op.get_path() + "/@suspended")
+        update_op_parameters("*my_op", parameters={"owners": ["u"]})
+        assert len(get(op.get_path() + "/@alerts")) == 1
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+        abort_op("*my_op")
+        assert get(op.get_path() + "/@state") == "aborted"
+
+        with pytest.raises(YtError):
+            complete_op("*my_another_op")
+
+        with pytest.raises(YtError):
+            complete_op("my_op")
+
+        # Now using alias *my_op is ok.
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     dont_track=True)
+
+        wait(lambda: (sys.stderr.write(op.get_path() + "/@error"), get(op.get_path() + "/@state"))[1] == "running")
+
+        complete_op("*my_op")
+        assert get(op.get_path() + "/@state") == "completed"
+
+    def _test_get_operation_latest_archive_version(self):
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+
+        set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
+
+        # When no operation is assigned to an alias, get_operation should return an error.
+        with pytest.raises(YtError):
+            get_operation("*my_op", include_runtime=True)
+
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     dont_track=True)
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+
+        with pytest.raises(YtError):
+            # It is impossible to resolve aliases without including runtime.
+            get_operation("*my_op", include_runtime=False)
+
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+        op.complete()
+
+        # Operation should still be exposed via Orchid, and get_operation will extract information from there.
+        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+        assert exists(op.get_path())
+
+        # Let us enable operation archiver and wait until operation becomes archived.
+        set("//sys/scheduler/config", {"operations_cleaner": {"enable": True}})
+        wait(lambda: not exists(op.get_path()))
+
+        # Alias should become removed from the Orchid (but it may happen with some visible delay, so we wait for it).
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/operations/\\*my_op"))
+        # But get_operation should still work as expected.
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+
+class TestOperationAliasesNative(TestOperationAliasesBase):
+    def test_aliases(self):
+        self._test_aliases()
+
+    def test_get_operation_latest_archive_version(self):
+        self._test_get_operation_latest_archive_version()
+
+
+class TestOperationAliasesRpc(TestOperationAliasesBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+    def test_aliases(self):
+        self._test_aliases()
+
+    def test_get_operation_latest_archive_version(self):
+        self._test_get_operation_latest_archive_version()
+
+
+@require_ytserver_root_privileges
+class TestDynamicCpuAdjustment(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_cpu_monitor": {
+                "check_period": 10,
+                "smoothing_factor": 0.05,
+                "vote_window_size": 10,
+                "vote_decision_threshold": 5,
+                "min_cpu_limit": 0.1,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "supported_cgroups": ["cpu", "cpuacct", "blkio"]
+                }
+            }
+        }
+    }
+
+    def test_dynamic_cpu_adjustment(self):
+        run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"))
+        job_id = wait_breakpoint()[0]
+        time.sleep(0.1)
+
+        node = ls("//sys/nodes")[0]
+        stats_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy/".format(node, job_id)
+        min_cpu_limit = self.DELTA_NODE_CONFIG["exec_agent"]["job_cpu_monitor"]["min_cpu_limit"]
+
+        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] <= 15)
+        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] >= 85)
+
+        release_breakpoint()
+
+        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] >= 85)
+        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] == 0)

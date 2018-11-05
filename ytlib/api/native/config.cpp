@@ -109,7 +109,7 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(0)
         .Default(1000);
     RegisterParameter("enable_lookup_multiread", EnableLookupMultiread)
-        .Default(false);
+        .Default(true);
 
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
@@ -145,6 +145,9 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("use_tablet_service", UseTabletService)
         .Default(false);
+
+    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
+        .Default(TDuration::Minutes(30));
 
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;

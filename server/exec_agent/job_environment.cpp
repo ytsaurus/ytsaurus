@@ -670,12 +670,13 @@ private:
                 ? MetaInstance_
                 : GetSelfPortoInstance(PortoExecutor_);
 
-            auto limits = container->GetResourceLimits();
+            auto limits = container->GetResourceLimitsRecursive();
 
             auto guard = Guard(LimitsLock_);
+            auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
-                LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_, limits.Cpu);
-                CpuLimit_ = limits.Cpu;
+                LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_, newCpuLimit);
+                CpuLimit_ = newCpuLimit;
             }
 
             if (!MemoryLimit_ || *MemoryLimit_ != limits.Memory) {

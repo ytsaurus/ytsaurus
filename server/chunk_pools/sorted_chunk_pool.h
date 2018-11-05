@@ -21,7 +21,6 @@ struct TSortedChunkPoolOptions
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
-    i64 MaxBuildRetryCount = 5;
     TString Task;
 };
 

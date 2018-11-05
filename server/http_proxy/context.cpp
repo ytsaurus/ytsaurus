@@ -129,7 +129,8 @@ TContext::TContext(
 
 void TContext::ProcessDebugHeaders()
 {
-    Response_->GetHeaders()->Add("X-YT-Request-ID", ToString(Request_->GetRequestId()));
+    Response_->GetHeaders()->Add("X-YT-Request-Id", ToString(Request_->GetRequestId()));
+    Response_->GetHeaders()->Add("X-YT-Proxy", Api_->GetCoordinator()->GetSelf()->GetHost());
 
     auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
     if (correlationId) {
@@ -262,7 +263,7 @@ bool TContext::TryParseUser()
     auto asyncAuth = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!asyncAuth) {
         Response_->SetStatus(EStatusCode::Unauthorized);
-        FakeError("Failed to identify user credentials");
+        ReplyFakeError("Failed to identify user credentials");
         return false;
     }
 
@@ -270,7 +271,11 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         LOG_DEBUG(authResult, "Authentication error");
 
-        Response_->SetStatus(EStatusCode::InternalServerError);
+        if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
+            Response_->SetStatus(EStatusCode::Unauthorized);
+        } else {
+            Response_->SetStatus(EStatusCode::InternalServerError);
+        }
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(authResult));
@@ -287,7 +292,7 @@ bool TContext::TryParseUser()
 
     if (Api_->IsUserBannedInCache(Auth_->Login)) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        FakeError(Format("User %Qv is banned", Auth_->Login));
+        ReplyFakeError(Format("User %Qv is banned", Auth_->Login));
         return false;
     }
 
@@ -325,7 +330,7 @@ bool TContext::TryCheckMethod()
     if (Request_->GetMethod() != expectedMethod) {
         Response_->SetStatus(EStatusCode::MethodNotAllowed);
         Response_->GetHeaders()->Set("Allow", TString(ToHttpString(expectedMethod)));
-        FakeError(Format("Command %Qv have to be executed with the %Qv HTTP method",
+        ReplyFakeError(Format("Command %Qv have to be executed with the %Qv HTTP method",
             Descriptor_->CommandName,
             ToHttpString(expectedMethod)));
     
@@ -436,18 +441,16 @@ bool TContext::TryGetInputCompression()
 {
     auto header = Request_->GetHeaders()->Find("Content-Encoding");
     if (header) {
-        auto compression = EncodingToCompression(StripString(*header));
-        if (!compression) {
+        auto compression = StripString(*header);
+        if (!IsCompressionSupported(compression)) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
-            FakeError("Unsupported Content-Encoding");
+            ReplyFakeError("Unsupported Content-Encoding");
             return false;            
         }
 
-        InputCompression_ = compression;
-    }
-
-    if (!InputCompression_) {
-        InputCompression_ = EContentEncoding::None;
+        InputContentEncoding_ = compression;
+    } else {
+        InputContentEncoding_ = IdentityContentEncoding;
     }
 
     return true;
@@ -465,13 +468,9 @@ bool TContext::TryGetOutputFormat()
     auto acceptHeader = Request_->GetHeaders()->Find("Accept");
     if (acceptHeader) {
         auto acceptedType = GetBestAcceptedType(Descriptor_->OutputType, StripString(*acceptHeader));
-        if (!acceptedType) {
-            Response_->SetStatus(EStatusCode::NotAcceptable);
-            FakeError("Could not determine fiasible Content-Type given Accept constraints");
-            return false;
+        if (acceptedType) {
+            OutputFormat_ = MimeTypeToFormat(*acceptedType);
         }
-    
-        OutputFormat_ = MimeTypeToFormat(*acceptedType);
     }
 
     try {
@@ -497,23 +496,16 @@ bool TContext::TryGetOutputCompression()
     auto acceptEncodingHeader = Request_->GetHeaders()->Find("Accept-Encoding");
     if (acceptEncodingHeader) {
         auto contentEncoding = GetBestAcceptedEncoding(*acceptEncodingHeader);
-        if (contentEncoding && *contentEncoding == "x-lzop") {
-            contentEncoding.Reset();
-        }
 
-        if (!contentEncoding) {
+        if (!contentEncoding.IsOK()) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
-            FakeError("Could not determine feasible Content-Encoding given Accept-Encoding constraints");
+            ReplyError(contentEncoding);
             return false;
         }
 
-        OutputCompression_ = EncodingToCompression(*contentEncoding);
-        OutputContentEncoding_ = contentEncoding;
-    }
-
-    if (!OutputCompression_) {
-        OutputCompression_ = EContentEncoding::None;
-        OutputContentEncoding_ = "identity";
+        OutputContentEncoding_ = contentEncoding.Value();
+    } else {
+        OutputContentEncoding_ = IdentityContentEncoding;
     }
 
     return true;
@@ -570,7 +562,7 @@ void TContext::CaptureParameters()
             return;
         }
         
-        if (InputCompression_ != EContentEncoding::None) {
+        if (InputContentEncoding_ != IdentityContentEncoding) {
             THROW_ERROR_EXCEPTION("Content-Encoding not supported in POST body");
         }
 
@@ -598,7 +590,7 @@ void TContext::SetContentDispositionAndMimeType()
     TString disposition = "attachment";
     if (Descriptor_->Heavy) {
         TString filename;
-        if (Descriptor_->CommandName == "download") {
+        if (Descriptor_->CommandName == "download" || Descriptor_->CommandName == "read_table") {
             if (auto path = DriverRequest_.Parameters->FindChild("path")) {
                 filename = "yt_" + path->GetValue<TString>();
             }
@@ -677,17 +669,17 @@ void TContext::LogRequest()
             HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
             EYsonFormat::Text).GetData(),
         ConvertToYsonString(InputFormat_, EYsonFormat::Text).GetData(),
-        InputCompression_,
+        InputContentEncoding_,
         ConvertToYsonString(OutputFormat_, EYsonFormat::Text).GetData(),
-        OutputCompression_);
+        OutputContentEncoding_);
 }
 
 void TContext::SetupInputStream()
 {
-    if (EContentEncoding::None == InputCompression_) {
+    if (IdentityContentEncoding == InputContentEncoding_) {
         DriverRequest_.InputStream = CreateCopyingAdapter(Request_);
     } else {
-        DriverRequest_.InputStream = CreateDecompressingAdapter(Request_, *InputCompression_);
+        DriverRequest_.InputStream = CreateDecompressingAdapter(Request_, *InputContentEncoding_);
     }
 }
 
@@ -701,10 +693,11 @@ void TContext::SetupOutputStream()
     } else {
         DriverRequest_.OutputStream = Response_;        
     }
-    if (EContentEncoding::None != OutputCompression_) {
+
+    if (IdentityContentEncoding != OutputContentEncoding_) {
         DriverRequest_.OutputStream = CreateCompressingAdapter(
             DriverRequest_.OutputStream,
-            *OutputCompression_);
+            *OutputContentEncoding_);
     }
 }
 
@@ -733,7 +726,7 @@ void TContext::AddHeaders()
         headers->Set("Content-Type", *ContentType_);
     }
 
-    if (OutputCompression_) {
+    if (OutputContentEncoding_) {
         headers->Set("Content-Encoding", *OutputContentEncoding_);
         headers->Add("Vary", "Content-Encoding");
     }
@@ -741,8 +734,6 @@ void TContext::AddHeaders()
     if (!OmitTrailers_) {
         headers->Set("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
     }
-
-    headers->Add("X-YT-Proxy", Api_->GetCoordinator()->GetSelf()->GetHost());
 }
 
 void TContext::SetError(const TError& error)
@@ -808,8 +799,9 @@ void TContext::Finalize()
         }
     } else {
         if (!Error_.IsOK()) {
-            // TODO(prime@): Fill trailers.
-            LOG_DEBUG("Error is not sent to client since response headers are already flushed");
+            FillYTErrorTrailers(Response_, Error_);
+            auto result = WaitFor(Response_->Close());
+            (void)result;
         }
     }
 
@@ -835,30 +827,35 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
 {
     Response_->SetStatus(EStatusCode::Unauthorized);
     Response_->GetHeaders()->Set("WWW-Authenticate", scope);
-    FakeError(message);
+    ReplyFakeError(message);
 }
 
 void TContext::DispatchUnavailable(const TString& retryAfter, const TString& message)
 {
     Response_->SetStatus(EStatusCode::ServiceUnavailable);
     Response_->GetHeaders()->Set("Retry-After", retryAfter);
-    FakeError(message);
+    ReplyFakeError(message);
 }
 
 void TContext::DispatchNotFound(const TString& message)
 {
     Response_->SetStatus(EStatusCode::NotFound);
-    FakeError(message);
+    ReplyFakeError(message);
 }
 
-void TContext::FakeError(const TString& message)
+void TContext::ReplyError(const TError& error)
 {
-    LOG_DEBUG("Request finished with error (Message: %v)", message);
+    LOG_DEBUG(error, "Request finished with error");
     FillYTErrorHeaders(Response_, Error_);
     DispatchJson([&] (auto consumer) {
         BuildYsonFluently(consumer)
-            .Value(TError(message));
+            .Value(error);
     });
+}
+
+void TContext::ReplyFakeError(const TString& message)
+{
+    ReplyError(TError(message));
 }
 
 void TContext::OnOutputParameters()

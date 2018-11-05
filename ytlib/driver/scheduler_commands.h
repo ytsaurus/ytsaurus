@@ -4,7 +4,7 @@
 
 #include <yt/client/job_tracker_client/public.h>
 
-#include <yt/client/scheduler/public.h>
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -281,13 +281,37 @@ template <class TOptions>
 class TSimpleOperationCommandBase
     : public virtual TTypedCommandBase<TOptions>
 {
-protected:
+private:
     NScheduler::TOperationId OperationId;
+    TNullable<TString> OperationAlias;
+
+protected:
+    // Is calculated by two fields above.
+    NScheduler::TOperationIdOrAlias OperationIdOrAlias = NScheduler::TOperationId();
 
 public:
     TSimpleOperationCommandBase()
     {
-        this->RegisterParameter("operation_id", OperationId);
+        this->RegisterParameter("operation_id", OperationId)
+            .Default();
+        this->RegisterParameter("operation_alias", OperationAlias)
+            .Default(Null);
+
+        this->RegisterPostprocessor([&] {
+            if (((!OperationId.IsEmpty()) && (OperationAlias.HasValue())) ||
+                ((OperationId.IsEmpty()) && (!OperationAlias.HasValue())))
+            {
+                THROW_ERROR_EXCEPTION("Exactly one of operation_id and operation_alias should be set")
+                    << TErrorAttribute("operation_id", OperationId)
+                    << TErrorAttribute("operation_alias", OperationAlias);
+            }
+
+            if (OperationId) {
+                OperationIdOrAlias = OperationId;
+            } else {
+                OperationIdOrAlias = *OperationAlias;
+            }
+        });
     }
 };
 
@@ -336,13 +360,12 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUpdateOperationParametersCommand
-    : public TTypedCommand<NApi::TUpdateOperationParametersOptions>
+    : public TSimpleOperationCommandBase<NApi::TUpdateOperationParametersOptions>
 {
 public:
     TUpdateOperationParametersCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
     NYTree::INodePtr Parameters;
 
     virtual void DoExecute(ICommandContextPtr context) override;
@@ -351,14 +374,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetOperationCommand
-    : public TTypedCommand<NApi::TGetOperationOptions>
+    : public TSimpleOperationCommandBase<NApi::TGetOperationOptions>
 {
 public:
     TGetOperationCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
-
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 

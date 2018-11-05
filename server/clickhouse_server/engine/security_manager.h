@@ -1,17 +1,21 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/auth_clique.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Interpreters/ISecurityManager.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
     std::string cliqueId,
-    NInterop::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+    NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

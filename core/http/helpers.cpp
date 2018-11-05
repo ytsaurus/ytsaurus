@@ -30,7 +30,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
+void FillYTError(const THeadersPtr& headers, const TError& error)
 {
     TString errorJson;
     TStringOutput errorJsonOutput(errorJson);
@@ -38,10 +38,20 @@ void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
     Serialize(error, jsonWriter.get());
     jsonWriter->Flush();
 
-    rsp->GetHeaders()->Add("X-YT-Error", errorJson);
-    rsp->GetHeaders()->Add("X-YT-Response-Code",
+    headers->Add("X-YT-Error", errorJson);
+    headers->Add("X-YT-Response-Code",
         ToString(static_cast<i64>(error.GetCode())));
-    rsp->GetHeaders()->Add("X-YT-Response-Message", error.GetMessage());
+    headers->Add("X-YT-Response-Message", error.GetMessage());
+}
+
+void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
+{
+    FillYTError(rsp->GetHeaders(), error);
+}
+
+void FillYTErrorTrailers(const IResponseWriterPtr& rsp, const TError& error)
+{
+    FillYTError(rsp->GetTrailers(), error);
 }
 
 TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers)

@@ -109,8 +109,8 @@ TOperation::TOperation(
     TOperationRuntimeParametersPtr runtimeParams,
     const TString& authenticatedUser,
     TInstant startTime,
-    bool enableCompatibleStorageMode,
     IInvokerPtr controlInvoker,
+    const TNullable<TString>& alias,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended)
@@ -123,8 +123,8 @@ TOperation::TOperation(
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Events_(events)
-    , EnableCompatibleStorageMode_(enableCompatibleStorageMode)
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
+    , Alias_(alias)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)

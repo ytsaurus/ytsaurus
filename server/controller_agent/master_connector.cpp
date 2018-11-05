@@ -552,30 +552,27 @@ private:
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto operation = controllerAgent->GetOperation(operationId);
 
-        // NB: these attributes are not necessary at legacy operation location.
-        auto paths = GetOperationPaths(operation->GetId(), /* enableCompatibleStorageMode */ false);
-
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
 
-        for (const auto& operationPath : paths) {
-            // Update controller agent address.
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
-                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
-                batchReq->AddRequest(req, "set_controller_agent_address");
-            }
-            // Update controller agent orchid, it should point to this controller agent.
-            {
-                auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
-                req->set_force(true);
-                req->set_type(static_cast<int>(EObjectType::Orchid));
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
-                attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
-                ToProto(req->mutable_node_attributes(), *attributes);
-                batchReq->AddRequest(req, "create_controller_orchid");
-            }
+        auto operationPath = GetOperationPath(operationId);
+
+        // Update controller agent address.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
+            req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
+            batchReq->AddRequest(req, "set_controller_agent_address");
+        }
+        // Update controller agent orchid, it should point to this controller agent.
+        {
+            auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
+            req->set_force(true);
+            req->set_type(static_cast<int>(EObjectType::Orchid));
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+            attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
+            ToProto(req->mutable_node_attributes(), *attributes);
+            batchReq->AddRequest(req, "create_controller_orchid");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -626,36 +623,30 @@ private:
             std::vector<TJobFile> files;
             for (const auto& request : successfulJobRequests) {
                 if (request.StderrChunkId) {
-                    auto paths = GetJobPaths(
+                    auto path = GetJobPath(
                         operationId,
                         request.JobId,
-                        operation->GetEnableCompatibleStorageMode(),
                         "stderr");
 
-                    for (const auto& path : paths) {
-                        files.push_back({
-                            request.JobId,
-                            path,
-                            request.StderrChunkId,
-                            "stderr"
-                        });
-                    }
+                    files.push_back({
+                        request.JobId,
+                        path,
+                        request.StderrChunkId,
+                        "stderr"
+                    });
                 }
                 if (request.FailContextChunkId) {
-                    auto paths = GetJobPaths(
+                    auto path = GetJobPath(
                         operationId,
                         request.JobId,
-                        operation->GetEnableCompatibleStorageMode(),
                         "fail_context");
 
-                    for (const auto& path : paths) {
-                        files.push_back({
-                            request.JobId,
-                            path,
-                            request.FailContextChunkId,
-                            "fail_context"
-                        });
-                    }
+                    files.push_back({
+                        request.JobId,
+                        path,
+                        request.FailContextChunkId,
+                        "fail_context"
+                    });
                 }
             }
             SaveJobFiles(operationId, files);
@@ -727,8 +718,6 @@ private:
 
         controller->SetProgressUpdated();
 
-        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
-
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
 
@@ -738,25 +727,25 @@ private:
         auto briefProgress = controller->GetBriefProgress();
         YCHECK(briefProgress);
 
-        for (const auto& operationPath : paths) {
-            auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
+        auto operationPath = GetOperationPath(operationId);
 
-            // Set progress.
-            {
-                auto req = multisetReq->add_subrequests();
-                req->set_key("progress");
-                req->set_value(progress.GetData());
-            }
+        auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
 
-            // Set brief progress.
-            {
-                auto req = multisetReq->add_subrequests();
-                req->set_key("brief_progress");
-                req->set_value(briefProgress.GetData());
-            }
-
-            batchReq->AddRequest(multisetReq, "update_op_node");
+        // Set progress.
+        {
+            auto req = multisetReq->add_subrequests();
+            req->set_key("progress");
+            req->set_value(progress.GetData());
         }
+
+        // Set brief progress.
+        {
+            auto req = multisetReq->add_subrequests();
+            req->set_key("brief_progress");
+            req->set_value(briefProgress.GetData());
+        }
+
+        batchReq->AddRequest(multisetReq, "update_op_node");
 
         // This is needed to prevent controller lifetime prolongation due to strong pointer
         // being kept in the stack while waiting for a batch request being invoked.
@@ -781,17 +770,15 @@ private:
         for (const auto& request : requests) {
             const auto& jobId = request.JobId;
 
-            auto paths = GetJobPaths(operation->GetId(), jobId, operation->GetEnableCompatibleStorageMode());
+            auto path = GetJobPath(operation->GetId(), jobId);
             auto attributes = ConvertToAttributes(request.Attributes);
 
-            for (const auto& path : paths) {
-                auto req = TCypressYPathProxy::Create(path);
-                GenerateMutationId(req);
-                req->set_type(static_cast<int>(EObjectType::MapNode));
-                req->set_force(true);
-                ToProto(req->mutable_node_attributes(), *attributes);
-                batchReq->AddRequest(req, "create_" + ToString(jobId));
-            }
+            auto req = TCypressYPathProxy::Create(path);
+            GenerateMutationId(req);
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            req->set_force(true);
+            ToProto(req->mutable_node_attributes(), *attributes);
+            batchReq->AddRequest(req, "create_" + ToString(jobId));
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1020,7 +1007,7 @@ private:
         auto batchReq = StartObjectBatchRequest();
 
         {
-            auto req = TYPathProxy::Get(GetNewSnapshotPath(operationId) + "/@version");
+            auto req = TYPathProxy::Get(GetSnapshotPath(operationId) + "/@version");
             batchReq->AddRequest(req, "get_version");
         }
 
@@ -1091,7 +1078,7 @@ private:
 
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         {
-            auto req = TYPathProxy::Remove(GetNewSnapshotPath(operationId));
+            auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
             req->set_force(true);
             batchReq->AddRequest(req, "remove_snapshot");
         }

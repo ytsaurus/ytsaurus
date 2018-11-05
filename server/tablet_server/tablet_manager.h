@@ -51,6 +51,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
+        const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
 
@@ -99,6 +100,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
+        const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
 

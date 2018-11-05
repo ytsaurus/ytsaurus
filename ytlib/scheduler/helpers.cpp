@@ -20,6 +20,7 @@
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/core/misc/error.h>
+
 #include <yt/core/ypath/token.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -52,11 +53,6 @@ TYPath GetOperationsPath()
 
 TYPath GetOperationPath(const TOperationId& operationId)
 {
-    return "//sys/operations/" + ToYPathLiteral(ToString(operationId));
-}
-
-TYPath GetNewOperationPath(const TOperationId& operationId)
-{
     int hashByte = operationId.Parts32[0] & 0xff;
     return
         "//sys/operations/" +
@@ -72,24 +68,10 @@ TYPath GetJobsPath(const TOperationId& operationId)
         "/jobs";
 }
 
-TYPath GetNewJobsPath(const TOperationId& operationId)
-{
-    return
-        GetNewOperationPath(operationId) +
-        "/jobs";
-}
-
 TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobsPath(operationId) + "/" +
-        ToYPathLiteral(ToString(jobId));
-}
-
-TYPath GetNewJobPath(const TOperationId& operationId, const TJobId& jobId)
-{
-    return
-        GetNewJobsPath(operationId) + "/" +
         ToYPathLiteral(ToString(jobId));
 }
 
@@ -100,24 +82,10 @@ TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
         + "/stderr";
 }
 
-TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& jobId)
-{
-    return
-        GetNewJobPath(operationId, jobId)
-        + "/stderr";
-}
-
 TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobPath(operationId, jobId)
-        + "/fail_context";
-}
-
-TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobId)
-{
-    return
-        GetNewJobPath(operationId, jobId)
         + "/fail_context";
 }
 
@@ -126,6 +94,13 @@ TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId)
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
         ToYPathLiteral(ToString(operationId));
+}
+
+TYPath GetSchedulerOrchidAliasPath(const TString& alias)
+{
+    return
+        "//sys/scheduler/orchid/scheduler/operations/" +
+        ToYPathLiteral(alias);
 }
 
 TYPath GetControllerAgentOrchidOperationPath(
@@ -143,6 +118,8 @@ TNullable<TString> GetControllerAgentAddressFromCypress(
     const TOperationId& operationId,
     const IChannelPtr& channel)
 {
+    using NYT::ToProto;
+
     static const std::vector<TString> attributes = {"controller_agent_address"};
 
     TObjectServiceProxy proxy(channel);
@@ -150,7 +127,7 @@ TNullable<TString> GetControllerAgentAddressFromCypress(
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@controller_agent_address");
+        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@controller_agent_address");
         ToProto(req->mutable_attributes()->mutable_keys(), attributes);
         batchReq->AddRequest(req, "get_controller_agent_address");
     }
@@ -174,13 +151,6 @@ TYPath GetSnapshotPath(const TOperationId& operationId)
         + "/snapshot";
 }
 
-TYPath GetNewSnapshotPath(const TOperationId& operationId)
-{
-    return
-        GetNewOperationPath(operationId)
-        + "/snapshot";
-}
-
 TYPath GetSecureVaultPath(const TOperationId& operationId)
 {
     return
@@ -188,17 +158,9 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-TYPath GetNewSecureVaultPath(const TOperationId& operationId)
-{
-    return
-        GetNewOperationPath(operationId)
-        + "/secure_vault";
-}
-
-std::vector<NYPath::TYPath> GetJobPaths(
+NYPath::TYPath GetJobPath(
     const TOperationId& operationId,
     const TJobId& jobId,
-    bool enableCompatibleStorageMode,
     const TString& resourceName)
 {
     TString suffix;
@@ -206,36 +168,7 @@ std::vector<NYPath::TYPath> GetJobPaths(
         suffix = "/" + resourceName;
     }
 
-    if (!enableCompatibleStorageMode) {
-        return {GetNewJobPath(operationId, jobId) + suffix};
-    }
-
-    // COMPAT(babenko)
-    return {
-        GetJobPath(operationId, jobId) + suffix,
-        GetNewJobPath(operationId, jobId) + suffix
-    };
-}
-
-std::vector<NYPath::TYPath> GetOperationPaths(
-    const TOperationId& operationId,
-    bool enableCompatibleStorageMode,
-    const TString& resourceName)
-{
-    TString suffix;
-    if (!resourceName.empty()) {
-        suffix = "/" + resourceName;
-    }
-
-    if (!enableCompatibleStorageMode) {
-       return {GetNewOperationPath(operationId) + suffix};
-    }
-
-    // COMPAT(babenko)
-    return {
-        GetOperationPath(operationId) + suffix,
-        GetNewOperationPath(operationId) + suffix
-    };
+    return GetJobPath(operationId, jobId) + suffix;
 }
 
 const TYPath& GetPoolTreesPath()
@@ -253,6 +186,12 @@ const TYPath& GetOperationsArchiveOrderedByIdPath()
 const TYPath& GetOperationsArchiveOrderedByStartTimePath()
 {
     static TYPath path = "//sys/operations_archive/ordered_by_start_time";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveOperationAliasesPath()
+{
+    static TYPath path = "//sys/operations_archive/operation_aliases";
     return path;
 }
 
@@ -388,6 +327,9 @@ TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 
 void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
 {
+    using NYT::FromProto;
+    using NYT::ToProto;
+
     if (files.empty()) {
         return;
     }
@@ -580,33 +522,23 @@ void ValidateOperationPermission(
         operationId,
         subnodePath);
 
-    std::vector<NYTree::TYPath> paths = {
-        GetOperationPath(operationId),
-        GetNewOperationPath(operationId)
-    };
+    auto path = GetOperationPath(operationId);
+    auto asyncResult = client->CheckPermission(user, path + subnodePath, permission);
+    auto resultOrError = WaitFor(asyncResult);
+    if (!resultOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
+            operationId)
+            << resultOrError;
+    }
 
-    for (const auto& path : paths) {
-        auto asyncResult = client->CheckPermission(user, path + subnodePath, permission);
-        auto resultOrError = WaitFor(asyncResult);
-        if (!resultOrError.IsOK()) {
-            if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                continue;
-            }
-
-            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-                operationId)
-                << resultOrError;
-        }
-
-        const auto& result = resultOrError.Value();
-        if (result.Action == ESecurityAction::Allow) {
-            LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
-                permission,
-                user,
-                operationId,
-                subnodePath);
-            return;
-        }
+    const auto& result = resultOrError.Value();
+    if (result.Action == ESecurityAction::Allow) {
+        LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+            permission,
+            user,
+            operationId,
+            subnodePath);
+        return;
     }
 
     THROW_ERROR_EXCEPTION(

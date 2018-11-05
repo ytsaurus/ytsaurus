@@ -3,11 +3,15 @@
 #include <string>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CurrentExceptionText();
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

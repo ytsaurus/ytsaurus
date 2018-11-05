@@ -112,6 +112,12 @@ ISessionPtr TSessionManager::StartSession(
         THROW_ERROR(error);
     }
 
+    if (DisableWriteSessions_) {
+        auto error = TError("Write sessions are disabled");
+        LOG_ERROR(error);
+        THROW_ERROR(error);
+    }
+
     auto session = CreateSession(sessionId, options);
 
     session->SubscribeFinished(

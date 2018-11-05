@@ -106,6 +106,11 @@ void TJob::Fail()
     THROW_ERROR_EXCEPTION("Failing is not supported for built-in jobs");
 }
 
+TCpuStatistics TJob::GetCpuStatistics() const
+{
+    return TCpuStatistics{};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
