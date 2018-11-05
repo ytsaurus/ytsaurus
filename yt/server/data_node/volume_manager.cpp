@@ -80,8 +80,8 @@ struct TVolumeKey
 {
     const std::vector<TArtifactKey> LayerKeys;
 
-    explicit TVolumeKey(const std::vector<TArtifactKey>& layerKeys)
-        : LayerKeys(layerKeys)
+    explicit TVolumeKey(std::vector<TArtifactKey> layerKeys)
+        : LayerKeys(std::move(layerKeys))
     { }
 
     // Hasher.
@@ -174,7 +174,8 @@ public:
 
             LoadLayers();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to initialize layer location %v", Config_->Path)
+            THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
+                Config_->Path)
                 << ex;
         }
 
@@ -326,7 +327,8 @@ private:
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             if (fileName.EndsWith(NFS::TempFileSuffix)) {
-                LOG_DEBUG("Remove temporary file (Path: %v)", fileName);
+                LOG_DEBUG("Remove temporary file (Path: %v)",
+                    fileName);
                 NFS::Remove(fileName);
                 continue;
             }
@@ -334,7 +336,8 @@ private:
             auto nameWithoutExtension = NFS::GetFileNameWithoutExtension(fileName);
             TGuid id;
             if (!TGuid::FromString(nameWithoutExtension, &id)) {
-                LOG_ERROR("Unrecognized file in layer location directory (Path: %v)", fileName);
+                LOG_ERROR("Unrecognized file in layer location directory (Path: %v)",
+                    fileName);
                 continue;
             }
 
@@ -348,12 +351,14 @@ private:
         for (const auto& layerName : layerNames) {
             TGuid id;
             if (!TGuid::FromString(layerName, &id)) {
-                LOG_ERROR("Unrecognized layer name in layer location directory (LayerName: %v)", layerName);
+                LOG_ERROR("Unrecognized layer name in layer location directory (LayerName: %v)",
+                    layerName);
                 continue;
             }
 
             if (!fileIds.has(id)) {
-                LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)", layerName);
+                LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
+                    layerName);
                 WaitFor(Executor_->RemoveLayer(layerName, Config_->Path))
                     .ThrowOnError();
                 continue;
@@ -365,7 +370,8 @@ private:
 
         for (const auto& id : fileIds) {
             auto path = GetLayerMetaPath(id);
-            LOG_DEBUG("Remove layer meta file with no matching layer (Path: %v)", path);
+            LOG_DEBUG("Remove layer meta file with no matching layer (Path: %v)",
+                path);
             NFS::Remove(path);
         }
 
@@ -462,7 +468,10 @@ private:
 
         auto id = TLayerId::Create();
         try {   
-            LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v, Tag: %v)", id, archivePath, tag);
+            LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v, Tag: %v)",
+                id,
+                archivePath,
+                tag);
 
             {
                 // Take exclusive lock in blocking fashion to ensure that no
@@ -471,22 +480,33 @@ private:
                 file.Flock(LOCK_EX);
             }
 
-            LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v)", id, tag);
+            LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v)",
+                id,
+                tag);
+            
             auto layerDirectory = GetLayerPath(id);
 
             try {
-                LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)", layerDirectory, tag);
+                LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
+                    layerDirectory,
+                    tag);
                 WaitFor(Executor_->ImportLayer(archivePath, ToString(id), Config_->Path))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)", id, archivePath, tag);
+                LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
+                    id,
+                    archivePath,
+                    tag);
                 THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
             }
 
             auto layerSize = RunTool<TGetDirectorySizeAsRootTool>(layerDirectory);
 
-            LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)", id, layerSize, tag);
+            LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
+                id,
+                layerSize,
+                tag);
 
             TLayerMeta layerMeta;
             layerMeta.Path = layerDirectory;
@@ -550,11 +570,14 @@ private:
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
         try {
-            LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)", layerId, layerPath);
+            LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
+                layerId,
+                layerPath);
             Executor_->RemoveLayer(ToString(layerId), Config_->Path);
             NFS::Remove(layerMetaPath);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to remove layer %v", layerId)
+            auto error = TError("Failed to remove layer %v",
+                layerId)
                 << ex;
             Disable(error);
             Y_UNREACHABLE();
@@ -586,7 +609,8 @@ private:
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
-            LOG_DEBUG("Creating volume (VolumeId: %v)", id);
+            LOG_DEBUG("Creating volume (VolumeId: %v)",
+                id);
 
             NFS::MakeDirRecursive(storagePath, 0755);
             NFS::MakeDirRecursive(mountPath, 0755);
@@ -610,7 +634,9 @@ private:
 
             YCHECK(volumeId.Path == mountPath);
 
-            LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)", id, mountPath);
+            LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)",
+                id,
+                mountPath);
 
             TVolumeMeta volumeMeta;
             for (const auto& layer : layers) {
@@ -641,7 +667,9 @@ private:
 
             NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
-            LOG_INFO("Volume meta created (VolumeId: %v, MetaFileName: %v)", id, volumeMetaFileName);
+            LOG_INFO("Volume meta created (VolumeId: %v, MetaFileName: %v)",
+                id,
+                volumeMetaFileName);
 
             auto guard = Guard(SpinLock);
             YCHECK(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
@@ -668,12 +696,14 @@ private:
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         try {
-            LOG_DEBUG("Removing volume (VolumeId: %v)", volumeId);
+            LOG_DEBUG("Removing volume (VolumeId: %v)",
+                volumeId);
 
             WaitFor(Executor_->UnlinkVolume(volumePath, "self"))
                 .ThrowOnError();
 
-            LOG_DEBUG("Volume unlinked (VolumeId: %v)", volumeId);
+            LOG_DEBUG("Volume unlinked (VolumeId: %v)",
+                volumeId);
 
             RunTool<TRemoveDirAsRootTool>(volumePath);
             NFS::Remove(volumeMetaPath);
@@ -751,7 +781,9 @@ public:
 
     ~TLayer()
     {
-        LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v)", LayerMeta_.Id, LayerMeta_.Path);
+        LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v)",
+            LayerMeta_.Id,
+            LayerMeta_.Path);
         Location_->RemoveLayer(LayerMeta_.Id);
     }
 
@@ -776,7 +808,8 @@ public:
 
     void OnEvicted()
     {
-        LOG_DEBUG("Layer is evicted (LayerId: %v)", LayerMeta_.Id);
+        LOG_DEBUG("Layer is evicted (LayerId: %v)",
+            LayerMeta_.Id);
         Evicted_.Set();
     }
 
@@ -804,13 +837,13 @@ class TLayerCache
 public:
     TLayerCache(
         const TVolumeManagerConfigPtr& config,
-        const std::vector<TLayerLocationPtr>& layerLocations,
-        const TBootstrap* bootstrap)
+        std::vector<TLayerLocationPtr> layerLocations,
+        TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/layer_cache"))
         , Bootstrap_(bootstrap)
-        , LayerLocations_(layerLocations)
+        , LayerLocations_(std::move(layerLocations))
     {
         for (const auto& location : LayerLocations_) {
             for (const auto& layerMeta : location->GetAllLayers()) {
@@ -832,12 +865,17 @@ public:
         if (cookie.IsActive()) {
             auto& chunkCache = Bootstrap_->GetChunkCache();
 
-            LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactKey: %v)", tag, artifactKey);
+            LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactKey: %v)",
+                tag,
+                artifactKey);
 
             chunkCache->PrepareArtifact(artifactKey, Bootstrap_->GetNodeDirectory())
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<IChunkPtr>& artifactChunkOrError) mutable {
                     try {
-                        LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, Error: %v, ArtifactKey: %v)", tag, artifactChunkOrError, artifactKey);
+                        LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, Error: %v, ArtifactKey: %v)",
+                            tag,
+                            artifactChunkOrError,
+                            artifactKey);
 
                         // NB: ensure that artifact stays alive until the end of layer import.
                         const auto& artifactChunk = artifactChunkOrError.ValueOrThrow();
@@ -856,7 +894,9 @@ public:
                 // WaitFor calls inside this action can ruin context-switch-free handlers inside TJob.
                 .Via(GetCurrentInvoker()));
         } else {
-            LOG_DEBUG("Layer is already being loaded into cache (Tag: %v, ArtifactKey: %v)", tag, artifactKey);
+            LOG_DEBUG("Layer is already being loaded into cache (Tag: %v, ArtifactKey: %v)",
+                tag,
+                artifactKey);
         }
 
         return value;
@@ -868,9 +908,8 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
-
-    std::vector<TLayerLocationPtr> LayerLocations_;
+    TBootstrap* const Bootstrap_;
+    const std::vector<TLayerLocationPtr> LayerLocations_;
 
     virtual i64 GetWeight(const TLayerPtr& layer) const override
     {
@@ -901,16 +940,17 @@ class TVolumeState
 public:
     TVolumeState(
         const TVolumeMeta& meta,
-        const TPortoVolumeManagerPtr& owner,
-        const TLayerLocationPtr& location,
+        TPortoVolumeManagerPtr owner,
+        TLayerLocationPtr location,
         const std::vector<TLayerPtr>& layers)
         : VolumeMeta_(meta)
-        , Owner_(owner)
-        , Location_(location)
-        , Layers_(layers)
+        , Owner_(std::move(owner))
+        , Location_(std::move(location))
+        , Layers_(std::move(layers))
     {
         auto callback = BIND(&TVolumeState::OnLayerEvicted, MakeWeak(this));
-        for (auto& layer : Layers_) {
+        // NB: We need a copy of layers vector here since OnLayerEvicted may be invoked in-place and cause Layers_ change.
+        for (const auto& layer : layers) {
             layer->SubscribeEvicted(callback);
         }
     }
@@ -938,12 +978,12 @@ public:
         }
     }
 
-    const TString& Path() const
+    const TString& GetPath() const
     {
         return VolumeMeta_.MountPath;
     }
 
-    const std::vector<TLayerPtr>& Layers() const
+    const std::vector<TLayerPtr>& GetLayers() const
     {
         return Layers_;
     }
@@ -985,8 +1025,8 @@ class TLayeredVolume
     : public IVolume
 {
 public:
-    TLayeredVolume(const TVolumeStatePtr& volumeState)
-        : VolumeState_(volumeState)
+    explicit TLayeredVolume(TVolumeStatePtr volumeState)
+        : VolumeState_(std::move(volumeState))
     {
         if (!VolumeState_->TryAcquireLock()) {
             THROW_ERROR_EXCEPTION("Failed to lock volume state, volume is waiting to be destroyed");
@@ -1000,11 +1040,11 @@ public:
 
     virtual const TString& GetPath() const override
     {
-        return VolumeState_->Path();
+        return VolumeState_->GetPath();
     }
 
 private:
-    TVolumeStatePtr VolumeState_;
+    const TVolumeStatePtr VolumeState_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1013,7 +1053,7 @@ class TPortoVolumeManager
     : public IVolumeManager
 {
 public:
-    TPortoVolumeManager(const TVolumeManagerConfigPtr& config, const TBootstrap* bootstrap)
+    TPortoVolumeManager(const TVolumeManagerConfigPtr& config, TBootstrap* bootstrap)
         : Executor_(CreatePortoExecutor(config->PortoRetryTimeout, config->PortoPollPeriod))
     {
         // Create locations.
@@ -1048,11 +1088,13 @@ public:
         auto tag = TGuid::Create();
 
         auto createVolume = BIND([=] (const TVolumeStatePtr& volumeState) {
-            for (const auto& layer : volumeState->Layers()) {
+            for (const auto& layer : volumeState->GetLayers()) {
                 LayerCache_->Touch(layer);
             }
 
-            LOG_DEBUG("Creating new layered volume (Tag: %v, Path: %v)", tag, volumeState->Path());
+            LOG_DEBUG("Creating new layered volume (Tag: %v, Path: %v)",
+                tag,
+                volumeState->GetPath());
 
             return New<TLayeredVolume>(volumeState);
         });
@@ -1066,13 +1108,16 @@ public:
                 // Better release guard before calling Apply.
                 guard.Release();
 
-                LOG_DEBUG("Extracting volume from cache (Tag: %v, OriginalVolumeTag: %v)", tag, it->second.Tag);
+                LOG_DEBUG("Extracting volume from cache (Tag: %v, OriginalVolumeTag: %v)",
+                    tag,
+                    it->second.Tag);
 
                 return it->second.VolumeFuture
                     .Apply(createVolume)
                     .As<IVolumePtr>();
             } else {
-                LOG_DEBUG("Volume is not cached, will be created (Tag: %v)", tag);
+                LOG_DEBUG("Volume is not cached, will be created (Tag: %v)",
+                    tag);
 
                 promise = NewPromise<TVolumeStatePtr>();
                 YCHECK(Volumes_.insert(std::make_pair(volumeKey, TAsyncVolume{promise.ToFuture(), tag})).second);
@@ -1146,7 +1191,8 @@ private:
         const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
     {
         try {
-            LOG_DEBUG("All layers prepared (Tag: %v, Error: %v)", tag, errorOrLayers);
+            LOG_DEBUG(errorOrLayers, "All layers prepared (Tag: %v)",
+                tag);
 
             const auto& layers = errorOrLayers
                 .ValueOrThrow();
@@ -1167,7 +1213,9 @@ private:
                 location,
                 layers);
 
-            LOG_DEBUG("Created volume state (Tag: %v, VolumeId: %v)", tag, volumeMeta.Id);
+            LOG_DEBUG("Created volume state (Tag: %v, VolumeId: %v)",
+                tag,
+                volumeMeta.Id);
 
             volumeStatePromise.Set(volumeState);
         } catch (const std::exception& ex) {
@@ -1184,7 +1232,8 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 // This dtor is defined after TPortoVolumeManager since it calls RemoveVolume.
 TVolumeState::~TVolumeState()
 {
-    LOG_INFO("Destroying volume (VolumeId: %v)", VolumeMeta_.Id);
+    LOG_INFO("Destroying volume (VolumeId: %v)",
+        VolumeMeta_.Id);
 
     std::vector<TArtifactKey> layerKeys;
     for (const auto& layerKey : VolumeMeta_.layer_artifact_keys()) {
@@ -1201,10 +1250,10 @@ TVolumeState::~TVolumeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 IVolumeManagerPtr CreatePortoVolumeManager(
-    const TVolumeManagerConfigPtr& config,
-    const TBootstrap* bootstrap)
+    TVolumeManagerConfigPtr config,
+    TBootstrap* bootstrap)
 {
-    return New<TPortoVolumeManager>(config, bootstrap);
+    return New<TPortoVolumeManager>(std::move(config), bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

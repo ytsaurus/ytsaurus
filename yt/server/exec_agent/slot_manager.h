@@ -53,7 +53,7 @@ public:
 
 private:
     const TSlotManagerConfigPtr Config_;
-    const NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
 

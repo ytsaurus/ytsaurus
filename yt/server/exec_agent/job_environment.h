@@ -57,7 +57,7 @@ DEFINE_REFCOUNTED_TYPE(IJobEnvironment)
 
 IJobEnvironmentPtr CreateJobEnvironment(
     NYTree::INodePtr config,
-    const NCellNode::TBootstrap* bootstrap);
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
