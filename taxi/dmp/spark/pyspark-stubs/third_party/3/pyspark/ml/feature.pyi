@@ -2,12 +2,14 @@
 #
 
 from typing import overload
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypeVar
 from pyspark.ml.param.shared import *
 from pyspark.ml.util import JavaMLReadable, JavaMLWritable
 from pyspark.ml.wrapper import JavaEstimator, JavaModel,  JavaParams, JavaTransformer
 from pyspark.ml.linalg import Vector, DenseVector, DenseMatrix
 from pyspark.sql.dataframe import DataFrame
+
+T = TypeVar("T")
 
 class Binarizer(JavaTransformer, HasInputCol, HasOutputCol, JavaMLReadable, JavaMLWritable):
     threshold = ...  # type: Param
@@ -19,7 +21,7 @@ class Binarizer(JavaTransformer, HasInputCol, HasOutputCol, JavaMLReadable, Java
 class LSHParams(Params):
     numHashTables = ...  # type: Param
     def __init__(self) -> None: ...
-    def setNumHashTables(self, value: int) -> LSHParams: ...
+    def setNumHashTables(self: T, value: int) -> T: ...
     def getNumHashTables(self) -> int: ...
 
 class LSHModel(JavaModel):
