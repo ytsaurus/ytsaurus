@@ -650,7 +650,7 @@ public:
         const auto& Logger = context.Logger;
         if (Logger) {
             for (const auto& event : PullEvents()) {
-                LOG_WARNING("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
+                LOG_DEBUG("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
                     event.Type,
                     event.Duration,
                     event.Size,
