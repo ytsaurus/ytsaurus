@@ -191,7 +191,7 @@ private:
 
         auto* user = SecurityManager_->FindUserByName(UserName_);
         if (IsObjectAlive(user)) {
-            SecurityManager_->ChargeUserRead(user, 0, TotalTime_);
+            SecurityManager_->ChargeUser(user, {EUserWorkloadType::Read, 0, TotalTime_});
         }
 
         while (!Stack_.empty()) {

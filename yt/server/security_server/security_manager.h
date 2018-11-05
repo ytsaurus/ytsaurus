@@ -63,6 +63,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUserWorkload
+{
+    EUserWorkloadType Type;
+    int RequestCount;
+    TDuration Time;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSecurityManager
     : public ISecurityManager
 {
@@ -244,20 +253,20 @@ public:
      */
     void ValidateUserAccess(TUser* user);
 
-    //! Increments per-user counters.
-    void ChargeUserRead(
+    //! Called when some time has been spent processing user requests.
+    /*
+     * For read workload, increments per-user counters.
+     *
+     * For write workloadThe behavior differs at leaders and at followers:
+     * 1) At leaders, this increments per-user counters.
+     * 2) At followers, no counters are incremented (the leader is responsible for this) but
+     * the request rate throttler is acquired unconditionally.
+     *
+     * Also raises UserCharged signal.
+     */
+    void ChargeUser(
         TUser* user,
-        int requestCount,
-        TDuration time);
-
-    //! The behavior differs at leaders and at followers:
-    //! 1) At leaders, this increments per-user counters.
-    //! 2) At followers, no counters are incremented (the leader is responsible for this) but
-    //! the request rate throttler is acquired unconditionally.
-    void ChargeUserWrite(
-        TUser* user,
-        int requestCount,
-        TDuration time);
+        const TUserWorkload& workload);
 
     //! Enforces request rate limits.
     TFuture<void> ThrottleUser(
@@ -277,6 +286,10 @@ public:
     //! Unconditionally decreases the queue size for a given #user.
     void DecreaseRequestQueueSize(TUser* user);
 
+
+    //! Raised each time #ChargeUser is called.
+    DECLARE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
+
 private:
     class TImpl;
     class TAccountTypeHandler;
@@ -286,6 +299,8 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TSecurityManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

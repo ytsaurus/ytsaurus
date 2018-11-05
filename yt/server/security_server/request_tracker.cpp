@@ -71,32 +71,32 @@ void TRequestTracker::Stop()
     Reset();
 }
 
-void TRequestTracker::ChargeUserRead(
+void TRequestTracker::ChargeUser(
     TUser* user,
-    int requestCount,
-    TDuration requestTime)
+    const TUserWorkload& workload)
 {
-    DoChargeUser(user, requestCount, requestTime, TDuration());
-}
+    switch (workload.Type) {
+        case EUserWorkloadType::Read:
+            DoChargeUser(user, workload);
+            break;
+        case EUserWorkloadType::Write: {
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            if (hydraManager->IsLeader()) {
+                DoChargeUser(user, workload);
+            } else {
+                user->GetRequestRateThrottler()->Acquire(workload.RequestCount);
+            }
+            break;
+        }
+        default:
+            Y_UNREACHABLE();
 
-void TRequestTracker::ChargeUserWrite(
-    TUser* user,
-    int requestCount,
-    TDuration requestTime)
-{
-    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    if (hydraManager->IsLeader()) {
-        DoChargeUser(user, requestCount, TDuration(), requestTime);
-    } else {
-        user->GetRequestRateThrottler()->Acquire(requestCount);
     }
 }
 
 void TRequestTracker::DoChargeUser(
     TUser* user,
-    int requestCount,
-    TDuration readRequestTime,
-    TDuration writeRequestTime)
+    const TUserWorkload& workload)
 {
     YCHECK(FlushExecutor_);
 
@@ -116,9 +116,17 @@ void TRequestTracker::DoChargeUser(
     auto now = NProfiling::GetInstant();
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();
-    statistics->set_request_count(statistics->request_count() + requestCount);
-    statistics->set_read_request_time(ToProto<i64>(FromProto<TDuration>(statistics->read_request_time()) + readRequestTime));
-    statistics->set_write_request_time(ToProto<i64>(FromProto<TDuration>(statistics->write_request_time()) + writeRequestTime));
+    statistics->set_request_count(statistics->request_count() + workload.RequestCount);
+    switch (workload.Type) {
+        case EUserWorkloadType::Read:
+            statistics->set_read_request_time(ToProto<i64>(FromProto<TDuration>(statistics->read_request_time()) + workload.Time));
+            break;
+        case EUserWorkloadType::Write:
+            statistics->set_write_request_time(ToProto<i64>(FromProto<TDuration>(statistics->write_request_time()) + workload.Time));
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
     statistics->set_access_time(ToProto<i64>(now));
 }
 
