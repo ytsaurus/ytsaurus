@@ -960,8 +960,12 @@ private:
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterClient()->GetNativeConnection()->
-                GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            Bootstrap_->GetRpcServer(),
+            Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetCellDirectory()
+                ->GetDescriptorOrThrow(tabletSnapshot->CellId),
             tabletSnapshot->Config->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
@@ -1366,8 +1370,12 @@ private:
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterClient()->GetNativeConnection()->
-                GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
+            Bootstrap_->GetRpcServer(),
+            Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetCellDirectory()
+                ->GetDescriptorOrThrow(tabletSnapshot->CellId),
             tabletSnapshot->Config->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 

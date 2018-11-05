@@ -36,7 +36,7 @@ namespace {
 template <class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature || header.Signature == T::ExpectedSignatureOld,
+    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
         "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
@@ -62,10 +62,10 @@ struct TRecordInfo
 //! Tries to read one record from the file.
 //! Returns error if failed.
 template <class TInput>
-TErrorOr<TRecordInfo> TryReadRecord(TInput& input, bool oldFormat)
+TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
 {
     // COMPAT(aozeritsky): old format
-    int headerSize = oldFormat ? 16 : sizeof(TChangelogRecordHeader);
+    int headerSize = sizeof(TChangelogRecordHeader);
     if (input.Avail() < headerSize) {
         return TError("Not enough bytes available in data file to read record header: need %v, got %v",
             sizeof(TChangelogRecordHeader),
@@ -76,12 +76,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input, bool oldFormat)
     TChangelogRecordHeader header;
 
     NFS::ExpectIOErrors([&] () {
-        if (oldFormat) {
-            // COMPAT(aozeritsky): old format
-            totalSize += input.Load(&header, headerSize);
-        } else {
-            totalSize += ReadPodPadded(input, header);
-        }
+        totalSize += ReadPodPadded(input, header);
     });
 
     if (!input.Success()) {
@@ -104,8 +99,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input, bool oldFormat)
         totalSize += ReadPadded(input, data);
     });
 
-    if (!oldFormat && header.PaddingSize > 0) {
-        // COMPAT(aozeritsky): old format
+    if (header.PaddingSize > 0) {
         if (input.Avail() < header.PaddingSize) {
             return TError("Not enough bytes available in data file to read record data: need %v, got %v",
                 header.PaddingSize,
@@ -134,8 +128,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input, bool oldFormat)
 size_t ComputeValidIndexPrefix(
     const std::vector<TChangelogIndexRecord>& index,
     const TChangelogHeader& header,
-    TFileWrapper* file,
-    bool oldFormat)
+    TFileWrapper* file)
 {
     // Validate index records.
     size_t result = 0;
@@ -171,7 +164,7 @@ size_t ComputeValidIndexPrefix(
     // Truncate the last index entry if the corresponding changelog record is corrupt.
     file->Seek(index[result - 1].FilePosition, sSet);
     TCheckedReader<TFileWrapper> changelogReader(*file);
-    if (!TryReadRecord(changelogReader, oldFormat).IsOK()) {
+    if (!TryReadRecord(changelogReader).IsOK()) {
         --result;
     }
 
@@ -239,9 +232,6 @@ public:
             });
 
             ValidateSignature(header);
-
-            // COMPAT(aozeritsky): old format
-            OldFormat_ = header.Signature == header.ExpectedSignatureOld;
 
             // Read meta.
             auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
@@ -369,8 +359,6 @@ public:
         int firstRecordId,
         const std::vector<TSharedRef>& records)
     {
-        YCHECK(!OldFormat_);
-
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
@@ -513,12 +501,7 @@ public:
             {
                 // Read and check header.
                 TChangelogRecordHeader header;
-                if (OldFormat_) {
-                    // COMPAT(aozeritsky): old format
-                    inputStream.Load(&header, 16);
-                } else {
-                    ReadPodPadded(inputStream, header);
-                }
+                ReadPodPadded(inputStream, header);
 
                 if (header.RecordId != recordId) {
                     THROW_ERROR_EXCEPTION("Record data id mismatch in %v", FileName_)
@@ -532,10 +515,7 @@ public:
 
                 auto data = envelope.Blob.Slice(startOffset, endOffset);
                 inputStream.Skip(AlignUp(header.DataSize));
-                if (!OldFormat_) {
-                    // COMPAT(aozeritsky): old format
-                    inputStream.Skip(header.PaddingSize);
-                }
+                inputStream.Skip(header.PaddingSize);
 
                 auto checksum = GetChecksum(data);
                 if (header.Checksum != checksum) {
@@ -561,8 +541,6 @@ public:
 
     void Truncate(int recordCount)
     {
-        YCHECK(!OldFormat_);
-
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
@@ -725,7 +703,7 @@ private:
                 : MakeNullable(header.TruncatedRecordCount);
 
             IndexFile_.Read(truncatedRecordCount);
-            auto correctPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), header, &*dataFile, OldFormat_);
+            auto correctPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), header, &*dataFile);
             IndexFile_.TruncateInvalidRecords(correctPrefixSize);
         });
     }
@@ -769,7 +747,7 @@ private:
         if (!IndexFile_.IsEmpty()) {
             // Skip the first index record.
             // It must be correct since we have already checked the index.
-            auto recordInfoOrError = TryReadRecord(dataReader, OldFormat_);
+            auto recordInfoOrError = TryReadRecord(dataReader);
             YCHECK(recordInfoOrError.IsOK());
             const auto& recordInfo = recordInfoOrError.Value();
             RecordCount_ = IndexFile_.LastRecord().RecordId + 1;
@@ -779,7 +757,7 @@ private:
         }
 
         while (CurrentFilePosition_ < fileLength) {
-            auto recordInfoOrError = TryReadRecord(dataReader, OldFormat_);
+            auto recordInfoOrError = TryReadRecord(dataReader);
             if (!recordInfoOrError.IsOK()) {
                 if (TruncatedRecordCount_ && RecordCount_ < *TruncatedRecordCount_) {
                     THROW_ERROR_EXCEPTION("Broken record found in truncated changelog %v",
@@ -817,7 +795,7 @@ private:
             CurrentFilePosition_ += recordSize;
         }
 
-        if (TruncatedRecordCount_ || OldFormat_) {
+        if (TruncatedRecordCount_) {
             return;
         }
 
@@ -872,7 +850,6 @@ private:
 
     TError Error_;
     bool Open_ = false;
-    bool OldFormat_ = false;
     int RecordCount_ = -1;
     TNullable<int> TruncatedRecordCount_;
     i64 CurrentFilePosition_ = -1;

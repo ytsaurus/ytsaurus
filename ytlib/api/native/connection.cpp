@@ -37,6 +37,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/lease_manager.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -73,7 +74,8 @@ public:
             .AddTag("PrimaryCellTag: %v, ConnectionId: %",
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create()))
-        , ChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
+        , CachingChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
+        , ChannelFactory_(CachingChannelFactory_)
     { }
 
     void Initialize()
@@ -81,6 +83,13 @@ public:
         if (Config_->ThreadPoolSize) {
             ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
         }
+
+        TerminateIdleChannels_ = New<TPeriodicExecutor>(
+            GetInvoker(),
+            BIND(&ICachingChannelFactory::TerminateIdleChannels,
+                MakeWeak(CachingChannelFactory_),
+                Config_->IdleChannelTtl),
+            Config_->IdleChannelTtl);
 
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
@@ -350,7 +359,10 @@ private:
 
     const NLogging::TLogger Logger;
 
+    // These two fields hold reference to the same object.
+    const NRpc::ICachingChannelFactoryPtr CachingChannelFactory_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
+    TPeriodicExecutorPtr TerminateIdleChannels_;
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;

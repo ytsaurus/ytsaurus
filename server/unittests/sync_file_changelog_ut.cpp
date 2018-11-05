@@ -305,30 +305,6 @@ TEST_F(TSyncFileChangelogTest, MissingIndex)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, BackwardCompatibility)
-{
-    auto recordCount = 10;
-    auto firstRecordId = 0;
-    auto records = MakeRecords<ui32>(0, recordCount);
-
-    TChangelogHeader header(0, TChangelogHeader::NotTruncatedRecordCount, 2);
-    header.Signature = TChangelogHeader::ExpectedSignatureOld;
-    header.HeaderSize = sizeof(TChangelogHeader);
-
-    TFileWrapper file(TemporaryFile->Name(), WrOnly | CreateAlways);
-    WritePod(file, header);
-
-    for (int index = 0; index < records.size(); ++index) {
-        const auto& record = records[index];
-        TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record), 0);
-        file.Write(&header, 16);
-        WritePadded(file, record);
-    }
-
-    auto changelog = OpenChangelog();
-    CheckRead<ui32>(changelog, firstRecordId, recordCount, recordCount);
-}
-
 TEST_F(TSyncFileChangelogTest, Padding)
 {
     {

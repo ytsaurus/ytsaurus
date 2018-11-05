@@ -22,6 +22,8 @@ namespace NDataNode {
 class TSessionManager
     : public TRefCounted
 {
+    DEFINE_BYVAL_RW_PROPERTY(bool, DisableWriteSessions, false);
+
 public:
     using TSessionPtrList = SmallVector<ISessionPtr, 1>;
 

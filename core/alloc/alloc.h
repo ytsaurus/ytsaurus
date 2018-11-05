@@ -35,6 +35,10 @@ size_t YTGetSize(void* ptr);
 void EnableLogging();
 void EnableProfiling();
 
+// Calling this function enables periodic calls to madvise(ADV_STOCKPILE);
+// cf. https://st.yandex-team.ru/KERNEL-186
+void EnableStockpile();
+
 // For large blobs, YTAlloc keeps at least
 // max(LargeUnreclaimableBytes, LargeUnreclaimableCoeff * TotalLargeBytesUsed)
 // bytes of pooled (unreclaimable) memory.
@@ -105,7 +109,7 @@ DEFINE_ENUM(ETotalCounter,
     (BytesFreed)
     (BytesUsed)
     (BytesCommitted)
-    (BytesLazyFree)
+    (BytesUnaccounted)
 );
 
 // Returns statistics for all user allocations.

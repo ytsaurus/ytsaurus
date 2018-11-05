@@ -35,15 +35,17 @@ DECLARE_REFCOUNTED_STRUCT(TCompletedJob)
 DECLARE_REFCOUNTED_CLASS(TTask)
 DECLARE_REFCOUNTED_STRUCT(TTaskGroup)
 
-DECLARE_REFCOUNTED_CLASS(TAutoMergeTask);
+DECLARE_REFCOUNTED_CLASS(TAutoMergeTask)
 
 DECLARE_REFCOUNTED_STRUCT(ITaskHost)
+
+DECLARE_REFCOUNTED_STRUCT(TInputTable)
+DECLARE_REFCOUNTED_STRUCT(TOutputTable)
+DECLARE_REFCOUNTED_STRUCT(TIntermediateTable)
 
 struct IJobSplitter;
 
 struct TLivePreviewTableBase;
-struct TInputTable;
-struct TOutputTable;
 
 class TAutoMergeDirector;
 struct TJobNodeDescriptor;

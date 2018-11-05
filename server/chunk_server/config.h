@@ -139,6 +139,9 @@ public:
     //! Maximum amount of time allowed to spend during a requisition update iteration.
     TDuration MaxTimePerRequisitionUpdate;
 
+    //! Chunk requisition update finish mutations are batched within this period.
+    TDuration FinishedChunkListsRequisitionTraverseFlushPeriod;
+
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;
 
@@ -243,6 +246,8 @@ public:
             .Default(10000);
         RegisterParameter("max_time_per_requisition_update", MaxTimePerRequisitionUpdate)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("finished_chunk_lists_requisition_traverse_flush_period", FinishedChunkListsRequisitionTraverseFlushPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("max_chunks_per_seal", MaxChunksPerSeal)
             .GreaterThan(0)

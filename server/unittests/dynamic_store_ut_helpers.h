@@ -107,6 +107,11 @@ protected:
         return nullptr;
     }
 
+    virtual NRpc::IServerPtr GetLocalRpcServer() override
+    {
+        return nullptr;
+    }
+
     virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/)
     {
         return nullptr;

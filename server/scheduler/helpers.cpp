@@ -67,6 +67,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
     const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
     fluent
+        .Item("operation_id").Value(operation->GetId())
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
@@ -104,16 +105,16 @@ void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
     fluent
         .Item("state").Value(node->GetMasterState())
         .Item("resource_usage").Value(node->GetResourceUsage())
-        .Item("resource_limits").Value(node->GetResourceLimits());
+        .Item("resource_limits").Value(node->GetResourceLimits())
+        .Item("tags").Value(node->Tags());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
+EAbortReason GetAbortReason(const TError& resultError)
 {
-    auto error = FromProto<TError>(result.error());
     try {
-        return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+        return resultError.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
     } catch (const std::exception& ex) {
         // Process unknown abort reason from node.
         LOG_WARNING(ex, "Found unknown abort_reason in job result");
@@ -161,6 +162,8 @@ NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
 TListOperationsResult ListOperations(
     TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest)
 {
+    using NYT::ToProto;
+
     static const std::vector<TString> attributeKeys = {
         "state"
     };

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef NEW_INL_H_
 #error "Direct inclusion of this file is not allowed, include new.h"
+// For the sake of sane code completion.
+#include "new.h"
 #endif
 
 #include <yt/core/misc/memory_tag.h>
@@ -26,7 +28,7 @@ TRefCountedTypeKey GetRefCountedTypeKey()
 template <class T>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
-    static std::atomic<TRefCountedTypeCookie> cookie = NullRefCountedTypeCookie;
+    static std::atomic<TRefCountedTypeCookie> cookie{NullRefCountedTypeCookie};
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
@@ -39,7 +41,7 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 template <class T, class TTag, int Counter>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
 {
-    static std::atomic<TRefCountedTypeCookie> cookie = NullRefCountedTypeCookie;
+    static std::atomic<TRefCountedTypeCookie> cookie{NullRefCountedTypeCookie};
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),

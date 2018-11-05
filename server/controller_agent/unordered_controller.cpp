@@ -230,14 +230,14 @@ protected:
     void InitTeleportableInputTables()
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
-            for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic &&
-                    !InputTables[index].Path.GetColumns() &&
-                    InputTables[index].ColumnRenameDescriptors.empty())
+            for (int index = 0; index < InputTables_.size(); ++index) {
+                if (!InputTables_[index]->IsDynamic &&
+                    !InputTables_[index]->Path.GetColumns() &&
+                    InputTables_[index]->ColumnRenameDescriptors.empty())
                 {
-                    InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
-                        InputTables[index].Schema,
-                        OutputTables_[0].TableUploadOptions.TableSchema,
+                    InputTables_[index]->IsTeleportable = ValidateTableSchemaCompatibility(
+                        InputTables_[index]->Schema,
+                        OutputTables_[0]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                 }
             }
@@ -447,7 +447,7 @@ protected:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
 
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         if (Spec->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -543,7 +543,7 @@ private:
             IsJobInterruptible() &&
             Config->EnableJobSplitting &&
             Spec->EnableJobSplitting &&
-            InputTables.size() <= Options->JobSplitter->MaxInputTableCount
+            InputTables_.size() <= Options->JobSplitter->MaxInputTableCount
             ? Options->JobSplitter
             : nullptr;
     }
@@ -737,15 +737,15 @@ private:
         auto& table = OutputTables_[0];
 
         auto validateOutputNotSorted = [&] () {
-            if (table.TableUploadOptions.TableSchema.IsSorted()) {
+            if (table->TableUploadOptions.TableSchema.IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
-                    << TErrorAttribute("schema", table.TableUploadOptions.TableSchema);
+                    << TErrorAttribute("schema", table->TableUploadOptions.TableSchema);
             }
         };
 
         auto inferFromInput = [&] () {
             if (Spec->InputQuery) {
-                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
             } else {
                 InferSchemaFromInput();
             }
@@ -753,7 +753,7 @@ private:
 
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     inferFromInput();
                 } else {
                     validateOutputNotSorted();

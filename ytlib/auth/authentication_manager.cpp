@@ -1,7 +1,10 @@
 #include "authentication_manager.h"
 #include "token_authenticator.h"
+#include "ticket_authenticator.h"
 #include "cookie_authenticator.h"
 #include "default_blackbox_service.h"
+#include "caching_tvm_service.h"
+#include "default_tvm_service.h"
 
 #include <yt/ytlib/auth/config.h>
 
@@ -12,57 +15,6 @@ namespace NAuth {
 
 using namespace NApi;
 using namespace NRpc;
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::tuple<ITokenAuthenticatorPtr, ICookieAuthenticatorPtr> CreateAuthenticators(
-    TAuthenticationManagerConfigPtr config,
-    IInvokerPtr invoker,
-    NApi::IClientPtr client)
-{
-    NAuth::ICookieAuthenticatorPtr cookieAuthenticator;
-    NAuth::ITokenAuthenticatorPtr tokenAuthenticator;
-    std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
-
-    IBlackboxServicePtr blackboxService;
-    if (config->BlackboxService && invoker) {
-        blackboxService = CreateDefaultBlackboxService(
-            config->BlackboxService,
-            invoker);
-    }
-
-    if (config->BlackboxTokenAuthenticator && blackboxService) {
-        tokenAuthenticators.push_back(
-            CreateCachingTokenAuthenticator(
-                config->BlackboxTokenAuthenticator,
-                CreateBlackboxTokenAuthenticator(
-                    config->BlackboxTokenAuthenticator,
-                    blackboxService)));
-    }
-
-    if (config->CypressTokenAuthenticator && client) {
-        tokenAuthenticators.push_back(
-            CreateCachingTokenAuthenticator(
-                config->CypressTokenAuthenticator,
-                CreateCypressTokenAuthenticator(
-                    config->CypressTokenAuthenticator,
-                    client)));
-    }
-
-    if (!tokenAuthenticators.empty()) {
-        tokenAuthenticator = CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators));
-    }
-
-    if (config->BlackboxCookieAuthenticator && blackboxService) {
-        cookieAuthenticator = CreateCachingCookieAuthenticator(
-            config->BlackboxCookieAuthenticator,
-            CreateBlackboxCookieAuthenticator(
-                config->BlackboxCookieAuthenticator,
-                std::move(blackboxService)));
-    }
-
-    return std::make_pair(tokenAuthenticator, cookieAuthenticator);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,21 +29,73 @@ public:
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
-        auto authenticators = CreateAuthenticators(config, invoker, client);
-        if (std::get<0>(authenticators)) {
-            rpcAuthenticators.push_back(CreateTokenAuthenticatorWrapper(std::get<0>(authenticators)));
+        IBlackboxServicePtr blackboxService;
+        if (config->BlackboxService && invoker) {
+            blackboxService = CreateDefaultBlackboxService(
+                config->BlackboxService,
+                invoker);
         }
-        if (std::get<1>(authenticators)) {
-            rpcAuthenticators.push_back(CreateCookieAuthenticatorWrapper(std::get<1>(authenticators)));
+
+        ITvmServicePtr tvmService;
+        if (config->TvmService) {
+            tvmService = CreateCachingTvmService(
+                CreateDefaultTvmService(
+                    config->TvmService,
+                    invoker),
+                config->TvmService);
+        }
+
+        if (config->BlackboxTokenAuthenticator && blackboxService) {
+            tokenAuthenticators.push_back(
+                CreateCachingTokenAuthenticator(
+                    config->BlackboxTokenAuthenticator,
+                    CreateBlackboxTokenAuthenticator(
+                        config->BlackboxTokenAuthenticator,
+                        blackboxService)));
+        }
+
+        if (config->CypressTokenAuthenticator && client) {
+            tokenAuthenticators.push_back(
+                CreateCachingTokenAuthenticator(
+                    config->CypressTokenAuthenticator,
+                    CreateCypressTokenAuthenticator(
+                        config->CypressTokenAuthenticator,
+                        client)));
+        }
+
+        if (config->BlackboxCookieAuthenticator && blackboxService) {
+            CookieAuthenticator_ = CreateCachingCookieAuthenticator(
+                config->BlackboxCookieAuthenticator,
+                CreateBlackboxCookieAuthenticator(
+                    config->BlackboxCookieAuthenticator,
+                    blackboxService));
+            rpcAuthenticators.push_back(
+                CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
+        }
+
+        if (blackboxService && tvmService && config->BlackboxTicketAuthenticator) {
+            TicketAuthenticator_ = CreateBlackboxTicketAuthenticator(
+                config->BlackboxTicketAuthenticator,
+                blackboxService,
+                tvmService);
+            rpcAuthenticators.push_back(
+                CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
+        }
+
+        if (!tokenAuthenticators.empty()) {
+            rpcAuthenticators.push_back(CreateTokenAuthenticatorWrapper(
+                CreateCompositeTokenAuthenticator(tokenAuthenticators)));
         }
 
         if (!config->RequireAuthentication) {
-            rpcAuthenticators.push_back(CreateNoopAuthenticator());
             tokenAuthenticators.push_back(CreateNoopTokenAuthenticator());
         }
+        TokenAuthenticator_ = CreateCompositeTokenAuthenticator(tokenAuthenticators);
 
+        if (!config->RequireAuthentication) {
+            rpcAuthenticators.push_back(NRpc::CreateNoopAuthenticator());
+        }
         RpcAuthenticator_ = CreateCompositeAuthenticator(std::move(rpcAuthenticators));
-        TokenAuthenticator_= CreateCompositeTokenAuthenticator(std::move(tokenAuthenticators));
     }
     
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const
@@ -99,14 +103,26 @@ public:
         return RpcAuthenticator_;
     }
 
-    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const
+    const ITokenAuthenticatorPtr& GetTokenAuthenticator() const
     {
         return TokenAuthenticator_;
     }
 
+    const ICookieAuthenticatorPtr& GetCookieAuthenticator() const
+    {
+        return CookieAuthenticator_;
+    }
+
+    const ITicketAuthenticatorPtr& GetTicketAuthenticator() const
+    {
+        return TicketAuthenticator_;
+    }
+
 private:
     NRpc::IAuthenticatorPtr RpcAuthenticator_;
-    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
+    ITokenAuthenticatorPtr TokenAuthenticator_;
+    ICookieAuthenticatorPtr CookieAuthenticator_;
+    ITicketAuthenticatorPtr TicketAuthenticator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,9 +142,19 @@ const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() con
     return Impl_->GetRpcAuthenticator();
 }
 
-const NAuth::ITokenAuthenticatorPtr& TAuthenticationManager::GetTokenAuthenticator() const
+const ITokenAuthenticatorPtr& TAuthenticationManager::GetTokenAuthenticator() const
 {
     return Impl_->GetTokenAuthenticator();
+}
+
+const ICookieAuthenticatorPtr& TAuthenticationManager::GetCookieAuthenticator() const
+{
+    return Impl_->GetCookieAuthenticator();
+}
+
+const ITicketAuthenticatorPtr& TAuthenticationManager::GetTicketAuthenticator() const
+{
+    return Impl_->GetTicketAuthenticator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

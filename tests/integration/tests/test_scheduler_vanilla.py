@@ -283,6 +283,79 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             events_on_fs().notify_event("finish_b")
             op.track()
 
+    def test_table_output(self):
+        create("table", "//tmp/t_ab") # append = %true
+        create("table", "//tmp/t_bc") # sorted_by = [a]
+        create("table", "//tmp/t_ac") # regular
+        write_table("//tmp/t_ab", [{"a": 1}])
+        vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "output_table_paths": ["<append=%true>//tmp/t_ab", "//tmp/t_ac"],
+                        "command": "echo '{a=20}' >&1; echo '{a=9}' >&4",
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "output_table_paths": ["<sorted_by=[a]>//tmp/t_bc", "<append=%true>//tmp/t_ab"],
+                        "command": "echo '{a=7}' >&1; echo '{a=5}' >&4",
+                    },
+                    "task_c": {
+                        "job_count": 1,
+                        "output_table_paths": ["//tmp/t_ac", "<sorted_by=[a]>//tmp/t_bc"],
+                        "command": "echo '{a=3}' >&1; echo '{a=6}' >&4",
+                    }
+                }
+            })
+        assert read_table("//tmp/t_ab") in [[{"a": 1}, {"a": 20}, {"a": 5}],
+                                            [{"a": 1}, {"a": 5}, {"a": 20}]]
+        assert read_table("//tmp/t_bc") == [{"a": 6}, {"a": 7}]
+        assert read_table("//tmp/t_ac") in [[{"a": 3}, {"a": 9}],
+                                            [{"a": 9}, {"a": 3}]]
+
+    def test_format(self):
+        create("table", "//tmp/t")
+        vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "output_table_paths": ["//tmp/t"],
+                        "format": "yson",
+                        "command": "echo '{a=1}'",
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "output_table_paths": ["//tmp/t"],
+                        "format": "json",
+                        "command": "echo \"{\\\"a\\\": 2}\"",
+                    },
+                }
+            })
+        assert sorted(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
+
+    def test_attribute_validation_for_duplicated_output_tables(self):
+        create("table", "//tmp/t")
+        with pytest.raises(YtError):
+            op = vanilla(
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": "true",
+                            "output_table_paths": ["<append=%true>//tmp/t"],
+                        },
+                        "task_b": {
+                            "job_count": 1,
+                            "command": "true",
+                            "output_table_paths": ["<append=%false>//tmp/t"],
+                        },
+                    },
+                    "fail_on_job_restart": True,
+                })
+
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

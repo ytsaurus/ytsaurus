@@ -27,16 +27,7 @@ DECLARE_REFCOUNTED_CLASS(TSharedRefOutputStream)
 
 DECLARE_REFCOUNTED_CLASS(TContext)
 
-DEFINE_ENUM(EContentEncoding,
-    (None)
-    (Gzip)
-    (Deflate)
-    (Lzop)
-    (Lzo)
-    (Lzf)
-    (Snappy)
-    (Brotli)
-);
+typedef TString TContentEncoding;
 
 ////////////////////////////////////////////////////////////////////////////////
 

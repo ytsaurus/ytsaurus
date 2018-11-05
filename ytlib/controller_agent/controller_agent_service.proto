@@ -207,3 +207,17 @@ message TRspUnregisterOperation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateOperationRuntimeParameters
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+
+    required bytes parameters = 3;
+}
+
+message TRspUpdateOperationRuntimeParameters
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

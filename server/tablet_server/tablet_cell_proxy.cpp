@@ -167,12 +167,14 @@ private:
                 return true;
 
             case EInternedAttributeKey::Health:
-                if (!Bootstrap_->IsPrimaryMaster() || !Bootstrap_->IsMulticell()) {
+                if (Bootstrap_->IsMulticell()) {
+                    BuildYsonFluently(consumer)
+                        .Value(cell->GetMulticellHealth());
+                } else {
                     BuildYsonFluently(consumer)
                         .Value(cell->GetHealth());
-                    return true;
                 }
-                break;
+                return true;
 
             case EInternedAttributeKey::Peers:
                 BuildYsonFluently(consumer)
@@ -281,37 +283,6 @@ private:
         const auto* cell = GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::Health: {
-                YCHECK(Bootstrap_->IsPrimaryMaster());
-
-                auto health = cell->GetHealth();
-                return FetchFromSwarm<ETabletCellHealth>(key)
-                    .Apply(BIND([health] (const std::vector<ETabletCellHealth>& remoteHealths) mutable {
-                        auto combineHealths = [] (auto lhs, auto rhs) {
-                            static constexpr std::array<ETabletCellHealth, 4> HealthOrder{{
-                                ETabletCellHealth::Failed,
-                                ETabletCellHealth::Degraded,
-                                ETabletCellHealth::Initializing,
-                                ETabletCellHealth::Good}};
-
-                            for (auto health : HealthOrder) {
-                                if (lhs == health || rhs == health) {
-                                    return health;
-                                }
-                            }
-
-                            return ETabletCellHealth::Failed;
-                        };
-
-                        for (auto remoteHealth : remoteHealths) {
-                            health = combineHealths(health, remoteHealth);
-                        }
-
-                        return ConvertToYsonString(health);
-                    })
-                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-            }
-
             case EInternedAttributeKey::TabletCount: {
                 YCHECK(Bootstrap_->IsPrimaryMaster());
 

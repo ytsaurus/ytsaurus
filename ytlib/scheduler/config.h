@@ -153,6 +153,8 @@ public:
 
     ESchedulingMode EphemeralSubpoolsMode;
 
+    THashSet<TString> AllowedProfilingTags;
+
     TPoolConfig();
 
     void Validate();
@@ -242,6 +244,8 @@ public:
     TTentativeTreeEligibilityConfigPtr TentativeTreeEligibility;
 
     int UpdatePreemptableJobsListLoggingPeriod;
+
+    TNullable<TString> CustomProfilingTag;
 
     TStrategyOperationSpec();
 
@@ -379,6 +383,7 @@ public:
     EUnavailableChunkAction UnavailableChunkTactics;
 
     i64 MaxDataWeightPerJob;
+    i64 MaxPrimaryDataWeightPerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -404,6 +409,9 @@ public:
     //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
+
+    //! This flag enables secure vault variables in job shell.
+    bool EnableSecureVaultVariablesInJobShell;
 
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
@@ -434,7 +442,7 @@ public:
     //! but leads to an 12x memory consumption in controller at worst case scenario.
     bool SliceErasureChunksByParts;
 
-    //! Controls operation storage mode.
+    //! Controls operation storage mode. UNUSED.
     bool EnableCompatibleStorageMode;
 
     //! Option controlling the presence of a legacy live preview.
@@ -460,6 +468,10 @@ public:
     bool FailOnAllNodesBanned;
 
     TSamplingConfigPtr Sampling;
+
+    //! If set, operation will be accessible through the scheduler API calls under this name
+    //! (it should start with an asterisk).
+    TNullable<TString> Alias;
 
     TOperationSpecBase();
 
@@ -540,6 +552,8 @@ public:
     int JobCount;
 
     TJobIOConfigPtr JobIO;
+
+    std::vector<NYPath::TRichYPath> OutputTablePaths;
 
     TVanillaTaskSpec();
 };

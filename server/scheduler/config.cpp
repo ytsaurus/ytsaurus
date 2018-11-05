@@ -105,6 +105,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
         .Default(true);
 
+    RegisterParameter("custom_profiling_tag_filter", CustomProfilingTagFilter)
+        .Default();
+
     RegisterParameter("threshold_to_enable_max_possible_usage_regularization", ThresholdToEnableMaxPossibleUsageRegularization)
         .InRange(0.0, 1.0)
         .Default(0.5);
@@ -254,6 +257,9 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
 
     RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
         .Default(10_GB);
+
+    RegisterParameter("memory_balanced_pick_strategy_score_power", MemoryBalancedPickStrategyScorePower)
+        .Default(1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

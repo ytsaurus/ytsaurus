@@ -4,6 +4,8 @@
 #include "storage_read_job.h"
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
 #include <Common/Exception.h>
@@ -30,7 +32,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -41,10 +44,10 @@ class TGetTable
     : public ITableFunction
 {
 private:
-    const NInterop::IStoragePtr Storage;
+    const NNative::IStoragePtr Storage;
 
 public:
-    TGetTable(NInterop::IStoragePtr storage)
+    TGetTable(NNative::IStoragePtr storage)
         : Storage(std::move(storage))
     {}
 
@@ -102,10 +105,10 @@ class TGetTableParts
     : public ITableFunction
 {
 private:
-    const NInterop::IStoragePtr Storage;
+    const NNative::IStoragePtr Storage;
 
 public:
-    TGetTableParts(NInterop::IStoragePtr storage)
+    TGetTableParts(NNative::IStoragePtr storage)
         : Storage(std::move(storage))
     {}
 
@@ -204,10 +207,10 @@ class TGetTableData
     : public ITableFunction
 {
 private:
-    const NInterop::IStoragePtr Storage;
+    const NNative::IStoragePtr Storage;
 
 public:
-    TGetTableData(NInterop::IStoragePtr storage)
+    TGetTableData(NNative::IStoragePtr storage)
         : Storage(std::move(storage))
     {}
 
@@ -265,7 +268,7 @@ StoragePtr TGetTableData::Execute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterTableFunctionsExt(NInterop::IStoragePtr storage)
+void RegisterTableFunctionsExt(NNative::IStoragePtr storage)
 {
     auto& factory = TableFunctionFactory::instance();
 
@@ -285,5 +288,8 @@ void RegisterTableFunctionsExt(NInterop::IStoragePtr storage)
         );
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

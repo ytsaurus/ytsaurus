@@ -2,13 +2,16 @@
 
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/document.h>
+
 #include <Common/Exception.h>
 
 #include <util/string/cast.h>
 #include <util/string/split.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,10 +19,10 @@ class TDocumentConfig
     : public Poco::Util::AbstractConfiguration
 {
 private:
-    NInterop::IDocumentPtr Document;
+    NNative::IDocumentPtr Document;
 
 public:
-    TDocumentConfig(NInterop::IDocumentPtr document)
+    TDocumentConfig(NNative::IDocumentPtr document)
         : Document(std::move(document))
     {}
 
@@ -28,36 +31,36 @@ public:
     void enumerate(const std::string& key, Keys& range) const override;
 
 private:
-    static NInterop::TDocumentPath ToPath(const std::string& key);
-    static std::string RepresentAsString(const NInterop::TValue& value);
+    static NNative::TDocumentPath ToPath(const std::string& key);
+    static std::string RepresentAsString(const NNative::TValue& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::TDocumentPath TDocumentConfig::ToPath(const std::string& key)
+NNative::TDocumentPath TDocumentConfig::ToPath(const std::string& key)
 {
     TVector<TString> keys;
     Split(ToString(key), ".", keys);
     return { keys.begin(), keys.end() };
 }
 
-std::string TDocumentConfig::RepresentAsString(const NInterop::TValue& value)
+std::string TDocumentConfig::RepresentAsString(const NNative::TValue& value)
 {
     switch (value.Type) {
-        case NInterop::EValueType::Int:
+        case NNative::EClickHouseValueType::Int:
             return std::to_string(value.Int);
-        case NInterop::EValueType::UInt:
+        case NNative::EClickHouseValueType::UInt:
             return std::to_string(value.UInt);
-        case NInterop::EValueType::Float:
+        case NNative::EClickHouseValueType::Float:
             return std::to_string(value.Float);
-        case NInterop::EValueType::Boolean:
+        case NNative::EClickHouseValueType::Boolean:
             return value.Boolean ? "true" : "false";
-        case NInterop::EValueType::String:
+        case NNative::EClickHouseValueType::String:
             return { value.String, value.Length };
         default:
             throw Poco::Exception(
                 "Cannot represent document value as string: "
-                "unsupported value type: " + ToStdString(::ToString(value.Type)));
+                "unsupported value type: " + ToStdString(::ToString(static_cast<int>(value.Type))));
     }
 
     Y_UNREACHABLE();
@@ -96,11 +99,13 @@ void TDocumentConfig::enumerate(const std::string& key, Keys& range) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Util::AbstractConfiguration> CreateDocumentConfig(
-    NInterop::IDocumentPtr document)
+Poco::AutoPtr<Poco::Util::AbstractConfiguration> CreateDocumentConfig(NNative::IDocumentPtr document)
 {
     return new TDocumentConfig(std::move(document));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

@@ -1,6 +1,8 @@
 #pragma once
 #ifndef TRANSACTION_DETAIL_INL_H_
 #error "Direct inclusion of this file is not allowed, include transaction_detail.h"
+// For the sake of sane code completion.
+#include "transaction_detail.h"
 #endif
 
 namespace NYT {

@@ -21,6 +21,8 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/client/scheduler/operation_id_or_alias.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/client/table_client/name_table.h>
@@ -51,6 +53,7 @@ using namespace NAuth;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
+using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYPath;
 
@@ -870,6 +873,7 @@ private:
             tableMountCache->GetTableInfo(path),
             [] (const auto& context, const TTableMountInfoPtr& tableMountInfo) {
                 auto* response = &context->Response();
+
                 ToProto(response->mutable_table_id(), tableMountInfo->TableId);
                 const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
                 ToProto(response->mutable_schema(), primarySchema);
@@ -1156,6 +1160,9 @@ private:
         if (request->has_mutating_options()) {
             FromProto(&options, request->mutating_options());
         }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
 
         context->SetRequestInfo("Path: %v",
             path);
@@ -1416,6 +1423,7 @@ private:
         if (request->has_cell_id()) {
             FromProto(&options.CellId, request->cell_id());
         }
+        FromProto(&options.TargetCellIds, request->target_cell_ids());
         if (request->has_freeze()) {
             options.Freeze = request->freeze();
         }
@@ -1721,7 +1729,8 @@ private:
             return;
         }
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        NScheduler::FromProto(&operationIdOrAlias, *request);
 
         TAbortOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1729,13 +1738,13 @@ private:
             options.AbortMessage = request->abort_message();
         }
 
-        context->SetRequestInfo("OperationId: %v, AbortMessage: %v",
-            operationId,
+        context->SetRequestInfo("%v, AbortMessage: %v",
+            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
             options.AbortMessage);
 
         CompleteCallWith(
             context,
-            client->AbortOperation(operationId, options));
+            client->AbortOperation(operationIdOrAlias, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendOperation)
@@ -1745,7 +1754,8 @@ private:
             return;
         }
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        NScheduler::FromProto(&operationIdOrAlias, *request);
 
         TSuspendOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1753,13 +1763,13 @@ private:
             options.AbortRunningJobs = request->abort_running_jobs();
         }
 
-        context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
-            operationId,
+        context->SetRequestInfo("%v, AbortRunningJobs: %v",
+            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
             options.AbortRunningJobs);
 
         CompleteCallWith(
             context,
-            client->SuspendOperation(operationId, options));
+            client->SuspendOperation(operationIdOrAlias, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeOperation)
@@ -1769,15 +1779,17 @@ private:
             return;
         }
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        NScheduler::FromProto(&operationIdOrAlias, *request);
+
         TResumeOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         CompleteCallWith(
             context,
-            client->ResumeOperation(operationId, options));
+            client->ResumeOperation(operationIdOrAlias, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CompleteOperation)
@@ -1787,15 +1799,17 @@ private:
             return;
         }
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        NScheduler::FromProto(&operationIdOrAlias, *request);
+
         TCompleteOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         CompleteCallWith(
             context,
-            client->CompleteOperation(operationId, options));
+            client->CompleteOperation(operationIdOrAlias, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UpdateOperationParameters)
@@ -1805,20 +1819,22 @@ private:
             return;
         }
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        NScheduler::FromProto(&operationIdOrAlias, *request);
+
         auto parameters = TYsonString(request->parameters());
 
         TUpdateOperationParametersOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationId: %v, Parameters: %v",
-            operationId,
+        context->SetRequestInfo("%v, Parameters: %v",
+            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
             parameters);
 
         CompleteCallWith(
             context,
             client->UpdateOperationParameters(
-                operationId,
+                operationIdOrAlias,
                 parameters,
                 options));
     }
@@ -1830,7 +1846,8 @@ private:
             return;
         }
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        TOperationIdOrAlias operationIdOrAlias = TOperationId();
+        NScheduler::FromProto(&operationIdOrAlias, *request);
 
         TGetOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1849,13 +1866,13 @@ private:
         }
         options.IncludeRuntime = request->include_runtime();
 
-        context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v",
-            operationId,
+        context->SetRequestInfo("%v, IncludeRuntime: %v",
+            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
             options.IncludeRuntime);
 
         CompleteCallWith(
             context,
-            client->GetOperation(operationId, options),
+            client->GetOperation(operationIdOrAlias, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_meta(result.GetData());

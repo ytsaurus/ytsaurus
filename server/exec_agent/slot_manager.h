@@ -37,6 +37,7 @@ public:
     void ReleaseSlot(int slotIndex);
 
     int GetSlotCount() const;
+    int GetUsedSlotCount() const;
 
     bool IsEnabled() const;
 
@@ -61,7 +62,6 @@ private:
 
     IJobEnvironmentPtr JobEnvironment_;
 
-    TSpinLock SpinLock_;
     THashSet<int> FreeSlots_;
 
     bool JobProxySocketNameDirectoryCreated_ = false;

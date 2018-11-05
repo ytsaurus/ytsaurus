@@ -587,7 +587,7 @@ TAbortOperationCommand::TAbortOperationCommand()
 
 void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->AbortOperation(OperationId, Options))
+    WaitFor(context->GetClient()->AbortOperation(OperationIdOrAlias, Options))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -603,7 +603,7 @@ TSuspendOperationCommand::TSuspendOperationCommand()
 
 void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->SuspendOperation(OperationId, Options))
+    WaitFor(context->GetClient()->SuspendOperation(OperationIdOrAlias, Options))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -613,7 +613,7 @@ void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
 
 void TResumeOperationCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->ResumeOperation(OperationId))
+    WaitFor(context->GetClient()->ResumeOperation(OperationIdOrAlias))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -623,7 +623,7 @@ void TResumeOperationCommand::DoExecute(ICommandContextPtr context)
 
 void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->CompleteOperation(OperationId))
+    WaitFor(context->GetClient()->CompleteOperation(OperationIdOrAlias))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
@@ -633,14 +633,13 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 
 TUpdateOperationParametersCommand::TUpdateOperationParametersCommand()
 {
-    RegisterParameter("operation_id", OperationId);
     RegisterParameter("parameters", Parameters);
 }
 
 void TUpdateOperationParametersCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->UpdateOperationParameters(
-        OperationId,
+        OperationIdOrAlias,
         ConvertToYsonString(Parameters),
         Options);
 
@@ -652,7 +651,6 @@ void TUpdateOperationParametersCommand::DoExecute(ICommandContextPtr context)
 
 TGetOperationCommand::TGetOperationCommand()
 {
-    RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();
     RegisterParameter("include_runtime", Options.IncludeRuntime)
@@ -662,7 +660,7 @@ TGetOperationCommand::TGetOperationCommand()
 
 void TGetOperationCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->GetOperation(OperationId, Options);
+    auto asyncResult = context->GetClient()->GetOperation(OperationIdOrAlias, Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 

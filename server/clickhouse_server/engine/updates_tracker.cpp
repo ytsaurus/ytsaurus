@@ -4,10 +4,14 @@
 
 #include <Poco/Exception.h>
 
+#include <yt/server/clickhouse_server/native/objects.h>
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <util/generic/maybe.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,16 +19,16 @@ class TUpdatesTracker
     : public IUpdatesTracker
 {
 private:
-    NInterop::IStoragePtr Storage;
-    NInterop::IAuthorizationTokenPtr Token;
+    NNative::IStoragePtr Storage;
+    NNative::IAuthorizationTokenPtr Token;
     std::string Path;
 
-    TMaybe<NInterop::TRevision> FixedRevision;
+    TMaybe<NNative::TRevision> FixedRevision;
 
 public:
     TUpdatesTracker(
-        NInterop::IStoragePtr storage,
-        NInterop::IAuthorizationTokenPtr token,
+        NNative::IStoragePtr storage,
+        NNative::IAuthorizationTokenPtr token,
         std::string path)
         : Storage(std::move(storage))
         , Token(std::move(token))
@@ -35,7 +39,7 @@ public:
     void FixCurrentVersion() override;
 
 private:
-    TMaybe<NInterop::TRevision> GetCurrentRevision() const;
+    TMaybe<NNative::TRevision> GetCurrentRevision() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +63,7 @@ void TUpdatesTracker::FixCurrentVersion()
     FixedRevision = currentRevision;
 }
 
-TMaybe<NInterop::TRevision> TUpdatesTracker::GetCurrentRevision() const
+TMaybe<NNative::TRevision> TUpdatesTracker::GetCurrentRevision() const
 {
     return Storage->GetObjectRevision(*Token, ToString(Path), /*throughCache=*/ true);
 }
@@ -67,8 +71,8 @@ TMaybe<NInterop::TRevision> TUpdatesTracker::GetCurrentRevision() const
 ////////////////////////////////////////////////////////////////////////////////
 
 IUpdatesTrackerPtr CreateUpdatesTracker(
-    NInterop::IStoragePtr storage,
-    NInterop::IAuthorizationTokenPtr token,
+    NNative::IStoragePtr storage,
+    NNative::IAuthorizationTokenPtr token,
     const std::string& path)
 {
     return std::make_unique<TUpdatesTracker>(
@@ -77,5 +81,8 @@ IUpdatesTrackerPtr CreateUpdatesTracker(
         path);
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

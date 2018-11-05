@@ -82,7 +82,7 @@ TDuration TTableReplica::ComputeReplicationLagTime(TTimestamp latestTimestamp) c
     return result;
 }
 
-std::vector<TError> TTableReplica::GetErrors() const
+std::vector<TError> TTableReplica::GetErrors(TNullable<int> limit) const
 {
     std::vector<TError> errors;
     errors.reserve(Table_->Tablets().size());
@@ -91,6 +91,9 @@ std::vector<TError> TTableReplica::GetErrors() const
         const auto& error = replicaInfo->Error();
         if (!error.IsOK()) {
             errors.push_back(error);
+            if (limit && errors.size() >= *limit) {
+                break;
+            }
         }
     }
     return errors;

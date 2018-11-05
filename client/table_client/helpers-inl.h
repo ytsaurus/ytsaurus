@@ -1,6 +1,8 @@
 #pragma once
 #ifndef HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include helpers.h"
+// For the sake of sane code completion.
+#include "helpers.h"
 #endif
 
 #include "row_buffer.h"
@@ -52,7 +54,7 @@ void FromUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValueImpl(
+void ProtobufToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const google::protobuf::Message& value,
     const NYson::TProtobufMessageType* type,
@@ -67,7 +69,7 @@ void ToUnversionedValue(
     int id,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    ToUnversionedValueImpl(
+    ProtobufToUnversionedValueImpl(
         unversionedValue,
         value,
         NYson::ReflectProtobufMessageType<T>(),
@@ -75,7 +77,9 @@ void ToUnversionedValue(
         id);
 }
 
-void FromUnversionedValueImpl(
+////////////////////////////////////////////////////////////////////////////////
+
+void UnversionedValueToListImpl(
     google::protobuf::Message* value,
     const NYson::TProtobufMessageType* type,
     TUnversionedValue unversionedValue);
@@ -86,7 +90,7 @@ void FromUnversionedValue(
     TUnversionedValue unversionedValue,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    FromUnversionedValueImpl(
+    UnversionedValueToListImpl(
         value,
         NYson::ReflectProtobufMessageType<T>(),
         unversionedValue);
@@ -123,7 +127,7 @@ void FromUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValueImpl(
+void ListToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
@@ -137,7 +141,7 @@ void ToUnversionedValue(
     int id)
 {
     size_t index = 0;
-    ToUnversionedValueImpl(
+    ListToUnversionedValueImpl(
         unversionedValue,
         [&] (TUnversionedValue* itemValue) mutable -> bool {
             if (index == values.size()) {
@@ -150,7 +154,7 @@ void ToUnversionedValue(
         id);
 }
 
-void FromUnversionedValueImpl(
+void UnversionedValueToListImpl(
     std::function<google::protobuf::Message*()> appender,
     const NYson::TProtobufMessageType* type,
     TUnversionedValue unversionedValue);
@@ -162,7 +166,7 @@ void FromUnversionedValue(
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
     values->clear();
-    FromUnversionedValueImpl(
+    UnversionedValueToListImpl(
         [&] {
             values->emplace_back();
             return &values->back();
@@ -171,7 +175,7 @@ void FromUnversionedValue(
         unversionedValue);
 }
 
-void FromUnversionedValueImpl(
+void UnversionedValueToListImpl(
     std::function<void(TUnversionedValue)> appender,
     TUnversionedValue unversionedValue);
 
@@ -182,13 +186,67 @@ void FromUnversionedValue(
     typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type*)
 {
     values->clear();
-    FromUnversionedValueImpl(
+    UnversionedValueToListImpl(
         [&] (TUnversionedValue itemValue) {
             values->emplace_back();
             FromUnversionedValue(&values->back(), itemValue);
         },
         unversionedValue);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MapToUnversionedValueImpl(
+    TUnversionedValue* unversionedValue,
+    const std::function<bool(TString*, TUnversionedValue*)> producer,
+    const TRowBufferPtr& rowBuffer,
+    int id);
+
+template <class TKey, class TValue>
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const THashMap<TKey, TValue>& map,
+    const TRowBufferPtr& rowBuffer,
+    int id)
+{
+    auto it = map.begin();
+    MapToUnversionedValueImpl(
+        unversionedValue,
+        [&] (TString* itemKey, TUnversionedValue* itemValue) mutable -> bool {
+            if (it == map.end()) {
+                return false;
+            }
+            *itemKey = ToString(it->first);
+            ToUnversionedValue(itemValue, it->second, rowBuffer);
+            ++it;
+            return true;
+        },
+        rowBuffer,
+        id);
+}
+
+void UnversionedValueToMapImpl(
+    std::function<google::protobuf::Message*(TString)> appender,
+    const NYson::TProtobufMessageType* type,
+    TUnversionedValue unversionedValue);
+
+template <class TKey, class TValue>
+void FromUnversionedValue(
+    THashMap<TKey, TValue>* map,
+    TUnversionedValue unversionedValue,
+    typename std::enable_if<std::is_convertible<TValue*, ::google::protobuf::Message*>::value, void>::type*)
+{
+    map->clear();
+    UnversionedValueToMapImpl(
+        [&] (TString key) {
+            auto pair = map->insert(std::make_pair(FromString<TKey>(std::move(key)), TValue()));
+            return &pair.first->second;
+        },
+        NYson::ReflectProtobufMessageType<TValue>(),
+        unversionedValue);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Index, class... Ts>
 struct TToUnversionedValuesTraits;

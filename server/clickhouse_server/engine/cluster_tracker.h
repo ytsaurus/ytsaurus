@@ -2,9 +2,7 @@
 
 #include "cluster_nodes.h"
 
-#include <yt/server/clickhouse_server/interop/directory.h>
-
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/directory.h>
 
 #include <Interpreters/Context.h>
 
@@ -13,11 +11,12 @@
 #include <functional>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TClusterNodeTicket = NInterop::IEphemeralNodeKeeperPtr;
+using TClusterNodeTicket = NNative::IEphemeralNodeKeeperPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,10 +48,13 @@ using IExecutionClusterPtr = IClusterNodeTrackerPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
-    NInterop::ICoordinationServicePtr coordinationService,
-    NInterop::IAuthorizationTokenPtr authToken,
+    NNative::ICoordinationServicePtr coordinationService,
+    NNative::IAuthorizationTokenPtr authToken,
     const std::string directoryPath,
     uint64_t clickhousePort);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

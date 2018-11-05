@@ -231,6 +231,7 @@ THttpInput::THttpInput(
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(Config_->ReadBufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
     , StartByteCount_(connection->GetReadByteCount())
+    , StartStatistics_(connection->GetReadStatistics())
     , LastProgressLogTime_(TInstant::Now())
     , ReadInvoker_(readInvoker)
 { }
@@ -324,6 +325,7 @@ void THttpInput::Reset()
     LastProgressLogTime_ = TInstant::Now();
 
     StartByteCount_ = Connection_->GetReadByteCount();
+    StartStatistics_ = Connection_->GetReadStatistics();
 }
 
 void THttpInput::FinishHeaders()
@@ -395,10 +397,13 @@ void THttpInput::FinishMessage()
 {
     SafeToReuse_ = Parser_.ShouldKeepAlive();
 
+    auto stats = Connection_->GetReadStatistics();
     if (MessageType_ == EMessageType::Request) {
-        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d, Keep-Alive: %v)",
+        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
             RequestId_,
             GetReadByteCount(),
+            stats.IdleDuration - StartStatistics_.IdleDuration,
+            stats.BusyDuration - StartStatistics_.BusyDuration,
             Parser_.ShouldKeepAlive());
     }
 }
@@ -493,6 +498,7 @@ THttpOutput::THttpOutput(
     , Config_(config)
     , OnWriteFinish_(BIND(&THttpOutput::OnWriteFinish, MakeWeak(this)))
     , StartByteCount_(connection->GetWriteByteCount())
+    , StartStatistics_(connection->GetWriteStatistics())
     , LastProgressLogTime_(TInstant::Now())
     , Headers_(headers)
 { }
@@ -550,6 +556,7 @@ bool THttpOutput::IsSafeToReuse() const
 void THttpOutput::Reset()
 {
     StartByteCount_ = Connection_->GetWriteByteCount();
+    StartStatistics_ = Connection_->GetWriteStatistics();
     HeadersLogged_ = false;
 
     ConnectionClose_ = false;
@@ -746,10 +753,13 @@ void THttpOutput::OnWriteFinish()
     Connection_->SetWriteDeadline({});
 
     auto now = TInstant::Now();
+    auto stats = Connection_->GetWriteStatistics();
     if (LastProgressLogTime_ + Config_->WriteIdleTimeout < now) {
-        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %d)",
+        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %d, IdleDuration: %v, BusyDuration: %v)",
             RequestId_,
-            GetWriteByteCount());
+            GetWriteByteCount(),
+            stats.IdleDuration - StartStatistics_.IdleDuration,
+            stats.BusyDuration - StartStatistics_.BusyDuration);
         LastProgressLogTime_ = now;
     }
 

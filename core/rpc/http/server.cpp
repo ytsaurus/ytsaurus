@@ -238,7 +238,8 @@ private:
 
         const auto& httpHeaders = req->GetHeaders();
 
-        auto contentTypeString = httpHeaders->Find("Content-Type");
+        static const TString ContentTypeHeaderName("Content-Type");
+        auto contentTypeString = httpHeaders->Find(ContentTypeHeaderName);
         if (contentTypeString) {
             auto decodedType = FromHttpContentType(*contentTypeString);
             if (!decodedType) {
@@ -248,7 +249,8 @@ private:
             rpcHeader->set_request_format(static_cast<i32>(*decodedType));
         }
 
-        auto acceptString = httpHeaders->Find("Accept");
+        static const TString AcceptHeaderName("Accept");
+        auto acceptString = httpHeaders->Find(AcceptHeaderName);
         if (acceptString) {
             auto decodedType = FromHttpContentType(*acceptString);
             if (!decodedType) {
@@ -258,7 +260,8 @@ private:
             rpcHeader->set_response_format(static_cast<i32>(*decodedType));
         }
 
-        auto requestIdString = httpHeaders->Find("X-YT-Request-Id");
+        static const TString RequestIdHeaderName("X-YT-Request-Id");
+        auto requestIdString = httpHeaders->Find(RequestIdHeaderName);
         TRequestId requestId;
         if (requestIdString) {
             if (!TRequestId::FromString(*requestIdString, &requestId)) {
@@ -274,7 +277,8 @@ private:
             return rpcHeader->MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         };
 
-        auto authorizationString = httpHeaders->Find("Authorization");
+        static const TString AuthorizationHeaderName("Authorization");
+        auto authorizationString = httpHeaders->Find(AuthorizationHeaderName);
         if (authorizationString) {
             const auto Prefix = AsStringBuf("OAuth ");
             if (!authorizationString->StartsWith(Prefix)) {
@@ -283,20 +287,32 @@ private:
             getCredentialsExt()->set_token(TrimLeadingWhitespaces(authorizationString->substr(Prefix.length())));
         }
 
-        auto cookieString = httpHeaders->Find("Cookie");
+        static const TString UserTicketHeaderName("X-Ya-User-Ticket");
+        auto userTicketString = httpHeaders->Find(UserTicketHeaderName);
+        if (userTicketString) {
+            getCredentialsExt()->set_user_ticket(TrimLeadingWhitespaces(*userTicketString));
+        }
+
+        static const TString CookieHeaderName("Cookie");
+        auto cookieString = httpHeaders->Find(CookieHeaderName);
         if (cookieString) {
             auto cookieMap = ParseCookies(*cookieString);
-            auto sessionIdIt = cookieMap.find("Session_id");
+
+            static const TString SessionIdCookieName("Session_id");
+            auto sessionIdIt = cookieMap.find(SessionIdCookieName);
             if (sessionIdIt != cookieMap.end()) {
                 getCredentialsExt()->set_session_id(sessionIdIt->second);
             }
-            auto sslSessionIdIt = cookieMap.find("sessionid2");
+
+            static const TString SessionId2CookieName("sessionid2");
+            auto sslSessionIdIt = cookieMap.find(SessionId2CookieName);
             if (sslSessionIdIt != cookieMap.end()) {
                 getCredentialsExt()->set_ssl_session_id(sslSessionIdIt->second);
             }
         }
 
-        auto userAgent = httpHeaders->Find("User-Agent");
+        static const TString UserAgentHeaderName("User-Agent");
+        auto userAgent = httpHeaders->Find(UserAgentHeaderName);
         if (userAgent) {
             rpcHeader->set_user_agent(*userAgent);
         }

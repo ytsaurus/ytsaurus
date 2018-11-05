@@ -1,6 +1,8 @@
 #pragma once
 #ifndef CALLBACK_INTERNAL_INL_H_
 #error "Direct inclusion of this file is not allowed, include callback_internal.h"
+// For the sake of sane code completion.
+#include "callback_internal.h"
 #endif
 #undef CALLBACK_INTERNAL_INL_H_
 

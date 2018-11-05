@@ -141,7 +141,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     auto* userAttributes = node->GetMutableAttributes();
     userAttributes->Attributes()[key] = value;
 
-    cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+    Proxy_->SetModified();
 }
 
 bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
@@ -185,7 +185,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
         userAttributes->Attributes()[key] = TYsonString();
     }
 
-    cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+    Proxy_->SetModified();
     return true;
 }
 
@@ -1316,9 +1316,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     ToProto(response->mutable_node_id(), newNode->GetId());
     response->set_cell_tag(newNodeCellTag);
 
-    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+    context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
         newNodeId,
-        newNodeCellTag);
+        newNodeCellTag,
+        newNode->GetAccount()->GetName());
 
     context->Reply();
 }

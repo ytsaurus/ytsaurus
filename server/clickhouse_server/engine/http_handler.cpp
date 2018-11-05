@@ -11,10 +11,10 @@
 #include <Poco/URI.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,5 +98,8 @@ Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(IServer& serv
     return new THttpHandlerFactory(server);
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

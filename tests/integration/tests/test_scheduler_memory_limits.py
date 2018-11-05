@@ -190,7 +190,7 @@ while len(a) * 100000 < 7e7:
                     event["statistics"]["user_job"]["max_memory"]["sum"]
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert not last_memory_reserve is None
-        assert 6e7 <= last_memory_reserve <= 10e7
+        assert 5e7 <= last_memory_reserve <= 10e7
 
 @patch_porto_env_only(TestMemoryReserveFactor)
 class TestMemoryReserveFactorPorto(YTEnvSetup):

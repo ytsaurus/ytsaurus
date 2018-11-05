@@ -493,7 +493,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         case ETableChunkFormat::SchemalessHorizontal: {
             // COMPAT(sandello): Fix me.
             if (produceAllVersions && timestamp != AllCommittedTimestamp) {
-                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp")
+                    << TErrorAttribute("chunk_id", chunkState->ChunkMeta->GetChunkId());
             }
             auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
@@ -521,7 +522,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         case ETableChunkFormat::VersionedColumnar: {
             // COMPAT(sandello): Fix me.
             if (produceAllVersions && timestamp != AllCommittedTimestamp) {
-                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp")
+                    << TErrorAttribute("chunk_id", chunkState->ChunkMeta->GetChunkId());
             }
             auto underlyingReader = CreateCacheReader(
                 chunkState->ChunkMeta->GetChunkId(),
@@ -676,7 +678,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         case ETableChunkFormat::SchemalessHorizontal: {
             // COMPAT(sandello): Fix me.
             if (produceAllVersions && timestamp != AllCommittedTimestamp) {
-                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp")
+                    << TErrorAttribute("chunk_id", chunkState->ChunkMeta->GetChunkId());
             }
             auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
@@ -702,7 +705,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         case ETableChunkFormat::VersionedColumnar: {
             // COMPAT(sandello): Fix me.
             if (produceAllVersions && timestamp != AllCommittedTimestamp) {
-                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp")
+                    << TErrorAttribute("chunk_id", chunkState->ChunkMeta->GetChunkId());
             }
             auto underlyingReader = CreateCacheReader(
                 chunkState->ChunkMeta->GetChunkId(),

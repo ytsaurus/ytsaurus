@@ -409,11 +409,15 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     const auto& config = Tablet_->GetConfig();
 
     RotationScheduled_ = false;
-    LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSkew);
+    LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSplay);
 
     auto* activeStore = GetActiveStore();
     YCHECK(activeStore);
     activeStore->SetStoreState(EStoreState::PassiveDynamic);
+
+    LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, StoreMemoryUsage: %v)",
+        activeStore->GetId(),
+        activeStore->GetMemoryUsage());
 
     if (activeStore->GetLockCount() > 0) {
         LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",

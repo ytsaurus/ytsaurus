@@ -24,9 +24,9 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(const NJobTrackerClient::TStat
         metrics.TimeCompleted_ = FindNumericValue(statistics, "/time/total").Get(0);
     } else if (jobState == EJobState::Aborted) {
         metrics.TimeAborted_ = FindNumericValue(statistics, "/time/total").Get(0);
-    } else {
-        // pass
     }
+    metrics.SmoothedCpuUsage_ = FindNumericValue(statistics, "/job_proxy/smoothed_cpu_usage_x100").Get(0);
+    metrics.PreemptableCpu_ = FindNumericValue(statistics, "/job_proxy/preemptable_cpu_x100").Get(0);
     return metrics;
 }
 
@@ -35,18 +35,22 @@ bool TJobMetrics::IsEmpty() const
     return DiskReads_ == 0 &&
         DiskWrites_ == 0 &&
         TimeCompleted_ == 0 &&
-        TimeAborted_ == 0;
+        TimeAborted_ == 0 &&
+        SmoothedCpuUsage_ == 0 &&
+        PreemptableCpu_ == 0;
 }
 
-void TJobMetrics::SendToProfiler(
-    const NProfiling::TProfiler& profiler,
+void TJobMetrics::Profile(
+    TProfileCollector& collector,
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds) const
 {
-    profiler.Enqueue(prefix + "/disk_reads", DiskReads_, EMetricType::Counter, tagIds);
-    profiler.Enqueue(prefix + "/disk_writes", DiskWrites_, EMetricType::Counter, tagIds);
-    profiler.Enqueue(prefix + "/time_aborted", TimeAborted_, EMetricType::Counter, tagIds);
-    profiler.Enqueue(prefix + "/time_completed", TimeCompleted_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/disk_reads", DiskReads_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/disk_writes", DiskWrites_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/time_aborted", TimeAborted_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/time_completed", TimeCompleted_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/smoothed_cpu_usage_x100", SmoothedCpuUsage_, EMetricType::Gauge, tagIds);
+    collector.Add(prefix + "/preemptable_cpu_x100", PreemptableCpu_, EMetricType::Gauge, tagIds);
 }
 
 void TJobMetrics::Persist(const TPersistenceContext& context)
@@ -57,6 +61,8 @@ void TJobMetrics::Persist(const TPersistenceContext& context)
     Persist(context, DiskWrites_);
     Persist(context, TimeCompleted_);
     Persist(context, TimeAborted_);
+    Persist(context, SmoothedCpuUsage_);
+    Persist(context, PreemptableCpu_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +73,8 @@ TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs)
     lhs.DiskWrites_ += rhs.DiskWrites_;
     lhs.TimeAborted_ += rhs.TimeAborted_;
     lhs.TimeCompleted_ += rhs.TimeCompleted_;
+    lhs.SmoothedCpuUsage_ += rhs.SmoothedCpuUsage_;
+    lhs.PreemptableCpu_ += rhs.PreemptableCpu_;
     return lhs;
 }
 
@@ -76,6 +84,8 @@ TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs)
     lhs.DiskWrites_ -= rhs.DiskWrites_;
     lhs.TimeAborted_ -= rhs.TimeAborted_;
     lhs.TimeCompleted_ -= rhs.TimeCompleted_;
+    lhs.SmoothedCpuUsage_ -= rhs.SmoothedCpuUsage_;
+    lhs.PreemptableCpu_ -= rhs.PreemptableCpu_;
     return lhs;
 }
 
@@ -99,6 +109,8 @@ void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler:
     protoJobMetrics->set_disk_writes(jobMetrics.GetDiskWrites());
     protoJobMetrics->set_time_completed(jobMetrics.GetTimeCompleted());
     protoJobMetrics->set_time_aborted(jobMetrics.GetTimeAborted());
+    protoJobMetrics->set_smoothed_cpu_usage(jobMetrics.GetSmoothedCpuUsage());
+    protoJobMetrics->set_preemptable_cpu(jobMetrics.GetPreemptableCpu());
 }
 
 void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJobMetrics& protoJobMetrics)
@@ -107,6 +119,8 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJ
     jobMetrics->SetDiskWrites(protoJobMetrics.disk_writes());
     jobMetrics->SetTimeCompleted(protoJobMetrics.time_completed());
     jobMetrics->SetTimeAborted(protoJobMetrics.time_aborted());
+    jobMetrics->SetSmoothedCpuUsage(protoJobMetrics.smoothed_cpu_usage());
+    jobMetrics->SetPreemptableCpu(protoJobMetrics.preemptable_cpu());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -62,9 +62,9 @@ class TBlackboxCookieAuthenticator
 public:
     TBlackboxCookieAuthenticator(
         TBlackboxCookieAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackbox)
+        IBlackboxServicePtr blackboxService)
         : Config_(std::move(config))
-        , Blackbox_(std::move(blackbox))
+        , BlackboxService_(std::move(blackboxService))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
@@ -76,7 +76,7 @@ public:
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,
             sslSessionIdMD5);
-        return Blackbox_->Call("sessionid", {
+        return BlackboxService_->Call("sessionid", {
                 {"sessionid", credentials.SessionId},
                 {"sslsessionid", credentials.SslSessionId},
                 {"host", Config_->Domain},
@@ -90,7 +90,7 @@ public:
 
 private:
     const TBlackboxCookieAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr Blackbox_;
+    const IBlackboxServicePtr BlackboxService_;
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(
@@ -125,15 +125,16 @@ private:
         if (statusId.Value() != EBlackboxStatus::Valid && statusId.Value() != EBlackboxStatus::NeedReset) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
-            return TError("Blackbox rejected session cookie")
+            return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = Blackbox_->GetLogin(data);
+        auto login = BlackboxService_->GetLogin(data);
 
         // Sanity checks.
         if (!login.IsOK()) {
-            return TError("Blackbox returned invalid response") << login;
+            return TError("Blackbox returned invalid response")
+                << login;
         }
 
         TAuthenticationResult result;
@@ -145,9 +146,9 @@ private:
 
 ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
     TBlackboxCookieAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackbox)
+    IBlackboxServicePtr blackboxService)
 {
-    return New<TBlackboxCookieAuthenticator>(std::move(config), std::move(blackbox));
+    return New<TBlackboxCookieAuthenticator>(std::move(config), std::move(blackboxService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

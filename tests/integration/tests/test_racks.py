@@ -235,6 +235,37 @@ class TestRacks(YTEnvSetup):
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 3
 
+    def test_decommission_with_3_racks_yt_9720(self):
+        set("//sys/media/default/@config/max_regular_replicas_per_rack", 1)
+
+        create_rack("r0")
+        create_rack("r1")
+        create_rack("r2")
+
+        nodes = ls("//sys/nodes")
+        for i in xrange(len(nodes)):
+            rack = "r" + str(i % 3)
+            self._set_rack(nodes[i], rack)
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
+
+        chunk_ids = get("//tmp/file/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        replicas = get("#" + chunk_id + "/@stored_replicas")
+
+        assert len(replicas) == 3
+        node_to_decommission = replicas[0]
+        set_node_decommissioned(node_to_decommission, True)
+
+        def decommission_successful():
+            replicas = get("#" + chunk_id + "/@stored_replicas")
+            return len(replicas) == 3 and (node_to_decommission not in replicas)
+
+        wait(decommission_successful)
+
     def test_journal_move_to_safe_place(self):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)

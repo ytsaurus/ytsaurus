@@ -30,10 +30,13 @@ struct TLivePreviewTableBase
 {
     // Live preview table ids.
     NCypressClient::TNodeId LivePreviewTableId;
+
+    void Persist(const TPersistenceContext& context);
 };
 
 struct TInputTable
     : public TLockedUserObject
+    , public TIntrinsicRefCounted
 {
     //! Number of chunks in the whole table (without range selectors).
     int ChunkCount = -1;
@@ -55,9 +58,12 @@ struct TInputTable
     void Persist(const TPersistenceContext& context);
 };
 
+DEFINE_REFCOUNTED_TYPE(TInputTable)
+
 struct TOutputTable
     : public NChunkClient::TUserObject
     , public TLivePreviewTableBase
+    , public TIntrinsicRefCounted
 {
     NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
     NTableClient::TTableUploadOptions TableUploadOptions;
@@ -88,18 +94,26 @@ struct TOutputTable
 
     NTransactionClient::TTimestamp Timestamp;
 
-    TEdgeDescriptor GetEdgeDescriptorTemplate();
+    //! Corresponding sink.
+    NChunkPools::IChunkPoolInput* ChunkPoolInput = nullptr;
+
+    TEdgeDescriptor GetEdgeDescriptorTemplate(int tableIndex = -1);
 
     bool IsBeginUploadCompleted() const;
 
     void Persist(const TPersistenceContext& context);
 };
 
+DEFINE_REFCOUNTED_TYPE(TOutputTable)
+
 struct TIntermediateTable
     : public TLivePreviewTableBase
+    , public TIntrinsicRefCounted
 {
     void Persist(const TPersistenceContext& context);
 };
+
+DEFINE_REFCOUNTED_TYPE(TIntermediateTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,7 +5,8 @@
 #include <functional>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,5 +31,8 @@ IConfigReloaderPtr CreateConfigReloader(
     const std::string& name,
     TUpdateConfigHook updateConfig);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

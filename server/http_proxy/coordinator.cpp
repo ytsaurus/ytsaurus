@@ -135,6 +135,24 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(TNullable<TString> roleFil
         }
     }
 
+    std::vector<std::pair<double, TProxyEntryPtr>> ordered;
+    for (const auto& proxy : filtered) {
+        auto adjustedNetworkLoad = std::pow(1.5, proxy->Liveness->NetworkCoef);
+        auto fitness = proxy->Liveness->LoadAverage * Config_->LoadAverageWeight
+            + adjustedNetworkLoad * Config_->NetworkLoadWeight
+            + proxy->Liveness->Dampening * Config_->DampeningWeight
+            + RandomNumber<double>() * Config_->RandomnessWeight;
+
+        ordered.emplace_back(fitness, proxy);
+    }
+
+    std::sort(ordered.begin(), ordered.end());
+
+    filtered.clear();
+    for (const auto& proxy : ordered) {
+        filtered.push_back(proxy.second);
+    }
+
     return filtered;
 }
 
@@ -146,20 +164,8 @@ TProxyEntryPtr TCoordinator::AllocateProxy(const TString& role)
         return nullptr;
     }
 
-    std::vector<std::pair<double, TProxyEntryPtr>> candidates;
-    for (const auto& proxy : proxies) {
-        auto adjustedNetworkLoad = std::pow(1.5, proxy->Liveness->NetworkCoef);
-        auto fitness = proxy->Liveness->LoadAverage * Config_->LoadAverageWeight
-            + adjustedNetworkLoad * Config_->NetworkLoadWeight
-            + proxy->Liveness->Dampening * Config_->DampeningWeight
-            + RandomNumber<double>() * Config_->RandomnessWeight;
-
-        candidates.emplace_back(fitness, proxy);
-    }
-
-    std::sort(candidates.begin(), candidates.end());
-    candidates[0].second->Liveness->Dampening++;
-    return candidates[0].second;
+    proxies[0]->Liveness->Dampening++;
+    return proxies[0];
 }
 
 TProxyEntryPtr TCoordinator::GetSelf()
@@ -384,6 +390,8 @@ void THostsHandler::HandleRequest(
         auto formatHostname = [&] (const TProxyEntryPtr& proxy) {
             if (Coordinator_->GetConfig()->ShowPorts) {
                 return proxy->Endpoint;
+            } else if (suffix && suffix->StartsWith("fb")) {
+                return "fb-" + proxy->GetHost();
             } else {
                 return proxy->GetHost();
             }
@@ -456,7 +464,7 @@ void TDiscoverVersionsHandler::HandleRequest(
                 .Item("schedulers").Value(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances")))
                 .Item("controller_agents").Value(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances")))
                 .Item("nodes").Value(ListComponent("nodes", true))
-                .Item("proxies").Value(ListComponent("proxies", false))
+                .Item("http_proxies").Value(ListComponent("proxies", false))
                 .Item("rpc_proxies").Value(ListComponent("rpc_proxies", false))
             .EndMap();
     });

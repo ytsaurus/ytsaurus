@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <Core/Field.h>
 #include <Core/NamesAndTypes.h>
@@ -9,17 +9,19 @@
 #include <vector>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* GetTypeName(const NInterop::TColumn& column);
+const char* GetTypeName(const NNative::TColumn& column);
 
 DB::DataTypePtr GetDataType(const std::string& name);
 
-DB::NamesAndTypesList GetTableColumns(const NInterop::TTable& table);
+DB::NamesAndTypesList GetTableColumns(const NNative::TTable& table);
 
-std::vector<DB::Field> GetFields(const NInterop::TValue* values, size_t count);
+std::vector<DB::Field> GetFields(const NNative::TValue* values, size_t count);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

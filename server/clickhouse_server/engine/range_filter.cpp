@@ -2,6 +2,8 @@
 
 #include "db_helpers.h"
 
+#include <yt/server/clickhouse_server/native/range_filter.h>
+
 #include <Common/Exception.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Storages/MergeTree/KeyCondition.h>
@@ -16,7 +18,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -33,7 +36,7 @@ std::vector<DB::SortColumnDescription> NamesToSortColumnDescriptions(Names names
 }
 
 class TRangeFilter
-    : public NInterop::IRangeFilter
+    : public NNative::IRangeFilter
 {
 private:
     const KeyCondition Condition;
@@ -51,16 +54,16 @@ public:
     {}
 
     bool CheckRange(
-        const NInterop::TValue* leftKey,
-        const NInterop::TValue* rightKey,
+        const NNative::TValue* leftKey,
+        const NNative::TValue* rightKey,
         size_t keySize) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TRangeFilter::CheckRange(
-    const NInterop::TValue* leftKey,
-    const NInterop::TValue* rightKey,
+    const NNative::TValue* leftKey,
+    const NNative::TValue* rightKey,
     size_t keySize) const
 {
     if (keySize != KeyDataTypes.size()) {
@@ -79,7 +82,7 @@ bool TRangeFilter::CheckRange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::IRangeFilterPtr CreateRangeFilter(
+NNative::IRangeFilterPtr CreateRangeFilter(
     const Context& context,
     const SelectQueryInfo& queryInfo,
     const TTableSchema& schema)
@@ -97,5 +100,8 @@ NInterop::IRangeFilterPtr CreateRangeFilter(
         schema.GetKeyDataTypes());
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

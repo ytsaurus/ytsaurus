@@ -53,6 +53,7 @@ struct TTabletCellStatisticsBase
 struct TUncountableTabletCellStatisticsBase
 {
     bool Decommissioned = false;
+    ETabletCellHealth Health = ETabletCellHealth::Initializing;
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };

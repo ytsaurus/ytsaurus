@@ -819,7 +819,7 @@ public:
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
 
-            BlockMetaCache->Capacity = 100 * 1_MB;
+            BlockMetaCache->Capacity = 500 * 1_MB;
 
             BlockCache->CompressedData->Capacity = 1_GB;
             BlockCache->UncompressedData->Capacity = 1_GB;

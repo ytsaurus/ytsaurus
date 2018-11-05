@@ -297,7 +297,6 @@ private:
 
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
-        NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus,
         bool forceJobsLogging);

@@ -25,6 +25,10 @@
             {
                 "name": "YT_ENABLE_GDB_INDEX",
                 "value": "yes"
+            },
+            {
+                "name": "YT_LINKER_WORKAROUND",
+                "value": "yes"
             }
         ]
     },

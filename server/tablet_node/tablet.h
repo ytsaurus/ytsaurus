@@ -232,6 +232,7 @@ struct ITabletContext
         const TStoreId& storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
+    virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

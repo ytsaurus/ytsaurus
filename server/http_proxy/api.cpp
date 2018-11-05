@@ -84,14 +84,19 @@ TNullable<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TSt
 {
     auto value = GlobalSemaphore_.load();
     do {
-        if (value >= Config_->ConcurrencyLimit) {
+        if (value >= Config_->ConcurrencyLimit * 2) {
             return {};
         }
     } while (!GlobalSemaphore_.compare_exchange_weak(value, value + 1));
 
     auto key = std::make_pair(user, command);
     auto counters = GetProfilingCounters(key);
+    if (counters->LocalSemaphore >= Config_->ConcurrencyLimit) {
+        GlobalSemaphore_.fetch_add(-1);
+        return {};
+    }
 
+    counters->LocalSemaphore.fetch_add(1);
     HttpProxyProfiler.Increment(counters->ConcurrencySemaphore);
 
     return TSemaphoreGuard(this, key);
@@ -101,6 +106,7 @@ void TApi::ReleaseSemaphore(const TUserCommandPair& key)
 {
     auto counters = GetProfilingCounters(key);
     GlobalSemaphore_.fetch_add(-1);
+    counters->LocalSemaphore.fetch_add(-1);
     HttpProxyProfiler.Increment(counters->ConcurrencySemaphore, -1);
 }
 
@@ -202,15 +208,16 @@ void TApi::HandleRequest(
     }
 
     auto context = New<TContext>(MakeStrong(this), req, rsp);
-    if (!context->TryPrepare()) {
-        HttpProxyProfiler.Increment(PrepareErrorCount_);
-        auto statusCode = rsp->GetStatus();
-        if (statusCode) {
-            IncrementHttpCode(*statusCode);
-        }
-        return;
-    }
     try {
+        if (!context->TryPrepare()) {
+            HttpProxyProfiler.Increment(PrepareErrorCount_);
+            auto statusCode = rsp->GetStatus();
+            if (statusCode) {
+                IncrementHttpCode(*statusCode);
+            }
+            return;
+        }
+
         context->FinishPrepare();
         context->Run();
     } catch (const std::exception& ex) {

@@ -350,6 +350,8 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
             result += job->GetResourceUsage();
         }
     }
+
+    result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetUsedSlotCount());
     return result;
 }
 
@@ -629,7 +631,7 @@ void TJobController::TImpl::InterruptJob(IJobPtr job)
 
 void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
 {
-    YCHECK(job->GetPhase() > EJobPhase::Cleanup);
+    YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
 
     if (archiveJobSpec) {

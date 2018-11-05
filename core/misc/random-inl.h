@@ -1,6 +1,8 @@
 #pragma once
 #ifndef RANDOM_INL_H_
 #error "Direct inclusion of this file is not allowed, include random.h"
+// For the sake of sane code completion.
+#include "random.h"
 #endif
 
 namespace NYT {

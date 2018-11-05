@@ -825,9 +825,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               in_=["//tmp/t1"],
               out="//tmp/t2")
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 3
-        assert get("#" + chunk_id + "/@vital")
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 3 and \
+                     get("#" + chunk_id + "/@vital"))
 
     @unix_only
     def test_chunk_indices(self):
@@ -1136,17 +1135,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 },
                 "enable_job_splitting": False,
             })
-        while True:
-            jobs = list(op.get_running_jobs())
-            if jobs:
-                break
-            sleep(0.1)
+        wait(lambda: len(op.get_running_jobs()) > 0)
+        jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
-        while get("//sys/scheduler/orchid/scheduler/jobs/{0}/progress".format(job_id), default=0) < 0.1:
-            assert len(op.get_running_jobs())
-            sleep(0.1)
-        interrupt_job(jobs[0])
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/jobs/{0}/progress".format(job_id), default=0) >= 0.1)
+        interrupt_job(job_id)
         op.track()
         rows = read_table("//tmp/t_out")
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 2
@@ -1180,8 +1174,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 }
             })
 
-        sleep(1.0)
-        assert "job_splitter" in get(op.get_path() + "/controller_orchid", verbose=False)
+        wait(lambda: exists(op.get_path() + "/controller_orchid/job_splitter"))
 
         op.track()
 
@@ -1313,13 +1306,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         remove("//tmp/t")
 
-        gc_collect()
-        multicell_sleep()
-        assert get("#" + chunk_id1 + "/@ref_counter") == 1
-        assert get("#" + chunk_id2 + "/@ref_counter") == 1
-        assert_items_equal(get("#" + chunk_id1 + "/@exports"), {})
-        assert_items_equal(get("#" + chunk_id2 + "/@exports"), {})
-        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [])
+        wait(lambda: get("#" + chunk_id1 + "/@ref_counter") == 1 and \
+                     get("#" + chunk_id2 + "/@ref_counter") == 1 and \
+                     get("#" + chunk_id1 + "/@exports") == {} and \
+                     get("#" + chunk_id2 + "/@exports") == {} and \
+                     ls("//sys/foreign_chunks", driver=get_driver(0)) == [])
 
     @unix_only
     def test_multicell_merge_multi_teleport(self):
@@ -1360,25 +1351,19 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         remove("//tmp/t2")
 
-        gc_collect()
-        multicell_sleep()
-        assert get("#" + chunk_id + "/@ref_counter") == 5
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
-        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
+        wait(lambda: get("#" + chunk_id + "/@ref_counter") == 5 and \
+                     get("#" + chunk_id + "/@exports") == {"0": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}} and \
+                     ls("//sys/foreign_chunks", driver=get_driver(0)) == [chunk_id])
 
         remove("//tmp/t3")
 
-        gc_collect()
-        multicell_sleep()
-        assert get("#" + chunk_id + "/@ref_counter") == 1
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {})
-        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [])
+        wait(lambda: get("#" + chunk_id + "/@ref_counter") == 1 and \
+                     get("#" + chunk_id + "/@exports") == {} and \
+                     ls("//sys/foreign_chunks", driver=get_driver(0)) == [])
 
         remove("//tmp/t1")
 
-        gc_collect()
-        multicell_sleep()
-        assert not exists("#" + chunk_id)
+        wait(lambda: not exists("#" + chunk_id))
 
     @unix_only
     def test_multicell_merge_chunk_properties(self):
@@ -1394,40 +1379,33 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
               in_=["//tmp/t1"],
               out="//tmp/t2")
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 3
-        assert not get("#" + chunk_id + "/@vital")
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 3 and \
+                     not get("#" + chunk_id + "/@vital"))
 
         set("//tmp/t2/@replication_factor", 2)
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 2
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 2)
 
         set("//tmp/t2/@replication_factor", 3)
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 3
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 3)
 
         set("//tmp/t2/@vital", True)
 
-        sleep(0.2)
-        assert get("#" + chunk_id + "/@vital")
+        wait(lambda: get("#" + chunk_id + "/@vital"))
 
         set("//tmp/t1/@replication_factor", 4)
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 4
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 4)
 
         set("//tmp/t1/@replication_factor", 1)
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 3
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 3)
 
         remove("//tmp/t2")
 
-        sleep(0.2)
-        assert get_chunk_replication_factor(chunk_id) == 1
-        assert not get("#" + chunk_id + "/@vital")
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 1 and \
+             not get("#" + chunk_id + "/@vital"))
 
     @unix_only
     def test_yt_4259(self):
@@ -1480,7 +1458,8 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         remove("//tmp/t1")
 
         # Give replicator a chance to remove a chunk (in case there's a bug).
-        sleep(0.3)
+        # NB: This sleep cannot be replaced with wait.
+        sleep(1.0)
 
         assert exists("//tmp/t2")
         assert get("//tmp/t2/@chunk_count") == 0

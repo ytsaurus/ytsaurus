@@ -386,7 +386,7 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         # XXX(kiselyovp) read_file is not implemented in RPC proxy yet
         '''context = read_file("//tmp/input_context")
         assert get("//tmp/input_context/@description/type") == "input_context"
-        assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"'''
+        assert JsonFormat().loads_row(context)["foo"] == "bar"'''
 
         assert exists("//tmp/input_context")
         assert get("//tmp/input_context/@uncompressed_data_size") > 0

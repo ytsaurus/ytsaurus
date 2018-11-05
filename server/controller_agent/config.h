@@ -212,6 +212,10 @@ public:
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
 
+    //! Options controlling retries with data_weight_per_job increase that happen in some of the operations.
+    int MaxBuildRetryCount;
+    double DataWeightPerJobRetryFactor;
+
     TJobSplitterConfigPtr JobSplitter;
 
     TOperationOptions();
@@ -536,6 +540,12 @@ public:
 
     //! Maximum number of job specs in archive per operation.
     int MaxArchivedJobSpecCountPerOperation;
+
+    //! Guaranteed number of job specs in archive per operation.
+    int GuaranteedArchivedJobSpecCountPerOperation;
+
+    //! Job spec with job duration greater that this will be archived.
+    TDuration MinJobDurationToArchiveJobSpec;
 
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;

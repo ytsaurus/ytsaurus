@@ -295,7 +295,7 @@ protected:
                     PrimaryInputDataWeight,
                     DataWeightRatio,
                     InputCompressionRatio,
-                    InputTables.size(),
+                    InputTables_.size(),
                     GetForeignInputTableCount());
                 break;
             default:
@@ -309,7 +309,7 @@ protected:
                     PrimaryInputDataWeight,
                     std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
-                    InputTables.size(),
+                    InputTables_.size(),
                     GetForeignInputTableCount());
                 break;
         }
@@ -325,18 +325,18 @@ protected:
 
     void CheckInputTableKeyColumnTypes(
         const TKeyColumns& keyColumns,
-        std::function<bool(const TInputTable& table)> inputTableFilter = [] (const TInputTable&) { return true; })
+        std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /* table */) { return true; })
     {
-        YCHECK(!InputTables.empty());
+        YCHECK(!InputTables_.empty());
 
         for (const auto& columnName : keyColumns) {
             const TColumnSchema* referenceColumn = nullptr;
-            const TInputTable* referenceTable;
-            for (const auto& table : InputTables) {
+            TInputTablePtr referenceTable;
+            for (const auto& table : InputTables_) {
                 if (!inputTableFilter(table)) {
                     continue;
                 }
-                const auto& column = table.Schema.GetColumnOrThrow(columnName);
+                const auto& column = table->Schema.GetColumnOrThrow(columnName);
                 if (column.LogicalType() == ELogicalValueType::Any) {
                     continue;
                 }
@@ -346,12 +346,12 @@ protected:
                             << TErrorAttribute("column_name", columnName)
                             << TErrorAttribute("input_table_1", referenceTable->GetPath())
                             << TErrorAttribute("type_1", referenceColumn->LogicalType())
-                            << TErrorAttribute("input_table_2", table.GetPath())
+                            << TErrorAttribute("input_table_2", table->GetPath())
                             << TErrorAttribute("type_2", column.LogicalType());
                     }
                 } else {
                     referenceColumn = &column;
-                    referenceTable = &table;
+                    referenceTable = table;
                 }
             }
         }
@@ -359,7 +359,7 @@ protected:
 
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
     {
-        TChunkStripePtr chunkStripe = New<TChunkStripe>(InputTables[dataSlice->GetTableIndex()].IsForeign());
+        TChunkStripePtr chunkStripe = New<TChunkStripe>(InputTables_[dataSlice->GetTableIndex()]->IsForeign());
         chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
         return chunkStripe;
     }
@@ -429,17 +429,17 @@ protected:
     {
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
-            for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic &&
-                    !InputTables[index].Path.GetColumns() &&
-                    InputTables[index].ColumnRenameDescriptors.empty())
+            for (const auto& inputTable : InputTables_) {
+                if (!inputTable->IsDynamic &&
+                    !inputTable->Path.GetColumns() &&
+                    inputTable->ColumnRenameDescriptors.empty())
                 {
-                    InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
-                        InputTables[index].Schema,
-                        OutputTables_[*tableIndex].TableUploadOptions.TableSchema,
+                    inputTable->IsTeleportable = ValidateTableSchemaCompatibility(
+                        inputTable->Schema,
+                        OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                     if (GetJobType() == EJobType::SortedReduce) {
-                        InputTables[index].IsTeleportable &= InputTables[index].Path.GetTeleport();
+                        inputTable->IsTeleportable &= inputTable->Path.GetTeleport();
                     }
                 }
             }
@@ -550,7 +550,6 @@ protected:
         jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-        jobOptions.MaxDataWeightPerJob = Spec_->MaxDataWeightPerJob;
         jobOptions.EnablePeriodicYielder = true;
 
         if (Spec_->NightlyOptions) {
@@ -582,7 +581,7 @@ protected:
             IsJobInterruptible() &&
             Config->EnableJobSplitting &&
             Spec_->EnableJobSplitting &&
-             InputTables.size() <= Options_->JobSplitter->MaxInputTableCount
+             InputTables_.size() <= Options_->JobSplitter->MaxInputTableCount
             ? Options_->JobSplitter
             : nullptr;
     }
@@ -724,7 +723,7 @@ public:
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), PrimaryKeyColumns_);
@@ -741,25 +740,25 @@ public:
         TSortedControllerBase::PrepareOutputTables();
 
         auto& table = OutputTables_[0];
-        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
+        table->TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         auto prepareOutputKeyColumns = [&] () {
-            if (table.TableUploadOptions.TableSchema.IsSorted()) {
-                if (table.TableUploadOptions.TableSchema.GetKeyColumns() != PrimaryKeyColumns_) {
+            if (table->TableUploadOptions.TableSchema.IsSorted()) {
+                if (table->TableUploadOptions.TableSchema.GetKeyColumns() != PrimaryKeyColumns_) {
                     THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
-                            << TErrorAttribute("output_schema", table.TableUploadOptions.TableSchema)
+                            << TErrorAttribute("output_schema", table->TableUploadOptions.TableSchema)
                             << TErrorAttribute("merge_by", PrimaryKeyColumns_)
                             << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
                 }
             } else {
-                table.TableUploadOptions.TableSchema =
-                    table.TableUploadOptions.TableSchema.ToSorted(PrimaryKeyColumns_);
+                table->TableUploadOptions.TableSchema =
+                    table->TableUploadOptions.TableSchema.ToSorted(PrimaryKeyColumns_);
             }
         };
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInput(PrimaryKeyColumns_);
                 } else {
                     prepareOutputKeyColumns();
@@ -772,8 +771,8 @@ public:
                 break;
 
             case ESchemaInferenceMode::FromOutput:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    table.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(PrimaryKeyColumns_);
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    table->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(PrimaryKeyColumns_);
                 } else {
                     prepareOutputKeyColumns();
                 }
@@ -904,7 +903,7 @@ public:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
 
-        SetInputDataSources(schedulerJobSpecExt);
+        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
@@ -926,7 +925,7 @@ public:
 
         int teleportOutputCount = 0;
         for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
-            if (OutputTables_[i].Path.GetTeleport()) {
+            if (OutputTables_[i]->Path.GetTeleport()) {
                 ++teleportOutputCount;
                 OutputTeleportTableIndex_ = i;
             }
@@ -1071,19 +1070,19 @@ public:
         TSortedReduceControllerBase::DoInitialize();
 
         int foreignInputCount = 0;
-        for (auto& table : InputTables) {
-            if (table.Path.GetForeign()) {
-                if (table.Path.GetTeleport()) {
+        for (auto& table : InputTables_) {
+            if (table->Path.GetForeign()) {
+                if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport");
                 }
-                if (table.Path.GetRanges().size() > 1) {
+                if (table->Path.GetRanges().size() > 1) {
                     THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
                 }
                 ++foreignInputCount;
             }
         }
 
-        if (foreignInputCount == InputTables.size()) {
+        if (foreignInputCount == InputTables_.size()) {
             THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
         }
 
@@ -1110,8 +1109,8 @@ public:
                         << TErrorAttribute("reduce_by", Spec_->ReduceBy);
                 }
             }
-            for (auto& table : InputTables) {
-                if (table.Path.GetTeleport()) {
+            for (auto& table : InputTables_) {
+                if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
                 }
             }
@@ -1219,28 +1218,28 @@ public:
     {
         TSortedReduceControllerBase::DoInitialize();
 
-        if (InputTables.size() < 2) {
+        if (InputTables_.size() < 2) {
             THROW_ERROR_EXCEPTION("At least two input tables are required");
         }
 
         int primaryInputCount = 0;
-        for (const auto& inputTable : InputTables) {
-            if (!inputTable.Path.GetForeign()) {
+        for (const auto& inputTable : InputTables_) {
+            if (!inputTable->Path.GetForeign()) {
                 ++primaryInputCount;
             }
-            if (inputTable.Path.GetTeleport()) {
+            if (inputTable->Path.GetTeleport()) {
                 THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
             }
         }
 
         if (primaryInputCount != 1) {
             THROW_ERROR_EXCEPTION("You must specify exactly one non-foreign (primary) input table (%v specified)",
-                                  primaryInputCount);
+                primaryInputCount);
         }
 
         // For join reduce tables with multiple ranges are not supported.
-        for (const auto& inputTable : InputTables) {
-            auto& path = inputTable.Path;
+        for (const auto& inputTable : InputTables_) {
+            auto& path = inputTable->Path;
             auto ranges = path.GetRanges();
             if (ranges.size() > 1) {
                 THROW_ERROR_EXCEPTION("Join reduce operation does not support tables with multiple ranges");
@@ -1378,7 +1377,7 @@ public:
         if (Spec_->ValidateKeyColumnTypes) {
             CheckInputTableKeyColumnTypes(ForeignKeyColumns_);
             CheckInputTableKeyColumnTypes(PrimaryKeyColumns_, [] (const auto& table) {
-                return table.IsPrimary();
+                return table->IsPrimary();
             });
         }
         LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
@@ -1392,20 +1391,20 @@ public:
         TSortedReduceControllerBase::DoInitialize();
 
         int foreignInputCount = 0;
-        for (auto& table : InputTables) {
-            if (table.Path.GetForeign()) {
-                if (table.Path.GetTeleport()) {
+        for (auto& table : InputTables_) {
+            if (table->Path.GetForeign()) {
+                if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport")
-                        << TErrorAttribute("path", table.Path);
+                        << TErrorAttribute("path", table->Path);
                 }
-                if (table.Path.GetRanges().size() > 1) {
+                if (table->Path.GetRanges().size() > 1) {
                     THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
                 }
                 ++foreignInputCount;
             }
         }
 
-        if (foreignInputCount == InputTables.size()) {
+        if (foreignInputCount == InputTables_.size()) {
             THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
         }
 
@@ -1437,8 +1436,8 @@ public:
                         << TErrorAttribute("reduce_by", Spec_->ReduceBy);
                 }
             }
-            for (const auto& table : InputTables) {
-                if (table.Path.GetTeleport()) {
+            for (const auto& table : InputTables_) {
+                if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
                 }
             }

@@ -4,11 +4,15 @@
 #include <Parsers/ASTTablesInSelectQuery.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::ASTTableExpression* GetFirstTableExpression(DB::ASTSelectQuery& select);
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

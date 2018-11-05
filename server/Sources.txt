@@ -162,11 +162,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/data_node/volume_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/ytree_integration.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/election/distributed_election_manager.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/election/election_manager_thunk.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/election/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/election/public.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_directory_manager.cpp
@@ -201,43 +196,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.proto
 
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/async_file_changelog_index.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog_discovery.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog_download.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog_store_factory_thunk.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/checkpointer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/composite_automaton.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/decorated_automaton.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/distributed_hydra_manager.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/file_changelog_dispatcher.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/file_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/file_snapshot_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/format.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/lazy_changelog.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/lease_tracker.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/local_changelog_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/local_snapshot_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/local_snapshot_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/mutation.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/mutation_committer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/mutation_context.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/public.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/recovery.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/remote_changelog_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/remote_snapshot_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/serialize.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_discovery.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_download.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_store_thunk.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/sync_file_changelog.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_quota_helpers.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/gpu_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job_controller.cpp
@@ -246,6 +204,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/statistics_reporter.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/asan_warning_filter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/cpu_monitor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_throttler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
@@ -319,6 +278,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operations_cleaner.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree_element.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy_operation_controller.cpp
@@ -331,6 +291,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_shard.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/profiler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context.cpp

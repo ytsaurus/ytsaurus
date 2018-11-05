@@ -285,13 +285,69 @@ public:
     {
         YCHECK(argIds.size() == 1);
 
-        return [
-            MOVE(argIds),
-            type,
-            name
-        ] (TCGExprContext& builder) {
-            return CodegenFragment(builder, argIds[0]).Cast(builder, type);
-        };
+        if (argumentTypes[0] == EValueType::Any) {
+            return [
+                MOVE(argIds),
+                type,
+                name
+            ] (TCGExprContext& builder) {
+                auto unversionedValueType = llvm::TypeBuilder<TValue, false>::get(builder->getContext());
+
+                auto resultPtr = builder->CreateAlloca(unversionedValueType, nullptr, "resultPtr");
+                auto valuePtr = builder->CreateAlloca(unversionedValueType);
+
+                auto cgValue = CodegenFragment(builder, argIds[0]);
+                cgValue.StoreToValue(builder, valuePtr);
+
+                const char* routineName = nullptr;
+
+                switch (type) {
+                    case EValueType::Int64:
+                        routineName = "AnyToInt64";
+                        break;
+                    case EValueType::Uint64:
+                        routineName = "AnyToUint64";
+                        break;
+                    case EValueType::Double:
+                        routineName = "AnyToDouble";
+                        break;
+                    case EValueType::Boolean:
+                        routineName = "AnyToBoolean";
+                        break;
+                    case EValueType::String:
+                        routineName = "AnyToString";
+                        break;
+                    default:
+                        Y_UNREACHABLE();
+                }
+
+                builder->CreateCall(
+                    builder.Module->GetRoutine(routineName),
+                    {
+                        builder.Buffer,
+                        resultPtr,
+                        valuePtr
+                    });
+
+                return TCGValue::CreateFromLlvmValue(
+                    builder,
+                    resultPtr,
+                    type);
+            };
+        } else {
+            YCHECK(
+                type == EValueType::Int64 ||
+                type == EValueType::Uint64 ||
+                type == EValueType::Double);
+
+            return [
+                MOVE(argIds),
+                type,
+                name
+            ] (TCGExprContext& builder) {
+                return CodegenFragment(builder, argIds[0]).Cast(builder, type);
+            };
+        }
     }
 
     virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
@@ -638,8 +694,8 @@ void RegisterBuiltinFunctions(
     castConstraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
-        EValueType::Double};
-
+        EValueType::Double,
+        EValueType::Any};
 
     if (typeInferrers) {
         typeInferrers->emplace("int64", New<TFunctionTypeInferrer>(
@@ -675,6 +731,26 @@ void RegisterBuiltinFunctions(
 
     if (functionProfilers) {
         functionProfilers->emplace("double", New<NBuiltins::TUserCastCodegen>());
+    }
+
+    if (typeInferrers) {
+        typeInferrers->emplace("boolean", New<TFunctionTypeInferrer>(
+            std::vector<TType>{EValueType::Any},
+            EValueType::Boolean));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("boolean", New<NBuiltins::TUserCastCodegen>());
+    }
+
+    if (typeInferrers) {
+        typeInferrers->emplace("string", New<TFunctionTypeInferrer>(
+            std::vector<TType>{EValueType::Any},
+            EValueType::String));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("string", New<NBuiltins::TUserCastCodegen>());
     }
 
     if (typeInferrers) {

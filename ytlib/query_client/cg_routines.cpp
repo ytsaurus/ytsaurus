@@ -1069,7 +1069,10 @@ void MultiJoinOpHelper(
                             joinedRow[offset++] = foreignRow[columnIndex];
                         }
                     } else {
-                        ++incrementIndex;
+                        if (incrementIndex == joinId) {
+                            ++incrementIndex;
+                        }
+
                         bool isLeft = parameters->Items[joinId].IsLeft;
                         if (!isLeft) {
                             indexes.assign(closure.Items.size(), 0);
@@ -1645,6 +1648,58 @@ DEFINE_YPATH_GET_ANY
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_CONVERT_ANY(TYPE, STATEMENT_OK) \
+    void AnyTo ## TYPE(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
+    { \
+        if (anyValue->Type == EValueType::Null) { \
+            result->Type = EValueType::Null; \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::GetToken(TStringBuf(anyValue->Data.String, anyValue->Length), &token); \
+        if (token.GetType() == NYson::ETokenType::TYPE) { \
+            result->Type = EValueType::TYPE; \
+            STATEMENT_OK \
+        } else { \
+            THROW_ERROR_EXCEPTION("Can not convert value %Qv of type Any to %v", \
+                TStringBuf(anyValue->Data.String, anyValue->Length), \
+                #TYPE); \
+        } \
+    }
+
+#define DEFINE_CONVERT_ANY_NUMERIC_IMPL(TYPE) \
+    void AnyTo ## TYPE(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
+    { \
+        if (anyValue->Type == EValueType::Null) { \
+            result->Type = EValueType::Null; \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::GetToken(TStringBuf(anyValue->Data.String, anyValue->Length), &token); \
+        if (token.GetType() == NYson::ETokenType::Int64) { \
+            result->Type = EValueType::TYPE; \
+            result->Data.TYPE = token.GetInt64Value(); \
+        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
+            result->Type = EValueType::TYPE; \
+            result->Data.TYPE = token.GetUint64Value(); \
+        } else if (token.GetType() == NYson::ETokenType::Double) { \
+            result->Type = EValueType::TYPE; \
+            result->Data.TYPE = token.GetDoubleValue(); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Can not convert value %Qv of type Any to %v", \
+                TStringBuf(anyValue->Data.String, anyValue->Length), \
+                #TYPE); \
+        } \
+    }
+
+DEFINE_CONVERT_ANY_NUMERIC_IMPL(Int64)
+DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
+DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
+DEFINE_CONVERT_ANY(Boolean, result->Data.Boolean = token.GetBooleanValue();)
+DEFINE_CONVERT_ANY(String, CopyString(context, result, token.GetStringValue());)
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsType)
 {
     THROW_ERROR_EXCEPTION("Cannot compare values of types %Qlv and %Qlv",
@@ -2043,6 +2098,11 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_YPATH_GET_ROUTINE(Boolean);
     REGISTER_YPATH_GET_ROUTINE(String);
     REGISTER_YPATH_GET_ROUTINE(Any);
+    REGISTER_ROUTINE(AnyToInt64);
+    REGISTER_ROUTINE(AnyToUint64);
+    REGISTER_ROUTINE(AnyToDouble);
+    REGISTER_ROUTINE(AnyToBoolean);
+    REGISTER_ROUTINE(AnyToString);
     REGISTER_ROUTINE(ListContains);
     REGISTER_ROUTINE(HyperLogLogAllocate);
     REGISTER_ROUTINE(HyperLogLogAdd);

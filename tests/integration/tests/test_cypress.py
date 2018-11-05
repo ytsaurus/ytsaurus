@@ -1054,6 +1054,15 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/f/@access_counter")
         assert c1 == c2
 
+    def test_modification_suppress1(self):
+        create("map_node", "//tmp/m")
+        time.sleep(1)
+        time1 = get("//tmp/m/@modification_time")
+        set("//tmp/m/@x", 1, suppress_modification_tracking=True)
+        time.sleep(1)
+        time2 = get("//tmp/m/@modification_time")
+        assert time1 == time2
+
     def test_chunk_maps(self):
         gc_collect()
         assert get("//sys/chunks/@count") == 0
@@ -1072,7 +1081,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/file/@user_attribute_keys") == []
 
     def test_boolean(self):
-        yson_format = yson.loads("<boolean_as_string=false>yson")
+        yson_format = yson.loads("yson")
         set("//tmp/boolean", "%true", is_raw=True)
         assert get("//tmp/boolean/@type") == "boolean_node"
         assert get("//tmp/boolean", output_format=yson_format)
@@ -1837,6 +1846,11 @@ class TestCypressApiVersion4(YTEnvSetup):
         config = deepcopy(cls.Env.configs["driver"])
         config["api_version"] = 4
         cls.driver = Driver(config)
+
+    @classmethod
+    def teardown_class(cls):
+        cls.driver = None
+        super(TestCypressApiVersion4, cls).teardown_class()
 
     def _execute(self, command, **kwargs):
         kwargs["driver"] = self.driver

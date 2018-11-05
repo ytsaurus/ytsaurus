@@ -130,6 +130,7 @@ message TTabletCellStatistics
     required int32 tablet_count = 13;
     repeated TTabletCountPerMemoryModeEntry tablet_count_per_memory_mode = 14;
     required bool decommissioned = 15;
+    required int32 health = 16;
 }
 
 message TReqSetTabletCellStatistics
@@ -173,6 +174,18 @@ message TReqUpdateTabletState
 {
     required NYT.NProto.TGuid table_id = 1;
     required NYT.NProto.TGuid last_mount_transaction_id = 2;
+}
+
+message TReqStartPrerequisiteTransactoin
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+}
+
+message TReqAbortPrerequisiteTransactoin
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

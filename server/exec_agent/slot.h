@@ -32,7 +32,9 @@ struct ISlot
     : public TRefCounted
 {
     //! Kill all possibly running processes and clean sandboxes.
-    virtual void Cleanup() = 0;
+    virtual void CleanProcesses() = 0;
+
+    virtual void CleanSandbox() = 0;
 
     virtual void CancelPreparation() = 0;
 

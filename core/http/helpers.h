@@ -12,6 +12,7 @@ namespace NHttp {
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error);
+void FillYTErrorTrailers(const IResponseWriterPtr& rsp, const TError& error);
 
 TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers = false);
 

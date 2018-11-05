@@ -15,7 +15,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SleepQuantum = TDuration::MilliSeconds(1);
+static const auto SleepQuantum = TDuration::MilliSeconds(10);
 static const auto LateWarningThreshold = TDuration::Seconds(1);
 static const auto PeriodicPrecisionWarningThreshold = TDuration::MilliSeconds(100);
 static const auto& Logger = ConcurrencyLogger;

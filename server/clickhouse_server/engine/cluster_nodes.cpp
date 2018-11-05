@@ -12,7 +12,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -93,6 +94,6 @@ IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settin
         std::move(connection));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
-
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

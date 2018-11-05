@@ -606,6 +606,11 @@ private:
             return Owner_->Slot_->GetTransactionManager();
         }
 
+        virtual NRpc::IServerPtr GetLocalRpcServer() override
+        {
+            return Owner_->Bootstrap_->GetRpcServer();
+        }
+
     private:
         TImpl* const Owner_;
 
@@ -1551,6 +1556,11 @@ private:
             storeIdsToRemove);
     }
 
+    bool IsBackingStoreRequired(TTablet* tablet)
+    {
+        return tablet->GetAtomicity() == EAtomicity::Full && !tablet->GetUpstreamReplicaId();
+    }
+
     void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1600,9 +1610,10 @@ private:
             auto store = tablet->GetStore(storeId);
             storeManager->RemoveStore(store);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v, StoreMemoryUsage: %v)",
                 tabletId,
-                storeId);
+                storeId,
+                store->GetMemoryUsage());
         }
 
         std::vector<TStoreId> addedStoreIds;
@@ -1615,7 +1626,7 @@ private:
             storeManager->AddStore(store, false);
 
             TStoreId backingStoreId;
-            if (!IsRecovery() && descriptor.has_backing_store_id()) {
+            if (!IsRecovery() && descriptor.has_backing_store_id() && IsBackingStoreRequired(tablet)) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
                 auto backingStore = getBackingStore(backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
@@ -2191,6 +2202,7 @@ private:
 
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
+            YCHECK(context.RowCount == record.RowCount);
 
             locklessRowCount += context.RowCount;
         }
@@ -2313,6 +2325,7 @@ private:
 
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
+            YCHECK(context.RowCount == record.RowCount);
 
             rowCount += context.RowCount;
         }
@@ -2807,9 +2820,11 @@ private:
     void SetBackingStore(TTablet* tablet, IChunkStorePtr store, IDynamicStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
-        LOG_DEBUG("Backing store set (StoreId: %v, BackingStoreId: %v)",
+        LOG_DEBUG("Backing store set (TabletId: %v, StoreId: %v, BackingStoreId: %v, BackingStoreMemoryUsage: %v)",
+            tablet->GetId(),
             store->GetId(),
-            backingStore->GetId());
+            backingStore->GetId(),
+            backingStore->GetMemoryUsage());
 
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since

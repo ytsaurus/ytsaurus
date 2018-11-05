@@ -35,5 +35,9 @@ message TReqUpdateChunkRequisition
     repeated TChunkRequisitionDictItem chunk_requisition_dict = 4;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+message TReqConfirmChunkListsRequisitionTraverseFinished
+{
+    repeated NYT.NProto.TGuid chunk_list_ids = 1;
+}
 
+////////////////////////////////////////////////////////////////////////////////

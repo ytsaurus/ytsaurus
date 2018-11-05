@@ -74,6 +74,9 @@ def wait_drivers():
         wait(driver_is_ready, ignore_exceptions=True)
 
 def terminate_drivers():
+    for cluster in clusters_drivers:
+        for driver in clusters_drivers[cluster]:
+            driver.terminate()
     clusters_drivers.clear()
 
 def get_branch(dict, path):
@@ -332,11 +335,6 @@ def get(path, is_raw=False, **kwargs):
         raise
     return result if is_raw else yson.loads(result)
 
-def get_operation(operation_id, is_raw=False, **kwargs):
-    kwargs["operation_id"] = operation_id
-    result = execute_command("get_operation", kwargs)
-    return result if is_raw else yson.loads(result)
-
 def get_job(operation_id, job_id, is_raw=False, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
@@ -422,7 +420,7 @@ def select_rows(query, **kwargs):
 def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
     if not is_raw:
-        data = yson.dumps(data, boolean_as_string=False, yson_type="list_fragment")
+        data = yson.dumps(data, yson_type="list_fragment")
     return StringIO(data)
 
 def insert_rows(path, data, is_raw=False, **kwargs):
@@ -640,7 +638,7 @@ class Operation(object):
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=2.0):
-        print >>sys.stderr, "Ensure operation is running %s" % self.id
+        print >>sys.stderr, "Waiting for operation %s to become running" % self.id
 
         state = self.get_state(verbose=False)
         while state != "running" and timeout > 0:
@@ -652,10 +650,10 @@ class Operation(object):
             raise TimeoutError("Operation didn't become running within timeout")
 
     def get_job_count(self, state):
-        path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
-        if state == "aborted" or state == "completed":
-            path += "/total"
         try:
+            path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
+            if state == "aborted" or state == "completed":
+                path += "/total"
             return get(path, verbose=False)
         except YtError as err:
             if not err.is_resolve_error():
@@ -823,24 +821,39 @@ def start_op(op_type, **kwargs):
 
     return operation
 
-def abort_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+def resolve_operation_id_or_alias(command):
+    def resolved_command(op_id_or_alias, **kwargs):
+        if op_id_or_alias.startswith("*"):
+            kwargs["operation_alias"] = op_id_or_alias
+        else:
+            kwargs["operation_id"] = op_id_or_alias
+        return command(**kwargs)
+
+    return resolved_command
+
+@resolve_operation_id_or_alias
+def abort_op(**kwargs):
     execute_command("abort_op", kwargs)
 
-def suspend_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def suspend_op(**kwargs):
     execute_command("suspend_op", kwargs)
 
-def complete_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def complete_op(**kwargs):
     execute_command("complete_op", kwargs)
 
-def resume_op(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def resume_op(**kwargs):
     execute_command("resume_op", kwargs)
 
-def update_op_parameters(op_id, **kwargs):
-    kwargs["operation_id"] = op_id
+@resolve_operation_id_or_alias
+def get_operation(is_raw=False, **kwargs):
+    result = execute_command("get_operation", kwargs)
+    return result if is_raw else yson.loads(result)
+
+@resolve_operation_id_or_alias
+def update_op_parameters(**kwargs):
     execute_command("update_op_parameters", kwargs)
 
 def map(**kwargs):
@@ -917,6 +930,19 @@ def create_test_tables(row_count=1, **kwargs):
     create("table", "//tmp/t_in", **kwargs)
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
+
+def run_test_vanilla(command, spec=None, job_count=1):
+    spec = spec or {}
+    spec["tasks"] = {
+        "task": {
+            "job_count": job_count,
+            "command": command
+        },
+    }
+    return vanilla(spec=spec, dont_track=True)
+
+def run_sleeping_vanilla(spec=None):
+    return run_test_vanilla("sleep 1000", spec or {})
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
@@ -1333,3 +1359,7 @@ def create_dynamic_table(path, **attributes):
         attributes.update({"dynamic": True})
     create_table_with_attributes(path, **attributes)
 
+def sync_control_chunk_replicator(enabled):
+    print >>sys.stderr, "Setting chunk replicator state to", enabled
+    set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
+    wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=driver) == enabled for driver in clusters_drivers["primary"]))

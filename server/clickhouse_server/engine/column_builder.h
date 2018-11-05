@@ -1,17 +1,21 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/column_builder.h>
 
 #include <Columns/IColumn.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::IColumnBuilderPtr CreateColumnBuilder(
-    NInterop::EColumnType type,
+NNative::IColumnBuilderPtr CreateColumnBuilder(
+    NNative::EColumnType type,
     DB::MutableColumnPtr column);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

@@ -9,7 +9,8 @@ class IDatabase;
 }   // namespace DB;
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +18,8 @@ void AttachSystemTables(
     DB::IDatabase& system,
     IClusterNodeTrackerPtr clusterNodeTracker);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

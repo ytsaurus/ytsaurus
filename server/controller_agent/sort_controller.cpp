@@ -2124,12 +2124,12 @@ protected:
                 account);
         }
 
-        for (const auto& table : InputTables) {
+        for (const auto& table : InputTables_) {
             for (const auto& name : Spec->SortBy) {
-                if (auto column = table.Schema.FindColumn(name)) {
+                if (auto column = table->Schema.FindColumn(name)) {
                     if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
-                            << TErrorAttribute("table_path", table.Path.GetPath())
+                            << TErrorAttribute("table_path", table->Path.GetPath())
                             << TErrorAttribute("column_name", name);
                     }
                 }
@@ -2255,28 +2255,28 @@ private:
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
-        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
-        table.Options->EvaluateComputedColumns = false;
+        table->TableUploadOptions.LockMode = ELockMode::Exclusive;
+        table->Options->EvaluateComputedColumns = false;
 
         // Sort output MUST be sorted.
-        table.Options->ExplodeOnValidationError = true;
+        table->Options->ExplodeOnValidationError = true;
 
-        if (table.TableUploadOptions.UpdateMode == EUpdateMode::Append &&
-            table.TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)
+        if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
+            table->TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)
         {
             THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")
                 << TErrorAttribute("output_table_path", Spec->OutputTablePath)
-                << TErrorAttribute("output_table_key_columns", table.TableUploadOptions.TableSchema.GetKeyColumns())
+                << TErrorAttribute("output_table_key_columns", table->TableUploadOptions.TableSchema.GetKeyColumns())
                 << TErrorAttribute("sort_by", Spec->SortBy);
         }
 
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
-                    table.TableUploadOptions.TableSchema =
-                        table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+                    table->TableUploadOptions.TableSchema =
+                        table->TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
 
                     ValidateOutputSchemaCompatibility(true, true);
                 }
@@ -2287,11 +2287,11 @@ private:
                 break;
 
             case ESchemaInferenceMode::FromOutput:
-                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    table.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
+                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    table->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
                 } else {
-                    table.TableUploadOptions.TableSchema =
-                        table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+                    table->TableUploadOptions.TableSchema =
+                        table->TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
                 }
                 break;
 
@@ -2620,7 +2620,7 @@ private:
             PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
-            SetInputDataSources(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).GetData());
 
@@ -2640,10 +2640,10 @@ private:
 
             if (SimpleSort) {
                 schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
-                SetInputDataSources(schedulerJobSpecExt);
+                SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
             } else {
                 schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-                SetIntermediateDataSource(schedulerJobSpecExt);
+                SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
             }
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -2670,7 +2670,7 @@ private:
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetIntermediateDataSource(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
@@ -2683,7 +2683,7 @@ private:
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetIntermediateDataSource(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).GetData());
 
@@ -3220,7 +3220,7 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
-            SetInputDataSources(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
             if (Spec->InputQuery) {
                 WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -3248,7 +3248,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetIntermediateDataSource(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -3276,7 +3276,7 @@ private:
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetIntermediateDataSource(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
 
@@ -3297,7 +3297,7 @@ private:
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetIntermediateDataSource(schedulerJobSpecExt);
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 

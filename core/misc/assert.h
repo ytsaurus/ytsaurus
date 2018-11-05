@@ -1,5 +1,9 @@
 #pragma once
 
+// Forcefully override the Y_ASSERT macro.
+#include <util/system/yassert.h>
+#undef Y_ASSERT
+
 #include <util/system/compiler.h>
 
 namespace NYT {

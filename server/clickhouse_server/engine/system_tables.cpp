@@ -29,7 +29,8 @@
 #include <Storages/System/StorageSystemZooKeeper.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -64,5 +65,8 @@ void AttachSystemTables(IDatabase& system, IClusterNodeTrackerPtr clusterTracker
     AttachClusterSystemTable(system, clusterTracker);
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

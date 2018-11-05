@@ -4,7 +4,6 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 import yt.yson
 from io import TextIOBase, UnsupportedOperation
-from time import sleep
 
 ##################################################################
 
@@ -13,11 +12,6 @@ class TestJournals(YTEnvSetup):
     NUM_NODES = 5
 
     DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
-
-    REPLICATOR_REACTION_TIME = 3.5
-
-    def _replicator_sleep(self):
-        sleep(self.REPLICATOR_REACTION_TIME)
 
     def _write_and_wait_until_sealed(self, path, data):
         write_journal(path, data)
@@ -68,8 +62,7 @@ class TestJournals(YTEnvSetup):
         assert read_journal("//tmp/j[#200:]") == []
 
     def test_resource_usage(self):
-        multicell_sleep()
-        assert get_account_committed_disk_space("tmp") == 0
+        wait(lambda: get_account_committed_disk_space("tmp") == 0)
 
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
@@ -78,11 +71,7 @@ class TestJournals(YTEnvSetup):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        # wait for chunk to become sealed
-        while True:
-            if get("#" + chunk_id + "/@sealed"):
-                break
-            sleep(1)
+        wait(lambda: get("#" + chunk_id + "/@sealed"))
 
         get("#" + chunk_id + "/@owning_nodes")
         disk_space_delta = get_chunk_owner_disk_space("//tmp/j")
@@ -90,16 +79,13 @@ class TestJournals(YTEnvSetup):
 
         get("//sys/accounts/tmp/@")
 
-        self._replicator_sleep()
-        assert get_account_committed_disk_space("tmp") == disk_space_delta
-        assert get_account_disk_space("tmp") == disk_space_delta
+        wait(lambda: get_account_committed_disk_space("tmp") == disk_space_delta and \
+                     get_account_disk_space("tmp") == disk_space_delta)
 
         remove("//tmp/j")
 
-        gc_collect() # wait for account stats to be updated
-        self._replicator_sleep()
-        assert get_account_committed_disk_space("tmp") == 0
-        assert get_account_disk_space("tmp") == 0
+        wait(lambda: get_account_committed_disk_space("tmp") == 0 and \
+                     get_account_disk_space("tmp") == 0)
 
     def test_no_copy(self):
         create("journal", "//tmp/j1")
@@ -140,14 +126,12 @@ class TestJournals(YTEnvSetup):
                 return '{{"data"="payload{0}";}};'.format(self._i)
 
         create("journal", "//tmp/j1")
-        with pytest.raises(YtError): write_journal("//tmp/j1", None, raw=False, input_stream=JournalDataStream(self))
-
-        multicell_sleep()
+        with pytest.raises(YtError):
+            write_journal("//tmp/j1", None, raw=False, input_stream=JournalDataStream(self))
 
         assert not get("//tmp/j1/@sealed")
 
         chunk_ids = get("//tmp/j1/@chunk_ids")
-        assert len(chunk_ids) > 0
         unsealed_chunk_id = None
         for chunk_id in chunk_ids:
             if not get("#{0}/@sealed".format(chunk_id)):

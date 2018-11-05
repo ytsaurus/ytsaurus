@@ -9,7 +9,8 @@
 #include <algorithm>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -108,5 +109,6 @@ DB::StoragePtr CreateStorageSystemCluster(
         std::move(tableName));
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

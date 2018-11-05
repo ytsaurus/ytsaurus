@@ -555,7 +555,7 @@ protected:
         }
 
         if (forever && !reader->IsPeerBannedForever(address)) {
-            LOG_DEBUG("Node is banned until the next seeds fetching from master (Address: %v)", address);
+            LOG_DEBUG("Node is banned until seeds are re-fetched from master (Address: %v)", address);
             reader->BanPeerForever(address);
         }
 

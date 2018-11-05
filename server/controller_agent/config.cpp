@@ -183,6 +183,14 @@ TOperationOptions::TOperationOptions()
     RegisterParameter("job_splitter", JobSplitter)
         .DefaultNew();
 
+    RegisterParameter("max_build_retry_count", MaxBuildRetryCount)
+        .Default(5)
+        .GreaterThanOrEqual(0);
+
+    RegisterParameter("data_weight_per_job_retry_factor", DataWeightPerJobRetryFactor)
+        .Default(2.0)
+        .GreaterThan(1.0);
+
     RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
@@ -398,9 +406,18 @@ TControllerAgentConfig::TControllerAgentConfig()
         .LessThanOrEqual(250);
 
     RegisterParameter("max_archived_job_spec_count_per_operation", MaxArchivedJobSpecCountPerOperation)
+        .Default(500)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(5000);
+
+    RegisterParameter("guaranteed_archived_job_spec_count_per_operation", GuaranteedArchivedJobSpecCountPerOperation)
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(100);
+
+    RegisterParameter("min_job_duration_to_archive_job_spec", MinJobDurationToArchiveJobSpec)
+        .Default(TDuration::Minutes(30))
+        .GreaterThanOrEqual(TDuration::Minutes(5));
 
     RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
         .Default(100000)

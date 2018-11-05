@@ -348,6 +348,7 @@ public:
             YCHECK(ChildToIndex_.insert(std::make_pair(child, static_cast<int>(IndexToChild_.size()))).second);
             IndexToChild_.push_back(child);
         } else {
+            YCHECK(beforeIndex <= IndexToChild_.size());
             for (auto it = IndexToChild_.begin() + beforeIndex; it != IndexToChild_.end(); ++it) {
                 ++ChildToIndex_[*it];
             }

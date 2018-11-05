@@ -16,6 +16,7 @@ message TReqExecute
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;
     required int32 response_codec = 4; // ECodec
+    repeated TTableMountInfo mount_infos = 7;
 }
 
 message TRspExecute

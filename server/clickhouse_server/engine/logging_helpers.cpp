@@ -5,7 +5,8 @@
 #include <util/generic/yexception.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +15,8 @@ std::string CurrentExceptionText()
     return ToStdString(::CurrentExceptionMessage());
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

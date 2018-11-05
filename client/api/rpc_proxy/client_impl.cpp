@@ -19,13 +19,15 @@
 
 #include <yt/client/transaction_client/remote_timestamp_provider.h>
 
+#include <yt/client/scheduler/operation_id_or_alias.h>
+
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/row_base.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
-
 #include <yt/client/table_client/wire_protocol.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 namespace NYT {
@@ -41,6 +43,7 @@ using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NScheduler;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +189,9 @@ TFuture<void> TClient::MountTable(
     req->set_path(path);
 
     NYT::ToProto(req->mutable_cell_id(), options.CellId);
+    if (!options.TargetCellIds.empty()) {
+        NYT::ToProto(req->mutable_target_cell_ids(), options.TargetCellIds);
+    }
     req->set_freeze(options.Freeze);
 
     ToProto(req->mutable_mutating_options(), options);
@@ -513,7 +519,7 @@ TFuture<NScheduler::TOperationId> TClient::StartOperation(
 }
 
 TFuture<void> TClient::AbortOperation(
-    const NScheduler::TOperationId& operationId,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TAbortOperationOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -521,7 +527,7 @@ TFuture<void> TClient::AbortOperation(
     auto req = proxy.AbortOperation();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
 
     if (options.AbortMessage) {
         req->set_abort_message(*options.AbortMessage);
@@ -531,7 +537,7 @@ TFuture<void> TClient::AbortOperation(
 }
 
 TFuture<void> TClient::SuspendOperation(
-    const NScheduler::TOperationId& operationId,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TSuspendOperationOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -539,14 +545,14 @@ TFuture<void> TClient::SuspendOperation(
     auto req = proxy.SuspendOperation();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
     req->set_abort_running_jobs(options.AbortRunningJobs);
 
     return req->Invoke().As<void>();
 }
 
 TFuture<void> TClient::ResumeOperation(
-    const NScheduler::TOperationId& operationId,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TResumeOperationOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -554,13 +560,13 @@ TFuture<void> TClient::ResumeOperation(
     auto req = proxy.ResumeOperation();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
 
     return req->Invoke().As<void>();
 }
 
 TFuture<void> TClient::CompleteOperation(
-    const NScheduler::TOperationId& operationId,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TCompleteOperationOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -568,13 +574,13 @@ TFuture<void> TClient::CompleteOperation(
     auto req = proxy.CompleteOperation();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
 
     return req->Invoke().As<void>();
 }
 
 TFuture<void> TClient::UpdateOperationParameters(
-    const NScheduler::TOperationId& operationId,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NYson::TYsonString& parameters,
     const NApi::TUpdateOperationParametersOptions& options)
 {
@@ -583,14 +589,15 @@ TFuture<void> TClient::UpdateOperationParameters(
     auto req = proxy.UpdateOperationParameters();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
+
     req->set_parameters(parameters.GetData());
 
     return req->Invoke().As<void>();
 }
 
 TFuture<NYson::TYsonString> TClient::GetOperation(
-    const NScheduler::TOperationId& operationId,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TGetOperationOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -598,7 +605,8 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
     auto req = proxy.GetOperation();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
+
     ToProto(req->mutable_master_read_options(), options);
     if (options.Attributes) {
         for (const auto& attribute: options.Attributes.Get()) {

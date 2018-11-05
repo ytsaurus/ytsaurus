@@ -70,6 +70,13 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NChunkClient::TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vector<TInputTablePtr>& inputTables);
+NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory();
+
+void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TAvgSummary
 {

@@ -442,7 +442,7 @@ void TAnnouncer::RunConnectLoop(TTrackerConnectionPtr tracker)
                 connected = false;
                 ConnectedTrackerCount_ -= 1;
             }
-            TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
+            TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
         }
     }
 }

@@ -179,6 +179,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraAbortPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
@@ -413,8 +415,10 @@ public:
         auto* rootUser = securityManager->GetRootUser();
         TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
-        AbortPrerequisiteTransaction(cell);
-        AbortCellSubtreeTransactions(cell);
+        if (Bootstrap_->IsPrimaryMaster()) {
+            AbortPrerequisiteTransaction(cell);
+            AbortCellSubtreeTransactions(cell);
+        }
 
         auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
@@ -1409,6 +1413,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
+        const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         TTimestamp mountTimestamp)
     {
@@ -1423,23 +1428,46 @@ public:
             return;
         }
 
+        auto validateCellBundle = [table] (const TTabletCell* cell) {
+            if (cell->GetCellBundle() != table->GetTabletCellBundle()) {
+                THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the table "
+                    "is configured to use bundle %Qv",
+                    cell->GetId(),
+                    cell->GetCellBundle()->GetName(),
+                    table->GetTabletCellBundle()->GetName());
+            }
+        };
+
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        TTabletCell* hintCell = nullptr;
-        if (hintCellId) {
-            hintCell = GetTabletCellOrThrow(hintCellId);
-        }
+        if (hintCellId || !targetCellIds.empty()) {
+            if (hintCellId && !targetCellIds.empty()) {
+                THROW_ERROR_EXCEPTION("At most one of \"cell_id\" and \"target_cell_ids\" must be specified");
+            }
 
-        if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
-            // Will throw :)
-            THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the table "
-                "is configured to use bundle %Qv",
-                hintCell->GetId(),
-                hintCell->GetCellBundle()->GetName(),
-                table->GetTabletCellBundle()->GetName());
-        }
+            if (hintCellId) {
+                auto hintCell = GetTabletCellOrThrow(hintCellId);
+                validateCellBundle(hintCell);
+            } else {
+                int tabletCount = lastTabletIndex - firstTabletIndex + 1;
+                if (!targetCellIds.empty() && targetCellIds.size() != tabletCount) {
+                    THROW_ERROR_EXCEPTION("\"target_cell_ids\" must either be empty or contain exactly "
+                        "\"last_tablet_index\" - \"first_tablet_index\" + 1 entries (%v != %v - %v + 1)",
+                        targetCellIds.size(),
+                        lastTabletIndex,
+                        firstTabletIndex);
+                }
 
-        if (!hintCell) {
+                for (const auto& cellId : targetCellIds) {
+                    auto targetCell = GetTabletCellOrThrow(cellId);
+                    if (!IsCellActive(targetCell)) {
+                        THROW_ERROR_EXCEPTION("Cannot mount tablet into cell %v since it is not active",
+                            cellId);
+                    }
+                    validateCellBundle(targetCell);
+                }
+            }
+        } else {
             ValidateHasHealthyCells(table->GetTabletCellBundle()); // may throw
         }
 
@@ -1512,6 +1540,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
+        const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         TTimestamp mountTimestamp)
     {
@@ -1546,19 +1575,32 @@ public:
         auto serializedWriterConfig = ConvertToYsonString(writerConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
-        std::vector<TTablet*> tabletsToMount;
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = allTablets[index];
-            if (!tablet->GetCell()) {
-                tabletsToMount.push_back(tablet);
+        std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
+
+        if (!targetCellIds.empty()) {
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = allTablets[index];
+                if (!tablet->GetCell()) {
+                    auto* cell = FindTabletCell(targetCellIds[index - firstTabletIndex]);
+                    assignment.emplace_back(tablet, cell);
+                }
             }
+        } else {
+            std::vector<TTablet*> tabletsToMount;
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = allTablets[index];
+                if (!tablet->GetCell()) {
+                    tabletsToMount.push_back(tablet);
+                }
+            }
+
+            assignment = ComputeTabletAssignment(
+                table,
+                mountConfig,
+                hintCell,
+                std::move(tabletsToMount));
         }
 
-        auto assignment = ComputeTabletAssignment(
-            table,
-            mountConfig,
-            hintCell,
-            std::move(tabletsToMount));
 
         DoMountTablets(
             table,
@@ -2138,6 +2180,11 @@ public:
 
         if (table->IsReplicated() && !table->IsEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
+        }
+
+        // Temporary disable reshard due to bug YT-8142.
+        if (!table->IsPhysicallySorted() && !table->IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard non-empty ordered table");
         }
 
         if (newTabletCount <= 0) {
@@ -3543,11 +3590,6 @@ private:
                 ToProto(entry->mutable_statistics(), cell->ClusterStatistics());
             } else {
                 ToProto(entry->mutable_statistics(), cell->LocalStatistics());
-
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                auto serializableStatistics = New<TSerializableTabletCellStatistics>(
-                    cell->LocalStatistics(),
-                    chunkManager);
             }
         }
 
@@ -3579,12 +3621,8 @@ private:
             if (!IsObjectAlive(cell))
                 continue;
 
+            cell->LocalStatistics().Health = cell->GetHealth();
             auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto serializableStatistics = New<TSerializableTabletCellStatistics>(
-                newStatistics,
-                chunkManager);
 
             if (Bootstrap_->IsPrimaryMaster()) {
                 *cell->GetCellStatistics(cellTag) = newStatistics;
@@ -3627,7 +3665,7 @@ private:
             if (!response)
                 return;
 
-            if (!cell->GetPrerequisiteTransaction())
+            if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_to_create();
@@ -3654,7 +3692,7 @@ private:
                 return;
 
             const auto* cell = slot->Cell;
-            if (!cell->GetPrerequisiteTransaction())
+            if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_configure();
@@ -3679,6 +3717,9 @@ private:
             if (!response)
                 return;
 
+            if (!Bootstrap_->IsPrimaryMaster())
+                return;
+
             auto* protoInfo = response->add_tablet_slots_update();
 
             const auto& cellId = cell->GetId();
@@ -3697,6 +3738,9 @@ private:
 
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
             if (!response)
+                return;
+
+            if (!Bootstrap_->IsPrimaryMaster())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_to_remove();
@@ -3793,7 +3837,7 @@ private:
                 slot.PeerState,
                 cellInfo.ConfigVersion);
 
-            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion() && Bootstrap_->IsPrimaryMaster()) {
+            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(&slot);
             }
 
@@ -4586,7 +4630,12 @@ private:
             objectManager->RefObject(newRootChunkList);
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
-            YCHECK(newRootChunkList->Statistics() == statistics);
+            if (newRootChunkList->Statistics() != statistics) {
+                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid new root chunk list statistics (TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
+                    table->GetId(),
+                    newRootChunkList->Statistics(),
+                    statistics);
+            }
         } else {
             auto statistics = oldRootChunkList->Statistics();
 
@@ -4604,7 +4653,12 @@ private:
                 }
             }
 
-            YCHECK(oldRootChunkList->Statistics() == statistics);
+            if (oldRootChunkList->Statistics() != statistics) {
+                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid old root chunk list statistics (TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
+                    table->GetId(),
+                    oldRootChunkList->Statistics(),
+                    statistics);
+            }
         }
     }
 
@@ -5162,6 +5216,8 @@ private:
 
     void RestartPrerequisiteTransaction(TTabletCell* cell)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
         StartPrerequisiteTransaction(cell);
@@ -5169,6 +5225,8 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
 
@@ -5179,6 +5237,7 @@ private:
             secondaryCellTags,
             secondaryCellTags,
             Null,
+            /* deadline */ Null,
             Format("Prerequisite for cell %v", cell->GetId()),
             EmptyAttributes());
 
@@ -5186,7 +5245,41 @@ private:
         cell->SetPrerequisiteTransaction(transaction);
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
+        TReqStartPrerequisiteTransactoin request;
+        ToProto(request.mutable_cell_id(), cell->GetId());
+        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+            cell->GetId(),
+            transaction->GetId());
+    }
+
+    void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransactoin* request)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = transactionManager->FindTransaction(transactionId);
+
+        if (!IsObjectAlive(transaction)) {
+            LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+                cellId,
+                transactionId);
+            return;
+        }
+
+        YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -5202,6 +5295,8 @@ private:
 
     void AbortPrerequisiteTransaction(TTabletCell* cell)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         auto* transaction = cell->GetPrerequisiteTransaction();
         if (!transaction) {
             return;
@@ -5211,6 +5306,13 @@ private:
         YCHECK(TransactionToCellMap_.erase(transaction) == 1);
         cell->SetPrerequisiteTransaction(nullptr);
 
+        // Suppress calling OnTransactionFinished on secondary masters.
+        TReqAbortPrerequisiteTransactoin request;
+        ToProto(request.mutable_cell_id(), cell->GetId());
+        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+
         // NB: Make a copy, transaction will die soon.
         auto transactionId = transaction->GetId();
 
@@ -5219,6 +5321,31 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
+            transactionId);
+    }
+
+    void HydraAbortPrerequisiteTransaction(TReqAbortPrerequisiteTransactoin* request)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = transactionManager->FindTransaction(transactionId);
+
+        if (!IsObjectAlive(transaction)) {
+            LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+                cellId,
+                transactionId);
+            return;
+        }
+
+        // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
+        TransactionToCellMap_.erase(transaction);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+            cellId,
             transactionId);
     }
 
@@ -5233,7 +5360,7 @@ private:
         cell->SetPrerequisiteTransaction(nullptr);
         TransactionToCellMap_.erase(it);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction finished (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
 
@@ -5765,6 +5892,7 @@ void TTabletManager::PrepareMountTable(
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
+    const std::vector<TTabletCellId>& targetCellIds,
     bool freeze,
     TTimestamp mountTimestamp)
 {
@@ -5773,6 +5901,7 @@ void TTabletManager::PrepareMountTable(
         firstTabletIndex,
         lastTabletIndex,
         hintCellId,
+        targetCellIds,
         freeze,
         mountTimestamp);
 }
@@ -5856,6 +5985,7 @@ void TTabletManager::MountTable(
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
+    const std::vector<TTabletCellId>& targetCellIds,
     bool freeze,
     TTimestamp mountTimestamp)
 {
@@ -5865,6 +5995,7 @@ void TTabletManager::MountTable(
         firstTabletIndex,
         lastTabletIndex,
         hintCellId,
+        targetCellIds,
         freeze,
         mountTimestamp);
 }

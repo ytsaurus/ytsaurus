@@ -8,6 +8,7 @@
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/scheduler/proto/output_result.pb.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
@@ -20,6 +21,8 @@
 
 #include <yt/client/table_client/row_buffer.h>
 
+#include <yt/client/transaction_client/public.h>
+
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT {
@@ -30,6 +33,7 @@ using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NScheduler;
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NApi;
 
@@ -157,6 +161,48 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
             }
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vector<TInputTablePtr>& inputTables)
+{
+    auto dataSourceDirectory = New<TDataSourceDirectory>();
+    for (const auto& inputTable : inputTables) {
+        auto dataSource = (inputTable->IsDynamic && inputTable->Schema.IsSorted())
+            ? MakeVersionedDataSource(
+                inputTable->GetPath(),
+                inputTable->Schema,
+                inputTable->Path.GetColumns(),
+                inputTable->Path.GetTimestamp().Get(AsyncLastCommittedTimestamp),
+                inputTable->ColumnRenameDescriptors)
+            : MakeUnversionedDataSource(
+                inputTable->GetPath(),
+                inputTable->Schema,
+                inputTable->Path.GetColumns(),
+                inputTable->ColumnRenameDescriptors);
+
+        dataSourceDirectory->DataSources().push_back(dataSource);
+    }
+
+    return dataSourceDirectory;
+}
+
+TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory()
+{
+    auto dataSourceDirectory = New<TDataSourceDirectory>();
+    dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+        IntermediatePath,
+        Null,
+        Null));
+    return dataSourceDirectory;
+}
+
+void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, const TDataSourceDirectoryPtr& dataSourceDirectory)
+{
+    NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+    ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+    SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

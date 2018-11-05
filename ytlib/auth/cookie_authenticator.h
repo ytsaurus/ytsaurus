@@ -29,7 +29,7 @@ DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator)
 
 ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
     TBlackboxCookieAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackbox);
+    IBlackboxServicePtr blackboxService);
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     TAsyncExpiringCacheConfigPtr config,

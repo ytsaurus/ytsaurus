@@ -117,6 +117,9 @@ struct IOperationController
     //! Invokes IOperationControllerSchedulerHost::Dispose asynchronously.
     virtual TFuture<void> Unregister() = 0;
 
+    //! Invokes IOperationControllerSchedulerHost::UpdateRuntimeParameters asynchronously.
+    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersPtr runtimeParameters) = 0;
+
 
     // These methods can be called even without agent being assigned.
 

@@ -150,7 +150,8 @@ public:
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        EJobEnvironmentType environmentType);
+        EJobEnvironmentType environmentType,
+        bool enableSecureVaultVariablesInJobShell);
 
     TYsonString StraceJob();
     void SignalJob(const TString& signalName);
@@ -159,6 +160,7 @@ public:
 
 private:
     const EJobEnvironmentType EnvironmentType_;
+    const bool EnableSecureVaultVariablesInJobShell_;
     const pid_t RootPid_;
     const int Uid_;
     const std::vector<TString> Environment_;
@@ -172,7 +174,8 @@ private:
     TJobProbeTools(pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        EJobEnvironmentType environmentType);
+        EJobEnvironmentType environmentType,
+        bool enableSecureVaultVariablesInJobShell);
     void Init(const TJobId& jobId);
 
     DECLARE_NEW_FRIEND();
@@ -186,8 +189,10 @@ TJobProbeTools::TJobProbeTools(
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    EJobEnvironmentType environmentType)
+    EJobEnvironmentType environmentType,
+    bool enableSecureVaultVariablesInJobShell)
     : EnvironmentType_(environmentType)
+    , EnableSecureVaultVariablesInJobShell_(enableSecureVaultVariablesInJobShell)
     , RootPid_(rootPid)
     , Uid_(uid)
     , Environment_(env)
@@ -199,9 +204,10 @@ TJobProbeToolsPtr TJobProbeTools::Create(
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    EJobEnvironmentType environmentType)
+    EJobEnvironmentType environmentType,
+    bool enableSecureVaultVariablesInJobShell)
 {
-    auto tools = New<TJobProbeTools>(rootPid, uid, env, environmentType);
+    auto tools = New<TJobProbeTools>(rootPid, uid, env, environmentType, enableSecureVaultVariablesInJobShell);
     try {
         tools->Init(jobId);
     } catch (const std::exception& ex) {
@@ -233,13 +239,21 @@ void TJobProbeTools::Init(const TJobId& jobId)
 
     auto currentWorkDir = NFs::CurrentWorkingDirectory();
     currentWorkDir = currentWorkDir.substr(0, currentWorkDir.find_last_of("/"));
-    
+
     // Copy environment to process arguments
     std::vector<TString> shellEnvironment;
     shellEnvironment.reserve(Environment_.size());
+
+    std::vector<TString> visibleEnvironment;
+    visibleEnvironment.reserve(Environment_.size());
+
     for (const auto& var : Environment_) {
-        if (var.StartsWith("YT_")) {
+        bool allowSecureVaultVariable = (EnableSecureVaultVariablesInJobShell_ || !var.StartsWith("YT_SECURE_VAULT_"));
+        if (var.StartsWith("YT_") && allowSecureVaultVariable) {
             shellEnvironment.emplace_back(var);
+        }
+        if (allowSecureVaultVariable) {
+            visibleEnvironment.emplace_back(var);
         }
     }
 
@@ -247,7 +261,7 @@ void TJobProbeTools::Init(const TJobId& jobId)
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
         EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>("user_job_" + ToString(jobId)) : TNullable<TString>(),
-        Format("Job environment:\n%v\n", JoinToString(Environment_, AsStringBuf("\n"))),
+        Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
         std::move(shellEnvironment));
 }
 
@@ -340,7 +354,8 @@ public:
         int uid,
         const std::vector<TString>& env,
         const TJobId& jobId,
-        EJobEnvironmentType environmentType);
+        EJobEnvironmentType environmentType,
+        bool enableSecureVaultVariablesInJobShell);
     void GracefulShutdown(const TError& error);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
@@ -357,6 +372,7 @@ private:
     const std::vector<TString> Env_;
     const TJobId JobId_;
     const EJobEnvironmentType EnvironmentType_;
+    const bool EnableSecureVaultVariablesInJobShell_;
 
     const NLogging::TLogger Logger;
 
@@ -370,12 +386,14 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     int uid,
     const std::vector<TString>& env,
     const TJobId& jobId,
-    EJobEnvironmentType environmentType)
+    EJobEnvironmentType environmentType,
+    bool enableSecureVaultVariablesInJobShell)
     : RootPid_(rootPid)
     , Uid_(uid)
     , Env_(env)
     , JobId_(jobId)
     , EnvironmentType_(environmentType)
+    , EnableSecureVaultVariablesInJobShell_(enableSecureVaultVariablesInJobShell)
     , Logger(NLogging::TLogger(JobSatelliteLogger)
         .AddTag("JobId: %v", JobId_))
 {
@@ -386,7 +404,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
 void TJobSatelliteWorker::EnsureJobProbe()
 {
     if (!JobProbe_) {
-        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, Env_, EnvironmentType_);
+        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, Env_, EnvironmentType_, EnableSecureVaultVariablesInJobShell_);
     }
 }
 
@@ -494,7 +512,8 @@ void TJobSatellite::Run()
         Uid_,
         Env_,
         JobId_,
-        SatelliteConnectionConfig_->EnvironmentType
+        SatelliteConnectionConfig_->EnvironmentType,
+        SatelliteConnectionConfig_->EnableSecureVaultVariablesInJobShell
     );
 
     RpcServer_->RegisterService(CreateJobProberService(jobSatelliteService, JobSatelliteMainThread_->GetInvoker()));

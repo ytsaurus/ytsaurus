@@ -5,7 +5,8 @@
 #include "cluster_tracker.h"
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +14,8 @@ DB::StoragePtr CreateStorageSystemCluster(
     IClusterNodeTrackerPtr clusterNodeTracker,
     std::string tableName);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

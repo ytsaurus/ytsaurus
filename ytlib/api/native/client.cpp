@@ -83,6 +83,7 @@
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 
@@ -286,11 +287,20 @@ public:
             .Run(path, timestamp);
     }
 
+    std::vector<TTableMountInfoPtr> ExtractTableInfos()
+    {
+        auto guard = Guard(TableInfosSpinLock_);
+        return std::move(TableInfos_);   
+    }
+
 private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
 
-    TTableSchema GetTableSchema(
+    TSpinLock TableInfosSpinLock_;
+    std::vector<TTableMountInfoPtr> TableInfos_;
+
+    static TTableSchema GetTableSchema(
         const TRichYPath& path,
         const TTableMountInfoPtr& tableInfo)
     {
@@ -313,6 +323,12 @@ private:
 
         tableInfo->ValidateNotReplicated();
 
+        // NB: This access may come from distinct threads as connection's invoker is typically a thread pool.
+        {
+            auto guard = Guard(TableInfosSpinLock_);
+            TableInfos_.push_back(tableInfo);
+        }
+        
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
         SetTableSchema(&result, GetTableSchema(path, tableInfo));
@@ -771,30 +787,30 @@ public:
         const TStartOperationOptions& options),
         (type, spec, options))
     IMPLEMENT_METHOD(void, AbortOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TAbortOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, SuspendOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TSuspendOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, ResumeOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TResumeOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, CompleteOperation, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TCompleteOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, UpdateOperationParameters, (
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TYsonString& parameters,
         const TUpdateOperationParametersOptions& options),
-        (operationId, parameters, options))
+        (operationIdOrAlias, parameters, options))
     IMPLEMENT_METHOD(TYsonString, GetOperation, (
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
         const TYPath& path,
@@ -1188,7 +1204,7 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             auto req = InvokeProxy_->Read();
-            req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+            // TODO(babenko): set proper band
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
@@ -1812,7 +1828,7 @@ private:
                 proxy.SetDefaultRequestAck(false);
 
                 auto req = proxy.Multiread();
-                req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+                // TODO(babenko): set proper band
                 req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
                 req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
                 req->set_timestamp(options.Timestamp);
@@ -1997,6 +2013,8 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
+        auto tableInfos = queryPreparer->ExtractTableInfos();
+
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
                 const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
@@ -2032,6 +2050,7 @@ private:
 
         auto statistics = WaitFor(queryExecutor->Execute(
             query,
+            tableInfos,
             externalCGInfo,
             dataSource,
             writer,
@@ -2363,6 +2382,9 @@ private:
             if (options.CellId) {
                 ToProto(req.mutable_cell_id(), options.CellId);
             }
+            if (!options.TargetCellIds.empty()) {
+                ToProto(req.mutable_target_cell_ids(), options.TargetCellIds);
+            }
             req.set_freeze(options.Freeze);
 
             auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
@@ -2382,6 +2404,9 @@ private:
             }
             if (options.CellId) {
                 ToProto(req->mutable_cell_id(), options.CellId);
+            }
+            if (!options.TargetCellIds.empty()) {
+                ToProto(req->mutable_target_cell_ids(), options.TargetCellIds);
             }
             req->set_freeze(options.Freeze);
 
@@ -2714,6 +2739,7 @@ private:
 
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
+        SetSuppressAccessTracking(req, options);
         SetMutationId(req, options);
 
         // Binarize the value.
@@ -3670,11 +3696,11 @@ private:
     }
 
     void DoAbortOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TAbortOperationOptions& options)
     {
         auto req = SchedulerProxy_->AbortOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
         if (options.AbortMessage) {
             req->set_abort_message(*options.AbortMessage);
         }
@@ -3684,11 +3710,11 @@ private:
     }
 
     void DoSuspendOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TSuspendOperationOptions& options)
     {
         auto req = SchedulerProxy_->SuspendOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
         req->set_abort_running_jobs(options.AbortRunningJobs);
 
         WaitFor(req->Invoke())
@@ -3696,34 +3722,34 @@ private:
     }
 
     void DoResumeOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TResumeOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->ResumeOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
     void DoCompleteOperation(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TCompleteOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->CompleteOperation();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
     void DoUpdateOperationParameters(
-        const TOperationId& operationId,
+        const TOperationIdOrAlias& operationIdOrAlias,
         const TYsonString& parameters,
         const TUpdateOperationParametersOptions& options)
     {
         auto req = SchedulerProxy_->UpdateOperationParameters();
-        ToProto(req->mutable_operation_id(), operationId);
+        ToProto(req, operationIdOrAlias);
         req->set_parameters(parameters.GetData());
 
         WaitFor(req->Invoke())
@@ -3845,7 +3871,7 @@ private:
         SetBalancingHeader(batchReq, options);
 
         {
-            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
             if (cypressAttributes) {
                 ToProto(req->mutable_attributes()->mutable_keys(), *cypressAttributes);
             }
@@ -4084,12 +4110,71 @@ private:
         return TYsonString();
     }
 
+    NScheduler::TOperationId ResolveOperationAlias(
+        const TString& alias,
+        const TGetOperationOptions& options,
+        TInstant deadline)
+    {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(GetSchedulerOrchidAliasPath(alias) + "/operation_id");
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (rspOrError.IsOK()) {
+            return ConvertTo<TOperationId>(TYsonString(rspOrError.Value()->value()));
+        } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            THROW_ERROR_EXCEPTION("Error while resolving alias from scheduler")
+                << rspOrError
+                << TErrorAttribute("operation_alias", alias);
+        }
+
+        TOperationAliasesTableDescriptor tableDescriptor;
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(1);
+        key[0] = MakeUnversionedStringValue(alias, tableDescriptor.Index.Alias);
+        keys.push_back(key);
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.KeepMissingRows = true;
+        lookupOptions.Timeout = deadline - Now();
+
+        auto rowset = WaitFor(LookupRows(
+            GetOperationsArchiveOperationAliasesPath(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+        if (rows[0]) {
+            TOperationId operationId;
+            operationId.Parts64[0] = rows[0][tableDescriptor.Index.OperationIdHi].Data.Uint64;
+            operationId.Parts64[1] = rows[0][tableDescriptor.Index.OperationIdLo].Data.Uint64;
+            return operationId;
+        }
+
+        THROW_ERROR_EXCEPTION("Operation alias is unknown")
+            << TErrorAttribute("alias", alias);
+    }
+
     TYsonString DoGetOperation(
-        const NScheduler::TOperationId& operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options)
     {
         auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetOperationTimeout);
         auto deadline = timeout.ToDeadLine();
+
+        TOperationId operationId;
+        if (operationIdOrAlias.Is<TOperationId>()) {
+            operationId = operationIdOrAlias.As<TOperationId>();
+        } else if (!options.IncludeRuntime) {
+            THROW_ERROR_EXCEPTION(
+                "Operation alias cannot be resolved without using runtime information; "
+                "consider setting include_runtime = true");
+        } else {
+            operationId = ResolveOperationAlias(operationIdOrAlias.As<TString>(), options, deadline);
+        }
 
         if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
             return result;
@@ -4362,13 +4447,8 @@ private:
         };
 
         try {
-            auto fileReaderOrError = createFileReader(NScheduler::GetNewStderrPath(operationId, jobId));
-            // COMPAT
-            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                fileReaderOrError = createFileReader(NScheduler::GetStderrPath(operationId, jobId));
-            }
-
-            auto fileReader = fileReaderOrError.ValueOrThrow();
+            auto fileReader = createFileReader(NScheduler::GetStderrPath(operationId, jobId))
+                .ValueOrThrow();
 
             std::vector<TSharedRef> blocks;
             while (true) {
@@ -4544,13 +4624,8 @@ private:
         };
 
         try {
-            auto fileReaderOrError = createFileReader(NScheduler::GetNewFailContextPath(operationId, jobId));
-            // COMPAT
-            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                fileReaderOrError = createFileReader(NScheduler::GetFailContextPath(operationId, jobId));
-            }
-
-            auto fileReader = fileReaderOrError.ValueOrThrow();
+            auto fileReader = createFileReader(NScheduler::GetFailContextPath(operationId, jobId))
+                .ValueOrThrow();
 
             std::vector<TSharedRef> blocks;
             while (true) {
@@ -5019,7 +5094,7 @@ private:
             SetBalancingHeader(getBatchReq, options);
 
             for (const auto& operation: filteredOperations) {
-                auto req = TYPathProxy::Get(GetNewOperationPath(*operation.Id));
+                auto req = TYPathProxy::Get(GetOperationPath(*operation.Id));
                 SetCachingHeader(req, options);
                 ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(requestedAttributes));
                 getBatchReq->AddRequest(req);
@@ -5728,25 +5803,11 @@ private:
             batchReq->AddRequest(getReq, "get_jobs");
         }
 
-        {
-            auto getReqNew = TYPathProxy::Get(GetNewJobsPath(operationId));
-            ToProto(getReqNew->mutable_attributes()->mutable_keys(), attributeFilter);
-            batchReq->AddRequest(getReqNew, "get_jobs_new");
-        }
-
         return batchReq->Invoke().Apply(BIND([options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
-
-            auto getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs_new");
-            if (!getReqRsp.IsOK()) {
-                if (getReqRsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
-                } else {
-                    THROW_ERROR getReqRsp;
-                }
-            }
+            auto getReqRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
 
             const auto& rsp = getReqRsp.ValueOrThrow();
 

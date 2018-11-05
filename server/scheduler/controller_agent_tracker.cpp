@@ -155,6 +155,7 @@ public:
 
         auto req = AgentProxy_->InitializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         if (transactions) {
             req->set_clean(false);
             ToProto(req->mutable_transaction_ids(), *transactions);
@@ -189,6 +190,7 @@ public:
 
         auto req = AgentProxy_->PrepareOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspPrepareOperationPtr& rsp) {
                 return TOperationControllerPrepareResult{
@@ -203,6 +205,7 @@ public:
         YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->MaterializeOperation();
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
@@ -221,6 +224,7 @@ public:
         }
 
         auto req = AgentProxy_->ReviveOperation();
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
             BIND([
@@ -258,6 +262,7 @@ public:
 
         auto req = AgentProxy_->CommitOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).As<void>();
     }
 
@@ -273,6 +278,7 @@ public:
 
         auto req = AgentProxy_->AbortOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspAbortOperation>(req).As<void>();
     }
 
@@ -283,6 +289,7 @@ public:
 
         auto req = AgentProxy_->CompleteOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
@@ -296,7 +303,22 @@ public:
 
         auto req = AgentProxy_->UnregisterOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
+    }
+
+    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersPtr runtimeParameters) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        if (!IncarnationId_) {
+            return VoidFuture;
+        }
+
+        auto req = AgentProxy_->UpdateOperationRuntimeParameters();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        ToProto(req->mutable_parameters(), ConvertToYsonString(runtimeParameters).GetData());
+        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
     }
 
 
@@ -671,7 +693,7 @@ public:
                     i64 freeMemory = std::max(static_cast<i64>(0), memoryStatistics->Limit - memoryStatistics->Usage);
                     double score = static_cast<double>(freeMemory) / memoryStatistics->Limit;
 
-                    scoreSum += score;
+                    scoreSum += std::pow(score, Config_->MemoryBalancedPickStrategyScorePower);
                     if (RandomNumber<float>() <= static_cast<float>(score) / scoreSum) {
                         pickedAgent = agent;
                     }
@@ -712,7 +734,6 @@ public:
         req->SetTimeout(Config_->HeavyRpcTimeout);
 
         auto spec = CloneNode(operation->GetSpec());
-        spec->AsMap()->AddChild("enable_compatible_storage_mode", BuildYsonNodeFluently().Value(operation->GetEnableCompatibleStorageMode()));
 
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());

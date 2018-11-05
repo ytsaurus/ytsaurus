@@ -4,12 +4,15 @@
 #include "format_helpers.h"
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/objects.h>
+
 #include <Common/Exception.h>
 
 #include <Poco/Logger.h>
 
 #include <common/logger_useful.h>
 
+#include <util/generic/maybe.h>
 #include <util/system/event.h>
 
 #include <thread>
@@ -24,7 +27,8 @@ namespace ErrorCodes
 }   // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +44,7 @@ private:
 
     IConfigPollerPtr Poller;
 
-    TMaybe<NInterop::TRevision> KnownRevision;
+    TMaybe<NNative::TRevision> KnownRevision;
 
     bool Started = false;
     TManualEvent StopRequested;
@@ -64,10 +68,10 @@ private:
     void RunInBackground();
 
     void MonitorUpdates();
-    TMaybe<NInterop::TRevision> GetCurrentRevision() const;
-    bool IsTargetUpdated(NInterop::TRevision& newRevision) const;
+    TMaybe<NNative::TRevision> GetCurrentRevision() const;
+    bool IsTargetUpdated(NNative::TRevision& newRevision) const;
     bool TryReload();
-    void UpdateKnownRevision(NInterop::TRevision newRevision);
+    void UpdateKnownRevision(NNative::TRevision newRevision);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,7 +127,7 @@ void TConfigReloader::MonitorUpdates()
     LOG_INFO(Logger, "Start monitoring " << Quoted(Name));
 
     while (!StopRequested.WaitT(POLL_FREQUENCY)) {
-        NInterop::TRevision newRevision;
+        NNative::TRevision newRevision;
         if (IsTargetUpdated(newRevision)) {
             LOG_DEBUG(Logger, "Found new revision of " << Quoted(Name) << ": " << newRevision);
             if (TryReload()) {
@@ -160,7 +164,7 @@ bool TConfigReloader::TryReload()
     return true;
 }
 
-TMaybe<NInterop::TRevision> TConfigReloader::GetCurrentRevision() const
+TMaybe<NNative::TRevision> TConfigReloader::GetCurrentRevision() const
 {
     try {
         return Poller->GetRevision();
@@ -170,7 +174,7 @@ TMaybe<NInterop::TRevision> TConfigReloader::GetCurrentRevision() const
     }
 }
 
-bool TConfigReloader::IsTargetUpdated(NInterop::TRevision& newRevision) const
+bool TConfigReloader::IsTargetUpdated(NNative::TRevision& newRevision) const
 {
     const auto revision = GetCurrentRevision();
     if (revision.Defined() && (revision != KnownRevision)) {
@@ -181,7 +185,7 @@ bool TConfigReloader::IsTargetUpdated(NInterop::TRevision& newRevision) const
     return false;
 }
 
-void TConfigReloader::UpdateKnownRevision(NInterop::TRevision newRevision)
+void TConfigReloader::UpdateKnownRevision(NNative::TRevision newRevision)
 {
     KnownRevision = newRevision;
 }
@@ -199,5 +203,8 @@ IConfigReloaderPtr CreateConfigReloader(
         std::move(updateConfig));
 }
 
-} // namespace NClickHouse
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

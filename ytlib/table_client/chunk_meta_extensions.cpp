@@ -94,9 +94,9 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCac
         }
     }
 
-    TBlockMetaExt blockMetaExt;
-    NYT::ToProto(blockMetaExt.mutable_blocks(), filteredBlocks);
-    SetProtoExtension(filteredChunkMeta.mutable_extensions(), blockMetaExt);
+    auto blockMetaExt = ObjectPool<TBlockMetaExt>().Allocate();
+    NYT::ToProto(blockMetaExt->mutable_blocks(), filteredBlocks);
+    SetProtoExtension(filteredChunkMeta.mutable_extensions(), *blockMetaExt);
 
     return filteredChunkMeta;
 }

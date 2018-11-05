@@ -26,7 +26,7 @@ class TSchedulerStrategyHost
 {
 public:
     TSchedulerStrategyHost(
-        std::vector<NScheduler::TExecNodePtr>* execNodes,
+        const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream);
 
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
@@ -66,7 +66,7 @@ public:
         TNullable<TDuration> timeout) override;
 
 private:
-    std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
+    const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
     NScheduler::TJobResources TotalResourceLimits_;
     THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TJobResources> FilterToJobResources_;
     mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TMemoryDistribution> FilterToMemoryDistribution_;
@@ -75,5 +75,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NSchedulerSimulator
-} // namesapce NYT
+} // namespace NSchedulerSimulator
+} // namespace NYT

@@ -104,15 +104,17 @@ private:
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
         auto path = request->path();
+        auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, User: %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v, MountTimestamp: %v)",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
             Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
+            targetCellIds,
             freeze,
             mountTimestamp);
 
@@ -140,6 +142,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
+            targetCellIds,
             freeze,
             mountTimestamp);
     }
@@ -153,15 +156,17 @@ private:
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
         auto path = request->path();
+        auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, User: %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v, MountTimestamp: %v)",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
             Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
+            targetCellIds,
             freeze,
             mountTimestamp);
 
@@ -182,6 +187,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
+            targetCellIds,
             freeze,
             mountTimestamp);
     }

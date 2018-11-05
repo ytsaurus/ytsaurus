@@ -401,9 +401,13 @@ private:
 
     virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys) override
     {
-        return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
-            .AsyncVia(Invoker_)
-            .Run();
+        if (auto client = Client_.Lock()) {
+            return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, std::move(client))
+                .AsyncVia(Invoker_)
+                .Run();
+        } else {
+            return MakeFuture<std::vector<TExternalFunctionSpec>>(TError("Client destroyed"));
+        }
     }
 };
 

@@ -82,9 +82,10 @@ TAutoMergeTask::TAutoMergeTask(
         false /* isExplicitJobCount */,
         1 /* jobCount */,
         dataWeightPerJob /* dataWeightPerJob */,
-        std::numeric_limits<i64>::max() /* primaryDataSizePerJob */,
+        std::numeric_limits<i64>::max() /* primaryDataWeightPerJob */,
         maxChunksPerJob /* maxDataSlicesPerJob */,
-        std::numeric_limits<i64>::max(),
+        std::numeric_limits<i64>::max() /* maxDataWeightPerJob */,
+        std::numeric_limits<i64>::max() /* primaryMaxDataWeightPerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */,
         Null /* samplingRate */);

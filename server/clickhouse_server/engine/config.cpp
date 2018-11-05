@@ -3,7 +3,8 @@
 #include <Poco/Util/XMLConfiguration.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +16,8 @@ IConfigPtr LoadConfigFromLocalFile(const std::string& path)
     return nullptr;
 }
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT

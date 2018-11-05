@@ -5,6 +5,9 @@
 #include "storage_concat.h"
 #include "type_helpers.h"
 
+#include <yt/server/clickhouse_server/native/table_partition.h>
+#include <yt/server/clickhouse_server/native/storage.h>
+
 #include <Common/Exception.h>
 #include <Common/OptimizedRegularExpression.h>
 #include <Common/typeid_cast.h>
@@ -36,7 +39,8 @@ namespace ErrorCodes {
 } // namespace DB
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 using namespace DB;
 
@@ -90,28 +94,28 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SortTablesByName(NInterop::TTableList& tables)
+void SortTablesByName(NNative::TTableList& tables)
 {
     std::sort(
         tables.begin(),
         tables.end(),
-        [] (const NInterop::TTablePtr& lhs, const NInterop::TTablePtr& rhs) {
+        [] (const NNative::TTablePtr& lhs, const NNative::TTablePtr& rhs) {
             return lhs->Name < rhs->Name;
         });
 }
 
-std::string GetTableBaseName(const NInterop::TTable& table) {
+std::string GetTableBaseName(const NNative::TTable& table) {
     // TODO: abstract ypath
     return ToStdString(TStringBuf(table.Name).RNextTok('/'));
 }
 
 using TTableNameFilter = std::function<bool(const std::string& tableName)>;
 
-NInterop::TTableList FilterTablesByName(
-    const NInterop::TTableList& tables,
+NNative::TTableList FilterTablesByName(
+    const NNative::TTableList& tables,
     TTableNameFilter nameFilter)
 {
-    NInterop::TTableList filtered;
+    NNative::TTableList filtered;
     for (const auto& table : tables) {
         const auto basename = GetTableBaseName(*table);
         if (nameFilter(basename)) {
@@ -131,14 +135,14 @@ class TConcatenateTablesList
     : public ITableFunction
 {
 private:
-    NInterop::IStoragePtr Storage;
+    NNative::IStoragePtr Storage;
     IExecutionClusterPtr Cluster;
 
     Poco::Logger* Logger;
 
 public:
     TConcatenateTablesList(
-        NInterop::IStoragePtr storage,
+        NNative::IStoragePtr storage,
         IExecutionClusterPtr cluster)
         : Storage(std::move(storage))
         , Cluster(std::move(cluster))
@@ -161,9 +165,9 @@ private:
         TArguments& arguments,
         const Context& context) const;
 
-    NInterop::TTableList GetTables(
+    NNative::TTableList GetTables(
         const std::vector<TString>& tableNames,
-        const NInterop::IAuthorizationToken& token) const;
+        const NNative::IAuthorizationToken& token) const;
 
     StoragePtr Execute(
         const std::vector<TString>& tableNames,
@@ -196,13 +200,13 @@ std::vector<TString> TConcatenateTablesList::EvaluateArguments(
     return tableNames;
 }
 
-NInterop::TTableList TConcatenateTablesList::GetTables(
+NNative::TTableList TConcatenateTablesList::GetTables(
     const std::vector<TString>& tableNames,
-    const NInterop::IAuthorizationToken& token) const
+    const NNative::IAuthorizationToken& token) const
 {
-    // TODO: batch GetTabes in NInterop::IStorage
+    // TODO: batch GetTabes in NNative::IStorage
 
-    NInterop::TTableList tables;
+    NNative::TTableList tables;
     tables.reserve(tableNames.size());
     for (const auto& name : tableNames) {
         auto table = Storage->GetTable(token, name);
@@ -237,14 +241,14 @@ class TListFilterAndConcatenateTables
     : public ITableFunction
 {
 private:
-    NInterop::IStoragePtr Storage;
+    NNative::IStoragePtr Storage;
     IExecutionClusterPtr Cluster;
 
     Poco::Logger* Logger;
 
 public:
     TListFilterAndConcatenateTables(
-        NInterop::IStoragePtr storage,
+        NNative::IStoragePtr storage,
         IExecutionClusterPtr cluster,
         Poco::Logger* logger)
         : Storage(std::move(storage))
@@ -257,7 +261,7 @@ public:
         const Context& context) const override;
 
 protected:
-    const NInterop::IStoragePtr& GetStorage() const
+    const NNative::IStoragePtr& GetStorage() const
     {
         return Storage;
     }
@@ -269,8 +273,8 @@ protected:
 
 protected:
     // 0-th argument reserved to directory path
-    virtual NInterop::TTableList FilterTables(
-        const NInterop::TTableList& tables,
+    virtual NNative::TTableList FilterTables(
+        const NNative::TTableList& tables,
         TArguments& arguments,
         const Context& context) const = 0;
 
@@ -279,17 +283,17 @@ private:
         TArguments& arguments,
         const Context& context) const;
 
-    NInterop::TTableList ListAllTables(
+    NNative::TTableList ListAllTables(
         const std::string& directory,
-        const NInterop::IAuthorizationToken& authToken) const;
+        const NNative::IAuthorizationToken& authToken) const;
 
     // TODO: workaround, remove this
     void CollectSchemas(
-        NInterop::TTableList& tableNames,
-        const NInterop::IAuthorizationToken& authToken) const;
+        NNative::TTableList& tableNames,
+        const NNative::IAuthorizationToken& authToken) const;
 
     StoragePtr CreateStorage(
-        const NInterop::TTableList& tables,
+        const NNative::TTableList& tables,
         const Context& context) const;
 };
 
@@ -332,16 +336,16 @@ std::string TListFilterAndConcatenateTables::GetDirectoryRequiredArgument(
     return EvaluateIdentifierArgument(arguments[0], context);
 }
 
-NInterop::TTableList TListFilterAndConcatenateTables::ListAllTables(
+NNative::TTableList TListFilterAndConcatenateTables::ListAllTables(
     const std::string& directory,
-    const NInterop::IAuthorizationToken& authToken) const
+    const NNative::IAuthorizationToken& authToken) const
 {
     return Storage->ListTables(authToken, ToString(directory), false);
 }
 
 void TListFilterAndConcatenateTables::CollectSchemas(
-    NInterop::TTableList& tables,
-    const NInterop::IAuthorizationToken& authToken) const
+    NNative::TTableList& tables,
+    const NNative::IAuthorizationToken& authToken) const
 {
     for (auto& table : tables) {
         table = Storage->GetTable(authToken, table->Name);
@@ -349,7 +353,7 @@ void TListFilterAndConcatenateTables::CollectSchemas(
 }
 
 StoragePtr TListFilterAndConcatenateTables::CreateStorage(
-    const NInterop::TTableList& tables,
+    const NNative::TTableList& tables,
     const Context& context) const
 {
     if (tables.empty()) {
@@ -367,7 +371,7 @@ class TConcatenateTablesRange
 {
 public:
     TConcatenateTablesRange(
-        NInterop::IStoragePtr storage,
+        NNative::IStoragePtr storage,
         IExecutionClusterPtr cluster)
         : TListFilterAndConcatenateTables(
             std::move(storage),
@@ -383,16 +387,16 @@ public:
     }
 
 private:
-    NInterop::TTableList FilterTables(
-        const NInterop::TTableList& tables,
+    NNative::TTableList FilterTables(
+        const NNative::TTableList& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::TTableList TConcatenateTablesRange::FilterTables(
-    const NInterop::TTableList& tables,
+NNative::TTableList TConcatenateTablesRange::FilterTables(
+    const NNative::TTableList& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -439,7 +443,7 @@ class TConcatenateTablesRegexp
 {
 public:
     TConcatenateTablesRegexp(
-        NInterop::IStoragePtr storage,
+        NNative::IStoragePtr storage,
         IExecutionClusterPtr cluster)
         : TListFilterAndConcatenateTables(
             std::move(storage),
@@ -455,16 +459,16 @@ public:
     }
 
 private:
-    NInterop::TTableList FilterTables(
-        const NInterop::TTableList& tables,
+    NNative::TTableList FilterTables(
+        const NNative::TTableList& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::TTableList TConcatenateTablesRegexp::FilterTables(
-    const NInterop::TTableList& tables,
+NNative::TTableList TConcatenateTablesRegexp::FilterTables(
+    const NNative::TTableList& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -489,7 +493,7 @@ class TConcatenateTablesLike
 {
 public:
     TConcatenateTablesLike(
-        NInterop::IStoragePtr storage,
+        NNative::IStoragePtr storage,
         IExecutionClusterPtr cluster)
         : TListFilterAndConcatenateTables(
             std::move(storage),
@@ -505,8 +509,8 @@ public:
     }
 
 private:
-    NInterop::TTableList FilterTables(
-        const NInterop::TTableList& tables,
+    NNative::TTableList FilterTables(
+        const NNative::TTableList& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
@@ -514,8 +518,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NInterop::TTableList TConcatenateTablesLike::FilterTables(
-    const NInterop::TTableList& tables,
+NNative::TTableList TConcatenateTablesLike::FilterTables(
+    const NNative::TTableList& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -536,7 +540,7 @@ NInterop::TTableList TConcatenateTablesLike::FilterTables(
 ////////////////////////////////////////////////////////////////////////////////
 
 void RegisterConcatenatingTableFunctions(
-    NInterop::IStoragePtr storage,
+    NNative::IStoragePtr storage,
     IExecutionClusterPtr cluster)
 {
     auto& factory = TableFunctionFactory::instance();
@@ -557,5 +561,6 @@ void RegisterConcatenatingTableFunctions(
 
 }
 
-} // namespace NClickHouse
+} // namespace NEngine
+} // namespace NClickHouseServer
 } // namespace NYT

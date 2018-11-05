@@ -63,6 +63,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Acd_);
     Save(context, PrerequisiteTransactions_);
     Save(context, DependentTransactions_);
+    Save(context, Deadline_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -102,6 +103,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 706) {
         Load(context, PrerequisiteTransactions_);
         Load(context, DependentTransactions_);
+    }
+    // COMPAT(ignat)
+    if (context.GetVersion() >= 810) {
+        Load(context, Deadline_);
     }
 }
 

@@ -108,6 +108,8 @@ public:
 
     bool UseTabletService;
 
+    TDuration IdleChannelTtl;
+
     TConnectionConfig();
 };
 

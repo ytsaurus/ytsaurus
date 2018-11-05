@@ -33,6 +33,21 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTagId GetCustomProfilingTag(const TString& tagName)
+{
+    static THashMap<TString, TTagId> tagNameToTagIdMap;
+
+    auto it = tagNameToTagIdMap.find(tagName);
+    if (it == tagNameToTagIdMap.end()) {
+        it = tagNameToTagIdMap.emplace(
+            tagName,
+            TProfileManager::Get()->RegisterTag("custom", tagName)
+        ).first;
+    }
+    return it->second;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
@@ -1520,6 +1535,11 @@ bool TPool::AreImmediateOperationsForbidden() const
     return Config_->ForbidImmediateOperations;
 }
 
+THashSet<TString> TPool::GetAllowedProfilingTags() const
+{
+    return Config_->AllowedProfilingTags;
+}
+
 TSchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
 {
     return New<TPool>(*this, clonedParent);
@@ -1735,6 +1755,10 @@ bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool ag
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
+    if (!Enabled_) {
+        return false;
+    }
+
     const auto* properties = GetJobProperties(jobId);
     return aggressivePreemptionEnabled ? properties->AggressivelyPreemptable : properties->Preemptable;
 }
@@ -1856,6 +1880,29 @@ TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationR
 TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasonsFromLastNonStarvingTime() const
 {
     return SharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
+}
+
+TNullable<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
+{
+    if (GetParent() == nullptr) {
+        return Null;
+    }
+
+    auto tagName = Spec_->CustomProfilingTag;
+    const auto allowedProfilingTags = GetParent()->GetAllowedProfilingTags();
+    if (tagName && (
+            allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
+            (TreeConfig_->CustomProfilingTagFilter && NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter))
+        ))
+    {
+        tagName = Null;
+    }
+
+    if (tagName) {
+        return NScheduler::GetCustomProfilingTag(*tagName);
+    } else {
+        return Null;
+    }
 }
 
 void TOperationElement::Disable()
@@ -2314,8 +2361,11 @@ void TOperationElement::SetStarving(bool starving)
 {
     YCHECK(!Cloned_);
 
-    if (starving && !GetStarving()) {
+    if (!starving) {
         LastNonStarvingTime_ = TInstant::Now();
+    }
+
+    if (starving && !GetStarving()) {
         SharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
         LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
@@ -2452,6 +2502,11 @@ int TOperationElement::GetSlotIndex() const
     return *slotIndex;
 }
 
+TString TOperationElement::GetUserName() const
+{
+    return Operation_->GetAuthenticatedUser();
+}
+
 void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     // XXX(ignat): remove before deploy on production clusters.
@@ -2537,10 +2592,10 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         if (!Dominates(jobLimits, startDescriptor.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
             LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
-                FormatResources(jobLimits),
-                FormatResources(startDescriptor.ResourceLimits),
                 jobId,
-                OperationId_);
+                OperationId_,
+                FormatResources(jobLimits),
+                FormatResources(startDescriptor.ResourceLimits));
 
             Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 
@@ -2739,6 +2794,11 @@ std::vector<EFifoSortParameter> TRootElement::GetFifoSortParameters() const
 bool TRootElement::AreImmediateOperationsForbidden() const
 {
     return TreeConfig_->ForbidImmediateOperationsInRoot;
+}
+
+THashSet<TString> TRootElement::GetAllowedProfilingTags() const
+{
+    return {};
 }
 
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

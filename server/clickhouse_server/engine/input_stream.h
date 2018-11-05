@@ -1,16 +1,19 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/interop/api.h>
+#include <yt/server/clickhouse_server/native/public.h>
 
 #include <DataStreams/IBlockInputStream.h>
 
 namespace NYT {
-namespace NClickHouse {
+namespace NClickHouseServer {
+namespace NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::BlockInputStreamPtr CreateStorageInputStream(
-    NInterop::ITableReaderPtr tableReader);
+DB::BlockInputStreamPtr CreateStorageInputStream(NNative::ITableReaderPtr tableReader);
 
-}   // namespace NClickHouse
-}   // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NEngine
+} // namespace NClickHouseServer
+} // namespace NYT
