@@ -1169,7 +1169,7 @@ void TObjectManager::HydraExecuteLeader(
     }
 
     if (!IsRecovery() && IsObjectAlive(user)) {
-        securityManager->ChargeUserWrite(user, 1, timer.GetElapsedTime());
+        securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, timer.GetElapsedTime()});
     }
 
     auto mutationId = context->GetMutationId();

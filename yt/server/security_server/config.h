@@ -31,6 +31,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

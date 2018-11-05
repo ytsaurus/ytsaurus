@@ -29,8 +29,10 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/heap.h>
 
 #include <atomic>
+#include <queue>
 
 namespace NYT {
 namespace NObjectServer {
@@ -82,6 +84,9 @@ public:
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->SubscribeUserCharged(BIND(&TObjectService::OnUserCharged, MakeStrong(this)));
     }
 
 private:
@@ -93,10 +98,46 @@ private:
     const TObjectServiceConfigPtr Config_;
 
     class TExecuteSession;
+    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
+
+    struct TUserBucket
+    {
+        explicit TUserBucket(const TString& userName)
+            : UserName(userName)
+        { }
+
+        TString UserName;
+        TDuration ExcessTime;
+        //! Typically equals ExcessTime; however when a user is charged we just update ExceesTime
+        //! and leave HeapKey intact. Upon extracting heap's top we check if its ExcessTime matches its HeapKey
+        //! and if not then readjust the heap.
+        TDuration HeapKey;
+        std::queue<TExecuteSessionPtr> Sessions;
+    };
+
+    struct TUserBucketComparer
+    {
+        bool operator ()(TUserBucket* lhs, TUserBucket* rhs) const
+        {
+            return lhs->HeapKey < rhs->HeapKey;
+        }
+    };
+
+    THashMap<TString, TUserBucket> NameToUserBucket_;
+    TDuration ExcessBaseline_;
+
+    //! Min-heap ordered by TUserBucket::ExcessTime.
+    //! A bucket is only present here iff it has at least one session.
+    std::vector<TUserBucket*> BucketHeap_;
+
+
+    void ScheduleSession(TExecuteSessionPtr session);
+    void RunSession();
+    TUserBucket* GetOrCreateBucket(const TString& userName);
+    void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectService)
@@ -144,7 +185,12 @@ public:
         }
     }
 
-    void Run()
+    const TString& GetUserName() const
+    {
+        return UserName_;
+    }
+
+    bool Prepare()
     {
         auto codicilGuard = MakeCodicilGuard();
 
@@ -152,7 +198,7 @@ public:
 
         if (SubrequestCount_ == 0) {
             Reply();
-            return;
+            return false;
         }
 
         if (IsBackoffAllowed()) {
@@ -163,12 +209,20 @@ public:
             ParseSubrequests();
         } catch (const std::exception& ex) {
             Reply(ex);
-            return;
+            return false;
         }
 
-        HydraFacade_
-            ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)
-            ->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
+        return true;
+    }
+
+    void Run()
+    {
+        auto codicilGuard = MakeCodicilGuard();
+        try {
+            GuardedRun();
+        } catch (const std::exception& ex) {
+            Reply(ex);
+        }
     }
 
 private:
@@ -305,24 +359,20 @@ private:
         CheckBackoffAlarmTriggered();
     }
 
+    void Reschedule()
+    {
+        EpochAutomatonInvoker_->Invoke(
+            BIND(&TObjectService::ScheduleSession, Owner_, Passed(MakeStrong(this))));
+    }
+
     template <class T>
-    void CheckAndContinue(const TErrorOr<T>& result)
+    void CheckAndReschedule(const TErrorOr<T>& result)
     {
         if (!result.IsOK()) {
             Reply(result);
             return;
         }
-        Continue();
-    }
-
-    void Continue()
-    {
-        auto codicilGuard = MakeCodicilGuard();
-        try {
-            GuardedContinue();
-        } catch (const std::exception& ex) {
-            Reply(ex);
-        }
+        Reschedule();
     }
 
     bool WaitForAndContinue(TFuture<void> result)
@@ -333,13 +383,13 @@ private:
                 .ThrowOnError();
             return true;
         } else {
-            result.Subscribe(BIND(&TExecuteSession::CheckAndContinue<void>, MakeStrong(this))
-                .Via(EpochAutomatonInvoker_));
+            result.Subscribe(
+                BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
             return false;
         }
     }
 
-    void GuardedContinue()
+    void GuardedRun()
     {
         auto batchStartTime = NProfiling::GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
@@ -381,10 +431,6 @@ private:
             RequestQueueSizeIncreased_ = true;
         }
 
-        auto yield = [&] {
-            EpochAutomatonInvoker_->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
-        };
-
         while (CurrentSubrequestIndex_ < SubrequestCount_ &&
             !BackoffAlarmTriggered_ &&
             !Replied_)
@@ -400,7 +446,7 @@ private:
             {
                 TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
                 if (!guard.WasAcquired()) {
-                    yield();
+                    Reschedule();
                     break;
                 }
 
@@ -415,7 +461,7 @@ private:
 
             if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
                 LOG_DEBUG("Yielding automaton thread");
-                yield();
+                Reschedule();
                 break;
             }
         }
@@ -449,8 +495,7 @@ private:
                 auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncResponseMessage;
                 if (!lastCommitResult.IsSet()) {
                     lastCommitResult.Subscribe(
-                        BIND(&TExecuteSession::CheckAndContinue<TSharedRefArray>, MakeStrong(this))
-                        .Via(EpochAutomatonInvoker_));
+                        BIND(&TExecuteSession::CheckAndReschedule<TSharedRefArray>, MakeStrong(this)));
                     return false;
                 }
             }
@@ -511,7 +556,7 @@ private:
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
         if (IsObjectAlive(user)) {
-            SecurityManager_->ChargeUserRead(user, 1, timer.GetElapsedTime());
+            SecurityManager_->ChargeUser(user, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
     }
 
@@ -687,12 +732,83 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TObjectService::ScheduleSession(TExecuteSessionPtr session)
+{
+    auto* bucket = GetOrCreateBucket(session->GetUserName());
+
+    // Insert the bucket into the heap if this is its first session.
+    if (bucket->Sessions.empty()) {
+        BucketHeap_.push_back(bucket);
+        AdjustHeapBack(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
+    }
+
+    bucket->Sessions.push(std::move(session));
+    RunSession();
+}
+
+void TObjectService::RunSession()
+{
+    while (!BucketHeap_.empty()) {
+        auto* bucket = BucketHeap_.front();
+        auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
+
+        // Account for charged time possibly reordering the heap.
+        if (bucket->HeapKey != actualExcessTime) {
+            Y_ASSERT(bucket->HeapKey < actualExcessTime);
+            bucket->HeapKey = actualExcessTime;
+            AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
+            continue;
+        }
+
+        // Remove the bucket from the heap if no sessions are pending.
+        if (bucket->Sessions.empty()) {
+            ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
+            BucketHeap_.pop_back();
+            continue;
+        }
+
+        // Promote the baseline.
+        ExcessBaseline_ = actualExcessTime;
+
+
+        // Extract and run the session.
+        auto session = std::move(bucket->Sessions.front());
+        bucket->Sessions.pop();
+        session->Run();
+        break;
+    }
+}
+
+TObjectService::TUserBucket* TObjectService::GetOrCreateBucket(const TString& userName)
+{
+    auto pair = NameToUserBucket_.emplace(userName, TUserBucket(userName));
+    return &pair.first->second;
+}
+
+void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
+{
+    auto* bucket = GetOrCreateBucket(user->GetName());
+    // Just charge the bucket, do not reorder it in the heap.
+    auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
+    bucket->ExcessTime = actualExcessTime + workload.Time;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     Y_UNUSED(request);
     Y_UNUSED(response);
 
-    New<TExecuteSession>(this, context)->Run();
+    auto session = New<TExecuteSession>(this, context);
+    if (!session->Prepare()) {
+        return;
+    }
+
+    Bootstrap_
+        ->GetHydraFacade()
+        ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)
+        ->Invoke(BIND(&TObjectService::ScheduleSession, MakeStrong(this), Passed(std::move(session))));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
