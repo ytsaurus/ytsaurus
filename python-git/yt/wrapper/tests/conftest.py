@@ -82,7 +82,7 @@ class YtTestEnvironment(object):
                     "job_environment": {
                         "type": "cgroups",
                         "memory_watchdog_period": 100,
-                        "supported_cgroups": ["cpuacct", "blkio", "cpu"],
+                        "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
                     },
                 },
                 "statistics_reporter": {
