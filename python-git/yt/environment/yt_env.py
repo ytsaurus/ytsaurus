@@ -30,7 +30,7 @@ from itertools import count
 
 logger = logging.getLogger("Yt.local")
 
-CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "freezer"])
+CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "memory", "freezer"])
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
