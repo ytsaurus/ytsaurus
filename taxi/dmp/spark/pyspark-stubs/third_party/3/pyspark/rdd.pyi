@@ -152,13 +152,13 @@ class RDD(Generic[T]):
     def countApproxDistinct(self, relativeSD: float = ...) -> int: ...
     def toLocalIterator(self) -> Iterator[T]: ...
 
-class PipelinedRDD(RDD):
-    func = ...  # type: Callable
+class PipelinedRDD(RDD[U], Generic[T, U]):
+    func = ...  # type: Callable[[T], U]
     preservesPartitioning = ...  # type: bool
     is_cached = ...  # type: bool
     is_checkpointed = ...  # type: bool
     ctx = ...  # type: pyspark.context.SparkContext
-    prev = ...  # type: RDD
+    prev = ...  # type: RDD[T]
     partitioner = ...  # type: Optional[Partitioner]
     def __init__(self, prev: RDD[T], func: Callable[[Iterable[T]], Iterable[U]], preservesPartitioning: bool = ...) -> None: ...
     def getNumPartitions(self) -> int: ...
