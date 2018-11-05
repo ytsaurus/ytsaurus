@@ -1,7 +1,7 @@
 # Stubs for pyspark.ml.classification (Python 3.5)
 #
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
 from pyspark.ml.base import Estimator, Model, Transformer
 from pyspark.ml.linalg import Matrix, Vector
 from pyspark.ml.param.shared import *
@@ -11,6 +11,7 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.wrapper import JavaWrapper
 from pyspark.sql.dataframe import DataFrame
 
+T = TypeVar("T")
 ParamMap = Dict[Param, Any]
 
 class JavaClassificationModel(JavaPredictionModel):
@@ -126,7 +127,7 @@ class TreeClassifierParams:
     supportedImpurities = ...  # type: List[str]
     impurity = ...  # type: Param
     def __init__(self) -> None: ...
-    def setImpurity(self, value: str) -> TreeClassifierParams: ...
+    def setImpurity(self: T, value: str) -> T: ...
     def getImpurity(self)  -> str: ...
 
 class GBTParams(TreeEnsembleParams):
@@ -165,7 +166,7 @@ class GBTClassificationModel(TreeEnsembleModel, JavaClassificationModel, JavaMLW
     def featureImportances(self) -> Vector: ...
     @property
     def trees(self) -> List[DecisionTreeRegressionModel]: ...
-    def evaluateEachIteration(self, dataset: DataFrame) -> List[float]: ...    
+    def evaluateEachIteration(self, dataset: DataFrame) -> List[float]: ...
 
 class NaiveBayes(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasProbabilityCol, HasRawPredictionCol, HasThresholds, HasWeightCol, JavaMLWritable, JavaMLReadable):
     smoothing = ...  # type: Param
