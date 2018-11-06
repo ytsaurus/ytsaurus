@@ -138,8 +138,10 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
         }
     }
 
-    if (current) {
-        THROW_ERROR_EXCEPTION("Conflicting values in query argument");
+    if (current && (current->GetType() != ENodeType::Entity)) {
+        THROW_ERROR_EXCEPTION("Conflicting values in query argument")
+            << TErrorAttribute("child", child)
+            << TErrorAttribute("conflict", current);
     }
 
     linkBack(child);
