@@ -258,8 +258,7 @@ public:
         // Check is skipped if trees configuration did not change.
         bool skipTreesConfigurationCheck = treeIdsToAdd.empty() && treeIdsToRemove.empty();
 
-        if (!skipTreesConfigurationCheck)
-        {
+        if (!skipTreesConfigurationCheck) {
             if (!CheckTreesConfiguration(idToTree, &errors)) {
                 auto error = TError("Error updating pool trees")
                     << std::move(errors);
