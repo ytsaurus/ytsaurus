@@ -8,6 +8,7 @@ import time
 import os
 import subprocess
 import csv
+from collections import defaultdict
 
 EPS = 1e-4
 
@@ -173,6 +174,22 @@ def extract_metric_distribution(row, metric, target):
 
 ##################################################################
 
+def resource_usage_sum(resource_usages):
+    result = defaultdict(int)
+    for resource_usage in resource_usages:
+        for resource, value in resource_usage.iteritems():
+            result[resource] += value
+    return dict(result)
+
+def resources_equal(lhs, rhs):
+    lhs = defaultdict(int, lhs)
+    rhs = defaultdict(int, rhs)
+
+    return all(lhs[resource] == rhs[resource]
+               for resource in {resource for resource in lhs} | {resource for resource in rhs})
+
+##################################################################
+
 ONE_GB = 1024 * 1024 * 1024
 
 scheduler_simulator_config = {
@@ -187,7 +204,6 @@ scheduler_simulator_config = {
     "cycles_per_flush": 1000000,
     "logging": {
         "flush_period": 1000,
-
         "rules": [
             {
                 "min_level": "warning",
@@ -198,7 +214,6 @@ scheduler_simulator_config = {
                 "writers": ["debug"],
             },
         ],
-
         "writers": {
             "debug": {"file_name": None, "type": "file"},
             "stderr": {"type": "stderr"},
@@ -254,7 +269,9 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             "fair_share_profiling_period": 100,
             "event_log": {
                 "flush_period": 100,
-            }
+            },
+            "nodes_info_logging_period": 100,
+            "fair_share_log_period": 100,
         }
     }
 
@@ -336,23 +353,32 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
                 assert row["job_count"] == "1"
             assert total_row == 1
 
-        error_count = 0
-        pool_and_operations_validated = False
+        self.pool_and_operation_info_count = 0
+        self.nodes_info_count = 0
+        self.fair_share_info_error_count = 0
+        self.nodes_info_error_count = 0
+        self.operations_resource_usage = None
+
         with open(simulator_files_path["scheduler_event_log_file"]) as fin:
             for item in yson.load(fin, "list_fragment"):
-                usage_pools = extract_metric_distribution(item, "usage_ratio", "pools")
-                usage_operations = extract_metric_distribution(item, "usage_ratio", "operations")
-                if usage_pools is not None and "test_pool" in usage_pools["pools"] and \
-                   usage_operations is not None and operation_id in usage_operations["operations"]:
-                    error_count += (usage_pools["pools"]["test_pool"] != usage_operations["operations"][operation_id])
-                    pool_and_operations_validated = True
+                if item["event_type"] == "fair_share_info":
+                    self._parse_fair_share_info(item, operation_id)
+                if item["event_type"] == "nodes_info":
+                    self._parse_nodes_info(item)
+
+        assert self.pool_and_operation_info_count >= 5
+        assert self.nodes_info_count >= 5
+
         # NB: some explanation of possible non-zero error count:
         # 1. Scheduler simulator are running by 2 (default value) thread in this test.
         # 2. One thread may simulate job start, while another thread perform logging.
         # 3. Update of usage_ratio goes from bottom to up, some at some point we can have non-zero resource usage
         #    in operation but still have zero resource usage in pool while update is going on.
-        assert error_count <= 1
-        assert pool_and_operations_validated
+        assert self.fair_share_info_error_count <= 1
+
+        # Up to two inconsistent situations might occur due to races in logging
+        # One when the operation is started and one when it's finished.
+        assert self.nodes_info_error_count <= 2
 
     def _get_simulator_files_path(self, simulator_data_dir):
         files = dict()
@@ -376,5 +402,42 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         scheduler_simulator_config["scheduler_config_file"] = simulator_files_path["scheduler_config_yson_file"]
         scheduler_simulator_config["logging"]["writers"]["debug"]["file_name"] = \
             simulator_files_path["simulator_debug_logs"]
+
+    def _parse_fair_share_info(self, item, operation_id):
+        usage_pools = extract_metric_distribution(item, "usage_ratio", "pools")
+        usage_operations = extract_metric_distribution(item, "usage_ratio", "operations")
+        if usage_pools is not None and "test_pool" in usage_pools["pools"] and \
+                usage_operations is not None and operation_id in usage_operations["operations"]:
+            self.pool_and_operation_info_count += 1
+            if usage_pools["pools"]["test_pool"] != usage_operations["operations"][operation_id]:
+                self.fair_share_info_error_count += 1
+        self.operations_resource_usage = resource_usage_sum(operation["resource_usage"]
+                                                            for operation in item["operations"].itervalues())
+
+    def _parse_nodes_info(self, item):
+        assert "nodes" in item
+        nodes = item["nodes"]
+
+        for node_info in nodes.itervalues():
+            del node_info["resource_limits"]["user_memory"]
+
+        total_node_count = sum(node_group["count"] for node_group in node_groups)
+        assert len(nodes) == total_node_count
+
+        for node_group in node_groups:
+            node_group_count = 0
+            for node_info in nodes.itervalues():
+                if node_info["tags"] == node_group["tags"] and \
+                        resources_equal(node_info["resource_limits"], node_group["resource_limits"]):
+                    node_group_count += 1
+
+            assert node_group["count"] == node_group_count
+
+        self.nodes_info_count += 1
+        nodes_resource_usage = resource_usage_sum(node_info["resource_usage"]
+                                                  for node_info in nodes.itervalues())
+        if not resources_equal(nodes_resource_usage, self.operations_resource_usage):
+            self.nodes_info_error_count += 1
+
 
 ##################################################################
