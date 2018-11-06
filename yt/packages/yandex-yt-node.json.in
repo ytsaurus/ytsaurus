@@ -17,6 +17,8 @@
             "yt/server/cell_node/bin",
             "yt/server/job_proxy/bin"
         ],
+        "thinlto": true,
+        "build_type": "profile",
         "flags": [
             {
                 "name": "YT_VERSION_PATCH",
@@ -28,10 +30,6 @@
             },
             {
                 "name": "YT_ENABLE_GDB_INDEX",
-                "value": "yes"
-            },
-            {
-                "name": "YT_LINKER_WORKAROUND",
                 "value": "yes"
             }
         ]
