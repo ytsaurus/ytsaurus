@@ -161,6 +161,9 @@ private:
             auto handler = Handlers_.Match(path);
             if (handler) {
                 closeResponse = false;
+                if (request->IsExpecting100Continue()) {
+                    response->Flush100Continue();
+                }
                 handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
