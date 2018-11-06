@@ -1263,16 +1263,9 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = {false};
 
-    //! Ordinal number of this scheduler incarnation. It is used
-    //! to discard late callbacks that are submitted by still
-    //! running controllers.
-    //! This field is incremented on each OnMasterConnected and
-    //! should be accessed only from scheduler control thread.
-    int SchedulerIncarnation_ = -1;
-
     TOperationsCleanerPtr OperationsCleaner_;
 
-    TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
+    const TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
 
     ISchedulerStrategyPtr Strategy_;
 
