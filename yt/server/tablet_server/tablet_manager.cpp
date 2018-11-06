@@ -1318,7 +1318,7 @@ public:
                 if (!action->Error().IsOK()) {
                     ChangeTabletActionState(action, ETabletActionState::Failed, false);
                 }
-                // No break intentionaly.
+                // No break intentionally.
             case ETabletActionState::Failed: {
                 if (!action->GetKeepFinished()) {
                     UnbindTabletAction(action);
