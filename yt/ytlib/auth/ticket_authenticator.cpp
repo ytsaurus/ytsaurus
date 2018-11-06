@@ -55,7 +55,10 @@ private:
         LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
             ticketHash);
 
-        return BlackboxService_->Call("user_ticket", {{"user_ticket", ticket}})
+        return BlackboxService_->Call(
+            "user_ticket",
+            {{"user_ticket", ticket}},
+            {{"X-Ya-Service-Ticket", blackboxTicket}})
             .Apply(BIND(
                 &TBlackboxTicketAuthenticator::OnBlackboxCallResult,
                 MakeStrong(this),
