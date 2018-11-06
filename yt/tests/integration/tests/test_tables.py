@@ -1014,7 +1014,7 @@ class TestTables(YTEnvSetup):
             with pytest.raises(YtError):
                 write_table("<append=%true>//tmp/t", rows)
             # XXX(babenko): workaround for YT-5604
-            wait(lambda: get("//tmp/@lock_count") == 0)
+            wait(lambda: get("//tmp/t/@lock_count") == 0)
 
         schema = make_schema([
             {"name": "key", "type": "int64"}],
