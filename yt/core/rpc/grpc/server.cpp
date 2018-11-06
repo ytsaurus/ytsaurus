@@ -450,11 +450,13 @@ private:
             auto tokenString = CallMetadata_.Find(AuthTokenMetadataKey);
             auto sessionIdString = CallMetadata_.Find(AuthSessionIdMetadataKey);
             auto sslSessionIdString = CallMetadata_.Find(AuthSslSessionIdMetadataKey);
+            auto userTicketString = CallMetadata_.Find(AuthUserTicketMetadataKey);
 
             if (!tokenString &&
                 !legacyTokenString &&
                 !sessionIdString &&
-                !sslSessionIdString)
+                !sslSessionIdString &&
+                !userTicketString)
             {
                 return;
             }
@@ -472,6 +474,9 @@ private:
             }
             if (sslSessionIdString) {
                 RpcCredentialsExt_->set_ssl_session_id(TString(sslSessionIdString));
+            }
+            if (userTicketString) {
+                RpcCredentialsExt_->set_user_ticket(TString(userTicketString));
             }
         }
 
