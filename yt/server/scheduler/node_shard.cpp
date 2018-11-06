@@ -595,7 +595,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
 
     {
         TWriterGuard guard(CachedExecNodeDescriptorsLock_);
-        CachedExecNodeDescriptors_ = result;
+        std::swap(CachedExecNodeDescriptors_, result);
     }
 }
 
