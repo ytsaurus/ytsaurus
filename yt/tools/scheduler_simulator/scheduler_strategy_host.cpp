@@ -78,6 +78,17 @@ std::vector<NNodeTrackerClient::TNodeId> TSchedulerStrategyHost::GetExecNodeIds(
         }
     }
     return result;
+}  
+
+TString TSchedulerStrategyHost::GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const
+{
+    for (const auto& execNode : *ExecNodes_) {
+        if (execNode->GetId() == nodeId) {
+            return execNode->GetDefaultAddress();
+        }
+    }
+
+    Y_UNREACHABLE();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDescriptors(

@@ -1126,13 +1126,24 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TNodeId> result;
-        for (const auto& pair : NodeIdToTags_) {
-            if (filter.CanSchedule(pair.second)) {
-                result.push_back(pair.first);
+        for (const auto& pair : NodeIdToInfo_) {
+            auto nodeId = pair.first;
+            const auto& execNode = pair.second;
+            if (filter.CanSchedule(execNode.Tags)) {
+                result.push_back(nodeId);
             }
         }
 
         return result;
+    }
+
+    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = NodeIdToInfo_.find(nodeId);
+        YCHECK(it != NodeIdToInfo_.end());
+        return it->second.Address;
     }
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const
@@ -1175,11 +1186,11 @@ public:
             BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
                 // NOTE: If node is unregistered from node shard before it becomes online
                 // then its id can be missing in the map.
-                auto it = NodeIdToTags_.find(nodeId);
-                if (it == NodeIdToTags_.end()) {
+                auto it = NodeIdToInfo_.find(nodeId);
+                if (it == NodeIdToInfo_.end()) {
                     LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
                 } else {
-                    NodeIdToTags_.erase(it);
+                    NodeIdToInfo_.erase(it);
                     LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
             }));
@@ -1194,14 +1205,14 @@ public:
 
         Strategy_->ValidateNodeTags(tags);
 
-        auto it = NodeIdToTags_.find(nodeId);
-        if (it == NodeIdToTags_.end()) {
-            YCHECK(NodeIdToTags_.emplace(nodeId, tags).second);
+        auto it = NodeIdToInfo_.find(nodeId);
+        if (it == NodeIdToInfo_.end()) {
+            YCHECK(NodeIdToInfo_.emplace(nodeId, TExecNodeInfo{tags, nodeAddress}).second);
             LOG_INFO("Node is registered at scheduler (Address: %v, Tags: %v)",
                 nodeAddress,
                 tags);
         } else {
-            it->second = tags;
+            it->second = TExecNodeInfo{tags, nodeAddress};
             LOG_INFO("Node tags were updated at scheduler (Address: %v, NewTags: %v)",
                 nodeAddress,
                 tags);
@@ -1312,7 +1323,13 @@ private:
     std::vector<TNodeShardPtr> NodeShards_;
     std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
-    THashMap<TNodeId, THashSet<TString>> NodeIdToTags_;
+    struct TExecNodeInfo
+    {
+        THashSet<TString> Tags;
+        TString Address;
+    };
+
+    THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
@@ -1627,7 +1644,7 @@ private:
 
     void DoCleanup()
     {
-        NodeIdToTags_.clear();
+        NodeIdToInfo_.clear();
 
         {
             auto error = TError("Master disconnected");

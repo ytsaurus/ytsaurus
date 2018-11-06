@@ -1088,7 +1088,8 @@ private:
                 errors->emplace_back(
                     TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
                         << TErrorAttribute("node_id", nodeId)
-                        << TErrorAttribute("matched_trees", treeIds));
+                        << TErrorAttribute("matched_trees", treeIds)
+                        << TErrorAttribute("node_address", Host->GetExecNodeAddress(nodeId)));
                 return false;
             }
         }
