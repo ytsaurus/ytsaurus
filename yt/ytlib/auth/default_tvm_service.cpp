@@ -73,7 +73,7 @@ private:
                 << TErrorAttribute("message", errorNode->GetValue<TString>());
         }
 
-        static const TString TicketPath("/tvm/ticket");
+        static const TString TicketPath("/blackbox/ticket");
         return GetNodeByYPath(result, TicketPath)->GetValue<TString>();
     }
 
