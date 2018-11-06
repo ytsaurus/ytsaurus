@@ -309,6 +309,12 @@ void THttpInput::SetRequestId(TGuid requestId)
     RequestId_ = requestId;
 }
 
+bool THttpInput::IsExpecting100Continue() const
+{
+    auto expectHeader = Headers_->Find("Expect");
+    return expectHeader && *expectHeader == "100-continue";
+}
+
 bool THttpInput::IsSafeToReuse() const
 {
     return SafeToReuse_;
@@ -661,6 +667,17 @@ TSharedRef THttpOutput::GetChunkHeader(size_t size)
     return TSharedRef::FromString(Format("%X\r\n", size));
 }
 
+void THttpOutput::Flush100Continue()
+{
+    if (HeadersFlushed_) {
+        THROW_ERROR_EXCEPTION("Cannot send 100 Continue after headers");
+    }
+
+    Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
+    WaitFor(Connection_->Write(Http100Continue).Apply(OnWriteFinish_))
+        .ThrowOnError();
+}
+
 TFuture<void> THttpOutput::Write(const TSharedRef& data)
 {
     if (MessageFinished_) {
@@ -788,6 +805,7 @@ const THashSet<TString> THttpOutput::FilteredHeaders_ = {
     "host"
 };
 
+const TSharedRef THttpOutput::Http100Continue = TSharedRef::FromString("HTTP/1.1 100 Continue\r\n\r\n");
 const TSharedRef THttpOutput::CrLf = TSharedRef::FromString("\r\n");
 const TSharedRef THttpOutput::ZeroCrLf = TSharedRef::FromString("0\r\n");
 const TSharedRef THttpOutput::ZeroCrLfCrLf = TSharedRef::FromString("0\r\n\r\n");
