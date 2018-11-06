@@ -210,7 +210,7 @@ class YtTestEnvironment(object):
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
-        # To avoid using user-defined proxy in tests. 
+        # To avoid using user-defined proxy in tests.
         if "YT_PROXY" in os.environ:
             del os.environ["YT_PROXY"]
 

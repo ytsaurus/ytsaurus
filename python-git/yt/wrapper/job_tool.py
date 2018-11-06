@@ -71,6 +71,11 @@ def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environme
         "{d}> {output_rel_path}/{d}".format(d=d, output_rel_path=os.path.relpath(output_path, sandbox_path))
         for d in output_descriptor_list)
 
+    if "BASH_ENV" in environment:
+        run_bash_env_command = ". \"$BASH_ENV\""
+    else:
+        run_bash_env_command = ""
+
     script = """\
 #!/usr/bin/env bash
 
@@ -88,12 +93,15 @@ export YT_STARTED_BY_JOB_TOOL=1
 
 INPUT_DATA="{input_rel_path}"
 
+{run_bash_env_command}
+
 ({command}) < $INPUT_DATA {output_descriptors_spec}
 """.format(
     sandbox_suffix=sandbox_suffix,
     operation_id=operation_id,
     job_id=job_id,
     command=command,
+    run_bash_env_command=run_bash_env_command,
     environment=make_environment_string(environment),
     input_rel_path=input_rel_path,
     output_rel_path=output_rel_path,

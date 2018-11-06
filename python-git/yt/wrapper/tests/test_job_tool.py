@@ -116,7 +116,7 @@ class TestJobTool(object):
             "--job-path",
             os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id),
             "--proxy",
-            yt_env_job_archive.config["proxy"]["url"]
+            yt_env_job_archive.config["proxy"]["url"],
         ]
         if full:
             args += ["--full"]
@@ -276,6 +276,27 @@ class TestJobTool(object):
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
+
+    def test_bash_env(self, yt_env_job_archive):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=get_tests_sandbox(),
+            prefix="bash_env_",
+            suffix=".sh",
+            delete=False,
+        ) as bash_env:
+            bash_env.write("echo \"FROM_BASH_ENV\" >&2")
+
+        spec = {"mapper": {"environment": {"BASH_ENV": bash_env.name}}}
+        op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, spec=spec)
+        job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"FROM_BASH_ENV\nOK_COMMAND\n".encode("ascii")
 
     def test_table_download(self, yt_env_job_archive):
         table = TEST_DIR + "/table"
