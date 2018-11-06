@@ -7,7 +7,7 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.param.shared import *
 from pyspark.sql.dataframe import DataFrame
 
-class ALS(JavaEstimator, HasCheckpointInterval, HasMaxIter, HasPredictionCol, HasRegParam, HasSeed, JavaMLWritable, JavaMLReadable):
+class ALS(JavaEstimator[ALSModel], HasCheckpointInterval, HasMaxIter, HasPredictionCol, HasRegParam, HasSeed, JavaMLWritable, JavaMLReadable):
     rank = ...  # type: Param
     numUserBlocks = ...  # type: Param
     numItemBlocks = ...  # type: Param
