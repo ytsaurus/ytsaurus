@@ -4,19 +4,19 @@
 from typing import overload
 from typing import Any, List, Optional, Tuple, TypeVar, Union
 
+import pandas.core.frame  # type: ignore
+from py4j.java_gateway import JavaObject  # type: ignore
+
 from pyspark.conf import SparkConf
 from pyspark.context import SparkContext
 from pyspark.rdd import RDD
 from pyspark.sql.catalog import Catalog
-from pyspark.sql.conf import RuntimeConfig 
+from pyspark.sql.conf import RuntimeConfig
 from pyspark.sql.context import UDFRegistration
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import DataType
 from pyspark.sql.readwriter import DataFrameReader
-from pyspark.sql.streaming import DataStreamReader, StreamingQueryManager 
-
-from pandas.core.frame import DataFrame as PandasDataFrame  # type: ignore
-from py4j.java_gateway import JavaObject  # type: ignore
+from pyspark.sql.streaming import DataStreamReader, StreamingQueryManager
 
 T = TypeVar('T')
 
@@ -44,7 +44,7 @@ class SparkSession:
     @property
     def udf(self) -> UDFRegistration: ...
     def range(self, start: int, end: Optional[int] = ..., step: int = ..., numPartitions: Optional[int] = ...) -> DataFrame: ...
-    def createDataFrame(self, data: Union[RDD[T], List[T], PandasDataFrame], schema: Optional[Union[List[str], Tuple[str, ...], DataType]] = ..., samplingRatio: Optional[float] = ..., verifySchema: bool = ...) -> DataFrame: ...
+    def createDataFrame(self, data: Union[RDD[T], List[T], pandas.core.frame.DataFrame], schema: Optional[Union[List[str], Tuple[str, ...], DataType]] = ..., samplingRatio: Optional[float] = ..., verifySchema: bool = ...) -> DataFrame: ...
     def sql(self, sqlQuery: str) -> DataFrame: ...
     def table(self, tableName: str) -> DataFrame: ...
     @property
@@ -56,4 +56,3 @@ class SparkSession:
     def stop(self) -> None: ...
     def __enter__(self) -> 'SparkSession': ...
     def __exit__(self, exc_type, exc_val, exc_tb) -> None: ...
-

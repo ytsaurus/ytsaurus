@@ -3,8 +3,8 @@
 from typing import overload
 from typing import Any, Optional, Union, Dict, Callable
 
-import pandas.core.series.Series     # type: ignore
-import pandas.core.frame.DataFrame   # type: ignore
+import pandas.core.frame   # type: ignore
+import pandas.core.series     # type: ignore
 
 from pyspark.sql._typing import ColumnOrName
 from pyspark.sql.column import Column

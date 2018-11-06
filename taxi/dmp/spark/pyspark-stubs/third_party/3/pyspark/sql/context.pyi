@@ -3,6 +3,9 @@
 
 from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union
 
+import pandas.core.frame # type: ignore
+from py4j.java_gateway import JavaObject  # type: ignore
+
 from pyspark.context import SparkContext
 from pyspark.rdd import RDD
 from pyspark.sql.dataframe import DataFrame
@@ -10,10 +13,6 @@ from pyspark.sql.session import SparkSession
 from pyspark.sql.types import DataType, StructType, Row
 from pyspark.sql.readwriter import DataFrameReader
 from pyspark.sql.streaming import DataStreamReader, StreamingQueryManager
-
-from pandas.core.frame import DataFrame as PandasDataFrame  # type: ignore
-from py4j.java_gateway import JavaObject  # type: ignore
-
 
 T = TypeVar('T')
 
@@ -30,7 +29,7 @@ class SQLContext:
     def range(self, start: int, end: Optional[int] = ..., step: int = ..., numPartitions: Optional[int] = ...) -> DataFrame: ...
     def registerFunction(self, name: str, f: Callable[..., Any], returnType: DataType = ...) -> None: ...
     def registerJavaFunction(self, name: str, javaClassName: str, returnType: Optional[DataType] = ...) -> None: ...
-    def createDataFrame(self, data: Union[RDD[T], List[T], PandasDataFrame], schema: Optional[Union[List[str], Tuple[str, ...], DataType]] = ..., samplingRatio: Optional[float] = ..., verifySchema: bool = ...) -> DataFrame: ...
+    def createDataFrame(self, data: Union[RDD[T], List[T], pandas.core.frame.DataFrame], schema: Optional[Union[List[str], Tuple[str, ...], DataType]] = ..., samplingRatio: Optional[float] = ..., verifySchema: bool = ...) -> DataFrame: ...
     def registerDataFrameAsTable(self, df: DataFrame, tableName: str) -> None: ...
     def dropTempTable(self, tableName: str) -> None: ...
     def createExternalTable(self, tableName: str, path: Optional[str] = ..., source: Optional[str] = ..., schema: Optional[StructType] = ..., **options) -> DataFrame: ...
