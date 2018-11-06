@@ -835,6 +835,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "pool": "fake_pool",
             "locality_timeout": 0,
             "enable_job_splitting": False,
+            "max_failed_job_count": 1,
         }
         if interruptible:
             data_size_per_job = get("//tmp/t_in/@uncompressed_data_size")
@@ -843,7 +844,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec["job_count"] = 3
 
         mapper = " ; ".join([
-            events_on_fs().notify_event_cmd("mapper_started_$YT_JOB_INDEX"),
+            events_on_fs().breakpoint_cmd(),
             "sleep 7",
             "cat"])
         op1 = map(
@@ -861,16 +862,16 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
 
         # Ensure that all three jobs have started.
-        events_on_fs().wait_event("mapper_started_0", timeout=datetime.timedelta(1000))
-        events_on_fs().wait_event("mapper_started_1", timeout=datetime.timedelta(1000))
-        events_on_fs().wait_event("mapper_started_2", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_breakpoint(timeout=datetime.timedelta(1000), job_count=3)
+        events_on_fs().release_breakpoint()
 
         op2 = map(
             dont_track=True,
             command="cat",
             in_=["//tmp/t_in"],
             out="//tmp/t_out2",
-            spec={"pool": "test_pool"})
+            spec={"pool": "test_pool",
+                  "max_failed_job_count": 1})
         op2.track()
         op1.track()
         assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
