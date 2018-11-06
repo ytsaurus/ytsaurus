@@ -1,4 +1,5 @@
 import time
+import inspect
 
 try:
     xrange
@@ -91,6 +92,8 @@ def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3, ignore_exce
             raise
         time.sleep(sleep_backoff)
 
+    if inspect.isfunction(error_message):
+        error_message = error_message()
     if error_message is None:
         error_message = "Wait failed"
     error_message += " (timeout = {0})".format(iter * sleep_backoff)
