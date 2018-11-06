@@ -29,7 +29,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                     "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "memory",
                         "cpu"],
                 },
             }
