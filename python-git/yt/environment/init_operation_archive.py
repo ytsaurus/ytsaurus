@@ -913,7 +913,10 @@ TRANSFORMS[26] = [
         ],
             in_memory=True,
             get_pivot_keys=get_default_pivots)),
+]
 
+ACTIONS[26] = [
+    add_sys_bundle("operation_aliases"),
 ]
 
 def swap_table(client, target, source, version):
