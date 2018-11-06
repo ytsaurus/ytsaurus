@@ -2,13 +2,14 @@
 #
 
 from typing import overload
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, TypeVar
 from pyspark.ml.param import Params, Param
 from pyspark.ml.param.shared import HasInputCol, HasOutputCol
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import DataType, StructType
 
+M = TypeVar("M", bound=Transformer)
 ParamMap = Dict[Param, Any]
 
 class _FitMultipleIterator:
@@ -21,13 +22,13 @@ class _FitMultipleIterator:
     def __next__(self): ...
     def next(self): ...
 
-class Estimator(Params):
+class Estimator(Params, Generic[M]):
     __metaclass__ = ...  # type: Any
     @overload
-    def fit(self, dataset: DataFrame, params: Optional[ParamMap] = ...) -> Model: ...
+    def fit(self, dataset: DataFrame, params: Optional[ParamMap] = ...) -> M: ...
     @overload
-    def fit(self, dataset: DataFrame, params: List[ParamMap]) -> List[Model]: ...
-    def fitMultiple(self, dataset: DataFrame, params: List[ParamMap]) -> Iterable[Model]: ...
+    def fit(self, dataset: DataFrame, params: List[ParamMap]) -> List[M]: ...
+    def fitMultiple(self, dataset: DataFrame, params: List[ParamMap]) -> Iterable[M]: ...
 
 class Transformer(Params):
     __metaclass__ = ...  # type: Any

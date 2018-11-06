@@ -4,7 +4,9 @@
 
 from pyspark.ml import Estimator, Model, Transformer
 from pyspark.ml.param import Params
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
+
+JM = TypeVar("JM", bound=JavaTransformer)
 
 xrange = range
 
@@ -16,7 +18,7 @@ class JavaParams(JavaWrapper, Params):
     __metaclass__: Any = ...
     def copy(self, extra: Optional[Any] = ...): ...
 
-class JavaEstimator(JavaParams, Estimator):
+class JavaEstimator(JavaParams, Estimator[JM]):
     __metaclass__: Any = ...
 
 class JavaTransformer(JavaParams, Transformer):

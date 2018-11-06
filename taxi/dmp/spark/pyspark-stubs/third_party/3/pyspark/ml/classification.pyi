@@ -18,7 +18,7 @@ class JavaClassificationModel(JavaPredictionModel):
     @property
     def numClasses(self) -> int: ...
 
-class LinearSVC(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasRegParam, HasTol, HasRawPredictionCol, HasFitIntercept, HasStandardization, HasThreshold, HasWeightCol, HasAggregationDepth, JavaMLWritable, JavaMLReadable):
+class LinearSVC(JavaEstimator[LinearSVCModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasRegParam, HasTol, HasRawPredictionCol, HasFitIntercept, HasStandardization, HasThreshold, HasWeightCol, HasAggregationDepth, JavaMLWritable, JavaMLReadable):
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., regParam: float = ..., tol: float = ..., rawPredictionCol: str = ..., fitIntercept: bool = ..., standardization: bool = ..., threshold: float = ..., weightCol: Optional[str] = ..., aggregationDepth: int = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., regParam: float = ..., tol: float = ..., rawPredictionCol: str = ..., fitIntercept: bool = ..., standardization: bool = ..., threshold: float = ..., weightCol: Optional[str] = ..., aggregationDepth: int = ...) -> 'LinearSVC': ...
 
@@ -28,7 +28,7 @@ class LinearSVCModel(JavaModel, JavaClassificationModel, JavaMLWritable, JavaMLR
     @property
     def intercept(self) -> float: ...
 
-class LogisticRegression(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasRegParam, HasTol, HasProbabilityCol, HasRawPredictionCol, HasElasticNetParam, HasFitIntercept, HasStandardization, HasThresholds, HasWeightCol, HasAggregationDepth, JavaMLWritable, JavaMLReadable):
+class LogisticRegression(JavaEstimator[LogisticRegressionModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasRegParam, HasTol, HasProbabilityCol, HasRawPredictionCol, HasElasticNetParam, HasFitIntercept, HasStandardization, HasThresholds, HasWeightCol, HasAggregationDepth, JavaMLWritable, JavaMLReadable):
     threshold = ...  # type: Param
     family = ...  # type: Param
     lowerBoundsOnCoefficients = ...  # type: Param
@@ -133,7 +133,7 @@ class TreeClassifierParams:
 class GBTParams(TreeEnsembleParams):
     supportedLossTypes = ...  # type: List[str]
 
-class DecisionTreeClassifier(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasProbabilityCol, HasRawPredictionCol, DecisionTreeParams, TreeClassifierParams, HasCheckpointInterval, HasSeed, JavaMLWritable, JavaMLReadable):
+class DecisionTreeClassifier(JavaEstimator[DecisionTreeClassificationModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasProbabilityCol, HasRawPredictionCol, DecisionTreeParams, TreeClassifierParams, HasCheckpointInterval, HasSeed, JavaMLWritable, JavaMLReadable):
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., maxDepth: int = ..., maxBins: int = ..., minInstancesPerNode: int = ..., minInfoGain: float = ..., maxMemoryInMB: int = ..., cacheNodeIds: bool = ..., checkpointInterval: int = ..., impurity: str = ..., seed: Optional[int] = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., maxDepth: int = ..., maxBins: int = ..., minInstancesPerNode: int = ..., minInfoGain: float = ..., maxMemoryInMB: int = ..., cacheNodeIds: bool = ..., checkpointInterval: int = ..., impurity: str = ..., seed: Optional[int] = ...) -> DecisionTreeClassifier: ...
 
@@ -141,7 +141,7 @@ class DecisionTreeClassificationModel(DecisionTreeModel, JavaClassificationModel
     @property
     def featureImportances(self) -> Vector: ...
 
-class RandomForestClassifier(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasSeed, HasRawPredictionCol, HasProbabilityCol, RandomForestParams, TreeClassifierParams, HasCheckpointInterval, JavaMLWritable, JavaMLReadable):
+class RandomForestClassifier(JavaEstimator[RandomForestClassificationModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasSeed, HasRawPredictionCol, HasProbabilityCol, RandomForestParams, TreeClassifierParams, HasCheckpointInterval, JavaMLWritable, JavaMLReadable):
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., maxDepth: int = ..., maxBins: int = ..., minInstancesPerNode: int = ..., minInfoGain: float = ..., maxMemoryInMB: int = ..., cacheNodeIds: bool = ..., checkpointInterval: int = ..., impurity: str = ..., numTrees: int = ..., featureSubsetStrategy: str = ..., seed: Optional[int] = ..., subsamplingRate: float = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., maxDepth: int = ..., maxBins: int = ..., minInstancesPerNode: int = ..., minInfoGain: float = ..., maxMemoryInMB: int = ..., cacheNodeIds: bool = ..., checkpointInterval: int = ..., seed: Optional[int] = ..., impurity: str = ..., numTrees: int = ..., featureSubsetStrategy: str = ..., subsamplingRate: float = ...) -> RandomForestClassifier: ...
     def setFeatureSubsetStrategy(self, value: str) -> RandomForestClassifier: ...
@@ -152,7 +152,7 @@ class RandomForestClassificationModel(TreeEnsembleModel, JavaClassificationModel
     @property
     def trees(self) -> List[DecisionTreeClassificationModel]: ...
 
-class GBTClassifier(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, GBTParams, HasCheckpointInterval, HasStepSize, HasSeed, JavaMLWritable, JavaMLReadable):
+class GBTClassifier(JavaEstimator[GBTClassificationModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, GBTParams, HasCheckpointInterval, HasStepSize, HasSeed, JavaMLWritable, JavaMLReadable):
     lossType = ...  # type: Param
     stepSize = ...  # type: Param
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxDepth: int = ..., maxBins: int = ..., minInstancesPerNode: int = ..., minInfoGain: float = ..., maxMemoryInMB: int = ..., cacheNodeIds: bool = ..., checkpointInterval: int = ..., lossType: str = ..., maxIter: int = ..., stepSize: float = ..., seed: Optional[int] = ..., subsamplingRate: float = ..., featureSubsetStrategy: str = ...) -> None: ...
@@ -168,7 +168,7 @@ class GBTClassificationModel(TreeEnsembleModel, JavaClassificationModel, JavaMLW
     def trees(self) -> List[DecisionTreeRegressionModel]: ...
     def evaluateEachIteration(self, dataset: DataFrame) -> List[float]: ...
 
-class NaiveBayes(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasProbabilityCol, HasRawPredictionCol, HasThresholds, HasWeightCol, JavaMLWritable, JavaMLReadable):
+class NaiveBayes(JavaEstimator[NaiveBayesModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasProbabilityCol, HasRawPredictionCol, HasThresholds, HasWeightCol, JavaMLWritable, JavaMLReadable):
     smoothing = ...  # type: Param
     modelType = ...  # type: Param
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., smoothing: float = ..., modelType: str = ..., thresholds: Optional[List[float]] = ..., weightCol: Optional[str] = ...) -> None: ...
@@ -184,7 +184,7 @@ class NaiveBayesModel(JavaModel, JavaClassificationModel, JavaMLWritable, JavaML
     @property
     def theta(self) -> Matrix: ...
 
-class MultilayerPerceptronClassifier(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, HasStepSize, HasSolver, JavaMLWritable, JavaMLReadable, HasProbabilityCol, HasRawPredictionCol):
+class MultilayerPerceptronClassifier(JavaEstimator[MultilayerPerceptronClassificationModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, HasStepSize, HasSolver, JavaMLWritable, JavaMLReadable, HasProbabilityCol, HasRawPredictionCol):
     layers = ...  # type: Param
     blockSize = ...  # type: Param
     solver = ...  # type: Param
@@ -211,7 +211,7 @@ class OneVsRestParams(HasFeaturesCol, HasLabelCol, HasPredictionCol):
     def setClassifier(self, value: Estimator) -> 'OneVsRestParams': ...
     def getClassifier(self) -> Estimator: ...
 
-class OneVsRest(Estimator, OneVsRestParams, HasParallelism, JavaMLReadable, JavaMLWritable):
+class OneVsRest(Estimator[OneVsRestModel], OneVsRestParams, HasParallelism, JavaMLReadable, JavaMLWritable):
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., classifier: Optional[Estimator] = ..., weightCol: Optional[str] = ..., parallelism: int = ...) -> None: ...
     def setParams(self, featuresCol: Optional[str] = ..., labelCol: Optional[str] = ..., predictionCol: Optional[str] = ..., classifier: Optional[Estimator] = ..., weightCol: Optional[Any] = ..., parallelism: int = ...) -> 'OneVsRest': ...
     def copy(self, extra: Optional[ParamMap] = ...) -> 'OneVsRest': ...
