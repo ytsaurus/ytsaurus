@@ -1468,7 +1468,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                     "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "memory",
                         "cpu"],
                 },
             },
@@ -1763,7 +1762,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             # Unrecognized alert often interferes with the alerts that
