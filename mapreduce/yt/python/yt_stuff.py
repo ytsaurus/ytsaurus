@@ -460,7 +460,7 @@ class YtStuff(object):
                         self.cluster_config[field] = v[field]
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
-            for pid in self.get_pids():
+            for pid in self._get_pids():
                 try:
                     os.kill(pid, signal.SIGKILL)
                 except OSError:
@@ -479,18 +479,6 @@ class YtStuff(object):
 
         self._log("Local YT was started with id=%s", self.yt_id)
         return True
-
-    def get_pids(self):
-        pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
-        pids = []
-        if os.path.exists(pids_file):
-            with open(pids_file) as f:
-                for line in f.readlines():
-                    try:
-                        pids.append(int(line))
-                    except ValueError:
-                        pass
-        return pids
 
     def get_yt_wrapper(self):
         return self.yt_wrapper
@@ -644,7 +632,7 @@ class YtStuff(object):
         if not os.path.isdir(cores_dir):
             os.mkdir(cores_dir)
 
-        for pid in self.get_pids():
+        for pid in self._get_pids():
             core_file = yatest.common.cores.recover_core_dump_file(
                 os.path.join(self.yt_bins_path, "ytserver"),
                 self.yt_work_dir,
@@ -652,6 +640,18 @@ class YtStuff(object):
             )
             if core_file:
                 shutil.copy(core_file, cores_dir)
+
+    def _get_pids(self):
+        pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
+        pids = []
+        if os.path.exists(pids_file):
+            with open(pids_file) as f:
+                for line in f.readlines():
+                    try:
+                        pids.append(int(line))
+                    except ValueError:
+                        pass
+        return pids
 
 
 def yt_stuff():
