@@ -148,33 +148,33 @@ private:
     /*!
      *  If the job is running, aborts it.
      */
-    void AbortJob(IJobPtr job);
+    void AbortJob(const IJobPtr& job);
 
-    void FailJob(IJobPtr job);
+    void FailJob(const IJobPtr& job);
 
     //! Interrupts a job.
     /*!
      *  If the job is running, interrupts it.
      */
-    void InterruptJob(IJobPtr job);
+    void InterruptJob(const IJobPtr& job);
 
     //! Removes the job from the map.
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
+    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
 
     TJobFactory GetFactory(EJobType type) const;
 
     void ScheduleStart();
 
-    void OnWaitingJobTimeout(TWeakPtr<IJob> weakJob);
+    void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob);
 
     void OnResourcesUpdated(
-        TWeakPtr<IJob> job,
+        const TWeakPtr<IJob>& job,
         const TNodeResources& resourceDelta);
 
-    void OnPortsReleased(TWeakPtr<IJob> job);
+    void OnPortsReleased(const TWeakPtr<IJob>& job);
 
     void StartWaitingJobs();
 
@@ -209,14 +209,14 @@ private:
 TJobController::TImpl::TImpl(
     TJobControllerConfigPtr config,
     TBootstrap* bootstrap)
-    : Config_(config)
+    : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
     , ResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/resource_limits")
     , ResourceUsageProfiler_(Profiler.GetPathPrefix() + "/resource_usage")
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YCHECK(Config_);
+    YCHECK(Bootstrap_);
 
     for (int index = 0; index < Config_->PortCount; ++index) {
         FreePorts_.insert(Config_->StartPort + index);
@@ -574,7 +574,7 @@ IJobPtr TJobController::TImpl::CreateJob(
     return job;
 }
 
-void TJobController::TImpl::OnWaitingJobTimeout(TWeakPtr<IJob> weakJob)
+void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob)
 {
     auto strongJob = weakJob.Lock();
     if (!strongJob) {
@@ -597,7 +597,7 @@ void TJobController::TImpl::ScheduleStart()
     }
 }
 
-void TJobController::TImpl::AbortJob(IJobPtr job)
+void TJobController::TImpl::AbortJob(const IJobPtr& job)
 {
     LOG_INFO("Job abort requested (JobId: %v)",
         job->GetId());
@@ -605,7 +605,7 @@ void TJobController::TImpl::AbortJob(IJobPtr job)
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
 }
 
-void TJobController::TImpl::FailJob(IJobPtr job)
+void TJobController::TImpl::FailJob(const IJobPtr& job)
 {
     LOG_INFO("Job fail requested (JobId: %v)",
         job->GetId());
@@ -617,7 +617,7 @@ void TJobController::TImpl::FailJob(IJobPtr job)
     }
 }
 
-void TJobController::TImpl::InterruptJob(IJobPtr job)
+void TJobController::TImpl::InterruptJob(const IJobPtr& job)
 {
     LOG_INFO("Job interrupt requested (JobId: %v)",
         job->GetId());
@@ -629,7 +629,7 @@ void TJobController::TImpl::InterruptJob(IJobPtr job)
     }
 }
 
-void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
+void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
 {
     YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
@@ -654,7 +654,7 @@ void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec, bool arc
     LOG_INFO("Job removed (JobId: %v)", job->GetId());
 }
 
-void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
+void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const TNodeResources& resourceDelta)
 {
     if (!CheckResourceUsageDelta(resourceDelta)) {
         auto job_ = job.Lock();
@@ -673,7 +673,7 @@ void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeRe
     }
 }
 
-void TJobController::TImpl::OnPortsReleased(TWeakPtr<IJob> job)
+void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
 {
     auto job_ = job.Lock();
     if (job_) {
@@ -1170,7 +1170,7 @@ void TJobController::RegisterFactory(
     EJobType type,
     TJobFactory factory)
 {
-    Impl_->RegisterFactory(type, factory);
+    Impl_->RegisterFactory(type, std::move(factory));
 }
 
 IJobPtr TJobController::FindJob(const TJobId& jobId) const
