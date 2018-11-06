@@ -35,7 +35,7 @@ class GaussianMixtureModel(JavaModel, JavaMLWritable, JavaMLReadable):
     @property
     def summary(self) -> GaussianMixtureSummary: ...
 
-class GaussianMixture(JavaEstimator, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, HasProbabilityCol, JavaMLWritable, JavaMLReadable):
+class GaussianMixture(JavaEstimator[GaussianMixtureModel], HasFeaturesCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, HasProbabilityCol, JavaMLWritable, JavaMLReadable):
     k = ...  # type: Params
     def __init__(self, featuresCol: str = ..., predictionCol: str = ..., k: int = ..., probabilityCol: str = ..., tol: float = ..., maxIter: int = ..., seed: Optional[int] = ...) -> None: ...
     def setParams(self, featuresCol: str = ..., predictionCol: str = ..., k: int = ..., probabilityCol: str = ..., tol: float = ..., maxIter: int = ..., seed: Optional[int] = ...) -> 'GaussianMixture': ...
@@ -61,7 +61,7 @@ class KMeansModel(JavaModel, JavaMLWritable, JavaMLReadable):
     @property
     def summary(self) -> KMeansSummary: ...
 
-class KMeans(JavaEstimator, HasDistanceMeasure, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, JavaMLWritable, JavaMLReadable):
+class KMeans(JavaEstimator[KMeansModel], HasDistanceMeasure, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, JavaMLWritable, JavaMLReadable):
     k = ...  # type: Param
     initMode = ...  # type: Param
     initSteps = ...  # type: Param
@@ -84,7 +84,7 @@ class BisectingKMeansModel(JavaModel, JavaMLWritable, JavaMLReadable):
     @property
     def summary(self) -> BisectingKMeansSummary: ...
 
-class BisectingKMeans(JavaEstimator, HasDistanceMeasure, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasSeed, JavaMLWritable, JavaMLReadable):
+class BisectingKMeans(JavaEstimator[BisectingKMeansModel], HasDistanceMeasure, HasFeaturesCol, HasPredictionCol, HasMaxIter, HasSeed, JavaMLWritable, JavaMLReadable):
     k = ...  # type: Param
     minDivisibleClusterSize = ...  # type: Param
     def __init__(self, featuresCol: str = ..., predictionCol: str = ..., maxIter: int = ..., seed: Optional[int] = ..., k: int = ..., minDivisibleClusterSize: float = ..., distanceMeasure: str = ...) -> None: ...
@@ -115,7 +115,7 @@ class DistributedLDAModel(LDAModel, JavaMLReadable, JavaMLWritable):
 
 class LocalLDAModel(LDAModel, JavaMLReadable, JavaMLWritable): ...
 
-class LDA(JavaEstimator, HasFeaturesCol, HasMaxIter, HasSeed, HasCheckpointInterval, JavaMLReadable, JavaMLWritable):
+class LDA(JavaEstimator[LDAModel], HasFeaturesCol, HasMaxIter, HasSeed, HasCheckpointInterval, JavaMLReadable, JavaMLWritable):
     k = ...  # type: Param
     optimizer = ...  # type: Param
     learningOffset = ...  # type: Param
