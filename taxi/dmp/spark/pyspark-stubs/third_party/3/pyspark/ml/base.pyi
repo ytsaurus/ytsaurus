@@ -1,8 +1,9 @@
 # Stubs for pyspark.ml.base (Python 3.5)
 #
 
+import abc
 from typing import overload
-from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Tuple, Type, TypeVar
 
 import _thread
 
@@ -26,7 +27,7 @@ class _FitMultipleIterator:
     def next(self) -> Tuple[int, Transformer]: ...
 
 class Estimator(Params, Generic[M]):
-    __metaclass__ = ...  # type: Any
+    __metaclass__ = ...  # type: Type[abc.ABCMeta]
     @overload
     def fit(self, dataset: DataFrame, params: Optional[ParamMap] = ...) -> M: ...
     @overload
@@ -34,11 +35,11 @@ class Estimator(Params, Generic[M]):
     def fitMultiple(self, dataset: DataFrame, params: List[ParamMap]) -> Iterable[Tuple[int, M]]: ...
 
 class Transformer(Params):
-    __metaclass__ = ...  # type: Any
+    __metaclass__ = ...  # type: Type[abc.ABCMeta]
     def transform(self, dataset: DataFrame, params: Optional[ParamMap] = ...) -> DataFrame: ...
 
 class Model(Transformer):
-    __metaclass__ = ...  # type: Any
+    __metaclass__ = ...  # type: Type[abc.ABCMeta]
 
 class UnaryTransformer(HasInputCol, HasOutputCol, Transformer):
     def createTransformFunc(self) -> Callable: ...
