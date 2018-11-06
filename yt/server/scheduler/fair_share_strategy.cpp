@@ -1084,12 +1084,12 @@ private:
 
         for (const auto& pair : nodeIdToTreeSet) {
             const auto& nodeId = pair.first;
-            const auto& trees  = pair.second;
-            if (trees.size() > 1) {
-                errors->emplace_back("Cannot update fair-share trees since there is node that "
-                    "belongs to multiple trees (NodeId: %v, MatchedTrees: %v)",
-                    nodeId,
-                    trees);
+            const auto& treeIds  = pair.second;
+            if (treeIds.size() > 1) {
+                errors->emplace_back(
+                    TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
+                        << TErrorAttribute("node_id", nodeId)
+                        << TErrorAttribute("matched_trees", treeIds));
                 return false;
             }
         }
