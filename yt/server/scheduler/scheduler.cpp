@@ -1261,7 +1261,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
-    std::atomic<bool> IsConnected_ = {false};
+    std::atomic<bool> Connected_ = {false};
 
     //! Ordinal number of this scheduler incarnation. It is used
     //! to discard late callbacks that are submitted by still
