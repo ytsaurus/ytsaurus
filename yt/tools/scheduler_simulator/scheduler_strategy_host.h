@@ -39,6 +39,8 @@ public:
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
+    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override;
+
     virtual NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 

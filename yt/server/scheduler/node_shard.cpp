@@ -420,7 +420,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     const auto& resourceLimits = request->resource_limits();
     const auto& resourceUsage = request->resource_usage();
 
-    context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
+    context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
         FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_info()),
@@ -534,7 +534,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         const auto statistics = schedulingContext->GetSchedulingStatistics();
         context->SetResponseInfo(
-            "NodeId: %v, Address: %v, "
+            "NodeId: %v, NodeAddress: %v, "
             "StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
             "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
@@ -606,7 +606,7 @@ void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState, 
     node->SetRegistrationError(error);
 
     if (oldState != newState) {
-        LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v -> %v)",
+        LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, State: %v -> %v)",
             node->GetId(),
             node->NodeDescriptor().GetDefaultAddress(),
             oldState,
@@ -638,7 +638,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto newState = attributes.Get<ENodeState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
 
-        LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
+        LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
             nodeId,
             address,
             objectId,
@@ -648,7 +648,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         if (IdToNode_.find(nodeId) == IdToNode_.end()) {
             if (newState == ENodeState::Online) {
-                LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, Address: %v)",
+                LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                     nodeId,
                     address);
             }
