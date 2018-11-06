@@ -101,8 +101,9 @@ private:
             httpClient.DoGet(realUrl, &outputStream, headers);
         }
 
-        LOG_DEBUG("Received TVM daemon reply (CallId: %v)",
-            callId);
+        LOG_DEBUG("Received TVM daemon reply (CallId: %v)\n%v",
+            callId,
+            resultString);
 
         {
             TStringInput inputStream(resultString);
