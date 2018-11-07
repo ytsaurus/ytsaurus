@@ -161,8 +161,12 @@ public:
     virtual TFuture<std::shared_ptr<TFileHandle>> Open(
         const TString& fName, EOpenMode oMode, i64 priority) override
     {
+        const auto& invoker = (oMode & RdOnly)
+            ? ReadInvoker_
+            : WriteInvoker_;
+
         return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fName, oMode)
-            .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(invoker, priority))
             .Run();
     }
 
