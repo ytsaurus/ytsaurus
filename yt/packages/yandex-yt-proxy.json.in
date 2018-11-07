@@ -13,8 +13,6 @@
         "targets": [
             "yt/server/rpc_proxy/bin"
         ],
-        "thinlto": true,
-        "build_type": "profile",
         "flags": [
             {
                 "name": "YT_VERSION_PATCH",
