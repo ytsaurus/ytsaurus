@@ -61,11 +61,12 @@ logger.setLevel(logging.DEBUG)
 class YpTestEnvironment(object):
     def __init__(self, yp_master_config=None, enable_ssl=False, start=True, db_version=ACTUAL_DB_VERSION):
         if yatest_common is not None:
-            destination = os.path.join(yatest_common.work_path(), "build")
+            destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
             os.makedirs(destination)
             path, node_path = arcadia_interop.prepare_yt_environment(destination)
             os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
             os.environ["NODE_PATH"] = node_path
+
             self.test_sandbox_base_path = yatest_common.output_path()
             self.test_sandbox_path = os.path.join(yatest_common.output_path(), "yp_" + generate_uuid())
         else:
