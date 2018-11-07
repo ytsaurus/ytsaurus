@@ -244,7 +244,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         client=client).run()
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
-                format=None, raw=None, client=None):
+                format=None, raw=None, versioned=None, client=None):
     """Lookups rows in dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -252,6 +252,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     :param format: output format.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param bool raw: don't parse response to rows.
+    :param bool versioned: return all versions of the requested rows.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -266,6 +267,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "timestamp", timestamp)
     set_param(params, "column_names", column_names)
     set_param(params, "keep_missing_rows", keep_missing_rows)
+    set_param(params, "versioned", versioned)
 
     input_data = b"".join(_to_chunk_stream(
         input_stream,
