@@ -104,8 +104,6 @@ public:
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
 
-        int streamIndex = stripe->GetInputStreamIndex();
-
         return cookie;
     }
 
