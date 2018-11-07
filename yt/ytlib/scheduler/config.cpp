@@ -1030,6 +1030,9 @@ TResourceLimitsConfig::TResourceLimitsConfig()
     RegisterParameter("memory", Memory)
         .Default()
         .GreaterThanOrEqual(0);
+    RegisterParameter("gpu", Gpu)
+        .Default()
+        .GreaterThanOrEqual(0);
 }
 
 TSchedulableConfig::TSchedulableConfig()
