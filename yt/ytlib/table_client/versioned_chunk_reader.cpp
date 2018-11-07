@@ -789,7 +789,7 @@ public:
         auto timestampIndexRanges = TimestampReader_->GetTimestampIndexRanges(range.Size());
 
         for (auto& valueColumnReader : ValueColumnReaders_) {
-            valueColumnReader->ReadValues(range, timestampIndexRanges);
+            valueColumnReader->ReadValues(range, timestampIndexRanges, false);
         }
 
         // Read timestamps.
@@ -1093,6 +1093,236 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLookupSingleVersionColumnarRowBuilder
+{
+public:
+    TLookupSingleVersionColumnarRowBuilder(
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        std::vector<IUnversionedColumnReader*>& keyColumnReaders,
+        std::vector<IVersionedColumnReader*>& valueColumnReaders,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
+        TTimestamp timestamp)
+        : ChunkMeta_(chunkMeta)
+        , KeyColumnReaders_(keyColumnReaders)
+        , ValueColumnReaders_(valueColumnReaders)
+        , Pool_(TVersionedChunkReaderPoolTag())
+        , SchemaIdMapping_(schemaIdMapping)
+        , Timestamp_(timestamp)
+    { }
+
+    std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
+    {
+        YCHECK(TimestampReader_ == nullptr);
+
+        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
+        TimestampReader_ = new TLookupTransactionTimestampReader(
+            ChunkMeta_->ColumnMeta()->columns(timestampReaderIndex),
+            Timestamp_);
+        return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
+    }
+
+    TMutableVersionedRow ReadRow(i64 rowIndex)
+    {
+        auto deleteTimestamp = TimestampReader_->GetDeleteTimestamp();
+        auto timestampIndexRange = TimestampReader_->GetTimestampIndexRange();
+
+        bool hasWriteTimestamp = timestampIndexRange.first < timestampIndexRange.second;
+        bool hasDeleteTimestamp = deleteTimestamp != NullTimestamp;
+        if (!hasWriteTimestamp && !hasDeleteTimestamp) {
+            // No record of this key at this point of time.
+            return TMutableVersionedRow();
+        }
+
+        size_t valueCount = 0;
+        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+            const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
+            const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
+            ui32 columnValueCount = 1;
+            if (columnSchema.Aggregate()) {
+                // Possibly multiple values per column for aggregate columns.
+                ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
+            }
+
+            valueCount += columnValueCount;
+        }
+
+        // Allocate according to schema.
+        auto row = TMutableVersionedRow::Allocate(
+            &Pool_,
+            ChunkMeta_->GetKeyColumnCount(),
+            hasWriteTimestamp ? valueCount : 0,
+            hasWriteTimestamp ? 1 : 0,
+            hasDeleteTimestamp ? 1 : 0);
+
+        // Read key values.
+        for (auto& keyColumnReader : KeyColumnReaders_) {
+            keyColumnReader->ReadValues(TMutableRange<TMutableVersionedRow>(&row, 1));
+        }
+
+        if (hasDeleteTimestamp) {
+            *row.BeginDeleteTimestamps() = deleteTimestamp;
+        }
+
+        if (!hasWriteTimestamp) {
+            return row;
+        }
+
+        // Value count is increased inside value column readers.
+        row.SetValueCount(0);
+
+        // Read non-key values.
+        for (const auto& valueColumnReader : ValueColumnReaders_) {
+            valueColumnReader->ReadValues(
+                TMutableRange<TMutableVersionedRow>(&row, 1),
+                MakeRange(&timestampIndexRange, 1),
+                false);
+        }
+
+        for (int i = 0; i < row.GetValueCount(); ++i) {
+            row.BeginValues()[i].Timestamp = TimestampReader_->GetTimestamp(static_cast<i32>(row.BeginValues()[i].Timestamp));
+        }
+
+        *row.BeginWriteTimestamps() = TimestampReader_->GetWriteTimestamp();
+        return row;
+    }
+
+    void Clear()
+    {
+        Pool_.Clear();
+    }
+
+private:
+    TLookupTransactionTimestampReader* TimestampReader_ = nullptr;
+
+    const TCachedVersionedChunkMetaPtr ChunkMeta_;
+
+    std::vector<IUnversionedColumnReader*>& KeyColumnReaders_;
+    std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
+
+    TChunkedMemoryPool Pool_;
+
+    const std::vector<TColumnIdMapping>& SchemaIdMapping_;
+
+    TTimestamp Timestamp_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLookupAllVersionsColumnarRowBuilder
+{
+public:
+    TLookupAllVersionsColumnarRowBuilder(
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        std::vector<IUnversionedColumnReader*>& keyColumnReaders,
+        std::vector<IVersionedColumnReader*>& valueColumnReaders,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
+        TTimestamp timestamp)
+        : ChunkMeta_(chunkMeta)
+        , KeyColumnReaders_(keyColumnReaders)
+        , ValueColumnReaders_(valueColumnReaders)
+        , Pool_(TVersionedChunkReaderPoolTag())
+        , SchemaIdMapping_(schemaIdMapping)
+        , Timestamp_(timestamp)
+    { }
+
+    std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
+    {
+        YCHECK(TimestampReader_ == nullptr);
+
+        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
+        TimestampReader_ = new TLookupTransactionAllVersionsTimestampReader(
+            ChunkMeta_->ColumnMeta()->columns(timestampReaderIndex),
+            Timestamp_);
+        return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
+    }
+
+    TMutableVersionedRow ReadRow(i64 rowIndex)
+    {
+        int writeTimestampCount = TimestampReader_->GetWriteTimestampCount();
+        int deleteTimestampCount = TimestampReader_->GetDeleteTimestampCount();
+
+        size_t valueCount = 0;
+        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+            ui32 columnValueCount;
+            ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
+            valueCount += columnValueCount;
+        }
+
+        // Allocate according to schema.
+        auto row = TMutableVersionedRow::Allocate(
+            &Pool_,
+            ChunkMeta_->GetKeyColumnCount(),
+            writeTimestampCount > 0 ? valueCount : 0,
+            writeTimestampCount,
+            deleteTimestampCount);
+
+        // Read key values.
+        for (auto& keyColumnReader : KeyColumnReaders_) {
+            keyColumnReader->ReadValues(TMutableRange<TMutableVersionedRow>(&row, 1));
+        }
+
+        // Read delete timestamps.
+        for (ui32 timestampIndex = 0; timestampIndex < deleteTimestampCount; ++timestampIndex) {
+            row.BeginDeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(timestampIndex);
+
+        }
+
+        if (writeTimestampCount == 0) {
+            return row;
+        }
+
+        // Read write timestamps.
+        for (ui32 timestampIndex = 0; timestampIndex < writeTimestampCount; ++timestampIndex) {
+            row.BeginWriteTimestamps()[timestampIndex] = TimestampReader_->GetValueTimestamp(timestampIndex);
+        }
+
+        // Value count is increased inside value column readers.
+        row.SetValueCount(0);
+
+        // Read non-key values.
+        auto writeTimestampIndexRange = TimestampReader_->GetWriteTimestampIndexRange();
+        auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
+        for (const auto& valueColumnReader : ValueColumnReaders_) {
+            valueColumnReader->ReadValues(
+                TMutableRange<TMutableVersionedRow>(&row, 1),
+                MakeRange(&writeTimestampIndexRange, 1),
+                true);
+        }
+
+        for (int i = 0; i < row.GetValueCount(); ++i) {
+            row.BeginValues()[i].Timestamp = TimestampReader_->GetValueTimestamp(
+                static_cast<i32>(row.BeginValues()[i].Timestamp) - writeTimestampIndexRange.first);
+        }
+
+        auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
+        Pool_.Free(memoryFrom, memoryTo);
+
+        return row;
+    }
+
+    void Clear()
+    {
+        Pool_.Clear();
+    }
+
+private:
+    TLookupTransactionAllVersionsTimestampReader* TimestampReader_ = nullptr;
+
+    const TCachedVersionedChunkMetaPtr ChunkMeta_;
+
+    std::vector<IUnversionedColumnReader*>& KeyColumnReaders_;
+    std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
+
+    TChunkedMemoryPool Pool_;
+
+    const std::vector<TColumnIdMapping>& SchemaIdMapping_;
+
+    TTimestamp Timestamp_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class TRowBuilder>
 class TColumnarVersionedLookupChunkReader
     : public TColumnarVersionedChunkReaderBase<TColumnarLookupChunkReaderBase>
 {
@@ -1109,23 +1339,24 @@ public:
         TTimestamp timestamp)
         : TColumnarVersionedChunkReaderBase(
             std::move(config),
-            std::move(chunkMeta),
+            chunkMeta,
             std::move(underlyingReader),
             std::move(blockCache),
             blockReadOptions,
             columnFilter,
             std::move(performanceCounters),
             timestamp)
-        , Pool_(TVersionedChunkReaderPoolTag())
+        , RowBuilder_(
+            chunkMeta,
+            KeyColumnReaders_,
+            ValueColumnReaders_,
+            SchemaIdMapping_,
+            timestamp)
     {
         Keys_ = keys;
 
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
-        TimestampReader_ = new TLookupTransactionTimestampReader(
-            VersionedChunkMeta_->ColumnMeta()->columns(timestampReaderIndex),
-            Timestamp_);
-
-        Columns_.emplace_back(std::unique_ptr<IColumnReaderBase>(TimestampReader_), timestampReaderIndex);
+        Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         Initialize();
 
@@ -1135,7 +1366,7 @@ public:
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
         rows->clear();
-        Pool_.Clear();
+        RowBuilder_.Clear();
 
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
@@ -1197,9 +1428,9 @@ public:
     }
 
 private:
-    TChunkedMemoryPool Pool_;
-
     TLookupTransactionTimestampReader* TimestampReader_;
+
+    TRowBuilder RowBuilder_;
 
     TMutableVersionedRow ReadRow(i64 rowIndex)
     {
@@ -1207,66 +1438,7 @@ private:
             column.ColumnReader->SkipToRowIndex(rowIndex);
         }
 
-        auto deleteTimestamp = TimestampReader_->GetDeleteTimestamp();
-        auto timestampIndexRange = TimestampReader_->GetTimestampIndexRange();
-
-        bool hasWriteTimestamp = timestampIndexRange.first < timestampIndexRange.second;
-        bool hasDeleteTimestamp = deleteTimestamp != NullTimestamp;
-        if (!hasWriteTimestamp && !hasDeleteTimestamp) {
-            // No record of this key at this point of time.
-            return TMutableVersionedRow();
-        }
-
-        size_t valueCount = 0;
-        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
-            const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
-            const auto& columnSchema = VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
-            ui32 columnValueCount = 1;
-            if (columnSchema.Aggregate()) {
-                // Possibly multiple values per column for aggregate columns.
-                ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
-            }
-
-            valueCount += columnValueCount;
-        }
-
-        // Allocate according to schema.
-        auto row = TMutableVersionedRow::Allocate(
-            &Pool_,
-            VersionedChunkMeta_->GetKeyColumnCount(),
-            hasWriteTimestamp ? valueCount : 0,
-            hasWriteTimestamp ? 1 : 0,
-            hasDeleteTimestamp ? 1 : 0);
-
-        // Read key values.
-        for (auto& keyColumnReader : KeyColumnReaders_) {
-            keyColumnReader->ReadValues(TMutableRange<TMutableVersionedRow>(&row, 1));
-        }
-
-        if (hasDeleteTimestamp) {
-            *row.BeginDeleteTimestamps() = deleteTimestamp;
-        }
-
-        if (!hasWriteTimestamp) {
-            return row;
-        }
-
-        // Value count is increased inside value column readers.
-        row.SetValueCount(0);
-
-        // Read key values.
-        for (const auto& valueColumnReader : ValueColumnReaders_) {
-            valueColumnReader->ReadValues(
-                TMutableRange<TMutableVersionedRow>(&row, 1),
-                MakeRange(&timestampIndexRange, 1));
-        }
-
-        for (int i = 0; i < row.GetValueCount(); ++i) {
-            row.BeginValues()[i].Timestamp = TimestampReader_->GetTimestamp(static_cast<i32>(row.BeginValues()[i].Timestamp));
-        }
-
-        *row.BeginWriteTimestamps() = TimestampReader_->GetWriteTimestamp();
-        return row;
+        return RowBuilder_.ReadRow(rowIndex);
     }
 };
 
@@ -1558,32 +1730,38 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 produceAllVersions);
 
         case ETableChunkFormat::VersionedColumnar: {
-            // COMPAT(sandello): Fix me.
-            if (produceAllVersions && timestamp != AllCommittedTimestamp) {
-                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+            if (produceAllVersions) {
+                YCHECK(columnFilter.IsUniversal());
             }
-            return New<TColumnarVersionedLookupChunkReader>(
-                std::move(config),
-                chunkMeta,
-                std::move(chunkReader),
-                blockCache,
-                blockReadOptions,
-                keys,
-                columnFilter,
-                performanceCounters,
-                timestamp);
+            if (produceAllVersions) {
+                return New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
+                    std::move(config),
+                    chunkMeta,
+                    std::move(chunkReader),
+                    blockCache,
+                    blockReadOptions,
+                    keys,
+                    columnFilter,
+                    performanceCounters,
+                    timestamp);
+            } else {
+                return New<TColumnarVersionedLookupChunkReader<TLookupSingleVersionColumnarRowBuilder>>(
+                    std::move(config),
+                    chunkMeta,
+                    std::move(chunkReader),
+                    blockCache,
+                    blockReadOptions,
+                    keys,
+                    columnFilter,
+                    performanceCounters,
+                    timestamp);
+            }
         }
 
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
-            // COMPAT(sandello): Fix me.
-            if (produceAllVersions && timestamp != AllCommittedTimestamp) {
-                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
-            }
-
-            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
-            if (timestamp < chunkTimestamp) {
-                return CreateEmptyVersionedReader(keys.Size());
+            if (produceAllVersions && !columnFilter.IsUniversal()) {
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
             }
 
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
@@ -1605,11 +1783,17 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             auto schemafulReaderFactory = [&] (const TTableSchema& schema, const TColumnFilter& columnFilter) {
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
             };
+
+            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
+            if (timestamp < chunkTimestamp && !produceAllVersions) {
+                return CreateEmptyVersionedReader(keys.Size());
+            }
+
             return CreateVersionedReaderAdapter(
                 std::move(schemafulReaderFactory),
                 chunkMeta->Schema(),
                 columnFilter,
-                chunkTimestamp);
+                timestamp < chunkTimestamp ? NullTimestamp : chunkTimestamp);
         }
 
         default:

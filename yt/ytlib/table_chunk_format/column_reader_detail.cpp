@@ -188,7 +188,8 @@ void TVersionedColumnReaderBase::GetValueCounts(TMutableRange<ui32> valueCounts)
 
 void TVersionedColumnReaderBase::ReadValues(
     TMutableRange<TMutableVersionedRow> rows,
-    TRange<std::pair<ui32, ui32>> timestampIndexRanges)
+    TRange<std::pair<ui32, ui32>> timestampIndexRanges,
+    bool produceAllVersions)
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
@@ -197,7 +198,8 @@ void TVersionedColumnReaderBase::ReadValues(
 
         i64 count = SegmentReader_->ReadValues(
             rows.Slice(rows.Begin() + readRowCount, rows.End()),
-            timestampIndexRanges.Slice(readRowCount, timestampIndexRanges.Size()));
+            timestampIndexRanges.Slice(readRowCount, timestampIndexRanges.Size()),
+            produceAllVersions);
 
         readRowCount += count;
         CurrentRowIndex_ += count;
