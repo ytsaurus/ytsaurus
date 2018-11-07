@@ -13,8 +13,6 @@
         "targets": [
             "yt/server/controller_agent/bin"
         ],
-        "thinlto": true,
-        "build_type": "profile",
         "flags": [
             {
                 "name": "YT_VERSION_PATCH",

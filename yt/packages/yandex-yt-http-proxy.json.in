@@ -15,8 +15,6 @@
             "yt/nodejs/targets/bin",
             "yt/nodejs/targets/package"
         ],
-        "thinlto": true,
-        "build_type": "profile",
         "flags": [
             {
                 "name": "YT_VERSION_PATCH",
