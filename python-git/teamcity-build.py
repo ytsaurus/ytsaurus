@@ -233,8 +233,7 @@ def _run_tests(options, python_version):
                     cwd=options.checkout_directory,
                     env=env)
         except ChildHasNonZeroExitCode as err:
-            teamcity_interact("buildProblem", description="Test session was terminated with non-zero exit code. " \
-                                                          "See build log for more details.")
+            teamcity_interact("buildProblem", description="Pytest failed (python: {}; exit code: {})".format(python_version, err.return_code))
             failed = True
 
         junit_path = os.path.join(options.working_directory,
