@@ -1176,7 +1176,7 @@ class YTInstance(object):
         logger.info("Starting proxy")
         if use_proxy_from_package:
             self._start_proxy_from_package()
-        elif use_new_proxy:
+        elif use_new_proxy or which("ytserver-http-proxy"):
             self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["proxy"]], "proxy")
         else:
             if not which("run_proxy.sh"):
