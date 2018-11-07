@@ -194,9 +194,10 @@ def ya_make_yt_store_args(options):
     ]
 
 def ya_make_args(options):
-    return [
-        "--build", options.ya_build_type,
-    ]
+    args = ["--build", options.ya_build_type]
+    if options.use_thinlto:
+        args += ["--thinlto"]
+    return args
 
 @build_step
 def prepare(options, build_context):
@@ -253,13 +254,13 @@ def prepare(options, build_context):
         if not options.cxx:
             raise RuntimeError("Failed to locate CXX compiler")
 
-    # options.use_lto = (options.type != "Debug")
+    options.use_thinlto = (options.type != "Debug")
     options.use_lto = False
 
     options.ya_build_type = {
         "Debug": "debug",
-        "Release": "release",
-        "RelWithDebInfo": "release",
+        "Release": "profile",
+        "RelWithDebInfo": "profile",
     }[options.type]
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
