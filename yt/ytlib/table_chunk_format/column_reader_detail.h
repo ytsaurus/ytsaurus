@@ -42,11 +42,11 @@ struct IUnversionedSegmentReader
     virtual NTableClient::TUnversionedValue GetLastValue() const = 0;
 
     virtual i64 GetLowerRowIndex(
-        const NTableClient::TUnversionedValue& value, 
+        const NTableClient::TUnversionedValue& value,
         i64 rowIndexLimit) const = 0;
 
     virtual i64 GetUpperRowIndex(
-        const NTableClient::TUnversionedValue& value, 
+        const NTableClient::TUnversionedValue& value,
         i64 rowIndexLimit) const = 0;
 };
 
@@ -58,7 +58,8 @@ struct IVersionedSegmentReader
     //! Transactional read.
     virtual i64 ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
-        TRange<std::pair<ui32, ui32>> timestampIndexRanges) = 0;
+        TRange<std::pair<ui32, ui32>> timestampIndexRanges,
+        bool produceAllVersions) = 0;
 
     //! Compaction read.
     virtual i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) = 0;
@@ -652,7 +653,7 @@ class TDenseVersionedValueExtractorBase
 {
 public:
     TDenseVersionedValueExtractorBase(const NProto::TSegmentMeta& meta, bool aggregate);
-        
+
     std::pair<ui32, ui32> GetValueIndexRange(i64 segmentRowIndex, ui32 lowerTimestampIndex);
 
     // For compaction read.
@@ -680,7 +681,7 @@ public:
     i64 GetLowerValueIndex(i64 segmentRowIndex, int valueIndex) const;
 
     i64 GetRowIndex(i64 valueIndex) const;
-    
+
     i64 GetValueCount() const;
 
     std::pair<ui32, ui32> GetValueIndexRange(i64 segmentRowIndex, i64 valueIndex, ui32 lowerTimestampIndex);
@@ -739,7 +740,8 @@ protected:
     void DoSetValues(
         NTableClient::TMutableVersionedRow row,
         const std::pair<ui32, ui32>& timestampIndexRange,
-        const std::pair<ui32, ui32>& valueIndexRange)
+        const std::pair<ui32, ui32>& valueIndexRange,
+        bool produceAllVersions)
     {
         ui32 valueIndex = valueIndexRange.first;
         ui32 upperValueIndex = valueIndexRange.second;
@@ -757,9 +759,8 @@ protected:
             bool aggregate = ValueExtractor_.GetAggregate(valueIndex);
             ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, aggregate);
 
-            if (!Aggregate_) {
-                // If column is not aggregate we emit only first value.
-                return;
+            if (!produceAllVersions && !Aggregate_) {
+                break;
             }
         }
     }
@@ -803,7 +804,8 @@ public:
 
     virtual i64 ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
-        TRange<std::pair<ui32, ui32>> timestampIndexRanges) override
+        TRange<std::pair<ui32, ui32>> timestampIndexRanges,
+        bool produceAllVersions) override
     {
         YCHECK(rows.Size() == timestampIndexRanges.Size());
 
@@ -811,7 +813,7 @@ public:
         while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             if (row) {
-                SetValues(row, timestampIndexRanges[rangeRowIndex]);
+                SetValues(row, timestampIndexRanges[rangeRowIndex], produceAllVersions);
             }
 
             ++SegmentRowIndex_;
@@ -851,13 +853,16 @@ private:
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetValues;
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetAllValues;
 
-    void SetValues(NTableClient::TMutableVersionedRow row, const std::pair<ui32, ui32>& timestampIndexRange)
+    void SetValues(
+        NTableClient::TMutableVersionedRow row,
+        const std::pair<ui32, ui32>& timestampIndexRange,
+        bool produceAllVersions)
     {
         auto valueIndexRange = ValueExtractor_.GetValueIndexRange(
             SegmentRowIndex_,
             timestampIndexRange.first);
 
-        DoSetValues(row, timestampIndexRange, valueIndexRange);
+        DoSetValues(row, timestampIndexRange, valueIndexRange, produceAllVersions);
     }
 
     void SetAllValues(NTableClient::TMutableVersionedRow row)
@@ -895,7 +900,8 @@ public:
 
     virtual i64 ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
-        TRange<std::pair<ui32, ui32>> timestampIndexRanges) override
+        TRange<std::pair<ui32, ui32>> timestampIndexRanges,
+        bool produceAllVersions) override
     {
         YCHECK(rows.Size() == timestampIndexRanges.Size());
 
@@ -927,7 +933,7 @@ public:
 
             auto row = rows[rangeRowIndex];
             if (row){
-                SetValues(row, timestampIndexRanges[rangeRowIndex]);
+                SetValues(row, timestampIndexRanges[rangeRowIndex], produceAllVersions);
             }
 
             ++SegmentRowIndex_;
@@ -1007,8 +1013,8 @@ public:
 
             YCHECK(currentRowIndex == ValueExtractor_.GetRowIndex(currentValueIndex));
             ui32 count = 0;
-            while (currentValueIndex < ValueExtractor_.GetValueCount() && 
-                currentRowIndex == ValueExtractor_.GetRowIndex(currentValueIndex)) 
+            while (currentValueIndex < ValueExtractor_.GetValueCount() &&
+                currentRowIndex == ValueExtractor_.GetRowIndex(currentValueIndex))
             {
                 ++count;
                 ++currentValueIndex;
@@ -1030,15 +1036,17 @@ private:
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetValues;
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetAllValues;
 
-    //! Returns number of values set (might be more than 1 if aggregate).
-    void SetValues(NTableClient::TMutableVersionedRow row, const std::pair<ui32, ui32>& timestampIndexRange)
+    void SetValues(
+        NTableClient::TMutableVersionedRow row,
+        const std::pair<ui32, ui32>& timestampIndexRange,
+        bool produceAllVersions)
     {
         auto valueIndexRange = ValueExtractor_.GetValueIndexRange(
             SegmentRowIndex_,
             ValueIndex_,
             timestampIndexRange.first);
 
-        DoSetValues(row, timestampIndexRange, valueIndexRange);
+        DoSetValues(row, timestampIndexRange, valueIndexRange, produceAllVersions);
     }
 
     void SetAllValues(NTableClient::TMutableVersionedRow row)
@@ -1064,7 +1072,8 @@ public:
 
     virtual void ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
-        TRange<std::pair<ui32, ui32>> timestampIndexRanges) override;
+        TRange<std::pair<ui32, ui32>> timestampIndexRanges,
+        bool produceAllVersions) override;
 
     virtual void ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
 

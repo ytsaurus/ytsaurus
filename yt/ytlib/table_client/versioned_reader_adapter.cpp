@@ -100,14 +100,20 @@ private:
             Y_ASSERT(row[index].Id == index);
         }
 
+        bool hasValues = Timestamp_ != NullTimestamp;
+
         auto versionedRow = TMutableVersionedRow::Allocate(
             &MemoryPool_,
             KeyColumnCount_,
-            row.GetCount() - KeyColumnCount_,
-            1,
+            hasValues ? row.GetCount() - KeyColumnCount_ : 0,
+            hasValues ? 1 : 0,
             0);
 
         ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+
+        if (!hasValues) {
+            return versionedRow;
+        }
 
         TVersionedValue* currentValue = versionedRow.BeginValues();
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {

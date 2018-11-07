@@ -20,8 +20,8 @@ class TTimestampSegmentReader
 {
 public:
     TTimestampSegmentReader(
-        const NProto::TSegmentMeta& meta, 
-        const char* data, 
+        const NProto::TSegmentMeta& meta,
+        const char* data,
         NTableClient::TTimestamp timestamp = NTableClient::AllCommittedTimestamp);
 
     void SkipToRowIndex(i64 rowIndex);
@@ -39,6 +39,16 @@ public:
     std::pair<ui32, ui32> GetTimestampIndexRange() const
     {
         return TimestampIndexRange_;
+    }
+
+    std::pair<ui32, ui32> GetFullWriteTimestampIndexRange() const
+    {
+        return FullWriteTimestampIndexRange_;
+    }
+
+    std::pair<ui32, ui32> GetFullDeleteTimestampIndexRange() const
+    {
+        return FullDeleteTimestampIndexRange_;
     }
 
     NTableClient::TTimestamp GetValueTimestamp(i64 rowIndex, ui32 timestampIndex) const;
@@ -73,7 +83,8 @@ private:
     NTableClient::TTimestamp DeleteTimestamp_;
     NTableClient::TTimestamp WriteTimestamp_;
     std::pair<ui32, ui32> TimestampIndexRange_;
-
+    std::pair<ui32, ui32> FullWriteTimestampIndexRange_;
+    std::pair<ui32, ui32> FullDeleteTimestampIndexRange_;
 
     ui32 GetDeleteIndex(i64 adjustedRowIndex) const;
     ui32 GetWriteIndex(i64 adjustedRowIndex) const;
@@ -180,7 +191,7 @@ public:
             TimestampIndexRanges_.data() + rowCount);
     };
 
-    NTableClient::TTimestamp GetValueTimestamp(i64 rowIndex, i64 timestampIndex) const
+    NTableClient::TTimestamp GetValueTimestamp(i64 rowIndex, ui32 timestampIndex) const
     {
         return SegmentReader_->GetValueTimestamp(rowIndex, timestampIndex);
     }
@@ -220,9 +231,58 @@ public:
         return TimestampIndexRanges_[0];
     }
 
-    NTableClient::TTimestamp GetTimestamp(i64 timestampIndex) const
+    NTableClient::TTimestamp GetTimestamp(ui32 timestampIndex) const
     {
         return SegmentReader_->GetValueTimestamp(CurrentRowIndex_, timestampIndex);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLookupTransactionAllVersionsTimestampReader
+    : public TTransactionTimestampReaderBase
+{
+public:
+    TLookupTransactionAllVersionsTimestampReader(
+        const NProto::TColumnMeta& meta,
+        NTableClient::TTimestamp timestamp)
+        : TTransactionTimestampReaderBase(meta, timestamp)
+    { }
+
+    virtual void SkipToRowIndex(i64 rowIndex) override
+    {
+        DoSkipPreparedRows();
+        TTransactionTimestampReaderBase::SkipToRowIndex(rowIndex);
+        DoPrepareRows(1);
+    }
+
+    std::pair<ui32, ui32> GetWriteTimestampIndexRange() const
+    {
+        return SegmentReader_->GetFullWriteTimestampIndexRange();
+    }
+
+    ui32 GetWriteTimestampCount() const
+    {
+        auto range = SegmentReader_->GetFullWriteTimestampIndexRange();
+        return range.second - range.first;
+    }
+
+    ui32 GetDeleteTimestampCount() const
+    {
+        auto range = SegmentReader_->GetFullDeleteTimestampIndexRange();
+        return range.second - range.first;
+    }
+
+    NTableClient::TTimestamp GetDeleteTimestamp(ui32 timestampIndex) const
+    {
+        auto adjustedIndex = SegmentReader_->GetFullDeleteTimestampIndexRange().first + timestampIndex;
+        return SegmentReader_->GetDeleteTimestamp(CurrentRowIndex_, adjustedIndex);
+    }
+
+    NTableClient::TTimestamp GetValueTimestamp(ui32 timestampIndex) const
+    {
+        auto adjustedIndex = SegmentReader_->GetFullWriteTimestampIndexRange().first + timestampIndex;
+        return SegmentReader_->GetValueTimestamp(CurrentRowIndex_, adjustedIndex);
     }
 };
 
@@ -255,7 +315,7 @@ public:
         return SegmentReader_->GetDeleteTimestamp(rowIndex, timestampIndex);
     }
 
-    NTableClient::TTimestamp GetValueTimestamp(i64 rowIndex, i64 timestampIndex) const
+    NTableClient::TTimestamp GetValueTimestamp(i64 rowIndex, ui32 timestampIndex) const
     {
         return SegmentReader_->GetValueTimestamp(rowIndex, timestampIndex);
     }
