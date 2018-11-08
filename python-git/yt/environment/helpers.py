@@ -62,6 +62,7 @@ class OpenPortIterator(Iterator):
         return self
 
     def _is_port_free_for_inet(self, port, inet):
+        sock = None
         try:
             sock = socket.socket(inet, socket.SOCK_STREAM)
             sock.bind(("", port))
