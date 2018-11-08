@@ -43,6 +43,13 @@ def get_clickhouse_clique_spec_builder(instance_count,
     else:
         executable_path = host_ytserver_clickhouse_path
 
+    if spec is None:
+        spec = dict()
+    if "annotations" not in spec:
+        spec["annotations"] = dict()
+    if "expose_to_yql" not in spec["annotations"]:
+        spec["annotations"]["expose_to_yql"] = True
+
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("clickhouse_servers") \
