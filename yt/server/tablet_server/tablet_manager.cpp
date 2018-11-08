@@ -810,6 +810,38 @@ public:
                 Y_UNREACHABLE();
         }
 
+        auto* action = DoCreateTabletAction(
+            hintId,
+            kind,
+            ETabletActionState::Preparing,
+            tablets,
+            cells,
+            pivotKeys,
+            tabletCount,
+            freeze,
+            skipFreezing,
+            keepFinished);
+
+        OnTabletActionStateChanged(action);
+        return action;
+    }
+
+    TTabletAction* DoCreateTabletAction(
+        const TObjectId& hintId,
+        ETabletActionKind kind,
+        ETabletActionState state,
+        const std::vector<TTablet*>& tablets,
+        const std::vector<TTabletCell*>& cells,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const TNullable<int>& tabletCount,
+        bool freeze,
+        bool skipFreezing,
+        bool keepFinished)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YCHECK(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletAction, hintId);
         auto actionHolder = std::make_unique<TTabletAction>(id);
@@ -818,13 +850,22 @@ public:
 
         for (auto* tablet : tablets) {
             tablet->SetAction(action);
+
+            if (state == ETabletActionState::Orphaned) {
+                // Orphaned action can be created during mount if tablet cells are not available.
+                // User can't create orphaned action directly because primary master need to know about mount.
+                YCHECK(tablet->GetState() == ETabletState::Unmounted);
+                tablet->SetExpectedState(freeze
+                    ? ETabletState::Frozen
+                    : ETabletState::Mounted);
+            }
         }
         for (auto* cell : cells) {
             cell->Actions().insert(action);
         }
 
         action->SetKind(kind);
-        action->SetState(ETabletActionState::Preparing);
+        action->SetState(state);
         action->Tablets() = std::move(tablets);
         action->TabletCells() = std::move(cells);
         action->PivotKeys() = std::move(pivotKeys);
@@ -835,8 +876,6 @@ public:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
             *action);
-
-        OnTabletActionStateChanged(action);
 
         return action;
     }
@@ -1673,6 +1712,14 @@ public:
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             auto* cell = pair.second;
+
+            YCHECK(tablet->GetState() == ETabletState::Unmounted);
+
+            if (!IsCellActive(cell)) {
+                MountViaTabletAction(tablet, freeze);
+                continue;
+            }
+
             int tabletIndex = tablet->GetIndex();
             const auto& chunkLists = table->GetChunkList()->Children();
             YCHECK(allTablets.size() == chunkLists.size());
@@ -1681,7 +1728,6 @@ public:
             YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
-            YCHECK(tablet->GetState() == ETabletState::Unmounted);
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
@@ -1784,6 +1830,23 @@ public:
         }
 
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
+    }
+
+    void MountViaTabletAction(
+        TTablet* tablet,
+        bool freeze)
+    {
+        DoCreateTabletAction(
+            TObjectId(),
+            ETabletActionKind::Move,
+            ETabletActionState::Orphaned,
+            std::vector<TTablet*>{tablet},
+            std::vector<TTabletCell*>{},
+            std::vector<NTableClient::TOwningKey>{},
+            TNullable<int>(),
+            freeze,
+            false,
+            false);
     }
 
     void PrepareUnmountTable(
@@ -5172,9 +5235,7 @@ private:
             }
         }
         if (cellKeys.empty()) {
-            // NB: Changed ycheck to throw when it was triggered inside tablet action.
-            THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
-                table->GetTabletCellBundle()->GetName());
+            cellKeys.push_back(TCellKey{0, nullptr});
         }
         std::sort(cellKeys.begin(), cellKeys.end());
 
