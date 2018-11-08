@@ -34,7 +34,7 @@ struct TSortedJobOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An interface for the class that encapsulates the whole logic of building sorted* jobs.
+//! An interface for the class that incapsulates the whole logic of building sorted* jobs.
 //! This class defines a transient object (it is never persisted).
 struct ISortedJobBuilder
     : public TRefCounted
