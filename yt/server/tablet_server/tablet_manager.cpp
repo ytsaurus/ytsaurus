@@ -2187,13 +2187,6 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-
-        auto resourceUsageBefore = table->GetTabletResourceUsage();
-
         if (newTabletCount <= 0) {
             THROW_ERROR_EXCEPTION("Tablet count must be positive");
         }
