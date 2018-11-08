@@ -63,6 +63,9 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
     if (config->Memory) {
         defaultValue.SetMemory(*config->Memory);
     }
+    if (config->Gpu) {
+        defaultValue.SetGpu(*config->Gpu);
+    }
     return defaultValue;
 }
 
