@@ -33,6 +33,7 @@ private:
     TInstant LastFullyProcessedHeartbeatTime_;
     TInstant LastThrottledHeartbeatTime_;
     TInstant LastFailedHeartbeatTime_;
+    TDuration FailedHeartbeatBackoff_;
 
     NProfiling::TAggregateGauge TimeBetweenSentHeartbeatsCounter_;
     NProfiling::TAggregateGauge TimeBetweenAcknowledgedHeartbeatsCounter_;

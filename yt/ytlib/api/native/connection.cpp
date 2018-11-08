@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/ytlib/hive/cell_tracker.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
@@ -164,6 +165,7 @@ public:
             CellDirectory_,
             PrimaryMasterCellId_,
             Logger);
+        DownedCellTracker_ = New<TCellTracker>();
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
@@ -303,6 +305,10 @@ public:
         return CellDirectorySynchronizer_;
     }
 
+    virtual const TCellTrackerPtr& GetDownedCellTracker() override
+    {
+        return DownedCellTracker_;
+    }
 
     virtual const TClusterDirectoryPtr& GetClusterDirectory() override
     {
@@ -378,6 +384,7 @@ private:
 
     TCellDirectoryPtr CellDirectory_;
     TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    TCellTrackerPtr DownedCellTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;

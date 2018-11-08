@@ -411,7 +411,8 @@ public:
             Connection_,
             Options_.GetUser(),
             Connection_->GetTimestampProvider(),
-            Connection_->GetCellDirectory());
+            Connection_->GetCellDirectory(),
+            Connection_->GetDownedCellTracker());
 
         FunctionImplCache_ = CreateFunctionImplCache(
             Connection_->GetConfig()->FunctionImplCache,

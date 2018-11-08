@@ -2187,10 +2187,12 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
-        // Temporary disable reshard due to bug YT-8142.
-        if (!table->IsPhysicallySorted() && !table->IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard non-empty ordered table");
-        }
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         if (newTabletCount <= 0) {
             THROW_ERROR_EXCEPTION("Tablet count must be positive");
@@ -2493,13 +2495,10 @@ public:
         const auto& oldTabletChunkTrees = oldRootChunkList->Children();
 
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
-        const auto& newTabletChunkTrees = newRootChunkList->Children();
 
-        // Update tablet chunk lists.
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            oldTabletChunkTrees.data(),
-            oldTabletChunkTrees.data() + firstTabletIndex);
+        // Create new tablet chunk lists.
+        std::vector<TChunkTree*> newTabletChunkTrees;
+        newTabletChunkTrees.reserve(newTabletCount);
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
                 ? EChunkListKind::SortedDynamicTablet
@@ -2507,14 +2506,10 @@ public:
             if (table->IsPhysicallySorted()) {
                 tabletChunkList->SetPivotKey(pivotKeys[index]);
             }
-
-            chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+            newTabletChunkTrees.push_back(tabletChunkList);
         }
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            oldTabletChunkTrees.data() + lastTabletIndex + 1,
-            oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
+        // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
             std::vector<TChunk*> chunks;
 
@@ -2539,7 +2534,7 @@ public:
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     chunkManager->AttachToChunkList(
-                        newTabletChunkTrees[tablet->GetIndex()]->AsChunkList(),
+                        newTabletChunkTrees[tablet->GetIndex() - firstTabletIndex]->AsChunkList(),
                         chunk);
                 }
             }
@@ -2556,17 +2551,30 @@ public:
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+                auto* chunkList = newTabletChunkTrees[index - firstTabletIndex]->AsChunkList();
                 auto* oldChunkList = oldTabletChunkTrees[index]->AsChunkList();
                 attachChunksToChunkList(chunkList, index, index);
                 chunkList->Statistics().LogicalRowCount = oldChunkList->Statistics().LogicalRowCount;
                 chunkList->Statistics().LogicalChunkCount = oldChunkList->Statistics().LogicalChunkCount;
             }
             if (oldTabletCount > newTabletCount) {
-                auto* chunkList = newTabletChunkTrees[firstTabletIndex + newTabletCount - 1]->AsChunkList();
+                auto* chunkList = newTabletChunkTrees[newTabletCount - 1]->AsChunkList();
                 attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             }
         }
+
+        // Update tablet chunk lists.
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            oldTabletChunkTrees.data(),
+            oldTabletChunkTrees.data() + firstTabletIndex);
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            newTabletChunkTrees);
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            oldTabletChunkTrees.data() + lastTabletIndex + 1,
+            oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);

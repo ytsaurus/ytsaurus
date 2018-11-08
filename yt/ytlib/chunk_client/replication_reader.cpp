@@ -1409,7 +1409,7 @@ private:
         LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
               peerAddress,
               maybePeer->Type,
-              receivedBlockIndexes,
+              MakeShrunkFormattableRange(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
               rsp->peer_descriptors_size());
 
