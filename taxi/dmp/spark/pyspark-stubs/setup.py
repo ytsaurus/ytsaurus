@@ -28,6 +28,7 @@ setup(
     description='A collection of the Apache Spark stub files',
     long_description=(open('README.rst').read() if os.path.exists('README.rst')
                         else ''),
+    url='https://github.com/zero323/pyspark-stubs',                        
     packages=list(list_packages()),
     package_data={
         '': ['*.pyi', 'py.typed']
