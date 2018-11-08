@@ -75,7 +75,7 @@ public:
         , OperationId_(options.OperationId)
         , Task_(options.Task)
     {
-        ForeignDataSlicesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
+        ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Task: %v", Task_);
@@ -103,6 +103,12 @@ public:
 
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
+
+        int streamIndex = stripe->GetInputStreamIndex();
+
+        if (InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
+            ForeignStripeCookiesByStreamIndex_[streamIndex].push_back(cookie);
+        }
 
         return cookie;
     }
@@ -182,7 +188,7 @@ public:
         TChunkPoolOutputWithJobManagerBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, ForeignDataSlicesByStreamIndex_);
+        Persist(context, ForeignStripeCookiesByStreamIndex_);
         Persist(context, Stripes_);
         Persist(context, EnableKeyGuarantee_);
         Persist(context, InputStreamDirectory_);
@@ -197,6 +203,7 @@ public:
         Persist(context, ChunkPoolId_);
         Persist(context, TeleportChunkSampler_);
         Persist(context, SortedJobOptions_);
+        Persist(context, ForeignStripeCookiesByStreamIndex_);
         Persist(context, TotalDataSliceCount_);
 
         if (context.IsLoad()) {
@@ -237,8 +244,8 @@ private:
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
-    //! Stores all foreign data slices grouped by input stream index.
-    std::vector<std::vector<TInputDataSlicePtr>> ForeignDataSlicesByStreamIndex_;
+    //! Stores input cookies of all foreign stripes grouped by input stream index.
+    std::vector<std::vector<int>> ForeignStripeCookiesByStreamIndex_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSamplerPtr TeleportChunkSampler_;
@@ -259,7 +266,7 @@ private:
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
-    void FetchNonTeleportDataSlices(const ISortedJobBuilderPtr& builder)
+    void FetchNonTeleportPrimaryDataSlices(const ISortedJobBuilderPtr& builder)
     {
         auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
 
@@ -270,24 +277,13 @@ private:
         THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
         THashMap<TInputChunkPtr, int> unversionedInputChunkToInputStreamIndex;
 
-        std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> nonTeleportDataSlices;
-
-        //! Either add data slice to builder or put it into `ForeignDataSlicesByStreamIndex_` depending on whether
-        //! it is primary or foreign.
-        auto processDataSlice = [&] (const TInputDataSlicePtr& dataSlice, int inputCookie) {
-            if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
-                builder->AddPrimaryDataSlice(dataSlice, inputCookie);
-            } else {
-                dataSlice->Tag = inputCookie;
-                ForeignDataSlicesByStreamIndex_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
-            }
-        };
+        std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> nonTeleportPrimaryDataSlices;
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& suspendableStripe = Stripes_[inputCookie];
             const auto& stripe = suspendableStripe.GetStripe();
 
-            if (suspendableStripe.GetTeleport()) {
+            if (suspendableStripe.GetTeleport() || !InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()) {
                 continue;
             }
 
@@ -312,7 +308,7 @@ private:
                     unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
                     unversionedInputChunkToInputStreamIndex[inputChunk] = stripe->GetInputStreamIndex();
                 } else {
-                    processDataSlice(dataSlice, inputCookie);
+                    builder->AddPrimaryDataSlice(dataSlice, inputCookie);
                 }
             }
         }
@@ -340,12 +336,12 @@ private:
                 for (const auto& smallerSlice : smallerSlices) {
                     auto dataSlice = CreateUnversionedInputDataSlice(smallerSlice);
                     dataSlice->InputStreamIndex = inputStreamIndex;
-                    processDataSlice(dataSlice, inputCookie);
+                    builder->AddPrimaryDataSlice(dataSlice, inputCookie);
                 }
             } else {
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->InputStreamIndex = inputStreamIndex;
-                processDataSlice(dataSlice, inputCookie);
+                builder->AddPrimaryDataSlice(dataSlice, inputCookie);
             }
         }
         unversionedInputChunkToInputCookie.clear();
@@ -508,21 +504,23 @@ private:
     {
         auto yielder = CreatePeriodicYielder();
 
-        for (int streamIndex = 0; streamIndex < ForeignDataSlicesByStreamIndex_.size(); ++streamIndex) {
+        std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> foreignDataSlices;
+
+        for (int streamIndex = 0; streamIndex < ForeignStripeCookiesByStreamIndex_.size(); ++streamIndex) {
             if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
                 continue;
             }
 
             yielder.TryYield();
 
-            auto& dataSlices = ForeignDataSlicesByStreamIndex_[streamIndex];
+            auto& stripeCookies = ForeignStripeCookiesByStreamIndex_[streamIndex];
 
             // In most cases the foreign table stripes follow in sorted order, but still let's ensure that.
-            auto cmpStripesByKey = [&] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                const auto& lhsLowerLimit = lhs->LowerLimit().Key;
-                const auto& lhsUpperLimit = lhs->UpperLimit().Key;
-                const auto& rhsLowerLimit = rhs->LowerLimit().Key;
-                const auto& rhsUpperLimit = rhs->UpperLimit().Key;
+            auto cmpStripesByKey = [&] (int lhs, int rhs) {
+                const auto& lhsLowerLimit = Stripes_[lhs].GetStripe()->DataSlices.front()->LowerLimit().Key;
+                const auto& lhsUpperLimit = Stripes_[lhs].GetStripe()->DataSlices.back()->UpperLimit().Key;
+                const auto& rhsLowerLimit = Stripes_[rhs].GetStripe()->DataSlices.front()->LowerLimit().Key;
+                const auto& rhsUpperLimit = Stripes_[rhs].GetStripe()->DataSlices.back()->UpperLimit().Key;
                 if (lhsLowerLimit != rhsLowerLimit) {
                     return lhsLowerLimit < rhsLowerLimit;
                 } else if (lhsUpperLimit != rhsUpperLimit) {
@@ -534,12 +532,13 @@ private:
                     return false;
                 }
             };
-            if (!std::is_sorted(dataSlices.begin(), dataSlices.end(), cmpStripesByKey)) {
-                std::stable_sort(dataSlices.begin(), dataSlices.end(), cmpStripesByKey);
+            if (!std::is_sorted(stripeCookies.begin(), stripeCookies.end(), cmpStripesByKey)) {
+                std::stable_sort(stripeCookies.begin(), stripeCookies.end(), cmpStripesByKey);
             }
-            for (const auto& dataSlice : dataSlices) {
-                // Input cookie is temporarily saved to data slice tag.
-                builder->AddForeignDataSlice(dataSlice, *dataSlice->Tag /* inputCookie */);
+            for (const auto& inputCookie : stripeCookies) {
+                for (const auto& dataSlice : Stripes_[inputCookie].GetStripe()->DataSlices) {
+                    builder->AddForeignDataSlice(dataSlice, inputCookie);
+                }
             }
         }
     }
@@ -595,7 +594,7 @@ private:
                     retryIndex,
                     Logger);
 
-                FetchNonTeleportDataSlices(builder);
+                FetchNonTeleportPrimaryDataSlices(builder);
                 PrepareForeignDataSlices(builder);
                 jobStubs = builder->Build();
                 succeeded = true;
