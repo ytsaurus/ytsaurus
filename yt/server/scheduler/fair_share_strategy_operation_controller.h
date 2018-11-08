@@ -42,6 +42,9 @@ public:
     int GetPendingJobCount() const;
     TJobResources GetNeededResources() const;
 
+    void OnTentativeTreeScheduleJobFailed(NProfiling::TCpuInstant now, const TString& treeId);
+    bool IsSaturatedInTentativeTree(NProfiling::TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const;
+
 private:
     const IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
@@ -51,6 +54,9 @@ private:
     mutable std::atomic<bool> Blocked_ = {false};
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = {0};
+
+    NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;
+    THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)
