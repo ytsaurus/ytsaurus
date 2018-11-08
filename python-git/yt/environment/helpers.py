@@ -18,14 +18,15 @@ import yt.yson as yson
 from yt.packages.six import iteritems, PY3, text_type, Iterator
 from yt.packages.six.moves import xrange, map as imap
 
-import socket
-import os
-import fcntl
-import random
 import codecs
-import logging
 import errno
+import fcntl
+import logging
+import os
+import random
+import socket
 import time
+import traceback
 
 try:
     import yatest.common as yatest_common
@@ -61,7 +62,7 @@ class OpenPortIterator(Iterator):
     def __iter__(self):
         return self
 
-    def _is_port_free_for_inet(self, port, inet):
+    def _is_port_free_for_inet(self, port, inet, verbose):
         sock = None
         try:
             sock = socket.socket(inet, socket.SOCK_STREAM)
@@ -69,59 +70,88 @@ class OpenPortIterator(Iterator):
             sock.listen(1)
             return True
         except:
+            if verbose:
+                logger.warning(
+                    "[OpenPortIterator] Exception occurred while trying to check port freeness "
+                    "for port {} and inet {}:\n{}".format(
+                        port,
+                        inet,
+                        traceback.format_exc()
+                    )
+                )
             return False
         finally:
             if sock is not None:
                 sock.close()
 
-    def _is_port_free(self, port):
-        return self._is_port_free_for_inet(port, socket.AF_INET) and self._is_port_free_for_inet(port, socket.AF_INET6)
+    def _is_port_free(self, port, verbose):
+        return self._is_port_free_for_inet(port, socket.AF_INET, verbose) and \
+            self._is_port_free_for_inet(port, socket.AF_INET6, verbose)
+
+    def _next_impl(self, verbose):
+        port = None
+        if self.local_port_range is not None and \
+                self.local_port_range[0] - self.START_PORT > 1000:
+            # Generate random port manually and check that it is free.
+            port_value = random.randint(self.START_PORT, self.local_port_range[0] - 1)
+            if self._is_port_free(port_value, verbose):
+                port = port_value
+        else:
+            # Generate random local port by bind to 0 port and check that it is free.
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.bind(("", 0))
+                sock.listen(1)
+                port_value = sock.getsockname()[1]
+            finally:
+                sock.close()
+            if self._is_port_free(port_value, verbose):
+                port = port_value
+
+        if port is None:
+            return None
+
+        if port in self.busy_ports:
+            return None
+
+        if self.port_locks_path is not None:
+            lock_path = os.path.join(self.port_locks_path, str(port))
+            lock_fd = None
+            try:
+                lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except IOError:
+                if verbose:
+                    logger.warning(
+                        "[OpenPortIterator] Exception occurred while trying to lock port path '{}':\n{}".format(
+                            lock_path,
+                            traceback.format_exc()
+                        )
+                    )
+                if lock_fd is not None and lock_fd != -1:
+                    os.close(lock_fd)
+                self.busy_ports.add(port)
+                return None
+
+            self.lock_fds.add(lock_fd)
+
+        self.busy_ports.add(port)
+
+        return port
 
     def __next__(self):
         for _ in xrange(self.GEN_PORT_ATTEMPTS):
-            port = None
-            if self.local_port_range is not None and \
-                    self.local_port_range[0] - self.START_PORT > 1000:
-                # Generate random port manually and check that it is free.
-                port_value = random.randint(self.START_PORT, self.local_port_range[0] - 1)
-                if self._is_port_free(port_value):
-                    port = port_value
-            else:
-                # Generate random local port by bind to 0 port and check that it is free.
-                try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.bind(("", 0))
-                    sock.listen(1)
-                    port_value = sock.getsockname()[1]
-                finally:
-                    sock.close()
-                if self._is_port_free(port_value):
-                    port = port_value
-
-            if port is None:
-                continue
-
-            if port in self.busy_ports:
-                continue
-
-            if self.port_locks_path is not None:
-                lock_fd = None
-                try:
-                    lock_fd = os.open(os.path.join(self.port_locks_path, str(port)),
-                                      os.O_CREAT | os.O_RDWR)
-                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except IOError:
-                    if lock_fd is not None and lock_fd != -1:
-                        os.close(lock_fd)
-                    self.busy_ports.add(port)
-                    continue
-
-                self.lock_fds.add(lock_fd)
-
-            self.busy_ports.add(port)
-
-            return port
+            port = self._next_impl(verbose=False)
+            if port is not None:
+                return port
         else:
+            logger.warning(
+                "[OpenPortIterator] Failed to generate open port after {0} attempts. "
+                "Trying to infer reasons via verbose invocation:".format(
+                    self.GEN_PORT_ATTEMPTS
+                )
+            )
+            self._next_impl(verbose=True)
             raise RuntimeError("Failed to generate open port after {0} attempts"
                                .format(self.GEN_PORT_ATTEMPTS))
 
