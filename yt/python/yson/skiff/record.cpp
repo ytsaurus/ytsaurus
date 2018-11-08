@@ -148,7 +148,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::TSkiffSchemaPtr schema, boo
             break;
         }
         case NSkiff::EWireType::Double: {
-            Py::Float(value);
+            auto v = Py::Float(value);
             break;
         }
         case NSkiff::EWireType::String32: {
@@ -339,7 +339,7 @@ Py::Object TSkiffRecordPython::CopyRecord()
     return result;
 }
 
-Py::Object TSkiffRecordPython::DeepCopyRecord(const Py::Tuple& args)
+Py::Object TSkiffRecordPython::DeepCopyRecord(const Py::Tuple& /*args*/)
 {
     Py::Callable classType(TSkiffRecordPython::type());
     Py::PythonClassObject<TSkiffSchemaPython> schemaObject(Schema_);
