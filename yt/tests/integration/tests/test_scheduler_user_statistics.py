@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, patch_porto_env_only, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, require_ytserver_root_privileges, wait
 from yt_commands import *
 
 ##################################################################
@@ -133,27 +133,17 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         jobs = wait_breakpoint()
         release_breakpoint(job_id=jobs[0])
 
-        tries = 0
-
-        counter_name = "user_job.cpu.user.$.completed.map.count"
-        count = None
-
-        while count is None and tries <= 100:
+        def get_counter():
             statistics = get(op.get_path() + "/@progress")
-            tries += 1
-            try:
-                count = get_statistics(statistics["job_statistics"], counter_name)
-            except KeyError:
-                time.sleep(0.1)
+            counter_name = "user_job.cpu.user.$.completed.map.count"
+            return get_statistics(statistics["job_statistics"], counter_name)
 
-        assert count == 1
+        wait(lambda: get_counter() == 1)
 
         release_breakpoint()
         op.track()
 
-        statistics = get(op.get_path() + "/@progress")
-        count = get_statistics(statistics["job_statistics"], counter_name)
-        assert count == 2
+        assert get_counter() == 2
 
 @patch_porto_env_only(TestSchedulerUserStatistics)
 class TestSchedulerUserStatisticsPorto(YTEnvSetup):
