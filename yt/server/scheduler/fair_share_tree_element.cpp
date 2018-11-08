@@ -2241,6 +2241,15 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
+	if (Controller_->IsSaturatedInTentativeTree(
+        context->SchedulingContext->GetNow(),
+        TreeId_,
+        TreeConfig_->TentativeTreeSaturationDeactivationPeriod))
+    {
+        onOperationDeactivated(EDeactivationReason::SaturatedInTentativeTree);
+        return;
+    }
+
     ++context->ActiveTreeSize;
     ++context->ActiveOperationCount;
 
@@ -2675,6 +2684,8 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
             EOperationAlertType::ScheduleJobTimedOut,
             TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
             ControllerConfig_->ScheduleJobTimeoutAlertResetTime);
+    } else if (scheduleJobResult->Failed[EScheduleJobFailReason::TentativeTreeDeclined] > 0) {
+        Controller_->OnTentativeTreeScheduleJobFailed(context->SchedulingContext->GetNow(), TreeId_);
     }
 
     return scheduleJobResult;

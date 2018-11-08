@@ -134,6 +134,26 @@ TJobResources TFairShareStrategyOperationController::GetNeededResources() const
     return Controller_->GetNeededResources();
 }
 
+void TFairShareStrategyOperationController::OnTentativeTreeScheduleJobFailed(NProfiling::TCpuInstant now, const TString& treeId)
+{
+    TWriterGuard guard(SaturatedTentativeTreesLock_);
+
+    TentativeTreeIdToSaturationTime_[treeId] = now;
+}
+
+bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(NProfiling::TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
+{
+    TReaderGuard guard(SaturatedTentativeTreesLock_);
+
+    auto it = TentativeTreeIdToSaturationTime_.find(treeId);
+    if (it == TentativeTreeIdToSaturationTime_.end()) {
+        return false;
+    }
+
+    auto saturationTime = it->second;
+    return saturationTime + NProfiling::DurationToCpuDuration(saturationDeactivationTimeout) > now;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

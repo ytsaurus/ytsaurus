@@ -2085,15 +2085,14 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             "pool_trees": ["default", "other"],
             "scheduling_options_per_pool_tree": {
                 "default": {
-                    "max_share_ratio": 0.4,
+                    "max_share_ratio": 0.5,
                     "min_share_ratio": 0.37
                 },
                 "other": {
-                    "max_share_ratio": 2./3,
+                    "max_share_ratio": 2.0 / 3,
                     "pool": "superpool"
                 }
             },
-            "max_share_ratio": 1./3,  # You had one job!
             "data_size_per_job": 1
         }
 
@@ -2182,6 +2181,10 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 tentative_job_count += 1
 
         assert tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
+
+        # Check that tentative tree saturated and we have proper deactivation reasons about that.
+        orchid_other_operations_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations"
+        assert get("{}/{}/deactivation_reasons/saturated_in_tentative_tree".format(orchid_other_operations_path, op.id)) > 0
 
     def test_tentative_pool_tree_not_supported(self):
         self._prepare_pool_trees()
