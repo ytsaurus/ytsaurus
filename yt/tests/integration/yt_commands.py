@@ -1156,6 +1156,8 @@ def get_statistics(statistics, complex_key):
     result = statistics
     for part in complex_key.split("."):
         if part:
+            if part not in result:
+                return None
             result = result[part]
     return result
 
