@@ -930,10 +930,12 @@ private:
 
         location->DisableOnError(BIND([&] () {
             chunkSize = tempDataFile->GetLength();
+            tempDataFile->Flush();
             tempDataFile->Close();
 
             tempMetaFile->Write(static_cast<void*>(&metaHeader), sizeof(TArtifactMetaHeader));
             tempMetaFile->Write(metaBlob.Begin(), metaBlob.Size());
+            tempMetaFile->Flush();
             tempMetaFile->Close();
 
             NFS::Rename(tempMetaFileName, metaFileName);
