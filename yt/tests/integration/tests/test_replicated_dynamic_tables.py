@@ -758,14 +758,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         sync_enable_table_replica(replica_id)
 
         assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
+
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}])
 
         sync_disable_table_replica(replica_id)
 
