@@ -254,13 +254,13 @@ def prepare(options, build_context):
         if not options.cxx:
             raise RuntimeError("Failed to locate CXX compiler")
 
-    options.use_thinlto = (options.type != "Debug")
+    options.use_thinlto = False # (options.type != "Debug")
     options.use_lto = False
 
     options.ya_build_type = {
         "Debug": "debug",
-        "Release": "profile",
-        "RelWithDebInfo": "profile",
+        "Release": "release",
+        "RelWithDebInfo": "release",
     }[options.type]
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
