@@ -1051,6 +1051,11 @@ public:
 
     void OnTabletActionDisturbed(TTabletAction* action, const TError& error)
     {
+        // Take care of a rare case when tablet action has been already removed (cf. YT-9754).
+        if (!IsObjectAlive(action)) {
+            return;
+        }
+
         if (action->Tablets().empty()) {
             action->Error() = error.Sanitize();
             ChangeTabletActionState(action, ETabletActionState::Failed);
