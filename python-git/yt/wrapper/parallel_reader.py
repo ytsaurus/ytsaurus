@@ -85,6 +85,7 @@ class ParallelReader(object):
 
     def close(self):
         self._pool.close()
+        self._pool = None
         if self._transaction:
             self._transaction.abort()
 
