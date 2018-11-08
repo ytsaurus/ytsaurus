@@ -297,7 +297,7 @@ void TBlockFetcher::RequestBlocks(
     i64 uncompressedSize)
 {
     LOG_DEBUG("Requesting block group (Blocks: %v, UncompressedSize: %v)",
-        blockIndexes,
+        MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3),
         uncompressedSize);
 
     TotalRemainingSize_ -= uncompressedSize;
@@ -313,7 +313,7 @@ void TBlockFetcher::RequestBlocks(
     }
 
     LOG_DEBUG("Got block group (Blocks: %v)",
-        blockIndexes);
+        MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3));
 
     CompressionInvoker_->Invoke(BIND(
         &TBlockFetcher::DecompressBlocks,

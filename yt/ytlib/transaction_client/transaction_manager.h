@@ -136,7 +136,8 @@ public:
         NApi::NNative::IConnectionPtr connection,
         const TString& user,
         ITimestampProviderPtr timestampProvider,
-        NHiveClient::TCellDirectoryPtr cellDirectory);
+        NHiveClient::TCellDirectoryPtr cellDirectory,
+        NHiveClient::TCellTrackerPtr downedCellTracker);
 
     ~TTransactionManager();
 

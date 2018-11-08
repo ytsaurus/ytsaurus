@@ -60,7 +60,7 @@ TString ToString(const TChunkIdWithIndexes& id)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
-    : NodeDirectory_(nodeDirectory)
+    : NodeDirectory_(std::move(nodeDirectory))
 { }
 
 void TChunkReplicaAddressFormatter::operator()(TStringBuilder* builder, TChunkReplica replica) const
