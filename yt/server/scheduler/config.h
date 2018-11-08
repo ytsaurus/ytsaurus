@@ -36,6 +36,7 @@ DEFINE_ENUM(EDeactivationReason,
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
     (ResourceLimitsExceeded)
+    (SaturatedInTentativeTree)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +137,9 @@ public:
 
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
+
+    //! Period of ban from the moment of operation saturation in tentative tree.
+    TDuration TentativeTreeSaturationDeactivationPeriod;
 
     TFairShareStrategyTreeConfig();
 };
