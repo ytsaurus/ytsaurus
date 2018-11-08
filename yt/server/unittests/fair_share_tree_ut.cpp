@@ -428,7 +428,10 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     for (int i = 0; i < 150; ++i) {
         auto jobId = TGuid::Create();
         jobIds.push_back(jobId);
-        operationElementX->OnJobStarted(jobId, jobResources.ToJobResources());
+        operationElementX->OnJobStarted(
+            jobId,
+            jobResources.ToJobResources(),
+            /* precommitedResources */ ZeroJobResources());
     }
 
     auto dynamicAttributes = TDynamicAttributesList(2);

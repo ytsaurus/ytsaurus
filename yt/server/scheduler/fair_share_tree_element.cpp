@@ -146,6 +146,16 @@ TJobMetrics TSchedulerElementSharedState::GetJobMetrics()
     return JobMetrics_;
 }
 
+void TSchedulerElementSharedState::CommitResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
+{
+    TWriterGuard guard(ResourceUsageLock_);
+
+    ResourceUsage_ += resourceUsageDelta;
+    ResourceUsagePrecommit_ -= precommittedResources;
+}
+
 void TSchedulerElementSharedState::IncreaseResourceUsage(const TJobResources& delta)
 {
     TWriterGuard guard(ResourceUsageLock_);
@@ -165,6 +175,7 @@ bool TSchedulerElementSharedState::TryIncreaseResourceUsagePrecommit(
     const TJobResources& resourceLimits,
     const TJobResources& resourceDemand,
     const TJobResources& resourceDiscount,
+    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     TWriterGuard guard(ResourceUsageLock_);
@@ -174,14 +185,21 @@ bool TSchedulerElementSharedState::TryIncreaseResourceUsagePrecommit(
         ResourceUsage_ + ResourceUsagePrecommit_,
         resourceDiscount);
 
-    auto availableDemand = ComputeAvailableResources(
-        resourceDemand,
-        ResourceUsage_ + ResourceUsagePrecommit_,
-        resourceDiscount);
-
-    if (!Dominates(availableResourceLimits, delta) || !Dominates(availableDemand, delta)) {
+    if (!Dominates(availableResourceLimits, delta)) {
         return false;
     }
+
+    if (checkDemand) {
+        auto availableDemand = ComputeAvailableResources(
+            resourceDemand,
+            ResourceUsage_ + ResourceUsagePrecommit_,
+            resourceDiscount);
+
+        if (!Dominates(availableDemand, delta)) {
+            return false;
+        }
+    }
+
     ResourceUsagePrecommit_ += delta;
 
     *availableResourceLimitsOutput = availableResourceLimits;
@@ -416,6 +434,13 @@ TString TSchedulerElement::GetTreeId() const
     return TreeId_;
 }
 
+void TSchedulerElement::CommitLocalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
+{
+    SharedState_->CommitResourceUsage(resourceUsageDelta, precommittedResources);
+}
+
 void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     SharedState_->IncreaseResourceUsage(delta);
@@ -429,6 +454,7 @@ void TSchedulerElement::IncreaseLocalResourceUsagePrecommit(const TJobResources&
 bool TSchedulerElement::TryIncreaseLocalResourceUsagePrecommit(
     const TJobResources& delta,
     const TFairShareContext& context,
+    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     return SharedState_->TryIncreaseResourceUsagePrecommit(
@@ -436,6 +462,7 @@ bool TSchedulerElement::TryIncreaseLocalResourceUsagePrecommit(
         ResourceLimits(),
         ResourceDemand(),
         context.DynamicAttributes(this).ResourceUsageDiscount,
+        checkDemand,
         availableResourceLimitsOutput);
 }
 
@@ -460,6 +487,17 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
         context.DynamicAttributes(this).ResourceUsageDiscount);
 }
 
+void TSchedulerElement::CommitHierarchicalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
+{
+    auto* currentElement = this;
+    while (currentElement) {
+        currentElement->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
+        currentElement = currentElement->GetParent();
+    }
+}
+
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
 {
     auto* currentElement = this;
@@ -469,11 +507,11 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& d
     }
 }
 
-void TSchedulerElement::IncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta)
+void TSchedulerElement::DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources)
 {
     auto* currentElement = this;
     while (currentElement) {
-        currentElement->IncreaseLocalResourceUsagePrecommit(delta);
+        currentElement->IncreaseLocalResourceUsagePrecommit(-precommittedResources);
         currentElement = currentElement->GetParent();
     }
 }
@@ -481,6 +519,7 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsagePrecommit(const TJobRes
 bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     const TFairShareContext& context,
+    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     auto availableResourceLimits = InfiniteJobResources();
@@ -490,7 +529,12 @@ bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
         auto* currentElement = this;
         while (currentElement) {
             TJobResources localAvailableResourceLimits;
-            if (!currentElement->TryIncreaseLocalResourceUsagePrecommit(delta, context, &localAvailableResourceLimits)) {
+            bool succesfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
+                delta,
+                context,
+                checkDemand,
+                &localAvailableResourceLimits);
+            if (!succesfullyUpdated) {
                 failedParent = currentElement;
                 break;
             }
@@ -508,7 +552,9 @@ bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
         return false;
     }
 
-    *availableResourceLimitsOutput = availableResourceLimits;
+    if (availableResourceLimitsOutput != nullptr) {
+        *availableResourceLimitsOutput = availableResourceLimits;
+    }
     return true;
 }
 
@@ -1977,7 +2023,11 @@ TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     }
 
     TJobResources availableResourceLimits;
-    if (!TryIncreaseHierarchicalResourceUsagePrecommit(minNeededResources, context, &availableResourceLimits)) {
+    if (!TryIncreaseHierarchicalResourceUsagePrecommit(
+            minNeededResources,
+            context,
+            /* checkDemand */ true,
+            &availableResourceLimits)) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
 
@@ -1989,16 +2039,13 @@ TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 
 void TOperationElement::FinishScheduleJob(
     bool enableBackoff,
-    NProfiling::TCpuInstant now,
-    const TJobResources& minNeededResources)
+    NProfiling::TCpuInstant now)
 {
     Controller_->DecreaseConcurrentScheduleJobCalls();
 
     if (enableBackoff) {
         Controller_->SetLastScheduleJobFailTime(now);
     }
-
-    IncreaseHierarchicalResourceUsagePrecommit(-minNeededResources);
 
     LastScheduleJobSuccessTime_ = CpuInstantToInstant(now);
 }
@@ -2268,9 +2315,10 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
         disableOperationElement(*deactivationReason);
         return false;
     }
+    auto precommittedResources = minNeededResources;
 
     NProfiling::TWallTimer timer;
-    auto scheduleJobResult = DoScheduleJob(context, availableResources, minNeededResources);
+    auto scheduleJobResult = DoScheduleJob(context, availableResources, &precommittedResources);
     auto scheduleJobDuration = timer.GetElapsedTime();
     context->TotalScheduleJobDuration += scheduleJobDuration;
     context->ExecScheduleJobDuration += scheduleJobResult->Duration;
@@ -2289,13 +2337,14 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
             OperationId_,
             scheduleJobResult->Failed);
 
-        FinishScheduleJob(/*enableBackoff*/ enableBackoff, now, minNeededResources);
+        DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
+        FinishScheduleJob(/*enableBackoff*/ enableBackoff, now);
         return false;
     }
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
     context->SchedulingContext->ResourceUsage() += startDescriptor.ResourceLimits;
-    OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits);
+    OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits, precommittedResources);
     context->SchedulingContext->StartJob(
         GetTreeId(),
         OperationId_,
@@ -2305,7 +2354,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     UpdateDynamicAttributes(context->DynamicAttributesList);
     updateAncestorsAttributes();
 
-    FinishScheduleJob(/*enableBackoff*/ false, now, minNeededResources);
+    FinishScheduleJob(/*enableBackoff*/ false, now);
     return true;
 }
 
@@ -2507,13 +2556,18 @@ TString TOperationElement::GetUserName() const
     return Operation_->GetAuthenticatedUser();
 }
 
-void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
+void TOperationElement::OnJobStarted(
+    const TJobId& jobId,
+    const TJobResources& resourceUsage,
+    const TJobResources& precommittedResources,
+    bool force)
 {
     // XXX(ignat): remove before deploy on production clusters.
     LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
 
-    auto delta = SharedState_->AddJob(jobId, resourceUsage, force);
-    IncreaseHierarchicalResourceUsage(delta);
+    auto resourceUsageDelta = SharedState_->AddJob(jobId, resourceUsage, force);
+
+    CommitHierarchicalResourceUsage(resourceUsageDelta, precommittedResources);
 
     UpdatePreemptableJobsList();
 }
@@ -2575,7 +2629,7 @@ TJobResources TOperationElement::GetHierarchicalAvailableResources(const TFairSh
 TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     TFairShareContext* context,
     const TJobResources& availableResources,
-    const TJobResources& minNeededResources)
+    TJobResources* precommittedResources)
 {
     ++context->SchedulingStatistics.ControllerScheduleJobCount;
 
@@ -2588,13 +2642,22 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->StartDescriptor) {
         const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
-        auto jobLimits = GetHierarchicalAvailableResources(*context) + minNeededResources;
-        if (!Dominates(jobLimits, startDescriptor.ResourceLimits)) {
+        // Note: resourceDelta might be negative.
+        const auto resourceDelta = startDescriptor.ResourceLimits - *precommittedResources;
+        bool successfullyPrecommitted = TryIncreaseHierarchicalResourceUsagePrecommit(
+            resourceDelta,
+            *context,
+            /* checkDemand */ false,
+            /* availableResourceLimitsOutput */ nullptr);
+        if (successfullyPrecommitted) {
+            *precommittedResources += resourceDelta;
+        } else {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
+            const auto availableDelta = GetHierarchicalAvailableResources(*context);
             LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
                 jobId,
                 OperationId_,
-                FormatResources(jobLimits),
+                FormatResources(*precommittedResources + availableDelta),
                 FormatResources(startDescriptor.ResourceLimits));
 
             Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
