@@ -134,7 +134,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         release_breakpoint(job_id=jobs[0])
 
         tries = 0
-        statistics = {}
 
         counter_name = "user_job.cpu.user.$.completed.map.count"
         count = None
