@@ -258,11 +258,16 @@ void TFileReader::DumpBrokenMeta(const TRef& block) const
 
 TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
     const TString& metaFileName,
-    i64 metaFileLength,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
     const TSharedMutableRef& metaFileBlob)
 {
-    chunkReaderStatistics->MetaBytesReadFromDisk += metaFileLength;
+    if (metaFileBlob.Size() < sizeof (TChunkMetaHeaderBase)) {
+        THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
+            FileName_,
+            sizeof (TChunkMetaHeaderBase));
+    }
+
+    chunkReaderStatistics->MetaBytesReadFromDisk += metaFileBlob.Size();
 
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;
@@ -291,7 +296,7 @@ TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
             metaFileName,
             metaHeader.Checksum,
             checksum)
-            << TErrorAttribute("meta_file_length", metaFileLength);
+            << TErrorAttribute("meta_file_length", metaFileBlob.Size());
     }
 
     if (ChunkId_ != NullChunkId && metaHeader.ChunkId != ChunkId_) {
@@ -323,19 +328,8 @@ TFuture<TRefCountedChunkMetaPtr> TFileReader::DoReadMeta(
     auto metaFileName = FileName_ + ChunkMetaSuffix;
     auto chunkReaderStatistics = options.ChunkReaderStatistics;
 
-    return IOEngine_->Open(
-        metaFileName,
-        OpenExisting | RdOnly | Seq | CloseOnExec).Apply(
-            BIND([this, metaFileName, chunkReaderStatistics, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& metaFile) {
-                if (metaFile->GetLength() < sizeof (TChunkMetaHeaderBase)) {
-                    THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
-                        FileName_,
-                        sizeof (TChunkMetaHeaderBase));
-                }
-
-                return IOEngine_->Pread(metaFile, metaFile->GetLength(), 0)
-                    .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, metaFile->GetLength(), chunkReaderStatistics));
-            }));
+    return IOEngine_->ReadAll(metaFileName)
+        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, chunkReaderStatistics));
 }
 
 const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
