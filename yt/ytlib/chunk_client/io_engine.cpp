@@ -392,9 +392,6 @@ private:
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
         EOpenMode oMode = RdOnly;
-        if (UseDirectIO_) {
-            oMode |= DirectAligned;
-        }
 
         auto file = DoOpen(fName, oMode);
         auto data = DoPread(file, file->GetLength(), 0, timer);
