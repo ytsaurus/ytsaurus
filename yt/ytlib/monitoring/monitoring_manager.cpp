@@ -103,14 +103,13 @@ private:
 
     TSpinLock SpinLock_;
     THashMap<TString, NYson::TYsonProducer> PathToProducer_;
-    INodePtr Root_;
+    IMapNodePtr Root_;
 
     void Update()
     {
         LOG_DEBUG("Started updating monitoring state");
         PROFILE_TIMING ("/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
-
             for (const auto& pair : PathToProducer_) {
                 auto value = ConvertToYsonString(pair.second);
                 SyncYPathSet(newRoot, pair.first, value);
@@ -118,18 +117,17 @@ private:
 
             if (Started_) {
                 TGuard<TSpinLock> guard(SpinLock_);
-                Root_ = newRoot;
+                std::swap(Root_, newRoot);
             }
         }
         LOG_DEBUG("Finished updating monitoring state");
     }
 
-    INodePtr GetRoot()
+    IMapNodePtr GetRoot()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         return Root_ ? Root_ : EmptyRoot;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,8 +136,7 @@ TMonitoringManager::TMonitoringManager()
     : Impl_(New<TImpl>())
 { }
 
-TMonitoringManager::~TMonitoringManager()
-{ }
+TMonitoringManager::~TMonitoringManager() = default;
 
 void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
 {
