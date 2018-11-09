@@ -590,7 +590,10 @@ void TContext::SetContentDispositionAndMimeType()
     TString disposition = "attachment";
     if (Descriptor_->Heavy) {
         TString filename;
-        if (Descriptor_->CommandName == "download" || Descriptor_->CommandName == "read_table") {
+        if (Descriptor_->CommandName == "download" ||
+            Descriptor_->CommandName == "read_table" ||
+            Descriptor_->CommandName == "read_file"
+        ) {
             if (auto path = DriverRequest_.Parameters->FindChild("path")) {
                 filename = "yt_" + path->GetValue<TString>();
             }
@@ -621,7 +624,7 @@ void TContext::SetContentDispositionAndMimeType()
         }
 
         for (size_t i = 0; i < filename.size(); ++i) {
-            if (!std::isalnum(filename[i])) {
+            if (!std::isalnum(filename[i]) && filename[i] != '.') {
                 filename[i] = '_';
             }
         }
