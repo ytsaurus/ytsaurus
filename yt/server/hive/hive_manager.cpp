@@ -258,8 +258,8 @@ private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
-    const IHydraManagerPtr HydraManager_;
     const IInvokerPtr AutomatonInvoker_;
+    const IHydraManagerPtr HydraManager_;
 
     IYPathServicePtr OrchidService_;
 
