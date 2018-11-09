@@ -96,7 +96,6 @@ private:
         const TNullable<std::vector<int>>& extensionTags);
     TRefCountedChunkMetaPtr OnMetaDataBlock(
         const TString& metaFileName,
-        i64 metaFileLength,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedMutableRef& data);
     void DumpBrokenBlock(
