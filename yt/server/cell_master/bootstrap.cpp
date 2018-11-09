@@ -623,9 +623,6 @@ void TBootstrap::DoInitialize()
     MonitoringManager_->Register(
         "/election",
         HydraFacade_->GetElectionManager()->GetMonitoringProducer());
-    MonitoringManager_->Register(
-        "/hive",
-        HiveManager_->GetOrchidService()->ToProducer());
 
     auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
@@ -643,7 +640,11 @@ void TBootstrap::DoInitialize()
     SetNodeByYPath(
         orchidRoot,
         "/chunk_manager",
-        CreateVirtualNode(ChunkManager_->GetOrchidService()->Via(GetControlInvoker())));
+        CreateVirtualNode(ChunkManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/hive",
+        CreateVirtualNode(HiveManager_->GetOrchidService()));
 
     OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot);
 
