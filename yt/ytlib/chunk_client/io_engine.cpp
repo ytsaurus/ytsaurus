@@ -193,6 +193,15 @@ public:
             .Run();
     }
 
+    virtual TFuture<TSharedMutableRef> ReadAll(
+        const TString& fName, i64 priority = std::numeric_limits<i64>::max()) override
+    {
+        TWallTimer timer;
+        return BIND(&TThreadedIOEngine::DoReadAll, MakeStrong(this), fName, timer)
+            .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
+            .Run();
+    }
+
     virtual TFuture<void> Pwrite(
         const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, i64 priority) override
     {
@@ -376,6 +385,21 @@ private:
         });
 
         return data.Slice(delta, delta + Min(result, numBytes));
+    }
+
+    TSharedMutableRef DoReadAll(const TString& fName, TWallTimer timer)
+    {
+        AddReadWaitTimeSample(timer.GetElapsedTime());
+
+        EOpenMode oMode = RdOnly;
+        if (UseDirectIO_) {
+            oMode |= DirectAligned;
+        }
+
+        auto file = DoOpen(fName, oMode);
+        auto data = DoPread(file, file->GetLength(), 0, timer);
+        DoClose(file, -1, false);
+        return data;
     }
 
     void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, TWallTimer timer)
@@ -734,6 +758,13 @@ public:
             .Run();
     }
 
+    virtual TFuture<TSharedMutableRef> ReadAll(const TString& fName, i64 priority)
+    {
+        return BIND(&TAioEngine::DoReadAll, MakeStrong(this), fName, priority)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
 private:
     const TProfiler Profiler_;
 
@@ -759,6 +790,12 @@ private:
         }
         fh->SetDirect();
         return fh;
+    }
+
+    TFuture<TSharedMutableRef> DoReadAll(const TString& fName, i64 priority)
+    {
+        auto file = DoOpen(fName, RdOnly);
+        return Pread(file, file->GetLength(), 0, priority);
     }
 
     void DoClose(const std::shared_ptr<TFileHandle>& fh, i64 newSize)
