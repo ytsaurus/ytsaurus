@@ -783,7 +783,20 @@ void TContext::Run()
 
 void TContext::Finalize()
 {
+    try {
+        while (true) {
+            auto chunk = WaitFor(Request_->Read())
+                .ValueOrThrow();
+
+            if (!chunk || chunk.Empty()) {
+                break;
+            }
+        }
+    } catch (const std::exception& ex) { }
+
     if (!Response_->IsHeadersFlushed()) {
+        Response_->GetHeaders()->Remove("Trailer");
+
         if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
             Response_->SetStatus(EStatusCode::Forbidden);
             Api_->PutUserIntoBanCache(DriverRequest_.AuthenticatedUser);
@@ -794,6 +807,7 @@ void TContext::Finalize()
 
         if (!Error_.IsOK()) {
             Response_->GetHeaders()->Remove("Content-Encoding");
+            Response_->GetHeaders()->Remove("Vary");
             
             FillYTErrorHeaders(Response_, Error_);
             DispatchJson([&] (auto producer) {
