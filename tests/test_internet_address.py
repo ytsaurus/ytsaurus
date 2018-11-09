@@ -67,15 +67,23 @@ class TestInternetAddresses(object):
             })
         yp_client.update_hfsm_state(node_id, "up", "Test")
 
+        yp_client.create_object("resource", attributes={
+                "meta": { "node_id": node_id },
+                "spec": { "cpu": {"total_capacity": 100} }
+            })
+
         return node_id
 
-    def _create_pod(self, yp_client, pod_set_id, enable_internet):
+    def _create_pod(self, yp_client, pod_set_id, enable_internet, resource_request=None):
+        if resource_request is None:
+            resource_request = ZERO_RESOURCE_REQUESTS
+
         pod_id = yp_client.create_object("pod", attributes={
             "meta": {
                 "pod_set_id": pod_set_id
             },
             "spec": {
-                "resource_requests": ZERO_RESOURCE_REQUESTS,
+                "resource_requests": resource_request,
                 "ip6_address_requests": [
                     {"vlan_id": "somevlan", "network_id": "somenet", "enable_internet": enable_internet},
                 ],
@@ -157,7 +165,7 @@ class TestInternetAddresses(object):
             self._create_inet_addr(yp_client, "netmodule1", "1.2.3.{}".format(i))
         for i in xrange(1, 20):
             self._create_node(yp_client, "netmodule2")
-        
+
         node_ids = set([self._create_node(yp_client, "netmodule1") for i in range(2)])
         pod_ids = [self._create_pod(yp_client, pod_set_id, enable_internet=True) for i in range(10)]
 
@@ -174,7 +182,7 @@ class TestInternetAddresses(object):
                     "per_segment": {
                         "default": {
                             "memory": { "capacity": 1000000000 },
-                            "cpu": { "capacity": 1000000000 },
+                            "cpu": { "capacity": 100},
                         }
                     }
                 }
@@ -187,13 +195,10 @@ class TestInternetAddresses(object):
         for i in xrange(3):
             self._create_inet_addr(yp_client, "netmodule1", "1.2.3.{}".format(i))
 
-        pod_id1 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+        pod_id1 = self._create_pod(yp_client, pod_set_id, enable_internet=True, resource_request={"vcpu_guarantee": 10})
         self._wait_scheduled_state(yp_client, [pod_id1], "assigned")
         assert yp_client.get_object("pod", pod_id1, selectors=["/status/scheduling/node_id"])[0] == node_id
         assert yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] == 1
-        yp_client.remove_object("pod", pod_id1)
-
-        wait(lambda: yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] != 1)
 
         yp_client.update_object("account", account_id, set_updates=[
             {
@@ -202,7 +207,19 @@ class TestInternetAddresses(object):
             }])
 
         with pytest.raises(YtResponseError):
-            pod_id2 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+            self._create_pod(yp_client, pod_set_id, enable_internet=True)
+
+        pod_id_without_address1 = self._create_pod(yp_client, pod_set_id, enable_internet=False, resource_request={"vcpu_guarantee": 10})
+        self._wait_scheduled_state(yp_client, [pod_id_without_address1], "assigned")
+
+        with pytest.raises(YtResponseError):
+            pod_id_without_address2 = self._create_pod(yp_client, pod_set_id, enable_internet=False, resource_request={"vcpu_guarantee": 81})
+
+        yp_client.remove_object("pod", pod_id1)
+        wait(lambda: yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] != 1)
+
+        with pytest.raises(YtResponseError):
+            self._create_pod(yp_client, pod_set_id, enable_internet=True)
 
         yp_client.update_object("account", account_id, set_updates=[
             {

@@ -225,25 +225,6 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(SchedulerThread);
 
 
-    bool IsIncreasingDelta(const TPerSegmentResourceTotals& delta)
-    {
-        if (delta.memory().capacity() > 0) {
-            return true;
-        }
-        if (delta.cpu().capacity() > 0) {
-            return true;
-        }
-        if (delta.internet_address().capacity() > 0) {
-            return true;
-        }
-        for (const auto& diskPair : delta.disk_per_storage_class()) {
-            if (diskPair.second.capacity() > 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     void ComputeRecursiveAccountUsage(
         TAccount* currentAccount,
         THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals>* accountToUsage,
@@ -294,14 +275,10 @@ private:
                 };
 
                 const auto& deltaPerSegment = getPerSegmentTotals(usageDelta);
-                if (!IsIncreasingDelta(deltaPerSegment)) {
-                    continue;
-                }
-
                 const auto& usagePerSegment = getPerSegmentTotals(usage);
                 const auto& limitsPerSegment = getPerSegmentTotals(limits);
 
-                if (usagePerSegment.cpu().capacity() > limitsPerSegment.cpu().capacity()) {
+                if (deltaPerSegment.cpu().capacity() > 0 && usagePerSegment.cpu().capacity() > limitsPerSegment.cpu().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
                         "Account %v is over CPU limit in segment %Qv",
@@ -311,7 +288,7 @@ private:
                         << TErrorAttribute("limit", limitsPerSegment.cpu().capacity());
                 }
 
-                if (usagePerSegment.memory().capacity() > limitsPerSegment.memory().capacity()) {
+                if (deltaPerSegment.memory().capacity() > 0 && usagePerSegment.memory().capacity() > limitsPerSegment.memory().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
                         "Account %v is over memory limit in segment %Qv",
@@ -321,7 +298,7 @@ private:
                         << TErrorAttribute("limit", limitsPerSegment.memory().capacity());
                 }
 
-                if (limitsPerSegment.has_internet_address() && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity()) {
+                if (limitsPerSegment.has_internet_address() && deltaPerSegment.internet_address().capacity() > 0 && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,
                         "Account %v is over internet address limit in segment %Qv",
@@ -340,10 +317,11 @@ private:
                         return it == totals.disk_per_storage_class().end() ? Default : it->second;
                     };
 
+                    const auto& deltaPerStorageClass = getPerStorageClassTotals(deltaPerSegment);
                     const auto& usagePerStorageClass = getPerStorageClassTotals(usagePerSegment);
                     const auto& limitsPerStorageClass = getPerStorageClassTotals(limitsPerSegment);
 
-                    if (usagePerStorageClass.capacity() > limitsPerStorageClass.capacity()) {
+                    if (deltaPerStorageClass.capacity() > 0 && usagePerStorageClass.capacity() > limitsPerStorageClass.capacity()) {
                         THROW_ERROR_EXCEPTION(
                             NClient::NApi::EErrorCode::AccountLimitExceeded,
                             "Account %v is over disk limit in segment %Qv for storage class %Qv",
