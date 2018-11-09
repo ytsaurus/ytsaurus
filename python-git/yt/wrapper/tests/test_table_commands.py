@@ -566,8 +566,13 @@ class TestTableCommands(object):
 
         with set_config_option("proxy/content_encoding", "identity"):
             table = TEST_DIR + "/table"
+            def gen_table():
+                yield b'{"abc": "123"}\n' * 100000
+                yield b'{a:b}\n'
+                yield b'{"dfg": "456"}\n' * 10000000
+            
             try:
-                yt.write_table(table, iter([b'{"abc": "123"}\n'] * 100000 + [b"{a:b}"] + [b'{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
+                yt.write_table(table, gen_table(), raw=True, format=yt.JsonFormat())
             except yt.YtResponseError as err:
                 assert "JSON" in str(err), "Incorrect error message: " + str(err)
             else:
