@@ -214,6 +214,7 @@ def prepare(options, build_context):
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
     options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
+    options.package_enable_python_yp = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_PYTHON_YP", "NO"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
     assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
@@ -551,7 +552,6 @@ def package(options, build_context):
         if options.build_system == "cmake":
             run(["make", "-j", "8", "package"])
             run(["make", "-j", "8", "python-package"])
-            run(["make", "-j", "8", "python-yp-package"])
             run(["make", "version"])
         else:
             PACKAGE_LIST = [
@@ -604,6 +604,22 @@ def package(options, build_context):
                 run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
                 teamcity_message("We have uploaded a package to " + repository)
                 teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
+
+
+@build_step
+@only_for_projects("yp")
+def package_yp(options, build_context):
+    if not options.package:
+        return
+
+    if not options.package_enable_python_yp:
+        teamcity_message("Building yandex-yp-package is disabled")
+        return
+
+    if options.build_system == "cmake":
+        run(["make", "-j", "8", "python-yp-package"])
+    else:
+        run(["./build_yandex_yp.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python"))
 
 
 @build_step
