@@ -248,7 +248,10 @@ private:
     const TDynamicChannelPoolPtr ChannelPool_;
     const NRpc::IChannelPtr Channel_;
     const TClientOptions ClientOptions_;
-    const NTabletClient::ITableMountCachePtr TableMountCache_;
+
+    TSpinLock TableMountCacheSpinLock_;
+    std::atomic<bool> TableMountCacheInitialized_ = {false};
+    NTabletClient::ITableMountCachePtr TableMountCache_;
 
     TSpinLock TimestampProviderSpinLock_;
     std::atomic<bool> TimestampProviderInitialized_ = {false};
