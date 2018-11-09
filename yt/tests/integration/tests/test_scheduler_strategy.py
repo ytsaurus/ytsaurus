@@ -1908,7 +1908,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline")
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
-        assert get("//sys/scheduler/@alerts")
+        wait(lambda: get("//sys/scheduler/@alerts"))
         assert get("//sys/scheduler/@alerts")[0]
 
     def test_default_tree_manipulations(self):
