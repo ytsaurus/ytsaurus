@@ -176,16 +176,17 @@ private:
             return;
         }
 
-        // The only supported Authorization kind is "Basic <base64-encoded clique-id:oauth-token>".
+        // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
         auto authorizationTypeAndCredentials = SplitString(*authorization, " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
-        if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
+        if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
+            Token_ = authorizationTypeAndCredentials[1];
+        } else if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
             const auto& credentials = authorizationTypeAndCredentials[1];
             auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
             if (fooAndToken.size() == 2) {
                 // First component (that should be username) is ignored.
                 Token_ = fooAndToken[1];
-                LOG_INFO("Token parsed");
             } else {
                 ReplyWithError(
                     EStatusCode::Unauthorized,
@@ -195,9 +196,12 @@ private:
         } else {
             ReplyWithError(
                 EStatusCode::Unauthorized,
-                TError("Unsupported type of authorization header (AuthorizationType: %v)", authorizationType));
+                TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
+                    authorizationType,
+                    authorizationTypeAndCredentials.size()));
             return;
         }
+        LOG_INFO("Token parsed (AuthorizationType: %v)", authorizationType);
 
         const auto* host = Req_->GetHeaders()->Find("Host");
         if (!host) {
