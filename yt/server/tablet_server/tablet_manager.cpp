@@ -1956,9 +1956,6 @@ public:
         {
             THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
     }
 
     void RemountTable(
