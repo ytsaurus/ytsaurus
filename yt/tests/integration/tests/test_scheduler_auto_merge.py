@@ -17,8 +17,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
-            "job_revival_abort_timeout": 2000,
+            "running_jobs_update_period": 10
         },
     }
 
