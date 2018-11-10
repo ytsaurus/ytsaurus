@@ -1010,7 +1010,7 @@ private:
 
         SetJobPhase(EJobPhase::Finished);
 
-        LOG_INFO("Job finalized (JobState: %v)");
+        LOG_INFO("Job finalized (JobState: %v)", GetState());
 
         Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
