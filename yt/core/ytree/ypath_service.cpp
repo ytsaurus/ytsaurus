@@ -147,14 +147,6 @@ IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer, TDuration c
     return New<TFromProducerYPathService>(producer, cachePeriod);
 }
 
-TYsonProducer IYPathService::ToProducer()
-{
-    return BIND([this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-        auto result = SyncYPathGet(this_, "");
-        consumer->OnRaw(result);
-    });
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TViaYPathService
