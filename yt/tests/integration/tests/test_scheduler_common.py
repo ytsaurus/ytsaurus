@@ -1714,8 +1714,7 @@ class TestJobRevival(TestJobRevivalBase):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "operations_update_period": 100,
-            "static_orchid_cache_update_period": 100,
-            "job_revival_abort_timeout": 2000,
+            "static_orchid_cache_update_period": 100
         },
         "cluster_connection" : {
             "transaction_manager": {
@@ -1930,8 +1929,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "lock_transaction_timeout": 3000,
-            "operations_update_period": 100,
-            "job_revival_abort_timeout": 2000,
+            "operations_update_period": 100
         },
         "cluster_connection" : {
             "transaction_manager": {
