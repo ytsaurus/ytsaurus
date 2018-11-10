@@ -117,7 +117,6 @@ public:
     {
         YCHECK(Type_ != EYsonType::MapFragment);
 
-        // TODO(ignat): Exception in constructor -- bad idea?
         if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
             THROW_ERROR_EXCEPTION("Pretty JSON format is not supported for list fragments");
         }
