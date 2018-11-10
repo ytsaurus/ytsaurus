@@ -126,7 +126,6 @@ b"""
 }
 """)
 
-# TODO(babenko): drop cluster_directory_synchronizer in the root
 def get_scheduler_config():
     return yson.loads(
 b"""
@@ -222,8 +221,6 @@ b"""
 }
 """)
 
-
-# TODO(babenko): drop cluster_directory_synchronizer in the root
 def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 b"""
