@@ -157,6 +157,8 @@ b"""
         orchid_keys_update_period = 100;
 
         min_needed_resources_update_period = 100;
+
+        job_revival_abort_timeout = 2000;
     };
 }
 """)
