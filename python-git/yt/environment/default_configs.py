@@ -287,7 +287,8 @@ b"""
 
         scheduler_connector = {
             failed_heartbeat_backoff_time = 50;
-            unsuccess_heartbeat_backoff_time = 50;
+            failed_heartbeat_backoff_max_time = 50;
+            failed_heartbeat_backoff_multiplier = 1.0;
             heartbeat_period = 200;
         };
 
