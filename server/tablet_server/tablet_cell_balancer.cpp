@@ -499,7 +499,7 @@ private:
                     auto* dstNode = candidates[candidateIndex];
                     SmoothNodes(srcNode, dstNode, bundle, limit);
                     if (dstNode->GetCellCount(bundle) == limit) {
-                        candidates[candidateIndex] = candidates[candidates.size() - 1];
+                        candidates[candidateIndex] = candidates.back();
                         candidates.pop_back();
                     } else {
                         ++candidateIndex;

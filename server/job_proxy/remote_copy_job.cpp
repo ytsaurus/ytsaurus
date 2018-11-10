@@ -337,7 +337,7 @@ private:
                 } else {
                     blockCount = erasurePlacementExt.parity_block_count();
                     blockSizes.resize(blockCount, erasurePlacementExt.parity_block_size());
-                    blockSizes[blockSizes.size() - 1] = erasurePlacementExt.parity_last_block_size();
+                    blockSizes.back() = erasurePlacementExt.parity_last_block_size();
                 }
 
                 auto resultFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
