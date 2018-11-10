@@ -79,7 +79,6 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoff_) {
-        FailedHeartbeatBackoff_ = std::min(FailedHeartbeatBackoff_ * Config_->UnsuccessHeartbeatBackoffMultiplier, Config_->UnsuccessHeartbeatBackoffMaxTime);
         LOG_INFO("Skipping heartbeat");
         return;
     }
@@ -111,6 +110,7 @@ void TSchedulerConnector::SendHeartbeat()
 
     if (!rspOrError.IsOK()) {
         LastFailedHeartbeatTime_ = TInstant::Now();
+        FailedHeartbeatBackoff_ = std::min(FailedHeartbeatBackoff_ * Config_->UnsuccessHeartbeatBackoffMultiplier, Config_->UnsuccessHeartbeatBackoffMaxTime);
         LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
         return;
     }
