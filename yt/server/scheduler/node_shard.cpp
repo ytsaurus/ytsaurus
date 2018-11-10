@@ -1047,14 +1047,19 @@ void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archi
     // could have been unregistered.
     auto nodeId = NodeIdFromJobId(jobId);
     if (auto execNode = FindNodeByJob(jobId)) {
-        LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
+        LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
             jobId,
             nodeId,
             execNode->GetDefaultAddress(),
             archiveJobSpec,
             archiveStderr,
             archiveFailContext);
-        execNode->JobsToRemove().emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
+        execNode->JobsToRemove().push_back({
+            jobId,
+            archiveJobSpec,
+            archiveStderr,
+            archiveFailContext
+        });
     } else {
         LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
             jobId,
@@ -1415,7 +1420,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     const auto& nodeAddress = node->GetDefaultAddress();
 
     if (!node->UnconfirmedJobIds().empty()) {
-        LOG_DEBUG("Asking node to include stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
+        LOG_DEBUG("Requesting node to include stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
             nodeId,
             nodeAddress);
         ToProto(response->mutable_jobs_to_confirm(), node->UnconfirmedJobIds());
@@ -1431,21 +1436,16 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     {
         for (const auto& jobToRemove : node->JobsToRemove()) {
-            const auto& jobId = jobToRemove.JobId;
-            auto archiveJobSpec = jobToRemove.ArchiveJobSpec;
-            auto archiveStderr = jobToRemove.ArchiveStderr;
-            auto archiveFailContext = jobToRemove.ArchiveFailContext;
-
-            LOG_DEBUG("Asking node to remove job "
+            LOG_DEBUG("Requesting node to remove job "
                 "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
-                jobId,
+                jobToRemove.JobId,
                 nodeId,
                 nodeAddress,
-                archiveJobSpec,
-                archiveStderr,
-                archiveFailContext);
-            RemoveRecentlyFinishedJob(jobId);
-            ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
+                jobToRemove.ArchiveJobSpec,
+                jobToRemove.ArchiveStderr,
+                jobToRemove.ArchiveFailContext);
+            RemoveRecentlyFinishedJob(jobToRemove.JobId);
+            ToProto(response->add_jobs_to_remove(), jobToRemove);
         }
         node->JobsToRemove().clear();
     }
