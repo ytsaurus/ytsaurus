@@ -36,6 +36,10 @@
 
 #include <sys/mman.h>
 
+#ifdef _linux_
+#include <sys/utsname.h>
+#endif
+
 #include <errno.h>
 #include <pthread.h>
 
@@ -837,6 +841,10 @@ public:
         if (!Logger) {
             return;
         }
+        if (IsBuggyKernel() && !BuggyKernelLogged_) {
+            LOG_WARNING("Kernel is buggy; see KERNEL-118");
+            BuggyKernelLogged_ = true;
+        }
         if (MlockallFailed_ && !MlockallFailedLogged_) {
             LOG_WARNING("Failed lock process memory");
             MlockallFailedLogged_ = true;
@@ -856,6 +864,8 @@ public:
     }
 
 private:
+    bool BuggyKernelLogged_ = false;
+
     bool MlockallFailed_ = false;
     bool MlockallFailedLogged_ = false;
 
@@ -895,6 +905,9 @@ private:
 
     bool TryMadviseFree(void* ptr, size_t size)
     {
+        if (IsBuggyKernel()) {
+            return false;
+        }
         TTimingGuard timingGuard(ETimingEventType::MadviseFree, size);
         auto result = ::madvise(ptr, size, MADV_FREE);
         if (result != 0) {
@@ -932,6 +945,31 @@ private:
     {
         fprintf(stderr, "YTAlloc has detected an out-of-memory condition; terminating\n");
         _exit(9);
+    }
+
+    // Some kernels are known to contain bugs in MADV_FREE; see https://st.yandex-team.ru/KERNEL-118.
+    bool IsBuggyKernel()
+    {
+#ifdef _linux_
+        static const bool result = [] () {
+            struct utsname buf;
+            YCHECK(uname(&buf) == 0);
+            if (strverscmp(buf.release, "4.4.1-1") >= 0 &&
+                strverscmp(buf.release, "4.4.96-44") < 0)
+            {
+                return true;
+            }
+            if (strverscmp(buf.release, "4.14.1-1") >= 0 &&
+                strverscmp(buf.release, "4.14.79-33") < 0)
+            {
+                return true;
+            }
+            return false;
+        }();
+        return result;
+#else
+        return false;
+#endif
     }
 };
 
