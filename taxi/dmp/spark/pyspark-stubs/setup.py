@@ -24,11 +24,11 @@ def list_packages(src_path=src_path):
 setup(
     name='pyspark-stubs',
     package_dir={'': src_path},
-    version='2.4.0.pre1',
+    version='2.4.0.pre2',
     description='A collection of the Apache Spark stub files',
     long_description=(open('README.rst').read() if os.path.exists('README.rst')
                         else ''),
-    url='https://github.com/zero323/pyspark-stubs',                        
+    url='https://github.com/zero323/pyspark-stubs',
     packages=list(list_packages()),
     package_data={
         '': ['*.pyi', 'py.typed']
