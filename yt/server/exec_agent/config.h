@@ -229,13 +229,13 @@ public:
     //! Random delay before first heartbeat.
     TDuration HeartbeatSplay;
 
-    //! Start backoff for sending the next heartbeat after failure or skip.
+    //! Start backoff for sending the next heartbeat after a failure.
     TDuration FailedHeartbeatBackoffStartTime;
 
-    //! Maximum backoff for sending the next heartbeat after failure or skip.
+    //! Maximum backoff for sending the next heartbeat after a failure.
     TDuration FailedHeartbeatBackoffMaxTime;
 
-    //! Backoff mulitplier for sending the next heartbeat after failure or skip.
+    //! Backoff mulitplier for sending the next heartbeat after a failure.
     double FailedHeartbeatBackoffMultiplier;
 
     TSchedulerConnectorConfig()
