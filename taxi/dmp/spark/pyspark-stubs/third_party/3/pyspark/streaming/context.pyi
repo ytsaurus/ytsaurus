@@ -1,7 +1,10 @@
 # Stubs for pyspark.streaming.context (Python 3.5)
 #
 
-from typing import Any, Callable, List, Optional, TypeVar
+from typing import Any, Callable, List, Optional, TypeVar, Union
+
+from py4j.java_gateway import JavaObject  # type: ignore
+
 from pyspark.context import SparkContext
 from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
@@ -11,7 +14,7 @@ from pyspark.streaming.listener import StreamingListener
 T = TypeVar("T")
 
 class StreamingContext:
-    def __init__(self, sparkContext, batchDuration: Optional[Any] = ..., jssc: Optional[Any] = ...) -> None: ...
+    def __init__(self, sparkContext: SparkContext, batchDuration: Union[float, int] = ..., jssc: Optional[JavaObject] = ...) -> None: ...
     @classmethod
     def getOrCreate(cls,  checkpointPath: str, setupFunc: Callable[[], StreamingContext]) -> StreamingContext: ...
     @classmethod
