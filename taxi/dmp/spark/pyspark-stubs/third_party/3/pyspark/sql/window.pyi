@@ -2,7 +2,7 @@
 #
 
 from typing import Any, Union
-from pyspark.sql._typing import ColumnOrName, Literal, LiteralType
+from pyspark.sql._typing import ColumnOrName
 from py4j.java_gateway import JavaObject # type: ignore
 
 class Window:
@@ -24,4 +24,3 @@ class WindowSpec:
     def orderBy(self, *cols: ColumnOrName) -> 'WindowSpec': ...
     def rowsBetween(self, start: int, end: int) -> 'WindowSpec': ...
     def rangeBetween(self, start: int, end: int) -> 'WindowSpec': ...
-

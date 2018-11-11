@@ -12,7 +12,7 @@ from pyspark.serializers import Serializer
 from pyspark.storagelevel import StorageLevel
 from pyspark.statcounter import StatCounter
 from pyspark.sql.dataframe import DataFrame
-from pyspark.sql._typing import Literal, DecimalLiteral, DateTimeLiteral
+from pyspark.sql._typing import LiteralType, DecimalLiteral, DateTimeLiteral
 from py4j.java_gateway import JavaObject  # type: ignore
 
 

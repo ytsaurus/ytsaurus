@@ -7,10 +7,9 @@ import pyspark.sql.column
 import pyspark.sql.types
 
 ColumnOrName = Union[pyspark.sql.column.Column, str]
-Literal = Union[bool, int, float, str]
 DecimalLiteral = decimal.Decimal
 DateTimeLiteral = Union[datetime.datetime, datetime.date]
-LiteralType = TypeVar('LiteralType', bool, int, float, str)
+LiteralType = Union[bool, int, float, str]
 
 class SupportsOpen(Protocol):
     def open(self, partition_id: int, epoch_id: int) -> bool:
