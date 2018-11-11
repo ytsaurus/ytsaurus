@@ -230,13 +230,13 @@ public:
     TDuration HeartbeatSplay;
 
     //! Start backoff for sending the next heartbeat after failure or skip.
-    TDuration UnsuccessHeartbeatBackoffStartTime;
+    TDuration FailedHeartbeatBackoffStartTime;
 
     //! Maximum backoff for sending the next heartbeat after failure or skip.
-    TDuration UnsuccessHeartbeatBackoffMaxTime;
+    TDuration FailedHeartbeatBackoffMaxTime;
 
     //! Backoff mulitplier for sending the next heartbeat after failure or skip.
-    double UnsuccessHeartbeatBackoffMultiplier;
+    double FailedHeartbeatBackoffMultiplier;
 
     TSchedulerConnectorConfig()
     {
@@ -244,12 +244,12 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("heartbeat_splay", HeartbeatSplay)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("unsuccess_heartbeat_backoff_start_time", UnsuccessHeartbeatBackoffStartTime)
+        RegisterParameter("failed_heartbeat_backoff_start_time", FailedHeartbeatBackoffStartTime)
             .Alias("unsuccess_heartbeat_backoff_time")
             .Default(TDuration::Seconds(5));
-        RegisterParameter("unsuccess_heartbeat_backoff_max_time", UnsuccessHeartbeatBackoffMaxTime)
+        RegisterParameter("failed_heartbeat_backoff_max_time", FailedHeartbeatBackoffMaxTime)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("unsuccess_heartbeat_backoff_multiplier", UnsuccessHeartbeatBackoffMultiplier)
+        RegisterParameter("failed_heartbeat_backoff_multiplier", FailedHeartbeatBackoffMultiplier)
             .Default(2.0);
     }
 };
