@@ -52,7 +52,7 @@ void TSchedulerConnector::Start()
     LastSentHeartbeatTime_ = now;
     LastThrottledHeartbeatTime_ = now;
     LastFullyProcessedHeartbeatTime_ = now;
-    FailedHeartbeatBackoff_ = Config_->UnsuccessHeartbeatBackoffStartTime;
+    FailedHeartbeatBackoff_ = Config_->FailedHeartbeatBackoffStartTime;
 
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
@@ -79,6 +79,7 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoff_) {
+        FailedHeartbeatBackoff_ = std::min(FailedHeartbeatBackoff_ * Config_->FailedHeartbeatBackoffMultiplier, Config_->FailedHeartbeatBackoffMaxTime);
         LOG_INFO("Skipping heartbeat");
         return;
     }
@@ -110,13 +111,15 @@ void TSchedulerConnector::SendHeartbeat()
 
     if (!rspOrError.IsOK()) {
         LastFailedHeartbeatTime_ = TInstant::Now();
-        FailedHeartbeatBackoff_ = std::min(FailedHeartbeatBackoff_ * Config_->UnsuccessHeartbeatBackoffMultiplier, Config_->UnsuccessHeartbeatBackoffMaxTime);
+        FailedHeartbeatBackoff_ = std::min(
+            FailedHeartbeatBackoff_ * Config_->FailedHeartbeatBackoffMultiplier,
+            Config_->FailedHeartbeatBackoffMaxTime);
         LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
         return;
     }
 
     LOG_INFO("Successfully reported heartbeat to scheduler");
-
+г
     const auto& rsp = rspOrError.Value();
 
     auto now = TInstant::Now();
@@ -125,7 +128,7 @@ void TSchedulerConnector::SendHeartbeat()
         TimeBetweenAcknowledgedHeartbeatsCounter_,
         timeBetweenAcknowledgedHeartbeats.MilliSeconds());
 
-    FailedHeartbeatBackoff_ = Config_->UnsuccessHeartbeatBackoffStartTime;
+    FailedHeartbeatBackoff_ = Config_->FailedHeartbeatBackoffStartTime;
 
     if (rsp->scheduling_skipped()) {
         LastThrottledHeartbeatTime_ = now;
