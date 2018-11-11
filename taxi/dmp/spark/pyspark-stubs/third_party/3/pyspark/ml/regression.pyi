@@ -105,7 +105,7 @@ class RandomForestParams(TreeEnsembleParams):
     def getNumTrees(self) -> int: ...
 
 class GBTParams(TreeEnsembleParams):
-    supportedLossTypes = ...  # type: Any
+    supportedLossTypes = ...  # type: List[str]
 
 class DecisionTreeRegressor(JavaEstimator[DecisionTreeRegressionModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, DecisionTreeParams, TreeRegressorParams, HasCheckpointInterval, HasSeed, JavaMLWritable, JavaMLReadable, HasVarianceCol):
     def __init__(self, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxDepth: int = ..., maxBins: int = ..., minInstancesPerNode: int = ..., minInfoGain: float = ..., maxMemoryInMB: int = ..., cacheNodeIds: bool = ..., checkpointInterval: int = ..., impurity: str = ..., seed: Optional[int] = ..., varianceCol: Optional[str] = ...) -> None: ...
