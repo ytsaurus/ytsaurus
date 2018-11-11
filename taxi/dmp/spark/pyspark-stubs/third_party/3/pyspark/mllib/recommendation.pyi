@@ -2,13 +2,16 @@
 #
 
 from typing import Any, List, Optional, Tuple, Union
+
 import array
+from collections import namedtuple
+
 from pyspark.context import SparkContext
 from pyspark.rdd import RDD
 from pyspark.mllib.common import JavaModelWrapper
 from pyspark.mllib.util import JavaLoader, JavaSaveable
 
-class Rating:
+class Rating(namedtuple("Rating", ["user", "product", "rating"])):
     def __reduce__(self): ...
 
 class MatrixFactorizationModel(JavaModelWrapper, JavaSaveable, JavaLoader):
