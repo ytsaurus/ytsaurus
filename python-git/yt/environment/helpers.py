@@ -57,9 +57,13 @@ class OpenPortIterator(Iterator):
                 self.local_port_range = start, min(end, start + 10000)
 
     def release_locks(self):
-        for lock_fd in self.lock_fds:
+        for lock_path, lock_fd in self.lock_fds:
             try:
                 os.close(lock_fd)
+                try:
+                    os.remove(lock_path)
+                except IOError:
+                    pass
             except OSError as err:
                 logger.warning("Failed to close file descriptor %d: %s",
                                lock_fd, os.strerror(err.errno))
@@ -133,10 +137,14 @@ class OpenPortIterator(Iterator):
                     )
                 if lock_fd is not None and lock_fd != -1:
                     os.close(lock_fd)
+                    try:
+                        os.remove(lock_path)
+                    except IOError:
+                        pass
                 self.busy_ports.add(port)
                 return None
 
-            self.lock_fds.add(lock_fd)
+            self.lock_fds.add((lock_path, lock_fd))
 
         self.busy_ports.add(port)
 
@@ -154,6 +162,7 @@ class OpenPortIterator(Iterator):
                     self.GEN_PORT_ATTEMPTS
                 )
             )
+            logger.warning("Number of port files: %d", len(os.listdir(self.port_locks_path)))
 
             self._next_impl(verbose=True)
 
