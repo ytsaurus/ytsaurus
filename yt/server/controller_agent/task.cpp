@@ -1104,6 +1104,11 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
 void TTask::SetupCallbacks()
 { }
 
+std::vector<TString> TTask::FindAndBanSlowTentativeTrees()
+{
+    return TentativeTreeEligibility_.FindAndBanSlowTentativeTrees();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTaskGroup::TTaskGroup()

@@ -397,6 +397,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
         .Default(TDuration::Seconds(3));
 
+    RegisterParameter("check_tentative_tree_eligibility_period", CheckTentativeTreeEligibilityPeriod)
+        .Default(TDuration::Seconds(10));
+
     RegisterParameter("max_available_exec_node_resources_update_period", MaxAvailableExecNodeResourcesUpdatePeriod)
         .Default(TDuration::Seconds(10));
 

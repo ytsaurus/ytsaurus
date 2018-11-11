@@ -239,6 +239,10 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
         Config->OperationBuildProgressPeriod))
+    , CheckTentativeTreeEligibilityExecutor_(New<TPeriodicExecutor>(
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        BIND(&TThis::CheckTentativeTreeEligibility, MakeWeak(this)),
+        Config->CheckTentativeTreeEligibilityPeriod))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -821,6 +825,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         AnalyzeOperationProgressExecutor->Start();
         MinNeededResourcesSanityCheckExecutor->Start();
         MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+        CheckTentativeTreeEligibilityExecutor_->Start();
 
         auto jobSplitterConfig = GetJobSplitterConfig();
         if (jobSplitterConfig) {
@@ -929,6 +934,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     AnalyzeOperationProgressExecutor->Start();
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+    CheckTentativeTreeEligibilityExecutor_->Start();
 
     for (const auto& pair : JobletMap) {
         const auto& joblet = pair.second;
@@ -1989,7 +1995,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->SplitJobCount);
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet, taskResult);
+    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
@@ -2075,7 +2081,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet, taskResult);
+    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
@@ -2165,7 +2171,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet, taskResult);
+    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -3679,22 +3685,22 @@ bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
     return Spec_->TentativePoolTrees.has(treeId);
 }
 
-void TOperationControllerBase::MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result)
+void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId, bool shouldBan)
 {
-    if (!result.BanTree) {
+    if (!shouldBan) {
         return;
     }
 
-    if (!BannedTreeIds_.insert(joblet->TreeId).second) {
+    if (!BannedTreeIds_.insert(treeId).second) {
         return;
     }
 
     Host->OnOperationBannedInTentativeTree(
-        joblet->TreeId,
-        GetJobIdsByTreeId(joblet->TreeId));
+        treeId,
+        GetJobIdsByTreeId(treeId));
 
     auto error = TError("Operation was banned from tentative tree")
-        << TErrorAttribute("tree_id", joblet->TreeId);
+        << TErrorAttribute("tree_id", treeId);
     SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
 }
 
@@ -6547,6 +6553,19 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     }
 
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
+}
+
+void TOperationControllerBase::CheckTentativeTreeEligibility()
+{
+    THashSet<TString> treeIds;
+    for (const auto& task : Tasks) {
+        for (const auto& treeId : task->FindAndBanSlowTentativeTrees()) {
+            treeIds.insert(treeId);
+        }
+    }
+    for (const auto& treeId : treeIds) {
+        MaybeBanInTentativeTree(treeId, /* shouldBan */ true);
+    }
 }
 
 TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
