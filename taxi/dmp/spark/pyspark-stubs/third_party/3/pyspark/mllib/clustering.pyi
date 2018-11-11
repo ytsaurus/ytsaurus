@@ -3,7 +3,12 @@
 
 from typing import overload
 from typing import Any, List, NamedTuple, Optional, Tuple, TypeVar
+
 import array
+
+from numpy import float64, int64, ndarray  # type: ignore
+from py4j.java_gateway import JavaObject  # type: ignore
+
 from pyspark.mllib._typing import VectorLike
 from pyspark.context import SparkContext
 from pyspark.rdd import RDD
@@ -11,8 +16,6 @@ from pyspark.mllib.common import JavaModelWrapper
 from pyspark.mllib.stat.distribution import MultivariateGaussian
 from pyspark.mllib.util import Saveable, Loader, JavaLoader, JavaSaveable
 from pyspark.streaming.dstream import DStream
-from numpy import float64, int64, ndarray  # type: ignore
-from py4j.java_gateway import JavaObject  # type: ignore
 
 T = TypeVar('T')
 
