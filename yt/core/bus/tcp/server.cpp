@@ -204,7 +204,7 @@ protected:
             auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(clientNetwork)->ServerConnections.load();
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             if (connectionCount >= connectionLimit) {
-                LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                LOG_WARNING("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     ToString(clientAddress, false),
                     connectionCount,
                     connectionLimit);
