@@ -54,6 +54,8 @@ public:
         const TString& treeId,
         bool tentative);
 
+    std::vector<TString> FindAndBanSlowTentativeTrees();
+
 private:
     using TDurationSummary = TAvgSummary<TDuration>;
 
@@ -70,6 +72,7 @@ private:
 
     // Number of started/finished jobs per pool tree.
     THashMap<TString, int> StartedJobsPerPoolTree_;
+    THashMap<TString, TInstant> LastStartJobTimePerPoolTree_;
     THashMap<TString, THashMap<EJobState, int>> FinishedJobsPerStatePerPoolTree_;
 
     THashSet<TString> BannedTrees_;

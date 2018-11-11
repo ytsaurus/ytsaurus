@@ -155,6 +155,8 @@ public:
     //! Base implementation returns task's own mapping.
     virtual TInputChunkMappingPtr GetChunkMapping() const;
 
+    std::vector<TString> FindAndBanSlowTentativeTrees();
+
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
 protected:
