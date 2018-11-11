@@ -79,7 +79,6 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoff_) {
-        FailedHeartbeatBackoff_ = std::min(FailedHeartbeatBackoff_ * Config_->FailedHeartbeatBackoffMultiplier, Config_->FailedHeartbeatBackoffMaxTime);
         LOG_INFO("Skipping heartbeat");
         return;
     }
