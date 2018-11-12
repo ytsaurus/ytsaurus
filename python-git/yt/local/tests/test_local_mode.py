@@ -189,7 +189,6 @@ class TestLocalMode(object):
             name = "scheduler-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
-        assert os.path.exists(os.path.join(logs_path, "http-application.log"))
         assert os.path.exists(os.path.join(logs_path, "http-proxy.log"))
 
         assert os.path.exists(os.path.join(path, "stderrs"))
@@ -244,11 +243,6 @@ class TestLocalMode(object):
         presented = 0
         for file_index in xrange(1, 5):
             presented += os.path.exists(os.path.join(logs_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
-        assert presented in (3, 4)
-
-        presented = 0
-        for file_index in xrange(1, 5):
-            presented += os.path.exists(os.path.join(logs_path, "http-application.log.{0}.gz".format(file_index)))
         assert presented in (3, 4)
 
     def test_commands_sanity(self):
