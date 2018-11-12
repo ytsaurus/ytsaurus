@@ -25,6 +25,7 @@ import logging
 import os
 import random
 import socket
+import subprocess
 import time
 
 try:
@@ -33,6 +34,11 @@ except ImportError:
     yatest_common = None
 
 logger = logging.getLogger("Yt.local")
+
+def _dump_netstat(dump_file_path):
+    logger.info("Dumping netstat to file '{}'".format(dump_file_path))
+    with open(dump_file_path, "wb") as dump_file:
+        subprocess.check_call(["netstat", "-v", "-p", "-a", "-ee"], stdout=dump_file)
 
 class OpenPortIterator(Iterator):
     GEN_PORT_ATTEMPTS = 10
@@ -71,7 +77,7 @@ class OpenPortIterator(Iterator):
         except:
             if verbose:
                 logger.exception(
-                    "[OpenPortIterator] Exception occurred while trying to check port freeness "
+                    "Exception occurred while trying to check port freeness "
                     "for port {} and inet {}".format(
                         port,
                         inet,
@@ -91,13 +97,13 @@ class OpenPortIterator(Iterator):
         if self.local_port_range is not None and self.local_port_range[0] - self.START_PORT > 1000:
             port_range = (self.START_PORT, self.local_port_range[0] - 1)
             if verbose:
-                logger.info("[OpenPortIterator] Generating port by randomly selecting from the range: {}".format(port_range))
+                logger.info("Generating port by randomly selecting from the range: {}".format(port_range))
             port_value = random.randint(*port_range)
             if self._is_port_free(port_value, verbose):
                 port = port_value
         else:
             if verbose:
-                logger.info("[OpenPortIterator] Generating port by binding to zero port")
+                logger.info("Generating port by binding to zero port")
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.bind(("", 0))
@@ -123,9 +129,7 @@ class OpenPortIterator(Iterator):
             except IOError:
                 if verbose:
                     logger.exception(
-                        "[OpenPortIterator] Exception occurred while trying to lock port path '{}'".format(
-                            lock_path,
-                        )
+                        "Exception occurred while trying to lock port path '{}'".format(lock_path)
                     )
                 if lock_fd is not None and lock_fd != -1:
                     os.close(lock_fd)
@@ -145,12 +149,20 @@ class OpenPortIterator(Iterator):
                 return port
         else:
             logger.warning(
-                "[OpenPortIterator] Failed to generate open port after {0} attempts. "
+                "Failed to generate open port after {0} attempts. "
                 "Trying to infer reasons via verbose invocation:".format(
                     self.GEN_PORT_ATTEMPTS
                 )
             )
+
             self._next_impl(verbose=True)
+
+            if self.port_locks_path is not None:
+                try:
+                    _dump_netstat(os.path.join(self.port_locks_path, "netstat"))
+                except:
+                    logger.exception("Exception occurred while dumping netstat")
+
             raise RuntimeError("Failed to generate open port after {0} attempts"
                                .format(self.GEN_PORT_ATTEMPTS))
 
