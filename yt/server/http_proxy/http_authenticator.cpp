@@ -9,6 +9,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <util/string/strip.h>
+
 namespace NYT {
 namespace NHttpProxy {
 
@@ -39,45 +41,51 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         return;
     }
 
-    auto result = WaitFor(Authenticate(req))
-        .ValueOrThrow();
-
-    rsp->SetStatus(EStatusCode::OK);
-    if (result.CsrfToken) {
+    auto result = Authenticate(req, true);
+    if (result.IsOK()) {
+        rsp->SetStatus(EStatusCode::OK);
         ProtectCsrfToken(rsp);
+
+        TString csrfSecret = Config_->GetCsrfSecret();
+        auto csrfToken = SignCsrfToken(result.Value().Login, csrfSecret, TInstant::Now());
+
+        ReplyJson(rsp, [&] (NYson::IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("login").Value(result.Value().Login)
+                    .Item("realm").Value(result.Value().Realm)
+                    .Item("csrf_token").Value(csrfToken)
+                .EndMap();
+        });
+    } else {
+        rsp->SetStatus(EStatusCode::InternalServerError);
+        ReplyJson(rsp, [&] (auto consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("error").Value(TError(result))
+                .EndMap();
+        });
     }
-    
-    ReplyJson(rsp, [&] (NYson::IYsonConsumer* consumer) {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("login").Value(result.Login)
-                .Item("realm").Value(result.Realm)
-                .DoIf(result.CsrfToken.HasValue(), [&] (auto fluent) {
-                    fluent.Item("csrf_token").Value(result.CsrfToken);
-                })
-            .EndMap();
-    });
 }
 
-TFuture<TAuthenticationResult> THttpAuthenticator::Authenticate(
-    const IRequestPtr& request)
+TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
+    const IRequestPtr& request,
+    bool disableCsrfTokenCheck)
 {
     if (!Config_->RequireAuthentication) {
-        return MakeFuture(TAuthenticationResult{"root", "YT"});
+        return TAuthenticationResult{"root", "YT"};
     }
 
     auto authorizationHeader = request->GetHeaders()->Find("Authorization");
     if (authorizationHeader) {
         TStringBuf prefix = "OAuth ";
         if (!authorizationHeader->StartsWith(prefix)) {
-            return MakeFuture<TAuthenticationResult>(TError(
-                NRpc::EErrorCode::InvalidCredentials,
-                "Invalid value of Authorization header"));
+            return TError(NRpc::EErrorCode::InvalidCredentials, "Invalid value of Authorization header");
         }
 
         TTokenCredentials credentials;
         credentials.Token = authorizationHeader->substr(prefix.Size());
-        return TokenAuthenticator_->Authenticate(credentials);
+        return WaitFor(TokenAuthenticator_->Authenticate(credentials));
     }
 
     auto cookieHeader = request->GetHeaders()->Find("Cookie");
@@ -87,23 +95,38 @@ TFuture<TAuthenticationResult> THttpAuthenticator::Authenticate(
         TCookieCredentials credentials;
         credentials.UserIP = request->GetRemoteAddress();
         if (cookies.find("Session_id") == cookies.end()) {
-            return MakeFuture<TAuthenticationResult>(TError(
-                NRpc::EErrorCode::InvalidCredentials,
-                "Request is missing \"Session_id\" cookie"));
+            return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"Session_id\" cookie");
         }
         if (cookies.find("sessionid2") == cookies.end()) {
-            return MakeFuture<TAuthenticationResult>(TError(
-                NRpc::EErrorCode::InvalidCredentials,
-                "Request is missing \"sessionid2\" cookie"));
+            return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"sessionid2\" cookie");
         }
         credentials.SessionId = cookies["Session_id"];
         credentials.SslSessionId = cookies["sessionid2"];
-        return CookieAuthenticator_->Authenticate(credentials);
+
+        auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
+        if (!authResult.IsOK()) {
+            return authResult;
+        }
+
+        if (!disableCsrfTokenCheck) {
+            auto csrfTokenHeader = request->GetHeaders()->Find("X-Csrf-Token");
+            if (csrfTokenHeader) {
+                auto error = CheckCsrfToken(
+                    Strip(*csrfTokenHeader),
+                    authResult.Value().Login,
+                    Config_->GetCsrfSecret(),
+                    Config_->GetCsrfTokenExpirationTime());
+
+                if (!error.IsOK()) {
+                    return error;
+                }
+            }
+        }
+
+        return authResult;
     }
 
-    return MakeFuture<TAuthenticationResult>(TError(
-        NRpc::EErrorCode::InvalidCredentials,
-        "Client is missing credentials"));
+    return TError(NRpc::EErrorCode::InvalidCredentials, "Client is missing credentials");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

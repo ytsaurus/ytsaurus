@@ -260,18 +260,13 @@ bool TContext::TryParseUser()
     // NB: This function is the only thing protecting cluster from
     // unauthorized requests. Please write code without bugs.
 
-    auto asyncAuth = Api_->GetHttpAuthenticator()->Authenticate(Request_);
-    if (!asyncAuth) {
-        Response_->SetStatus(EStatusCode::Unauthorized);
-        ReplyFakeError("Failed to identify user credentials");
-        return false;
-    }
-
-    auto authResult = WaitFor(asyncAuth);
+    auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
         LOG_DEBUG(authResult, "Authentication error");
 
         if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
+            Response_->SetStatus(EStatusCode::Unauthorized);
+        } else if (authResult.FindMatching(NRpc::EErrorCode::CsrfTokenExpired)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
         } else {
             Response_->SetStatus(EStatusCode::InternalServerError);

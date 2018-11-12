@@ -28,8 +28,9 @@ public:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 
-    TFuture<NAuth::TAuthenticationResult> Authenticate(
-        const NHttp::IRequestPtr& request);
+    TErrorOr<NAuth::TAuthenticationResult> Authenticate(
+        const NHttp::IRequestPtr& request,
+        bool disableCsrfTokenCheck = false);
 
 private:
     const NAuth::TAuthenticationManagerConfigPtr Config_;
