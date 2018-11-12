@@ -405,7 +405,7 @@ void THttpInput::FinishMessage()
 
     auto stats = Connection_->GetReadStatistics();
     if (MessageType_ == EMessageType::Request) {
-        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
+        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
             RequestId_,
             GetReadByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -485,7 +485,7 @@ void THttpInput::MaybeLogSlowProgress()
 {
     auto now = TInstant::Now();
     if (LastProgressLogTime_ + Config_->BodyReadIdleTimeout < now) {
-        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %d)",
+        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %v)",
             RequestId_,
             GetReadByteCount());
         LastProgressLogTime_ = now;
@@ -772,7 +772,7 @@ void THttpOutput::OnWriteFinish()
     auto now = TInstant::Now();
     auto stats = Connection_->GetWriteStatistics();
     if (LastProgressLogTime_ + Config_->WriteIdleTimeout < now) {
-        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %d, IdleDuration: %v, BusyDuration: %v)",
+        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %v, IdleDuration: %v, BusyDuration: %v)",
             RequestId_,
             GetWriteByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
