@@ -6,7 +6,7 @@ import sys
 
 from yt.wrapper import YtClient, ypath_join
 from yt.wrapper.common import generate_uuid, filter_dict
-from yp.local import YpInstance, INIT_DB_VERSION
+from yp.local import YpInstance, INITIAL_DB_VERSION
 
 def canonize_obj(data):
     def canonize(data):
@@ -74,7 +74,7 @@ def main(argv):
     print "=========> Remote schemas:"
     print json.dumps(remote_schemas, indent=4)
 
-    yp_instance = YpInstance(args.sandbox_path, enable_ssl=True, db_version=INIT_DB_VERSION)
+    yp_instance = YpInstance(args.sandbox_path, enable_ssl=True, db_version=INITIAL_DB_VERSION)
     yp_instance.prepare()
     yp_instance.migrate_database(args.local_db_version, backup=False)
 
