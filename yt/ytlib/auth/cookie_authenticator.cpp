@@ -49,7 +49,8 @@ TError CheckCsrfToken(
             << TErrorAttribute("sign_time", signTime);
     }
 
-    auto expectedToken = SignCsrfToken(userId, key, signTime);
+    auto msg = userId + ":" + ToString(signTime.TimeT());
+    auto expectedToken = CreateSha256Hmac(key, msg);
     if (!ConstantTimeCompare(expectedToken, parts[0])) {
         return TError("Invalid CSFR token signature");
     }
