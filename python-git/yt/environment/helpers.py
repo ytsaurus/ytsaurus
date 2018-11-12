@@ -50,6 +50,8 @@ class OpenPortIterator(Iterator):
         self.port_locks_path = port_locks_path
         self.lock_fds = set()
 
+        self._random_generator = None
+
         self.local_port_range = local_port_range
         if self.local_port_range is None and os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
             with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
@@ -104,7 +106,9 @@ class OpenPortIterator(Iterator):
             port_range = (self.START_PORT, self.local_port_range[0] - 1)
             if verbose:
                 logger.info("Generating port by randomly selecting from the range: {}".format(port_range))
-            port_value = random.randint(*port_range)
+            if self._random_generator is None:
+                self._random_generator = random.Random(random.SystemRandom().random())
+            port_value = self._random_generator.randint(*port_range)
             if self._is_port_free(port_value, verbose):
                 port = port_value
         else:
