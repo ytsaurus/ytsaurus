@@ -1558,9 +1558,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             verify()
 
-    def test_stress_versioned_lookup(self):
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
         random.seed(12345)
+
+        if in_memory_mode == "none" and optimize_for == "lookup":
+            return
 
         schema = [
             {"name": "k1", "type": "int64", "sort_order": "ascending"},
@@ -1590,31 +1595,32 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             return {"k1": random.randint(1, 10), "k2": random.randint(1, 10)}
 
         sync_create_cells(1)
-        self._create_simple_table("//tmp/lookup", schema=schema, optimize_for="lookup")
-        sync_mount_table("//tmp/lookup")
+        self._create_simple_table("//tmp/expected", schema=schema, optimize_for="lookup")
+        sync_mount_table("//tmp/expected")
 
         for i in range(read_iters):
             keys = [random_key() for i in range(5)]
             if random.randint(0, 99) < delete_probability:
-                delete_rows("//tmp/lookup", keys)
+                delete_rows("//tmp/expected", keys)
             else:
-                random_write("//tmp/lookup", keys)
+                random_write("//tmp/expected", keys)
             timestamps += [generate_timestamp()]
 
-        sync_unmount_table("//tmp/lookup")
-        copy("//tmp/lookup", "//tmp/scan")
-        set("//tmp/scan/@optimize_for", "scan")
-        sync_mount_table("//tmp/lookup")
-        sync_mount_table("//tmp/scan")
-        sync_compact_table("//tmp/scan")
+        sync_unmount_table("//tmp/expected")
+        copy("//tmp/expected", "//tmp/actual")
+        set("//tmp/actual/@optimize_for", optimize_for)
+        set("//tmp/actual/@in_memory_mode", in_memory_mode)
+        sync_mount_table("//tmp/expected")
+        sync_mount_table("//tmp/actual")
+        sync_compact_table("//tmp/actual")
 
         for i in range(lookup_iters):
             keys = [random_key() for i in range(5)]
             ts = random.choice(timestamps)
             for versioned in True, False:
-                res_lookup = lookup_rows("//tmp/lookup", keys, versioned=versioned, timestamp=ts)
-                res_scan = lookup_rows("//tmp/scan", keys, versioned=versioned, timestamp=ts)
-                assert res_scan == res_lookup
+                expected = lookup_rows("//tmp/expected", keys, versioned=versioned, timestamp=ts)
+                actual = lookup_rows("//tmp/actual", keys, versioned=versioned, timestamp=ts)
+                assert expected == actual
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @skip_if_rpc_driver_backend
