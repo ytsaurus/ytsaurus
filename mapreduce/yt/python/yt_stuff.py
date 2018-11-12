@@ -266,9 +266,6 @@ class YtStuff(object):
             if not os.path.exists(path):
                 os.makedirs(path)
 
-        yt2_arcadia_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/yt/yt'.format(self.version))
-        os.symlink(yt2_arcadia_path, os.path.join(self.yt_bins_path, 'yt2'))
-
         self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt'.format(self.version))]
         self.yt_local_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/local/yt_local'.format(self.version))]
         self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/watcher'.format(self.version))
@@ -513,9 +510,6 @@ class YtStuff(object):
         cmd = self.mapreduce_yt_path + cmd
 
         return yatest.common.execute(cmd, env=env, *args, **kwargs)
-
-    def get_yt_cli_binary(self):
-        return os.path.join(self.yt_bins_path, 'yt2')
 
     @_timing
     def start_local_yt(self):
