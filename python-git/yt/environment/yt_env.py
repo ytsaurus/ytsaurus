@@ -1174,10 +1174,10 @@ class YTInstance(object):
 
     def start_proxy(self, use_proxy_from_package, use_new_proxy=False, sync=True):
         logger.info("Starting proxy")
-        if use_proxy_from_package:
-            self._start_proxy_from_package()
-        elif use_new_proxy or which("ytserver-http-proxy"):
+        if use_new_proxy or which("ytserver-http-proxy"):
             self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["proxy"]], "proxy")
+        elif use_proxy_from_package:
+            self._start_proxy_from_package()
         else:
             if not which("run_proxy.sh"):
                 raise YtError("Failed to start proxy from source tree. "
