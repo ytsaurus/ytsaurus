@@ -88,14 +88,16 @@ class OpenPortIterator(Iterator):
 
     def _next_impl(self, verbose):
         port = None
-        if self.local_port_range is not None and \
-                self.local_port_range[0] - self.START_PORT > 1000:
-            # Generate random port manually and check that it is free.
-            port_value = random.randint(self.START_PORT, self.local_port_range[0] - 1)
+        if self.local_port_range is not None and self.local_port_range[0] - self.START_PORT > 1000:
+            port_range = (self.START_PORT, self.local_port_range[0] - 1)
+            if verbose:
+                logger.info("[OpenPortIterator] Generating port by randomly selecting from the range: {}".format(port_range))
+            port_value = random.randint(*port_range)
             if self._is_port_free(port_value, verbose):
                 port = port_value
         else:
-            # Generate random local port by bind to 0 port and check that it is free.
+            if verbose:
+                logger.info("[OpenPortIterator] Generating port by binding to zero port")
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.bind(("", 0))
