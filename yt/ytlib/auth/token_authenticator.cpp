@@ -347,7 +347,7 @@ public:
     virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
         static const auto Realm = TString("noop");
-        TAuthenticationResult result{NRpc::RootUserName, Realm, Null};
+        TAuthenticationResult result{NRpc::RootUserName, Realm};
         return MakeFuture<TAuthenticationResult>(result);
     }
 };
