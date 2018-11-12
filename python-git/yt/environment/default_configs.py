@@ -223,6 +223,7 @@ b"""
 }
 """)
 
+# COMPAT(babenko): drop unsuccess_heartbeat_backoff_time
 def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 b"""
@@ -286,7 +287,8 @@ b"""
         node_directory_prepare_backoff_time = 100;
 
         scheduler_connector = {
-            failed_heartbeat_backoff_time = 50;
+            unsuccess_heartbeat_backoff_time  = 50;
+            failed_heartbeat_backoff_start_time = 50;
             failed_heartbeat_backoff_max_time = 50;
             failed_heartbeat_backoff_multiplier = 1.0;
             heartbeat_period = 200;
