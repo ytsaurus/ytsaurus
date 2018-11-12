@@ -3123,7 +3123,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def test_job_spec_failed(self):
+    def test_get_job_spec_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
@@ -3140,10 +3140,10 @@ class TestGetJobSpecFailed(YTEnvSetup):
             },
             dont_track=True)
 
-        time.sleep(2.0)
-
-        jobs = get(op.get_path() + "/controller_orchid/progress/jobs", verbose=False)
-        assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
+        def check():
+            jobs = get(op.get_path() + "/controller_orchid/progress/jobs", verbose=False)
+            return jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
+        wait(check)
 
 ##################################################################
 
