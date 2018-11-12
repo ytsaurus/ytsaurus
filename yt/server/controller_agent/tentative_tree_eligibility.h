@@ -83,6 +83,8 @@ private:
     // TTentativeTreeEligibilityConfig::{SampleJobCount,MaxTentativeJobDurationRatio,MinJobDuration} respectively.
     TTentativeTreeEligibility(int sampleJobCount, double maxTentativeJobDurationRatio, TDuration minJobDuration);
 
+    TDuration GetTentativeTreeAverageJobDuration(const TString& treeId) const;
+
     void UpdateDurations(const TJobSummary& jobSummary, const TString& treeId, bool tentative);
 
     void CheckDurations(const TString& treeId, bool tentative);

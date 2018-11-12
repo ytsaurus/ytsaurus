@@ -151,15 +151,8 @@ void TTentativeTreeEligibility::CheckDurations(const TString& treeId, bool tenta
     }
 }
 
-bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const
+TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TString& treeId) const
 {
-    if (NonTentativeTreeDuration_.GetCount() < SampleJobCount_) {
-        return false;
-    }
-    if (*NonTentativeTreeDuration_.GetAvg() == TDuration::Zero()) {
-        return false;
-    }
-
     TDuration tentativeDurationSum;
     int tentativeCount = 0;
 
@@ -184,7 +177,19 @@ bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const
         }
     }
 
-    TDuration tentativeDurationAvg = tentativeDurationSum / tentativeCount;
+    return tentativeDurationSum / tentativeCount;
+}
+
+bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const
+{
+    if (NonTentativeTreeDuration_.GetCount() < SampleJobCount_) {
+        return false;
+    }
+    if (*NonTentativeTreeDuration_.GetAvg() == TDuration::Zero()) {
+        return false;
+    }
+
+    auto tentativeDurationAvg = GetTentativeTreeAverageJobDuration(treeId);
     if (tentativeDurationAvg < MinJobDuration_) {
         return false;
     }
@@ -196,18 +201,15 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
 {
     BannedTrees_.insert(treeId);
 
-    YCHECK(Durations_.has(treeId));
-
-    auto avgTentativeDuration = Durations_[treeId].GetAvg();
-    auto avgNonTentativeDuration = NonTentativeTreeDuration_.GetAvg();
-    YCHECK(avgTentativeDuration.HasValue());
-    YCHECK(avgNonTentativeDuration.HasValue());
+    auto tentativeDurationAvg = GetTentativeTreeAverageJobDuration(treeId);
+    auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
+    YCHECK(nonTentativeDurationAvg.HasValue());
 
     LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
         "(TreeId: %v, TentativeJobDuration: %v, NonTentativeJobDuration: %v, MaxTentativeJobDurationRatio: %v)",
         treeId,
-        *avgTentativeDuration,
-        *avgNonTentativeDuration,
+        tentativeDurationAvg,
+        *nonTentativeDurationAvg,
         MaxTentativeTreeJobDurationRatio_);
 }
 
