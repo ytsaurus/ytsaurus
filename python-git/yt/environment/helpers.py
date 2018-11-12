@@ -26,7 +26,6 @@ import os
 import random
 import socket
 import time
-import traceback
 
 try:
     import yatest.common as yatest_common
@@ -71,12 +70,11 @@ class OpenPortIterator(Iterator):
             return True
         except:
             if verbose:
-                logger.warning(
+                logger.exception(
                     "[OpenPortIterator] Exception occurred while trying to check port freeness "
-                    "for port {} and inet {}:\n{}".format(
+                    "for port {} and inet {}".format(
                         port,
                         inet,
-                        traceback.format_exc()
                     )
                 )
             return False
@@ -122,10 +120,9 @@ class OpenPortIterator(Iterator):
                 fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except IOError:
                 if verbose:
-                    logger.warning(
-                        "[OpenPortIterator] Exception occurred while trying to lock port path '{}':\n{}".format(
+                    logger.exception(
+                        "[OpenPortIterator] Exception occurred while trying to lock port path '{}'".format(
                             lock_path,
-                            traceback.format_exc()
                         )
                     )
                 if lock_fd is not None and lock_fd != -1:
