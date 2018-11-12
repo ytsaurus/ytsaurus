@@ -140,7 +140,7 @@ class JobEvents(object):
                     will skip this breakpoint. """
         self._verify_breakpoint_created(breakpoint_name)
 
-        print("Releasing breakpoint breakpoint_name: {0}, job_id: {1}".format(breakpoint_name, job_id), file=sys.stderr)
+        print("Releasing breakpoint {0}, job id {1}".format(breakpoint_name, job_id), file=sys.stderr)
 
         if job_id is None:
             with open(self._get_breakpoint_filename(breakpoint_name, self.BREAKPOINT_ALL_RELEASED), "w"):
