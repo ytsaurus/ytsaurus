@@ -266,7 +266,7 @@ bool TContext::TryParseUser()
 
         if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
-        } else if (authResult.FindMatching(NRpc::EErrorCode::CsrfTokenExpired)) {
+        } else if (authResult.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
         } else {
             Response_->SetStatus(EStatusCode::InternalServerError);

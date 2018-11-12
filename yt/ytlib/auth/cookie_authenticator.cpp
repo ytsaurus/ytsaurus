@@ -45,14 +45,14 @@ TError CheckCsrfToken(
 
     auto signTime = TInstant::Seconds(FromString<time_t>(parts[1]));
     if (signTime < expirationTime) {
-        return TError(NRpc::EErrorCode::CsrfTokenExpired, "CSRF token expired")
+        return TError(NRpc::EErrorCode::InvalidCsrfToken, "CSRF token expired")
             << TErrorAttribute("sign_time", signTime);
     }
 
     auto msg = userId + ":" + ToString(signTime.TimeT());
     auto expectedToken = CreateSha256Hmac(key, msg);
     if (!ConstantTimeCompare(expectedToken, parts[0])) {
-        return TError("Invalid CSFR token signature");
+        return TError(NRpc::EErrorCode::InvalidCsrfToken, "Invalid CSFR token signature");
     }
 
     return {};
