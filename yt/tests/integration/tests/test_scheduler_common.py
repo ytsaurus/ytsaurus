@@ -3141,7 +3141,9 @@ class TestGetJobSpecFailed(YTEnvSetup):
             dont_track=True)
 
         def check():
-            jobs = get(op.get_path() + "/controller_orchid/progress/jobs", verbose=False)
+            jobs = get(op.get_path() + "/controller_orchid/progress/jobs", default=None)
+            if jobs is None:
+                return False
             return jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
         wait(check)
 
