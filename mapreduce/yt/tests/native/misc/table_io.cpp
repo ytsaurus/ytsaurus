@@ -975,6 +975,11 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TestCompressionCodec(E_BROTLI);
     }
 
+    Y_UNIT_TEST(CompressionCodecZLz4)
+    {
+        TestCompressionCodec(E_Z_LZ4);
+    }
+
     Y_UNIT_TEST(AbortWriter)
     {
         auto client = CreateTestClient();
