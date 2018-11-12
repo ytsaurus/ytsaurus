@@ -593,17 +593,18 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 {
     auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
 
-    if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId});
-    }
-    if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
-    }
-
     // NB: when job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
     // revival) it may become completed, and you will bite your elbows if you unstage its chunk lists too early (e.g.
     // job is aborted due to node gone offline, but after revival it happily comes back and job successfully completes).
     // So better keep it simple and wait for the snapshot.
+
+    if (joblet->StderrTableChunkListId) {
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId}, true /* unstageRecursively */, false /* waitForSnapshot */);
+    }
+    if (joblet->CoreTableChunkListId) {
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /* unstageRecursively */, false /* waitForSnapshot */);
+    }
+
     ReinstallJob(
         joblet,
         BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
