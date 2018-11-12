@@ -2002,7 +2002,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     if (!abandoned) {
-        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.Get({}) > Config->MinJobDurationToArchiveJobSpec) && 
+        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.Get({}) > Config->MinJobDurationToArchiveJobSpec) &&
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
@@ -2011,7 +2011,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
-    TNullable<i64> maybeRowCount; 
+    TNullable<i64> maybeRowCount;
     if (RowCountLimitTableIndex) {
         maybeRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
     }
@@ -4569,7 +4569,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
                     table->Path,
                     table->Schema);
-            } 
+            }
         }
     }
 }
