@@ -76,6 +76,7 @@ public:
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation);
     TFuture<void> FlushOperationNode(const TOperationPtr& operation);
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations);
+    TFuture<NYson::TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation);
 
     void AttachJobContext(
         const NYPath::TYPath& path,
