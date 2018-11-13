@@ -52,7 +52,9 @@ TError CheckCsrfToken(
     auto msg = userId + ":" + ToString(signTime.TimeT());
     auto expectedToken = CreateSha256Hmac(key, msg);
     if (!ConstantTimeCompare(expectedToken, parts[0])) {
-        return TError(NRpc::EErrorCode::InvalidCsrfToken, "Invalid CSFR token signature");
+        return TError(NRpc::EErrorCode::InvalidCsrfToken, "Invalid CSFR token signature")
+            << TErrorAttribute("provided_signature", parts[0])
+            << TErrorAttribute("user_fingerprint", msg);
     }
 
     return {};
