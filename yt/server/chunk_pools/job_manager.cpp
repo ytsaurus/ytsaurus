@@ -77,16 +77,16 @@ void TJobStub::Finalize(bool sortByPosition)
                             }
                         }
 
+                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
+                        if (cmpResult != 0) {
+                            return cmpResult < 0;
+                        }
+
                         if (lhs->LowerLimit().RowIndex &&
                             rhs->LowerLimit().RowIndex &&
                             *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
                         {
                             return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
-                        }
-
-                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
-                        if (cmpResult != 0) {
-                            return cmpResult < 0;
                         }
 
                         return false;
