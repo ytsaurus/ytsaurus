@@ -905,8 +905,13 @@ public:
         const TLayerLocationPtr& location,
         const std::vector<TLayerPtr>& layers)
         : VolumeMeta_(meta)
+<<<<<<< HEAD
         , Owner_(owner)
         , Location_(location)
+=======
+        , Owner_(std::move(owner))
+        , Location_(std::move(location))
+>>>>>>> 0d69a256a4... Fix volume cache eviction
         , Layers_(layers)
     {
         auto callback = BIND(&TVolumeState::OnLayerEvicted, MakeWeak(this));
@@ -915,7 +920,13 @@ public:
         }
     }
 
-    ~TVolumeState();
+    ~TVolumeState()
+    {
+        LOG_INFO("Destroying volume (VolumeId: %v)",
+                 VolumeMeta_.Id);
+
+        Location_->RemoveVolume(VolumeMeta_.Id);
+    }
 
     bool TryAcquireLock()
     {
@@ -959,14 +970,7 @@ private:
     int ActiveCount_= 0;
     bool Evicted_ = false;
 
-    void OnLayerEvicted()
-    {
-        auto guard = Guard(SpinLock_);
-        Evicted_ = true;
-        if (ActiveCount_ == 0) {
-            ReleaseLayers(std::move(guard));
-        }
-    }
+    void OnLayerEvicted();
 
     void ReleaseLayers(TGuard<TSpinLock>&& guard)
     {
@@ -1181,11 +1185,9 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This dtor is defined after TPortoVolumeManager since it calls RemoveVolume.
-TVolumeState::~TVolumeState()
+// This method is defined after TPortoVolumeManager since it calls RemoveVolume.
+void TVolumeState::OnLayerEvicted()
 {
-    LOG_INFO("Destroying volume (VolumeId: %v)", VolumeMeta_.Id);
-
     std::vector<TArtifactKey> layerKeys;
     for (const auto& layerKey : VolumeMeta_.layer_artifact_keys()) {
         TArtifactKey key;
@@ -1195,7 +1197,12 @@ TVolumeState::~TVolumeState()
 
     auto volumeKey = TVolumeKey(std::move(layerKeys));
     Owner_->RemoveVolume(volumeKey);
-    Location_->RemoveVolume(VolumeMeta_.Id);
+
+    auto guard = Guard(SpinLock_);
+    Evicted_ = true;
+    if (ActiveCount_ == 0) {
+        ReleaseLayers(std::move(guard));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
