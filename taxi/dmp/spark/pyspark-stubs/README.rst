@@ -28,7 +28,7 @@ Motivation
 
    |Syntax completion|
 
-Usage
+Installation and usage
 -----
 
 Please note that the guidelines for distribution of type information is
@@ -52,14 +52,6 @@ Moreover:
     fallback directory that is always checked is
     shared/typehints/python3.5/ (or 3.6, etc.)
 
-You'll also need a type checker for example:
-
--  `Mypy <https://github.com/python/mypy>`__
--  `Pytype <https://github.com/google/pytype/>`__
-
-Installation
-------------
-
 Please check usage before proceeding.
 
 The package is available on PYPI:
@@ -68,8 +60,14 @@ The package is available on PYPI:
 
     pip install pyspark-stubs
 
-In general package is useful only in development, and the shouldn't be
-installed in a production environment.
+
+Depending on your environment you might also need a type checker, like `Mypy <https://github.com/python/mypy>`__
+or `Pytype <https://github.com/google/pytype/>`__.
+
+- `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy.
+- `Atom <https://atom.io/>`__ - Requires `atom-mypy <https://atom.io/packages/atom-mypy>`__ or equivalent.
+- `Jupyter Notebooks <https://jupyter.org/>`__ - `It is possible <http://journalpanic.com/post/spice-up-thy-jupyter-notebooks-with-mypy/>`__ to use magics to type check directly in the notebook.
+- Environment independent - Just use your favorite checker directly, optionally combined with tool like `entr <http://www.entrproject.org/>`__.
 
 Version Compatibility
 ---------------------
