@@ -761,6 +761,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 }
 
 const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
+    const TInstant& commitStartTime,
     TMutationRequest&& request,
     TSharedRef* recordData,
     TFuture<void>* localFlushResult,
@@ -775,7 +776,7 @@ const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
     PendingMutations_.emplace(
         LoggedVersion_,
         std::move(request),
-        GetInstant(),
+        commitStartTime,
         RandomNumber<ui64>());
     const auto& pendingMutation = PendingMutations_.back();
 
