@@ -20,17 +20,17 @@ import datetime
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestCypressCommands(object):
     def test_ypath(self):
-        path = yt.TablePath("<append=false;sort-by=[key]>//my/table")
+        path = yt.TablePath("<append=%false;sort-by=[key]>//my/table")
         assert str(path) == "//my/table"
         assert repr(path).endswith("//my/table")
         assert not path.append
-        assert path.attributes == {"append": "false", "sort_by": ["key"]}
+        assert path.attributes == {"append": False, "sort_by": ["key"]}
 
-        path = yt.TablePath("<append=false;sort-by=[key]>//my/table", append=True, attributes={"sort_by": ["subkey"]})
+        path = yt.TablePath("<append=%false;sort-by=[key]>//my/table", append=True, attributes={"sort_by": ["subkey"]})
         assert str(path) == "//my/table"
         assert repr(path).endswith("//my/table")
         assert path.append
-        assert path.attributes == {"append": "true", "sort_by": ["subkey"]}
+        assert path.attributes == {"append": True, "sort_by": ["subkey"]}
 
         path = yt.TablePath("#123", ranges=[])
         assert str(path) == "#123"

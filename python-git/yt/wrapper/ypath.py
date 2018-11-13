@@ -1,5 +1,5 @@
 from .etc_commands import parse_ypath
-from .common import flatten, bool_to_string, parse_bool, update, require
+from .common import flatten, parse_bool, update, require
 from .errors import YtError
 from .config import get_config
 
@@ -221,7 +221,7 @@ class YPathSupportingAppend(YPath):
     def append(self, value):
         self._append = value
         if self._append is not None:
-            self.attributes["append"] = bool_to_string(self._append)
+            self.attributes["append"] = self._append
         else:
             if "append" in self.attributes:
                 del self.attributes["append"]

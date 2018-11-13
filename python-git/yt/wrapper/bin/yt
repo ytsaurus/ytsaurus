@@ -5,7 +5,7 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
+from yt.wrapper.common import parse_bool, chunk_iter_stream, update, get_value, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
@@ -399,7 +399,7 @@ def write_file(**args):
     func_args.pop("executable")
     yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
     if args["executable"]:
-        yt.set(args["destination"] + "/@executable", bool_to_string(True))
+        yt.set(args["destination"] + "/@executable", True)
 
 def add_compressed_arg(parser):
     parser.add_argument("--compressed", action="store_true", dest="is_stream_compressed",
@@ -1346,7 +1346,7 @@ def main():
         yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
         yt.config["prefix"] = config_args.prefix
-    yt.config.COMMAND_PARAMS["trace"] = bool_to_string(config_args.trace)
+    yt.config.COMMAND_PARAMS["trace"] = config_args.trace
     yt.config.update_config(config_args.config)
 
     yt.config["default_value_of_raw_option"] = True

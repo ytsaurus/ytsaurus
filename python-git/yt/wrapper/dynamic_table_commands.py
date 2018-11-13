@@ -1,6 +1,6 @@
 from .driver import make_request
 from .table_helpers import _prepare_command_format, _to_chunk_stream
-from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
+from .common import set_param, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
 from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted
@@ -124,9 +124,9 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "input_row_limit", input_row_limit)
     set_param(params, "output_row_limit", output_row_limit)
     set_param(params, "range_expansion_limit", range_expansion_limit)
-    set_param(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
-    set_param(params, "verbose_logging", verbose_logging, transform=bool_to_string)
-    set_param(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
+    set_param(params, "fail_on_incomplete_result", fail_on_incomplete_result)
+    set_param(params, "verbose_logging", verbose_logging)
+    set_param(params, "enable_code_cache", enable_code_cache)
     set_param(params, "max_subqueries", max_subqueries)
     set_param(params, "workload_descriptor", workload_descriptor)
     set_param(params, "allow_full_scan", allow_full_scan)
@@ -168,8 +168,8 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     params = {}
     params["path"] = table
     params["input_format"] = format.to_yson_type()
-    set_param(params, "update", update, transform=bool_to_string)
-    set_param(params, "aggregate", aggregate, transform=bool_to_string)
+    set_param(params, "update", update)
+    set_param(params, "aggregate", aggregate)
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
@@ -265,7 +265,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     params["output_format"] = format.to_yson_type()
     set_param(params, "timestamp", timestamp)
     set_param(params, "column_names", column_names)
-    set_param(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
+    set_param(params, "keep_missing_rows", keep_missing_rows)
 
     input_data = b"".join(_to_chunk_stream(
         input_stream,

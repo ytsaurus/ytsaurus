@@ -1,6 +1,6 @@
 import yt.logger as logger
 from .config import get_config, get_option, get_backend_type
-from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value
+from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
@@ -366,7 +366,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
         real_destination = find_free_subpath(prefix, client=client)
         attributes = {
             "hash": hash,
-            "touched": bool_to_string(True),
+            "touched": True,
             "replication_factor": replication_factor
         }
 
@@ -377,7 +377,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
                client=client)
         write_file(real_destination, open(filename, "rb"), force_create=False, client=client)
         link(real_destination, destination, recursive=True, ignore_existing=True,
-             attributes={"touched": bool_to_string(True)}, client=client)
+             attributes={"touched": True}, client=client)
 
     return destination
 
@@ -508,7 +508,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
         try:
             set_attribute(destination, "file_name", yt_filename, client=client)
-            set_attribute(destination, "executable", bool_to_string(executable), client=client)
+            set_attribute(destination, "executable", executable, client=client)
         except YtResponseError as error:
             if error.is_concurrent_transaction_lock_conflict() and ignore_set_attributes_error:
                 pass
@@ -518,4 +518,4 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     return to_yson_type(
         destination,
         {"file_name": yt_filename,
-         "executable": bool_to_string(executable)})
+         "executable": executable})

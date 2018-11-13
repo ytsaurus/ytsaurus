@@ -2,7 +2,7 @@ from .batch_helpers import batch_apply
 from .batch_response import apply_function_to_result
 from .config import get_config
 from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
-                     get_value, unlist, get_started_by, bool_to_string,
+                     get_value, unlist, get_started_by,
                      parse_bool, is_prefix, require, YtError, update)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
@@ -134,7 +134,7 @@ class Finalizer(object):
             table = TablePath(table, client=self.client)
             table.attributes.clear()
             try:
-                spec = {"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job}
+                spec = {"combine_chunks": True, "data_size_per_job": data_size_per_job}
                 if "pool" in self.spec:
                     spec["pool"] = self.spec["pool"]
                 run_merge(source_table=table, destination_table=table, mode=mode, spec=spec, client=self.client)
@@ -544,9 +544,9 @@ class UserJobSpecBuilder(object):
         spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
                                                               input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
-                        bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
+                        get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
         spec.setdefault("check_input_fully_consumed",
-                        bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"]))
+                        get_config(client)["yamr_mode"]["check_input_fully_consumed"])
         spec = self._prepare_tmpfs(spec, tmpfs_size, disk_size, client)
         spec = self._prepare_memory_limit(spec, client)
         return spec
@@ -1072,9 +1072,6 @@ class MapSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, client=client)
-        if "ordered" in spec:
-            spec["ordered"] = bool_to_string(spec["ordered"])
-
         self._prepare_spec(spec, client=client)
 
     def build(self, client=None):
