@@ -258,6 +258,25 @@ public:
             .Run(operations);
     }
 
+    TFuture<TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetProgressAttributeKeys());
+        batchReq->AddRequest(req);
+
+        return batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            auto batchRsp = batchRspOrError
+                .ValueOrThrow();
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+            return TYsonString(rsp.Value()->value());
+        }));
+    }
+
     void AttachJobContext(
         const TYPath& path,
         const TChunkId& chunkId,
@@ -1383,7 +1402,7 @@ private:
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");
-                    
+
             operation->SetShouldFlushAcl(false);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -1682,6 +1701,11 @@ TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operatio
 TFuture<void> TMasterConnector::FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
 {
     return Impl_->FetchOperationRevivalDescriptors(operations);
+}
+
+TFuture<TYsonString> TMasterConnector::GetOperationNodeProgressAttributes(const TOperationPtr& operation)
+{
+    return Impl_->GetOperationNodeProgressAttributes(operation);
 }
 
 void TMasterConnector::AttachJobContext(

@@ -39,6 +39,7 @@ struct TArchiveOperationRequest
     void InitializeFromOperation(const TOperationPtr& operation);
 
     static const std::vector<TString>& GetAttributeKeys();
+    static const std::vector<TString>& GetProgressAttributeKeys();
     void InitializeFromAttributes(const NYTree::IAttributeDictionary& attributes);
 };
 
