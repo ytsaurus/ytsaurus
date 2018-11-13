@@ -26,12 +26,6 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
     Y_ASSERT(future);
     Y_ASSERT(invoker);
 
-    // Fast path.
-    auto maybeResult = future.TryGet();
-    if (maybeResult) {
-        return *maybeResult;
-    }
-
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
         TMemoryTagGuard guard(NullMemoryTag);
