@@ -21,6 +21,7 @@ from yt.packages.six import iteritems, PY3, text_type, Iterator
 from yt.packages.six.moves import xrange, map as imap
 
 import codecs
+import collections
 import errno
 import fcntl
 import logging
@@ -38,7 +39,7 @@ except ImportError:
 logger = logging.getLogger("Yt.local")
 
 def _dump_netstat(dump_file_path):
-    logger.info("Dumping netstat to file '{}'".format(dump_file_path))
+    logger.info("Dumping netstat to the file '{}'".format(dump_file_path))
     with open(dump_file_path, "wb") as dump_file:
         subprocess.check_call(["netstat", "-v", "-p", "-a", "-ee"], stdout=dump_file)
 
@@ -102,7 +103,10 @@ class OpenPortIterator(Iterator):
         return self._is_port_free_for_inet(port, socket.AF_INET, verbose) and \
             self._is_port_free_for_inet(port, socket.AF_INET6, verbose)
 
-    def _next_impl(self, verbose):
+    def _next_impl(self, verbose, error_counter=None):
+        if error_counter is None:
+            error_counter = collections.Counter()
+
         port = None
         if self.local_port_range is not None and self.local_port_range[0] - self.START_PORT > 1000:
             port_range = (self.START_PORT, self.local_port_range[0] - 1)
@@ -113,6 +117,8 @@ class OpenPortIterator(Iterator):
             port_value = self._random_generator.randint(*port_range)
             if self._is_port_free(port_value, verbose):
                 port = port_value
+            else:
+                error_counter["is_port_free"] += 1
         else:
             if verbose:
                 logger.info("Generating port by binding to zero port")
@@ -125,11 +131,14 @@ class OpenPortIterator(Iterator):
                 sock.close()
             if self._is_port_free(port_value, verbose):
                 port = port_value
+            else:
+                error_counter["is_port_free"] += 1
 
         if port is None:
             return None
 
         if port in self.busy_ports:
+            error_counter["busy_port"] += 1
             return None
 
         if self.port_locks_path is not None:
@@ -139,6 +148,7 @@ class OpenPortIterator(Iterator):
                 lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
                 fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except IOError:
+                error_counter["lock_file"] += 1
                 if verbose:
                     logger.exception(
                         "Exception occurred while trying to lock port path '{}'".format(lock_path)
@@ -159,19 +169,17 @@ class OpenPortIterator(Iterator):
         return port
 
     def __next__(self):
+        error_counter = collections.Counter()
         for _ in xrange(self.GEN_PORT_ATTEMPTS):
-            port = self._next_impl(verbose=False)
+            port = self._next_impl(verbose=False, error_counter=error_counter)
             if port is not None:
                 return port
         else:
-            logger.warning(
-                "Failed to generate open port after {0} attempts. "
-                "Trying to infer reasons via verbose invocation:".format(
-                    self.GEN_PORT_ATTEMPTS
-                )
-            )
+            logger.warning("Failed to generate open port after %d attempts", self.GEN_PORT_ATTEMPTS)
             logger.warning("Number of port files: %d", len(os.listdir(self.port_locks_path)))
+            logger.warning("Error counts: %s", dict(error_counter))
 
+            logger.warning("Trying to infer reasons via verbose invocation:")
             self._next_impl(verbose=True)
 
             if self.port_locks_path is not None:
