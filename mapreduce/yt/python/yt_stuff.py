@@ -440,10 +440,6 @@ class YtStuff(object):
                     info = yson.load(f)
                 self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
 
-            rpc_proxy_config_file = os.path.join(self.yt_work_dir, self.yt_id, "configs", "rpc-client.yson")
-            if os.path.exists(rpc_proxy_config_file):
-                with open(rpc_proxy_config_file) as f:
-                    self.yt_rpc_proxy = yson.load(f)["addresses"][0]
             self.cluster_config = dict()
             with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "master-0-0.yson")) as f:
                 v = yson.load(f)
@@ -485,9 +481,6 @@ class YtStuff(object):
 
     def get_server(self):
         return "localhost:%d" % self.yt_proxy_port
-
-    def get_rpc_proxy(self):
-        return self.yt_rpc_proxy
 
     def get_cluster_config(self):
         return self.cluster_config

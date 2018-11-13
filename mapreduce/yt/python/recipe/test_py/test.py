@@ -13,4 +13,3 @@ def test():
     yt.wrapper.create_table("//tmp/table")
 
     assert yt.wrapper.exists("//tmp/table")
-    assert "YT_RPC_PROXY" in os.environ
