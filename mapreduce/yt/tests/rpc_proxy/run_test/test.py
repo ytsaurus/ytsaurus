@@ -16,7 +16,7 @@ def test(yt_stuff, test_name):
         with open(stderr_file_name, 'w') as stderr_file:
             yatest.common.execute(
                 [BINARY_PATH,  test_name],
-                env={"YT_RPC_PROXY": yt_stuff.get_rpc_proxy()}, stderr=stderr_file)
+                env={"YT_PROXY": yt_stuff.get_server()}, stderr=stderr_file)
     except:
         with open(stderr_file_name) as inf:
             sys.stderr.write(inf.read())

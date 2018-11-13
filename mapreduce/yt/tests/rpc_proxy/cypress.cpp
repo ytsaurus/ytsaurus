@@ -17,14 +17,9 @@ using namespace NYT::NNet;
 
 IClientPtr CreateTestRpcClient()
 {
-    auto proxyAddress = GetEnv("YT_RPC_PROXY");
-    if (!proxyAddress) {
-        THROW_ERROR_EXCEPTION("YT_RPC_PROXY environment variable is not set");
-    }
-
     auto connectionConfig = New<NRpcProxy::TConnectionConfig>();
     connectionConfig->SetDefaults();
-    connectionConfig->Addresses.push_back(proxyAddress);
+    connectionConfig->ClusterUrl = GetEnv("YT_PROXY");
 
     TClientOptions clientOptions;
     auto connection = NRpcProxy::CreateConnection(connectionConfig);

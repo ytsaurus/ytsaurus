@@ -36,7 +36,6 @@ def start(args, yt_config=None):
         f.write(str(yt.yt_proxy_port))
 
     set_env("YT_PROXY", "localhost:" + str(yt.yt_proxy_port))
-    set_env("YT_RPC_PROXY", yt.yt_rpc_proxy)
 
     return yt
 
