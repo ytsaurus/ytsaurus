@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
+from .common import parse_bool, flatten, get_value, YtError, set_param
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
@@ -81,9 +81,9 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
     params = {
         "path": YPath(path, client=client),
         "input_format": format.to_yson_type(),
-        "recursive": bool_to_string(recursive),
     }
-    set_param(params, "force", force, bool_to_string)
+    set_param(params, "recursive", recursive)
+    set_param(params, "force", force)
 
     return _make_transactional_request(
         "set",
@@ -113,11 +113,11 @@ def copy(source_path, destination_path,
               "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
-    set_param(params, "recursive", recursive, bool_to_string)
-    set_param(params, "force", force, bool_to_string)
-    set_param(params, "preserve_account", preserve_account, bool_to_string)
-    set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
-    set_param(params, "preserve_creation_time", preserve_creation_time, bool_to_string)
+    set_param(params, "recursive", recursive)
+    set_param(params, "force", force)
+    set_param(params, "preserve_account", preserve_account)
+    set_param(params, "preserve_expiration_time", preserve_expiration_time)
+    set_param(params, "preserve_creation_time", preserve_creation_time)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path,
@@ -138,10 +138,10 @@ def move(source_path, destination_path,
               "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
-    set_param(params, "recursive", recursive, bool_to_string)
-    set_param(params, "force", force, bool_to_string)
-    set_param(params, "preserve_account", preserve_account, bool_to_string)
-    set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
+    set_param(params, "recursive", recursive)
+    set_param(params, "force", force)
+    set_param(params, "preserve_account", preserve_account)
+    set_param(params, "preserve_expiration_time", preserve_expiration_time)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 class _ConcatenateRetrier(Retrier):
@@ -205,9 +205,10 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
     params = {
         "target_path": YPath(target_path, client=client),
         "link_path": YPath(link_path, client=client),
-        "recursive": bool_to_string(recursive),
-        "ignore_existing": bool_to_string(ignore_existing),
-        "force": bool_to_string(force)}
+        }
+    set_param(params, "recursive", recursive)
+    set_param(params, "ignore_existing", ignore_existing)
+    set_param(params, "force", force)
     set_param(params, "attributes", attributes)
     return _make_formatted_transactional_request(
         "link",
@@ -295,14 +296,12 @@ def remove(path, recursive=False, force=False, client=None):
 
     .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#remove>`_
     """
-    return _make_transactional_request(
-        "remove",
-        {
-            "path": YPath(path, client=client),
-            "recursive": bool_to_string(recursive),
-            "force": bool_to_string(force)
-        },
-        client=client)
+    params = {
+        "path": YPath(path, client=client),
+    }
+    set_param(params, "recursive", recursive)
+    set_param(params, "force", force)
+    return _make_transactional_request("remove", params, client=client)
 
 def create(type, path=None, recursive=False, ignore_existing=False, force=None, attributes=None, client=None):
     """Creates Cypress node.
@@ -318,11 +317,11 @@ def create(type, path=None, recursive=False, ignore_existing=False, force=None, 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params = {
         "type": type,
-        "recursive": bool_to_string(recursive),
-        "ignore_existing": bool_to_string(ignore_existing),
     }
+    set_param(params, "recursive", recursive)
+    set_param(params, "ignore_existing", ignore_existing)
     set_param(params, "attributes", attributes)
-    set_param(params, "force", force, bool_to_string)
+    set_param(params, "force", force)
     if path is not None:
         params["path"] = YPath(path, client=client)
     return _make_formatted_transactional_request("create", params, format=None, client=client)

@@ -838,7 +838,7 @@ Examples:
         yt.mkdir(yt.ypath_dirname(args.upload))
         yt.write_file(args.upload, get_binary_std_stream(sys.stdin))
         if args.executable:
-            yt.set_attribute(args.upload, "executable", bool_to_string(True))
+            yt.set_attribute(args.upload, "executable", True)
     if args.download is not None:
         if yt.exists(args.download):
             write_silently(chunk_iter_stream(yt.read_file(args.download), 16 * MB))
