@@ -33,6 +33,8 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const char* MissingCustomProfilingTag = "missing";
+
 TTagId GetCustomProfilingTag(const TString& tagName)
 {
     static THashMap<TString, TTagId> tagNameToTagIdMap;
@@ -1935,7 +1937,14 @@ TNullable<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
     }
 
     auto tagName = Spec_->CustomProfilingTag;
-    const auto allowedProfilingTags = GetParent()->GetAllowedProfilingTags();
+    THashSet<TString> allowedProfilingTags;
+    auto parent = GetParent();
+    while (parent) {
+        for (const auto& tag : parent->GetAllowedProfilingTags()) {
+            allowedProfilingTags.insert(tag);
+        }
+        parent = parent->GetParent();
+    }
     if (tagName && (
             allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
             (TreeConfig_->CustomProfilingTagFilter && NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter))
@@ -1947,7 +1956,7 @@ TNullable<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
     if (tagName) {
         return NScheduler::GetCustomProfilingTag(*tagName);
     } else {
-        return Null;
+        return NScheduler::GetCustomProfilingTag(MissingCustomProfilingTag);
     }
 }
 
