@@ -24,9 +24,9 @@ Motivation
 
    |SPARK-20631|
 
-
-
 -  Improved completion for chained method calls.
+
+   |Syntax completion|
 
 Usage
 -----
@@ -284,3 +284,5 @@ sponsored by The Apache Software Foundation.
    :target: https://badge.fury.io/py/pyspark-stubs
 .. |SPARK-20631| image:: https://i.imgur.com/GfDCGjv.gif
      :alt: SPARK-20631
+.. |Syntax completion| image:: https://i.imgur.com/qvkLTAp.gif
+     :alt: Syntax completion
