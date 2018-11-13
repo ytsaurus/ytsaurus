@@ -61,8 +61,6 @@ class OpenPortIterator(Iterator):
                 start, end = list(imap(int, f.read().split()))
                 self.local_port_range = start, min(end, start + 10000)
 
-        random.seed()
-
     def release_locks(self):
         for lock_path, lock_fd in self.lock_fds:
             try:
