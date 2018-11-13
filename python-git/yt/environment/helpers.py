@@ -1,3 +1,5 @@
+from yt.wrapper.common import generate_uuid
+
 from yt.common import to_native_str, YtError, which
 
 # COMPAT for tests.
@@ -174,7 +176,7 @@ class OpenPortIterator(Iterator):
 
             if self.port_locks_path is not None:
                 try:
-                    _dump_netstat(os.path.join(self.port_locks_path, "netstat"))
+                    _dump_netstat(os.path.join(self.port_locks_path, "netstat-" + generate_uuid()))
                 except:
                     logger.exception("Exception occurred while dumping netstat")
 
