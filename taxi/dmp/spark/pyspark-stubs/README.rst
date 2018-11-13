@@ -29,7 +29,7 @@ Motivation
    |Syntax completion|
 
 Installation and usage
------
+----------------------
 
 Please note that the guidelines for distribution of type information is
 still work in progress (`PEP 561 - Distributing and Packaging Type
