@@ -225,7 +225,10 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
             const IRequestPtr& req,
             const IResponseWriterPtr& rsp)
         {
-            if (req->GetUrl().Path == "/" || req->GetUrl().Path == "/ui") {
+            if (req->GetUrl().Path == "/auth" || req->GetUrl().Path == "/auth/") {
+                rsp->SetStatus(EStatusCode::SeeOther);
+                rsp->GetHeaders()->Add("Location", "https://oauth.yt.yandex.net");
+            } else if (req->GetUrl().Path == "/" || req->GetUrl().Path == "/ui") {
                 rsp->SetStatus(EStatusCode::SeeOther);
                 rsp->GetHeaders()->Add("Location", config->UIRedirectUrl + "?" + req->GetUrl().RawQuery);
             } else {
