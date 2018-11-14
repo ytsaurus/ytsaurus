@@ -1,6 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""\
+run-py-test.py -- run YT tests using binaries built with `yall' tool.
+
+It accepts all options of py.test (and it calls `exec pytest' after all).
+It also recognizes following environment variables:
+
+RUN_PY_TEST_SET_SUID_BIT
+    possible values: "1", "0"
+  Set suid bits for YT executables.
+
+YT_BUILD_PYTHON_VERSION 
+    possible values: "2.7", "3.4" (or any other python version that is installed on machine)
+  Use specified version of python to run tests.
+"""
+
 import os
 import sys
 import logging
@@ -24,12 +39,13 @@ def set_suid(ya_build):
         ):
             continue
         tmp_path = path + "-tmp"
-        # We detach file from ino
+        # Files in build directory are hardlinks to some stuff inside ~/.ya directory.
+        # We don't want change persmissions for this inodes, otherwise ya will go crazy.
+        # We detach these files from previous inodes by copying them.
         shutil.copy(path, tmp_path)
         os.rename(tmp_path, path)
         with open("/dev/null", "r") as inf:
             subprocess.check_call(["sudo", "-S", "chown", "root", path], stdin=inf)
-            # we set very permissive mode, so ya can remove this file
             subprocess.check_call(["sudo", "-S", "chmod", "4755", path], stdin=inf)
 
 def parse_bool(s):
@@ -49,7 +65,7 @@ def main():
         print >>sys.stderr, "ERROR occurred. Exiting..."
         exit(1)
 
-    if parse_bool(os.environ.get("RUN_PY_TEST_SET_SUID", "")):
+    if parse_bool(os.environ.get("RUN_PY_TEST_SET_SUID_BIT", "")):
         set_suid(ya_build)
 
     env = os.environ.copy()
@@ -65,6 +81,11 @@ def main():
     args = sys.argv[1:] + [env]
     build_python_version = os.environ.get("YT_BUILD_PYTHON_VERSION", "2.7")
     python = "python{}".format(build_python_version)
+    if sys.argv[1:2] in [["--help"], ["-h"]]:
+        print __doc__
+        print "PyTest Help"
+        print "==========="
+        sys.stdout.flush()
     os.execlpe(python, python, "-m", "pytest", *args)
 
 if __name__ == "__main__":
