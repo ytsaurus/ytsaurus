@@ -573,6 +573,9 @@ private:
                 GetStageTag("close_journal"));
 
             LOG_INFO("Journal closed");
+
+            UploadTransaction_->Detach();
+
             ClosedPromise_.TrySet(TError());
         }
 
