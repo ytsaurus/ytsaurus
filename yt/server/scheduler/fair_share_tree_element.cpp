@@ -2155,7 +2155,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     auto allocationLimits = GetAdjustedResourceLimits(
         ResourceDemand_,
         TotalResourceLimits_,
-        GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_));
+        GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
 
     auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
     auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);

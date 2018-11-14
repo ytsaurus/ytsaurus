@@ -34,6 +34,10 @@ extern const TSchedulingTagFilter EmptySchedulingTagFilter;
 bool operator==(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 bool operator!=(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 
+TSchedulingTagFilter operator&(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
+TSchedulingTagFilter operator|(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
+TSchedulingTagFilter operator!(const TSchedulingTagFilter& filter);
+
 void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter);
 void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter);
 

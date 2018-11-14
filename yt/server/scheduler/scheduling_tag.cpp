@@ -54,6 +54,21 @@ bool operator!=(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs
     return !(lhs.GetBooleanFormula() == rhs.GetBooleanFormula());
 }
 
+TSchedulingTagFilter operator&(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs)
+{
+    return TSchedulingTagFilter(lhs.GetBooleanFormula() & rhs.GetBooleanFormula());
+}
+
+TSchedulingTagFilter operator|(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs)
+{
+    return TSchedulingTagFilter(lhs.GetBooleanFormula() | rhs.GetBooleanFormula());
+}
+
+TSchedulingTagFilter operator!(const TSchedulingTagFilter& filter)
+{
+    return TSchedulingTagFilter(!filter.GetBooleanFormula());
+}
+
 void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter)
 {
     *protoFilter = filter.GetBooleanFormula().GetFormula();
