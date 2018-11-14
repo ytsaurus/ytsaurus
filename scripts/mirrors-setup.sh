@@ -130,6 +130,7 @@ configure_github_mirror pyinstaller-pyinstaller
 configure_github_mirror google-benchmark
 configure_github_mirror kennethreitz-requests
 configure_github_mirror google-brotli
+configure_github_mirror uqfoundation-dill
 configure_github_mirror kislyuk-argcomplete
 configure_github_mirror pympler-pympler
 configure_github_mirror cherrypy-cherrypy
@@ -142,3 +143,4 @@ configure_github_mirror terencehonles-fusepy
 configure_github_mirror tqdm-tqdm
 configure_github_mirror kxxoling-PTable
 configure_github_mirror nir0s-distro
+configure_github_mirror urllib3-urllib3
