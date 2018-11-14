@@ -905,13 +905,8 @@ public:
         const TLayerLocationPtr& location,
         const std::vector<TLayerPtr>& layers)
         : VolumeMeta_(meta)
-<<<<<<< HEAD
         , Owner_(owner)
         , Location_(location)
-=======
-        , Owner_(std::move(owner))
-        , Location_(std::move(location))
->>>>>>> 0d69a256a4... Fix volume cache eviction
         , Layers_(layers)
     {
         auto callback = BIND(&TVolumeState::OnLayerEvicted, MakeWeak(this));
