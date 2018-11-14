@@ -363,7 +363,7 @@ protected:
                 if (revision <= Revision_) {
                     DeleteTimestamps_.push_back(Store_->TimestampFromRevision(revision));
                     Y_ASSERT(DeleteTimestamps_.size() == 1 ||
-                            DeleteTimestamps_[DeleteTimestamps_.size() - 1] < DeleteTimestamps_[DeleteTimestamps_.size() - 2]);
+                            DeleteTimestamps_.back() < DeleteTimestamps_[DeleteTimestamps_.size() - 2]);
                 }
             }
         }

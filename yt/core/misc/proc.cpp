@@ -16,6 +16,7 @@
 
 #include <util/stream/file.h>
 
+#include <util/string/iterator.h>
 #include <util/string/vector.h>
 
 #include <util/system/info.h>
@@ -931,7 +932,7 @@ TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
     TNetworkInterfaceStatisticsMap interfaceToStatistics;
     for (TString line; procNetDev.ReadLine(line) != 0; ) {
         TNetworkInterfaceStatistics statistics;
-        auto lineParts = SplitStringBySet(line.data(), ": ");
+        TVector<TString> lineParts = StringSplitter(line).SplitBySet(": ").SkipEmpty();
         YCHECK(lineParts.size() == 1 + sizeof(TNetworkInterfaceStatistics) / sizeof(ui64));
         auto interfaceName = lineParts[0];
 
