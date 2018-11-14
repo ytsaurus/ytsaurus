@@ -34,6 +34,20 @@ CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "freezer"])
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
+# Used to configure driver logging exactly once per environment (as a set of YT instances).
+_environment_driver_logging_config = None
+
+def get_environment_driver_logging_config(default_config):
+    if _environment_driver_logging_config is None:
+        return default_config
+    return _environment_driver_logging_config
+
+def set_environment_driver_logging_config(config):
+    if config is None:
+        raise YtError("Could not set environment driver logging config to None")
+    global _environment_driver_logging_config
+    _environment_driver_logging_config = config
+
 class YtEnvRetriableError(YtError):
     pass
 
@@ -1024,7 +1038,9 @@ class YTInstance(object):
                           "yandex-yt-python-driver package (appropriate version: {0})"
                           .format(guessed_version))
 
-        yt_driver_bindings.configure_logging(self.driver_logging_config)
+        yt_driver_bindings.configure_logging(
+            get_environment_driver_logging_config(self.driver_logging_config)
+        )
 
         return YtClient(config=config)
 
