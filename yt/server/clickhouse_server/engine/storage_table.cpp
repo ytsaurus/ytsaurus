@@ -11,6 +11,7 @@
 #include <Common/typeid_cast.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTLiteral.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/queryToString.h>
@@ -106,10 +107,20 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
 {
     auto modifiedQueryAst = queryAst->clone();
 
-    ASTPtr tableFunction;
+    const auto& tableExpressions = GetAllTableExpressions(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
 
-    auto* tableExpression = GetFirstTableExpression(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
-    if (tableExpression) {
+    bool anyTableFunction = false;
+
+    for (const auto& tableExpression : tableExpressions) {
+        ASTPtr tableFunction;
+
+        if (tableExpression->database_and_table_name) {
+            const auto& tableName = static_cast<ASTIdentifier&>(*tableExpression->database_and_table_name).name;
+            if (tableName != getTableName()) {
+                continue;
+            }
+        }
+
         if (tableExpression->table_function) {
             auto& function = typeid_cast<ASTFunction &>(*tableExpression->table_function);
             if (function.name == "ytTable") {
@@ -123,15 +134,18 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
                 "ytTableData",
                 std::make_shared<ASTLiteral>(jobSpec));
         }
+
+        if (tableFunction) {
+            tableExpression->table_function = std::move(tableFunction);
+            tableExpression->database_and_table_name = nullptr;
+            tableExpression->subquery = nullptr;
+            anyTableFunction = true;
+        }
     }
 
-    if (!tableFunction) {
-        throw Exception("Invalid SelectQuery", queryToString(queryAst), ErrorCodes::LOGICAL_ERROR);
+    if (!anyTableFunction) {
+        throw Exception("Invalid SelectQuery, no table function produced", queryToString(queryAst), ErrorCodes::LOGICAL_ERROR);
     }
-
-    tableExpression->table_function = std::move(tableFunction);
-    tableExpression->database_and_table_name = nullptr;
-    tableExpression->subquery = nullptr;
 
     return modifiedQueryAst;
 }
