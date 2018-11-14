@@ -4,7 +4,16 @@
 import os
 import sys
 import logging
+import subprocess
 
+def set_suid(ya_build):
+    for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
+        path = os.path.join(ya_build, binary)
+        subprocess.check_call(["sudo", "chown", "root", path])
+        subprocess.check_call(["sudo", "chmod", "4755", path])
+
+def parse_bool(s):
+    return s.lower() in ["1", "true", "yes"]
 
 def main():
     this_file_path = os.path.realpath(__file__)
@@ -19,6 +28,9 @@ def main():
         print >>sys.stderr, "  https://wiki.yandex-team.ru/yt/internal/ya/"
         print >>sys.stderr, "ERROR occurred. Exiting..."
         exit(1)
+
+    if parse_bool(os.environ.get("RUN_PY_TEST_SET_SUID", "")):
+        set_suid(ya_build)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = "{python}:{yp_python}:{install_dir}:{env_pythonpath}".format(
