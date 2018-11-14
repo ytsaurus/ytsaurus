@@ -6,10 +6,9 @@ from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
 from yt.local.commands import _START_DEFAULTS, get_main_process_pid_file_path
 
-from yt.yson import YsonError
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
-import yt.wrapper.yson as yson
+import yt.yson as yson
 
 import argparse
 import logging
@@ -107,7 +106,7 @@ def start_func(**kwargs):
                 config = yson._loads_from_native_str(kwargs[arg_key])
                 if not isinstance(config, dict):
                     ok = False
-            except YsonError:
+            except yson.YsonError:
                 ok = False
             if ok:
                 kwargs[arg_key] = config
