@@ -91,6 +91,8 @@ public:
 
     TDuration ResourceAdjustmentPeriod;
 
+    i64 FreeMemoryWatermark;
+
     double CpuPerTabletSlot;
 
     int StartPort;
@@ -137,6 +139,10 @@ public:
 
         RegisterParameter("test_gpu", TestGpu)
             .Default(false);
+
+        RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
+            .Default(0)
+            .GreaterThanOrEqual(0);
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
