@@ -594,10 +594,10 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
 
     if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
     }
     if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId});
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
     }
 
     // NB: when job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
