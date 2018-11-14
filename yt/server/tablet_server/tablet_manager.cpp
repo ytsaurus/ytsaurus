@@ -178,6 +178,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraReassignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAbortPrerequisiteTransaction, Unretained(this)));
@@ -4132,6 +4133,21 @@ private:
         }
 
         ReconfigureCell(cell);
+    }
+
+    void HydraReassignPeers(TReqReassignPeers* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (auto& revocation : *request->mutable_revocations()) {
+            HydraRevokePeers(&revocation);
+        }
+
+        for (auto& assignment : *request->mutable_assignments()) {
+            HydraAssignPeers(&assignment);
+        }
+
+        // NB: Send individual revoke and assign requests to secondary masters to support old tablet tracker.
     }
 
     void HydraSetLeadingPeer(TReqSetLeadingPeer* request)
