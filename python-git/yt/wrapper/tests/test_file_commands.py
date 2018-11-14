@@ -135,6 +135,6 @@ class TestFileCommands(object):
 
             import yt.packages.requests as requests
             response = requests.get("http://{0}/api/v3/read_file".format(yt.config["proxy"]["url"]),
-                                    params={"path": file_path}, headers={"If-None-Match": revision})
+                                    params={"path": file_path}, headers={"If-None-Match": str(revision)})
             assert response.status_code == 304
 
