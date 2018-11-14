@@ -4,13 +4,33 @@
 import os
 import sys
 import logging
+import shutil
+import stat
 import subprocess
 
 def set_suid(ya_build):
+    expected_mode = (
+        stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+        | stat.S_IRGRP | stat.S_IXGRP
+        | stat.S_IROTH | stat.S_IXOTH
+        | stat.S_ISUID
+    )
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(ya_build, binary)
-        subprocess.check_call(["sudo", "chown", "root", path])
-        subprocess.check_call(["sudo", "chmod", "4755", path])
+        path_stat = os.stat(path)
+        if (
+            path_stat.st_uid == 0
+            and (path_stat.st_mode & expected_mode) == expected_mode
+        ):
+            continue
+        tmp_path = path + "-tmp"
+        # We detach file from ino
+        shutil.copy(path, tmp_path)
+        os.rename(tmp_path, path)
+        with open("/dev/null", "r") as inf:
+            subprocess.check_call(["sudo", "-S", "chown", "root", path], stdin=inf)
+            # we set very permissive mode, so ya can remove this file
+            subprocess.check_call(["sudo", "-S", "chmod", "4755", path], stdin=inf)
 
 def parse_bool(s):
     return s.lower() in ["1", "true", "yes"]
