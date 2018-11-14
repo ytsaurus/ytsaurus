@@ -480,7 +480,7 @@ class TestLocalMode(object):
             finally:
                 self.yt_local("stop", env_id)
 
-            env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson.dumps(patch))
+            env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson._dumps_to_native_str(patch))
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
