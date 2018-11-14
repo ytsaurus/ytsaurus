@@ -998,6 +998,8 @@ void TBootstrap::UpdateFootprintMemoryUsage()
         }
         newFootprint -= GetMemoryUsageTracker()->GetUsed(memoryCategory);
     }
+    // Footprint cannot be less than value in config.
+    newFootprint = std::max(Config->FootprintMemorySize, newFootprint);
 
     auto oldFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
 

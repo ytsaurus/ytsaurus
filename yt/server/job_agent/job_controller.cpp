@@ -1171,7 +1171,7 @@ const TNodeMemoryTracker* TJobController::TImpl::GetSystemMemoryUsageTracker() c
     return Bootstrap_->GetMemoryUsageTracker();
 }
 
-i64 TJobController::GetUserJobsFreeMemoryWatermark() const
+i64 TJobController::TImpl::GetUserJobsFreeMemoryWatermark() const
 {
     return Bootstrap_->GetExecSlotManager()->ExternalJobMemory()
         ? 0
