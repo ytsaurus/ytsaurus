@@ -537,7 +537,7 @@ private:
         int blockCount = GetBlockCount(chunkId, *meta);
         while (currentBlockIndex < blockCount) {
 
-            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 currentBlockIndex,
@@ -569,7 +569,7 @@ private:
 
         LOG_DEBUG("All blocks are enqueued for replication");
 
-        WaitFor(writer->Close(*meta))
+        WaitFor(writer->Close(meta))
             .ThrowOnError();
     }
 

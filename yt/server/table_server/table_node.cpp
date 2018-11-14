@@ -580,7 +580,7 @@ void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
     const auto* trunkTable = GetTrunkNode();
     const auto& transactionId = trunkTable->GetLastMountTransactionId();
     if (transactionId) {
-        THROW_ERROR_EXCEPTION("%v since some tablets are in transient state", message)
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since some tablets are in transient state", message)
             << TErrorAttribute("last_mount_transaction_id", transactionId)
             << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
     }
@@ -593,7 +593,7 @@ void TTableNode::ValidateExpectedTabletState(TStringBuf message, bool allowFroze
     const auto* trunkTable = GetTrunkNode();
     auto state = trunkTable->GetExpectedTabletState();
     if (!(state == ETabletState::Unmounted || (allowFrozen && state == ETabletState::Frozen))) {
-        THROW_ERROR_EXCEPTION("%v since not all tablets are %v",
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since not all tablets are %v",
             message,
             allowFrozen ? "frozen or unmounted" : "unmounted")
             << TErrorAttribute("actual_tablet_state", trunkTable->GetActualTabletState())

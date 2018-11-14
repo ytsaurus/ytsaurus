@@ -28,9 +28,6 @@ using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NConcurrency;
 
-using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::NProto::TBlocksExt;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;

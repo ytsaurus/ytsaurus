@@ -15,6 +15,7 @@ namespace NProto {
 class TChunkInfo;
 class TChunkSpec;
 class TChunkMeta;
+class TBlocksExt;
 class TMiscExt;
 
 class TDataStatistics;

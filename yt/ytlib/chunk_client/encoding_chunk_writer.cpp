@@ -61,7 +61,7 @@ void TEncodingChunkWriter::Close()
     MiscExt_.set_creation_time(TInstant::Now().GetValue());
     SetProtoExtension(Meta_.mutable_extensions(), MiscExt_);
 
-    WaitFor(ChunkWriter_->Close(Meta_))
+    WaitFor(ChunkWriter_->Close(New<TRefCountedChunkMeta>(Meta_)))
         .ThrowOnError();
 
     Closed_ = true;

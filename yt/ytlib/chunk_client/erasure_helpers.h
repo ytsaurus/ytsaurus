@@ -183,9 +183,9 @@ class TErasureChunkReaderBase
 public:
     TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
-    virtual TFuture<NProto::TChunkMeta> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        const TNullable<int>& partitionTag,
+        TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override;

@@ -287,7 +287,7 @@ void TBootstrap::DoRun()
         createBatchingChunkService(config);
     }
 
-    BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
+    BlobReaderCache = New<TBlobReaderCache>(Config->DataNode, this);
 
     JournalDispatcher = New<TJournalDispatcher>(Config->DataNode);
 

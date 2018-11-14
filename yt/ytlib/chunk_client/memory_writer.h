@@ -20,7 +20,7 @@ public:
     virtual bool WriteBlock(const TBlock& block) override;
     virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
     virtual TFuture<void> GetReadyEvent() override;
-    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;
 
     //! Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
@@ -37,14 +37,14 @@ public:
     //! Can only be called after the writer is closed.
     std::vector<TBlock>& GetBlocks();
     //! Can only be called after the writer is closed.
-    NProto::TChunkMeta& GetChunkMeta();
+    TRefCountedChunkMetaPtr GetChunkMeta();
 
 private:
     bool Open_ = false;
     bool Closed_ = false;
 
     std::vector<TBlock> Blocks_;
-    NProto::TChunkMeta ChunkMeta_;
+    TRefCountedChunkMetaPtr ChunkMeta_;
 
 };
 

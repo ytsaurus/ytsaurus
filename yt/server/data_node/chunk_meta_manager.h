@@ -59,19 +59,22 @@ public:
 
     ~TChunkMetaManager();
 
+    //! Returns cached chunk meta if prevent in the cache; if not then returns null.
+    NChunkClient::TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId);
+
     //! Puts chunk meta into the cache.
     /*!
      *  Typically invoked when chunk session finishes and the meta is ready at hand.
      */
     void PutCachedMeta(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta);
 
     //! Starts an asynchronous chunk meta load.
     /*!
      *  See TAsyncCacheValueBase for more details.
      */
-    TCachedChunkMetaCookie BeginInsertCachedMeta(const TChunkId& chunkId);
+    TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId);
 
 private:
     class TImpl;

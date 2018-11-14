@@ -9,8 +9,10 @@
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/io_engine.h>
 
 #include <yt/core/erasure/codec.h>
+
 #include <yt/core/misc/checksum.h>
 
 #include <util/stream/file.h>
@@ -24,6 +26,8 @@
 namespace NYT {
 namespace NErasure {
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -220,9 +224,9 @@ public:
             writers.push_back(NYT::New<TFileWriter>(ioEngine, NullChunkId, filename));
         }
 
-        NChunkClient::NProto::TChunkMeta meta;
-        meta.set_type(1);
-        meta.set_version(1);
+        auto meta = New<TRefCountedChunkMeta>();
+        meta->set_type(1);
+        meta->set_version(1);
 
         i64 dataSize = 0;
         auto erasureWriter = CreateErasureWriter(

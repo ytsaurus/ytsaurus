@@ -201,7 +201,7 @@ public:
         return hasSickReplicas;
     }
 
-    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -226,7 +226,7 @@ private:
     TParityPartSplitInfo ParityPartSplitInfo_;
 
     // Chunk meta with information about block placement
-    NProto::TChunkMeta ChunkMeta_;
+    const TRefCountedChunkMetaPtr ChunkMeta_ = New<TRefCountedChunkMeta>();
     NProto::TErasurePlacementExt PlacementExt_;
     NProto::TChunkInfo ChunkInfo_;
 
@@ -283,7 +283,7 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
     PlacementExt_.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
     PlacementExt_.mutable_part_checksums()->Resize(Codec_->GetTotalPartCount(), NullChecksum);
 
-    ChunkMeta_ = chunkMeta;
+    ChunkMeta_->CopyFrom(chunkMeta);
 }
 
 void TErasureWriter::DoOpen()
@@ -395,12 +395,12 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
     .Run();
 }
 
-TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
+TFuture<void> TErasureWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 {
     YCHECK(IsOpen_);
 
     PrepareBlocks();
-    PrepareChunkMeta(chunkMeta);
+    PrepareChunkMeta(*chunkMeta);
 
     auto compressionInvoker = CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
@@ -425,9 +425,9 @@ void TErasureWriter::OnWritten()
 {
     std::vector<TFuture<void>> asyncResults;
 
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), PlacementExt_);
+    SetProtoExtension(ChunkMeta_->mutable_extensions(), PlacementExt_);
 
-    for (auto& writer : Writers_) {
+    for (const auto& writer : Writers_) {
         asyncResults.push_back(writer->Close(ChunkMeta_));
     }
 
@@ -435,7 +435,7 @@ void TErasureWriter::OnWritten()
         .ThrowOnError();
 
     i64 diskSpace = 0;
-    for (auto writer : Writers_) {
+    for (const auto& writer : Writers_) {
         diskSpace += writer->GetChunkInfo().disk_space();
     }
     ChunkInfo_.set_disk_space(diskSpace);

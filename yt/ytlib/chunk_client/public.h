@@ -145,6 +145,9 @@ class TReadLimit;
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
+using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
+
 using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
@@ -158,6 +161,8 @@ struct TClientBlockReadOptions;
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 using TDataCenterName = TNullable<TString>;
+
+struct IBlocksExtCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
