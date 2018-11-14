@@ -1902,7 +1902,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
-        Save(context, chunkWriter->GetChunkMeta());
+        Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
         LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
@@ -1920,16 +1920,16 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     if (Load<bool>(context)) {
-        auto chunkMeta = Load<TChunkMeta>(context);
+        auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
-        auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
-
-        TClientBlockReadOptions blockReadOptions;
+        auto chunkReader = CreateMemoryReader(
+            std::move(chunkMeta),
+            TBlock::Wrap(blocks));
 
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
-            blockReadOptions,
+            TClientBlockReadOptions(),
             Schema_,
             {} /* ColumnRenameDescriptors */,
             MemoryTracker_);
@@ -1951,7 +1951,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             std::move(chunkState),
             std::move(cachedMeta),
-            blockReadOptions,
+            TClientBlockReadOptions(),
             MinKey(),
             MaxKey(),
             TColumnFilter(),

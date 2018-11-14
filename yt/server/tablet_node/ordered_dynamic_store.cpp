@@ -340,7 +340,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
-        Save(context, chunkWriter->GetChunkMeta());
+        Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
         LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
@@ -358,7 +358,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     if (Load<bool>(context)) {
-        auto chunkMeta = Load<TChunkMeta>(context);
+        auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
         auto chunkState = New<TChunkState>(
@@ -369,10 +369,12 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             nullptr,
             nullptr);
 
-        auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
+        auto chunkReader = CreateMemoryReader(
+            chunkMeta,
+            TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
             std::move(chunkState),
-            New<TColumnarChunkMeta>(chunkMeta),
+            New<TColumnarChunkMeta>(*chunkMeta),
             New<TChunkReaderConfig>(),
             chunkReader,
             TClientBlockReadOptions(),

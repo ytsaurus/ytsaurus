@@ -59,8 +59,14 @@ public:
         YCHECK(Bootstrap_);
     }
 
+    TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId)
+    {
+        auto cachedMeta = Find(chunkId);
+        return cachedMeta ? cachedMeta->GetMeta() : nullptr;
+    }
+
     void PutCachedMeta(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TRefCountedChunkMetaPtr meta)
     {
         auto cookie = BeginInsert(chunkId);
@@ -79,7 +85,7 @@ public:
         }
     }
 
-    TCachedChunkMetaCookie BeginInsertCachedMeta(const TChunkId& chunkId)
+    TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId)
     {
         return BeginInsert(chunkId);
     }
@@ -105,17 +111,21 @@ TChunkMetaManager::TChunkMetaManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TChunkMetaManager::~TChunkMetaManager()
-{ }
+TChunkMetaManager::~TChunkMetaManager() = default;
+
+TRefCountedChunkMetaPtr TChunkMetaManager::FindCachedMeta(TChunkId chunkId)
+{
+    return Impl_->FindCachedMeta(chunkId);
+}
 
 void TChunkMetaManager::PutCachedMeta(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     TRefCountedChunkMetaPtr meta)
 {
     Impl_->PutCachedMeta(chunkId, std::move(meta));
 }
 
-TCachedChunkMetaCookie TChunkMetaManager::BeginInsertCachedMeta(const TChunkId& chunkId)
+TCachedChunkMetaCookie TChunkMetaManager::BeginInsertCachedMeta(TChunkId chunkId)
 {
     return Impl_->BeginInsertCachedMeta(chunkId);
 }

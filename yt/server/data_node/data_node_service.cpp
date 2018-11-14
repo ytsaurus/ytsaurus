@@ -204,7 +204,9 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-        const TChunkMeta* meta = request->has_chunk_meta() ? &request->chunk_meta() : nullptr;
+        auto meta = request->has_chunk_meta()
+            ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
+            : nullptr;
         session->Finish(meta, blockCount)
             .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
                 if (chunkOrError.IsOK()) {
@@ -475,7 +477,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
 
-            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockSet(
                 chunkId,
                 blockIndexes,
@@ -603,7 +605,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
 
-            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 firstBlockIndex,

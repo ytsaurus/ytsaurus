@@ -61,7 +61,7 @@ struct IInMemoryManager
 
     virtual void FinalizeChunk(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         const TTabletSnapshotPtr& tablet) = 0;
 
     virtual const TInMemoryManagerConfigPtr& GetConfig() const = 0;

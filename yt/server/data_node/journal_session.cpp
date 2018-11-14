@@ -61,8 +61,8 @@ void TJournalSession::DoCancel(const TError& /*error*/)
 }
 
 TFuture<IChunkPtr> TJournalSession::DoFinish(
-    const TChunkMeta* /*chunkMeta*/,
-    const TNullable<int>& blockCount)
+    const TRefCountedChunkMetaPtr& /*chunkMeta*/,
+    TNullable<int> blockCount)
 {
     auto changelog = Chunk_->GetAttachedChangelog();
     auto result = changelog->Close();

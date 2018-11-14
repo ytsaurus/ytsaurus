@@ -46,11 +46,11 @@ TFuture<void> TBlobSession::DoStart()
 }
 
 TFuture<IChunkPtr> TBlobSession::DoFinish(
-    const TChunkMeta* chunkMeta,
-    const TNullable<int>& blockCount)
+    const TRefCountedChunkMetaPtr& chunkMeta,
+    TNullable<int> blockCount)
 {
-    YCHECK(chunkMeta != nullptr);
     VERIFY_THREAD_AFFINITY(ControlThread);
+    YCHECK(chunkMeta);
 
     if (!blockCount) {
         THROW_ERROR_EXCEPTION("Attempt to finish a blob session %v without specifying block count",
@@ -75,7 +75,7 @@ TFuture<IChunkPtr> TBlobSession::DoFinish(
         }
     }
 
-    auto asyncResult = CloseWriter(*chunkMeta).Apply(
+    auto asyncResult = CloseWriter(chunkMeta).Apply(
         BIND(&TBlobSession::OnWriterClosed, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker()));
 
@@ -120,7 +120,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         memoryTrackerGuards.emplace_back(std::move(guardOrError.Value()));
     }
 
-    auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+    const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {
@@ -473,16 +473,16 @@ void TBlobSession::OnWriterAborted(const TError& error)
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
-TFuture<void> TBlobSession::CloseWriter(const TChunkMeta& chunkMeta)
+TFuture<void> TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return BIND(&TBlobSession::DoCloseWriter,MakeStrong(this), chunkMeta)
+    return BIND(&TBlobSession::DoCloseWriter, MakeStrong(this), chunkMeta)
         .AsyncVia(WriteInvoker_)
         .Run();
 }
 
-void TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
+void TBlobSession::DoCloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
 {
     // Thread affinity: WriterThread
 
@@ -528,7 +528,7 @@ IChunkPtr TBlobSession::OnWriterClosed(const TError& error)
         Bootstrap_,
         Location_,
         descriptor,
-        &Writer_->GetChunkMeta());
+        Writer_->GetChunkMeta());
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(chunk);

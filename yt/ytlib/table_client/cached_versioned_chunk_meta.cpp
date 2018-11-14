@@ -60,8 +60,8 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
 {
     auto chunkId = chunkReader->GetChunkId();
     return chunkReader->GetMeta(blockReadOptions)
-        .Apply(BIND([=] (const NChunkClient::NProto::TChunkMeta& chunkMeta) {
-            return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, renameDescriptors, memoryTracker);
+        .Apply(BIND([=] (const TRefCountedChunkMetaPtr& chunkMeta) {
+            return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, memoryTracker);
         }));
 }
 

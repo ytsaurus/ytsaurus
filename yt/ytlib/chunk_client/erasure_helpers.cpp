@@ -513,8 +513,8 @@ TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
         Null,
         std::vector<int>{
             TProtoExtensionTag<NProto::TErasurePlacementExt>::Value
-        }).Apply(BIND([] (const NProto::TChunkMeta& meta) {
-            return GetProtoExtension<NProto::TErasurePlacementExt>(meta.extensions());
+        }).Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
+            return GetProtoExtension<NProto::TErasurePlacementExt>(meta->extensions());
         }));
 }
 
@@ -606,9 +606,9 @@ TErasureChunkReaderBase::TErasureChunkReaderBase(
     , Readers_(readers)
 { }
 
-TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TErasureChunkReaderBase::GetMeta(
     const TClientBlockReadOptions& options,
-    const TNullable<int>& partitionTag,
+    TNullable<int> partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     YCHECK(!partitionTag);
@@ -619,7 +619,7 @@ TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
         }
     }
 
-    auto& reader = Readers_[RandomNumber(Readers_.size())];
+    const auto& reader = Readers_[RandomNumber(Readers_.size())];
     return reader->GetMeta(options, partitionTag, extensionTags);
 }
 

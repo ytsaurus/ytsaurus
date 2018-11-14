@@ -37,9 +37,8 @@ private:
     virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
     virtual void DoCancel(const TError& error) override;
     virtual TFuture<IChunkPtr> DoFinish(
-        const NChunkClient::NProto::TChunkMeta* chunkMeta,
-        const TNullable<int>& blockCount) override;
-
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
+        TNullable<int> blockCount) override;
 
     void OnFinished();
 };

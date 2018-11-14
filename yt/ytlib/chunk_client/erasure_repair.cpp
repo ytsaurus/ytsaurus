@@ -234,7 +234,7 @@ private:
         auto meta = WaitFor(reader->GetMeta(BlockReadOptions_))
             .ValueOrThrow();
 
-        // Validate repaired parts checksums
+        // Validate repaired parts checksums.
         if (placementExt.part_checksums_size() != 0) {
             YCHECK(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
 
