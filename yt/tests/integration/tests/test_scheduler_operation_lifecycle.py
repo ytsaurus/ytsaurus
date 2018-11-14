@@ -291,14 +291,15 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
 
-        # Waiting for updating pool settings.
-        time.sleep(0.6)
+        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools"
+        wait(lambda: exists(pools_path + "/fifo_pool"))
+        wait(lambda: get(pools_path + "/fifo_pool/mode") == "fifo")
 
         ops = []
         for i in xrange(1, 4):
             ops.append(
                 map(dont_track=True,
-                    command="sleep 0.3; cat >/dev/null",
+                    command="sleep 3; cat >/dev/null",
                     in_=["//tmp/in"],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool"}))
