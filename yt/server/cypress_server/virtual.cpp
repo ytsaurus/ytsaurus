@@ -440,7 +440,10 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
-    batchReq->SetSuppressUpstreamSync(true);
+
+    if (NeedSuppressUpstreamSync()) {
+        batchReq->SetSuppressUpstreamSync(true);
+    }
 
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
@@ -487,6 +490,11 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNu
         OwningNode_->WriteAttributesFragment(&writer, attributeKeys, false);
     }
     return writer.Finish();
+}
+
+bool TVirtualMulticellMapBase::NeedSuppressUpstreamSync() const
+{
+    return true;
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
