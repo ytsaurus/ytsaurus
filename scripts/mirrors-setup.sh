@@ -144,3 +144,5 @@ configure_github_mirror tqdm-tqdm
 configure_github_mirror kxxoling-PTable
 configure_github_mirror nir0s-distro
 configure_github_mirror urllib3-urllib3
+configure_github_mirror chardet-chardet
+configure_github_mirror kjd-idna
