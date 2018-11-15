@@ -1,5 +1,3 @@
-from yt.environment.yt_env import set_environment_driver_logging_config
-
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
 import yt_driver_bindings
@@ -55,9 +53,8 @@ def _get_driver(driver):
 def init_drivers(clusters):
     for instance in clusters:
         if instance.master_count > 0:
-            # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
-                set_environment_driver_logging_config(instance.driver_logging_config)
+                yt_driver_bindings.configure_logging(instance.driver_logging_config)
 
             prefix = "" if instance.driver_backend == "native" else "rpc_"
             secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
