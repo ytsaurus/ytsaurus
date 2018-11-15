@@ -349,20 +349,19 @@ size_t TCaseInsensitiveStringHasher::operator()(const TString& arg) const
     }
 }
 
-bool TCaseInsensitiveStringComparer::operator()(const TString& lhs, const TString& rhs) const
+bool TCaseInsensitiveStringEqualityComparer::operator()(const TString& lhs, const TString& rhs) const
 {
-    auto commonLength = std::min(lhs.length(), rhs.length());
-    for (size_t index = 0; index < commonLength; ++index) {
+    if (lhs.length() != rhs.length()) {
+        return false;
+    }
+    for (size_t index = 0; index < lhs.length(); ++index) {
         auto lhsChar = ToLower(lhs[index]);
         auto rhsChar = ToLower(rhs[index]);
-        if (lhsChar < rhsChar) {
-            return true;
-        }
-        if (lhsChar > rhsChar) {
+        if (lhsChar != rhsChar) {
             return false;
         }
     }
-    return lhs.length() < rhs.length();
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

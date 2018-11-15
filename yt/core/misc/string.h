@@ -335,7 +335,7 @@ struct TCaseInsensitiveStringHasher
     size_t operator()(const TString& arg) const;
 };
 
-struct TCaseInsensitiveStringComparer
+struct TCaseInsensitiveStringEqualityComparer
 {
     bool operator()(const TString& lhs, const TString& rhs) const;
 };
