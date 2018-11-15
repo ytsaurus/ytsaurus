@@ -199,7 +199,7 @@ private:
         SmallVector<TString, 1> Values;
     };
 
-    THashMap<TString, TEntry, TCaseInsensitiveStringHasher, TCaseInsensitiveStringComparer> NameToEntry_;
+    THashMap<TString, TEntry, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer> NameToEntry_;
 
     void ValidateValue(TStringBuf header, TStringBuf value);
 };
