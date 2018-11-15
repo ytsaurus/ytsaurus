@@ -1,0 +1,16 @@
+#pragma once
+
+#include <util/stream/input.h>
+#include <util/system/file.h>
+
+namespace NYT {
+namespace NCoreDump {
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 WriteSparseCoreDump(IInputStream* in, TFile* out);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCoreDump
+} // namespace NYT
