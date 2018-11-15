@@ -169,9 +169,11 @@ protected:
     };
 
     const TJobEnvironmentConfigPtr BasicConfig_;
-    THashMap<int, TJobProxyProcess> JobProxyProcesses_;
     TBootstrap* const Bootstrap_;
-    TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
+
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
+
+    THashMap<int, TJobProxyProcess> JobProxyProcesses_;
 
     TFuture<void> JobProxyResult_;
 
