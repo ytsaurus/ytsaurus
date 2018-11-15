@@ -332,12 +332,12 @@ TString FormatEnum(T value, typename TEnumTraits<T>::TType* = 0)
 
 struct TCaseInsensitiveStringHasher
 {
-    size_t operator()(const TString& arg) const;
+    size_t operator()(TStringBuf arg) const;
 };
 
 struct TCaseInsensitiveStringEqualityComparer
 {
-    bool operator()(const TString& lhs, const TString& rhs) const;
+    bool operator()(TStringBuf lhs, TStringBuf rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

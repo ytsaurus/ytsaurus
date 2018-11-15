@@ -46,7 +46,6 @@ target_link_libraries(yt-core
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zstd
   deps-arcadia-contrib-libs-yajl
-  deps-arcadia-library-charset
   deps-arcadia-library-streams-lz
   deps-arcadia-library-streams-brotli
   deps-arcadia-library-getopt
