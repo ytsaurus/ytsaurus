@@ -169,7 +169,7 @@ public:
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);
 
     const TMutationRequest& LogLeaderMutation(
-        const TInstant& commitStartTime,
+        TInstant commitStartTime,
         TMutationRequest&& request,
         TSharedRef* recordData,
         TFuture<void>* localFlushResult,

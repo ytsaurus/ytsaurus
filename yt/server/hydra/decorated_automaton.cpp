@@ -761,7 +761,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 }
 
 const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
-    const TInstant& commitStartTime,
+    TInstant commitStartTime,
     TMutationRequest&& request,
     TSharedRef* recordData,
     TFuture<void>* localFlushResult,
