@@ -232,7 +232,6 @@ class YtStuff(object):
         self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
         self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
         # Binaries
-        self.mapreduce_yt_path = [self.python_binary, os.path.join(self.yt_bins_path, "mapreduce-yt")]
         self.yt_local_path = [self.python_binary, os.path.join(self.yt_bins_path, "yt_local")]
 
         yt_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/packages/{0}/yt_thor.tar'.format(self.version))
@@ -266,7 +265,6 @@ class YtStuff(object):
             if not os.path.exists(path):
                 os.makedirs(path)
 
-        self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt'.format(self.version))]
         self.yt_local_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/local/yt_local'.format(self.version))]
         self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/watcher'.format(self.version))
 
@@ -487,22 +485,6 @@ class YtStuff(object):
 
     def get_env(self):
         return self.env
-
-    # Dear user! Please, look at run_mapreduce_yt() method!
-    # Do you really want to use get_mapreduce_yt() directly?
-    # If yes, please don't forget to use yatest.common.python_path() and to set environment
-    # (right, like in run_mapreduce_yt() method).
-    def get_mapreduce_yt(self):
-        return self.mapreduce_yt_path
-
-    def run_mapreduce_yt(self, cmd, env=None, *args, **kwargs):
-        if not env:
-            env = {}
-
-        env.update(self.env)
-        cmd = self.mapreduce_yt_path + cmd
-
-        return yatest.common.execute(cmd, env=env, *args, **kwargs)
 
     @_timing
     def start_local_yt(self):
