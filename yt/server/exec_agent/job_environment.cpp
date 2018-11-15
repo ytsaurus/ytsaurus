@@ -140,9 +140,10 @@ public:
         return Enabled_;
     }
 
-    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
+    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& /*layers*/) override
     {
-        THROW_ERROR_EXCEPTION("Custom rootfs is not supported by %Qv environment", BasicConfig_->Type);
+        THROW_ERROR_EXCEPTION("Custom rootfs is not supported by %Qlv environment",
+            BasicConfig_->Type);
     }
 
     virtual TNullable<i64> GetMemoryLimit() const override
