@@ -24,16 +24,16 @@ SERVER FORMATS
   master@<cluster>
   /<cluster>/primary_master
     resolved to primary master on specified cluser.
-    e.g. `master@hahn'
+    e.g. `/hahn/master'
 
   /<cluster>/scheduler
     resolved to active scheduler on specified cluster.
-    e.g. `scheduler@hume'
+    e.g. `/hume/scheduler'
 
   /<cluster>/<operation-id>
     depending on application you provided this pattern is resolved
     either to active scheduler or to controller-agent responsible for this operation
-    e.g. `7bd986a4-5a28ac83-3fe03e8-b7d2476b@freud'
+    e.g. `/freud/7bd986a4-5a28ac83-3fe03e8-b7d2476b'
 
   /<cluster>/<service>/<pattern>
     select machine group that is responsible for <service> and choose the machine that matches <pattern>
