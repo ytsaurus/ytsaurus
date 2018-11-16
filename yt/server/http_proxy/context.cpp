@@ -269,7 +269,7 @@ bool TContext::TryParseUser()
         } else if (authResult.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
         } else {
-            Response_->SetStatus(EStatusCode::InternalServerError);
+            Response_->SetStatus(EStatusCode::ServiceUnavailable);
         }
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
