@@ -343,6 +343,33 @@ bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributes
     return dynamicAttributesList[GetTreeIndex()].Active;
 }
 
+double TSchedulerElement::GetWeight() const
+{
+    auto specifiedWeight = GetSpecifiedWeight();
+    if (specifiedWeight) {
+        return *specifiedWeight;
+    }
+
+    if (!TreeConfig_->InferWeightFromMinShareRatioMultiplier) {
+        return 1.0;
+    }
+    if (Attributes().RecursiveMinShareRatio < RatioComputationPrecision) {
+        return 1.0;
+    }
+
+    double parentMinShareRatio = 1.0;
+    if (GetParent()) {
+        parentMinShareRatio = GetParent()->Attributes().RecursiveMinShareRatio;
+    }
+
+    if (parentMinShareRatio < RatioComputationPrecision) {
+        return 1.0;
+    }
+
+    return Attributes().RecursiveMinShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) /
+        parentMinShareRatio;
+}
+
 TCompositeSchedulerElement* TSchedulerElement::GetParent() const
 {
     return Parent_;
@@ -1424,9 +1451,9 @@ TString TPool::GetId() const
     return Id_;
 }
 
-double TPool::GetWeight() const
+TNullable<double> TPool::GetSpecifiedWeight() const
 {
-    return Config_->Weight.Get(1.0);
+    return Config_->Weight;
 }
 
 double TPool::GetMinShareRatio() const
@@ -2346,9 +2373,9 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
     return Spec_->AllowAggressiveStarvationPreemption.Get(true);
 }
 
-double TOperationElement::GetWeight() const
+TNullable<double> TOperationElement::GetSpecifiedWeight() const
 {
-    return RuntimeParams_->Weight.Get(1.0);
+    return RuntimeParams_->Weight;
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2770,9 +2797,9 @@ TString TRootElement::GetId() const
     return TString(RootPoolName);
 }
 
-double TRootElement::GetWeight() const
+TNullable<double> TRootElement::GetSpecifiedWeight() const
 {
-    return 1.0;
+    return Null;
 }
 
 double TRootElement::GetMinShareRatio() const
