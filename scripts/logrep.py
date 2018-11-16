@@ -13,12 +13,55 @@ import subprocess
 import gzip
 import socket
 
+EPILOG = """\
+SERVER FORMATS
+  logrep supports multiple ways of server specification
+
+  <host>
+    you can specify host
+    e.g. `m01-sas.hahn.yt.yandex.net'
+
+  master@<cluster>
+  /<cluster>/primary_master
+    resolved to primary master on specified cluser.
+    e.g. `master@hahn'
+
+  /<cluster>/scheduler
+    resolved to active scheduler on specified cluster.
+    e.g. `scheduler@hume'
+
+  /<cluster>/<operation-id>
+    depending on application you provided this pattern is resolved
+    either to active scheduler or to controller-agent responsible for this operation
+    e.g. `7bd986a4-5a28ac83-3fe03e8-b7d2476b@freud'
+
+  /<cluster>/<service>/<pattern>
+    select machine group that is responsible for <service> and choose the machine that matches <pattern>
+    if multiple machine matches pattern logrep reports error(example: `m01-man.hume.yt.yandex.net` and  `m02-man.hume.yt.yandex.net` both
+    match /home/master/0`)
+    supported services:
+      - primary_master
+      - master : same as `primary_master'
+      - secondary_master
+      - scheduler
+      - controller-agent
+    e.g. /hahn/master/00
+
+TIME FORMATS
+ logrep supports multiple ways of specifying time
+    now - use current moment (current log file will be grepped)
+    HH:MM:SS (e.g. 12:23:00) - today's date is used
+    YYYY-MM-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
+    DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
+"""
+
 FQDN = socket.getfqdn()
 
-OPERATION_OBJECT_TYPE = 1000
-SCHEDULER_JOB = 900
+OPERATION_GUID_TYPE = 1000
+JOB_GUID_TYPE = 900
 
-GUID_RE = re.compile("[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+")
+GUID_RE = re.compile("^[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+$")
+GUID_PAIR_RE = re.compile("^([a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+):([a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+)$")
 LOG_FILE_NAME_RE = re.compile(r"^(?P<app_and_host>[^.]+)[.]debug[.]log([.](?P<log_index>\d+))?([.]gz)?$")
 
 LogName = collections.namedtuple("LogName", ["application", "host", "log_index"])
@@ -159,7 +202,7 @@ def chdir_to_application_logs(application):
 
     if application is None:
         if len(log_dirs) == 1:
-            application = next(log_dirs.keys())
+            application = next(iter(log_dirs))
         else:
             raise LogrepError(
                 "Please specify application which logs to grep. Applications found on this server:\n"
@@ -249,7 +292,9 @@ def get_first_file_line(filename):
 #
 
 def parse_time(time_str):
-    if re.match("\d\d:\d\d:\d\d", time_str):
+    if time_str == "now":
+        return datetime.datetime.now()
+    elif re.match("\d\d:\d\d:\d\d", time_str):
         now = datetime.datetime.now()
         parsed = datetime.datetime.strptime(time_str, "%H:%M:%S")
         result = now.replace(hour=parsed.hour, minute=parsed.minute, second=parsed.second, microsecond=0)
@@ -271,18 +316,101 @@ def parse_time(time_str):
 #
 
 def resolve_server(server_str, application):
-    if "@" not in server_str:
+    if not server_str.startswith("/"):
         return server_str
+
     import yt.wrapper
-    obj, cluster = server_str.split("@", 1)
+    get_uuid_type = yt.wrapper.common.object_type_from_uuid
+    cant_resolve_error = LogrepError("Cannot resolve server for: {}".format(server_str))
+
+    def ensure_guid_is_of_type(guid, expected_type):
+        if yt.wrapper.common.object_type_from_uuid(guid) != expected_type:
+            type_str = {
+                OPERATION_GUID_TYPE: "OperationId",
+                JOB_GUID_TYPE: "JobId"
+            }[guid]
+            raise LogrepError("Guid {} is not {}".format(
+                guid,
+                type_str
+            ))
+
+    if not re.match(r"^(/[^/]+)+$", server_str):
+        raise cant_resolve_error
+
+    components = server_str.strip("/").split("/")
+    if len(components) <= 1:
+        raise cant_resolve_error
+
+    cluster = components[0]
     client = yt.wrapper.YtClient(cluster)
-    if GUID_RE.match(obj):
-        t = yt.wrapper.common.object_type_from_uuid(obj)
-        if t == OPERATION_OBJECT_TYPE:
-            return resolve_server_for_operation(client, operation_id=obj, application=application)
-        else:
-            raise LogrepError("Cannot recognize guid: {}".format(obj))
-    raise LogrepError("Cannot resolve server for: {}".format(server_str))
+
+    if len(components) == 2:
+        if GUID_RE.match(components[1]):
+            operation_id = components[1]
+            ensure_guid_is_of_type(operation_id, OPERATION_GUID_TYPE)
+            return resolve_server_for_operation(client, operation_id, application)
+        if components[1] in ["master", "primary_master"]:
+            return resolve_primary_master(client)
+        if components[1] == "scheduler":
+            return resolve_active_scheduler(client)
+    if len(components) == 3:
+        if GUID_RE.match(components[1]) and GUID_RE.match(components[2]):
+            operation_id = components[1]
+            ensure_guid_is_of_type(operation_id, OPERATION_GUID_TYPE)
+            job_id = components[2]
+            ensure_guid_is_of_type(job_id, JOB_GUID_TYPE)
+            return resolve_server_for_job(client, operation_id, job_id, application)
+
+        list_servers_method = {
+            "master": lambda: list_servers_by_path(client, "//sys/primary_masters"),
+            "primary_master":  lambda: list_servers_by_path(client, "//sys/primary_masters"),
+            "secondary_master": lambda: list_secondary_masters(client),
+            "scheduler":  lambda: list_servers_by_path(client, "//sys/scheduler/instances"),
+            "controller_agent":  lambda: list_servers_by_path(client, "//sys/controller_agents/instances"),
+            "node": lambda: list_servers_by_path(client, "//sys/nodes"),
+        }
+        if components[1] in list_servers_method:
+            pattern = components[2]
+            all_nodes = list_servers_method[components[1]]()
+            result = []
+            for node in all_nodes:
+                if pattern in node:
+                    result.append(node)
+            if not result:
+                raise LogrepError(
+                    "Cannot find {group} server at {cluster} that matches '{pattern}'.\n"
+                    "List of all {group} servers:\n"
+                    "{all_servers}\n".format(
+                        group=components[1],
+                        pattern=pattern,
+                        cluster=cluster,
+                        all_servers=item_per_line(all_nodes, indent=2)
+                    )
+                )
+            if len(result) > 1:
+                raise LogrepError(
+                    "Multiple {group} servers at {cluster} matches '{pattern}':\n"
+                    "{result}\n".format(
+                        group=components[1],
+                        pattern=pattern,
+                        cluster=cluster,
+                        result=item_per_line(result, indent=2)
+                    )
+                )
+            return result[0]
+
+    raise cant_resolve_error
+
+
+def list_secondary_masters(client):
+    result = []
+    for some_id in client.list("//sys/secondary_masters"):
+        result += [get_host_from_host_port(h) for h in client.list("//sys/secondary_masters/{}".format(some_id))]
+    return result
+
+
+def list_servers_by_path(client, path):
+    return [get_host_from_host_port(h) for h in client.list(path)]
 
 
 def resolve_server_for_operation(client, operation_id, application):
@@ -296,8 +424,7 @@ def resolve_server_for_operation(client, operation_id, application):
             "You must specify application to autoresolve server for operation-id.\n" + supported_applications
         )
     if application == "scheduler":
-        host, _port = client.get("//sys/scheduler/@addresses/default").split(":")
-        return host
+        return resolve_active_scheduler(client)
     elif application == "controller-agent":
         r = client.get_operation(operation_id)
         address = r.get("controller_agent_address", None)
@@ -309,25 +436,69 @@ def resolve_server_for_operation(client, operation_id, application):
         raise LogrepError("Unsupported application: {}\n".format(application) + supported_applications)
 
 
+def resolve_active_scheduler(client):
+    host, _port = client.get("//sys/scheduler/@addresses/default").split(":")
+    return host
+
+
+def resolve_primary_master(client):
+    master_list = client.list("//sys/primary_masters")
+
+    batch_client = client.create_batch_client(raise_errors=True)
+    rsp_map = {}
+    for master in master_list:
+        rsp_map[master] = batch_client.get("//sys/primary_masters/" + master + "/orchid/monitoring/hydra/state")
+    batch_client.commit_batch()
+    for master, rsp in rsp_map.iteritems():
+        if rsp.get_result() == "leading":
+            return get_host_from_host_port(master)
+    else:
+        raise LogrepError("Failed to find leading primary master")
+
+
+def get_host_from_host_port(host_port):
+    host, _port = host_port.split(":")
+    return host
+
+
+def resolve_server_for_job(client, operation_id, job_id, application):
+    supported_applications = (
+        "Supported applications:\n"
+        "  node\n"
+    )
+    if application is None:
+        raise LogrepError(
+            "You must specify application to autoresolve server for job-id.\n" + supported_applications
+        )
+    elif application == "node":
+        job_info = client.get_job(operation_id, job_id)
+        json.dumps(job_info, indent=2)
+        host, _port = job_info["address"].split(":")
+        return host
+    else:
+        raise LogrepError("Unsupported application: {}\n".format(application) + supported_applications)
+
+
 def main():
     Task.try_switch_to_server_task_mode()
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG)
     parser.add_argument("-s", "--server", help="server to use", required=True)
     parser.add_argument(
         "-t", "--time", "--start-time",
-        help="start of time interval to grep",
+        help="start of time interval to grep (check TIME FORMATS below)",
         required=True
     )
     parser.add_argument(
         "-e", "--end-time",
-        help="end of time interval to grep (equals start interval by default)"
+        help="end of time interval to grep, equals start interval by default (check TIME FORMATS below)"
     )
     parser.add_argument(
         "-a", "--application",
-        help="application which logs we want to grep (by default logr will try to determine it automatically"
+        help="application which logs we want to grep (can be omitted if there is only one application on the server)"
     )
-    parser.add_argument("pattern")
+
+    parser.add_argument("pattern", help="pattern we are searching for")
     args = parser.parse_args()
 
     dt = datetime.timedelta(seconds=10)
