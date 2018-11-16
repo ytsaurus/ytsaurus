@@ -178,7 +178,7 @@ TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const 
 {
     THttpHeader header("GET", "get_table_columnar_statistics");
     header.MergeParameters(NDetail::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
-    auto response = NodeFromYsonString(RetryRequest(Auth_, header));
+    auto response = NodeFromYsonString(RetryRequest(Auth_, header, /* body = */ Nothing(), /* heavy = */ true));
     TVector<TTableColumnarStatistics> result;
     Deserialize(result, response);
     return result;
