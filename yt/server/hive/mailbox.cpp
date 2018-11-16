@@ -19,7 +19,11 @@ struct TEncapsulatedMessageSerializer
     template <class C>
     static void Save(C& context, const TRefCountedEncapsulatedMessagePtr& message)
     {
-        NYT::Save(context, *message);
+        NHiveClient::NProto::TEncapsulatedMessage sanitizedMessage(*message);
+        sanitizedMessage.clear_trace_id();
+        sanitizedMessage.clear_span_id();
+        sanitizedMessage.clear_parent_span_id();
+        NYT::Save(context, sanitizedMessage);
     }
 
     template <class C>
