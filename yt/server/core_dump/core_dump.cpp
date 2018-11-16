@@ -23,7 +23,12 @@ i64 WriteSparseCoreDump(IInputStream* in, TFile* out)
         if (size == 0) {
             break;
         }
-        YCHECK(size % sizeof(Page) == 0);
+
+        if (size % sizeof(Page) != 0) {
+            out->Pwrite(pages[0].data(), size, offset);
+            offset += size;
+            break;
+        }
 
         int start = 0;
         auto flushPage = [&] (int end) {
