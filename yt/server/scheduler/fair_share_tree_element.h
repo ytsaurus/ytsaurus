@@ -224,9 +224,12 @@ public:
 
     virtual TString GetId() const = 0;
 
-    virtual double GetWeight() const = 0;
+    virtual TNullable<double> GetSpecifiedWeight() const = 0;
+    virtual double GetWeight() const;
+
     virtual double GetMinShareRatio() const = 0;
     virtual TJobResources GetMinShareResources() const = 0;
+
     virtual double GetMaxShareRatio() const = 0;
 
     virtual double GetFairShareStarvationTolerance() const = 0;
@@ -484,7 +487,7 @@ public:
 
     virtual TString GetId() const override;
 
-    virtual double GetWeight() const override;
+    virtual TNullable<double> GetSpecifiedWeight() const override;
     virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
@@ -780,7 +783,7 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
-    virtual double GetWeight() const override;
+    virtual TNullable<double> GetSpecifiedWeight() const override;
     virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
@@ -908,7 +911,7 @@ public:
 
     virtual TString GetId() const override;
 
-    virtual double GetWeight() const override;
+    virtual TNullable<double> GetSpecifiedWeight() const override;
     virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
