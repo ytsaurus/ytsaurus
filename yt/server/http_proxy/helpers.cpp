@@ -12,6 +12,8 @@
 
 #include <util/string/cgiparam.h>
 
+#include <re2/re2.h>
+
 namespace NYT {
 namespace NHttpProxy {
 
@@ -234,6 +236,48 @@ NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMa
     }
     return parameters;
 }
+
+static const re2::RE2 PythonWrapperPattern{"Python wrapper (\\d+).(\\d+).(\\d+)"};
+
+TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent)
+{
+    TPythonWrapperVersion version;
+    if (re2::RE2::PartialMatch(
+        userAgent,
+        PythonWrapperPattern,
+        &version.Major,
+        &version.Minor,
+        &version.Patch))
+    {
+        return version;
+    }
+
+    return {};
+}
+
+bool IsWrapperBuggy(const NHttp::IRequestPtr& req)
+{
+    auto userAgent = req->GetHeaders()->Find("User-Agent");
+    if (!userAgent) {
+        return false;
+    }
+
+    auto version = DetectPythonWrapper(*userAgent);
+    if (!version) {
+        return false;
+    }
+
+    if (version->Major == 0 && version->Minor == 8) {
+        return version->Patch < 49;
+    }
+
+    if (version->Major == 0 && version->Minor == 9) {
+        return version->Patch < 3;
+    }
+
+    return false;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

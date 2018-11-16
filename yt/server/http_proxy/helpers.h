@@ -21,6 +21,17 @@ void FixupNodesWithAttributes(const NYTree::IMapNodePtr& node);
 
 NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters);
 
+struct TPythonWrapperVersion
+{
+    int Major = 0;
+    int Minor = 0;
+    int Patch = 0;
+};
+
+TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent);
+
+bool IsWrapperBuggy(const NHttp::IRequestPtr& req);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNetworkStatistics
