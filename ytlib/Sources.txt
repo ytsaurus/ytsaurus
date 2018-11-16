@@ -121,16 +121,16 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/file_client/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory_synchronizer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/proto/cell_directory.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/proto/transaction_supervisor_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/proto/transaction_participant_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/proto/hive_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/hydra/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.proto

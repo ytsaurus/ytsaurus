@@ -1,10 +1,12 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_writer.h"
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
+
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <util/system/file.h>
 
@@ -33,7 +35,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
@@ -49,7 +51,7 @@ public:
     /*!
      *  The writer must be already closed.
      */
-    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+    const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
 
     //! Aborts the writer, removing the temporary files.
     void Abort();
@@ -67,27 +69,26 @@ private:
     const bool SyncOnClose_;
     const bool EnableWriteDirectIO_;
 
-    bool IsOpen_ = false;
-    bool IsOpening_ = false;
-    bool IsClosed_ = false;
+    bool Open_ = false;
+    bool Opening_ = false;
+    bool Closed_ = false;
     i64 DataSize_ = 0;
     i64 MetaDataSize_ = 0;
 
     TSharedMutableRef Buffer_;
     i64 BufferPosition_ = 0;
-    const i64 Alignment_ = 4096;
 
     std::shared_ptr<TFileHandle> DataFile_;
 
+    const TRefCountedChunkMetaPtr ChunkMeta_ = New<TRefCountedChunkMeta>();
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
-    NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
     TError Error_;
 
     TFuture<void> LockDataFile(const std::shared_ptr<TFileHandle>& file);
     void TryLockDataFile(TPromise<void> promise);
-    TFuture<void> WriteMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TFuture<void> WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileWriter)

@@ -29,6 +29,8 @@ static const auto FileMode =
     AWUser |
     AWGroup;
 
+static constexpr i64 Alignment = 4096;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWriter::TFileWriter(
@@ -49,8 +51,8 @@ TFileWriter::TFileWriter(
 #else
     constexpr bool initializeMemory = false;
 #endif
-    auto data = TSharedMutableRef::Allocate<TNull>(size + Alignment_, initializeMemory);
-    data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
+    auto data = TSharedMutableRef::Allocate<TNull>(size + Alignment, initializeMemory);
+    data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
     data = data.Slice(data.Begin(), data.Begin() + size);
     Buffer_ = data;
 }
@@ -62,7 +64,7 @@ void TFileWriter::TryLockDataFile(TPromise<void> promise)
             BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
             TDuration::MilliSeconds(10));
     } else {
-        IsOpen_ = true;
+        Open_ = true;
         promise.Set();
     }
 }
@@ -78,11 +80,11 @@ TFuture<void> TFileWriter::LockDataFile(const std::shared_ptr<TFileHandle>& file
 
 TFuture<void> TFileWriter::Open()
 {
-    YCHECK(!IsOpen_);
-    YCHECK(!IsClosed_);
-    YCHECK(!IsOpening_);
+    YCHECK(!Open_);
+    YCHECK(!Closed_);
+    YCHECK(!Opening_);
 
-    IsOpening_ = true;
+    Opening_ = true;
 
     auto mode = FileMode;
     if (EnableWriteDirectIO_) {
@@ -93,7 +95,7 @@ TFuture<void> TFileWriter::Open()
     return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode)
         .Apply(BIND(&TFileWriter::LockDataFile, MakeStrong(this)))
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) {
-            IsOpening_ = false;
+            Opening_ = false;
             if (!error.IsOK()) {
                 THROW_ERROR error;
             }
@@ -102,8 +104,8 @@ TFuture<void> TFileWriter::Open()
 
 bool TFileWriter::WriteBlock(const TBlock& block)
 {
-    YCHECK(IsOpen_);
-    YCHECK(!IsClosed_);
+    YCHECK(Open_);
+    YCHECK(!Closed_);
 
     block.ValidateChecksum();
 
@@ -123,9 +125,9 @@ bool TFileWriter::WriteBlock(const TBlock& block)
             auto size = Min<size_t>(pe - p, Buffer_.Size() - BufferPosition_);
             ::memcpy(Buffer_.Begin() + BufferPosition_, p, size);
 
-            auto offset = ::AlignDown(filePosition, Alignment_);
-            auto start = ::AlignDown(Buffer_.Begin() + BufferPosition_, Alignment_);
-            auto end = ::AlignUp(Buffer_.Begin() + BufferPosition_ + size, Alignment_);
+            auto offset = ::AlignDown(filePosition, Alignment);
+            auto start = ::AlignDown(Buffer_.Begin() + BufferPosition_, Alignment);
+            auto end = ::AlignUp(Buffer_.Begin() + BufferPosition_ + size, Alignment);
             auto data = Buffer_.Slice(start, end);
 
             YCHECK(offset >= 0 && offset <= filePosition);
@@ -162,8 +164,8 @@ bool TFileWriter::WriteBlock(const TBlock& block)
 
 bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
-    YCHECK(IsOpen_);
-    YCHECK(!IsClosed_);
+    YCHECK(Open_);
+    YCHECK(!Closed_);
 
     for (const auto& block : blocks) {
         if (!WriteBlock(block)) {
@@ -175,23 +177,23 @@ bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 
 TFuture<void> TFileWriter::GetReadyEvent()
 {
-    YCHECK(IsOpen_);
-    YCHECK(!IsClosed_);
+    YCHECK(Open_);
+    YCHECK(!Closed_);
 
     return MakeFuture(Error_);
 }
 
-TFuture<void> TFileWriter::WriteMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TFuture<void> TFileWriter::WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta)
 {
     // Write meta.
-    ChunkMeta_.CopyFrom(chunkMeta);
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
+    ChunkMeta_->CopyFrom(*chunkMeta);
+    SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 
     return IOEngine_->Open(metaFileName + NFS::TempFileSuffix, FileMode)
         .Apply(BIND([this, _this = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& chunkMetaFile) {
-            auto metaData = SerializeProtoToRefWithEnvelope(ChunkMeta_);
+            auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
 
             TChunkMetaHeader_2 header;
             header.Signature = header.ExpectedSignature;
@@ -202,8 +204,8 @@ TFuture<void> TFileWriter::WriteMeta(const NChunkClient::NProto::TChunkMeta& chu
 
             TSharedMutableRef buffer = Buffer_;
             if (buffer.Size() < MetaDataSize_) {
-                auto data = TSharedMutableRef::Allocate<TNull>(MetaDataSize_ + Alignment_, true);
-                data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
+                auto data = TSharedMutableRef::Allocate<TNull>(MetaDataSize_ + Alignment, true);
+                data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
                 data = data.Slice(data.Begin(), data.Begin() + MetaDataSize_);
                 buffer = data;
             }
@@ -229,14 +231,14 @@ TFuture<void> TFileWriter::WriteMeta(const NChunkClient::NProto::TChunkMeta& chu
         }));
 }
 
-TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TFuture<void> TFileWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 {
-    if (!IsOpen_ || !Error_.IsOK()) {
+    if (!Open_ || !Error_.IsOK()) {
         return MakeFuture(Error_);
     }
 
-    IsOpen_ = false;
-    IsClosed_ = true;
+    Open_ = false;
+    Closed_ = true;
 
     return IOEngine_->Close(DataFile_, DataSize_, SyncOnClose_)
         .Apply(BIND(&TFileWriter::WriteMeta, MakeStrong(this), chunkMeta));
@@ -244,11 +246,11 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
 
 void TFileWriter::Abort()
 {
-    if (!IsOpen_)
+    if (!Open_)
         return;
 
-    IsClosed_ = true;
-    IsOpen_ = false;
+    Closed_ = true;
+    Open_ = false;
 
     DataFile_.reset();
 
@@ -257,21 +259,21 @@ void TFileWriter::Abort()
 
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
-    YCHECK(IsClosed_);
+    YCHECK(Closed_);
 
     return ChunkInfo_;
 }
 
 const TDataStatistics& TFileWriter::GetDataStatistics() const
 {
-    YCHECK(IsClosed_);
+    YCHECK(Closed_);
 
     Y_UNREACHABLE();
 }
 
-const TChunkMeta& TFileWriter::GetChunkMeta() const
+const TRefCountedChunkMetaPtr& TFileWriter::GetChunkMeta() const
 {
-    YCHECK(IsClosed_);
+    YCHECK(Closed_);
 
     return ChunkMeta_;
 }

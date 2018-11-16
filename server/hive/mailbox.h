@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/hive/hive_manager.pb.h>
+#include <yt/server/hive/proto/hive_manager.pb.h>
 
 #include <yt/server/hydra/entity_map.h>
 
-#include <yt/ytlib/hive/hive_service.pb.h>
+#include <yt/ytlib/hive/proto/hive_service.pb.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 

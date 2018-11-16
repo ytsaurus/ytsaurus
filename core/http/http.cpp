@@ -71,34 +71,27 @@ void THeaders::Add(const TString& header, TString value)
 {
     ValidateValue(header, value);
 
-    auto lower = to_lower(header);
-
-    auto& entry = Raw_[lower];
+    auto& entry = NameToEntry_[header];
     entry.OriginalHeaderName = header;
     entry.Values.push_back(std::move(value));
 }
 
 void THeaders::Remove(const TString& header)
 {
-    auto lower = to_lower(header);
-    Raw_.erase(lower);
+    NameToEntry_.erase(header);
 }
 
 void THeaders::Set(const TString& header, TString value)
 {
     ValidateValue(header, value);
 
-    auto lower = to_lower(header);
-
-    Raw_[lower] = {header, {std::move(value)}};
+    NameToEntry_[header] = {header, {std::move(value)}};
 }
 
 const TString* THeaders::Find(const TString& header) const
 {
-    auto lower = to_lower(header);
-
-    auto it = Raw_.find(lower);
-    if (it == Raw_.end()) {
+    auto it = NameToEntry_.find(header);
+    if (it == NameToEntry_.end()) {
         return nullptr;
     }
 
@@ -112,13 +105,11 @@ const TString* THeaders::Find(const TString& header) const
 
 void THeaders::RemoveOrThrow(const TString& header)
 {
-    auto lower = to_lower(header);
-
-    auto it = Raw_.find(lower);
-    if (it == Raw_.end()) {
+    auto it = NameToEntry_.find(header);
+    if (it == NameToEntry_.end()) {
         THROW_ERROR_EXCEPTION("Header %Qv not found", header);
     }
-    Raw_.erase(it);
+    NameToEntry_.erase(it);
 }
 
 TString THeaders::GetOrThrow(const TString& header) const
@@ -134,8 +125,8 @@ const SmallVector<TString, 1>& THeaders::GetAll(const TString& header) const
 {
     auto lower = to_lower(header);
 
-    auto it = Raw_.find(lower);
-    if (it == Raw_.end()) {
+    auto it = NameToEntry_.find(lower);
+    if (it == NameToEntry_.end()) {
         THROW_ERROR_EXCEPTION("Header %Qv not found", header);
     }
 
@@ -144,7 +135,7 @@ const SmallVector<TString, 1>& THeaders::GetAll(const TString& header) const
 
 void THeaders::WriteTo(IOutputStream* out, const THashSet<TString>* filtered) const
 {
-    for (const auto& pair : Raw_) {
+    for (const auto& pair : NameToEntry_) {
         // TODO(prime): sanitize headers
         const auto& header = pair.second.OriginalHeaderName;
         const auto& values = pair.second.Values;
@@ -162,13 +153,13 @@ void THeaders::WriteTo(IOutputStream* out, const THashSet<TString>* filtered) co
 THeadersPtr THeaders::Duplicate() const
 {
     auto headers = New<THeaders>();
-    headers->Raw_ = Raw_;
+    headers->NameToEntry_ = NameToEntry_;
     return headers;
 }
 
 void THeaders::MergeFrom(const THeadersPtr& headers)
 {
-    for (const auto& pair : headers->Raw_) {
+    for (const auto& pair : headers->NameToEntry_) {
         for (const auto& value : pair.second.Values) {
             Add(pair.second.OriginalHeaderName, value);
         }

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/hive_service.pb.h>
+#include <yt/ytlib/hive/proto/hive_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

@@ -85,9 +85,9 @@ public:
         }));
     }
 
-    virtual TFuture<TChunkMeta> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& clientOptions,
-        const TNullable<int>& partitionTag,
+        TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
         TBlockReadOptions options;
@@ -100,23 +100,23 @@ public:
             }
             const auto& meta = metaOrError.Value();
 
-            if (partitionTag) {
-                auto cachedBlockMeta = BlockMetaCache_
-                    ? BlockMetaCache_->Find(GetChunkId())
-                    : TCachedBlockMetaPtr();
-
-                if (!cachedBlockMeta) {
-                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
-                    cachedBlockMeta = New<TCachedBlockMeta>(GetChunkId(), std::move(blockMetaExt));
-                    if (BlockMetaCache_) {
-                        BlockMetaCache_->TryInsert(cachedBlockMeta);
-                    }
-                }
-
-                return FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
-            } else {
-                return TChunkMeta(*meta);
+            if (!partitionTag) {
+                return meta;
             }
+
+            auto cachedBlockMeta = BlockMetaCache_
+                ? BlockMetaCache_->Find(GetChunkId())
+                : TCachedBlockMetaPtr();
+
+            if (!cachedBlockMeta) {
+                auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                cachedBlockMeta = New<TCachedBlockMeta>(GetChunkId(), std::move(blockMetaExt));
+                if (BlockMetaCache_) {
+                    BlockMetaCache_->TryInsert(cachedBlockMeta);
+                }
+            }
+
+            return New<TRefCountedChunkMeta>(FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag));
         }));
     }
 

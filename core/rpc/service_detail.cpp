@@ -559,6 +559,9 @@ void TServiceBase::HandleRequest(
     }
 
     auto traceContext = GetTraceContext(*header);
+    if (!traceContext.IsEnabled()) {
+        traceContext = NTracing::CreateRootTraceContext(false);
+    }
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
 
     TRACE_ANNOTATION(

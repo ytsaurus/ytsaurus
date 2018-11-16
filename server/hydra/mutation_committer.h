@@ -121,7 +121,7 @@ private:
 
     struct TPendingMutation
     {
-        explicit TPendingMutation(TMutationRequest&& request, const TInstant& timestamp)
+        TPendingMutation(TMutationRequest&& request, TInstant timestamp)
             : Request(std::move(request))
             , Timestamp(timestamp)
             , CommitPromise(NewPromise<TMutationResponse>())

@@ -79,8 +79,8 @@ private:
     virtual void DoCancel(const TError& error) override;
 
     virtual TFuture<IChunkPtr> DoFinish(
-        const NChunkClient::NProto::TChunkMeta* chunkMeta,
-        const TNullable<int>& blockCount) override;
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
+        TNullable<int> blockCount) override;
 
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);
@@ -93,8 +93,8 @@ private:
     void DoAbortWriter();
     void OnWriterAborted(const TError& error);
 
-    TFuture<void> CloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    void DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TFuture<void> CloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+    void DoCloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
     IChunkPtr OnWriterClosed(const TError& error);
 
     void DoWriteBlocks(

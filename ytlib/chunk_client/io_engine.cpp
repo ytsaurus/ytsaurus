@@ -413,7 +413,7 @@ private:
     {
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
-        EOpenMode mode = RdOnly;
+        EOpenMode mode = OpenExisting | RdOnly | Seq | CloseOnExec;
 
         auto file = DoOpen(fileName, mode);
         auto data = DoPread(file, file->GetLength(), 0, timer);
@@ -815,7 +815,7 @@ private:
 
     TFuture<TSharedMutableRef> DoReadAll(const TString& fileName, i64 priority)
     {
-        auto file = DoOpen(fileName, RdOnly);
+        auto file = DoOpen(fileName, OpenExisting | RdOnly | Seq | CloseOnExec);
         return Pread(file, file->GetLength(), 0, priority);
     }
 

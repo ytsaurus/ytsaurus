@@ -360,6 +360,8 @@ private:
             "Error finishing upload to file %v",
             Path_);
 
+        UploadTransaction_->Detach();
+
         LOG_INFO("File closed");
     }
 

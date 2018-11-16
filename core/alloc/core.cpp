@@ -104,30 +104,38 @@ constexpr auto StockpileInterval = TDuration::MilliSeconds(10);
 constexpr size_t StockpileSize = 1_GB;
 
 constexpr size_t PageSize = 4_KB;
-constexpr size_t ZoneSize = 1_TB;
 
 constexpr size_t MinLargeRank = 15;
+
+static_assert(LargeRankCount - MinLargeRank <= 16, "Too many large ranks.");
+static_assert(SmallRankCount <= 32, "Too many small ranks.");
+
+constexpr size_t SmallZoneSize = 1_TB;
+constexpr size_t LargeZoneSize = 1_TB * 16;
+constexpr size_t HugeZoneSize = 1_TB;
+constexpr size_t SystemZoneSize = 1_TB;
+
 constexpr size_t LargeSizeThreshold = 32_KB;
 constexpr size_t MaxCachedChunksPerRank = 256;
 
 constexpr uintptr_t UntaggedSmallZonesStart = 0;
-constexpr uintptr_t UntaggedSmallZonesEnd = UntaggedSmallZonesStart + 32 * ZoneSize;
-constexpr uintptr_t MinUntaggedSmallPtr = UntaggedSmallZonesStart + ZoneSize * 1;
-constexpr uintptr_t MaxUntaggedSmallPtr = UntaggedSmallZonesStart + ZoneSize * SmallRankCount;
+constexpr uintptr_t UntaggedSmallZonesEnd = UntaggedSmallZonesStart + 32 * SmallZoneSize;
+constexpr uintptr_t MinUntaggedSmallPtr = UntaggedSmallZonesStart + SmallZoneSize * 1;
+constexpr uintptr_t MaxUntaggedSmallPtr = UntaggedSmallZonesStart + SmallZoneSize * SmallRankCount;
 
 constexpr uintptr_t TaggedSmallZonesStart = UntaggedSmallZonesEnd;
-constexpr uintptr_t TaggedSmallZonesEnd = TaggedSmallZonesStart + 32 * ZoneSize;
-constexpr uintptr_t MinTaggedSmallPtr = TaggedSmallZonesStart + ZoneSize * 1;
-constexpr uintptr_t MaxTaggedSmallPtr = TaggedSmallZonesStart + ZoneSize * SmallRankCount;
+constexpr uintptr_t TaggedSmallZonesEnd = TaggedSmallZonesStart + 32 * SmallZoneSize;
+constexpr uintptr_t MinTaggedSmallPtr = TaggedSmallZonesStart + SmallZoneSize * 1;
+constexpr uintptr_t MaxTaggedSmallPtr = TaggedSmallZonesStart + SmallZoneSize * SmallRankCount;
 
 constexpr uintptr_t LargeZoneStart = TaggedSmallZonesEnd;
-constexpr uintptr_t LargeZoneEnd = LargeZoneStart + ZoneSize;
+constexpr uintptr_t LargeZoneEnd = LargeZoneStart + LargeZoneSize;
 
 constexpr uintptr_t HugeZoneStart = LargeZoneEnd;
-constexpr uintptr_t HugeZoneEnd = HugeZoneStart + ZoneSize;
+constexpr uintptr_t HugeZoneEnd = HugeZoneStart + HugeZoneSize;
 
-constexpr uintptr_t SystemZoneStart = HugeZoneStart + ZoneSize;
-constexpr uintptr_t SystemZoneEnd = SystemZoneStart + ZoneSize;
+constexpr uintptr_t SystemZoneStart = HugeZoneEnd;
+constexpr uintptr_t SystemZoneEnd = SystemZoneStart + SystemZoneSize;
 
 constexpr size_t SmallExtentSize = 256_MB;
 constexpr size_t SmallSegmentSize = 1_MB;
@@ -1979,7 +1987,7 @@ public:
     explicit TSmallArenaAllocator(size_t rank, uintptr_t zoneStart)
         : Rank_(rank)
         , ChunkSize_(SmallRankToSize[Rank_])
-        , ZoneAllocator_(zoneStart, zoneStart + ZoneSize)
+        , ZoneAllocator_(zoneStart, zoneStart + SmallZoneSize)
     { }
 
     void* Allocate(size_t size)
@@ -3147,7 +3155,7 @@ void InitializeGlobals()
         SmallArenaAllocators.Construct();
         auto constructSmallArenaAllocators = [&] (EAllocationKind kind, uintptr_t zonesStart) {
             for (size_t rank = 1; rank < SmallRankCount; ++rank) {
-                (*SmallArenaAllocators)[kind][rank].Construct(rank, zonesStart + rank * ZoneSize);
+                (*SmallArenaAllocators)[kind][rank].Construct(rank, zonesStart + rank * SmallZoneSize);
             }
         };
         constructSmallArenaAllocators(EAllocationKind::Untagged, UntaggedSmallZonesStart);

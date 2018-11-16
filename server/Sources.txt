@@ -109,6 +109,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/vanilla_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/memory_tag_queue.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_dump.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
 
@@ -187,14 +188,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/abort.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/mailbox.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_lease_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/proto/transaction_supervisor.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/proto/hive_manager.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/gpu_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job.cpp

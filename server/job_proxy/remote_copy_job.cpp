@@ -282,7 +282,7 @@ private:
 
         // Copy chunk.
         TChunkInfo chunkInfo;
-        TChunkMeta chunkMeta;
+        TRefCountedChunkMetaPtr chunkMeta;
         TChunkReplicaList writtenReplicas;
         i64 totalChunkSize;
 
@@ -315,11 +315,11 @@ private:
 
             YCHECK(readers.size() == writers.size());
 
-            auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta.extensions());
+            auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
 
             // Compute an upper bound for total size.
             totalChunkSize =
-                GetProtoExtension<TMiscExt>(chunkMeta.extensions()).compressed_data_size() +
+                GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
                 erasurePlacementExt.parity_block_count() * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
 
             TotalSize_ += totalChunkSize;
@@ -394,14 +394,14 @@ private:
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
 
-            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
+            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
 
             std::vector<i64> blockSizes;
             for (const auto& block : blocksExt.blocks()) {
                 blockSizes.push_back(block.size());
             }
 
-            totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta.extensions()).compressed_data_size();
+            totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
 
             auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
                 .AsyncVia(GetRemoteCopyInvoker())
@@ -431,7 +431,7 @@ private:
         const NChunkClient::TSessionId& outputSessionId,
         const TChunkInfo& chunkInfo,
         const TChunkReplicaList& writtenReplicas,
-        const TChunkMeta& inputChunkMeta)
+        const TRefCountedChunkMetaPtr& inputChunkMeta)
     {
         static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
@@ -440,11 +440,10 @@ private:
 
         YCHECK(!writtenReplicas.empty());
 
-        auto masterChunkMeta = inputChunkMeta;
-
+        NChunkClient::NProto::TChunkMeta masterChunkMeta(*inputChunkMeta);
         FilterProtoExtensions(
             masterChunkMeta.mutable_extensions(),
-            inputChunkMeta.extensions(),
+            inputChunkMeta->extensions(),
             masterMetaTags);
 
         TChunkServiceProxy proxy(MasterChannel_);
@@ -471,7 +470,7 @@ private:
         IChunkReaderPtr reader,
         IChunkWriterPtr writer,
         const std::vector<i64>& blockSizes,
-        const TChunkMeta& meta)
+        const TRefCountedChunkMetaPtr& meta)
     {
         auto acquireSemaphoreGuard = [&] () {
             while (true) {
@@ -548,7 +547,7 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TChunkMeta GetChunkMeta(IChunkReaderPtr reader)
+    TRefCountedChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)
     {
         auto asyncResult = reader->GetMeta(BlockReadOptions_);
         auto result = WaitFor(asyncResult);

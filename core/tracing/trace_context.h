@@ -19,6 +19,7 @@ public:
         TSpanId parentSpanId);
 
     bool IsEnabled() const;
+    bool IsVerbose() const;
 
     TTraceContext CreateChild() const;
 
@@ -27,10 +28,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TSpanId, ParentSpanId);
 };
 
+void FormatValue(TStringBuilder* builder, const TTraceContext& context, TStringBuf /*spec*/);
 TString ToString(const TTraceContext& context);
 
 TTraceContext CreateChildTraceContext();
-TTraceContext CreateRootTraceContext();
+TTraceContext CreateRootTraceContext(bool verbose = true);
 
 extern const TTraceContext NullTraceContext;
 
@@ -70,7 +72,7 @@ private:
 };
 
 const TTraceContext& GetCurrentTraceContext();
-bool IsTracingEnabled();
+bool IsVerboseTracing();
 
 void PushContext(const TTraceContext& context);
 void PopContext();
@@ -168,7 +170,7 @@ void TraceEvent(
 
 #define TRACE_ANNOTATION(head, ...) \
     do { \
-        if (::NYT::NTracing::IsTracingEnabled(head)) { \
+        if (::NYT::NTracing::IsVerboseTracing(head)) { \
             ::NYT::NTracing::TraceEvent(head, __VA_ARGS__); \
         } \
     } while (false)

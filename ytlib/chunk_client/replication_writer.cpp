@@ -258,7 +258,7 @@ public:
         return promise.ToFuture();
     }
 
-    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override
+    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
     {
         YCHECK(State_.load() == EReplicationWriterState::Open);
 
@@ -346,8 +346,8 @@ private:
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
-    bool IsCloseRequested_ = false;
-    TChunkMeta ChunkMeta_;
+    bool CloseRequested_ = false;
+    TRefCountedChunkMetaPtr ChunkMeta_;
 
     std::deque<TGroupPtr> Window_;
     std::vector<TNodePtr> Nodes_;
@@ -401,7 +401,7 @@ private:
     void DoClose()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(!IsCloseRequested_);
+        YCHECK(!CloseRequested_);
 
         LOG_DEBUG("Writer close requested");
 
@@ -413,7 +413,7 @@ private:
             FlushCurrentGroup();
         }
 
-        IsCloseRequested_ = true;
+        CloseRequested_ = true;
 
         if (Window_.empty()) {
             CloseSessions();
@@ -491,7 +491,7 @@ private:
     void FlushCurrentGroup()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(!IsCloseRequested_);
+        YCHECK(!CloseRequested_);
 
         if (StateError_.IsSet()) {
             return;
@@ -620,7 +620,7 @@ private:
             Window_.pop_front();
         }
 
-        if (!StateError_.IsSet() && IsCloseRequested_) {
+        if (!StateError_.IsSet() && CloseRequested_) {
             CloseSessions();
         }
     }
@@ -654,7 +654,7 @@ private:
                 HasSickReplicas_ = true;
             }
 
-            if (IsCloseRequested_ && blockIndex + 1 == BlockCount_) {
+            if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
                 // We flushed the last block in chunk.
 
                 BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
@@ -718,7 +718,7 @@ private:
     void CloseSessions()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(IsCloseRequested_);
+        YCHECK(CloseRequested_);
 
         LOG_INFO("Closing writer");
 
@@ -745,7 +745,7 @@ private:
         auto req = proxy.FinishChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
-        *req->mutable_chunk_meta() = ChunkMeta_;
+        *req->mutable_chunk_meta() = *ChunkMeta_;
         req->set_block_count(BlockCount_);
 
         auto rspOrError = WaitFor(req->Invoke());
@@ -819,7 +819,7 @@ private:
     void AddBlocks(const std::vector<TBlock>& blocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        YCHECK(!IsCloseRequested_);
+        YCHECK(!CloseRequested_);
 
         if (StateError_.IsSet()) {
             return;

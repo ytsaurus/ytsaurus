@@ -44,12 +44,15 @@ public:
 
     virtual void SyncRemove(bool force) override;
 
+    NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt();
+    NChunkClient::TRefCountedBlocksExtPtr GetCachedBlocksExt();
+
 protected:
     TBlobChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        const NChunkClient::NProto::TChunkMeta* meta);
+        NChunkClient::TRefCountedChunkMetaPtr meta);
 
     virtual TFuture<void> AsyncRemove() override;
 
@@ -76,26 +79,28 @@ private:
     NChunkClient::NProto::TChunkInfo Info_;
 
     NConcurrency::TReaderWriterSpinLock CachedBlocksExtLock_;
-    NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
-    bool HasCachedBlocksExt_ = false;
+    NChunkClient::TRefCountedBlocksExtPtr CachedBlocksExt_;
+    TPromise<void> CachedBlocksExtPromise_;
+    std::atomic<bool> HasCachedBlocksExt_ = {false};
 
     //! Returns true if location must be disabled.
     bool IsFatalError(const TError& error) const;
 
 
-    TFuture<void> LoadBlocksExt(const TBlockReadOptions& options);
-    const NChunkClient::NProto::TBlocksExt& GetBlocksExt();
-    void InitBlocksExt(const NChunkClient::NProto::TChunkMeta& meta);
+    TFuture<void> ReadBlocksExt(const TBlockReadOptions& options);
+    void SetBlocksExt(const NChunkClient::TRefCountedChunkMetaPtr& meta);
 
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie,
         const TBlockReadOptions& options);
-    TFuture<void> OnBlocksExtLoaded(TReadBlockSetSessionPtr session);
+    TFuture<void> OnBlocksExtLoaded(const TReadBlockSetSessionPtr& session);
     void DoReadBlockSet(
-        TReadBlockSetSessionPtr session,
+        const TReadBlockSetSessionPtr& session,
         TPendingIOGuard pendingIOGuard);
 };
+
+DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +113,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        const NChunkClient::NProto::TChunkMeta* meta = nullptr);
+        NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
 
 };
 
@@ -126,7 +131,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        const NChunkClient::NProto::TChunkMeta* meta,
+        NChunkClient::TRefCountedChunkMetaPtr meta,
         const TArtifactKey& key,
         TClosure destroyed);
 

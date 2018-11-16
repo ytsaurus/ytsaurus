@@ -14,9 +14,9 @@ class TMemoryReader
 {
 public:
     TMemoryReader(
-        const TChunkMeta& meta,
+        TRefCountedChunkMetaPtr meta,
         std::vector<TBlock> blocks)
-        : Meta_(meta)
+        : Meta_(std::move(meta))
         , Blocks_(std::move(blocks))
     { }
 
@@ -59,13 +59,13 @@ public:
         return MakeFuture(std::move(blocks));
     }
 
-    virtual TFuture<TChunkMeta> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& /*options*/,
-        const TNullable<int>& partitionTag,
+        TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
         YCHECK(!partitionTag);
-        return MakeFuture(FilterChunkMetaByExtensionTags(Meta_, extensionTags));
+        return MakeFuture(New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags)));
     }
 
     virtual TChunkId GetChunkId() const override
@@ -79,16 +79,18 @@ public:
     }
 
 private:
-    const TChunkMeta Meta_;
+    const TRefCountedChunkMetaPtr Meta_;
     const std::vector<TBlock> Blocks_;
 
 };
 
 IChunkReaderPtr CreateMemoryReader(
-    const TChunkMeta& meta,
+    TRefCountedChunkMetaPtr meta,
     std::vector<TBlock> blocks)
 {
-    return New<TMemoryReader>(meta, std::move(blocks));
+    return New<TMemoryReader>(
+        std::move(meta),
+        std::move(blocks));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

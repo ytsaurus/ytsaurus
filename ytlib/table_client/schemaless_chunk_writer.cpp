@@ -1597,6 +1597,8 @@ private:
             "Error finishing upload to table %v",
             path);
 
+        UploadTransaction_->Detach();
+
         LOG_INFO("Table closed");
     }
 };

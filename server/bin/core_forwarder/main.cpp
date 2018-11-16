@@ -1,5 +1,6 @@
 #include <yt/server/core_dump/core_processor_service_proxy.h>
 #include <yt/server/core_dump/core_processor_service.pb.h>
+#include <yt/server/core_dump/core_dump.h>
 
 #include <yt/ytlib/program/program.h>
 
@@ -112,8 +113,8 @@ protected:
         // it to first RLIMIT_CORE bytes.
         syslog(LOG_INFO, "Writing core to fallback path (FallbackPath: %s)", FallbackPath_.c_str());
         TFile coreFile(FallbackPath_, CreateNew | WrOnly | Seq | CloseOnExec);
-        TUnbufferedFileOutput coreFileOutput(coreFile);
-        i64 size = Cin.ReadAll(coreFileOutput);
+
+        auto size = WriteSparseCoreDump(&Cin, &coreFile);
         syslog(LOG_INFO, "Finished writing core to disk (Size: %" PRId64 ")", size);
     }
 

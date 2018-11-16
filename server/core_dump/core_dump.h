@@ -1,19 +1,16 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/core/misc/ref.h>
+#include <util/stream/input.h>
+#include <util/system/file.h>
 
 namespace NYT {
-namespace NChunkClient {
+namespace NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderPtr CreateMemoryReader(
-    TRefCountedChunkMetaPtr meta,
-    std::vector<TBlock> blocks);
+i64 WriteSparseCoreDump(IInputStream* in, TFile* out);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
+} // namespace NCoreDump
 } // namespace NYT

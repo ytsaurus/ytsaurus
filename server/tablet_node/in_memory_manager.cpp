@@ -13,13 +13,13 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -74,10 +74,10 @@ namespace {
 void FinalizeChunkData(
     const TInMemoryChunkDataPtr& data,
     const TChunkId& id,
-    const TChunkMeta& meta,
+    const TRefCountedChunkMetaPtr& meta,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema);
+    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, *meta, tabletSnapshot->PhysicalSchema);
 
     if (data->MemoryTrackerGuard) {
         data->MemoryTrackerGuard.UpdateSize(data->ChunkMeta->GetMemoryUsage());
@@ -142,14 +142,14 @@ public:
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
     }
 
-    IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode)
+    virtual IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return New<TInterceptingBlockCache>(this, mode);
     }
 
-    TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId)
+    virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -170,10 +170,10 @@ public:
         return chunkData;
     }
 
-    void FinalizeChunk(
+    virtual void FinalizeChunk(
         TChunkId chunkId,
-        const TChunkMeta& chunkMeta,
-        const TTabletSnapshotPtr& tabletSnapshot)
+        const TRefCountedChunkMetaPtr& chunkMeta,
+        const TTabletSnapshotPtr& tabletSnapshot) override
     {
         TInMemoryChunkDataPtr data;
 
@@ -524,9 +524,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 
-    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
-    auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
-    auto format = ETableChunkFormat(meta.version());
+    auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
+    auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
+    auto format = ETableChunkFormat(meta->version());
 
     if (format == ETableChunkFormat::SchemalessHorizontal ||
         format == ETableChunkFormat::UnversionedColumnar)

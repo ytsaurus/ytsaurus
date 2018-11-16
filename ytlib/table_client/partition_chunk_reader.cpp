@@ -72,10 +72,10 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         extensionTags))
         .ValueOrThrow();
 
-    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+    YCHECK(ChunkMeta_->version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     TNameTablePtr chunkNameTable;
-    auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_.extensions());
+    auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_->extensions());
     try {
         FromProto(&chunkNameTable, nameTableExt);
     } catch (const std::exception& ex) {
@@ -88,11 +88,11 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     InitNameTable(chunkNameTable);
 
-    auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_->extensions());
     auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
     YCHECK(chunkKeyColumns == KeyColumns_);
 
-    BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_.extensions());
+    BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_->extensions());
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (auto& blockMeta : BlockMetaExt_.blocks()) {
         TBlockFetcher::TBlockInfo blockInfo;
@@ -102,7 +102,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         blocks.push_back(blockInfo);
     }
 
-    return DoOpen(blocks, GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
+    return DoOpen(blocks, GetProtoExtension<TMiscExt>(ChunkMeta_->extensions()));
 }
 
 void TPartitionChunkReader::InitFirstBlock()

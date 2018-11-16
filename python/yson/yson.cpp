@@ -217,6 +217,8 @@ public:
         RegisterShutdown();
         InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
+        InitTLazyYsonMapType();
+
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
         TLazyYsonIterator::InitType();

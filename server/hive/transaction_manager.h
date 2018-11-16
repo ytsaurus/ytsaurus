@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/transaction_supervisor_service.pb.h>
+#include <yt/ytlib/hive/proto/transaction_supervisor_service.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
