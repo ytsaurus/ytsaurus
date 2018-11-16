@@ -25,6 +25,29 @@ TEST(TTestParseQuery, Sample)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TTestUserAgentDetection, Wrapper)
+{
+    auto version = DetectPythonWrapper("");
+    EXPECT_FALSE(version);
+
+    version = DetectPythonWrapper("1.2.3");
+    EXPECT_FALSE(version);
+
+    version = DetectPythonWrapper("Python wrapper 1.8.43");
+    EXPECT_TRUE(version);
+    EXPECT_EQ(version->Major, 1);
+    EXPECT_EQ(version->Minor, 8);
+    EXPECT_EQ(version->Patch, 43);
+
+    version = DetectPythonWrapper("Python wrapper 1.8.43a");
+    EXPECT_TRUE(version);
+    EXPECT_EQ(version->Major, 1);
+    EXPECT_EQ(version->Minor, 8);
+    EXPECT_EQ(version->Patch, 43);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TTestCsrfToken, Sample)
 {
     auto now = TInstant::Now();
