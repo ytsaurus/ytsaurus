@@ -44,6 +44,9 @@ using namespace NYTree;
 
 const auto& Logger = DataNodeLogger;
 
+static const TString StorageSuffix = "storage";
+static const TString MountSuffix = "mount";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager);
@@ -579,9 +582,6 @@ private:
         auto id = TVolumeId::Create();
         auto volumePath = GetVolumePath(id);
 
-        static const TString StorageSuffix = "storage";
-        static const TString MountSuffix = "mount";
-
         auto storagePath = NFS::CombinePaths(volumePath, StorageSuffix);
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
@@ -665,12 +665,13 @@ private:
         }
 
         auto volumePath = GetVolumePath(volumeId);
+        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         try {
             LOG_DEBUG("Removing volume (VolumeId: %v)", volumeId);
 
-            WaitFor(Executor_->UnlinkVolume(volumePath, "self"))
+            WaitFor(Executor_->UnlinkVolume(mountPath, "self"))
                 .ThrowOnError();
 
             LOG_DEBUG("Volume unlinked (VolumeId: %v)", volumeId);
@@ -918,7 +919,7 @@ public:
     ~TVolumeState()
     {
         LOG_INFO("Destroying volume (VolumeId: %v)",
-                 VolumeMeta_.Id);
+            VolumeMeta_.Id);
 
         Location_->RemoveVolume(VolumeMeta_.Id);
     }
