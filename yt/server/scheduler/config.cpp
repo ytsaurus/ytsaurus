@@ -121,6 +121,10 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("tentative_tree_saturation_deactivation_period", TentativeTreeSaturationDeactivationPeriod)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("infer_weight_from_min_share_ratio_multiplier", InferWeightFromMinShareRatioMultiplier)
+        .Default()
+        .GreaterThanOrEqual(1.0);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
