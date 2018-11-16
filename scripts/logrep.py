@@ -37,8 +37,8 @@ SERVER FORMATS
 
   /<cluster>/<service>/<pattern>
     select machine group that is responsible for <service> and choose the machine that matches <pattern>
-    if multiple machine matches pattern logrep reports error(example: `m01-man.hume.yt.yandex.net` and  `m02-man.hume.yt.yandex.net` both
-    match /home/master/0`)
+    if multiple machine matches pattern logrep reports error
+    (example: `m01-man.hume.yt.yandex.net` and  `m02-man.hume.yt.yandex.net` both match /home/master/0`)
     supported services:
       - primary_master
       - master : same as `primary_master'
