@@ -4,6 +4,7 @@
 #include <yt/core/misc/assert.h>
 
 #include <array>
+#include <vector>
 
 namespace NYT {
 namespace NCoreDump {
