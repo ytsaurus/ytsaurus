@@ -6,7 +6,7 @@
 #include "transaction_participant_provider.h"
 #include "private.h"
 
-#include <yt/server/hive/transaction_supervisor.pb.h>
+#include <yt/server/hive/proto/transaction_supervisor.pb.h>
 
 #include <yt/server/hydra/composite_automaton.h>
 #include <yt/server/hydra/entity_map.h>

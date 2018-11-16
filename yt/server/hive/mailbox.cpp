@@ -2,7 +2,7 @@
 
 #include <yt/server/hydra/composite_automaton.h>
 
-#include <yt/ytlib/hive/hive_service.pb.h>
+#include <yt/ytlib/hive/proto/hive_service.pb.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/serialize.h>
