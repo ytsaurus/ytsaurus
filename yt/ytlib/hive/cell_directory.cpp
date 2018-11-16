@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hive/cell_directory.pb.h>
+#include <yt/ytlib/hive/proto/cell_directory.pb.h>
 
 #include <yt/ytlib/hydra/config.h>
 #include <yt/ytlib/hydra/peer_channel.h>

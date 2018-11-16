@@ -28,8 +28,8 @@
 #include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/transaction_supervisor.pb.h>
 #include <yt/server/hive/helpers.h>
+#include <yt/server/hive/proto/transaction_supervisor.pb.h>
 
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/mutation.h>

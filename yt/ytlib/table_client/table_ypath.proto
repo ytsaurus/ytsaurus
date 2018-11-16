@@ -2,7 +2,7 @@ package NYT.NTableClient.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
-import "yt/ytlib/hive/cell_directory.proto";
+import "yt/ytlib/hive/proto/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
